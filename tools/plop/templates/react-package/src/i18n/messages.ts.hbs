@@ -1,0 +1,30 @@
+import type { PackageMessages } from '@tale/ui/i18n/init-service';
+
+import deMessages from '../messages/de.json';
+import enMessages from '../messages/en.json';
+import frMessages from '../messages/fr.json';
+import globalMessages from '../messages/global.json';
+
+/**
+ * Translation bundles owned by `@tale/{{kebabCase name}}`. The host
+ * service merges these into its i18n instance via
+ * `initServiceI18n({ packages: [{{camelCase name}}Messages] })`, so the
+ * components shipped here resolve `useT(...)` calls without each
+ * consuming app duplicating the keys in its own `messages/*.json`.
+ *
+ * Locale-neutral keys (entries that read the same in every language)
+ * live in `global.json` and fold into every base locale — same
+ * convention services follow for their own `messages/global.json`.
+ *
+ * Each top-level key inside a locale bundle is a namespace. Pick names
+ * distinct enough that a service is unlikely to want them for its own
+ * keys (e.g. scope by component family).
+ */
+export const {{camelCase name}}Messages: PackageMessages = {
+  bundles: {
+    en: enMessages,
+    de: deMessages,
+    fr: frMessages,
+  },
+  global: globalMessages,
+};

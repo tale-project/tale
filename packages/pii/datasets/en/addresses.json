@@ -1,0 +1,114 @@
+[
+  {
+    "number": "350",
+    "street": "Fifth Avenue",
+    "city": "New York",
+    "postcode": "10118",
+    "countryCode": "US"
+  },
+  {
+    "number": "1600",
+    "street": "Pennsylvania Avenue NW",
+    "city": "Washington",
+    "postcode": "20500",
+    "countryCode": "US"
+  },
+  {
+    "number": "20",
+    "street": "West 34th Street",
+    "city": "New York",
+    "postcode": "10001",
+    "countryCode": "US"
+  },
+  {
+    "number": "405",
+    "street": "Lexington Avenue",
+    "city": "New York",
+    "postcode": "10174",
+    "countryCode": "US"
+  },
+  {
+    "number": "1",
+    "street": "Apple Park Way",
+    "city": "Cupertino",
+    "postcode": "95014",
+    "countryCode": "US"
+  },
+  {
+    "number": "1601",
+    "street": "Willow Road",
+    "city": "Menlo Park",
+    "postcode": "94025",
+    "countryCode": "US"
+  },
+  {
+    "number": "1600",
+    "street": "Amphitheatre Parkway",
+    "city": "Mountain View",
+    "postcode": "94043",
+    "countryCode": "US"
+  },
+  {
+    "number": "410",
+    "street": "Terry Avenue North",
+    "city": "Seattle",
+    "postcode": "98109",
+    "countryCode": "US"
+  },
+  {
+    "number": "500",
+    "street": "Boylston Street",
+    "city": "Boston",
+    "postcode": "02116",
+    "countryCode": "US"
+  },
+  {
+    "number": "200",
+    "street": "West Madison Street",
+    "city": "Chicago",
+    "postcode": "60606",
+    "countryCode": "US"
+  },
+  {
+    "number": "10",
+    "street": "Downing Street",
+    "city": "London",
+    "postcode": "SW1A 2AA",
+    "countryCode": "GB"
+  },
+  {
+    "number": "221B",
+    "street": "Baker Street",
+    "city": "London",
+    "postcode": "NW1 6XE",
+    "countryCode": "GB"
+  },
+  {
+    "number": "30",
+    "street": "St Mary Axe",
+    "city": "London",
+    "postcode": "EC3A 8BF",
+    "countryCode": "GB"
+  },
+  {
+    "number": "1",
+    "street": "Buckingham Palace Road",
+    "city": "London",
+    "postcode": "SW1W 0QH",
+    "countryCode": "GB"
+  },
+  {
+    "number": "55",
+    "street": "Broadway",
+    "city": "London",
+    "postcode": "SW1H 0BD",
+    "countryCode": "GB"
+  },
+  {
+    "number": "100",
+    "street": "Queen Street",
+    "city": "Toronto",
+    "postcode": "M5C 1S6",
+    "countryCode": "CA"
+  }
+]

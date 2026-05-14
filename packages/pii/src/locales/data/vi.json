@@ -1,0 +1,30 @@
+{
+  "locale": "vi",
+  "name": "Vietnamese",
+  "scripts": ["latn"],
+  "countries": ["VN"],
+  "phoneContextKeywords": ["điện thoại", "số", "tel.", "tel", "đt"],
+  "cvcContextKeywords": ["mã bảo mật", "cvc", "cvv", "cv2"],
+  "address": {
+    "forms": ["inverted", "standard", "po-box"],
+    "postcodeForm": "continental",
+    "postcodeRegex": "\\d{5,6}",
+    "streetKeywordsInverted": ["Đường", "Phố", "Quận", "Phường"],
+    "streetKeywordsStandard": ["Đường", "Phố"],
+    "houseNumberMarkers": ["Số", "No."],
+    "poBoxKeywords": ["Hộp thư", "Hộp thư bưu điện"],
+    "floorKeywords": ["Tầng", "Lầu", "Phòng"],
+    "countryNames": ["Việt Nam", "Vietnam", "VN"],
+    "countryPostcodePrefixes": [],
+    "requireUppercase": true
+  },
+  "nationalIds": [],
+  "fixtureSeeds": {
+    "wrappers": [
+      "Vui lòng gửi bưu kiện đến {}.",
+      "Địa chỉ bưu điện: {}",
+      "Khách hàng sống tại {}.",
+      "Điểm nhận hàng — {} — đã xác nhận."
+    ]
+  }
+}

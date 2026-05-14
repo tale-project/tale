@@ -1,31 +1,40 @@
 'use client';
 
-import { Badge } from '@tale/ui/badge';
+import { BUILT_IN_PATTERN_NAMES } from '@tale/pii';
 import { Button } from '@tale/ui/button';
+import { PiiPlayground } from '@tale/ui/pii-playground';
 import { Skeleton } from '@tale/ui/skeleton';
-import { ShieldCheck } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
 
-import { Alert } from '@/app/components/ui/feedback/alert';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
-import { Textarea } from '@/app/components/ui/forms/textarea';
 import { PageSection } from '@/app/components/ui/layout/page-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
-import { detectPii } from '@/convex/governance/pii/pii_detector';
-import {
-  BUILT_IN_PII_PATTERNS,
-  getEnabledPatterns,
-} from '@/convex/governance/pii/pii_patterns';
 import { useT } from '@/lib/i18n/client';
 
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
 
-const PATTERN_NAMES = BUILT_IN_PII_PATTERNS.map((p) => p.name);
+const PATTERN_NAMES: readonly string[] = BUILT_IN_PATTERN_NAMES;
+
+// Default replacement tokens for the built-in patterns. Mirrors the
+// `@tale/pii` defaults — pinned here so the admin UI can show each
+// pattern's mask token without instantiating the factory.
+const DEFAULT_REPLACEMENTS: Record<string, string> = {
+  email: '[EMAIL]',
+  phone: '[PHONE]',
+  creditCard: '[CREDIT_CARD]',
+  cvc: '[CVC]',
+  iban: '[IBAN]',
+  ipAddress: '[IP_ADDRESS]',
+  ssn: '[SSN]',
+  dateOfBirth: '[DATE_OF_BIRTH]',
+  address: '[ADDRESS]',
+  nationalId: '[NATIONAL_ID]',
+};
 
 interface CustomPattern {
   name: string;
@@ -50,7 +59,7 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
   const upsertMutation = useUpsertGovernancePolicy();
 
   const [enabled, setEnabled] = useState(false);
-  const [mode, setMode] = useState<'mask' | 'block'>('mask');
+  const [mode, setMode] = useState<'mask' | 'block' | 'tokenize'>('tokenize');
   const [enabledPatterns, setEnabledPatterns] = useState(
     new Set(PATTERN_NAMES),
   );
@@ -58,10 +67,6 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
   const [editingPattern, setEditingPattern] = useState<CustomPattern | null>(
     null,
   );
-  const [testText, setTestText] = useState('');
-  const [testResults, setTestResults] = useState<ReturnType<
-    typeof detectPii
-  > | null>(null);
 
   const cannotManage = ability.cannot('write', 'orgSettings');
   const initializedRef = useRef(false);
@@ -71,7 +76,7 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
     initializedRef.current = true;
     if (policy) {
       setEnabled(policy.enabled ?? false);
-      setMode(policy.config?.mode ?? 'mask');
+      setMode(policy.config?.mode ?? 'tokenize');
       setEnabledPatterns(
         new Set<string>(policy.config?.enabledPatterns ?? PATTERN_NAMES),
       );
@@ -82,7 +87,7 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
   const saveConfig = useCallback(
     async (overrides: {
       enabled?: boolean;
-      mode?: 'mask' | 'block';
+      mode?: 'mask' | 'block' | 'tokenize';
       enabledPatterns?: string[];
       customPatterns?: CustomPattern[];
     }) => {
@@ -137,7 +142,7 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
 
   const handleModeChange = useCallback(
     (v: string) => {
-      if (v === 'mask' || v === 'block') {
+      if (v === 'mask' || v === 'block' || v === 'tokenize') {
         setMode(v);
         void saveConfig({ mode: v });
       }
@@ -200,43 +205,6 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
     [customPatterns, saveConfig],
   );
 
-  const handleTest = useCallback(() => {
-    if (!testText.trim()) {
-      setTestResults(null);
-      return;
-    }
-
-    const builtIn = getEnabledPatterns([...enabledPatterns]);
-    const custom: ReturnType<typeof getEnabledPatterns> = [];
-    for (const p of customPatterns) {
-      if (!p.name || !p.regex || !p.replacement) continue;
-      // Mid-edit regex strings can be syntactically invalid (mid-token); skip
-      // them silently rather than crashing the preview panel.
-      try {
-        custom.push({
-          name: p.name,
-          regex: new RegExp(p.regex, 'g'),
-          replacement: p.replacement,
-        });
-      } catch (err) {
-        // The save-time schema (`piiCustomPatternSchema`) is the canonical
-        // gate for invalid syntax. Preview can race that gate while the user
-        // types a half-finished pattern, so log + skip rather than crash.
-        console.warn(
-          `[pii-config] customPattern "${p.name}" failed to compile: ${
-            err instanceof Error ? err.name : 'unknown'
-          }`,
-        );
-      }
-    }
-
-    const allPatterns = [...builtIn, ...custom];
-    // Mirror server-side `scrubPii` NFC normalize (pii/index.ts:49) so admin
-    // preview matches production for NFD-encoded paste (macOS clipboard /
-    // some IMEs).
-    setTestResults(detectPii(testText.normalize('NFC'), allPatterns));
-  }, [testText, enabledPatterns, customPatterns]);
-
   const skeleton = (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between gap-4">
@@ -280,6 +248,7 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
   }
 
   const modeOptions = [
+    { value: 'tokenize', label: t('pii.modeTokenize') },
     { value: 'mask', label: t('pii.modeMask') },
     { value: 'block', label: t('pii.modeBlock') },
   ];
@@ -314,14 +283,14 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
             description={t('pii.patternsDescription')}
           >
             <div className="flex flex-col gap-2">
-              {BUILT_IN_PII_PATTERNS.map((pattern) => (
+              {BUILT_IN_PATTERN_NAMES.map((name) => (
                 <Switch
-                  key={pattern.name}
-                  label={t(`pii.patterns.${pattern.name}`)}
-                  description={pattern.replacement}
-                  checked={enabledPatterns.has(pattern.name)}
+                  key={name}
+                  label={t(`pii.patterns.${name}`)}
+                  description={DEFAULT_REPLACEMENTS[name] ?? ''}
+                  checked={enabledPatterns.has(name)}
                   onCheckedChange={(checked) =>
-                    handlePatternToggle(pattern.name, checked)
+                    handlePatternToggle(name, checked)
                   }
                   disabled={cannotManage}
                 />
@@ -426,46 +395,20 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
             label={t('pii.testAreaTitle')}
             description={t('pii.testAreaDescription')}
           >
-            <Textarea
-              label={t('pii.testInput')}
-              value={testText}
-              onChange={(e) => {
-                setTestText(e.target.value);
-                setTestResults(null);
-              }}
-              placeholder={t('pii.testInputPlaceholder')}
-              rows={4}
+            {/*
+              The playground replaces the old single-shot "test detection"
+              tool. It walks an admin through the full life of a message —
+              detection, tokenization, AI round-trip, restoration — so the
+              effect of the in-progress config is visible end to end before
+              they save. The same component is reused in Storybook. The
+              `piiPlayground` / `piiTypes` namespaces it consumes ship from
+              `@tale/ui` directly, so we just mount it here.
+            */}
+            <PiiPlayground
+              mode={mode}
+              onModeChange={handleModeChange}
+              detectionLocales="*"
             />
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={handleTest}
-              disabled={!testText.trim()}
-            >
-              {t('pii.testButton')}
-            </Button>
-            {testResults && testResults.length > 0 && (
-              <Alert
-                icon={ShieldCheck}
-                variant="warning"
-                title={t('pii.testResultsTitle')}
-              >
-                <div className="mt-2 flex flex-col gap-1">
-                  {testResults.map((match, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <Badge variant="orange">{match.patternName}</Badge>
-                      <span className="text-sm">
-                        &quot;{match.matchedText}&quot;
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </Alert>
-            )}
-            {testResults && testResults.length === 0 && (
-              <Alert icon={ShieldCheck} title={t('pii.testNoResults')} />
-            )}
           </FormSection>
         </div>
       )}

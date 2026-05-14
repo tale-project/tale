@@ -1,0 +1,3315 @@
+{
+  "_meta": {
+    "locale": "lv",
+    "generator": "@tale/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 300,
+      "negatives": 0
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "positives": [
+    {
+      "id": "email-lv-00000",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00001",
+      "input": "Pasta adrese: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00002",
+      "input": "Klients dzīvo marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00003",
+      "input": "Saņemšanas vieta — anna.mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00004",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00005",
+      "input": "Pasta adrese: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00006",
+      "input": "Klients dzīvo mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00007",
+      "input": "Saņemšanas vieta — anna_mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00008",
+      "input": "Lūdzu, sūtiet sūtījumu uz alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00009",
+      "input": "Pasta adrese: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00010",
+      "input": "Klients dzīvo mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00011",
+      "input": "Saņemšanas vieta — annamueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00012",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00013",
+      "input": "Pasta adrese: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00014",
+      "input": "Klients dzīvo marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00015",
+      "input": "Saņemšanas vieta — anna.mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00016",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00017",
+      "input": "Pasta adrese: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00018",
+      "input": "Klients dzīvo mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00019",
+      "input": "Saņemšanas vieta — anna_mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00020",
+      "input": "Lūdzu, sūtiet sūtījumu uz alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00021",
+      "input": "Pasta adrese: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00022",
+      "input": "Klients dzīvo mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00023",
+      "input": "Saņemšanas vieta — annamueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00024",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00025",
+      "input": "Pasta adrese: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00026",
+      "input": "Klients dzīvo marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00027",
+      "input": "Saņemšanas vieta — anna.mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00028",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00029",
+      "input": "Pasta adrese: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00030",
+      "input": "Klients dzīvo mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00031",
+      "input": "Saņemšanas vieta — anna_mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00032",
+      "input": "Lūdzu, sūtiet sūtījumu uz alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00033",
+      "input": "Pasta adrese: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00034",
+      "input": "Klients dzīvo mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00035",
+      "input": "Saņemšanas vieta — annamueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00036",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00037",
+      "input": "Pasta adrese: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00038",
+      "input": "Klients dzīvo marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00039",
+      "input": "Saņemšanas vieta — anna.mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00040",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00041",
+      "input": "Pasta adrese: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00042",
+      "input": "Klients dzīvo mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00043",
+      "input": "Saņemšanas vieta — anna_mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00044",
+      "input": "Lūdzu, sūtiet sūtījumu uz alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00045",
+      "input": "Pasta adrese: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00046",
+      "input": "Klients dzīvo mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00047",
+      "input": "Saņemšanas vieta — annamueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00048",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00049",
+      "input": "Pasta adrese: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00050",
+      "input": "Klients dzīvo marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00051",
+      "input": "Saņemšanas vieta — anna.mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00052",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00053",
+      "input": "Pasta adrese: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00054",
+      "input": "Klients dzīvo mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00055",
+      "input": "Saņemšanas vieta — anna_mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00056",
+      "input": "Lūdzu, sūtiet sūtījumu uz alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00057",
+      "input": "Pasta adrese: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00058",
+      "input": "Klients dzīvo mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00059",
+      "input": "Saņemšanas vieta — annamueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00060",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00061",
+      "input": "Pasta adrese: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00062",
+      "input": "Klients dzīvo marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00063",
+      "input": "Saņemšanas vieta — anna.mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00064",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00065",
+      "input": "Pasta adrese: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00066",
+      "input": "Klients dzīvo mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00067",
+      "input": "Saņemšanas vieta — anna_mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00068",
+      "input": "Lūdzu, sūtiet sūtījumu uz alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00069",
+      "input": "Pasta adrese: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00070",
+      "input": "Klients dzīvo mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00071",
+      "input": "Saņemšanas vieta — annamueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00072",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00073",
+      "input": "Pasta adrese: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00074",
+      "input": "Klients dzīvo marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00075",
+      "input": "Saņemšanas vieta — anna.mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00076",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00077",
+      "input": "Pasta adrese: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00078",
+      "input": "Klients dzīvo mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00079",
+      "input": "Saņemšanas vieta — anna_mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00080",
+      "input": "Lūdzu, sūtiet sūtījumu uz alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00081",
+      "input": "Pasta adrese: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00082",
+      "input": "Klients dzīvo mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00083",
+      "input": "Saņemšanas vieta — annamueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00084",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00085",
+      "input": "Pasta adrese: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00086",
+      "input": "Klients dzīvo marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00087",
+      "input": "Saņemšanas vieta — anna.mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00088",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00089",
+      "input": "Pasta adrese: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00090",
+      "input": "Klients dzīvo mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00091",
+      "input": "Saņemšanas vieta — anna_mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00092",
+      "input": "Lūdzu, sūtiet sūtījumu uz alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00093",
+      "input": "Pasta adrese: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00094",
+      "input": "Klients dzīvo mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00095",
+      "input": "Saņemšanas vieta — annamueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00096",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00097",
+      "input": "Pasta adrese: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00098",
+      "input": "Klients dzīvo marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00099",
+      "input": "Saņemšanas vieta — anna.mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00100",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00101",
+      "input": "Pasta adrese: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00102",
+      "input": "Klients dzīvo mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00103",
+      "input": "Saņemšanas vieta — anna_mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00104",
+      "input": "Lūdzu, sūtiet sūtījumu uz alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00105",
+      "input": "Pasta adrese: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00106",
+      "input": "Klients dzīvo mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00107",
+      "input": "Saņemšanas vieta — annamueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00108",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00109",
+      "input": "Pasta adrese: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00110",
+      "input": "Klients dzīvo marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00111",
+      "input": "Saņemšanas vieta — anna.mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00112",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00113",
+      "input": "Pasta adrese: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00114",
+      "input": "Klients dzīvo mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00115",
+      "input": "Saņemšanas vieta — anna_mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00116",
+      "input": "Lūdzu, sūtiet sūtījumu uz alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00117",
+      "input": "Pasta adrese: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00118",
+      "input": "Klients dzīvo mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00119",
+      "input": "Saņemšanas vieta — annamueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00120",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00121",
+      "input": "Pasta adrese: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00122",
+      "input": "Klients dzīvo marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00123",
+      "input": "Saņemšanas vieta — anna.mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00124",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00125",
+      "input": "Pasta adrese: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00126",
+      "input": "Klients dzīvo mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00127",
+      "input": "Saņemšanas vieta — anna_mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00128",
+      "input": "Lūdzu, sūtiet sūtījumu uz alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00129",
+      "input": "Pasta adrese: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00130",
+      "input": "Klients dzīvo mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00131",
+      "input": "Saņemšanas vieta — annamueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00132",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00133",
+      "input": "Pasta adrese: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00134",
+      "input": "Klients dzīvo marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00135",
+      "input": "Saņemšanas vieta — anna.mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00136",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00137",
+      "input": "Pasta adrese: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00138",
+      "input": "Klients dzīvo mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00139",
+      "input": "Saņemšanas vieta — anna_mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00140",
+      "input": "Lūdzu, sūtiet sūtījumu uz alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00141",
+      "input": "Pasta adrese: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00142",
+      "input": "Klients dzīvo mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00143",
+      "input": "Saņemšanas vieta — annamueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00144",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00145",
+      "input": "Pasta adrese: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00146",
+      "input": "Klients dzīvo marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00147",
+      "input": "Saņemšanas vieta — anna.mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00148",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00149",
+      "input": "Pasta adrese: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00150",
+      "input": "Klients dzīvo mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00151",
+      "input": "Saņemšanas vieta — anna_mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00152",
+      "input": "Lūdzu, sūtiet sūtījumu uz alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00153",
+      "input": "Pasta adrese: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00154",
+      "input": "Klients dzīvo mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00155",
+      "input": "Saņemšanas vieta — annamueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00156",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00157",
+      "input": "Pasta adrese: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00158",
+      "input": "Klients dzīvo marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00159",
+      "input": "Saņemšanas vieta — anna.mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00160",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00161",
+      "input": "Pasta adrese: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00162",
+      "input": "Klients dzīvo mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00163",
+      "input": "Saņemšanas vieta — anna_mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00164",
+      "input": "Lūdzu, sūtiet sūtījumu uz alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00165",
+      "input": "Pasta adrese: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00166",
+      "input": "Klients dzīvo mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00167",
+      "input": "Saņemšanas vieta — annamueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00168",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00169",
+      "input": "Pasta adrese: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00170",
+      "input": "Klients dzīvo marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00171",
+      "input": "Saņemšanas vieta — anna.mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00172",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00173",
+      "input": "Pasta adrese: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00174",
+      "input": "Klients dzīvo mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00175",
+      "input": "Saņemšanas vieta — anna_mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00176",
+      "input": "Lūdzu, sūtiet sūtījumu uz alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00177",
+      "input": "Pasta adrese: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00178",
+      "input": "Klients dzīvo mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00179",
+      "input": "Saņemšanas vieta — annamueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00180",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00181",
+      "input": "Pasta adrese: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00182",
+      "input": "Klients dzīvo marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00183",
+      "input": "Saņemšanas vieta — anna.mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00184",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00185",
+      "input": "Pasta adrese: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00186",
+      "input": "Klients dzīvo mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00187",
+      "input": "Saņemšanas vieta — anna_mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00188",
+      "input": "Lūdzu, sūtiet sūtījumu uz alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00189",
+      "input": "Pasta adrese: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00190",
+      "input": "Klients dzīvo mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00191",
+      "input": "Saņemšanas vieta — annamueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00192",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00193",
+      "input": "Pasta adrese: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00194",
+      "input": "Klients dzīvo marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00195",
+      "input": "Saņemšanas vieta — anna.mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00196",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00197",
+      "input": "Pasta adrese: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00198",
+      "input": "Klients dzīvo mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00199",
+      "input": "Saņemšanas vieta — anna_mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00200",
+      "input": "Lūdzu, sūtiet sūtījumu uz alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00201",
+      "input": "Pasta adrese: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00202",
+      "input": "Klients dzīvo mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00203",
+      "input": "Saņemšanas vieta — annamueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00204",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00205",
+      "input": "Pasta adrese: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00206",
+      "input": "Klients dzīvo marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00207",
+      "input": "Saņemšanas vieta — anna.mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00208",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00209",
+      "input": "Pasta adrese: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00210",
+      "input": "Klients dzīvo mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00211",
+      "input": "Saņemšanas vieta — anna_mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00212",
+      "input": "Lūdzu, sūtiet sūtījumu uz alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00213",
+      "input": "Pasta adrese: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00214",
+      "input": "Klients dzīvo mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00215",
+      "input": "Saņemšanas vieta — annamueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00216",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00217",
+      "input": "Pasta adrese: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00218",
+      "input": "Klients dzīvo marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00219",
+      "input": "Saņemšanas vieta — anna.mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00220",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00221",
+      "input": "Pasta adrese: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00222",
+      "input": "Klients dzīvo mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00223",
+      "input": "Saņemšanas vieta — anna_mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00224",
+      "input": "Lūdzu, sūtiet sūtījumu uz alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00225",
+      "input": "Pasta adrese: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00226",
+      "input": "Klients dzīvo mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00227",
+      "input": "Saņemšanas vieta — annamueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00228",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00229",
+      "input": "Pasta adrese: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00230",
+      "input": "Klients dzīvo marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00231",
+      "input": "Saņemšanas vieta — anna.mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00232",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00233",
+      "input": "Pasta adrese: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00234",
+      "input": "Klients dzīvo mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00235",
+      "input": "Saņemšanas vieta — anna_mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00236",
+      "input": "Lūdzu, sūtiet sūtījumu uz alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00237",
+      "input": "Pasta adrese: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00238",
+      "input": "Klients dzīvo mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00239",
+      "input": "Saņemšanas vieta — annamueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00240",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00241",
+      "input": "Pasta adrese: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00242",
+      "input": "Klients dzīvo marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00243",
+      "input": "Saņemšanas vieta — anna.mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00244",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00245",
+      "input": "Pasta adrese: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00246",
+      "input": "Klients dzīvo mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00247",
+      "input": "Saņemšanas vieta — anna_mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00248",
+      "input": "Lūdzu, sūtiet sūtījumu uz alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00249",
+      "input": "Pasta adrese: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00250",
+      "input": "Klients dzīvo mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00251",
+      "input": "Saņemšanas vieta — annamueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00252",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00253",
+      "input": "Pasta adrese: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00254",
+      "input": "Klients dzīvo marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00255",
+      "input": "Saņemšanas vieta — anna.mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00256",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00257",
+      "input": "Pasta adrese: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00258",
+      "input": "Klients dzīvo mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00259",
+      "input": "Saņemšanas vieta — anna_mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00260",
+      "input": "Lūdzu, sūtiet sūtījumu uz alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00261",
+      "input": "Pasta adrese: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00262",
+      "input": "Klients dzīvo mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00263",
+      "input": "Saņemšanas vieta — annamueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00264",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00265",
+      "input": "Pasta adrese: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00266",
+      "input": "Klients dzīvo marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00267",
+      "input": "Saņemšanas vieta — anna.mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00268",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00269",
+      "input": "Pasta adrese: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00270",
+      "input": "Klients dzīvo mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00271",
+      "input": "Saņemšanas vieta — anna_mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00272",
+      "input": "Lūdzu, sūtiet sūtījumu uz alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00273",
+      "input": "Pasta adrese: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00274",
+      "input": "Klients dzīvo mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00275",
+      "input": "Saņemšanas vieta — annamueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00276",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00277",
+      "input": "Pasta adrese: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00278",
+      "input": "Klients dzīvo marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00279",
+      "input": "Saņemšanas vieta — anna.mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00280",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00281",
+      "input": "Pasta adrese: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00282",
+      "input": "Klients dzīvo mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00283",
+      "input": "Saņemšanas vieta — anna_mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00284",
+      "input": "Lūdzu, sūtiet sūtījumu uz alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00285",
+      "input": "Pasta adrese: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00286",
+      "input": "Klients dzīvo mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00287",
+      "input": "Saņemšanas vieta — annamueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00288",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00289",
+      "input": "Pasta adrese: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00290",
+      "input": "Klients dzīvo marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00291",
+      "input": "Saņemšanas vieta — anna.mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00292",
+      "input": "Lūdzu, sūtiet sūtījumu uz alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00293",
+      "input": "Pasta adrese: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00294",
+      "input": "Klients dzīvo mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00295",
+      "input": "Saņemšanas vieta — anna_mueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00296",
+      "input": "Lūdzu, sūtiet sūtījumu uz alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00297",
+      "input": "Pasta adrese: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00298",
+      "input": "Klients dzīvo mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lv-00299",
+      "input": "Saņemšanas vieta — annamueller@corp.example — apstiprināta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    }
+  ]
+}

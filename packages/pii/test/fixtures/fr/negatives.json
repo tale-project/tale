@@ -1,0 +1,4069 @@
+{
+  "_meta": {
+    "locale": "fr",
+    "generator": "@tale/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {
+      "streets": "2026-01-01",
+      "cities": "2026-02-15",
+      "prose": "2026-01-01"
+    },
+    "counts": {
+      "positives": 0,
+      "negatives": 810
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "negatives": [
+    {
+      "id": "neg-prose-fr-00000",
+      "input": "Lorsqu'il a demandé qui avait cassé la fenêtre, tous les garçons ont pris un air innocent.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00001",
+      "input": "Je ne supporte pas ce type.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00002",
+      "input": "Pour une fois dans ma vie je fais un bon geste... Et ça ne sert à rien.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00003",
+      "input": "Ne tenez aucun compte de ce qu'il dit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00004",
+      "input": "Essayons quelque chose !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00005",
+      "input": "Qu'est-ce que tu fais ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00006",
+      "input": "Qu'est-ce que c'est ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00007",
+      "input": "Joyeux anniversaire Muiriel !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00008",
+      "input": "Le mot de passe est « Muiriel ».",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00009",
+      "input": "Je serai bientôt de retour.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00010",
+      "input": "Je ne sais pas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00011",
+      "input": "J'en perds mes mots.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00012",
+      "input": "Ça ne va jamais finir.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00013",
+      "input": "Je ne sais simplement pas quoi dire...",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00014",
+      "input": "C’était un méchant lapin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00015",
+      "input": "J'étais dans les montagnes.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00016",
+      "input": "Est-ce que c'est une photo récente ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00017",
+      "input": "Je ne sais pas si j'ai le temps.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00018",
+      "input": "Pour une certaine raison le microphone ne marchait pas tout à l'heure.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00019",
+      "input": "Tout le monde doit apprendre par soi-même en fin de compte.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00020",
+      "input": "L'éducation dans ce monde me déçoit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00021",
+      "input": "L'apprentissage ne devrait pas être forcé. L'apprentissage devrait être encouragé.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00022",
+      "input": "C'est une tâche difficile, choisir ce qui est « bon » ou « mauvais », mais il faut le faire.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00023",
+      "input": "Ça ne changera rien.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00024",
+      "input": "Il se peut que j'abandonne bientôt et fasse une sieste à la place.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00025",
+      "input": "C'est parce que tu ne veux pas être seul.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00026",
+      "input": "Ça n'arrivera pas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00027",
+      "input": "Parfois il peut être un gars bizarre.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00028",
+      "input": "Je ferai de mon mieux pour ne pas perturber tes révisions.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00029",
+      "input": "Je ne peux que me demander si c'est la même chose pour tous les autres.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00030",
+      "input": "Je suppose que c'est différent quand tu y penses à long terme.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00031",
+      "input": "Ne t'inquiète pas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00032",
+      "input": "Je les appellerai demain quand je reviendrai.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00033",
+      "input": "J'ai toujours plus apprécié les personnages mystérieux.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00034",
+      "input": "Tu devrais dormir.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00035",
+      "input": "Je leur ai dit de m'envoyer un autre ticket.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00036",
+      "input": "Tu es tellement impatiente avec moi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00037",
+      "input": "Je ne peux pas vivre comme ça.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00038",
+      "input": "Il fut un temps où je voulais être astrophysicien.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00039",
+      "input": "Je n'ai jamais aimé la biologie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00040",
+      "input": "La dernière personne à qui j'ai raconté mon idée a pensé que j'étais cinglé.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00041",
+      "input": "Si le monde n'était pas dans l'état où il est maintenant, je pourrais faire confiance à n'importe qui.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00042",
+      "input": "C'est malheureusement vrai.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00043",
+      "input": "Ils sont trop occupés à se battre entre eux pour s'occuper d'idéaux communs.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00044",
+      "input": "La plupart des gens pensent que je suis fou.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00045",
+      "input": "Non je ne le suis pas, c'est toi qui l'es !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00046",
+      "input": "C'est ma réplique !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00047",
+      "input": "Il me donne des coups de pied !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00048",
+      "input": "Est-ce que tu es sûr ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00049",
+      "input": "Alors il y a un problème...",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00050",
+      "input": "Oh, il y a un papillon !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00051",
+      "input": "Ça ne me surprend pas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00052",
+      "input": "Si je pouvais être comme ça...",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00053",
+      "input": "Pour une raison que j'ignore, je me sens plus vivant la nuit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00054",
+      "input": "Ça dépend du contexte.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00055",
+      "input": "Est-ce que tu te fous de moi ? !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00056",
+      "input": "C'est la chose la plus stupide que j'ai jamais dite.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00057",
+      "input": "Je ne veux pas être lamentable, je veux être cool ! !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00058",
+      "input": "Quand je serai grand, je veux être roi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00059",
+      "input": "L'Amérique est un endroit charmant pour vivre, si c'est pour gagner de l'argent.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00060",
+      "input": "Je suis si gros.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00061",
+      "input": "Je vais le descendre.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00062",
+      "input": "Je ne suis pas un vrai poisson, je ne suis qu'une simple peluche.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00063",
+      "input": "Je ne fais que parler !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00064",
+      "input": "C'était probablement ce qui a influencé leur décision.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00065",
+      "input": "Je me suis toujours demandé ce que ça ferait d'avoir des frères et sœurs.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00066",
+      "input": "C'est ce que j'aurais dit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00067",
+      "input": "Ça me prendrait l'éternité pour tout expliquer.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00068",
+      "input": "C'est parce que tu es une fille.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00069",
+      "input": "Parfois je ne peux pas m'empêcher de montrer des émotions.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00070",
+      "input": "C'est un mot pour lequel j'aimerais trouver un substitut.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00071",
+      "input": "Ce serait quelque chose qu'il faudrait que je programme.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00072",
+      "input": "Il n'est pas dans mon intention d'être égoïste.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00073",
+      "input": "Réfléchissons au pire qui pourrait arriver.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00074",
+      "input": "Combien d'amis proches est-ce que tu as ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00075",
+      "input": "Il se peut que je sois antisocial, mais ça ne veut pas dire pas que je ne parle pas aux gens.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00076",
+      "input": "Je pense que c'est mieux de ne pas être impoli.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00077",
+      "input": "On peut toujours trouver du temps.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00078",
+      "input": "Je serais malheureux, mais je ne me suiciderais pas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00079",
+      "input": "Quand je me suis réveillé j'étais triste.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00080",
+      "input": "C’est ce qui est expliqué à la fin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00081",
+      "input": "Je pensais que tu aimais apprendre de nouvelles choses.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00082",
+      "input": "La plupart des gens écrivent à propos de leur vie quotidienne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00083",
+      "input": "Si je pouvais t'envoyer un marshmallow, Trang, je le ferais.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00084",
+      "input": "Pour faire cela, il te faut prendre des risques.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00085",
+      "input": "Chaque personne qui est seule est seule parce qu'elle a peur des autres.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00086",
+      "input": "Pourquoi demandes-tu ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00087",
+      "input": "Je ne suis pas un artiste. Je n'ai jamais eu l'esprit pour ça.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00088",
+      "input": "Je ne peux pas lui dire maintenant. Ce n’est pas si simple.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00089",
+      "input": "Je suis une personne qui a des défauts, mais ces défauts peuvent être facilement corrigés.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00090",
+      "input": "Chaque fois que je trouve quelque chose que j'aime, c'est trop cher.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00091",
+      "input": "Combien de temps es-tu restée ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00092",
+      "input": "Peut-être que ce sera la même chose pour lui.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00093",
+      "input": "L'innocence est une belle chose.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00094",
+      "input": "Les humains n'ont jamais été faits pour vivre éternellement.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00095",
+      "input": "Je ne veux pas perdre mes idées, même si certaines d'entre elles sont un peu extrêmes.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00096",
+      "input": "Je pense que j'ai une théorie à ce sujet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00097",
+      "input": "C'est intrigant.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00098",
+      "input": "Tu es en train de dire que tu caches intentionnellement ta beauté ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00099",
+      "input": "Je n’ai pas de compte sur ces forums.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00100",
+      "input": "Si quelqu'un devait demander quel est le but de l'histoire, je ne saurais vraiment pas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00101",
+      "input": "Je ne savais pas d'où ça venait.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00102",
+      "input": "Je pense que le fait que j'ai vécu avec toi a influencé la façon dont tu vis.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00103",
+      "input": "Ce n'est pas important.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00104",
+      "input": "Je n'ai pas aimé.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00105",
+      "input": "Elle demande comment c’est possible.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00106",
+      "input": "Tu ne fais que fuir les problèmes de la vie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00107",
+      "input": "Si tu regardes les paroles, elles ne signifient pas vraiment grand-chose.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00108",
+      "input": "Il y a un problème que tu ne vois pas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00109",
+      "input": "Tu peux le faire !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00110",
+      "input": "Mon prof de physique s'en fiche si je sèche les cours.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00111",
+      "input": "J'aimerais bien pouvoir aller au Japon.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00112",
+      "input": "Je déteste ça quand il y a trop de gens.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00113",
+      "input": "Je dois aller au lit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00114",
+      "input": "Après ça, je pars, mais je me rends compte que j'ai oublié mon sac chez eux.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00115",
+      "input": "Je ne t'en demanderai pas plus pour aujourd'hui.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00116",
+      "input": "Il se peut qu'il gèle la semaine prochaine.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00117",
+      "input": "Même s'il s'est excusé, je suis encore en colère.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00118",
+      "input": "La police vous fera trouver les balles.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00119",
+      "input": "Merci de m'avoir expliqué finalement pourquoi on me prend pour une imbécile.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00120",
+      "input": "Ce n'était pas mon intention.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00121",
+      "input": "Merci pour ton explication.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00122",
+      "input": "Théoriquement, je suis en train de faire des maths.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00123",
+      "input": "Qu'est-ce qui s'est passé ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00124",
+      "input": "Ça m'a presque fait peur de ne pas te voir connectée pendant toute une journée.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00125",
+      "input": "Je ne sais pas ce que tu veux dire.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00126",
+      "input": "Il faut bien que mon ordinateur me serve à quelque chose.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00127",
+      "input": "Tu voulais me parler de liberté ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00128",
+      "input": "Euh, là c'est vraiment bizarre...",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00129",
+      "input": "Si je voulais te faire peur, je te raconterais ce dont j'ai rêvé il y a quelques semaines.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00130",
+      "input": "On ne peut pas tout attendre des écoles.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00131",
+      "input": "Il y a beaucoup de mots que je ne comprends pas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00132",
+      "input": "Je n'aime pas quand les mathématiciens qui en savent beaucoup plus que moi ne savent pas s'exprimer explicitement.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00133",
+      "input": "T'es vraiment pas bête.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00134",
+      "input": "Je dois te poser une question idiote.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00135",
+      "input": "Je ne sais pas comment le démontrer vu que c'est trop évident !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00136",
+      "input": "J'aurais pas imaginé qu'un jour j'irais chercher « viagra » dans Wikipédia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00137",
+      "input": "Est-ce qu'on peut formuler ça d'une autre manière ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00138",
+      "input": "Personne ne saura.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00139",
+      "input": "J'ai trouvé une solution, mais je l'ai trouvée tellement vite que ça peut pas être la bonne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00140",
+      "input": "Ça me paraît intéressant !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00141",
+      "input": "Sauf que là, c'est pas si simple.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00142",
+      "input": "Moi, j'aime bien la lumière des bougies.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00143",
+      "input": "Qu'est-ce que tu as répondu ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00144",
+      "input": "Non, c'est pas mon nouveau petit ami.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00145",
+      "input": "C'est dommage que je n'aie pas besoin de maigrir.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00146",
+      "input": "T'as jamais cours ou quoi ? !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00147",
+      "input": "Je vais donc jouer au Sudoku au lieu de continuer de te déranger.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00148",
+      "input": "Où est le problème ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00149",
+      "input": "Je ne peux qu'attendre.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00150",
+      "input": "Ce n'est pas tellement une surprise, non ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00151",
+      "input": "Je ne t'aime plus.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00152",
+      "input": "Je suis curieux.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00153",
+      "input": "Je ne veux pas attendre aussi longtemps.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00154",
+      "input": "Pourquoi ne viens-tu pas nous voir ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00155",
+      "input": "Mais la possibilité semble improbable.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00156",
+      "input": "Je n'aurais pas dû me déconnecter.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00157",
+      "input": "C'est inévitable que j'aille en France un jour, je ne sais juste pas quand.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00158",
+      "input": "Je déteste la chimie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00159",
+      "input": "Je ne voulais pas que ça arrive.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00160",
+      "input": "Tu devines probablement ce qui va arriver.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00161",
+      "input": "Avant même que tu ne le saches, tu seras dans les journaux.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00162",
+      "input": "Quelles autres options ai-je ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00163",
+      "input": "Je ne suis pas un grand voyageur.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00164",
+      "input": "Je n'ai rien de mieux à faire.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00165",
+      "input": "Je ne peux pas l'expliquer non plus.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00166",
+      "input": "Tout le monde a ses forces et ses faiblesses.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00167",
+      "input": "Ça montre seulement que tu n'es pas un robot.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00168",
+      "input": "Comment pourrais-je être un robot ? Les robots ne rêvent pas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00169",
+      "input": "« Je n'y ai jamais pensé », dit le vieil homme. « Que devrions-nous faire ? »",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00170",
+      "input": "Ce n'est pas quelque chose que n'importe qui peut faire.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00171",
+      "input": "Je ne sais pas si je l'ai encore.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00172",
+      "input": "Qu'est-ce que tu crois que j'étais en train de faire ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00173",
+      "input": "Ne sous-estime pas ma puissance.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00174",
+      "input": "Ma maman ne parle pas très bien anglais.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00175",
+      "input": "Je ne parle pas assez bien français !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00176",
+      "input": "Je me demandais si tu allais venir aujourd'hui.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00177",
+      "input": "C'est là que réside le problème.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00178",
+      "input": "Comment trouves-tu de la nourriture dans l'espace ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00179",
+      "input": "Vous n'avez rien à faire sauf vous faire confiance.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00180",
+      "input": "Tout le monde veut te rencontrer, tu es célèbre !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00181",
+      "input": "Pourquoi es-tu désolée pour quelque chose que tu n'as pas fait ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00182",
+      "input": "Je déteste absolument l'écriture formelle !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00183",
+      "input": "Les étrangers m'intriguent.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00184",
+      "input": "Quoi que je fasse, elle dit que je peux faire mieux.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00185",
+      "input": "Qu'est-ce qui te retient éveillé si tard ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00186",
+      "input": "Tu serais surprise de ce que tu peux apprendre en une semaine.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00187",
+      "input": "Je n'ai personne qui veuille voyager avec moi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00188",
+      "input": "La vie est dure, mais je suis encore plus dur.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00189",
+      "input": "Supporter peut être insupportable.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00190",
+      "input": "Arrête ! Tu la mets mal à l'aise !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00191",
+      "input": "Rien n'est beau que le vrai.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00192",
+      "input": "Demain, il va alunir.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00193",
+      "input": "Je ne parle pas japonais.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00194",
+      "input": "C’est un jeu de mots.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00195",
+      "input": "Personne ne me comprend.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00196",
+      "input": "J'ai appris à vivre sans elle.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00197",
+      "input": "Ça ne sert plus à rien de continuer à réfléchir.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00198",
+      "input": "J'ai trop de choses dans la tête ces jours-ci.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00199",
+      "input": "Je voulais juste vérifier mes emails.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00200",
+      "input": "Est-ce que tu as vraiment besoin de poser la question pour connaître la réponse ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00201",
+      "input": "Tu peux pas attendre de moi que je pense toujours à tout !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00202",
+      "input": "Je suppose que derrière chaque chose que l'on doit faire, il y a quelque chose que l'on veut faire...",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00203",
+      "input": "T'as vraiment pas les bonnes priorités !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00204",
+      "input": "N'attends pas que les autres pensent pour toi !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00205",
+      "input": "Tu n'as jamais le temps pour les choses importantes !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00206",
+      "input": "Ce n'est pas la peine de faire semblant de me faire croire que je crois des choses que tu ne crois pas !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00207",
+      "input": "Ça me prendrait trop de temps pour t'expliquer pourquoi ça ne va pas marcher.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00208",
+      "input": "Je suis trop bête... J'essaie de t'expliquer des choses que je ne comprends pas moi-même.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00209",
+      "input": "Arrête de me considérer comme quelqu'un de « normal » !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00210",
+      "input": "Tu pourrais au moins essayer d'être un peu plus poli, même si ce n'est pas dans ta nature.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00211",
+      "input": "Il y aura toujours des choses que je n'apprendrai jamais, je n'ai pas l'éternité devant moi !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00212",
+      "input": "C'est pas possible !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00213",
+      "input": "J'aimerais pouvoir m'inquiéter plus pour mes notes mais il semblerait qu'à un certain moment de ma vie, j'ai décidé que cela n'était finalement pas si important.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00214",
+      "input": "« Pierre qui roule n'amasse pas mousse » est un proverbe.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00215",
+      "input": "Veux-tu quelque chose à boire ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00216",
+      "input": "« Qui est-ce ? » « C'est ta mère. »",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00217",
+      "input": "« Quand vas-tu revenir ? » « Tout dépend du temps qu'il fera. »",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00218",
+      "input": "« Qu'est-ce qui ne va pas ? » demanda le petit lapin blanc.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00219",
+      "input": "« Qu'est-ce qu'il se passe dans la grotte ? Je suis curieux. » « Je n'en ai aucune idée. »",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00220",
+      "input": "\"Quel est ton souhait ?\" demanda le petit lapin blanc.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00221",
+      "input": "Nous devons apprendre à vivre ensemble comme des frères, ou nous périrons ensemble comme des idiots.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00222",
+      "input": "Euh... Comment ça marche ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00223",
+      "input": "« Pour être franc, j'ai le vertige. » « Tu es un trouillard ! »",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00224",
+      "input": "« Fais-moi confiance », dit-il.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00225",
+      "input": "« C'est ce que j'étais en train de chercher », s'exclama-t-il.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00226",
+      "input": "« Ça semble très intéressant », dit Hiroshi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00227",
+      "input": "Il se peut que leur communication soit beaucoup plus complexe que nous le pensions.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00228",
+      "input": "« C'est très gentil de votre part », répondit Willie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00229",
+      "input": "« Merci de m'aider. » « Il n'y a pas de quoi. »",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00230",
+      "input": "Un jour je courrai comme le vent.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00231",
+      "input": "« Elle aime la musique. » « Moi aussi. »",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00232",
+      "input": "S'il te plaît, ne pleure pas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00233",
+      "input": "Fais-moi savoir s'il y a quoi que ce soit que je puisse faire.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00234",
+      "input": "Il se peut que le bonheur qui nous attend là-bas ne soit pas du tout le genre de bonheur que nous voudrions.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00235",
+      "input": "C'est à toi de décider si nous allons là-bas ou non.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00236",
+      "input": "Ça ne commence pas avant huit heures trente.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00237",
+      "input": "Je veux un bateau qui m'emmènera loin d'ici.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00238",
+      "input": "« J'ai envie de jouer aux cartes. » « Moi aussi. »",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00239",
+      "input": "« Ne nous sommes-nous pas rencontrés quelque part avant ? » demanda l'étudiant.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00240",
+      "input": "Un Japonais ne ferait jamais une telle chose.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00241",
+      "input": "Allen est un poète.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00242",
+      "input": "L'archer tua le cerf.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00243",
+      "input": "Le communisme ne sera jamais atteint de mon vivant.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00244",
+      "input": "Le seigle était appelé le grain de la pauvreté.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00245",
+      "input": "Si tu vois une faute alors corrige-la s'il te plaît.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00246",
+      "input": "Place le jeu de cartes sur la table en bois de chêne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00247",
+      "input": "Les Allemands sont très ingénieux.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00248",
+      "input": "Si on ne mange pas, on meurt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00249",
+      "input": "Comment épelles-tu \"pretty\" ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00250",
+      "input": "Et si nous retournions à la maison ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00251",
+      "input": "Je m'excuse, je ne peux pas rester longtemps.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00252",
+      "input": "« Pourquoi tu n'y vas pas ? » « Parce que je ne veux pas. »",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00253",
+      "input": "Un million de personnes ont perdu la vie pendant la guerre.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00254",
+      "input": "Je suis venu à Tokyo il y a trois ans et ai vécu ici depuis.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00255",
+      "input": "J'ai vécu plus d'un mois à Nagoya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00256",
+      "input": "D'abord, je vais faire un schéma de mon nouveau site internet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00257",
+      "input": "La démocratie est la pire forme de gouvernement, mis à part toutes les autres que l'on a essayées.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00258",
+      "input": "Quand on commence à ressembler à la photo de son passeport, on devrait partir en vacances.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00259",
+      "input": "C'était pas moi, commissaire !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00260",
+      "input": "Oh, mon pantalon blanc ! Il était neuf.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00261",
+      "input": "Avec autant de personnes autour de lui, il devint naturellement un peu nerveux.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00262",
+      "input": "En quittant la gare, j'ai vu un homme.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00263",
+      "input": "Et personne ne vous a aidé ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00264",
+      "input": "Ils sont fous ces Madrilènes.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00265",
+      "input": "Eh bien, la nuit est très longue, n'est-ce pas ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00266",
+      "input": "T'as eu de la chance parce qu'il ne t'a pas mordu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00267",
+      "input": "Je t'ai manqué ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00268",
+      "input": "Sont-ils tous identiques ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00269",
+      "input": "Merci beaucoup !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00270",
+      "input": "S'il vous plaît, où sont les œufs ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00271",
+      "input": "C'est une surprise.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00272",
+      "input": "C’est une bonne idée !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00273",
+      "input": "Aller-retour ? Aller simple seulement.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00274",
+      "input": "C'est dommage quand quelqu'un meurt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00275",
+      "input": "Ils restèrent bouche bée.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00276",
+      "input": "Putain ! C'est pas mal !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00277",
+      "input": "Remettre en forme après lavage.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00278",
+      "input": "Laver avant de porter pour la première fois.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00279",
+      "input": "Ne pas ouvrir avant l'arrêt du train.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00280",
+      "input": "Ceux qui habitent des maisons de verre ne devraient pas lancer de pierres.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00281",
+      "input": "On dit que l'amour est aveugle.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00282",
+      "input": "Oh, je suis désolée.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00283",
+      "input": "Les maths sont comme l'amour - une idée simple, mais ça peut devenir compliqué.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00284",
+      "input": "Les seules réponses utiles sont celles qui posent de nouvelles questions.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00285",
+      "input": "Douter de soi est le premier signe d'intelligence.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00286",
+      "input": "Un pauvre n'est pas celui qui a trop peu, mais celui qui veut trop.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00287",
+      "input": "Vu que tu n'es pas surpris, je pense que tu étais au courant.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00288",
+      "input": "Combien de temps cela prend-il pour arriver à la station ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00289",
+      "input": "Ça sera un bon souvenir de mon voyage à travers les États-Unis.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00290",
+      "input": "Excusez-moi, permettez-moi de signaler trois erreurs dans l'article ci-dessus.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00291",
+      "input": "C'est difficile d'entretenir une conversation avec quelqu'un qui ne dit que « oui » et « non ».",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00292",
+      "input": "Est-ce que tu parles italien ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00293",
+      "input": "\"Je ne peux pas réfléchir avec ce bruit\", dit-elle, en fixant des yeux la machine à écrire.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00294",
+      "input": "On dit que \"Hamlet\" est la pièce la plus intéressante qui ait jamais été écrite.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00295",
+      "input": "« Maman, est-ce que je peux manger un biscuit ? » « Non. Il ne faut pas manger entre les repas. »",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00296",
+      "input": "Puis-je poser une question ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00297",
+      "input": "Comment te sens-tu ? demanda-t-il.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00298",
+      "input": "C'est impossible pour moi de te l'expliquer.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00299",
+      "input": "Je ne veux pas passer le reste de ma vie à le regretter.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00300",
+      "input": "Ça serait marrant de voir comment les choses changent au fil des ans.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00301",
+      "input": "Je ne l'aurais jamais deviné.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00302",
+      "input": "L'imagination affecte tous les aspects de notre vie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00303",
+      "input": "Tu m'oublieras un jour.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00304",
+      "input": "C'est assez inattendu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00305",
+      "input": "Je me demande combien de temps ça va prendre.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00306",
+      "input": "Je ne peux pas vivre sans télé.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00307",
+      "input": "Je n'aurais pas pu le faire sans toi. Merci.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00308",
+      "input": "Rien n'est accompli sans effort.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00309",
+      "input": "Beaucoup de gens vagabondent à travers la vie sans but.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00310",
+      "input": "Une vie sans amour n'a absolument aucun sens.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00311",
+      "input": "Faites-moi savoir si j'ai besoin de faire des changements.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00312",
+      "input": "Je pense que les examens ruinent l'éducation.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00313",
+      "input": "Nous ne pouvons pas dormir à cause du bruit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00314",
+      "input": "Est-ce que tu as un préservatif ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00315",
+      "input": "\"Un chat ?\" demanda le vieil homme.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00316",
+      "input": "Fais tout ce qu'il te dit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00317",
+      "input": "Puis-je parler à Mlle Brown ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00318",
+      "input": "\"Oui, du jus d'orange s'il vous plait\", dit Mike.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00319",
+      "input": "\"Ah !\" est une interjection.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00320",
+      "input": "Le caractère obligatoire de la scolarité est rarement analysé dans la multitude d'ouvrages consacrés à l'étude des divers moyens de développer chez les enfants un désir d'apprendre.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00321",
+      "input": "Tu crains mon vieux ! Je dois tout te dire !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00322",
+      "input": "On a un compte à régler.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00323",
+      "input": "As-tu besoin que je te donne de l'argent ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00324",
+      "input": "Paris est la ville la plus belle du monde.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00325",
+      "input": "J'ai toujours pensé qu'avoir une crise cardiaque est la manière qu'a la nature de te dire que tu dois mourir.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00326",
+      "input": "Eh, j'ai peut-être pas d'argent, mais j'ai toujours ma fierté.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00327",
+      "input": "C'est mon amie Rachel, nous sommes allées au lycée ensemble.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00328",
+      "input": "Le coût de la vie a augmenté radicalement.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00329",
+      "input": "Tout ce qui est inventé est vrai.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00330",
+      "input": "Se surprendre, s'étonner, c'est commencer à comprendre.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00331",
+      "input": "Pas de doute : l'univers est infini.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00332",
+      "input": "Il ne lui manquait qu'un seul défaut pour être parfaite.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00333",
+      "input": "Et pourtant, le contraire aussi est toujours vrai.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00334",
+      "input": "Nous ne voyons pas les choses comme elles sont, mais comme nous sommes.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00335",
+      "input": "Le monde est une cage à fous.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00336",
+      "input": "Aucun écolier ne se plaint jamais d'avoir \"mal au lobe frontal de l'hémisphère gauche\" !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00337",
+      "input": "Tu m'as ouvert les yeux sur ce que c'est, lorsque tout va bien.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00338",
+      "input": "Tu m'as trouvée où personne ne cherchait.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00339",
+      "input": "Tu es à mes côtés, maintenant tout va bien.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00340",
+      "input": "Comment ça, tu ne sais pas ? !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00341",
+      "input": "T'as l'air stupide.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00342",
+      "input": "Je pense que j'vais aller dormir.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00343",
+      "input": "Je m'appelle Jack.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00344",
+      "input": "Ça me plaît beaucoup.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00345",
+      "input": "On se voit demain ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00346",
+      "input": "Comment est-ce qu'on dit ça en italien ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00347",
+      "input": "Je dois aller faire les courses, je reviens dans une heure.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00348",
+      "input": "Tu n'es pas assez rapide.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00349",
+      "input": "C'est loin d'ici ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00350",
+      "input": "Ce ne sont pas mes affaires !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00351",
+      "input": "Merci, c'est tout.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00352",
+      "input": "Veux-tu danser avec moi ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00353",
+      "input": "Quelle heure est-il ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00354",
+      "input": "Tu viens d'où ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00355",
+      "input": "Comment est-ce que tu t'appelles ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00356",
+      "input": "L'Italie est un très beau pays.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00357",
+      "input": "Ce n'est pas ma faute !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00358",
+      "input": "J’aimerais rester pour une nuit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00359",
+      "input": "Est-ce qu'il y a une auberge de jeunesse près d'ici ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00360",
+      "input": "Où sont les douches ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00361",
+      "input": "Ouvrez la bouche !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00362",
+      "input": "J'ai perdu mon portefeuille.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00363",
+      "input": "L'amour n'est jamais un gaspillage.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00364",
+      "input": "La vie c'est ce qui se passe pendant que tu es occupé à faire d'autres plans.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00365",
+      "input": "Ne pas désirer équivaut à posséder.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00366",
+      "input": "Il est très sexy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00367",
+      "input": "Fiche-moi la paix !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00368",
+      "input": "« Passez-moi le sel s'il vous plaît. » « Tenez. »",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00369",
+      "input": "Il y a trop de choses à faire !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00370",
+      "input": "Quel âge as-tu ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00371",
+      "input": "Allez, joue avec moi, j'm'ennuie trop !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00372",
+      "input": "Ne songe même pas à manger mon chocolat !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00373",
+      "input": "Arrête de me demander à boire ! Va te servir toi-même.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00374",
+      "input": "Grâce à toi j'ai perdu mon appétit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00375",
+      "input": "J'ai vraiment besoin de frapper quelqu'un.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00376",
+      "input": "Qui est-ce qui ne connaît pas ce problème ? !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00377",
+      "input": "Ça fait si longtemps depuis la dernière fois que je suis allée à Disneyland avec ma famille.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00378",
+      "input": "Mes parents n'arrêtent pas de se disputer sur des choses stupides. C'est tellement énervant !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00379",
+      "input": "Si tu ne veux pas mettre de crème solaire c'est ton problème, mais ne viens pas te plaindre quand t'auras des coups de soleil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00380",
+      "input": "Mes amis disent toujours que je suis trop calme, mais ma famille dit toujours que je suis trop agaçante.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00381",
+      "input": "Je déteste ces araignées, elles sont toujours là pour me ficher la trouille quand j'fais le ménage.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00382",
+      "input": "Trop énervant... J'peux même plus utiliser un ordinateur sans avoir mal à la tête maintenant !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00383",
+      "input": "Il fait tellement chaud qu'on pourrait faire cuire des œufs sur le capot des voitures.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00384",
+      "input": "Aujourd'hui, il fait très chaud.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00385",
+      "input": "Personne n'est venu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00386",
+      "input": "Je n'ai jamais vu de réfrigérateur rouge.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00387",
+      "input": "Il n'a pas tenu sa parole.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00388",
+      "input": "Il vaut mieux être détesté pour ce que l'on est, qu'aimé pour ce que l'on n'est pas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00389",
+      "input": "Ne sois pas inquiet, sois heureux !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00390",
+      "input": "L'écurie est bien vide depuis que le cheval est mort.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00391",
+      "input": "Les mathématiques sont la partie des sciences qu'on pourrait continuer à faire si on se réveillait demain et découvrait que l'univers avait disparu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00392",
+      "input": "Mes yeux sont un océan dans lequel se reflètent mes rêves.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00393",
+      "input": "Vous connaissez la phrase, « on récolte ce que l’on sème. » Moi, j’ai semé le vent, maintenant voilà ma tempête.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00394",
+      "input": "Regarde-moi quand je te parle !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00395",
+      "input": "Que serait le monde sans les femmes ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00396",
+      "input": "Et si tu faisais un discours et que personne ne venait ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00397",
+      "input": "Je ne sais pas quoi dire pour te consoler.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00398",
+      "input": "Ce n'est pas mon type.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00399",
+      "input": "J'essayais de tuer le temps.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00400",
+      "input": "Comment en es-tu venu à cette idée folle ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00401",
+      "input": "Je suis fatigué !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00402",
+      "input": "Qui veut du chocolat chaud ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00403",
+      "input": "Parlez plus lentement s'il vous plaît !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00404",
+      "input": "Je ne comprends pas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00405",
+      "input": "Dans combien de temps arrivons-nous ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00406",
+      "input": "L'addition s'il vous plaît.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00407",
+      "input": "Et qu'est-ce que nous allons faire ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00408",
+      "input": "Où peut-on téléphoner ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00409",
+      "input": "Je dois vous avouer que je ronfle...",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00410",
+      "input": "Ce soir nous allons à l'église.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00411",
+      "input": "Comment vas-tu ? As-tu fait un bon voyage ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00412",
+      "input": "Je ne me sens pas bien.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00413",
+      "input": "Appelez la police !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00414",
+      "input": "C'est trop cher !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00415",
+      "input": "Elle fait semblant de dormir, c'est pour ça qu'elle ne ronfle pas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00416",
+      "input": "Mes chaussures sont trop petites, j'en ai besoin de nouvelles.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00417",
+      "input": "On s'tire d'ici, les flics arrivent.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00418",
+      "input": "Ça serait trop cool si je pouvais parler dix langues !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00419",
+      "input": "« Si t'es fatigué, pourquoi ne vas-tu pas dormir ? » « Parce que si j'vais dormir tout de suite, je me réveillerai trop tôt. »",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00420",
+      "input": "Tu aurais dû m'écouter.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00421",
+      "input": "C'est une pagaille totale, et ça me tape sur les nerfs.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00422",
+      "input": "Quand le corps est touché, des récepteurs dans la peau envoient des messages au cerveau causant la libération de produits chimiques tels que l'endorphine.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00423",
+      "input": "Qu'est-ce que cela implique ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00424",
+      "input": "Ceux qui seront sélectionnés devront faire face à de considérables tests médicaux et psychologiques.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00425",
+      "input": "Un demi-million d'enfants font encore face à la malnutrition au Niger.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00426",
+      "input": "Cela prendra cinq à dix ans avant que la technologie ne soit prête.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00427",
+      "input": "Les bicyclettes sont un outil pour la préservation de l'environnement urbain.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00428",
+      "input": "Le gouvernement français a lancé un jeu en ligne qui défie les contribuables d'équilibrer le budget national.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00429",
+      "input": "Il serait ravi d'entendre ça.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00430",
+      "input": "Que croyez-vous être vrai bien que vous ne puissiez le prouver ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00431",
+      "input": "Les ordinateurs rendent les gens stupides.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00432",
+      "input": "Ne demandez pas ce qu'ils pensent. Demandez ce qu'ils font.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00433",
+      "input": "Quand vous essayez de prouver quelque chose, ça aide de savoir que c'est vrai.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00434",
+      "input": "Ce qui change le monde, c'est la communication, pas l'information.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00435",
+      "input": "La plupart des avancées scientifiques ne sont rien d'autre que la découverte d'une évidence.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00436",
+      "input": "Si vous ne comprenez pas quelque chose, c'est parce que vous n'êtes pas conscient de son contexte.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00437",
+      "input": "On ne peut que connaître le passé, pas le changer. On ne peut que changer le futur, pas le connaître.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00438",
+      "input": "La question clé n'est pas qu'est-ce que je peux gagner mais qu'est-ce que j'ai à perdre.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00439",
+      "input": "Tout ce qui peut être mal compris le sera.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00440",
+      "input": "Tout univers suffisamment simple pour être compris est trop simple pour produire un esprit capable de le comprendre.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00441",
+      "input": "Pourquoi la vie est-elle si remplie de souffrance ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00442",
+      "input": "Malgré l'importance du sommeil, son intérêt est un mystère.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00443",
+      "input": "Qu'est-ce que cela signifie d'avoir un esprit éduqué au XXIe siècle ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00444",
+      "input": "La passion crée de la souffrance.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00445",
+      "input": "Le train venant de Genève va entrer en gare.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00446",
+      "input": "Je voudrais lui offrir un cadeau pour son anniversaire.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00447",
+      "input": "Je meurs de faim !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00448",
+      "input": "Est-ce que tu as des copains en Antigua ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00449",
+      "input": "J'ai tellement de travail que je reste une heure de plus.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00450",
+      "input": "Je suis mariée et j'ai deux enfants.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00451",
+      "input": "Il joue très bien du piano.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00452",
+      "input": "Je le vois rarement.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00453",
+      "input": "J'aimerais faire mes études à Paris.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00454",
+      "input": "Vous ne savez pas qui je suis.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00455",
+      "input": "Pourquoi est-ce que tu ne manges pas de légumes ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00456",
+      "input": "Pourquoi est-ce que les gens vont au cinéma ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00457",
+      "input": "Je me déshabille.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00458",
+      "input": "La voiture s'écrasa contre le mur.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00459",
+      "input": "Il n'y a pas de visions réelles.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00460",
+      "input": "Ça ne sert à rien de me dire « Salut, comment ça va ? » si tu n'as rien d'autre à dire.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00461",
+      "input": "Dans un dictionnaire comme celui-ci il devrait y avoir au moins deux phrases avec « réfrigérateur ».",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00462",
+      "input": "Le créationnisme est une pseudo-science.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00463",
+      "input": "Le vent s'est calmé.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00464",
+      "input": "Jeter le bébé avec l'eau du bain.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00465",
+      "input": "Je ne veux pas demander ta main !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00466",
+      "input": "Donne-moi du temps pour te donner tout ce que j'ai !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00467",
+      "input": "Un démocrate est un citoyen libre qui se plie à la volonté de la majorité.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00468",
+      "input": "Vouloir c'est pouvoir.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00469",
+      "input": "Qui cherche, trouve.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00470",
+      "input": "Rome ne s'est pas faite en un jour.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00471",
+      "input": "Qui ne dit mot consent.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00472",
+      "input": "« As-tu fini ? » « Au contraire, je n'ai même pas encore commencé. »",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00473",
+      "input": "« Bonjour », dit Tom avec un sourire.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00474",
+      "input": "Pourquoi est-ce qu'on dit « Bonjour ! » quand le jour n'est pas bon ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00475",
+      "input": "Le vin, c'est de la poésie en bouteille.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00476",
+      "input": "C'était le plus beau jour de ma vie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00477",
+      "input": "Je ne comprends pas l'allemand.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00478",
+      "input": "J'ai pris ma décision.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00479",
+      "input": "Je te donne ma parole.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00480",
+      "input": "Tu es le grand amour de ma vie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00481",
+      "input": "On appelle « être objectif » le fait de ne pas divulguer le côté duquel on est.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00482",
+      "input": "Nous avons un Pape.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00483",
+      "input": "Un mathématicien est un homme qui ne comprend pas seulement une pensée qui lui est exposée, mais qui voit aussi sur quelle erreur de raisonnement elle est fondée.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00484",
+      "input": "Le tout vaut plus que la somme de ses parties.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00485",
+      "input": "Les mathématiques ne portent pas atteinte au désir.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00486",
+      "input": "Une vérité mathématique n'est ni simple ni compliquée, elle est.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00487",
+      "input": "Les mathématiciens sont des poètes, sauf qu'ils doivent démontrer ce que leur fantaisie crée.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00488",
+      "input": "Les mathématiques sont comme la logique de la physique.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00489",
+      "input": "Les mathématiciens sont comme les Français : quoi que vous leur disiez ils le traduisent dans leur propre langue et le transforment en quelque chose de totalement différent.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00490",
+      "input": "Un expert est quelqu'un qui connaît quelques-unes des pires erreurs qui peuvent être faites dans son domaine, et comment les éviter.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00491",
+      "input": "Faire des maths, c'est la seule façon socialement acceptable de se masturber en public.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00492",
+      "input": "Je ne pense pas, donc je ne suis pas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00493",
+      "input": "De nos jours nous désirons que nos enfants prennent leurs propres décisions, mais nous voulons que ces décisions nous conviennent.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00494",
+      "input": "Je trouve les langues étrangères très intéressantes.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00495",
+      "input": "Je n'aime pas apprendre les verbes irréguliers.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00496",
+      "input": "Prends un livre et lis-le !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00497",
+      "input": "Affronte la vie en souriant !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00498",
+      "input": "La plupart des écoles ont été conçues non pas pour transformer la société, mais pour la reproduire.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00499",
+      "input": "Tu me fais rêver.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00500",
+      "input": "Je suis fou de joie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00501",
+      "input": "C'est déjà un homme.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00502",
+      "input": "Les vacances sont finies maintenant.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00503",
+      "input": "J'ai peur de tomber.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00504",
+      "input": "Une tenue de soirée est souhaitée.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00505",
+      "input": "C'est la pure vérité.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00506",
+      "input": "Quand je demande aux gens ce qu'ils regrettent le plus concernant le lycée, ils répondent presque tous la même chose : qu'ils ont perdu tellement de temps.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00507",
+      "input": "Quand on ne peut pas faire ce que l’on veut, on fait ce que l’on peut.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00508",
+      "input": "Donnez-lui la main, il vous prendra le bras.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00509",
+      "input": "Tu as fait ça intentionnellement !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00510",
+      "input": "Tu ne lui as rien dit ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00511",
+      "input": "Tu m'as fait perdre la tête.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00512",
+      "input": "Tu es mon type.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00513",
+      "input": "T'es irrésistible.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00514",
+      "input": "Est-ce que tu pourrais retéléphoner plus tard s'il te plaît ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00515",
+      "input": "Je parle avec qui ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00516",
+      "input": "J'accepte, mais à une condition.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00517",
+      "input": "Souris maintenant, pleure plus tard !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00518",
+      "input": "À six ans il avait appris à se servir d’une machine à écrire et dit au maître qu’il n’avait pas besoin d’apprendre à écrire à la main !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00519",
+      "input": "La vie est belle.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00520",
+      "input": "Ne me gâche pas mon plaisir après tout le mal que je me suis donné.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00521",
+      "input": "Il y a des jours où j'ai l'impression que mon cerveau veut m'abandonner.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00522",
+      "input": "Je ne peux pas me couper les ongles et faire le repassage en même temps !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00523",
+      "input": "Je n'en peux plus ! Ça fait trois jours que je n'ai pas dormi !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00524",
+      "input": "Il n'a pas envie que tu lui racontes ta vie sexuelle.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00525",
+      "input": "Tu as déjà mangé de la tarte à la banane ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00526",
+      "input": "Pourquoi se marier avec une femme quand on aime les hommes ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00527",
+      "input": "Si tu ne peux pas avoir d'enfants, tu peux toujours en adopter.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00528",
+      "input": "Es-tu pour ou contre l'avortement ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00529",
+      "input": "Qu'est-ce qui t'a fait changer d'avis ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00530",
+      "input": "Eh regarde, un singe à trois têtes !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00531",
+      "input": "C'est dommage qu'on ne puisse pas acheter des miracles comme on achète des pommes de terre.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00532",
+      "input": "J'adore les lasagnes.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00533",
+      "input": "Quand on sait que quelque chose de désagréable va se passer, qu'on va aller chez le dentiste par exemple, ou en France, ce n'est pas bien.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00534",
+      "input": "Les nombres premiers sont comme la vie, ils sont tout à fait logiques, mais il est impossible d'en trouver les règles, même si on consacre tout son temps à y réfléchir.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00535",
+      "input": "Si on lève un sourcil, ça peut signifier « J'ai envie d'avoir des relations sexuelles avec toi » mais aussi « Je trouve que ce que tu viens de dire est complètement idiot. »",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00536",
+      "input": "Le cerveau n'est qu'une machine compliquée.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00537",
+      "input": "Un emploi du temps, c'est une carte d'identité du temps, seulement, si on n'a pas d'emploi du temps, le temps n'est pas là.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00538",
+      "input": "Ne désespère pas, tout n'est pas encore perdu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00539",
+      "input": "Je suis à l'hôpital. J'ai été frappé par la foudre.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00540",
+      "input": "J'ai besoin que tu m'aides.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00541",
+      "input": "Ce bébé pingouin est trop mignon !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00542",
+      "input": "Soyons réalistes, c'est impossible. On va jamais y arriver.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00543",
+      "input": "Quelle est votre plus grande source d'inspiration ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00544",
+      "input": "On ne se marie pas avec quelqu'un avec qui on peut vivre - on se marie avec la personne sans qui on ne peut pas vivre.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00545",
+      "input": "En théorie, il n'y a pas de différence entre la théorie et la pratique. Mais, en pratique, il y en a.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00546",
+      "input": "Ne restez pas au lit, à moins que vous ne puissiez gagner de l'argent au lit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00547",
+      "input": "Il y a des gens dans le monde si affamés que Dieu ne peut pas leur apparaître, sauf sous forme de pain.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00548",
+      "input": "Tout ce qui est trop stupide pour être dit est chanté.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00549",
+      "input": "Il faut de la sagesse pour comprendre la sagesse : la musique n'est rien si le public est sourd.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00550",
+      "input": "Je relisais les lettres que tu m'as envoyées.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00551",
+      "input": "Je ne veux pas aller à l'école.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00552",
+      "input": "C'est fini entre nous, rends-moi ma bague !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00553",
+      "input": "J'avais prévu d'aller à la plage aujourd'hui, mais il a commencé à pleuvoir.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00554",
+      "input": "Elle est vraiment intelligente, n'est-ce pas ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00555",
+      "input": "Une opinion n'est choquante que lorsque c'est une conviction.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00556",
+      "input": "Les gens qui aiment ne doutent de rien, ou doutent de tout.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00557",
+      "input": "La justice coûte cher.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00558",
+      "input": "La liberté consiste à pouvoir faire tout ce qui ne nuit pas à autrui.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00559",
+      "input": "Le plus lent à promettre est toujours le plus fidèle à tenir.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00560",
+      "input": "Toute opinion est un mélange de vérité et d'erreur.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00561",
+      "input": "La vie est une maladie mortelle sexuellement transmissible.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00562",
+      "input": "Si deux hommes ont toujours la même opinion, l'un d'eux est inutile.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00563",
+      "input": "Notre opinion est une idée que nous avons ; notre conviction, une idée qui nous a.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00564",
+      "input": "Demain, je vais étudier à la bibliothèque.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00565",
+      "input": "Je suis allée au zoo hier.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00566",
+      "input": "Nous avons gagné la bataille.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00567",
+      "input": "Allô ? T'es toujours là ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00568",
+      "input": "Je prépare le déjeuner tous les jours.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00569",
+      "input": "J'ai regardé la télé ce matin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00570",
+      "input": "J'ai lu un livre en mangeant.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00571",
+      "input": "J'ai un peu dormi pendant la pause déjeuner parce que j'étais trop fatigué.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00572",
+      "input": "J'ai commencé à apprendre le chinois la semaine dernière.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00573",
+      "input": "C'est plus facile de draguer les gens sur internet que dans la rue.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00574",
+      "input": "J'habite près de la mer donc j'ai souvent l'occasion d'aller à la plage.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00575",
+      "input": "Un jour j'achèterai une machine à barbe-à-papa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00576",
+      "input": "C'est pratique d'avoir un ordinateur portable.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00577",
+      "input": "Tes lunettes sont tombées par terre.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00578",
+      "input": "Combien de fois par jour te regardes-tu dans le miroir ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00579",
+      "input": "Nous sommes allés à Londres l'année dernière.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00580",
+      "input": "Elle ne veut pas en parler.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00581",
+      "input": "J'ai perdu mon inspiration.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00582",
+      "input": "J'ai besoin de plus de temps.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00583",
+      "input": "Si tu n'as rien à faire, regarde le plafond de ta chambre.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00584",
+      "input": "Ça veut rien dire !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00585",
+      "input": "Sois patient s'il te plaît, ça prend du temps.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00586",
+      "input": "Ferme la porte en sortant.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00587",
+      "input": "C’est une histoire tellement triste.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00588",
+      "input": "S'il n'y a pas de solution, alors il n'y a pas de problème.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00589",
+      "input": "Mon petit frère regarde la télé.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00590",
+      "input": "Il est présomptueux pour les humains de présumer que notre tâche est de faire ce que seul Dieu peut faire.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00591",
+      "input": "Un fin lecteur devrait être disposé à considérer tout ce qu'il lit, y compris les sources anonymes.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00592",
+      "input": "Déniant qu'elle était une anarchiste, Katja soutenait qu'elle souhaitait seulement faire des changements dans notre gouvernement, pas le détruire.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00593",
+      "input": "La cécité est responsable d'un nombre sidérant de problèmes de santé, de souffrance, et de perte de dignité et de diminution de la qualité de vie de personnes dans le monde entier.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00594",
+      "input": "La formation et le mouvement des ouragans sont capricieux, même avec notre technologie contemporaine.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00595",
+      "input": "Quand on envoie un télégramme, la brièveté est essentielle car on est facturé à chaque mot.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00596",
+      "input": "David a un vif intérêt pour l'esthétique - les qualités qui rendent une peinture, une sculpture, une composition musicale ou un poème agréable à l'œil, à l'oreille ou à l'esprit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00597",
+      "input": "En dépit des déclarations d'amour régulières de Trang, Spenser a encore peur qu'elle cesse un jour de l'aimer.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00598",
+      "input": "Tu l'as rencontré à l'université ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00599",
+      "input": "Aaah ! ! Mon ordinateur est cassé !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00600",
+      "input": "Les facultés et universités privées des États-Unis sont autonomes.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00601",
+      "input": "Chaque fois que je rejoins une partie de Warcraft, je suis opposé à une nouvelle équipe d'adversaires.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00602",
+      "input": "Depuis que je sais que l'université existe, je veux y aller.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00603",
+      "input": "Mon apathie pour le vote vient de mon aversion pour la politique.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00604",
+      "input": "L’ascendant des monarques est ce qui empêche une rébellion de leurs sujets.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00605",
+      "input": "Sarah était assez perspicace pour se rendre compte que ses amis essayaient de lui faire une farce.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00606",
+      "input": "L'orchestre produit des notes dissonantes lorsqu'il s'accorde.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00607",
+      "input": "Oui, ça arrive de temps en temps.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00608",
+      "input": "J'ai une grande peur d'être méprisé par ceux que j'aime et à qui je tiens.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00609",
+      "input": "La plupart des gens ont une grande réticence à sortir de leurs lits tôt, même s'ils le doivent.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00610",
+      "input": "La plupart des gens ne veulent qu'entendre leur propre vérité.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00611",
+      "input": "Le public a acclamé les acteurs pour leur représentation.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00612",
+      "input": "C'est bien d'avoir des idéaux... tu ne penses pas ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00613",
+      "input": "L'étudiant décida d'abréger son rapport en enlevant les détails inutiles.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00614",
+      "input": "Les gens dans le monde se battent toujours pour plus de liberté et d'égalité.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00615",
+      "input": "Les politiciens sont toujours sanctionnés pour leur comportement scandaleux ou déplacé.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00616",
+      "input": "Mme Eichler avait la fameuse réputation d’être austère avec ses élèves.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00617",
+      "input": "Si vous ne nous écoutez pas, il nous faudra avoir recours à la coercition.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00618",
+      "input": "Lorsque j'ai la migraine, l'aspirine ne soulage pas la douleur pour moi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00619",
+      "input": "Les remarques sarcastiques et de plaisanterie de Spenser sont souvent mal interprétées comme signes d'ambivalence et souvent prises trop au sérieux.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00620",
+      "input": "Ma mère préfère la sélection arbitraire des machines de loterie à mes chiffres fétiches.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00621",
+      "input": "Pour lui, la faim était un concept abstrait ; il avait toujours suffisamment à manger.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00622",
+      "input": "La guerre en Irak est un sujet explosif de débat politique ; un mot de travers et une dispute enflammée pourrait éclater.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00623",
+      "input": "Mon voisin d'à côté est un virtuose dont les talents au piano lui ont valu un nom chez les experts musicaux.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00624",
+      "input": "Il en avait assez d'être sans cesse diffamé par des gens qui étaient jaloux de ses capacités.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00625",
+      "input": "Même les gens qui ne croient pas en l'église catholique vénèrent le Pape comme un leader symbolique.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00626",
+      "input": "Ne sachant avec quel prétendant elle voulait se marier, la princesse hésitait, nommant tantôt l'un, tantôt l'autre.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00627",
+      "input": "Avec le roi sans héritier devenant fou et la famille royale empoisonnée, le général de l'armée avait enfin sa chance d'usurper le trône.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00628",
+      "input": "Au fur et à mesure que l'avion s'approchait de turbulences, le pilote demanda aux passagers à bord de l'avion d'attacher leurs ceintures de sécurité.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00629",
+      "input": "Bien que son séjour en Europe fut éphémère, Spenser sentait qu'il avait beaucoup plus appris sur les interactions avec les autres en voyageant qu'il ne l'avait fait à l'université.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00630",
+      "input": "Jason était un individu taciturne, c'était donc toujours une réelle surprise quand il disait quoique ce soit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00631",
+      "input": "Le roi en avait assez de ses courtisans le flattant toujours alors il les a renvoyés.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00632",
+      "input": "Si Spenser ne continue pas d’ajouter et de traduire des phrases, les autres contributeurs vont sûrement le dépasser.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00633",
+      "input": "Il y avait toujours trop de passages superficiels dans ses rédactions.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00634",
+      "input": "Sa rédaction ne donnait qu’une analyse superficielle du problème, donc ce fut pour lui une réelle surprise lorsqu’il obtint la meilleure note de la classe.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00635",
+      "input": "Cela dépend de ce que tu veux dire par « croire » en Dieu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00636",
+      "input": "Les professeurs devraient tout expliquer en détail, ne pas être succincts et toujours dire à leurs étudiants de lire leurs livres quand ils rentrent chez eux.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00637",
+      "input": "Si je n’avais donné aucune réponse, je n'aurais pas parlé.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00638",
+      "input": "Les gens qui viennent à l'émission de Maury Povich font souvent des déclarations prétentieuses sur leur partenaire les trompant.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00639",
+      "input": "C'est une croyance répandue, d'après un sondage national aux États-Unis, que les musulmans sont liés au terrorisme.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00640",
+      "input": "Les idées de Freud sur le comportement humain l'ont amené à être honoré en tant que profond penseur.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00641",
+      "input": "Les boissons et la nourriture étaient servies avec une telle profusion au mariage que les jeunes mariés commencèrent à se demander s'ils n'auraient pas dû inviter plus de convives.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00642",
+      "input": "La prolifération de l'utilisation d'Internet a donné naissance à une nouvelle génération de jeunes.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00643",
+      "input": "Mes amis disent que je suis un écrivain prolifique, mais je n’ai rien écrit depuis des mois.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00644",
+      "input": "Les aveugles développent parfois une aptitude compensatoire à sentir la proximité des objets autour d'eux.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00645",
+      "input": "Un avare amasse de l'argent non pas parce qu'il est prudent mais parce qu'il est avide.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00646",
+      "input": "Lorsque les deux filles annoncèrent à John qu’elles avaient des sentiments envers lui, il ne savait pas avec quelle fille il devrait sortir.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00647",
+      "input": "Même maintenant, des années après la Guerre Froide, il y a encore beaucoup de rancoeur entre les Russes et les Allemands, en particulier dans les régions autrefois occupées par l'Union Soviétique.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00648",
+      "input": "Johnson est un reclus ; il préfère s'isoler du reste des élèves de notre classe.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00649",
+      "input": "Les professeurs doivent être fatigués de rectifier encore et encore les mêmes erreurs dans les copies de leurs élèves.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00650",
+      "input": "Les bouteilles de bière que j’avais apporté à la fête étaient de trop ; la famille de notre hôte possédait une brasserie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00651",
+      "input": "Les témoins ont pu réfuter le faux témoignage du suspect.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00652",
+      "input": "Jeanne d'Arc refusa de renoncer à sa conviction que les voix qu'elle entendait étaient de Dieu et nulle autre.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00653",
+      "input": "James avait une grande peur de faire des erreurs en classe et d’être réprimandé.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00654",
+      "input": "Le proviseur réprouvait sévèrement les élèves chaque fois qu'ils mettaient le désordre dans le couloir.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00655",
+      "input": "Mes parents renieraient mon frère s'ils venaient à découvrir qu'il était gay.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00656",
+      "input": "Je voudrais revenir sur ma déclaration précédente.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00657",
+      "input": "Pour conquérir son audience, l’orateur a eu recours à des techniques rhétoriques qu’il a apprises dans ses cours de communication.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00658",
+      "input": "Son père n'aurait jamais approuvé ses fiançailles avec une fille qui ne partageait pas les mêmes croyances religieuses que sa famille.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00659",
+      "input": "Tim est un énorme fan de comédie satirique.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00660",
+      "input": "La mère de Spenser le scrute souvent pour toutes les petites erreurs qu'il commet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00661",
+      "input": "Tous les sujets du roi, craignant son courroux, se comportaient souvent de manière très servile.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00662",
+      "input": "Les gens sont assez souvent sceptiques sur les choses sauf si on leur fournit une preuve crédible.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00663",
+      "input": "D'après l'expression sinistre du docteur, il était clair qu'il avait de sombres nouvelles pour le patient.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00664",
+      "input": "Il a parfois des difficultés à exprimer clairement ses opinions.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00665",
+      "input": "Peter était un joueur de jeux vidéo altruiste ; il donnait des objets aux gens qui en avaient besoin, plutôt que de les vendre par intérêt personnel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00666",
+      "input": "Jimmy essaya de persuader ses parents de le laisser traverser le pays en voiture avec ses amis.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00667",
+      "input": "Les artistes de pop prospèrent sur l'adulation de leurs fans fidèles.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00668",
+      "input": "Nous devons apprendre à affronter l'adversité avec grâce.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00669",
+      "input": "Bill Clinton parla dans un langage ambigu lorsqu'on lui a demandé de décrire sa relation avec Monica Lewinsky.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00670",
+      "input": "C'était un vieil homme bienveillant qui se portait volontaire pour tondre la pelouse de ses voisins gratuitement.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00671",
+      "input": "Son ton sévère et sa voix forte masquaient sa sensibilité intérieure et sa nature attentionnée.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00672",
+      "input": "La statue du Minute Man rend hommage aux vaillants soldats qui ont combattu pendant la guerre d'indépendance.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00673",
+      "input": "Confus face aux remarques obscures de Sherlock Holmes, Watson se demandait si Holmes dissimulait intentionnellement ses vues sur le crime.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00674",
+      "input": "Quel critère avez-vous utilisé pour élire cet essai en tant que gagnant ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00675",
+      "input": "Je ne sais pas danser un pas de salsa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00676",
+      "input": "Même si tes phrases étaient effectivement vides de sens, au moins tu as la chance de savoir faire de belles phrases.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00677",
+      "input": "J'aime beaucoup mon travail.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00678",
+      "input": "Ray était prêt à corroborer l'histoire de Gary, mais la police n'était toujours pas convaincue que l'un d'eux dise la vérité.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00679",
+      "input": "Le meurtrier fut déclaré coupable et condamné à un emprisonnement à vie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00680",
+      "input": "Parfois, les joueurs de hockey se provoquent tellement les uns les autres que des bagarres éclatent.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00681",
+      "input": "Il y avait une sensation de retenue dans la pièce ; personne n'osait dire au roi à quel point sa décision était insensée.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00682",
+      "input": "Le consensus indique que nous sommes opposés à l'idée proposée.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00683",
+      "input": "Un petit feu de forêt peut facilement se répandre et rapidement devenir un grand incendie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00684",
+      "input": "Je trouve que les mots ayant des définitions précises sont les plus simples à retenir.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00685",
+      "input": "Il était encore furieux à propos de l'accident malgré les mots conciliants de sa femme.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00686",
+      "input": "Un examen sommaire de ses dents indiqua qu'il avait la gingivite.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00687",
+      "input": "Ce fut une surprise de voir tous les étudiants se comporter avec convenance le soir du bal de fin d’année.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00688",
+      "input": "L'article de journal décrivait l'accusé comme un coupable, bien qu'il avait été prouvé innocent.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00689",
+      "input": "Le politicien fit pression pour une réforme en dénonçant la corruption des responsables gouvernementaux.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00690",
+      "input": "La dépravation du roi amena les gens à croire qu’il n’était rien d’autre qu’un tyran qu’il fallait renverser.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00691",
+      "input": "J'ai rêvé de toi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00692",
+      "input": "Il me faut un nouvel ordinateur.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00693",
+      "input": "Je ne perdrai pas !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00694",
+      "input": "J'étais en retard à l'école.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00695",
+      "input": "Les cours reprennent bientôt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00696",
+      "input": "Je crois que je vais éternuer... Passe-moi un mouchoir.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00697",
+      "input": "Pendant un moment, j'ai cru qu'il était devenu fou.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00698",
+      "input": "Cette journée n’a été qu’un gâchis de temps et d’argent.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00699",
+      "input": "Ça m'a surpris, je ne savais pas quoi faire.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00700",
+      "input": "Mais tu ne m'as jamais dit ça !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00701",
+      "input": "J'ai changé la disposition de mon site.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00702",
+      "input": "Quand on est petit, tout nous paraît si grand...",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00703",
+      "input": "Il ne me battra pas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00704",
+      "input": "Je dois faire le linge tant qu'il y a encore du soleil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00705",
+      "input": "Je me suis promenée, histoire de prendre l'air.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00706",
+      "input": "Désolée, je ne pense pas que je vais pouvoir.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00707",
+      "input": "T'avais plein de temps.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00708",
+      "input": "Arrête de me critiquer !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00709",
+      "input": "Allez ! Parle-moi Trang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00710",
+      "input": "J'ai presque fini.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00711",
+      "input": "Prends l'autre chaise !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00712",
+      "input": "Combien de sandwichs restent-ils ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00713",
+      "input": "Je ne suis plus inspirée.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00714",
+      "input": "Je ne m'abaisserai pas à son niveau.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00715",
+      "input": "On pouvait voir le coucher du soleil depuis la fenêtre.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00716",
+      "input": "Ça me rend fou.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00717",
+      "input": "As-tu dit que je ne pourrais jamais gagner ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00718",
+      "input": "Il fait tout noir dehors.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00719",
+      "input": "Qu'est-ce qu'il s'est passé ? Il y a de l'eau partout dans l'appartement.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00720",
+      "input": "Pendant les vacances d’été, je prenais mon dîner à minuit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00721",
+      "input": "Tu peux finir ta rédaction maintenant.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00722",
+      "input": "Tu diras et feras des choses que tes parents disaient et faisaient, même si tu avais juré de ne jamais le faire.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00723",
+      "input": "Je suis vivant, bien que je ne donne pas signe de vie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00724",
+      "input": "N'essaie jamais de mourir.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00725",
+      "input": "Je suis trop vieux pour ce monde.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00726",
+      "input": "La vie commence quand on se rend compte qui on est réellement.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00727",
+      "input": "La vie commence quand on décide ce qu’on attend d’elle.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00728",
+      "input": "La vie commence quand on paie des impôts.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00729",
+      "input": "Ce que tu n’as pas est mieux que ce que tu as.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00730",
+      "input": "La vie commence lorsque tu es prêt à la vivre.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00731",
+      "input": "Il n'est jamais trop tard pour apprendre.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00732",
+      "input": "Qui sont les idiots qui ont dit que les enseignants devraient préconiser plus de devoirs à la maison car les élèves ne travaillent pas assez ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00733",
+      "input": "Il m'a raconté l'histoire de sa vie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00734",
+      "input": "Je n'ai jamais dit que j'étais fragile.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00735",
+      "input": "Je me demande si je suis faite pour ce monde.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00736",
+      "input": "De quoi parles-tu ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00737",
+      "input": "Je veux un bonbon.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00738",
+      "input": "Je savais qu'aujourd'hui serait amusant.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00739",
+      "input": "Un enfant n’est pas un vase à remplir, mais un feu à allumer.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00740",
+      "input": "Cela pourrait sembler tiré par les cheveux, mais c’est un réel problème.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00741",
+      "input": "La police est douée pour comprendre que quelqu'un a volé ma carte de crédit et a amassé plein d'argent. C'est beaucoup plus dur de leur faire avaler que \"quelqu'un a volé mon épée magique\".",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00742",
+      "input": "Quand est-ce qu'on mange ? J'ai faim !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00743",
+      "input": "Je n'aime pas l'école.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00744",
+      "input": "J'ai cours demain.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00745",
+      "input": "Je n'arrive pas à le croire !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00746",
+      "input": "« Merci. » « De rien. »",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00747",
+      "input": "Comment tu prononces « pronounce » ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00748",
+      "input": "L’hiver est ma saison préférée.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00749",
+      "input": "C’est difficile d'avoir des idées géniales.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00750",
+      "input": "De quel pays viens-tu ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00751",
+      "input": "J’ai tendance à regarder les images avant de lire le texte.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00752",
+      "input": "J'ai beaucoup appris de toi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00753",
+      "input": "Nous avons beaucoup marché.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00754",
+      "input": "J’ai passé douze heures dans le train.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00755",
+      "input": "Elle est tombée malade ce week-end.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00756",
+      "input": "Attends, quelqu’un frappe à ma porte.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00757",
+      "input": "Il est riche, il n’a pas besoin d'argent !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00758",
+      "input": "Ils font trop de bruit, je n'arrive pas à me concentrer.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00759",
+      "input": "J’ai envie d’un massage. J'ai besoin de me détendre.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00760",
+      "input": "Tu es malade, tu dois te reposer.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00761",
+      "input": "Il y a un passage secret à gauche.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00762",
+      "input": "Je n'ai pas que ça à faire.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00763",
+      "input": "Smith a passé des années à étudier l'effet du sommeil et du manque de sommeil sur la mémoire et l'apprentissage.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00764",
+      "input": "Elle demande l'impossible.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00765",
+      "input": "Il a disparu sans laisser de trace.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00766",
+      "input": "Je peux placer la paume des mains sur le sol sans plier les genoux.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00767",
+      "input": "Il ne peut pas y avoir de progrès sans communication.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00768",
+      "input": "Tout le monde aimerait croire que les rêves peuvent devenir réalité.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00769",
+      "input": "La meilleure façon de réaliser ses rêves est de se réveiller.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00770",
+      "input": "Le monde ne tourne pas autour de toi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00771",
+      "input": "Le monde est plein d’imbéciles.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00772",
+      "input": "Es-tu en train de dire que ma vie est en danger ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00773",
+      "input": "As-tu une idée de ce à quoi ma vie ressemble ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00774",
+      "input": "L'atmosphère de cet endroit est mystérieuse.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00775",
+      "input": "J’attends avec impatience d’entendre votre opinion sur ce sujet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00776",
+      "input": "Mais qu’est-ce que ça peut faire si je suis gay ? Est-ce que c’est un crime ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00777",
+      "input": "Ma vie est vide sans lui.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00778",
+      "input": "Je ne veux pas louper mes examens.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00779",
+      "input": "Ma mère a acheté deux bouteilles de jus d’orange.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00780",
+      "input": "Elle portait un chapeau noir.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00781",
+      "input": "Nous avons fait des crêpes pour le petit-déjeuner.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00782",
+      "input": "Qu’as-tu mangé au déjeuner aujourd'hui ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00783",
+      "input": "J’ai passé tout l’après-midi à bavarder avec des amis.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00784",
+      "input": "Je veux être plus indépendant.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00785",
+      "input": "Est-ce que tu vas juste rester là debout toute la journée ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00786",
+      "input": "Un lapin a de longues oreilles et une petite queue.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00787",
+      "input": "Mon cœur était rempli de joie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00788",
+      "input": "Il souhaite effacer de mauvais souvenirs.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00789",
+      "input": "Monsieur, vous n’avez pas le droit de garer votre voiture ici.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00790",
+      "input": "Nous devons l'emmener d'urgence à l'hôpital, il est gravement blessé !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00791",
+      "input": "Ton secret sera bien gardé.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00792",
+      "input": "Je ne veux plus t'entendre te plaindre.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00793",
+      "input": "Dis-leur de m'appeler avant qu'ils ne partent.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00794",
+      "input": "Tu aurais dû refuser une proposition aussi injuste.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00795",
+      "input": "Je n'ai pas la force de continuer à essayer.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00796",
+      "input": "Les mathématiques ne sont pas juste de la mémorisation de formules.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00797",
+      "input": "Je n’avais pas l’intention de te donner cette impression.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00798",
+      "input": "Ouais ! J’ai gagné deux fois de suite !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fr-00799",
+      "input": "J'en ai marre de manger du fast-food.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-fr-00000",
+      "input": "Room 304 has the laptops we ordered.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-fr-00001",
+      "input": "Bought 5 cookies on the avenue near my office.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-fr-00002",
+      "input": "Track #12345 was delivered yesterday.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-fr-00003",
+      "input": "I had 5 boxes in storage unit 12.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-fr-00004",
+      "input": "Building number 7 was empty.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-fr-00005",
+      "input": "Open from January 1990 onwards.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-fr-00006",
+      "input": "Floor 3 has the printer.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-fr-00007",
+      "input": "Order #98765 is being processed.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-fr-00008",
+      "input": "The bus runs every 12 minutes.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-fr-00009",
+      "input": "Found 5000 documents in the archive.",
+      "expected": []
+    }
+  ]
+}

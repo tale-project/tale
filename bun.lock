@@ -68,6 +68,22 @@
       "name": "@tale/i18n",
       "version": "0.1.0",
     },
+    "packages/pii": {
+      "name": "@tale/pii",
+      "version": "0.1.0",
+      "dependencies": {
+        "libphonenumber-js": "1.12.42",
+        "safe-regex2": "5.1.1",
+        "validator": "13.15.35",
+        "zod": "4.3.6",
+      },
+      "devDependencies": {
+        "@types/bun": "1.3.11",
+        "@types/seedrandom": "3.0.8",
+        "@types/validator": "13.15.10",
+        "seedrandom": "3.0.5",
+      },
+    },
     "packages/tale_knowledge": {
       "name": "@tale/knowledge",
       "version": "0.1.0",
@@ -88,6 +104,7 @@
         "@radix-ui/react-separator": "1.1.8",
         "@radix-ui/react-slot": "1.2.4",
         "@tale/i18n": "workspace:*",
+        "@tale/pii": "workspace:*",
         "@tanstack/react-router": "1.168.10",
         "class-variance-authority": "0.7.1",
         "clsx": "2.1.1",
@@ -196,6 +213,7 @@
         "@sentry/tanstackstart-react": "10.48.0",
         "@tailwindcss/postcss": "4.2.2",
         "@tale/i18n": "workspace:*",
+        "@tale/pii": "workspace:*",
         "@tale/ui": "workspace:*",
         "@tale/webui": "workspace:*",
         "@tanstack/react-query": "5.97.0",
@@ -1542,6 +1560,8 @@
 
     "@tale/knowledge": ["@tale/knowledge@workspace:packages/tale_knowledge"],
 
+    "@tale/pii": ["@tale/pii@workspace:packages/pii"],
+
     "@tale/platform": ["@tale/platform@workspace:services/platform"],
 
     "@tale/plop": ["@tale/plop@workspace:tools/plop"],
@@ -1757,6 +1777,8 @@
     "@types/readable-stream": ["@types/readable-stream@4.0.23", "", { "dependencies": { "@types/node": "*" } }, "sha512-wwXrtQvbMHxCbBgjHaMGEmImFTQxxpfMOR/ZoQnXxB1woqkUbdLGFDgauo00Py9IudiaqSeiBiulSV9i6XIPig=="],
 
     "@types/resolve": ["@types/resolve@1.20.6", "", {}, "sha512-A4STmOXPhMUtHH+S6ymgE2GiBSMqf4oTvcQZMcHzokuTLVYzXTB8ttjcgxOVaAp2lGwEdzZ0J+cRbbeevQj1UQ=="],
+
+    "@types/seedrandom": ["@types/seedrandom@3.0.8", "", {}, "sha512-TY1eezMU2zH2ozQoAFAQFOPpvP15g+ZgSfTZt31AUUH/Rxtnz3H+A/Sv1Snw2/amp//omibc+AEkTaA8KUeOLQ=="],
 
     "@types/swagger-ui-react": ["@types/swagger-ui-react@5.18.0", "", { "dependencies": { "@types/react": "*" } }, "sha512-c2M9adVG7t28t1pq19K9Jt20VLQf0P/fwJwnfcmsVVsdkwCWhRmbKDu+tIs0/NGwJ/7GY8lBx+iKZxuDI5gDbw=="],
 
@@ -3395,6 +3417,8 @@
     "saxes": ["saxes@6.0.0", "", { "dependencies": { "xmlchars": "^2.2.0" } }, "sha512-xAg7SOnEhrm5zI3puOOKyy1OMcMlIJZYNJY7xLBwSze0UjhPLnWfj2GF2EpT0jmzaJKIWKHLsaSSajf35bcYnA=="],
 
     "scheduler": ["scheduler@0.27.0", "", {}, "sha512-eNv+WrVbKu1f3vbYJT/xtiF5syA5HPIMtf9IgY/nKg0sWqzAUEvqY/xm7OcZc/qafLx/iO9FgOmeSAp4v5ti/Q=="],
+
+    "seedrandom": ["seedrandom@3.0.5", "", {}, "sha512-8OwmbklUNzwezjGInmZ+2clQmExQPvomqjL7LFqOYqtmuxRgQYqOD3mHaU+MvZn5FLUeVxVfQjwLZW/n/JFuqg=="],
 
     "semver": ["semver@7.7.4", "", { "bin": { "semver": "bin/semver.js" } }, "sha512-vFKC2IEtQnVhpT78h1Yp8wzwrf8CM+MzKMHGJZfBtzhZNycRFnXsHk6E5TxIkkMsgNS7mdX3AGB7x2QM2di4lA=="],
 

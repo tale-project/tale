@@ -1,8 +1,8 @@
+import type { FilterOutcome, GuardrailsDirection } from '@tale/pii';
 import type { TextStreamPart, ToolSet } from 'ai';
 
 import { acquire } from '../lib/moderation/semaphore';
 import { runChatFilter } from './chat_filter';
-import type { FilterOutcome, GuardrailsDirection } from './filter_outcome';
 import type { GuardrailsSnapshot } from './sanitize';
 
 /**

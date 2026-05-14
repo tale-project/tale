@@ -1,0 +1,35 @@
+{
+  "locale": "sk",
+  "name": "Slovak",
+  "scripts": ["latn"],
+  "countries": ["SK"],
+  "phoneContextKeywords": ["telefón", "mobil", "číslo", "tel.", "tel"],
+  "cvcContextKeywords": ["bezpečnostný kód", "cvc", "cvv", "cv2"],
+  "address": {
+    "forms": ["inverted", "po-box"],
+    "postcodeForm": "continental",
+    "postcodeRegex": "\\d{3}\\s?\\d{2}",
+    "requireUppercase": true,
+    "streetKeywordsInverted": [
+      "ulica",
+      "ul.",
+      "námestie",
+      "nám.",
+      "trieda",
+      "tr."
+    ],
+    "poBoxKeywords": ["P.O.Box", "priehradka"],
+    "floorKeywords": ["poschodie", "byt"],
+    "countryNames": ["Slovensko", "Slovakia", "SK"],
+    "countryPostcodePrefixes": []
+  },
+  "nationalIds": [],
+  "fixtureSeeds": {
+    "wrappers": [
+      "Prosím, pošlite balík na {}.",
+      "Poštová adresa: {}",
+      "Zákazník býva na {}.",
+      "Miesto vyzdvihnutia — {} — potvrdené."
+    ]
+  }
+}

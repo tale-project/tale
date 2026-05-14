@@ -1,0 +1,119 @@
+{
+  "locale": "pt",
+  "name": "Portuguese",
+  "scripts": ["latn"],
+  "countries": ["PT", "BR", "AO", "MZ", "CV", "GW", "ST", "TL"],
+  "phoneContextKeywords": [
+    "telefone",
+    "telemóvel",
+    "telemovel",
+    "celular",
+    "número",
+    "numero",
+    "tel.",
+    "tel",
+    "n°"
+  ],
+  "cvcContextKeywords": [
+    "código de segurança",
+    "código de verificação",
+    "cvc",
+    "cvv",
+    "cv2"
+  ],
+  "address": {
+    "forms": ["standard", "inverted", "po-box"],
+    "postcodeForm": "continental",
+    "postcodeRegex": "\\d{4}-?\\d{3}",
+    "streetKeywordsStandard": [
+      "Rua",
+      "Avenida",
+      "Av.",
+      "Av",
+      "Travessa",
+      "Trav.",
+      "Largo",
+      "Praça",
+      "Praca",
+      "Pç.",
+      "Estrada",
+      "Est.",
+      "Alameda",
+      "Al.",
+      "Beco",
+      "Caminho",
+      "Cam."
+    ],
+    "streetKeywordsInverted": [
+      "Rua",
+      "Avenida",
+      "Av.",
+      "Travessa",
+      "Trav.",
+      "Largo",
+      "Praça",
+      "Estrada",
+      "Alameda",
+      "Beco"
+    ],
+    "houseNumberMarkers": ["n.º", "no.", "nº"],
+    "poBoxKeywords": ["Apartado", "Caixa Postal", "CP"],
+    "floorKeywords": [
+      "andar",
+      "piso",
+      "apartamento",
+      "apto.",
+      "apto",
+      "sala",
+      "fração",
+      "fracao"
+    ],
+    "countryNames": [
+      "Portugal",
+      "Brasil",
+      "Brazil",
+      "Angola",
+      "Moçambique",
+      "Mozambique",
+      "Cabo Verde",
+      "Cape Verde",
+      "Guiné-Bissau",
+      "São Tomé",
+      "Timor-Leste",
+      "PT",
+      "BR"
+    ],
+    "countryPostcodePrefixes": [],
+    "requireUppercase": true
+  },
+  "nationalIds": [
+    {
+      "id": "pt-nif",
+      "name": "Portuguese NIF",
+      "pattern": "\\b\\d{9}\\b",
+      "replacement": "[NIF]"
+    },
+    {
+      "id": "br-cpf",
+      "name": "Brazilian CPF",
+      "pattern": "\\b\\d{3}\\.\\d{3}\\.\\d{3}-\\d{2}\\b",
+      "checksum": "mod11-cpf",
+      "replacement": "[CPF]"
+    },
+    {
+      "id": "pt-passport",
+      "name": "Portuguese Passport Number",
+      "pattern": "\\b[A-Z]\\d{6}\\b",
+      "replacement": "[PASSPORT]"
+    }
+  ],
+  "fixtureSeeds": {
+    "wrappers": [
+      "Por favor, envie o pacote para {}.",
+      "Endereço postal: {}",
+      "O cliente mora em {}.",
+      "Ponto de coleta — {} — confirmado.",
+      "Envie a correspondência para {}, obrigado."
+    ]
+  }
+}

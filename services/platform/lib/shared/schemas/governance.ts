@@ -216,40 +216,16 @@ export const featureFlagsConfigSchema = z.object({
 });
 export type FeatureFlagsConfig = z.infer<typeof featureFlagsConfigSchema>;
 
-const piiCustomPatternSchema = z.object({
-  name: z.string().min(1),
-  regex: z
-    .string()
-    .min(1)
-    .refine((v) => {
-      try {
-        new RegExp(v);
-        return true;
-      } catch {
-        return false;
-      }
-    }, 'Invalid regex pattern')
-    // Static AST analysis: rejects nested-quantifier shapes like `(a+)+b`,
-    // `(a|aa)+`, `(a|a?)+` that exhibit catastrophic backtracking. Without
-    // this, an admin can save a pattern that hangs every guardrail-protected
-    // message — `execWithBudget` checks the wall clock only between `exec()`
-    // calls and cannot pre-empt a single pathological exec.
-    .refine((v) => {
-      try {
-        return safe(v);
-      } catch {
-        return false;
-      }
-    }, 'Pattern is unsafe — likely catastrophic backtracking'),
-  replacement: z.string().min(1),
-});
-
-export const piiConfigSchema = z.object({
-  enabled: z.boolean(),
-  mode: z.enum(['mask', 'block']),
-  enabledPatterns: z.array(z.string()),
-  customPatterns: z.array(piiCustomPatternSchema).optional(),
-});
+// PII configuration schemas live in `@tale/pii/schemas`. The Convex
+// dispatcher (governance/sanitize.ts), the admin UI, and the mutation
+// validator all import them from there. This file used to redeclare them;
+// removed when PII detection moved into the dedicated `@tale/pii` workspace.
+export {
+  piiConfigSchema,
+  piiCustomPatternSchema,
+  type PiiConfig,
+  type PiiCustomPattern,
+} from '@tale/pii';
 
 export const modelAccessRuleSchema = z.object({
   scope: z.enum(['user', 'team', 'role', 'default']),

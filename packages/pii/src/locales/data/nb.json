@@ -1,0 +1,44 @@
+{
+  "locale": "nb",
+  "name": "Norwegian Bokmål",
+  "scripts": ["latn"],
+  "countries": ["NO"],
+  "phoneContextKeywords": [
+    "telefon",
+    "mobiltelefon",
+    "mobil",
+    "nummer",
+    "tlf.",
+    "tlf",
+    "tel.",
+    "tel"
+  ],
+  "cvcContextKeywords": ["sikkerhetskode", "cvc", "cvv", "cv2"],
+  "address": {
+    "forms": ["glued-suffix", "po-box"],
+    "postcodeForm": "continental",
+    "postcodeRegex": "\\d{4}",
+    "streetSuffixGlued": ["gate", "gata", "veien", "vegen", "plassen", "allé"],
+    "poBoxKeywords": ["Postboks", "PB."],
+    "floorKeywords": ["etasje", "leilighet", "leil."],
+    "countryNames": ["Norge", "Norway", "NO"],
+    "countryPostcodePrefixes": [],
+    "requireUppercase": true
+  },
+  "nationalIds": [
+    {
+      "id": "no-fodselsnummer",
+      "name": "Norwegian Fødselsnummer",
+      "pattern": "\\b\\d{6}\\s?\\d{5}\\b",
+      "replacement": "[NO_ID]"
+    }
+  ],
+  "fixtureSeeds": {
+    "wrappers": [
+      "Vennligst send pakken til {}.",
+      "Postadresse: {}",
+      "Kunden bor i {}.",
+      "Hentested — {} — bekreftet."
+    ]
+  }
+}

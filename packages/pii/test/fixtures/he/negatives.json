@@ -1,0 +1,4065 @@
+{
+  "_meta": {
+    "locale": "he",
+    "generator": "@tale/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 0,
+      "negatives": 810
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "negatives": [
+    {
+      "id": "neg-prose-he-00000",
+      "input": "מה אתה רוצה לעשות?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00001",
+      "input": "חייך עכשיו, תבכה אחר-כך!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00002",
+      "input": "אני עייף עכשיו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00003",
+      "input": "בבקשה תחשוב על זה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00004",
+      "input": "אתה חושב יותר מדי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00005",
+      "input": "לך לרופא לקחת מרשם!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00006",
+      "input": "\"איפה הבית שלך?\" \"הוא שם\".",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00007",
+      "input": "\"אתה המורה של ישראל\", אמר ישו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00008",
+      "input": "מתי אתה מתעורר? אני מתעורר בשמונה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00009",
+      "input": "אני שוכב על הדשא.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00010",
+      "input": "לא ללכת על הדשא.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00011",
+      "input": "לא מספיק אור כדי לצלם.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00012",
+      "input": "לפעמים התמונות האלו לא מספיק טובות.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00013",
+      "input": "אתה יכול לזהות את הבן אדם בתמונה?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00014",
+      "input": "בתמונה כולם מחייכים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00015",
+      "input": "הסימול \"&\" משמעו ו' החיבור.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00016",
+      "input": "\"מי הבחורה הזאת?\" \"זאת קיוקו\".",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00017",
+      "input": "\"ראיתי אותה לפני חמישה ימים\", אמר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00018",
+      "input": "היא קרעה את המכתב לחתיכות.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00019",
+      "input": "הוא אוהב לשתות קפה בלי סוכר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00020",
+      "input": "הוא הדגיש את הצדדים הנוחים של החיים בעיר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00021",
+      "input": "למה לא הקשבת לעצה שלו?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00022",
+      "input": "למה אתה לא מקשיב לעצה שלו?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00023",
+      "input": "אני רוצה שתשיר לי שיר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00024",
+      "input": "אינני רוצה לבזבז את שנות חיי הטובות ביותר עבורך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00025",
+      "input": "ליום ההולדת שלך, אתן לך אופניים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00026",
+      "input": "\"תודה על עזרתך.\" \"על לא דבר.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00027",
+      "input": "התחביב שלי הוא לנגן בגיטרה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00028",
+      "input": "לא מוצא חן בעיני שאתה מגיע מאוחר בכל יום.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00029",
+      "input": "אני מתייחס בכובד ראש לדעתך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00030",
+      "input": "מדוע אתה מתנצל על דבר שלא עשית?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00031",
+      "input": "ייתכן שהתקשורת שלהם יותר מורכבת משחשבנו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00032",
+      "input": "אני רוצה שתחזור במהרה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00033",
+      "input": "לכולם מגיעה הזדמנות שנייה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00034",
+      "input": "ז'אן דארק סרבה להתכחש לאמונתה שהקול ששמעה הוא של לא אחר מאשר האלוהים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00035",
+      "input": "אני גר בבית הזה לבדי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00036",
+      "input": "לא היתה לי כל כוונה לפגוע בך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00037",
+      "input": "אלמלא העולם היה במצב כזה, הייתי יכול להאמין בכל אחד.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00038",
+      "input": "אינני יודע כיצד להסביר דבר כה ברור.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00039",
+      "input": "ראיתי אותו ננזף על ידי אביו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00040",
+      "input": "הטייפון הכה בעיר וגרם לנזק עצום.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00041",
+      "input": "שוויץ היא מדינה יפיפיה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00042",
+      "input": "התצלום הזה מעורר בי בחילה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00043",
+      "input": "בימים אלה מחשיך בסביבות חמש וחצי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00044",
+      "input": "הגן הזה בשיאו באביב.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00045",
+      "input": "היא מאחרת בתשלום שכר הדירה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00046",
+      "input": "הוא פתר את הבעיה בקלות.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00047",
+      "input": "נאסר עליה לעשן.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00048",
+      "input": "אבי מנהל את החנות.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00049",
+      "input": "אתמול בלילה לא היתה לנו ברירה אלא לקרוא למשטרה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00050",
+      "input": "היא העיפה מבט באמה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00051",
+      "input": "האם אפשר לקבל עזרה?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00052",
+      "input": "כתוב לי אם תתקל בבעיה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00053",
+      "input": "בפסגת הצוק עומדת טירה ישנה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00054",
+      "input": "כאשר חיינו בניו-יורק, שכרנו דירה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00055",
+      "input": "אנא הנח את המזוודה על המשקל.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00056",
+      "input": "כשהגעתי לבית הספר, הפעמון כבר צלצל.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00057",
+      "input": "אינני יודע מתי הוא יבוא לכאן.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00058",
+      "input": "השטח והבית האלה הם שלי!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00059",
+      "input": "הצעירים בדרך כלל מלאי אנרגיה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00060",
+      "input": "אוי, התקלקל לי המחשב!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00061",
+      "input": "המשטרה פזרה את ההמון.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00062",
+      "input": "בין הקהל היו תלמידים, מורים, פקידים וכיוצא בזאת.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00063",
+      "input": "אי אפשר לראות אפילו איזשהו סימן של מעט התקדמות אצלו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00064",
+      "input": "בממוצע, פעמיים בחודש אני הולך לראות סרט.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00065",
+      "input": "הוא המשיך לכתוב בנושא בעלי החיים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00066",
+      "input": "אתה חייב להקפיד על סידור החדר שלך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00067",
+      "input": "בהתרסקות נהרגו כל הנוסעים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00068",
+      "input": "אני משער שהרכבת הבאה לא תהיה עמוסה כמו זו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00069",
+      "input": "היא נשארה רווקה כל חייה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00070",
+      "input": "אני אוהב מוזיקת ג'אז.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00071",
+      "input": "כיוון שעבד במסירות נפש, הצליח.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00072",
+      "input": "הכל מתקדם היטב.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00073",
+      "input": "לא הבחנו בזמן שעבר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00074",
+      "input": "הוא אכל כל כך הרבה, שקיצר את חייו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00075",
+      "input": "אני רוצה לנסוע לחו\"ל.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00076",
+      "input": "אני הולך ברגל לבית הספר בכל יום.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00077",
+      "input": "באופן כללי, ניתן לומר שהוא גאון מוסיקלי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00078",
+      "input": "האהבה היא, מטבעה, עיוורת.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00079",
+      "input": "הכרטיס הזה תקף לחודש.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00080",
+      "input": "הם היו ברובם צעירים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00081",
+      "input": "ראיתי אותם נכנסים לבנק.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00082",
+      "input": "הוא חזר הביתה מאוחר בערב.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00083",
+      "input": "בעבר היתה כאן כנסיה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00084",
+      "input": "חבל שלא יכולת לבוא.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00085",
+      "input": "הוא עדיין לא התרגל לקצב של העיר הגדולה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00086",
+      "input": "מה סיבת הפיצוץ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00087",
+      "input": "פגשתי את טום בדרך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00088",
+      "input": "מר סמית' הוא מורה טוב.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00089",
+      "input": "אנו אוכלים את ארוחת הבוקר בשעה שבע.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00090",
+      "input": "אתה חייב להגיש את הדו\"ח ביום שני.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00091",
+      "input": "הכובע הזה קטן מדי בשבילי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00092",
+      "input": "אני לא אוכל בשר, לא דגים ולא מאכלי ים, וגם לא מרק המכיל בשר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00093",
+      "input": "\"תּוֹדָה\" \"בְּבַקָּשָׁה\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00094",
+      "input": "כל בני האדם נולדו בני חורין ושווים בערכם ובזכויותיהם. כולם חוננו בתבונה ובמצפון, לפיכך חובה עליהם לנהוג איש ברעהו ברוח של אחווה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00095",
+      "input": "היכן ראית את הנשים הללו?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00096",
+      "input": "העליתי שני קילוגרמים הקיץ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00097",
+      "input": "המנהל שלי לא סלח לי על כך שאיחרתי לישיבה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00098",
+      "input": "הבה נשיר ונרקוד.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00099",
+      "input": "אני מזדהה עם נשאי המחלה הזאת.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00100",
+      "input": "כשקרתה רעידת האדמה הגדולה הייתי רק בן עשר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00101",
+      "input": "הוא אוהב לבשל בשביל המשפחה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00102",
+      "input": "מרי תולעת ספרים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00103",
+      "input": "אם תירשם לפייסבוק, פרטיך יישלחו לסוכנויות מודיעין.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00104",
+      "input": "הוא לא ציין מתי ישוב.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00105",
+      "input": "אהרון הרג את אליזבת.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00106",
+      "input": "יש לי הרבה שיעורי בית לעשות היום.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00107",
+      "input": "הכתב שלך מאוד מסודר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00108",
+      "input": "איזה מפרק פרקת?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00109",
+      "input": "לא היו ורדים בגן.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00110",
+      "input": "הוא נפטר על הבמה, מהתקף לב.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00111",
+      "input": "בסוף השנה יהיה משבר כלכלי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00112",
+      "input": "תן לי לחשוב על זה, אני אודיע לך מאוחר יותר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00113",
+      "input": "עליך לזכור כמה שיותר מילים באנגלית.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00114",
+      "input": "לך כמה שיותר מהר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00115",
+      "input": "הוא גר במעלה הגבעה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00116",
+      "input": "הוא הראה הערצה רבה כלפי תמונות של האל.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00117",
+      "input": "הוא לא מאמין באלוהים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00118",
+      "input": "שלחנו את ההזמנות אתמול.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00119",
+      "input": "היא לוקחת שיעורי פסנתר פעם בשבוע.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00120",
+      "input": "תתקשרי אלי בארבע. עליי לקחת את הרכבת הראשונה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00121",
+      "input": "הוא לא הצליח למצוא את אשר החבאתי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00122",
+      "input": "אני רוצה ללמוד עברית.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00123",
+      "input": "יומי יהיה מורה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00124",
+      "input": "הוא אוהב חיות מוזרות, כמו נחשים, לדוגמא.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00125",
+      "input": "יש לו מחלה חשוכת מרפא.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00126",
+      "input": "הבחורה הזאת נראית חמודה מאוד.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00127",
+      "input": "האריה הוא מלך החיות.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00128",
+      "input": "יש לי עצה אחת אחרונה בקשר ללחיצת ידיים: לא לשכוח לחייך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00129",
+      "input": "כמה ספרים קראת?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00130",
+      "input": "היא מתרברבת ביופיה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00131",
+      "input": "הוא שוטף את האוטו שלו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00132",
+      "input": "אליעזר זמנהוף פולני.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00133",
+      "input": "האם תקחו אותי לשם?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00134",
+      "input": "בגרב הזה יש חור.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00135",
+      "input": "לא ידעתי דבר על תוכניתו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00136",
+      "input": "הוא תיכף יהיה כאן.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00137",
+      "input": "ביתו עומד למכירה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00138",
+      "input": "האם תרשו לי לנסות שנית?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00139",
+      "input": "הסיבה לשמה נשים מדברות היא שמירת יחסים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00140",
+      "input": "שאלתי את אמי, מה להביא לשם.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00141",
+      "input": "חם. האם עלי להדליק את המזגן?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00142",
+      "input": "אבי זקן מדי בשביל עבודה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00143",
+      "input": "ילדים קטנים יכולים לשחק במשחק הזה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00144",
+      "input": "זהו הניגוד המוחלט לאמת.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00145",
+      "input": "הוא התחתן בהיותו צעיר בשנים, כפי שזה היה נהוג בתקופה ההיא.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00146",
+      "input": "עדיין מחפשים את הילד.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00147",
+      "input": "האנגלית שלו טובה יותר משלי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00148",
+      "input": "כבר הייתי בסאפורו לפני כן.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00149",
+      "input": "פועלי כל העולם, התאחדו!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00150",
+      "input": "פועלי כל העולם - התאחדו!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00151",
+      "input": "הענשנו אותו לפי הכללים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00152",
+      "input": "ביום ההוא היא הגיעה לבקרני.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00153",
+      "input": "לא רציתי לפצוע אותך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00154",
+      "input": "איפה השעון שלי?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00155",
+      "input": "אתה פנוי בסופשבוע הזה ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00156",
+      "input": "יש להם שני בנים ובת אחת.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00157",
+      "input": "עלייך לבוא איתי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00158",
+      "input": "אני אוהב אותך יותר ממנה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00159",
+      "input": "וכתתו חרבותם לאתים וחניתותיהם למזמרות, לא-ישא גוי אל-גוי חרב ולא ילמדו עוד מלחמה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00160",
+      "input": "בנות רוסיות אוהבות בנים איסלנדיים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00161",
+      "input": "הוא לא יודע צרפתית בכלל.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00162",
+      "input": "שני בנים נעדרים היום מבית הספר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00163",
+      "input": "לצערי, החתול שלי ברח לאנשהו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00164",
+      "input": "אל תבלבל לי ת'מוח!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00165",
+      "input": "יום אחד אחי רוצה לטוס לירח.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00166",
+      "input": "אני הולך לבית הספר בשעה שבע.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00167",
+      "input": "מה זה הילדים האלו! אתה שולח אותם להביא סוכריה והם חוזרים עם כלב.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00168",
+      "input": "אני ברצון רב אצטרף למפלגה הקומוניסטית של סין.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00169",
+      "input": "הפסקתי לעשן ולשתות.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00170",
+      "input": "הוא אחד הזמרים הידועים ביותר ביפן.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00171",
+      "input": "ראה את הבניין הזה. האם זה מקדש?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00172",
+      "input": "לדעתי היא רקדנית טובה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00173",
+      "input": "אני חושב שהיא רקדנית טובה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00174",
+      "input": "עד כמה זה רחוק משדה תעופה עד למלון?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00175",
+      "input": "תקָשרו אותי בבקשה עם מחלקת הביטחון של המלון.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00176",
+      "input": "העטים האלו שלו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00177",
+      "input": "אנו חרדים לביטחונם.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00178",
+      "input": "את מדברת גרמנית?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00179",
+      "input": "אח! אילו הייתי עשיר, הייתי קונה לעצמי בית בספרד.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00180",
+      "input": "אני מתכנן להישאר בעיר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00181",
+      "input": "לא כל הילדים אוהבים תפוחים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00182",
+      "input": "בני נסע ללונדון, למקום שבו נולדתי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00183",
+      "input": "אני לא יכול לסמוך על המילה שלו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00184",
+      "input": "דבריו הם משענת קנה רצוץ עבורי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00185",
+      "input": "אדם זוהי חיה יחידה שיודעת לצחוק.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00186",
+      "input": "פעמיים בירה, בבקשה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00187",
+      "input": "\"מתחשק לי לשחק קלפים.\" \"גם לי.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00188",
+      "input": "\"בא לי לשחק קלפים.\" \"גם לי.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00189",
+      "input": "\"יש לי מה זה דודא לאיזה משחק קלפים\". \"ואללה גם לי יש.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00190",
+      "input": "כמה ילדים יש לך?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00191",
+      "input": "גם כי-אלך בגיא צלמוות, לא אירא רע כי אתה עימדי; שבטך ומשענתך, המה ינחמוני.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00192",
+      "input": "גַּ֤ם כִּֽי־אֵלֵ֨ךְ בְּגֵ֪יא צַלְמָ֡וֶת לֹא־אִ֘ירָ֤א רָ֗ע כִּי־אַתָּ֥ה עִמָּדִ֑י שִׁבְטְךָ֥ וּ֝מִשְׁעַנְתֶּ֗ךָ הֵ֣מָּה יְנַֽחֲמֻֽנִי׃",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00193",
+      "input": "הוא שחיין יותר טוב ממני.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00194",
+      "input": "נְחֵנו באורח מישרים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00195",
+      "input": "הנחה אותנו בדרך הישר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00196",
+      "input": "הנחנו בדרך הישר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00197",
+      "input": "מוזר שאף אחד לא מכיר אותנו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00198",
+      "input": "כשגרנו בניו יורק, שכרנו דירה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00199",
+      "input": "תודה רבה עבור עזרתך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00200",
+      "input": "על סף מאורתו יושבת זקנתו ולפניה העריבה הישנה המבוקעה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00201",
+      "input": "ובמפתן הבית יושבה זקנתו, ולפניה השוקת השבורה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00202",
+      "input": "אין אלוה מלבד אללה ומוחמד הוא שליח אללה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00203",
+      "input": "היא כל כך השתנתה שלא הצלחתי לזהותהּ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00204",
+      "input": "בעידן של דואר אלקטרוני, אני כל כך שמח כאשר חברי שולח לי מכתב אמיתי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00205",
+      "input": "תנחש את מי פגשתי היום!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00206",
+      "input": "טוני מדבר אנגלית טוב, בדיוק כמוך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00207",
+      "input": "יש לך טלפון נייד ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00208",
+      "input": "לא יאמרו עוד אבות אכלו בוסר ושיני בנים תקהינה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00209",
+      "input": "אני חושבת שהרכבת תגיע בקרוב.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00210",
+      "input": "הם לא הסכימו להוריד את המחיר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00211",
+      "input": "זהו הבית שבו גרתי כאשר הייתי ילד.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00212",
+      "input": "התיישבתי ביניהם.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00213",
+      "input": "יש מעט מאוד אתרים במרשתת בשפה הטטרית.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00214",
+      "input": "יש מעט מאוד אתרי אינטרנט בשפה הטטרית.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00215",
+      "input": "יש מעט מאוד אתרי מרשתת בשפה הטטרית.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00216",
+      "input": "חומת אש תבטיח הבטחת המרשתת.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00217",
+      "input": "התפשטות השימוש במרשתת הולידה דור חדש של צעירים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00218",
+      "input": "בריאתנות היא מדע מדומה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00219",
+      "input": "בריאתנות זהו פסבדו-מדע.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00220",
+      "input": "הממשלה הסינית שלטה במרשתת כדי למנוע מאנשים לדעת את האמת על הטבח בכיכר טיאננמן.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00221",
+      "input": "מספר הכיסאות באולם הוא שמונים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00222",
+      "input": "היום הם עוזבים את קהיר לכיוון תל אביב.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00223",
+      "input": "חומת אש תערוב לביטחונה של המרשתת.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00224",
+      "input": "איזה סוג של מידע אתה מקבל ממרשתת?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00225",
+      "input": "האיש הזה הוא שחצן מדי לטעמי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00226",
+      "input": "הוא הודה בתבוסתו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00227",
+      "input": "העוגה שלך טעימה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00228",
+      "input": "הוא מתפאר שהוא יכול לדבר בשש שפות.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00229",
+      "input": "היא קישטה את הקיר בתמונות.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00230",
+      "input": "אנחנו משתמשים במרגרינה במקום בחמאה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00231",
+      "input": "נהנית אתמול בערב?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00232",
+      "input": "ביקשתי ממנו שלא ייסע מהר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00233",
+      "input": "היא דחתה את בקשתי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00234",
+      "input": "היא סירבה לבקשתי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00235",
+      "input": "כשדוב הופיע פתאום, הילדים העמידו פנים כאילו הם מתים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00236",
+      "input": "כשדוב הופיע לפתע, הילדים התחזו למתים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00237",
+      "input": "כשאני מנסה להקשיב למוזיקה במדיה פלייר, מופיעה שגיאה ואני לא יכול להשמיע את הקובץ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00238",
+      "input": "אלה שתי תמונות עם מסגרת יפה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00239",
+      "input": "זה קטן יותר מזה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00240",
+      "input": "אעביר את הסכום.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00241",
+      "input": "האם הגעת הנה לבדך?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00242",
+      "input": "תן לי לתת לך עצה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00243",
+      "input": "תני לי לתת לך עצה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00244",
+      "input": "אני סומכת עליך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00245",
+      "input": "אני סומך עלייך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00246",
+      "input": "אני סומכת עלייך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00247",
+      "input": "אחרנו לבית הספר בגלל הגשם החזק.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00248",
+      "input": "מה שלום ההורים שלכם?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00249",
+      "input": "מה שלום ההורים שלך?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00250",
+      "input": "היא מתה לפני עשר שנים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00251",
+      "input": "המלון הזה היה קרוב מאוד לאגם.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00252",
+      "input": "הוא מדבר גם צרפתית.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00253",
+      "input": "יש חיות רבות בפארק.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00254",
+      "input": "ישנם הרבה בעלי חיים בפארק.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00255",
+      "input": "אני זוכר שנעלתי את הדלת.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00256",
+      "input": "אני זוכרת שנעלתי את הדלת.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00257",
+      "input": "העובדה שפיטרו אותה הייתה עבורה סטירת לחי בפרצוף, לאחר כל מה שעשתה עבור החברה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00258",
+      "input": "המלון הזה טוב יותר מהמלון ההוא.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00259",
+      "input": "לאחרונה מצאתי מילונים חדשים, בשפות נוספות.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00260",
+      "input": "האם אביך כבר הגיע?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00261",
+      "input": "אני חייב להכיר את המקור של הציטטות האלה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00262",
+      "input": "אני חייב לדעת מה מקורן של הציטטות האלה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00263",
+      "input": "אל תשתה כל כך הרבה בירה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00264",
+      "input": "שמה בדרך כלל בורח לי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00265",
+      "input": "אלגברה היא המקצוע האהוב עליי ביותר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00266",
+      "input": "התחבאתי מתחת לשולחן.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00267",
+      "input": "הוא הרבה יותר גבוה ממך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00268",
+      "input": "הוא התלונן על הרעש.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00269",
+      "input": "סליחה על האיחור.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00270",
+      "input": "הרומן החדש שלה הפך לרב-מכר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00271",
+      "input": "התוכנית שלך נראית מצוינת.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00272",
+      "input": "כמות הפחמן הדו-חמצני גדלה בעשרה אחוזים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00273",
+      "input": "כמות דו-תחמוצת הפחמן גדלה בעשרה אחוזים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00274",
+      "input": "התשובה שלך שגויה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00275",
+      "input": "זה היה לילה ארוך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00276",
+      "input": "יש לי שלושה אחים. אחד חי ביפן, והאחרים בחו\"ל.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00277",
+      "input": "אני שולח לך מתנת יום הולדת בדואר אוויר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00278",
+      "input": "אני חושב שעומד לרדת גשם.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00279",
+      "input": "אני חושבת שעומד לרדת גשם.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00280",
+      "input": "הוא הגבוה ביותר בין השלושה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00281",
+      "input": "אמא קנתה לנו גור כלבים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00282",
+      "input": "אין פלא שהשנים שלאחר היציאה לגמלאות נקראות גיל הזהב.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00283",
+      "input": "זה לא מפליא שהשנים שלאחר הפרישה נקראות גיל הזהב.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00284",
+      "input": "הוא נראה כמו רופא.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00285",
+      "input": "לא ראיתי אותך כבר הרבה זמן.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00286",
+      "input": "הספרים של הסטודנט הזה חדשים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00287",
+      "input": "הוא יהיה בעל טוב לאחותי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00288",
+      "input": "רוב החברות היפניות הגדולות תלויות ביצוא.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00289",
+      "input": "האם הדוח אותנטי?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00290",
+      "input": "האם מדובר בדיווח אמיתי?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00291",
+      "input": "חבריו נטשו אותו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00292",
+      "input": "הייתי שם לעתים קרובות.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00293",
+      "input": "חשבתי שהוא יודע הכול על יפן.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00294",
+      "input": "אני לא יודע אם היא תבוא.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00295",
+      "input": "איבדתי את העיפרון שלי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00296",
+      "input": "בלילה שעבר הוא עבד בלי הפסקה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00297",
+      "input": "יש לי חום גבוה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00298",
+      "input": "כמובן, היא עברה את הבחינה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00299",
+      "input": "אפריקה היא יבשת, גרנלנד - לא.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00300",
+      "input": "היגיינה אישית חשובה מאוד.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00301",
+      "input": "אתה יכול לנהוג במכונית?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00302",
+      "input": "אתה יכול לנסוע לאט יותר?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00303",
+      "input": "התוכל לנסוע לאט יותר?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00304",
+      "input": "מצטער, אני לא יכול להישאר להרבה זמן.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00305",
+      "input": "מצטערת, אני לא יכולה להישאר להרבה זמן.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00306",
+      "input": "אבי נהג לקום כל בוקר בשש, אפילו בחורף.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00307",
+      "input": "אני בדרך כלל צועד.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00308",
+      "input": "אני בדרך כלל הולך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00309",
+      "input": "הוא צריך להיות כבן ארבעים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00310",
+      "input": "נראה שג'ף יודע איפה היא.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00311",
+      "input": "הוא חזר אמש בסביבות השעה תשע.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00312",
+      "input": "הוא היה פחות או יותר שיכור.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00313",
+      "input": "הוא הראה לי את תמונתה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00314",
+      "input": "סליחה, מי האישה הזאת?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00315",
+      "input": "סלח לי, מי זאת?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00316",
+      "input": "החלטתי להיות מאושר, כי זה טוב לבריאות.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00317",
+      "input": "החלטתי להיות מאושרת, כי זה טוב לבריאות.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00318",
+      "input": "הוא הושיט את ידיו לקחת את המילון.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00319",
+      "input": "האם זה נכון שלגברים יש עור שמנוני יותר מאשר לנשים?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00320",
+      "input": "האם לגברים יש באמת עור שמנוני יותר מאשר לנשים?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00321",
+      "input": "די קשה להגיע לשליטה בצרפתית אחרי שנתיים-שלוש.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00322",
+      "input": "שמה לא היה ברשימה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00323",
+      "input": "אני מניח שאתה מכיר את העובדות לאשורן.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00324",
+      "input": "אני מניחה שאתה מכיר את העובדות לאשורן.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00325",
+      "input": "אני מניח שאת מכירה את העובדות לאשורן.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00326",
+      "input": "אני מניחה שאת מכירה את העובדות לאשורן.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00327",
+      "input": "אני אשתה כוס קפה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00328",
+      "input": "אני מצטער, אני חוזר בי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00329",
+      "input": "אני מצטערת. אני חוזרת בי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00330",
+      "input": "את גבוהה יותר ממני.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00331",
+      "input": "אתה גבוה יותר ממני.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00332",
+      "input": "הייתי רוצה רשימה של המילים באיטלקית שלא מופיעות עדיין בקורפוס.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00333",
+      "input": "איפה הספר שלה? הוא מונח על השולחן.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00334",
+      "input": "בלונדינית משוחחת עם הפסיכיאטר שלה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00335",
+      "input": "בלונדינית מדברת עם הפסיכיאטר שלה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00336",
+      "input": "הוא תפס את ידה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00337",
+      "input": "באספרנטו ההטעמה נופלת תמיד על ההברה הלפני האחרונה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00338",
+      "input": "באספרנטו מטעימים תמיד את ההברה הלפני האחרונה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00339",
+      "input": "אני מטייל בפארק.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00340",
+      "input": "עדיף שלא תלך לשם שוב.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00341",
+      "input": "עדיף שלא תלכי לשם שוב.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00342",
+      "input": "המשפט הזה חוזר על עצמו בהמשך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00343",
+      "input": "למרות שהוא כבר עבר את השמונים, הוא עדיין בריא.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00344",
+      "input": "הוא קיבל פיצויים בסך מיליון דולר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00345",
+      "input": "ספריו של הסטודנט הזה חדשים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00346",
+      "input": "ניסיתי לומר לך את זה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00347",
+      "input": "התאכזבתי שיש לי כל כך מעט לעשות.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00348",
+      "input": "אני ממש לא מבין את הבעיה הזאת.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00349",
+      "input": "אני ממש לא מבינה את הבעיה הזאת.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00350",
+      "input": "אני תוהה איזו שפה מדברים בברזיל.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00351",
+      "input": "חייתי כאן במשך שלושים שנה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00352",
+      "input": "הכוס נשמטה מידיו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00353",
+      "input": "לקחתי אותה הביתה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00354",
+      "input": "הוא לא מסוג האנשים שהיינו רוצים לעבוד איתם.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00355",
+      "input": "הוא שאל איך קוראים לי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00356",
+      "input": "הוא שאל מה שמי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00357",
+      "input": "אני יכול לעזור לך?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00358",
+      "input": "אני יכולה לעזור לך?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00359",
+      "input": "תגיד לי מה עלה בגורלו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00360",
+      "input": "תגיד לי מה קרה לו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00361",
+      "input": "תגידי לי מה קרה לו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00362",
+      "input": "קניתי את המכונית הזאת.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00363",
+      "input": "הוא יוצא לניו יורק בשבוע הבא.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00364",
+      "input": "הוא טס לניו יורק בשבוע הבא.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00365",
+      "input": "רק עכשיו גיליתי שאשתי בגדה בי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00366",
+      "input": "יש לך קונדומים?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00367",
+      "input": "מחבר השפה \"סלוביו\" אפילו הקים בה אתר פורנו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00368",
+      "input": "לעזאזל המוסכמות!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00369",
+      "input": "איטלקית היא שפת האם שלי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00370",
+      "input": "כשהגעתי הביתה, גיליתי שאיבדתי את הארנק.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00371",
+      "input": "אוסטרלים מצטיינים בספורט ובבידור.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00372",
+      "input": "קראו את ההערה בתחתית העמוד.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00373",
+      "input": "קרא את ההערה בתחתית העמוד.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00374",
+      "input": "קראי את ההערה בתחתית העמוד.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00375",
+      "input": "הוא ברח כשראה את השוטר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00376",
+      "input": "הוא כתב ספר על סין.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00377",
+      "input": "אתם אוהבים מוזיקה?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00378",
+      "input": "אתה אוהב מוזיקה?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00379",
+      "input": "את אוהבת מוזיקה?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00380",
+      "input": "איפה אני יכול למצוא משחת שיניים?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00381",
+      "input": "איפה אני יכולה למצוא משחת שיניים?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00382",
+      "input": "אבל אילו היינו הגיוניים לגמרי, האם היינו רוצים בכלל ילדים?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00383",
+      "input": "אבל אילו היינו חושבים לגמרי בהיגיון, האם היינו רוצים בכלל ילדים?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00384",
+      "input": "אם אתה צריך לנסוע לארה\"ב, עדיף שתלמד לנהל שיחה באנגלית.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00385",
+      "input": "אם את צריכה לנסוע לארה\"ב, עדיף שתלמדי לנהל שיחה באנגלית.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00386",
+      "input": "הם פטרו את הביקורת שלו בתור צביעות.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00387",
+      "input": "אף אחד לא שם לב אליו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00388",
+      "input": "אף אחד לא שם לב אליה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00389",
+      "input": "צר לי לשמוע שאביך נפטר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00390",
+      "input": "אני מצטער לשמוע שאביך נפטר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00391",
+      "input": "אני מצטערת לשמוע שאביך נפטר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00392",
+      "input": "אל תקרא ספרים בחדר שהתאורה בו חלשה כל כך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00393",
+      "input": "אל תקראי ספרים בחדר עם תאורה חלשה כל כך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00394",
+      "input": "אל תקרא ספרים בחדר אפלולי כל כך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00395",
+      "input": "הוא קנה לי מצלמה טובה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00396",
+      "input": "למה אני צריך לעשות את זה?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00397",
+      "input": "למה אני צריכה לעשות את זה?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00398",
+      "input": "תרצה תה או קפה?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00399",
+      "input": "תרצי תה או קפה?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00400",
+      "input": "זה מספיק, תודה לך. אני מלא.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00401",
+      "input": "זה מספיק, תודה לך. אני מלאה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00402",
+      "input": "יש לה בת ושמה מרי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00403",
+      "input": "הכול היה מלהיב עבורי כשביקרתי בספרד בפעם הראשונה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00404",
+      "input": "התלהבתי מכל דבר כשביקרתי בספרד בפעם הראשונה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00405",
+      "input": "יש עליך פלאפון?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00406",
+      "input": "החיים הם מה שקורה לך כשאתה עסוק בתוכניות אחרות.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00407",
+      "input": "הוא הגיע לטוקיו אתמול.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00408",
+      "input": "רק אדם אחד ניצל מהתאונה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00409",
+      "input": "היה רק ניצול אחד מהתאונה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00410",
+      "input": "בבקשה למלא את הטופס הזה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00411",
+      "input": "נא למלא את הטופס הזה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00412",
+      "input": "אין צורך להיפרד מהם.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00413",
+      "input": "חזור לכיסא שלך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00414",
+      "input": "חזרי לכיסא שלך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00415",
+      "input": "החינוך בעולם מאכזב אותי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00416",
+      "input": "יש מפלצת מתחת למיטה שלי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00417",
+      "input": "כי הם צופים בטלוויזיה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00418",
+      "input": "האם אפשר לדעת מה אורך הקוטר מתוך ההיקף?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00419",
+      "input": "האם אפשר לחשב את הקוטר מתוך ההיקף?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00420",
+      "input": "אתה יכול להישאר כאן עד היום בערב.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00421",
+      "input": "את יכולה להישאר כאן עד היום בערב.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00422",
+      "input": "אתה יכול להישאר כאן עד הערב.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00423",
+      "input": "את יכולה להישאר כאן עד הערב.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00424",
+      "input": "ההורים משחקים עם ילדיהם במשחק.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00425",
+      "input": "אני תוהה אם יירד גשם מחר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00426",
+      "input": "העובדים צריכים להיות עם שיער קצוץ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00427",
+      "input": "אחרי המוות, הרופא.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00428",
+      "input": "איך היה סוף השבוע שלך?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00429",
+      "input": "הנבחרת שלנו מובילה בחמש נקודות.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00430",
+      "input": "אחותי מבוגרת מאחי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00431",
+      "input": "בחורף הלילה יורד מהר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00432",
+      "input": "לא מוכרים כאן בירה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00433",
+      "input": "הוא החמיץ את הרכבת האחרונה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00434",
+      "input": "הוא פספס את הרכבת האחרונה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00435",
+      "input": "היא בחרה שלושה תפוחים נהדרים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00436",
+      "input": "היא בחרה שלושה תפוחים יפים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00437",
+      "input": "לפני מצלמות הטלוויזיה הם רוקנו לביוב בקבוקי יין בורדו, כשהם צועקים סיסמאות נגד צרפת, שסירבה למלחמה בעיראק.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00438",
+      "input": "את לא יודעת עד כמה אני אוהב אותך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00439",
+      "input": "אתה לא יודע עד כמה אני אוהבת אותך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00440",
+      "input": "את לא יודעת עד כמה אני אוהבת אותך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00441",
+      "input": "אתה לא יודע עד כמה אני אוהב אותך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00442",
+      "input": "הספר הזה שייך לטוני.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00443",
+      "input": "אין לנו אותם ערכים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00444",
+      "input": "זה נמצא במרחק של כמאה שלושים ושלושה קילומטר מלונדון.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00445",
+      "input": "ראיתי רק את התפוח.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00446",
+      "input": "ציירים כפיקאסו נדירים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00447",
+      "input": "אין הרבה ציירים כמו פיקאסו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00448",
+      "input": "זה הבית שבו התגוררתי בצעירותי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00449",
+      "input": "המכונית החדשה עברה את המבדקים בהצלחה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00450",
+      "input": "המכונית החדשה עברה את הטסטים בהצלחה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00451",
+      "input": "מספר רב של אנשים הולכו שולל על ידי הפרסומת הזאת.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00452",
+      "input": "השוטר עצר את הפורץ במקום.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00453",
+      "input": "יש דברים בעולם שפשוט אי אפשר לבטא במילים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00454",
+      "input": "יש בעולם דברים שפשוט אי אפשר להסביר במילים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00455",
+      "input": "אני רוצה ללמוד אנגלית תקנית.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00456",
+      "input": "שפת האם שלי היא יפנית.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00457",
+      "input": "אנגלית היא לא שפת האם שלי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00458",
+      "input": "אומרים שהוא היה עשיר מאוד.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00459",
+      "input": "הם הגיעו לבריטניה לפני שבוע.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00460",
+      "input": "אף פעם לא ראיתי כלב גדול כל כך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00461",
+      "input": "מעולם לא ראיתי כלב גדול כל כך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00462",
+      "input": "לא כל הנוצץ זהב.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00463",
+      "input": "אתם אוהבים לשיר?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00464",
+      "input": "תהיה דיפלומט טוב.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00465",
+      "input": "תהיי דיפלומטית טובה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00466",
+      "input": "אם צריך ליצור משהו, יש לי שתי ידיים שמאליות.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00467",
+      "input": "כשצריך ליצור משהו, יש לי שתי ידיים שמאליות.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00468",
+      "input": "הוא בראש הכיתה באנגלית.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00469",
+      "input": "הוא הראשון באנגלית בכיתתו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00470",
+      "input": "באוריגמי יש לי שתי ידיים שמאליות.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00471",
+      "input": "הוא נשיא החברה, למעשה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00472",
+      "input": "על פי התחזיות המטאורולוגיות, מחר יתבהר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00473",
+      "input": "הוא חסם את הדרך בפניי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00474",
+      "input": "הוא חסם לי את הדרך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00475",
+      "input": "תן לי את הקלינקס.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00476",
+      "input": "תני לי את הקלינקס.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00477",
+      "input": "תביא לי את הקלינקס.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00478",
+      "input": "תביאי לי את הקלינקס.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00479",
+      "input": "היא צעירה כמוני.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00480",
+      "input": "אין עשן בלי אש.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00481",
+      "input": "אני זוכר את המילה הזאת.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00482",
+      "input": "עד כה היה רק משתתף אחד בתוכנית \"מי רוצה להיות מיליונר\" בישראל שזכה במיליון שקל.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00483",
+      "input": "אתה לא יכול לדחות את זה עד מחר?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00484",
+      "input": "את לא יכולה לדחות את זה עד מחר?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00485",
+      "input": "אתם לא יכולים לדחות את זה עד מחר?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00486",
+      "input": "אני רוצה שתניח בצד את המגזינים, החוברות וכל היתר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00487",
+      "input": "אני מבקש שתניח בצד את המגזינים, החוברות וכל היתר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00488",
+      "input": "אני לא יודע מה לומר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00489",
+      "input": "אני לא יודעת מה לומר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00490",
+      "input": "שחור הולם אותך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00491",
+      "input": "הוא מצפה בקוצר רוח לתוצאות הבחינה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00492",
+      "input": "הגיע הזמן ללכת לישון.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00493",
+      "input": "חירות אישית היא נשמת אפה של הדמוקרטיה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00494",
+      "input": "חירות אישית היא תמציתה של הדמוקרטיה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00495",
+      "input": "חירות אישית היא תמצית הדמוקרטיה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00496",
+      "input": "אשמח לקבל תשובה בהקדם האפשרי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00497",
+      "input": "אודה על תשובה בהקדם האפשרי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00498",
+      "input": "אתה צודק לחלוטין.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00499",
+      "input": "את צודקת לחלוטין.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00500",
+      "input": "אתם צודקים לחלוטין.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00501",
+      "input": "אלכס יענה: \"צבע\".",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00502",
+      "input": "עיכבו אותנו למשך שעתיים עקב תאונה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00503",
+      "input": "עיכבו אותנו למשך שעתיים בגלל תאונה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00504",
+      "input": "התעכבנו למשך שעתיים בגלל תאונה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00505",
+      "input": "קריאה היא תענוג גדול עבורי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00506",
+      "input": "הז'אקט מוצא חן בעיניך?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00507",
+      "input": "הז'אקט מוצא חן בעינייך?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00508",
+      "input": "הז'אקט מוצא חן בעיניכם?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00509",
+      "input": "היה מבדר לראות איך דברים משתנים במהלך השנים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00510",
+      "input": "הוא עומד בפני מכשולים רבים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00511",
+      "input": "מכשולים רבים עומדים בפניו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00512",
+      "input": "הוא מתמודד עם מכשולים מרובים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00513",
+      "input": "לפניי היו שלושה ממתינים בתור.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00514",
+      "input": "השארתי את המפתחות שלי על השולחן. תוכל להביא לי אותם בבקשה?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00515",
+      "input": "השארתי את המפתחות שלי על השולחן. תוכלי להביא לי אותם בבקשה?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00516",
+      "input": "אני לא רוצה להיות אגואיסט.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00517",
+      "input": "אני לא רוצה להיות אגואיסטית.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00518",
+      "input": "אני לא מתכוון להיות אגואיסטי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00519",
+      "input": "אני לא מתכוונת להיות אגואיסטית.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00520",
+      "input": "כשהבן שלה נפטר, היא השתגעה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00521",
+      "input": "עם מותו של בנה, היא השתגעה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00522",
+      "input": "גלגל את הכדור אליי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00523",
+      "input": "הוא הסתכל עליי ונבח.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00524",
+      "input": "לא אכפת לה איך היא מתלבשת.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00525",
+      "input": "הוא מסוגל לרוץ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00526",
+      "input": "בתור ילד הייתי הולך לעתים קרובות לדוג דגים עם אבא.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00527",
+      "input": "אתה מדבר איטלקית?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00528",
+      "input": "את מדברת איטלקית?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00529",
+      "input": "אתה מדבר עברית?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00530",
+      "input": "אני חייב לענות באנגלית?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00531",
+      "input": "אני חייבת לענות באנגלית?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00532",
+      "input": "בגד הים הזה עשוי מחומר אלסטי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00533",
+      "input": "באיזו שעה התעוררת הבוקר?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00534",
+      "input": "לפעמים אני מפקפק באינטליגנציה שלך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00535",
+      "input": "כל הספרים האלה שלי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00536",
+      "input": "לפעמים אני מפקפקת באינטליגנציה שלך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00537",
+      "input": "הוא רצה להיעדר מהכיתה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00538",
+      "input": "התגעגעתי אליך מאוד כשהיית בצרפת.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00539",
+      "input": "התגעגעתי אלייך מאוד כשהיית בצרפת.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00540",
+      "input": "אבו אל-חוסיין א-רוואנדי, במאה התשיעית לספירה, סבר שהשכל הוא האמצעי היחיד המדריך את בני האדם להגעה לאמת, משימה שההשראה אינה יכולה לעזור בה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00541",
+      "input": "יש הרבה מקום לשיפור.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00542",
+      "input": "לפני שאתם מתחילים לרכוש מוצרים בחנות המקוונת הזאת, ודאו בבקשה שאתם מכירים את עקרונות המדיניות של החנות.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00543",
+      "input": "לפני רכישת מוצרים בחנות המקוונת הזאת, אנא עיינו להלן בעקרונות המדיניות של החנות.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00544",
+      "input": "יש לך ארבעה כלבים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00545",
+      "input": "בגלל זה הוא התרגז.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00546",
+      "input": "אני לא רואה שום סיבה להתנצל.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00547",
+      "input": "אני לא רואה כל סיבה להתנצל.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00548",
+      "input": "וואו, לא יאומן!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00549",
+      "input": "וואו, לא ייאמן!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00550",
+      "input": "אושר נראה על פניו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00551",
+      "input": "פניו משקפים אושר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00552",
+      "input": "משפחתה עברה לברזיל.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00553",
+      "input": "משפחתה עקרה לברזיל.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00554",
+      "input": "האוקיאנוס האטלנטי מפריד בין אמריקה לבין אירופה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00555",
+      "input": "הפרפר חי שלושה ימים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00556",
+      "input": "אורך חייו של הפרפר שלושה ימים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00557",
+      "input": "אני מתגורר במלון הזה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00558",
+      "input": "אני מתגוררת במלון הזה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00559",
+      "input": "אני אוהב לשחק כדורסל.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00560",
+      "input": "אני אוהבת לשחק כדורסל.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00561",
+      "input": "איקדה הוא שם המשפחה שלי, וקזוקו הוא שמי הפרטי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00562",
+      "input": "סליחה על כך שאני קורא לך בשמך הפרטי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00563",
+      "input": "הכול יקר מאוד בחנות הזאת.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00564",
+      "input": "הוא שמח שבנו אוהב ספרים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00565",
+      "input": "הוא שמח על כך שבנו אוהב ספרים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00566",
+      "input": "הוא שבע רצון מאהבתו של בנו לספרים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00567",
+      "input": "הוא מרוצה מכך שבנו אוהב ספרים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00568",
+      "input": "הוועדה אישרה את התקציב.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00569",
+      "input": "הוא המציא את הסיפור.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00570",
+      "input": "כמה משתתפים ברחבי העולם זכו במיליון בתוכנית \"מי רוצה להיות מיליונר\"?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00571",
+      "input": "אני מעדיף להישאר מאשר ללכת.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00572",
+      "input": "אני מעדיפה להישאר מאשר ללכת.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00573",
+      "input": "אלפי קורבנות מתו מהמחלה הזאת.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00574",
+      "input": "אלפי קורבנות מתו בגלל המחלה הזאת.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00575",
+      "input": "הוא בנה את ביתו על הצוק.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00576",
+      "input": "היות שלא ידעתי מה לעשות, ביקשתי את עצתו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00577",
+      "input": "היא החווירה לשמע החדשות הרעות האלה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00578",
+      "input": "סינדרום המבטא הזר הוא מצב רפואי שעדיין לא הוברר, שבו המטופל לא יכול להגות באופן נכון את שפת האם שלו, ונדמה שיש לו מבטא זר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00579",
+      "input": "כבר אחרי השעה עשר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00580",
+      "input": "תודה על הגלויה היפה שלך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00581",
+      "input": "נתתי לו מכה באוזן.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00582",
+      "input": "תקבל באבי אביך!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00583",
+      "input": "תקבלי באבי אביך!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00584",
+      "input": "החטפתי לו באוזן.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00585",
+      "input": "כדי לרוץ עשרת אלפים מטר נדרש כוח סבל רב.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00586",
+      "input": "כדי לרוץ עשרת אלפים מטר נדרשת סבולת גבוהה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00587",
+      "input": "השיניים שלי בריאות לחלוטין ובלי שום בעיות.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00588",
+      "input": "אתה לא לגמרי צודק, תן לי להסביר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00589",
+      "input": "את לא לגמרי צודקת, תני לי להסביר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00590",
+      "input": "את תמנע מעצמך את הנאות החיים!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00591",
+      "input": "אל תמנעי מעצמך את הנאות החיים!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00592",
+      "input": "אל תמנעו מעצמכם את הנאות החיים!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00593",
+      "input": "הוא יחזור בעוד עשר דקות.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00594",
+      "input": "ראיתי אותו יושב עם גבו אל הקיר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00595",
+      "input": "אחד אדום והשני לבן.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00596",
+      "input": "מה דעתך, מהי הדרך הטובה ביותר ללמוד אנגלית?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00597",
+      "input": "מהי לדעתך הדרך הטובה ביותר ללמוד אנגלית?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00598",
+      "input": "חשבתי אותו בטעות לאחי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00599",
+      "input": "סליחה, המקום הזה פנוי?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00600",
+      "input": "הוא מלמד את חבריו אנגלית.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00601",
+      "input": "בארץ מולדתו, צרפת, מיזם \"טאטואבה\" הפך לתופעה תרבותית וחברתית.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00602",
+      "input": "בצרפת, ארץ מולדתו, מיזם Tatoeba הפך לתופעה תרבותית וחברתית.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00603",
+      "input": "בארץ האם שלו, צרפת, הפך מיזם Tatoeba לתופעה תרבותית וחברתית.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00604",
+      "input": "אתה לא יכול להגיד \"לא\".",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00605",
+      "input": "את לא יכולה להגיד \"לא\".",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00606",
+      "input": "מהי העונה החמה ביותר מבין עונות השנה?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00607",
+      "input": "מהי העונה החמה ביותר?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00608",
+      "input": "היא החווירה כששמעה את החדשות הרעות.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00609",
+      "input": "האם אתם אוהבים זה את זה מאוד?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00610",
+      "input": "אל תקטע אותי כשאני מדבר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00611",
+      "input": "אל תפריע לי כשאני מדבר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00612",
+      "input": "אל תקטע אותי באמצע דבריי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00613",
+      "input": "האם אתם אוהבים זה את זה עד כדי כך?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00614",
+      "input": "האם מישהו פתר את התעלומה הזאת?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00615",
+      "input": "האם מישהו פיענח את התעלומה הזאת?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00616",
+      "input": "הורים אחראים לחינוך ילדיהם.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00617",
+      "input": "ראיתי את \"מלחמת הכוכבים\" פעמיים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00618",
+      "input": "ראיתי פעמיים את הסרט \"מלחמת הכוכבים\".",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00619",
+      "input": "אם נישאר כאן נהיה כמו ברווזים במטווח.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00620",
+      "input": "בואו נחשוב מה הדבר הכי גרוע שיכול לקרות.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00621",
+      "input": "אני רוצה לשתות כוס תה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00622",
+      "input": "אומרים שהחיים קצרים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00623",
+      "input": "מסיבה זו או אחרת, היא נענעה את ראשה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00624",
+      "input": "ברור שהיא חולה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00625",
+      "input": "אני אוהב היסטוריה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00626",
+      "input": "לעולם לא אראה אותה עוד.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00627",
+      "input": "אני חושב שאנה אוהבת את יאקוב.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00628",
+      "input": "כבה את הטלוויזיה. אני לא יכול להתרכז.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00629",
+      "input": "כבי את הטלוויזיה. אני לא יכול להתרכז.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00630",
+      "input": "ילדים צריכים ללכת לישון מוקדם, בלי לצפות בטלוויזיה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00631",
+      "input": "ילדים צריכים ללכת לישון מוקדם, בלי לראות טלוויזיה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00632",
+      "input": "לפעמים ג'יין רצה לבית הספר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00633",
+      "input": "עורך הדין פנה לחוש הצדק של המושבעים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00634",
+      "input": "המתן בכניסה לבניין הזה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00635",
+      "input": "חכה בכניסה לבניין הזה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00636",
+      "input": "חכו בכניסה לבניין הזה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00637",
+      "input": "נסים נקראים \"נסים\" כי הם אף פעם לא קורים!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00638",
+      "input": "כל הצעצועים מעץ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00639",
+      "input": "אין לי די כסף לנסיעה שלי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00640",
+      "input": "אין לי די כסף לטיול שלי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00641",
+      "input": "בית הספר נראה כמו בית סוהר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00642",
+      "input": "יש אנשים שקוראים את העיתון וצופים בטלוויזיה במקביל.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00643",
+      "input": "מספר אנשים קוראים את העיתון וצופים בטלוויזיה בו-זמנית.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00644",
+      "input": "הוא מילא תפקיד חשוב בוועדה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00645",
+      "input": "פרט לאחותי, משפחתי לא צופה בטלוויזיה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00646",
+      "input": "מבחינתי, בשמחה!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00647",
+      "input": "החתול בן עשרים יום.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00648",
+      "input": "אם אין אני לי, מי לי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00649",
+      "input": "אם אין קמח, אין תורה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00650",
+      "input": "הם אף פעם לא יסכימו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00651",
+      "input": "הם אף פעם לא יגיעו להסכמה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00652",
+      "input": "בקיצור, הפרויקט נכשל.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00653",
+      "input": "יש לי תור אצל הרופא.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00654",
+      "input": "יש לי תור לרופא.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00655",
+      "input": "הבעת פניה הייתה חמוצה יותר מאשר לימון.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00656",
+      "input": "הבעת פניו הייתה חמוצה יותר מאשר לימון.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00657",
+      "input": "כשתסיים את הספר הזה, הייתי רוצה לקרוא אותו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00658",
+      "input": "כשתסיימי את הספר הזה, הייתי רוצה לקרוא אותו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00659",
+      "input": "יש להכות על הברזל בעודו חם.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00660",
+      "input": "בית החרושת הזה מייצר צעצועים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00661",
+      "input": "היא ישבה על ידי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00662",
+      "input": "תאית היא השפה הרשמית של תאילנד.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00663",
+      "input": "וכמו רבות מן העיירות באנגליה, יש לה היסטוריה ארוכה למדי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00664",
+      "input": "מה אתה אוהב יותר, תה או קפה?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00665",
+      "input": "מה את אוהבת יותר, תה או קפה?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00666",
+      "input": "כמעט אף פעם לא יורד כאן גשם.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00667",
+      "input": "מה היית עושה במקומי?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00668",
+      "input": "היא נוסעת מסביב לעולם.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00669",
+      "input": "ירדו גשמים עזים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00670",
+      "input": "רחץ את ידיך בסבון.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00671",
+      "input": "רחצי את ידייך בסבון.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00672",
+      "input": "רחצו את ידיכם בסבון.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00673",
+      "input": "אני מקווה שאוכל להיות לך לעזר בצורה כלשהי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00674",
+      "input": "אני מקווה שאוכל להיות לכם לעזר בצורה כלשהי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00675",
+      "input": "אני מקווה שאוכל לסייע לך בצורה כלשהי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00676",
+      "input": "אני מקווה שאוכל לסייע לך באופן כלשהו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00677",
+      "input": "אחרי שאמרתי דבר כזה לבוס שלי, אני בטוח שאאבד את עבודתי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00678",
+      "input": "אחרי שאמרתי דברים כאלה לבוס שלי, בטוח שאאבד את עבודתי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00679",
+      "input": "זה כמעט בלתי אפשרי לסיים את זה בתוך יום אחד.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00680",
+      "input": "כמעט בלתי אפשרי לגמור את זה ביום אחד בלבד.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00681",
+      "input": "הוא אמר: \"שאלוהים יעזור לנו!\".",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00682",
+      "input": "התאונה התרחשה בסמוך לצומת זה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00683",
+      "input": "תזמין אותנו לארוחת ערב במסעדה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00684",
+      "input": "תזמינו אותנו לארוחת ערב במסעדה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00685",
+      "input": "הם מוכרים דגים ובשר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00686",
+      "input": "אבי מורה לאנגלית.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00687",
+      "input": "הבוס שלי הוכרח להתפטר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00688",
+      "input": "הבוס שלי התפוטר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00689",
+      "input": "הבוס שלי נאלץ להתפטר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00690",
+      "input": "הדירה שלי נמצאת בסביבה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00691",
+      "input": "הדירה שלי קרובה לכאן.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00692",
+      "input": "אחרי שלושה שבועות של חיפוש עבודה, הוא מצא משרה בשכר יפה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00693",
+      "input": "נכנסתי בדרך לחנות הספרים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00694",
+      "input": "בדרך, נכנסתי לחנות הספרים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00695",
+      "input": "נכנסתי לחנות הספרים בדרך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00696",
+      "input": "המחזה הוא סאטירה על עולם הפוליטיקה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00697",
+      "input": "המדע אינו פותר את כל בעיות החיים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00698",
+      "input": "שוק ההון אינו מה שהיה לפני מספר שנים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00699",
+      "input": "גם לה יש מגרעות.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00700",
+      "input": "גם לה יש שגיאות.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00701",
+      "input": "יש לך משהו להצהיר?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00702",
+      "input": "אני חושש שאני לא יכול לעזור לך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00703",
+      "input": "חוששני שאיני יכול לעזור לך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00704",
+      "input": "אצטרף אליך מאוחר יותר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00705",
+      "input": "אצטרף אלייך מאוחר יותר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00706",
+      "input": "אצטרף אליכם מאוחר יותר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00707",
+      "input": "הוא עשה את זה, בנוכחותה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00708",
+      "input": "הוא עשה את זה, ועוד בנוכחותה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00709",
+      "input": "הוא עשה זאת, ועוד בנוכחותה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00710",
+      "input": "אל תחטט בחיי הפרטיים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00711",
+      "input": "אל תחטטי בחיי הפרטיים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00712",
+      "input": "אל תחטטו בחיי הפרטיים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00713",
+      "input": "אל תתערבו בעניינים של אחרים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00714",
+      "input": "אל תתערב בעניינים של אחרים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00715",
+      "input": "אל תתערבי בעניינים של אחרים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00716",
+      "input": "הניסוי עלה בתוהו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00717",
+      "input": "הניסוי הוכתר בכישלון.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00718",
+      "input": "ההרצאות שלו משעממות מוות.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00719",
+      "input": "היא פינתה את השולחן.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00720",
+      "input": "היא לא יכלה להגיד דבר כזה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00721",
+      "input": "החדשות שהוא עדיין בחיים הגיעו אלינו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00722",
+      "input": "אני לוקח את המצלמה שלי לאן שאני הולך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00723",
+      "input": "לקחתי את זה כמובן מאליו שתצטרף.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00724",
+      "input": "לקחתי את זה כמובן מאליו שתצטרפי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00725",
+      "input": "התייחסתי לזה כמובן מאליו שתצטרף.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00726",
+      "input": "התייחסתי לזה כמובן מאליו שתצטרפי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00727",
+      "input": "היא נאיבית בצורה שלא תיאמן.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00728",
+      "input": "אני מעוניין לקנות.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00729",
+      "input": "אני מעוניינת לקנות.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00730",
+      "input": "הוא נסע לאיטליה לפני עשר שנים ומאז הוא חי שם.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00731",
+      "input": "מדוע הפיזיקאים מכונסים? כי הם מונוטוניים ומוגבלים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00732",
+      "input": "אני לא אוהב את שניהם.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00733",
+      "input": "אני לא אוהבת את שניהם.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00734",
+      "input": "היו לנו שלושה מטוסים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00735",
+      "input": "גם על המאדים יש חתולים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00736",
+      "input": "על מאדים יש חתולים גם כן.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00737",
+      "input": "כל המשתתפים מקווים שמיזם Tatoeba יכיל מיליון משפטים עד סוף השנה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00738",
+      "input": "כל המשתתפים מקווים שעד סוף השנה מיזם Tatoeba יכיל מיליון משפטים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00739",
+      "input": "מזג האוויר הגרוע העיב על הטקס.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00740",
+      "input": "מזג האוויר הגרוע פגם בטקס.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00741",
+      "input": "הייתי צריך לנסות את מכונת הגילוח החשמלית הזאת לפני שקניתי אותה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00742",
+      "input": "הייתי צריכה לנסות את מכונת הגילוח החשמלית הזאת לפני שקניתי אותה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00743",
+      "input": "תוכל להגיד לי מה היתרה שלי?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00744",
+      "input": "תוכלי להגיד לי מה היתרה שלי?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00745",
+      "input": "הוא צייר תמונה של כלב.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00746",
+      "input": "נימוסיה אלגנטיים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00747",
+      "input": "אתה צריך את עזרתנו?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00748",
+      "input": "את צריכה את עזרתנו?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00749",
+      "input": "אני שמחה שחזרת.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00750",
+      "input": "אני לא יכול לחיות בלי טלוויזיה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00751",
+      "input": "אני לא יכולה לחיות בלי טלוויזיה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00752",
+      "input": "שירתו של זמר מקצועי תחוויר אל מול שירתך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00753",
+      "input": "אני לומד מוזיקה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00754",
+      "input": "אני לומדת מוזיקה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00755",
+      "input": "הרעיון שלו טוב יותר משלך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00756",
+      "input": "הרעיון שלה טוב יותר משלך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00757",
+      "input": "הין חלש יותר מהדולר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00758",
+      "input": "תחזיק מעמד עד שאגיע אליך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00759",
+      "input": "תחזיקי מעמד עד שאגיע אלייך.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00760",
+      "input": "תחזיקו מעמד עד שאגיע אליכם.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00761",
+      "input": "אם תפנה שמאלה, תראה בית קפה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00762",
+      "input": "אם תפני שמאלה, תראי בית קפה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00763",
+      "input": "עסקנו בדיון בתוכניותינו לעתיד.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00764",
+      "input": "בואו נעמיד פנים שאנחנו מחו\"ל.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00765",
+      "input": "זוהי הרכבת המהירה בעולם.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00766",
+      "input": "אני לא אוהב קפה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00767",
+      "input": "אני לא אוהבת קפה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00768",
+      "input": "נשמעה צפירה, והאונייה החלה לצאת באיטיות מן הנמל.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00769",
+      "input": "עקב הישיבה הארוכה והבלתי נוחה, הגוף שלי מתחיל עכשיו לכאוב - בעיקר העורף והגב.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00770",
+      "input": "דתות אסיה משמשות לו השראה ליצירת פסלים נהדרים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00771",
+      "input": "הם יצאו בחמש, אז הם צריכים להגיע הביתה עד שש.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00772",
+      "input": "היות שקשה לסינים ללמוד אספרנטו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00773",
+      "input": "היא העלתה התנגדות חשובה לטיעון שלו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00774",
+      "input": "היא התנדבה במשך שנה שלמה במסגרת שירות המתנדבים האירופי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00775",
+      "input": "אני עסוקה כרגע.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00776",
+      "input": "הציפור הלאומית של מינסוטה היא היתוש.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00777",
+      "input": "הוא שאל אותי מספר שאלות על המבחן במתמטיקה.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00778",
+      "input": "אפשר תמיד לסמוך על הולמס בכל מקרה חירום.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00779",
+      "input": "אתה יכול תמיד לסמוך על הולמס בכל מקרה חירום.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00780",
+      "input": "הפעולה שלך פגעה בכבודו.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00781",
+      "input": "התוכנית שלך חייבת להצליח.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00782",
+      "input": "התוכנית שלך בוודאי תצליח.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00783",
+      "input": "תסתכל עליי כשאני מדבר אליך!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00784",
+      "input": "תסתכלי עליי כשאני מדבר אלייך!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00785",
+      "input": "דניאל הודה לשוטרים.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00786",
+      "input": "למנהל יש בעיות רבות.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00787",
+      "input": "אתה לא בתפקיד הלילה?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00788",
+      "input": "את לא בתפקיד הלילה?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00789",
+      "input": "אתם לא בתפקיד הלילה?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00790",
+      "input": "הוא קודם למשרת מנהל בית הספר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00791",
+      "input": "קידמו אותו בתפקיד למשרת מנהל בית הספר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00792",
+      "input": "הוא קיבל קידום למשרת מנהל בית הספר.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00793",
+      "input": "יעברו עוד שלושה חודשים עד שהבית שלנו יהיה מוכן.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00794",
+      "input": "בני עכשיו באותו גובה שלי.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00795",
+      "input": "הוא לא יודע אנגלית, שלא לומר גרמנית.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00796",
+      "input": "הוא לא יודע אנגלית, ואין מה לדבר על גרמנית.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00797",
+      "input": "כל אזרח צריך לעזור להם.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00798",
+      "input": "מתי אירעה התאונה?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-he-00799",
+      "input": "מתי קרתה התאונה?",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-he-00000",
+      "input": "Room 304 has the laptops we ordered.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-he-00001",
+      "input": "Bought 5 cookies on the avenue near my office.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-he-00002",
+      "input": "Track #12345 was delivered yesterday.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-he-00003",
+      "input": "I had 5 boxes in storage unit 12.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-he-00004",
+      "input": "Building number 7 was empty.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-he-00005",
+      "input": "Open from January 1990 onwards.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-he-00006",
+      "input": "Floor 3 has the printer.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-he-00007",
+      "input": "Order #98765 is being processed.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-he-00008",
+      "input": "The bus runs every 12 minutes.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-he-00009",
+      "input": "Found 5000 documents in the archive.",
+      "expected": []
+    }
+  ]
+}

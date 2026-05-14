@@ -1,0 +1,4065 @@
+{
+  "_meta": {
+    "locale": "cs",
+    "generator": "@tale/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 0,
+      "negatives": 810
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "negatives": [
+    {
+      "id": "neg-prose-cs-00000",
+      "input": "Ahoj, to je Mike.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00001",
+      "input": "Ahoj, jak se máš?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00002",
+      "input": "Dobrý den, jsem Nancy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00003",
+      "input": "Ahoj? Jste stále ještě tady?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00004",
+      "input": "Všichni lidé rodí se svobodní a sobě rovní co do důstojnosti a práv. Jsou nadáni rozumem a svědomím a mají spolu jednat v duchu bratrství.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00005",
+      "input": "Musím jít spát.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00006",
+      "input": "Všechno nejlepší k narozeninám, Muiriele!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00007",
+      "input": "Heslo je \"Muiriel\".",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00008",
+      "input": "Vrátím se brzy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00009",
+      "input": "Tohle nikdy neskončí.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00010",
+      "input": "Já starčí nevím, co říct...",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00011",
+      "input": "To byl zlý králík.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00012",
+      "input": "Byl jsem v horách.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00013",
+      "input": "Je to nedávný snímek?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00014",
+      "input": "Já nevím, jestli mám čas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00015",
+      "input": "Z nějakého důvodu nefungoval mikrofon dříve.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00016",
+      "input": "Vzdělávání v tomto světě mě nezklame.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00017",
+      "input": "Jste v lepším stavu než já.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00018",
+      "input": "Vy jste v mé cestě.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00019",
+      "input": "Přinesl jsem ti něco malého.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00020",
+      "input": "Zapomněl jsem se ho zeptat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00021",
+      "input": "Vzal to doslova.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00022",
+      "input": "Nedotýkej se mého kole.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00023",
+      "input": "Jaké je hlavní město Finska?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00024",
+      "input": "Bolest byla strašná.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00025",
+      "input": "Všechny moje dorty jsou chutné!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00026",
+      "input": "Chci dobrý slovník.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00027",
+      "input": "Teče ti z nosu!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00028",
+      "input": "Máme ještě mnoho času.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00029",
+      "input": "Mám raději angličtinu než matematiku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00030",
+      "input": "Nezkoušejte dělat dramatické změny vašeho stravovacího režimu najednou.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00031",
+      "input": "To se může stát každému.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00032",
+      "input": "Objednal jsem si dva hamburgery.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00033",
+      "input": "Nejste přihlášený.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00034",
+      "input": "Nastudujte si tyhle věty.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00035",
+      "input": "Neschovávej se pod postel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00036",
+      "input": "Bojím se jít ve tmě.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00037",
+      "input": "Nedělej si starosti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00038",
+      "input": "Nikdo mi nerozumí.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00039",
+      "input": "Před začátkem nákupu v tomto internetovém obchodě se prosím seznamte s těmito obchodními podmínkami.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00040",
+      "input": "Snídaně je již připravená.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00041",
+      "input": "Když jsem se před čtyřmi lety přestěhoval do Spojených států, měl jsem problém přizpůsobit se novému jazyku a kultuře.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00042",
+      "input": "Měsíc je krásný na podzim.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00043",
+      "input": "Právě jsem ucítil kapku deště.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00044",
+      "input": "Neviděl jsi muzikál?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00045",
+      "input": "John žije v New Yorku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00046",
+      "input": "Řekni mi, co se stalo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00047",
+      "input": "Já si myslím, že budete těmi odpověďi ohromeným.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00048",
+      "input": "Ještě nepřišel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00049",
+      "input": "Oba dva psi spí.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00050",
+      "input": "Děkuji, to je všechno.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00051",
+      "input": "Je mi líto, ale tohle prostě nejde.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00052",
+      "input": "Jakým jazykem se mluví v Brazílii?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00053",
+      "input": "Za kapitána si zvolili Petra.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00054",
+      "input": "Protřela si oči.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00055",
+      "input": "Zná to tam jako svoje boty.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00056",
+      "input": "Schoval jsem se pod stolem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00057",
+      "input": "To se ti opravdu povedlo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00058",
+      "input": "Člověk je chybující tvor.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00059",
+      "input": "Nechal jsem si opravit hodinky.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00060",
+      "input": "Mám těch jejích stížností plné zuby.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00061",
+      "input": "Odpusťte, že jsem vás nechal tak dlouho čekat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00062",
+      "input": "Je vystudovaný právník.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00063",
+      "input": "Přijel autobusem, nebo vlakem?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00064",
+      "input": "Udělal pořádnou hloupost.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00065",
+      "input": "Cena zahrnuje daň.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00066",
+      "input": "On ten problém chápe.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00067",
+      "input": "Rád chodí na procházky sám.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00068",
+      "input": "Musíme omezit výdaje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00069",
+      "input": "Jenom se dívám.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00070",
+      "input": "Už nikdy potom se té bolesti nezbavila.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00071",
+      "input": "Jeho dům je na prodej.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00072",
+      "input": "Tom je stejně velký jako jeho otec.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00073",
+      "input": "Je dneska v noci vidět Venuše?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00074",
+      "input": "Prosím klíč od pokoje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00075",
+      "input": "Starej se o sebe!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00076",
+      "input": "Nepleť se do cizích věcí!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00077",
+      "input": "Viděl jsem ho před třemi lety.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00078",
+      "input": "Neustále si stěžují.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00079",
+      "input": "Dneska večer s tebou do restaurace nemůžu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00080",
+      "input": "Nemohla bys mi půjčit nějaké peníze?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00081",
+      "input": "Na tuhle otázku nemusíte odpovídat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00082",
+      "input": "Zápas byl kvůli počasí odložen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00083",
+      "input": "Jana byla šťastná jak blecha, když dostala nahrávací smlouvu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00084",
+      "input": "Ty obláčky, jak ty plují po nebi, to je ale krása!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00085",
+      "input": "Většina velkých japonských firem je závislá na exportu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00086",
+      "input": "Chraptím z nachlazení.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00087",
+      "input": "Chceš snad říct, že úmyslně zakrýváš svoji krásu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00088",
+      "input": "V tomhle pokoji si nehraj.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00089",
+      "input": "V New Yorku je spousta japonských restaurací.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00090",
+      "input": "Trochu těm kalhotám v pase uberte.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00091",
+      "input": "Chodíval do práce pěšky.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00092",
+      "input": "Dávej si pozor, co říkáš!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00093",
+      "input": "Tenhle telefon nefunguje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00094",
+      "input": "Já už ho nemiluji.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00095",
+      "input": "Nesplnili podmínky.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00096",
+      "input": "Můžu jít na procházku?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00097",
+      "input": "Smrti nikdo neunikne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00098",
+      "input": "Jaký je počet obyvatel vašeho města?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00099",
+      "input": "Ti psi jsou ale velcí!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00100",
+      "input": "Nebojte se mluvit anglicky s chybami.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00101",
+      "input": "Pojďme si odpoledne zaplavat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00102",
+      "input": "Ten stařec tam bydlel sám.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00103",
+      "input": "Nakonec stejně nepřišel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00104",
+      "input": "Při první návštěvě u vás jsem zabloudil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00105",
+      "input": "Přineste mi vlhký ručník.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00106",
+      "input": "Moc mu nedůvěřuj.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00107",
+      "input": "Snídani jsem vynechal.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00108",
+      "input": "Jak dlouho ještě bude takové chladno?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00109",
+      "input": "V Tokiu vám žijí všelijací lidé.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00110",
+      "input": "Tvůj názor je poněkud staromódní.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00111",
+      "input": "Vypadá to, že bikiny jsou letos v módě.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00112",
+      "input": "Člověk, na kterého jsem čekal, se nedostavil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00113",
+      "input": "Rozzlobil jsem ho.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00114",
+      "input": "Lidi vlci za normálních okolností nenapadají.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00115",
+      "input": "Kdy mi vrátíš ty peníze?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00116",
+      "input": "Kovbojové vjeli do neznámého města.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00117",
+      "input": "Momentálně nemám čas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00118",
+      "input": "Penis je jedním z mužských pohlavních orgánů.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00119",
+      "input": "Při čtení dopisu vypadala smutně.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00120",
+      "input": "Byli to takříkajíc oběti války.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00121",
+      "input": "Málem jsem se udusil rybí kostí.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00122",
+      "input": "Mohl byste mluvit pomaleji?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00123",
+      "input": "Prosil bych to zabalit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00124",
+      "input": "Z čeho se vyrábí máslo?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00125",
+      "input": "Jsem stejně velký jako můj otec.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00126",
+      "input": "V té době nebyly v Japonsku žádné železnice.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00127",
+      "input": "Ještě nikdy nepřišel do školy pozdě.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00128",
+      "input": "Je mi líto, už žádné nemám.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00129",
+      "input": "Ze všeho nejvíc chtějí žít v míru.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00130",
+      "input": "Jak je to odsud daleko k moři?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00131",
+      "input": "Ano, samozřejmě.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00132",
+      "input": "V sedm hodin přijel na nádraží.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00133",
+      "input": "Sport je dobrý pro tvé zdraví.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00134",
+      "input": "Zatím od něj nemám žádné zprávy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00135",
+      "input": "Nějak mi došla inspirace.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00136",
+      "input": "Vypila sklenici mléka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00137",
+      "input": "Nemám žádné sestry.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00138",
+      "input": "V pokoji byly čtyři kusy nábytku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00139",
+      "input": "Potíž je v tom, že si nepamatuji, kde jsem zaparkovala auto.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00140",
+      "input": "Většina kritiky se snesla na předsedy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00141",
+      "input": "Říká, že má ráda květiny.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00142",
+      "input": "Pozvali každého, jenom mě ne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00143",
+      "input": "Na stole byla kočka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00144",
+      "input": "Země je pokrytá sněhem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00145",
+      "input": "Stal se z něj slavný herec.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00146",
+      "input": "Výtah je mimo provoz.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00147",
+      "input": "Jsem trochu unavený.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00148",
+      "input": "Jsem černá ovce rodiny.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00149",
+      "input": "Co myslíš, že udělá?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00150",
+      "input": "Tatoeba je droga.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00151",
+      "input": "V právnických dokumentech se často používají složitá slova a fráze.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00152",
+      "input": "Moc se v počítačích nevyznám.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00153",
+      "input": "Nemůžu to auto nastartovat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00154",
+      "input": "Ukaž mi, co máš v levé ruce.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00155",
+      "input": "Svět se asi zbláznil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00156",
+      "input": "Často mívá neomluvené absence.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00157",
+      "input": "Rád pracuje na zahradě.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00158",
+      "input": "Naproti nádraží je banka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00159",
+      "input": "Před nádražím je banka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00160",
+      "input": "Šla jsem na ten večírek jenom proto, abych se ukázala ve společnosti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00161",
+      "input": "Je mi ho strašně líto.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00162",
+      "input": "Je s nimi fakt zábava.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00163",
+      "input": "Pospěš si nebo nám ujede vlak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00164",
+      "input": "Neumím japonsky.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00165",
+      "input": "Děkuju mnohokrát!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00166",
+      "input": "Radši bych zůstal doma, než abych šel sám.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00167",
+      "input": "Skoro nikdo si nemyslí, že jsme sestry.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00168",
+      "input": "Přinutili mě ten dokument podepsat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00169",
+      "input": "Moje sestra má pěkné piáno.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00170",
+      "input": "Jejich nejstarší sestra ještě není vdaná.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00171",
+      "input": "Potřebujete to.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00172",
+      "input": "Ten, kdo si ještě nedávno myslel, že něco řídí, leží najednou nehybně v dřevěné bedně, a když lidé kolem vidí, že už není takový človĕk k ničemu, jednoduše ho spálí v peci.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00173",
+      "input": "Vypadá to, že z potrubí uniká plyn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00174",
+      "input": "Mohl byste mi vysvětlit, co znamená PKO?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00175",
+      "input": "Je povoláním zubař.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00176",
+      "input": "Rád objimám Veroniku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00177",
+      "input": "Líbí se mi, když mi odesilá pohlednice.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00178",
+      "input": "Polák, Maďar, dva bratři, v šavli i ve sklenici.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00179",
+      "input": "Není božstva kromě Boha a Muhammad je posel Boží.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00180",
+      "input": "Jak se téhle zelenině říká anglicky?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00181",
+      "input": "Bydlím spoustu kilometrů od nejbližšího nádraží.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00182",
+      "input": "Smrt jejího syna zlomila Marii srdce.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00183",
+      "input": "Tento návrh zákona podporuji.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00184",
+      "input": "Podlomilo se mu koleno.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00185",
+      "input": "Nezůstávej v posteli, nebo alespoň tehdy ne, pokud si v posteli nevyděláváš.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00186",
+      "input": "Uvažoval jsem o změně zaměstnání.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00187",
+      "input": "O čem jste mluvili?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00188",
+      "input": "Očekávám, že mi pomůžete.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00189",
+      "input": "Tvoje ruka je studená jak led.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00190",
+      "input": "Je až překvapující, kolik existuje nešťastných manželství.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00191",
+      "input": "Tyto sochy mají vysokou hodnotu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00192",
+      "input": "Podle zákona musíme děti posílat do školy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00193",
+      "input": "Krabice je ze dřeva.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00194",
+      "input": "Bolí mě pravé rameno.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00195",
+      "input": "Na cestě bylo bláto, a k tomu ještě začalo pršet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00196",
+      "input": "Není jen básník, ale i učenec.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00197",
+      "input": "Tento lék by měl člověk brát každé tři hodiny.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00198",
+      "input": "Už mám suché ponožky?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00199",
+      "input": "Kdo mlčí, ten souhlasí.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00200",
+      "input": "Nemáš jíst příliš mnoho zmrzliny a špaget.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00201",
+      "input": "Minulost se dá jenom vědět, ale nedá se to změnit. Budoucnost se dá jenom změnit, ale nedá se to vědět.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00202",
+      "input": "Reálná vidění neexistují.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00203",
+      "input": "V pokoji bylo ticho.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00204",
+      "input": "Řekla tak s usměvem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00205",
+      "input": "Nenávidí mrkev.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00206",
+      "input": "Zbožňuje kočky.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00207",
+      "input": "Jsem úplně vyčerpaný.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00208",
+      "input": "Rozloučil jsem se s přítelem na nádraží.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00209",
+      "input": "Hned jsme se spřátelili.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00210",
+      "input": "Požádal, abych mu peníze okamžitě vratil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00211",
+      "input": "- Nevolat? - Ale ne, ovšem volat!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00212",
+      "input": "Tohle je věta, která má správný počet slabik na haiku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00213",
+      "input": "Potkal jsem ho na konci nástupiště.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00214",
+      "input": "Thajština se zdá oficiálním jazykem Thajska.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00215",
+      "input": "Máš vlastní byt?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00216",
+      "input": "Nemohla odpovědět na tu otázku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00217",
+      "input": "V tomto měsíci musíme omezit naše výdaje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00218",
+      "input": "Miluje Toma víc než mne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00219",
+      "input": "Moje matka nemá ráda letní vedra.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00220",
+      "input": "Sopečný popel porušil funkci letadla.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00221",
+      "input": "I tak je to možné říci.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00222",
+      "input": "Toho člověka nesnáším.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00223",
+      "input": "Strč prst skrz krk!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00224",
+      "input": "Nikomu se o našem plánu nezmiňuj.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00225",
+      "input": "Promiň, že jsem nedodržel slib.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00226",
+      "input": "Nemá odvahu odmítnout můj plán.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00227",
+      "input": "Po dvou minutách došel v našem autu benzín.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00228",
+      "input": "Na slavnosti bylo jen šest lidí.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00229",
+      "input": "Mám stejný slovník jako tvůj bratr.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00230",
+      "input": "Vycestoval jsem s přítele autem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00231",
+      "input": "Někdy jdu, někdy ne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00232",
+      "input": "Kočka se nahrbila.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00233",
+      "input": "Prosím, řekněte jasně ano, nebo ne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00234",
+      "input": "Já nerozernám skokana od ropuchy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00235",
+      "input": "Už přijel vlak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00236",
+      "input": "Včera byl čtvrtek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00237",
+      "input": "Koupil jsem si nové auto.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00238",
+      "input": "Bez vody není možno žít.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00239",
+      "input": "Bezbarvé zelené nápady spí šíleně.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00240",
+      "input": "Budu rád, když mi pomůžeš.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00241",
+      "input": "Prosím odpusť mi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00242",
+      "input": "Nemám rád, když dělám chyby.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00243",
+      "input": "Možná sem zítra nepřijde.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00244",
+      "input": "Studoval jsem francouzštinu po čtyři roky.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00245",
+      "input": "Takovou věc se nemůžeš naučit za krátkou dobu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00246",
+      "input": "Mám jít s tebou?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00247",
+      "input": "Těžká práce mu dala úspěch.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00248",
+      "input": "S velkým úsilím vyšplhal na strom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00249",
+      "input": "Chvilková nepozornost může pilota stát život.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00250",
+      "input": "Nastala chvilková pauza.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00251",
+      "input": "Na chvilku myslel na to, že půjde po tom muži.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00252",
+      "input": "Byl jsem na týden v nemocnici.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00253",
+      "input": "Plánujeme zůstat na týden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00254",
+      "input": "Dám ti to CD zpět do týdne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00255",
+      "input": "Zůstal jsem týden doma.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00256",
+      "input": "Jsme schopni doručit během týdne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00257",
+      "input": "Dokončím tu práci do týdne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00258",
+      "input": "Šel jsem na týden bez jídla.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00259",
+      "input": "Týden má sedm dní.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00260",
+      "input": "Vzal si týdenní volno.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00261",
+      "input": "Kolik dní v týdnu chodíš do školy?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00262",
+      "input": "Kolikrát v týdnu se koupeš?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00263",
+      "input": "Máme pět vyučovacích hodin angličtiny týdně.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00264",
+      "input": "Ty dokážeš přečíst deset knih za týden? Nemyslel jsi za měsíc?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00265",
+      "input": "Jaká je to profesorka?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00266",
+      "input": "Boseman je starý traper.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00267",
+      "input": "Srub toho starého trapera není daleko.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00268",
+      "input": "Nějaký Sioux dal tomu starému traperovi zlatý nuget.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00269",
+      "input": "Každý zná toho starého trapera.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00270",
+      "input": "Sacramento Chronicle často píše o tom starém traperovi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00271",
+      "input": "Šerif Wyatt Earp mluvil včera s tím starým traperem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00272",
+      "input": "Šerif zná toho starého trapera.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00273",
+      "input": "Ten starý srub je nalevo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00274",
+      "input": "Ta stará kronika je nalevo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00275",
+      "input": "To staré laso je nalevo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00276",
+      "input": "Ten starý traper žil v Kalifornii.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00277",
+      "input": "Calamity Jane žila v Kalifornii.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00278",
+      "input": "Fremont a Sutter žili v Kalifornii.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00279",
+      "input": "Kdo je pan Bush?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00280",
+      "input": "Pan Bush je prezident.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00281",
+      "input": "Dobré odpoledne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00282",
+      "input": "Št'astnou cestu!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00283",
+      "input": "Dobrý den. Jmenuji se John Reindle. Pracuji na americkém velvyslanectví v Praze.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00284",
+      "input": "Kde jste se naučil tak dobře česky?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00285",
+      "input": "Československo mám hodně rád.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00286",
+      "input": "Praha je moc krásná.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00287",
+      "input": "Promiňte, jsem cizinec a neumím moc česky.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00288",
+      "input": "Ale já vám rozumím docela dobře.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00289",
+      "input": "Jak dlouho jste v Československu, pane Reindle?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00290",
+      "input": "Dobrý den. Já jsem Jarmila Kučerová. Ráda vás poznávám.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00291",
+      "input": "Moment prosím, tohle je moje žena, hned vám ji představím. Jarmilo, to je pan Reindle z amerického velvyslanectví.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00292",
+      "input": "Dobré odpoledne. Vy jste náš nový soused, pokud se nemýlím?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00293",
+      "input": "Já jsem cizinec a neumím moc česky. Mluvte prosím pomalu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00294",
+      "input": "Cizinec? A odkud jste?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00295",
+      "input": "Já jsem Josef Patočka a pracuji na Ministerstvu zahraničí.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00296",
+      "input": "Když budete cokoli potřebovat, klidně na mě zazvoňte. Rád vám pomůžu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00297",
+      "input": "Já nejsem Češka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00298",
+      "input": "Vy jste náš nový soused.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00299",
+      "input": "Tam je soused Patočka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00300",
+      "input": "Toto je americké velvyslanectví.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00301",
+      "input": "Půjdete rovně, pak druhou ulicí doleva a hned zase doprava. To bude Karlova ulice a pak půjdete pořád rovně přes Karlův most do Mostecké ulice a na Malostranské náměstí.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00302",
+      "input": "Teď jste na Starém Městě, tak to budete mít asi nejlepší pěšky přes Karlův most a pak Mosteckou na Malostranské naměstí.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00303",
+      "input": "Dobré odpoledne. Promiňte, hledám Loretu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00304",
+      "input": "Dobře, já se ještě zeptám.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00305",
+      "input": "Moment, prosím. Rovně a pak doprava, ano?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00306",
+      "input": "Tak rovně a pak doprava a pak?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00307",
+      "input": "Jak je to daleko do Brna?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00308",
+      "input": "Kam vede tahle ulice?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00309",
+      "input": "Jdu tudy dobře na nádraží?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00310",
+      "input": "Je to ještě daleko?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00311",
+      "input": "Musíte se vrátit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00312",
+      "input": "Asi jsem se ztratil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00313",
+      "input": "Půjdete druhou ulicí.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00314",
+      "input": "Fakt to za to stojí.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00315",
+      "input": "Ukažte mi to na mapě.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00316",
+      "input": "Dělám na velvyslanectví.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00317",
+      "input": "Udělám domácí úkol.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00318",
+      "input": "Budu dělat domácí úkol.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00319",
+      "input": "Pokud budete něco potřebovat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00320",
+      "input": "To budete mít nejlepší.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00321",
+      "input": "To bude Karlova ulice.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00322",
+      "input": "Profesor učí český jazyk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00323",
+      "input": "Půjčím si pero.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00324",
+      "input": "Půjčím vám pero.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00325",
+      "input": "\"ODOL — neodoláš!\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00326",
+      "input": "Mám ó bože ó velký pamatovat si takový cifer řad, velký slovutný Archimedes, pomáhej trápenému, dej mu moc, nazpaměť nechť odříká ty slavné sice, ale tak protivné nám, ah, číslice Ludolfovy!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00327",
+      "input": "Nesmíme usnout na vavřínech!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00328",
+      "input": "Sedí vedle svého bratra.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00329",
+      "input": "Kde domov můj? Kde domov můj? Voda hučí po lučinách, bory šumí po skalinách, v sadě skví se jara květ, zemský ráj to na pohled! A to jest ta krásná země, země česká, domov můj, země česká, domov můj!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00330",
+      "input": "Cítil jsem se špatně.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00331",
+      "input": "Já chci umřít s Getter Jaani.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00332",
+      "input": "Na západní frontě klid.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00333",
+      "input": "To je dobrá otázka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00334",
+      "input": "To se teprve pozná.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00335",
+      "input": "Miluji Okcitánštinu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00336",
+      "input": "Existuje mnoho starých indiánských legend.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00337",
+      "input": "Kolik je hodin?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00338",
+      "input": "Mlynář se ještě jínak zkoušel zbavit Janka, ať činil co činil, na Janka nevyzrál.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00339",
+      "input": "Nebude to tak dlouho trvat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00340",
+      "input": "Vůbec nemám hlad.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00341",
+      "input": "Můžu tady fotit?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00342",
+      "input": "Na počátku stvořil Bůh nebe a zemi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00343",
+      "input": "Umíte anglicky?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00344",
+      "input": "Vykuř mi ptáka!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00345",
+      "input": "Znám jeho rodinu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00346",
+      "input": "Hned jsem zpátky.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00347",
+      "input": "Takhle nemůžu žít.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00348",
+      "input": "Většina lidí si myslí, že jsem blázen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00349",
+      "input": "Jsem tak tlustá.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00350",
+      "input": "Jak dlouho jsi zůstala?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00351",
+      "input": "To není podstatné.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00352",
+      "input": "Svět je blázinec.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00353",
+      "input": "Jmenuji se Jack.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00354",
+      "input": "Ach! Rozbil se mi počítač.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00355",
+      "input": "Pacient leží v posteli.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00356",
+      "input": "Zlomil jsem si ruku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00357",
+      "input": "Chcete se se mnou vyspat?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00358",
+      "input": "Zavři ty zkurvený dveře!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00359",
+      "input": "Celou noc šukali.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00360",
+      "input": "Chodíš sem často?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00361",
+      "input": "Můžete mi to vysvětlit?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00362",
+      "input": "Jak jsme daleko?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00363",
+      "input": "Tys zabil mého otce.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00364",
+      "input": "Proč jsi mě opustil?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00365",
+      "input": "Zvládli jsme to!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00366",
+      "input": "Zachránil jsi mi život.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00367",
+      "input": "Jseš její pasák?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00368",
+      "input": "Byla jsem na nemocenské.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00369",
+      "input": "Byl jsem na nemocenské.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00370",
+      "input": "Zabil jsi mi matku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00371",
+      "input": "Vy jste rasista.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00372",
+      "input": "Musím jít na oslavu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00373",
+      "input": "Jsem hezčí než ty.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00374",
+      "input": "Narodil jsem se v Americe.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00375",
+      "input": "Jsem do tebe zamilovaná.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00376",
+      "input": "Jsem elektrikář.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00377",
+      "input": "Vypadá to zajímavě.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00378",
+      "input": "Koupil jsem si jednu tašku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00379",
+      "input": "Koupila jsem si jednu tašku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00380",
+      "input": "Nechci jít do školy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00381",
+      "input": "Nemluvím japonsky.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00382",
+      "input": "Jeden plus dvě se rovná tři.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00383",
+      "input": "Neposmívej se mu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00384",
+      "input": "Já nerozeznám skokana od ropuchy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00385",
+      "input": "Ještě nepřišla.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00386",
+      "input": "Je to důležité?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00387",
+      "input": "Má znalost čínštiny není moc dobrá.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00388",
+      "input": "Sylvia milovala koncerty.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00389",
+      "input": "Sylvia milovala ty koncerty.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00390",
+      "input": "Rosenfelderovi bydlí ve Wheaton v Indianě.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00391",
+      "input": "Přátelství je kouzlo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00392",
+      "input": "Nejsem tady, abych bojoval.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00393",
+      "input": "Potřebuju být sám.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00394",
+      "input": "Potřebuje být sám.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00395",
+      "input": "Nerozumíme ničemu z toho, co říkáte.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00396",
+      "input": "Nerozumíme si navzájem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00397",
+      "input": "Učím se dva cizí jazyky.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00398",
+      "input": "V dnešní době toužíme, aby naše děti dělaly svá vlastní rozhodnutí, ovšem chceme se s těmito rozhodnutími ztotožňovat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00399",
+      "input": "Rozdíl mezi minulostí, přítomností a budoucností není nic jiného než extrémně rozšířený klam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00400",
+      "input": "Nespadají do této kategorie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00401",
+      "input": "Padesát dva procent Britek dává přednost čokoládě před sexem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00402",
+      "input": "Doufám, že vás uvidím příští neděli.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00403",
+      "input": "Jazyk může být používán rozličnými způsoby.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00404",
+      "input": "Prohýbá se pod tíhou tašky.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00405",
+      "input": "Kolik váží váš kufr?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00406",
+      "input": "Francouzské slovo ''chat'' znamená anglické slovo ''cat''.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00407",
+      "input": "Lidé, kteří nerozumí tomu, co říkám, ať zvednou ruku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00408",
+      "input": "Každému odsouzenci na smrt bude sťata hlava.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00409",
+      "input": "John požádal Toma, aby Mary položil otázku, na což zapomněl.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00410",
+      "input": "Tom by si měl vzít deštník, jelikož se zdá, že prší.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00411",
+      "input": "Tom by měl zajít do posilovny.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00412",
+      "input": "Nerad cestuji ve velkých skupinách.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00413",
+      "input": "V Singapuru se hovoří anglicky.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00414",
+      "input": "Nebudu jíst zmrzlinu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00415",
+      "input": "Měl jsem potíže se sháněním vstupenky na koncert.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00416",
+      "input": "Vždycky jsem si přál chovat želvu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00417",
+      "input": "Tom je velmi trpělivý muž.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00418",
+      "input": "Lékař prohlásil, že pacient je již vyléčený a může být propuštěn z nemocnice.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00419",
+      "input": "Jsem velice potěšen, slyše o tvém úspěchu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00420",
+      "input": "V těchto dvou lahvičkách jsou rozdílná množství léků.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00421",
+      "input": "Tom se nikdy nezdá být rozčílený, bez ohledu na to, co Mary udělá.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00422",
+      "input": "Tuto knihu nestojí za to číst.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00423",
+      "input": "Naše málo může být hodně pro ty, co neměli nic.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00424",
+      "input": "Ještě jsem neobědval.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00425",
+      "input": "Piknik byl zrušen kvůli dešti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00426",
+      "input": "Tom říká, že už si nemůže dál nechávat líbit tenhle hluk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00427",
+      "input": "Bojoval jsem s tichem tím, že jsem do něj mluvil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00428",
+      "input": "Pes běží za kočkou a kočka běží za myší.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00429",
+      "input": "Mám kočku a psa. Kočka je černá a pes je bílý.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00430",
+      "input": "Dům je studený.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00431",
+      "input": "Kdysi jsem chtěl být astrofyzikem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00432",
+      "input": "Máme pro vás něco zvláštního, pane.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00433",
+      "input": "Probudil jsem se dnes ráno za svítání, abych zjistil, že úroda byla zničena dravými ptáky.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00434",
+      "input": "Musíte se postarat o vašeho psa sami.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00435",
+      "input": "Strach ze znečištění odrazuje lidi od stavění domů blízko elektráren.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00436",
+      "input": "Strach vzbuzuje ve psech agresivitu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00437",
+      "input": "Minulý týden jsem napsal panu Woodovi a požádal jsem ho, aby ti dal práci na farmě.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00438",
+      "input": "Pochybování o sobě samém je první známka inteligence.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00439",
+      "input": "Šéf si nás najal, abychom pracovali od rána do večera.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00440",
+      "input": "Zlato je těžší než stříbro.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00441",
+      "input": "Mosaz je slitina mědi a zinku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00442",
+      "input": "Měď a stříbro jsou obojí kovy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00443",
+      "input": "Je těžké pomoci lidem, kteří o tvoji pomoc nestojí.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00444",
+      "input": "Chci to udělat sám.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00445",
+      "input": "Jakých koncovek nabývá to sloveso v přítomném čase?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00446",
+      "input": "Nesnáším pavouky. Jsou vždycky tady, aby mě vyděsili, když uklízím.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00447",
+      "input": "Říká, že kdyby byl pták, přiletěl by ke mně.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00448",
+      "input": "Holub i pštros jsou oba ptáci; jeden umí létat a druhý ne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00449",
+      "input": "Je si jistý, že tu hru vyhraje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00450",
+      "input": "Chci, aby hrál na kytaru.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00451",
+      "input": "Tom se rozzlobil, když zjistil, že jsou ty dveře zamčené.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00452",
+      "input": "Šli jsme si zaplavat na pláž.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00453",
+      "input": "Skončil citací z bible.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00454",
+      "input": "Národnostní menšiny bojují proti předsudkům, chudobě a útlaku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00455",
+      "input": "Nechci být v jeho kůži.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00456",
+      "input": "Všichni lidé jsou dobří v hloubi svých srdcí.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00457",
+      "input": "Cože? Ještě pořád nemůžeš řídit?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00458",
+      "input": "Neříká mi ani slovo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00459",
+      "input": "Kdyby jsi zmáčkl to tlačítko, motor by se zastavil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00460",
+      "input": "Stále si barví vlasy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00461",
+      "input": "Má ještě pochyby.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00462",
+      "input": "Ty máš tak krásné oči.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00463",
+      "input": "Četl jsem všechny jeho romány.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00464",
+      "input": "Chystám se najmout někoho, kdo umí mluvit anglicky.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00465",
+      "input": "Hlavní město Srbska je Bělehrad.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00466",
+      "input": "Otec mi koupil nové kolo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00467",
+      "input": "Junko je krásná dívka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00468",
+      "input": "Postaráš se mi zítra o psa?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00469",
+      "input": "Minulou noc mi byly ukradeny hodinky.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00470",
+      "input": "Lišíme se od zvířat tím, že umíme mluvit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00471",
+      "input": "Tato pravidla vnesla nespokojenost mezi studenty.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00472",
+      "input": "Brian šel do školy s Kate.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00473",
+      "input": "Potřebujeme peníze.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00474",
+      "input": "Napište to zde, prosím.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00475",
+      "input": "Každou noc může vyjít slunce.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00476",
+      "input": "Promiňte, ale tohle je moje raketa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00477",
+      "input": "Vstřebávání informací z internetu je jako pití vody z požárního hydrantu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00478",
+      "input": "Mám velmi rád psy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00479",
+      "input": "Spojili síly k boji s nepřítelem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00480",
+      "input": "Opouštím dům před osmou hodinou každé ráno.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00481",
+      "input": "Barva fuksie je pojmenována po květině.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00482",
+      "input": "Náhle mě spatřil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00483",
+      "input": "Tři široce rozšířená monoteistická náboženství jsou křesťanství, islám a judaismus.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00484",
+      "input": "Chodil po místnosti sem a tam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00485",
+      "input": "Nakonec budeme mít úspěch.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00486",
+      "input": "Co bych chtěl, nemí manželka, ale milenka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00487",
+      "input": "Už jsi si umyl ruce?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00488",
+      "input": "Tato cesta není průjezdná. Přesvědčil jsem se o tom!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00489",
+      "input": "Vypil to na jeden zátah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00490",
+      "input": "Nemíchejte hruška s jabkama.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00491",
+      "input": "Tom je nejbohatší muž, kterého znám.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00492",
+      "input": "Na fotografii nemá dívka zlatý věnec, ale věnec z květin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00493",
+      "input": "To je nejkrásnější podíváná, kterou jsem kdy viděl.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00494",
+      "input": "\"Neříkejte hlouposti!\" řekl sedlák.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00495",
+      "input": "Včera jsem sestavil zesilovač.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00496",
+      "input": "Je dost bohatý na to, aby koupil dvě auta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00497",
+      "input": "Mohu pro vás něco udělat?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00498",
+      "input": "Křeslo je přede dveřmi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00499",
+      "input": "Od dnešního rána jsem přečetl tři knihy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00500",
+      "input": "Přestože si většina z nás představuje mozek jako celek, ve skutečnosti je rozdělen na dvě hemisféry.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00501",
+      "input": "Geometrie je matematická věda, zabývající se studiem a měřením přímek, úhlů, křivek a tvarů, které vznikají spojením několika přímek dohromady.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00502",
+      "input": "Žena hovořící s tím hochem je jeho učitelka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00503",
+      "input": "Co bychom měli udělat k návratu do naší doby?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00504",
+      "input": "Pospěšte prosím!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00505",
+      "input": "Nevěděli jsme, které auto koupit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00506",
+      "input": "Ten mladý muž je lékař.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00507",
+      "input": "Ano, jsem ženatý.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00508",
+      "input": "Ano, jsem vdaná.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00509",
+      "input": "Voják byl poraněn na noze.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00510",
+      "input": "Ten kluk stojící u dveří je můj bratr.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00511",
+      "input": "Tom nemá žádný orientační smysl.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00512",
+      "input": "Takže ty a Hanna si hrajete na svatbu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00513",
+      "input": "Má moc rád hudbu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00514",
+      "input": "Prosinec má jednatřicet dní.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00515",
+      "input": "Kde je tvůj otec?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00516",
+      "input": "Každý si zaslouží druhou šanci.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00517",
+      "input": "Můžeme cestovat v čase. A děláme to pozoruhodnou rychlostí vteřinu za vteřinou.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00518",
+      "input": "Nikdy neotevírejte dveře vozu, který je v pohybu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00519",
+      "input": "Zavolám, abych to potvrdil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00520",
+      "input": "Všechny tyhle tři krásné dívky jsou moje neteře.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00521",
+      "input": "Vždycky si stěžuješ na svého manžela.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00522",
+      "input": "Je ministr zodpovědný za životní prostředí.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00523",
+      "input": "Řím nebyl postaven za den.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00524",
+      "input": "Dokud stojí Kolos, stojí Řím; padne-li Kolos, padne i Řím; padne-li Řím, padne svět.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00525",
+      "input": "V mé kuchyni hoří.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00526",
+      "input": "Moje babička nevidí.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00527",
+      "input": "Můžeš nám ukázat dům?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00528",
+      "input": "Můžete si tuhle knihu přečíst.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00529",
+      "input": "Zdá se, že nesouhlasí.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00530",
+      "input": "Jakým jazykem se mluví v Mexiku?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00531",
+      "input": "Co chceš říct tím ''nelíbí se mi''?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00532",
+      "input": "Navzdory velkým rozdílům v úrovni nezaměstnanosti v různých odvětvích a v rozdílných částech země, každý kraj je nyní zasažen ekonomickým poklesem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00533",
+      "input": "Slunce roztálo sníh.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00534",
+      "input": "Už tě nechci nikdy znovu vidět.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00535",
+      "input": "Moje rodina se má dobře, díky.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00536",
+      "input": "Ani v zimě nemáme moc sněhu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00537",
+      "input": "Tom udělal mnoho chyb.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00538",
+      "input": "Věřím v tuto metodu učení.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00539",
+      "input": "Tom je jeden z mála lidí, kterému mohu věřit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00540",
+      "input": "Jestli se vtip bude zdát vtipný, silně záleží na kulturním cítění.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00541",
+      "input": "To, co po něm chci, aby teď udělal, je natřít plot.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00542",
+      "input": "Když jsme dorazili, přednáška už běžela.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00543",
+      "input": "Kdo je Alvar Aalto?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00544",
+      "input": "Jsem pyšný na to, že nikdy nechodím do školy pozdě.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00545",
+      "input": "Nech čaj luhovat po dobu deseti minut.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00546",
+      "input": "Dlouho se mi neozval.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00547",
+      "input": "Z ničeho nic nevzejde.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00548",
+      "input": "Není kouře bez ohně.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00549",
+      "input": "Tato kniha má široké využití.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00550",
+      "input": "Život není prázdný sen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00551",
+      "input": "Je to čtyři proti jednomu. Budeš zmlácen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00552",
+      "input": "Ta krabice je větší než tahle.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00553",
+      "input": "Vypadá to, že jsem tu páté kolo u vozu. Měl bych jít.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00554",
+      "input": "Skryl své emoce a předstíral nadšení.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00555",
+      "input": "Tato kniha je napsána jednoduchou angličtinou, aby jí rozuměli začátečníci.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00556",
+      "input": "Cestou do školy jsem ztratil peněženku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00557",
+      "input": "Tato kniha patří tobě.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00558",
+      "input": "Nejsem lékař, ale učitel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00559",
+      "input": "Děkuji ti za tvůj zájem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00560",
+      "input": "Získal velké jmění.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00561",
+      "input": "V Anglii se nás číšník zeptal ''Kolik piva byste si dali, půl pinty, nebo celou?'' Jelikož jsme neměli ponětí, kolik by to mohlo být, požádali jsme ho, aby nám ukázal sklenice.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00562",
+      "input": "Nenaplnil naše očekávání.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00563",
+      "input": "Říkejte mi prosím Taro.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00564",
+      "input": "Pozor na kapesní zloděje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00565",
+      "input": "Neumí číst anglicky, natož pak německy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00566",
+      "input": "Jazyky jako francouzština, italština a španělština vycházejí z latiny.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00567",
+      "input": "Mluvíte anglicky?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00568",
+      "input": "Jsem si jistý, že se ti to bude líbit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00569",
+      "input": "Přiznávám, že je to pravda.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00570",
+      "input": "Sekretářce byla na cestě z banky ukradena obálka se sto tisíci jeny.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00571",
+      "input": "Bohatství přichází k těm, co se činní, nikoliv k těm, co jen dávají činům volný průchod.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00572",
+      "input": "Roste jak houby po dešti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00573",
+      "input": "Tyto dvě košile jsou vyrobeny ze stejného materiálu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00574",
+      "input": "Přeji vám mnoho úspěchů.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00575",
+      "input": "Jak se v poslední době máš?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00576",
+      "input": "Nakonec musel i on odjet do Canossy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00577",
+      "input": "Tohle je to město, o kterém jsem ti říkal.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00578",
+      "input": "Mám kamaráda, jehož otec je slavný spisovatel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00579",
+      "input": "Potřebuju tvůj pas a tři fotky.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00580",
+      "input": "Polské dívky nechtěly, aby Justin Bieber přijel do Polska.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00581",
+      "input": "Knihovna je ve středu města.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00582",
+      "input": "Jsem rád, že jsi se vrátil v pořádku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00583",
+      "input": "Nemůžu uzdravit zlámané srdce.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00584",
+      "input": "Pod mou postelí je strašidlo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00585",
+      "input": "Ta kočka je velmi roztomilá.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00586",
+      "input": "Budu potřebovat tvou pomoc.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00587",
+      "input": "Když pořad skončil, vypnuli jsme rádio.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00588",
+      "input": "Pan Brown byl tehdy nemocný.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00589",
+      "input": "Muž jí vyfouknul do tváře kouř.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00590",
+      "input": "Po dlouhé nepřítomnosti se vrátil domů.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00591",
+      "input": "Musíš udržovat svůj pokoj čistý.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00592",
+      "input": "Nežiji, abych jedl, ale jím, abych žil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00593",
+      "input": "Co jsem udělal se svými klíči?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00594",
+      "input": "Ahoj! Jak se máš?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00595",
+      "input": "Tom ne posedas stirpermeson.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00596",
+      "input": "Paulína má růžovou čepici.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00597",
+      "input": "Mluví Marťani anglicky?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00598",
+      "input": "Už mě nebaví sledovat tento nudný zápas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00599",
+      "input": "Donutil mě nést jeho zavazadla.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00600",
+      "input": "Očekával jsem od ní dopis.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00601",
+      "input": "Nemluv japonsky.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00602",
+      "input": "Jsi si jistý, že to chceš udělat?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00603",
+      "input": "Uklouzl a málem upadl.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00604",
+      "input": "Tom otevřel okno.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00605",
+      "input": "Uhlí a zemní plyn jsou přírodní paliva.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00606",
+      "input": "Přežila svého manžela o deset let.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00607",
+      "input": "V této rybě není jed.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00608",
+      "input": "Přikázal mi zamést pokoj.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00609",
+      "input": "Včera se mi zdál sen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00610",
+      "input": "Ztratil jsem hodinky, které mi dal můj otec.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00611",
+      "input": "Jediné, co musíš udělat, je studovat pečlivěji.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00612",
+      "input": "Jak se dostanu domů?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00613",
+      "input": "V kolik hodin budeš snídat?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00614",
+      "input": "Jane umí zazpívat některé japonské písně.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00615",
+      "input": "Myslím, že je nepravděpodobné, že by rostliny cítily bolest.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00616",
+      "input": "Zavolám ti hned, jakmile se dostanu na letiště.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00617",
+      "input": "Život je pěkný.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00618",
+      "input": "On mluví příliš rychle.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00619",
+      "input": "Mám rada čokoládovou zmrzlinu!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00620",
+      "input": "To auto je černé.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00621",
+      "input": "Jsem v zahradě.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00622",
+      "input": "Oči jsou zrcadlem duše.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00623",
+      "input": "Koupil jsem to včera.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00624",
+      "input": "Už tam někdy předtím byla?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00625",
+      "input": "Kuře mi moc nechutná.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00626",
+      "input": "Jsem šťastný jako blecha.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00627",
+      "input": "Mary ještě nezačala.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00628",
+      "input": "Miminko otevřelo pusu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00629",
+      "input": "Kup mi želvu, maminko, kup mi prosím želvu!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00630",
+      "input": "Někdo klepal na dveře.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00631",
+      "input": "Malá Sofie nebyla hodná.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00632",
+      "input": "Sezame, otevři se!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00633",
+      "input": "Udělal zkoušku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00634",
+      "input": "Udělala zkoušku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00635",
+      "input": "Nezáleži na věku, dítě je dítě.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00636",
+      "input": "Nezáleží na tom jak jsme si blízci, nemůžu mu to dát udělat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00637",
+      "input": "Každopádně, půjdu když přestane pršet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00638",
+      "input": "Musí zaplatit za knihu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00639",
+      "input": "Co je lepší než přátelství?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00640",
+      "input": "Musel by si zvyknout vstávat dřív.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00641",
+      "input": "Zdá se, že spěchá.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00642",
+      "input": "Je dobře vstávat dřív.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00643",
+      "input": "Zdá se, že neměl čas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00644",
+      "input": "Mám turistické víza.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00645",
+      "input": "Vypadáš unaveně.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00646",
+      "input": "Rychle naučené, rychle zapomenuté.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00647",
+      "input": "Detektív ho sledoval.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00648",
+      "input": "Poslouchej! Jak se to píše?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00649",
+      "input": "Nevím, jdi spát!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00650",
+      "input": "Můžeš si vybrat co chceš.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00651",
+      "input": "Obvykle piješ čaj k snídani?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00652",
+      "input": "\"Kde bydlíš?\" \"Bydlím v Tókiu.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00653",
+      "input": "Minulou noc jsme pozorovali hvězdy ze střechy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00654",
+      "input": "Můj strýc žil mnoho let v zahraničí.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00655",
+      "input": "Nic jsem nevěděl.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00656",
+      "input": "Nevadí mi chvíli čekat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00657",
+      "input": "Poprosil jsem ho aby mně odvezl domů.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00658",
+      "input": "Dobré víno je darem bohů.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00659",
+      "input": "Víno je mlékem starých lidí.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00660",
+      "input": "\"V\" je předložka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00661",
+      "input": "Je potřebné, aby jste to udělali.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00662",
+      "input": "Auto mého otce je vyrobené v Italii.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00663",
+      "input": "Otevři knihu a ona otevře tvoji duši.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00664",
+      "input": "Oči tohoto děvčete jsou modré.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00665",
+      "input": "Nikdy ho nenavštívila.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00666",
+      "input": "Kde je tvá čepice?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00667",
+      "input": "Je tvá matka doma?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00668",
+      "input": "Uvidíme se později!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00669",
+      "input": "Uvidíme se zítra!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00670",
+      "input": "Jo, miluješ mně.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00671",
+      "input": "Vítr byl silný.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00672",
+      "input": "Německo je země plná kontrastů.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00673",
+      "input": "Já chci meč, jako tento!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00674",
+      "input": "Snad to klapne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00675",
+      "input": "To je ale drzost!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00676",
+      "input": "Válka je mír. Svoboda je otroctví. Nevědomost je síla.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00677",
+      "input": "Syn se protivil vůli svého otce.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00678",
+      "input": "Vážené dámy a pánové!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00679",
+      "input": "Hosté brzy odjeli.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00680",
+      "input": "Kdy jedete domů?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00681",
+      "input": "Tuto barabiznu nikdo nekoupí.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00682",
+      "input": "On zaklepal na dveře.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00683",
+      "input": "Četl jsem, že prezidentem Brazílie je žena. Jmenuje se Dilma.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00684",
+      "input": "Burdž Chalífa je v současnosti nejvyšší mrakodrap na světě.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00685",
+      "input": "Nikdy tě neopustím.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00686",
+      "input": "Nejvyšší horou Evropy je Elbrus.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00687",
+      "input": "Pokud bude hustý provoz, nepojedeme přes centrum.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00688",
+      "input": "Prosím, sedněte si.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00689",
+      "input": "Mnozí z nás upřednostňují podzim kvůli jeho krásným barvám.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00690",
+      "input": "Co můžeš udělat dnes, neodkládej na zítřek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00691",
+      "input": "Udělej dnes, co musíš udělat zítra.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00692",
+      "input": "V minulosti, kdy ještě neexistovaly předpovědi počasí, se museli zemědělci spolehnout na své postřehy a předchozí zkušenosti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00693",
+      "input": "V jižních Čechách se rozprostírá pokojná slunná krajina s mnoha rybníky, ve kterých se chovají sladkovodní ryby.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00694",
+      "input": "Abys bylo hodné dítě, musíš chodit spát a vstávat brzy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00695",
+      "input": "Krásný Den díkůvzdání.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00696",
+      "input": "Děti často nenávidí špenát.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00697",
+      "input": "Magdaléna se zajímá o zeměpis.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00698",
+      "input": "Musí tu být něco, co mi pomůže.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00699",
+      "input": "Zde je nějaký správný předpis, jak uchovávat potraviny.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00700",
+      "input": "Lepší vrabec v hrsti nežli holub na střeše.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00701",
+      "input": "Vodárna je umístěna nedaleko mého domu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00702",
+      "input": "Nemáš žádnou starost.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00703",
+      "input": "Máš čas se se mnou dnes navečeřet?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00704",
+      "input": "Je důležité se ptát.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00705",
+      "input": "Není nutné hovořit o studiích a pracovních zkušenostech.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00706",
+      "input": "Jak je možné, že si vybral tuto společnost?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00707",
+      "input": "Měla mnoho známých, ale žádného přítele.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00708",
+      "input": "Odpadky nám vyvážejí každé pondělí.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00709",
+      "input": "Nemám chuť jít ven.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00710",
+      "input": "Je třeba se vyvarovat odhalujícímu oblečení.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00711",
+      "input": "Její nohy jsou dlouhé.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00712",
+      "input": "Štěstí je také doprovázeno chvílemi smutku a vnitřními úvahami.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00713",
+      "input": "Vezmi si tohle nebo tamto.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00714",
+      "input": "Kdybych byl býval věděl o tvém onemocnění, navštívil bych tě v nemocnici.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00715",
+      "input": "Malárie je nemoc přenášená komáry.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00716",
+      "input": "Málo lidí přežije tuto nemoc.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00717",
+      "input": "Jsem z tohoto onemocnění zcela vyléčen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00718",
+      "input": "Mnoho lidí neví, že antibiotika jsou neúčinná proti virovým onemocněním.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00719",
+      "input": "Byla ještě oslabená po nemoci.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00720",
+      "input": "Olomouc je velmi hrdá na jedinečnou sbírku šesti barokních kašen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00721",
+      "input": "Na vyřešení některých úkolů může být můj počítač velmi užitečný.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00722",
+      "input": "Uvidíme se brzy!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00723",
+      "input": "Opravdu tuto ženu neznám.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00724",
+      "input": "Ujišťuje se, že její rodina přijímá vyváženou stravu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00725",
+      "input": "Tentokrát nebyla zkouška jen těžká, ale také se dalo na otázky odpovědět více způsoby.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00726",
+      "input": "Nejpromarněnější dny jsou ty, během nichž jsme se nenasmáli.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00727",
+      "input": "Ve Francii necháváme být ty, kteří rozpoutali oheň, ale trestáme ty, kteří spustili poplach.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00728",
+      "input": "Ještě jsem ho neslyšela.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00729",
+      "input": "Bolí mě chodidlo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00730",
+      "input": "Jeho propuštění by se příliš nevyplatilo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00731",
+      "input": "Dej mi příklad.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00732",
+      "input": "Ta dívka, co pracuje v pekárně, je milá.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00733",
+      "input": "Existuje skupina lidí, kteří nerozumí ani tomu, co říkají.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00734",
+      "input": "Vlak ze Ženevy přijede do stanice.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00735",
+      "input": "Proč se nezeptáte Toma?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00736",
+      "input": "Nový návrh zákona bude projednáván v parlamentu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00737",
+      "input": "Musím jí pomoct za každou cenu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00738",
+      "input": "Tyto puzzle mají pět set dílků.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00739",
+      "input": "Tony mluví anglicky lépe než já.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00740",
+      "input": "Když mluvíš o těchto věcech, trochu se děsím.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00741",
+      "input": "Řekni mi, o kom jste se bavili.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00742",
+      "input": "Řvali nejvíc, jak bylo možné.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00743",
+      "input": "Podle vás je to pravda?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00744",
+      "input": "New York je jedno z největších měst světa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00745",
+      "input": "Nemohu vás následovat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00746",
+      "input": "Zajímalo by mě, jestli bude zítra pršet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00747",
+      "input": "Požehnaní ti, kteří nic neočekávají, jelikož nebudou nikdy zklamáni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00748",
+      "input": "Je nezbytné pozdravit a podat ruku přítomným osobám.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00749",
+      "input": "Životopis, který se přináší na pohovor, musí být totožný s tím, co byl poslán do společnosti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00750",
+      "input": "Předpokládám, že odešel domů.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00751",
+      "input": "Čím déle jsem čekal, tím jsem se stával více netrpělivý.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00752",
+      "input": "Slyšel jsem, že zemřel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00753",
+      "input": "Věří, že Jane je upřímná.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00754",
+      "input": "Už jsem sekl se školou.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00755",
+      "input": "Dokončím tuto práci do měsíce.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00756",
+      "input": "Graham Green je jeden z mých oblíbených autorů.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00757",
+      "input": "Pohovky jako tato nejsou z nejlevnějších.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00758",
+      "input": "Jak je toto jezero hluboké?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00759",
+      "input": "Nelze říci, kdy přijedou.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00760",
+      "input": "Řekl, že nemohl přijet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00761",
+      "input": "V mém městě se nachází krásné muzeum.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00762",
+      "input": "Mohl bych zodpovědět všechny otázky.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00763",
+      "input": "Jsi nejdůležitější osoba v mém životě.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00764",
+      "input": "Možná změní názor.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00765",
+      "input": "Uvidíme se v pátek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00766",
+      "input": "Je to svobodná země.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00767",
+      "input": "Tady je moje peněženka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00768",
+      "input": "Pokud se zeptáte matematika, jestli je dospělý, nebo ještě nezletilý, nepřekvapí vás, když odpoví „ano“.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00769",
+      "input": "Tom kouří jako komín.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00770",
+      "input": "Kjóto je známé svými chrámy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00771",
+      "input": "A mimochodem, máte dnes večer volno?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00772",
+      "input": "Věta s předchozím číslem je chybná.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00773",
+      "input": "V lese je spousta ptáků.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00774",
+      "input": "Ty jsi má sekretářka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00775",
+      "input": "Nemohu vám dostatečně poděkovat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00776",
+      "input": "Neměl jsem slov.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00777",
+      "input": "Dnes mám štěstí.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00778",
+      "input": "Tom se přihlásil do armády.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00779",
+      "input": "Která je vaše kniha?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00780",
+      "input": "Podej mi sůl a pepř, prosím.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00781",
+      "input": "Co mu odpověděla?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00782",
+      "input": "Mám potřebu jít pracovat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00783",
+      "input": "Viděl jsi někdy pavouka splétat síť?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00784",
+      "input": "Hledám papírnictví, abych koupil nějaké propisky.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00785",
+      "input": "To zní jako skutečně skvělý návrh.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00786",
+      "input": "Marocchino je káva espresso s trochou mléčné pěny a kakaovým popraškem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00787",
+      "input": "Lituji, že jsem ti to řekl.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00788",
+      "input": "Požádal nás o pomoc.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00789",
+      "input": "Tohle není tvá kniha, je moje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00790",
+      "input": "Krávy nám dávají dobré mléko.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00791",
+      "input": "Je třeba provést rozsáhlou propagandu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00792",
+      "input": "Víš, kdo to je.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00793",
+      "input": "Tom vše zařídil: bude to skvělá oslava.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00794",
+      "input": "Musíme posílit naši organizaci.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00795",
+      "input": "Kam pojedete na dovolenou?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00796",
+      "input": "Používání esperanta jako prostředku mezinárodní komunikace je řešením pro zachování jazykové rozmanitosti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00797",
+      "input": "Je velmi statečný.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00798",
+      "input": "Chyběli jste všechny tyto roky.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-cs-00799",
+      "input": "Soudce požádal porotu o verdikt.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-cs-00000",
+      "input": "Room 304 has the laptops we ordered.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-cs-00001",
+      "input": "Bought 5 cookies on the avenue near my office.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-cs-00002",
+      "input": "Track #12345 was delivered yesterday.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-cs-00003",
+      "input": "I had 5 boxes in storage unit 12.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-cs-00004",
+      "input": "Building number 7 was empty.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-cs-00005",
+      "input": "Open from January 1990 onwards.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-cs-00006",
+      "input": "Floor 3 has the printer.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-cs-00007",
+      "input": "Order #98765 is being processed.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-cs-00008",
+      "input": "The bus runs every 12 minutes.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-cs-00009",
+      "input": "Found 5000 documents in the archive.",
+      "expected": []
+    }
+  ]
+}

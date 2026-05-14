@@ -34,6 +34,7 @@
     "./theme": "./src/theme/index.ts",
     "./hooks/use-debounce": "./src/hooks/use-debounce.ts",
     "./hooks/use-dropdown-placement": "./src/hooks/use-dropdown-placement.ts",
+    "./i18n/messages": "./src/i18n/messages.ts",
     "./utils/parse-frontmatter": "./src/utils/parse-frontmatter.ts",
     "./globals.css": "./src/globals.css",
     "./tailwind-preset": "./tailwind-preset.ts"

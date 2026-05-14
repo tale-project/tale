@@ -1,0 +1,52 @@
+{
+  "locale": "da",
+  "name": "Danish",
+  "scripts": ["latn"],
+  "countries": ["DK"],
+  "phoneContextKeywords": [
+    "telefon",
+    "mobiltelefon",
+    "mobil",
+    "nummer",
+    "tlf.",
+    "tlf",
+    "tel.",
+    "tel"
+  ],
+  "cvcContextKeywords": ["sikkerhedskode", "cvc", "cvv", "cv2"],
+  "address": {
+    "forms": ["glued-suffix", "po-box"],
+    "postcodeForm": "continental",
+    "postcodeRegex": "\\d{4}",
+    "streetSuffixGlued": [
+      "gade",
+      "vej",
+      "vænge",
+      "stræde",
+      "plads",
+      "boulevard",
+      "allé"
+    ],
+    "poBoxKeywords": ["Postboks"],
+    "floorKeywords": ["sal", "etage", "lejlighed", "lejl."],
+    "countryNames": ["Danmark", "Denmark", "DK"],
+    "countryPostcodePrefixes": [],
+    "requireUppercase": true
+  },
+  "nationalIds": [
+    {
+      "id": "dk-cpr",
+      "name": "Danish CPR",
+      "pattern": "\\b\\d{6}-?\\d{4}\\b",
+      "replacement": "[CPR]"
+    }
+  ],
+  "fixtureSeeds": {
+    "wrappers": [
+      "Send venligst pakken til {}.",
+      "Postadresse: {}",
+      "Kunden bor på {}.",
+      "Afhentningssted — {} — bekræftet."
+    ]
+  }
+}

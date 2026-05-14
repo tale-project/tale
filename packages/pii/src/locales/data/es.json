@@ -1,0 +1,198 @@
+{
+  "locale": "es",
+  "name": "Spanish",
+  "scripts": ["latn"],
+  "countries": [
+    "ES",
+    "MX",
+    "AR",
+    "CO",
+    "CL",
+    "PE",
+    "VE",
+    "UY",
+    "EC",
+    "BO",
+    "PY",
+    "GT",
+    "HN",
+    "SV",
+    "NI",
+    "CR",
+    "PA",
+    "CU",
+    "DO",
+    "PR"
+  ],
+  "phoneContextKeywords": [
+    "teléfono",
+    "telefono",
+    "móvil",
+    "movil",
+    "celular",
+    "número",
+    "numero",
+    "tel.",
+    "tel",
+    "n°"
+  ],
+  "cvcContextKeywords": [
+    "código de seguridad",
+    "código de verificación",
+    "cvc",
+    "cvv",
+    "cv2"
+  ],
+  "address": {
+    "forms": ["standard", "po-box"],
+    "postcodeForm": "continental",
+    "postcodeRegex": "\\d{5}",
+    "streetKeywordsStandard": [
+      "Calle",
+      "Avenida",
+      "Av.",
+      "Av",
+      "Carrera",
+      "Cra.",
+      "Cra",
+      "Plaza",
+      "Pl.",
+      "Paseo",
+      "Pso.",
+      "Camino",
+      "Cmno.",
+      "Ronda",
+      "Travesía",
+      "Trav.",
+      "Vía",
+      "Glorieta",
+      "Pasaje",
+      "Pje."
+    ],
+    "streetKeywordsInverted": [
+      "Calle",
+      "Avenida",
+      "Av.",
+      "Carrera",
+      "Cra.",
+      "Plaza",
+      "Pl.",
+      "Paseo",
+      "Pso."
+    ],
+    "houseNumberMarkers": ["No.", "Nº", "n°", "núm.", "num."],
+    "poBoxKeywords": ["Apartado Postal", "Apdo. Postal", "Apdo.", "AP"],
+    "floorKeywords": [
+      "Piso",
+      "Planta",
+      "Pta.",
+      "Pta",
+      "Apartamento",
+      "Apto.",
+      "Apto",
+      "Departamento",
+      "Depto.",
+      "Depto",
+      "Oficina",
+      "Of.",
+      "Of"
+    ],
+    "countryNames": [
+      "España",
+      "Spain",
+      "Mexico",
+      "México",
+      "Argentina",
+      "Colombia",
+      "Chile",
+      "Perú",
+      "Peru",
+      "Venezuela",
+      "Uruguay",
+      "Ecuador",
+      "Bolivia",
+      "Paraguay",
+      "Guatemala",
+      "Honduras",
+      "El Salvador",
+      "Nicaragua",
+      "Costa Rica",
+      "Panamá",
+      "Panama",
+      "Cuba",
+      "República Dominicana",
+      "Puerto Rico",
+      "ES",
+      "MX",
+      "AR",
+      "CO",
+      "CL",
+      "PE"
+    ],
+    "countryPostcodePrefixes": [],
+    "requireUppercase": true
+  },
+  "nationalIds": [
+    {
+      "id": "es-dni",
+      "name": "Spanish DNI",
+      "pattern": "\\b\\d{8}[A-HJ-NP-TV-Z]\\b",
+      "checksum": "es-dni",
+      "replacement": "[DNI]"
+    },
+    {
+      "id": "es-nie",
+      "name": "Spanish NIE",
+      "pattern": "\\b[XYZ]\\d{7}[A-HJ-NP-TV-Z]\\b",
+      "checksum": "es-nie",
+      "replacement": "[NIE]"
+    },
+    {
+      "id": "es-passport",
+      "name": "Spanish Passport Number",
+      "pattern": "\\b[A-Z]{3}\\d{6}\\b",
+      "replacement": "[PASSPORT]"
+    },
+    {
+      "id": "ar-cuil",
+      "name": "Argentinian CUIL/CUIT",
+      "pattern": "\\b\\d{2}-\\d{8}-\\d\\b",
+      "checksum": "ar-cuil",
+      "replacement": "[AR_CUIL]"
+    },
+    {
+      "id": "mx-curp",
+      "name": "Mexican CURP",
+      "pattern": "\\b[A-Z]{4}\\d{6}[HM][A-Z]{5}[0-9A-Z]\\d\\b",
+      "checksum": "mx-curp",
+      "replacement": "[MX_CURP]"
+    },
+    {
+      "id": "mx-rfc",
+      "name": "Mexican RFC",
+      "pattern": "\\b[A-ZÑ&]{3,4}\\d{6}[A-Z\\d]{3}\\b",
+      "replacement": "[MX_RFC]"
+    },
+    {
+      "id": "cl-rut",
+      "name": "Chilean RUT",
+      "pattern": "\\b\\d{1,2}\\.\\d{3}\\.\\d{3}-[\\dK]\\b",
+      "replacement": "[CL_RUT]"
+    },
+    {
+      "id": "co-cc",
+      "name": "Colombian Cédula",
+      "pattern": "\\b\\d{1,3}(?:\\.\\d{3}){2,3}\\b",
+      "replacement": "[CO_CC]"
+    }
+  ],
+  "fixtureSeeds": {
+    "wrappers": [
+      "Por favor, envíe el paquete a {}.",
+      "Dirección postal: {}",
+      "El cliente vive en {}.",
+      "Punto de recogida — {} — confirmado.",
+      "Envíe la correspondencia a {}, gracias."
+    ]
+  }
+}

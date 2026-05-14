@@ -1,0 +1,3315 @@
+{
+  "_meta": {
+    "locale": "ar",
+    "generator": "@tale/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 300,
+      "negatives": 0
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "positives": [
+    {
+      "id": "email-ar-00000",
+      "input": "يرجى التوصيل إلى alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00001",
+      "input": "العنوان: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00002",
+      "input": "عنوان المراسلة: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00003",
+      "input": "يقيم العميل في anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00004",
+      "input": "يرسل البريد إلى alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00005",
+      "input": "يرجى التوصيل إلى johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00006",
+      "input": "العنوان: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00007",
+      "input": "عنوان المراسلة: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00008",
+      "input": "يقيم العميل في alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00009",
+      "input": "يرسل البريد إلى john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00010",
+      "input": "يرجى التوصيل إلى mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00011",
+      "input": "العنوان: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00012",
+      "input": "عنوان المراسلة: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00013",
+      "input": "يقيم العميل في john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00014",
+      "input": "يرسل البريد إلى marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00015",
+      "input": "يرجى التوصيل إلى anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00016",
+      "input": "العنوان: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00017",
+      "input": "عنوان المراسلة: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00018",
+      "input": "يقيم العميل في mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00019",
+      "input": "يرسل البريد إلى anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00020",
+      "input": "يرجى التوصيل إلى alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00021",
+      "input": "العنوان: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00022",
+      "input": "عنوان المراسلة: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00023",
+      "input": "يقيم العميل في annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00024",
+      "input": "يرسل البريد إلى alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00025",
+      "input": "يرجى التوصيل إلى john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00026",
+      "input": "العنوان: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00027",
+      "input": "عنوان المراسلة: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00028",
+      "input": "يقيم العميل في alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00029",
+      "input": "يرسل البريد إلى johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00030",
+      "input": "يرجى التوصيل إلى mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00031",
+      "input": "العنوان: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00032",
+      "input": "عنوان المراسلة: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00033",
+      "input": "يقيم العميل في john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00034",
+      "input": "يرسل البريد إلى mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00035",
+      "input": "يرجى التوصيل إلى annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00036",
+      "input": "العنوان: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00037",
+      "input": "عنوان المراسلة: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00038",
+      "input": "يقيم العميل في marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00039",
+      "input": "يرسل البريد إلى anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00040",
+      "input": "يرجى التوصيل إلى alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00041",
+      "input": "العنوان: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00042",
+      "input": "عنوان المراسلة: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00043",
+      "input": "يقيم العميل في anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00044",
+      "input": "يرسل البريد إلى alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00045",
+      "input": "يرجى التوصيل إلى john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00046",
+      "input": "العنوان: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00047",
+      "input": "عنوان المراسلة: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00048",
+      "input": "يقيم العميل في alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00049",
+      "input": "يرسل البريد إلى john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00050",
+      "input": "يرجى التوصيل إلى marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00051",
+      "input": "العنوان: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00052",
+      "input": "عنوان المراسلة: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00053",
+      "input": "يقيم العميل في johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00054",
+      "input": "يرسل البريد إلى mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00055",
+      "input": "يرجى التوصيل إلى anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00056",
+      "input": "العنوان: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00057",
+      "input": "عنوان المراسلة: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00058",
+      "input": "يقيم العميل في mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00059",
+      "input": "يرسل البريد إلى annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00060",
+      "input": "يرجى التوصيل إلى alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00061",
+      "input": "العنوان: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00062",
+      "input": "عنوان المراسلة: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00063",
+      "input": "يقيم العميل في anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00064",
+      "input": "يرسل البريد إلى alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00065",
+      "input": "يرجى التوصيل إلى johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00066",
+      "input": "العنوان: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00067",
+      "input": "عنوان المراسلة: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00068",
+      "input": "يقيم العميل في alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00069",
+      "input": "يرسل البريد إلى john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00070",
+      "input": "يرجى التوصيل إلى mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00071",
+      "input": "العنوان: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00072",
+      "input": "عنوان المراسلة: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00073",
+      "input": "يقيم العميل في john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00074",
+      "input": "يرسل البريد إلى marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00075",
+      "input": "يرجى التوصيل إلى anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00076",
+      "input": "العنوان: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00077",
+      "input": "عنوان المراسلة: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00078",
+      "input": "يقيم العميل في mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00079",
+      "input": "يرسل البريد إلى anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00080",
+      "input": "يرجى التوصيل إلى alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00081",
+      "input": "العنوان: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00082",
+      "input": "عنوان المراسلة: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00083",
+      "input": "يقيم العميل في annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00084",
+      "input": "يرسل البريد إلى alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00085",
+      "input": "يرجى التوصيل إلى john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00086",
+      "input": "العنوان: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00087",
+      "input": "عنوان المراسلة: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00088",
+      "input": "يقيم العميل في alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00089",
+      "input": "يرسل البريد إلى johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00090",
+      "input": "يرجى التوصيل إلى mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00091",
+      "input": "العنوان: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00092",
+      "input": "عنوان المراسلة: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00093",
+      "input": "يقيم العميل في john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00094",
+      "input": "يرسل البريد إلى mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00095",
+      "input": "يرجى التوصيل إلى annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00096",
+      "input": "العنوان: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00097",
+      "input": "عنوان المراسلة: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00098",
+      "input": "يقيم العميل في marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00099",
+      "input": "يرسل البريد إلى anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00100",
+      "input": "يرجى التوصيل إلى alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00101",
+      "input": "العنوان: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00102",
+      "input": "عنوان المراسلة: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00103",
+      "input": "يقيم العميل في anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00104",
+      "input": "يرسل البريد إلى alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00105",
+      "input": "يرجى التوصيل إلى john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00106",
+      "input": "العنوان: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00107",
+      "input": "عنوان المراسلة: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00108",
+      "input": "يقيم العميل في alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00109",
+      "input": "يرسل البريد إلى john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00110",
+      "input": "يرجى التوصيل إلى marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00111",
+      "input": "العنوان: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00112",
+      "input": "عنوان المراسلة: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00113",
+      "input": "يقيم العميل في johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00114",
+      "input": "يرسل البريد إلى mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00115",
+      "input": "يرجى التوصيل إلى anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00116",
+      "input": "العنوان: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00117",
+      "input": "عنوان المراسلة: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00118",
+      "input": "يقيم العميل في mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00119",
+      "input": "يرسل البريد إلى annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00120",
+      "input": "يرجى التوصيل إلى alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00121",
+      "input": "العنوان: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00122",
+      "input": "عنوان المراسلة: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00123",
+      "input": "يقيم العميل في anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00124",
+      "input": "يرسل البريد إلى alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00125",
+      "input": "يرجى التوصيل إلى johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00126",
+      "input": "العنوان: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00127",
+      "input": "عنوان المراسلة: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00128",
+      "input": "يقيم العميل في alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00129",
+      "input": "يرسل البريد إلى john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00130",
+      "input": "يرجى التوصيل إلى mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00131",
+      "input": "العنوان: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00132",
+      "input": "عنوان المراسلة: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00133",
+      "input": "يقيم العميل في john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00134",
+      "input": "يرسل البريد إلى marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00135",
+      "input": "يرجى التوصيل إلى anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00136",
+      "input": "العنوان: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00137",
+      "input": "عنوان المراسلة: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00138",
+      "input": "يقيم العميل في mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00139",
+      "input": "يرسل البريد إلى anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00140",
+      "input": "يرجى التوصيل إلى alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00141",
+      "input": "العنوان: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00142",
+      "input": "عنوان المراسلة: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00143",
+      "input": "يقيم العميل في annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00144",
+      "input": "يرسل البريد إلى alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00145",
+      "input": "يرجى التوصيل إلى john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00146",
+      "input": "العنوان: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00147",
+      "input": "عنوان المراسلة: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00148",
+      "input": "يقيم العميل في alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00149",
+      "input": "يرسل البريد إلى johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00150",
+      "input": "يرجى التوصيل إلى mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00151",
+      "input": "العنوان: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00152",
+      "input": "عنوان المراسلة: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00153",
+      "input": "يقيم العميل في john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00154",
+      "input": "يرسل البريد إلى mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00155",
+      "input": "يرجى التوصيل إلى annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00156",
+      "input": "العنوان: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00157",
+      "input": "عنوان المراسلة: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00158",
+      "input": "يقيم العميل في marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00159",
+      "input": "يرسل البريد إلى anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00160",
+      "input": "يرجى التوصيل إلى alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00161",
+      "input": "العنوان: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00162",
+      "input": "عنوان المراسلة: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00163",
+      "input": "يقيم العميل في anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00164",
+      "input": "يرسل البريد إلى alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00165",
+      "input": "يرجى التوصيل إلى john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00166",
+      "input": "العنوان: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00167",
+      "input": "عنوان المراسلة: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00168",
+      "input": "يقيم العميل في alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00169",
+      "input": "يرسل البريد إلى john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00170",
+      "input": "يرجى التوصيل إلى marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00171",
+      "input": "العنوان: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00172",
+      "input": "عنوان المراسلة: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00173",
+      "input": "يقيم العميل في johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00174",
+      "input": "يرسل البريد إلى mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00175",
+      "input": "يرجى التوصيل إلى anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00176",
+      "input": "العنوان: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00177",
+      "input": "عنوان المراسلة: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00178",
+      "input": "يقيم العميل في mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00179",
+      "input": "يرسل البريد إلى annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00180",
+      "input": "يرجى التوصيل إلى alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00181",
+      "input": "العنوان: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00182",
+      "input": "عنوان المراسلة: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00183",
+      "input": "يقيم العميل في anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00184",
+      "input": "يرسل البريد إلى alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00185",
+      "input": "يرجى التوصيل إلى johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00186",
+      "input": "العنوان: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00187",
+      "input": "عنوان المراسلة: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00188",
+      "input": "يقيم العميل في alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00189",
+      "input": "يرسل البريد إلى john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00190",
+      "input": "يرجى التوصيل إلى mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00191",
+      "input": "العنوان: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00192",
+      "input": "عنوان المراسلة: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00193",
+      "input": "يقيم العميل في john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00194",
+      "input": "يرسل البريد إلى marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00195",
+      "input": "يرجى التوصيل إلى anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00196",
+      "input": "العنوان: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00197",
+      "input": "عنوان المراسلة: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00198",
+      "input": "يقيم العميل في mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00199",
+      "input": "يرسل البريد إلى anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00200",
+      "input": "يرجى التوصيل إلى alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00201",
+      "input": "العنوان: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00202",
+      "input": "عنوان المراسلة: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00203",
+      "input": "يقيم العميل في annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00204",
+      "input": "يرسل البريد إلى alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00205",
+      "input": "يرجى التوصيل إلى john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00206",
+      "input": "العنوان: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00207",
+      "input": "عنوان المراسلة: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00208",
+      "input": "يقيم العميل في alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00209",
+      "input": "يرسل البريد إلى johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00210",
+      "input": "يرجى التوصيل إلى mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00211",
+      "input": "العنوان: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00212",
+      "input": "عنوان المراسلة: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00213",
+      "input": "يقيم العميل في john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00214",
+      "input": "يرسل البريد إلى mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00215",
+      "input": "يرجى التوصيل إلى annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00216",
+      "input": "العنوان: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00217",
+      "input": "عنوان المراسلة: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00218",
+      "input": "يقيم العميل في marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00219",
+      "input": "يرسل البريد إلى anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00220",
+      "input": "يرجى التوصيل إلى alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00221",
+      "input": "العنوان: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00222",
+      "input": "عنوان المراسلة: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00223",
+      "input": "يقيم العميل في anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00224",
+      "input": "يرسل البريد إلى alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00225",
+      "input": "يرجى التوصيل إلى john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00226",
+      "input": "العنوان: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00227",
+      "input": "عنوان المراسلة: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00228",
+      "input": "يقيم العميل في alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00229",
+      "input": "يرسل البريد إلى john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00230",
+      "input": "يرجى التوصيل إلى marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00231",
+      "input": "العنوان: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00232",
+      "input": "عنوان المراسلة: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00233",
+      "input": "يقيم العميل في johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00234",
+      "input": "يرسل البريد إلى mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00235",
+      "input": "يرجى التوصيل إلى anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00236",
+      "input": "العنوان: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00237",
+      "input": "عنوان المراسلة: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00238",
+      "input": "يقيم العميل في mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00239",
+      "input": "يرسل البريد إلى annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00240",
+      "input": "يرجى التوصيل إلى alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00241",
+      "input": "العنوان: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00242",
+      "input": "عنوان المراسلة: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00243",
+      "input": "يقيم العميل في anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00244",
+      "input": "يرسل البريد إلى alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00245",
+      "input": "يرجى التوصيل إلى johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00246",
+      "input": "العنوان: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00247",
+      "input": "عنوان المراسلة: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00248",
+      "input": "يقيم العميل في alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00249",
+      "input": "يرسل البريد إلى john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00250",
+      "input": "يرجى التوصيل إلى mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00251",
+      "input": "العنوان: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00252",
+      "input": "عنوان المراسلة: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00253",
+      "input": "يقيم العميل في john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00254",
+      "input": "يرسل البريد إلى marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00255",
+      "input": "يرجى التوصيل إلى anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00256",
+      "input": "العنوان: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00257",
+      "input": "عنوان المراسلة: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00258",
+      "input": "يقيم العميل في mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00259",
+      "input": "يرسل البريد إلى anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00260",
+      "input": "يرجى التوصيل إلى alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00261",
+      "input": "العنوان: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00262",
+      "input": "عنوان المراسلة: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00263",
+      "input": "يقيم العميل في annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00264",
+      "input": "يرسل البريد إلى alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00265",
+      "input": "يرجى التوصيل إلى john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00266",
+      "input": "العنوان: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00267",
+      "input": "عنوان المراسلة: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00268",
+      "input": "يقيم العميل في alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00269",
+      "input": "يرسل البريد إلى johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00270",
+      "input": "يرجى التوصيل إلى mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00271",
+      "input": "العنوان: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00272",
+      "input": "عنوان المراسلة: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00273",
+      "input": "يقيم العميل في john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00274",
+      "input": "يرسل البريد إلى mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00275",
+      "input": "يرجى التوصيل إلى annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00276",
+      "input": "العنوان: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00277",
+      "input": "عنوان المراسلة: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00278",
+      "input": "يقيم العميل في marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00279",
+      "input": "يرسل البريد إلى anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00280",
+      "input": "يرجى التوصيل إلى alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00281",
+      "input": "العنوان: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00282",
+      "input": "عنوان المراسلة: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00283",
+      "input": "يقيم العميل في anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00284",
+      "input": "يرسل البريد إلى alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00285",
+      "input": "يرجى التوصيل إلى john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00286",
+      "input": "العنوان: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00287",
+      "input": "عنوان المراسلة: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00288",
+      "input": "يقيم العميل في alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00289",
+      "input": "يرسل البريد إلى john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00290",
+      "input": "يرجى التوصيل إلى marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00291",
+      "input": "العنوان: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00292",
+      "input": "عنوان المراسلة: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00293",
+      "input": "يقيم العميل في johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00294",
+      "input": "يرسل البريد إلى mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00295",
+      "input": "يرجى التوصيل إلى anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00296",
+      "input": "العنوان: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00297",
+      "input": "عنوان المراسلة: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00298",
+      "input": "يقيم العميل في mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ar-00299",
+      "input": "يرسل البريد إلى annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    }
+  ]
+}

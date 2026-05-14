@@ -1,0 +1,98 @@
+[
+  {
+    "name": "Via Roma",
+    "countryCode": "IT",
+    "frequency": 8221,
+    "source": "manual"
+  },
+  {
+    "name": "Via Garibaldi",
+    "countryCode": "IT",
+    "frequency": 7102,
+    "source": "manual"
+  },
+  {
+    "name": "Via Mazzini",
+    "countryCode": "IT",
+    "frequency": 6815,
+    "source": "manual"
+  },
+  {
+    "name": "Via Dante",
+    "countryCode": "IT",
+    "frequency": 6604,
+    "source": "manual"
+  },
+  {
+    "name": "Via Cavour",
+    "countryCode": "IT",
+    "frequency": 5901,
+    "source": "manual"
+  },
+  {
+    "name": "Via Vittorio Emanuele",
+    "countryCode": "IT",
+    "frequency": 5712,
+    "source": "manual"
+  },
+  {
+    "name": "Via Verdi",
+    "countryCode": "IT",
+    "frequency": 5302,
+    "source": "manual"
+  },
+  {
+    "name": "Via della Repubblica",
+    "countryCode": "IT",
+    "frequency": 4881,
+    "source": "manual"
+  },
+  {
+    "name": "Via Marconi",
+    "countryCode": "IT",
+    "frequency": 4654,
+    "source": "manual"
+  },
+  {
+    "name": "Via San Francesco",
+    "countryCode": "IT",
+    "frequency": 4502,
+    "source": "manual"
+  },
+  {
+    "name": "Corso Italia",
+    "countryCode": "IT",
+    "frequency": 4321,
+    "source": "manual"
+  },
+  {
+    "name": "Piazza Duomo",
+    "countryCode": "IT",
+    "frequency": 4205,
+    "source": "manual"
+  },
+  {
+    "name": "Piazza Garibaldi",
+    "countryCode": "IT",
+    "frequency": 4022,
+    "source": "manual"
+  },
+  {
+    "name": "Piazza della Repubblica",
+    "countryCode": "IT",
+    "frequency": 3814,
+    "source": "manual"
+  },
+  {
+    "name": "Via Nassa",
+    "countryCode": "CH",
+    "frequency": 18,
+    "source": "manual"
+  },
+  {
+    "name": "Piazza della Riforma",
+    "countryCode": "CH",
+    "frequency": 12,
+    "source": "manual"
+  }
+]

@@ -1,0 +1,3315 @@
+{
+  "_meta": {
+    "locale": "lt",
+    "generator": "@tale/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 300,
+      "negatives": 0
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "positives": [
+    {
+      "id": "email-lt-00000",
+      "input": "Prašome išsiųsti siuntinį adresu alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00001",
+      "input": "Pašto adresas: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00002",
+      "input": "Klientas gyvena adresu marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00003",
+      "input": "Atsiėmimo vieta — anna.mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00004",
+      "input": "Prašome išsiųsti siuntinį adresu alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00005",
+      "input": "Pašto adresas: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00006",
+      "input": "Klientas gyvena adresu mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00007",
+      "input": "Atsiėmimo vieta — anna_mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00008",
+      "input": "Prašome išsiųsti siuntinį adresu alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00009",
+      "input": "Pašto adresas: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00010",
+      "input": "Klientas gyvena adresu mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00011",
+      "input": "Atsiėmimo vieta — annamueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00012",
+      "input": "Prašome išsiųsti siuntinį adresu alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00013",
+      "input": "Pašto adresas: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00014",
+      "input": "Klientas gyvena adresu marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00015",
+      "input": "Atsiėmimo vieta — anna.mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00016",
+      "input": "Prašome išsiųsti siuntinį adresu alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00017",
+      "input": "Pašto adresas: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00018",
+      "input": "Klientas gyvena adresu mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00019",
+      "input": "Atsiėmimo vieta — anna_mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00020",
+      "input": "Prašome išsiųsti siuntinį adresu alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00021",
+      "input": "Pašto adresas: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00022",
+      "input": "Klientas gyvena adresu mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00023",
+      "input": "Atsiėmimo vieta — annamueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00024",
+      "input": "Prašome išsiųsti siuntinį adresu alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00025",
+      "input": "Pašto adresas: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00026",
+      "input": "Klientas gyvena adresu marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00027",
+      "input": "Atsiėmimo vieta — anna.mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00028",
+      "input": "Prašome išsiųsti siuntinį adresu alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00029",
+      "input": "Pašto adresas: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00030",
+      "input": "Klientas gyvena adresu mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00031",
+      "input": "Atsiėmimo vieta — anna_mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00032",
+      "input": "Prašome išsiųsti siuntinį adresu alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00033",
+      "input": "Pašto adresas: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00034",
+      "input": "Klientas gyvena adresu mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00035",
+      "input": "Atsiėmimo vieta — annamueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00036",
+      "input": "Prašome išsiųsti siuntinį adresu alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00037",
+      "input": "Pašto adresas: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00038",
+      "input": "Klientas gyvena adresu marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00039",
+      "input": "Atsiėmimo vieta — anna.mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00040",
+      "input": "Prašome išsiųsti siuntinį adresu alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00041",
+      "input": "Pašto adresas: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00042",
+      "input": "Klientas gyvena adresu mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00043",
+      "input": "Atsiėmimo vieta — anna_mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00044",
+      "input": "Prašome išsiųsti siuntinį adresu alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00045",
+      "input": "Pašto adresas: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00046",
+      "input": "Klientas gyvena adresu mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00047",
+      "input": "Atsiėmimo vieta — annamueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00048",
+      "input": "Prašome išsiųsti siuntinį adresu alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00049",
+      "input": "Pašto adresas: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00050",
+      "input": "Klientas gyvena adresu marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00051",
+      "input": "Atsiėmimo vieta — anna.mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00052",
+      "input": "Prašome išsiųsti siuntinį adresu alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00053",
+      "input": "Pašto adresas: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00054",
+      "input": "Klientas gyvena adresu mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00055",
+      "input": "Atsiėmimo vieta — anna_mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00056",
+      "input": "Prašome išsiųsti siuntinį adresu alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00057",
+      "input": "Pašto adresas: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00058",
+      "input": "Klientas gyvena adresu mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00059",
+      "input": "Atsiėmimo vieta — annamueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00060",
+      "input": "Prašome išsiųsti siuntinį adresu alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00061",
+      "input": "Pašto adresas: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00062",
+      "input": "Klientas gyvena adresu marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00063",
+      "input": "Atsiėmimo vieta — anna.mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00064",
+      "input": "Prašome išsiųsti siuntinį adresu alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00065",
+      "input": "Pašto adresas: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00066",
+      "input": "Klientas gyvena adresu mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00067",
+      "input": "Atsiėmimo vieta — anna_mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00068",
+      "input": "Prašome išsiųsti siuntinį adresu alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00069",
+      "input": "Pašto adresas: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00070",
+      "input": "Klientas gyvena adresu mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00071",
+      "input": "Atsiėmimo vieta — annamueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00072",
+      "input": "Prašome išsiųsti siuntinį adresu alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00073",
+      "input": "Pašto adresas: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00074",
+      "input": "Klientas gyvena adresu marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00075",
+      "input": "Atsiėmimo vieta — anna.mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00076",
+      "input": "Prašome išsiųsti siuntinį adresu alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00077",
+      "input": "Pašto adresas: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00078",
+      "input": "Klientas gyvena adresu mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00079",
+      "input": "Atsiėmimo vieta — anna_mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00080",
+      "input": "Prašome išsiųsti siuntinį adresu alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00081",
+      "input": "Pašto adresas: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00082",
+      "input": "Klientas gyvena adresu mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00083",
+      "input": "Atsiėmimo vieta — annamueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00084",
+      "input": "Prašome išsiųsti siuntinį adresu alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00085",
+      "input": "Pašto adresas: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00086",
+      "input": "Klientas gyvena adresu marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00087",
+      "input": "Atsiėmimo vieta — anna.mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00088",
+      "input": "Prašome išsiųsti siuntinį adresu alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00089",
+      "input": "Pašto adresas: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00090",
+      "input": "Klientas gyvena adresu mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00091",
+      "input": "Atsiėmimo vieta — anna_mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00092",
+      "input": "Prašome išsiųsti siuntinį adresu alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00093",
+      "input": "Pašto adresas: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00094",
+      "input": "Klientas gyvena adresu mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00095",
+      "input": "Atsiėmimo vieta — annamueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00096",
+      "input": "Prašome išsiųsti siuntinį adresu alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00097",
+      "input": "Pašto adresas: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00098",
+      "input": "Klientas gyvena adresu marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00099",
+      "input": "Atsiėmimo vieta — anna.mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00100",
+      "input": "Prašome išsiųsti siuntinį adresu alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00101",
+      "input": "Pašto adresas: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00102",
+      "input": "Klientas gyvena adresu mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00103",
+      "input": "Atsiėmimo vieta — anna_mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00104",
+      "input": "Prašome išsiųsti siuntinį adresu alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00105",
+      "input": "Pašto adresas: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00106",
+      "input": "Klientas gyvena adresu mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00107",
+      "input": "Atsiėmimo vieta — annamueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00108",
+      "input": "Prašome išsiųsti siuntinį adresu alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00109",
+      "input": "Pašto adresas: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00110",
+      "input": "Klientas gyvena adresu marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00111",
+      "input": "Atsiėmimo vieta — anna.mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00112",
+      "input": "Prašome išsiųsti siuntinį adresu alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00113",
+      "input": "Pašto adresas: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00114",
+      "input": "Klientas gyvena adresu mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00115",
+      "input": "Atsiėmimo vieta — anna_mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00116",
+      "input": "Prašome išsiųsti siuntinį adresu alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00117",
+      "input": "Pašto adresas: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00118",
+      "input": "Klientas gyvena adresu mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00119",
+      "input": "Atsiėmimo vieta — annamueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00120",
+      "input": "Prašome išsiųsti siuntinį adresu alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00121",
+      "input": "Pašto adresas: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00122",
+      "input": "Klientas gyvena adresu marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00123",
+      "input": "Atsiėmimo vieta — anna.mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00124",
+      "input": "Prašome išsiųsti siuntinį adresu alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00125",
+      "input": "Pašto adresas: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00126",
+      "input": "Klientas gyvena adresu mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00127",
+      "input": "Atsiėmimo vieta — anna_mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00128",
+      "input": "Prašome išsiųsti siuntinį adresu alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00129",
+      "input": "Pašto adresas: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00130",
+      "input": "Klientas gyvena adresu mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00131",
+      "input": "Atsiėmimo vieta — annamueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00132",
+      "input": "Prašome išsiųsti siuntinį adresu alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00133",
+      "input": "Pašto adresas: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00134",
+      "input": "Klientas gyvena adresu marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00135",
+      "input": "Atsiėmimo vieta — anna.mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00136",
+      "input": "Prašome išsiųsti siuntinį adresu alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00137",
+      "input": "Pašto adresas: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00138",
+      "input": "Klientas gyvena adresu mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00139",
+      "input": "Atsiėmimo vieta — anna_mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00140",
+      "input": "Prašome išsiųsti siuntinį adresu alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00141",
+      "input": "Pašto adresas: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00142",
+      "input": "Klientas gyvena adresu mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00143",
+      "input": "Atsiėmimo vieta — annamueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00144",
+      "input": "Prašome išsiųsti siuntinį adresu alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00145",
+      "input": "Pašto adresas: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00146",
+      "input": "Klientas gyvena adresu marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00147",
+      "input": "Atsiėmimo vieta — anna.mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00148",
+      "input": "Prašome išsiųsti siuntinį adresu alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00149",
+      "input": "Pašto adresas: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00150",
+      "input": "Klientas gyvena adresu mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00151",
+      "input": "Atsiėmimo vieta — anna_mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00152",
+      "input": "Prašome išsiųsti siuntinį adresu alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00153",
+      "input": "Pašto adresas: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00154",
+      "input": "Klientas gyvena adresu mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00155",
+      "input": "Atsiėmimo vieta — annamueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00156",
+      "input": "Prašome išsiųsti siuntinį adresu alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00157",
+      "input": "Pašto adresas: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00158",
+      "input": "Klientas gyvena adresu marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00159",
+      "input": "Atsiėmimo vieta — anna.mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00160",
+      "input": "Prašome išsiųsti siuntinį adresu alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00161",
+      "input": "Pašto adresas: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00162",
+      "input": "Klientas gyvena adresu mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00163",
+      "input": "Atsiėmimo vieta — anna_mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00164",
+      "input": "Prašome išsiųsti siuntinį adresu alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00165",
+      "input": "Pašto adresas: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00166",
+      "input": "Klientas gyvena adresu mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00167",
+      "input": "Atsiėmimo vieta — annamueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00168",
+      "input": "Prašome išsiųsti siuntinį adresu alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00169",
+      "input": "Pašto adresas: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00170",
+      "input": "Klientas gyvena adresu marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00171",
+      "input": "Atsiėmimo vieta — anna.mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00172",
+      "input": "Prašome išsiųsti siuntinį adresu alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00173",
+      "input": "Pašto adresas: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00174",
+      "input": "Klientas gyvena adresu mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00175",
+      "input": "Atsiėmimo vieta — anna_mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00176",
+      "input": "Prašome išsiųsti siuntinį adresu alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00177",
+      "input": "Pašto adresas: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00178",
+      "input": "Klientas gyvena adresu mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00179",
+      "input": "Atsiėmimo vieta — annamueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00180",
+      "input": "Prašome išsiųsti siuntinį adresu alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00181",
+      "input": "Pašto adresas: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00182",
+      "input": "Klientas gyvena adresu marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00183",
+      "input": "Atsiėmimo vieta — anna.mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00184",
+      "input": "Prašome išsiųsti siuntinį adresu alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00185",
+      "input": "Pašto adresas: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00186",
+      "input": "Klientas gyvena adresu mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00187",
+      "input": "Atsiėmimo vieta — anna_mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00188",
+      "input": "Prašome išsiųsti siuntinį adresu alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00189",
+      "input": "Pašto adresas: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00190",
+      "input": "Klientas gyvena adresu mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00191",
+      "input": "Atsiėmimo vieta — annamueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00192",
+      "input": "Prašome išsiųsti siuntinį adresu alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00193",
+      "input": "Pašto adresas: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00194",
+      "input": "Klientas gyvena adresu marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00195",
+      "input": "Atsiėmimo vieta — anna.mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00196",
+      "input": "Prašome išsiųsti siuntinį adresu alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00197",
+      "input": "Pašto adresas: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00198",
+      "input": "Klientas gyvena adresu mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00199",
+      "input": "Atsiėmimo vieta — anna_mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00200",
+      "input": "Prašome išsiųsti siuntinį adresu alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00201",
+      "input": "Pašto adresas: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00202",
+      "input": "Klientas gyvena adresu mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00203",
+      "input": "Atsiėmimo vieta — annamueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00204",
+      "input": "Prašome išsiųsti siuntinį adresu alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00205",
+      "input": "Pašto adresas: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00206",
+      "input": "Klientas gyvena adresu marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00207",
+      "input": "Atsiėmimo vieta — anna.mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00208",
+      "input": "Prašome išsiųsti siuntinį adresu alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00209",
+      "input": "Pašto adresas: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00210",
+      "input": "Klientas gyvena adresu mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00211",
+      "input": "Atsiėmimo vieta — anna_mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00212",
+      "input": "Prašome išsiųsti siuntinį adresu alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00213",
+      "input": "Pašto adresas: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00214",
+      "input": "Klientas gyvena adresu mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00215",
+      "input": "Atsiėmimo vieta — annamueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00216",
+      "input": "Prašome išsiųsti siuntinį adresu alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00217",
+      "input": "Pašto adresas: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00218",
+      "input": "Klientas gyvena adresu marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00219",
+      "input": "Atsiėmimo vieta — anna.mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00220",
+      "input": "Prašome išsiųsti siuntinį adresu alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00221",
+      "input": "Pašto adresas: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00222",
+      "input": "Klientas gyvena adresu mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00223",
+      "input": "Atsiėmimo vieta — anna_mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00224",
+      "input": "Prašome išsiųsti siuntinį adresu alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00225",
+      "input": "Pašto adresas: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00226",
+      "input": "Klientas gyvena adresu mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00227",
+      "input": "Atsiėmimo vieta — annamueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00228",
+      "input": "Prašome išsiųsti siuntinį adresu alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00229",
+      "input": "Pašto adresas: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00230",
+      "input": "Klientas gyvena adresu marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00231",
+      "input": "Atsiėmimo vieta — anna.mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00232",
+      "input": "Prašome išsiųsti siuntinį adresu alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00233",
+      "input": "Pašto adresas: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00234",
+      "input": "Klientas gyvena adresu mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00235",
+      "input": "Atsiėmimo vieta — anna_mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00236",
+      "input": "Prašome išsiųsti siuntinį adresu alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00237",
+      "input": "Pašto adresas: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00238",
+      "input": "Klientas gyvena adresu mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00239",
+      "input": "Atsiėmimo vieta — annamueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00240",
+      "input": "Prašome išsiųsti siuntinį adresu alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00241",
+      "input": "Pašto adresas: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00242",
+      "input": "Klientas gyvena adresu marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00243",
+      "input": "Atsiėmimo vieta — anna.mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00244",
+      "input": "Prašome išsiųsti siuntinį adresu alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00245",
+      "input": "Pašto adresas: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00246",
+      "input": "Klientas gyvena adresu mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00247",
+      "input": "Atsiėmimo vieta — anna_mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00248",
+      "input": "Prašome išsiųsti siuntinį adresu alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00249",
+      "input": "Pašto adresas: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00250",
+      "input": "Klientas gyvena adresu mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00251",
+      "input": "Atsiėmimo vieta — annamueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00252",
+      "input": "Prašome išsiųsti siuntinį adresu alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00253",
+      "input": "Pašto adresas: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00254",
+      "input": "Klientas gyvena adresu marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00255",
+      "input": "Atsiėmimo vieta — anna.mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00256",
+      "input": "Prašome išsiųsti siuntinį adresu alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00257",
+      "input": "Pašto adresas: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00258",
+      "input": "Klientas gyvena adresu mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00259",
+      "input": "Atsiėmimo vieta — anna_mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00260",
+      "input": "Prašome išsiųsti siuntinį adresu alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00261",
+      "input": "Pašto adresas: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00262",
+      "input": "Klientas gyvena adresu mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00263",
+      "input": "Atsiėmimo vieta — annamueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00264",
+      "input": "Prašome išsiųsti siuntinį adresu alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00265",
+      "input": "Pašto adresas: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00266",
+      "input": "Klientas gyvena adresu marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00267",
+      "input": "Atsiėmimo vieta — anna.mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00268",
+      "input": "Prašome išsiųsti siuntinį adresu alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00269",
+      "input": "Pašto adresas: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00270",
+      "input": "Klientas gyvena adresu mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00271",
+      "input": "Atsiėmimo vieta — anna_mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00272",
+      "input": "Prašome išsiųsti siuntinį adresu alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00273",
+      "input": "Pašto adresas: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00274",
+      "input": "Klientas gyvena adresu mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00275",
+      "input": "Atsiėmimo vieta — annamueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00276",
+      "input": "Prašome išsiųsti siuntinį adresu alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00277",
+      "input": "Pašto adresas: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00278",
+      "input": "Klientas gyvena adresu marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00279",
+      "input": "Atsiėmimo vieta — anna.mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00280",
+      "input": "Prašome išsiųsti siuntinį adresu alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00281",
+      "input": "Pašto adresas: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00282",
+      "input": "Klientas gyvena adresu mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00283",
+      "input": "Atsiėmimo vieta — anna_mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00284",
+      "input": "Prašome išsiųsti siuntinį adresu alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00285",
+      "input": "Pašto adresas: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00286",
+      "input": "Klientas gyvena adresu mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00287",
+      "input": "Atsiėmimo vieta — annamueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00288",
+      "input": "Prašome išsiųsti siuntinį adresu alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00289",
+      "input": "Pašto adresas: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00290",
+      "input": "Klientas gyvena adresu marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00291",
+      "input": "Atsiėmimo vieta — anna.mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00292",
+      "input": "Prašome išsiųsti siuntinį adresu alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00293",
+      "input": "Pašto adresas: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00294",
+      "input": "Klientas gyvena adresu mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00295",
+      "input": "Atsiėmimo vieta — anna_mueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00296",
+      "input": "Prašome išsiųsti siuntinį adresu alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00297",
+      "input": "Pašto adresas: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00298",
+      "input": "Klientas gyvena adresu mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 23,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-lt-00299",
+      "input": "Atsiėmimo vieta — annamueller@corp.example — patvirtinta.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    }
+  ]
+}

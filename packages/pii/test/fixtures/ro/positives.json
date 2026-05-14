@@ -1,0 +1,3315 @@
+{
+  "_meta": {
+    "locale": "ro",
+    "generator": "@tale/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 300,
+      "negatives": 0
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "positives": [
+    {
+      "id": "email-ro-00000",
+      "input": "Vă rugăm să expediați coletul la alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00001",
+      "input": "Adresă poștală: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00002",
+      "input": "Clientul locuiește la marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00003",
+      "input": "Punct de ridicare — anna.mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00004",
+      "input": "Vă rugăm să expediați coletul la alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00005",
+      "input": "Adresă poștală: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00006",
+      "input": "Clientul locuiește la mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00007",
+      "input": "Punct de ridicare — anna_mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00008",
+      "input": "Vă rugăm să expediați coletul la alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00009",
+      "input": "Adresă poștală: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00010",
+      "input": "Clientul locuiește la mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00011",
+      "input": "Punct de ridicare — annamueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00012",
+      "input": "Vă rugăm să expediați coletul la alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00013",
+      "input": "Adresă poștală: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00014",
+      "input": "Clientul locuiește la marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00015",
+      "input": "Punct de ridicare — anna.mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00016",
+      "input": "Vă rugăm să expediați coletul la alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00017",
+      "input": "Adresă poștală: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00018",
+      "input": "Clientul locuiește la mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00019",
+      "input": "Punct de ridicare — anna_mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00020",
+      "input": "Vă rugăm să expediați coletul la alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00021",
+      "input": "Adresă poștală: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00022",
+      "input": "Clientul locuiește la mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00023",
+      "input": "Punct de ridicare — annamueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00024",
+      "input": "Vă rugăm să expediați coletul la alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00025",
+      "input": "Adresă poștală: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00026",
+      "input": "Clientul locuiește la marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00027",
+      "input": "Punct de ridicare — anna.mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00028",
+      "input": "Vă rugăm să expediați coletul la alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00029",
+      "input": "Adresă poștală: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00030",
+      "input": "Clientul locuiește la mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00031",
+      "input": "Punct de ridicare — anna_mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00032",
+      "input": "Vă rugăm să expediați coletul la alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00033",
+      "input": "Adresă poștală: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00034",
+      "input": "Clientul locuiește la mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00035",
+      "input": "Punct de ridicare — annamueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00036",
+      "input": "Vă rugăm să expediați coletul la alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00037",
+      "input": "Adresă poștală: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00038",
+      "input": "Clientul locuiește la marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00039",
+      "input": "Punct de ridicare — anna.mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00040",
+      "input": "Vă rugăm să expediați coletul la alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00041",
+      "input": "Adresă poștală: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00042",
+      "input": "Clientul locuiește la mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00043",
+      "input": "Punct de ridicare — anna_mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00044",
+      "input": "Vă rugăm să expediați coletul la alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00045",
+      "input": "Adresă poștală: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00046",
+      "input": "Clientul locuiește la mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00047",
+      "input": "Punct de ridicare — annamueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00048",
+      "input": "Vă rugăm să expediați coletul la alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00049",
+      "input": "Adresă poștală: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00050",
+      "input": "Clientul locuiește la marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00051",
+      "input": "Punct de ridicare — anna.mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00052",
+      "input": "Vă rugăm să expediați coletul la alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00053",
+      "input": "Adresă poștală: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00054",
+      "input": "Clientul locuiește la mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00055",
+      "input": "Punct de ridicare — anna_mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00056",
+      "input": "Vă rugăm să expediați coletul la alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00057",
+      "input": "Adresă poștală: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00058",
+      "input": "Clientul locuiește la mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00059",
+      "input": "Punct de ridicare — annamueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00060",
+      "input": "Vă rugăm să expediați coletul la alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00061",
+      "input": "Adresă poștală: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00062",
+      "input": "Clientul locuiește la marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00063",
+      "input": "Punct de ridicare — anna.mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00064",
+      "input": "Vă rugăm să expediați coletul la alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00065",
+      "input": "Adresă poștală: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00066",
+      "input": "Clientul locuiește la mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00067",
+      "input": "Punct de ridicare — anna_mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00068",
+      "input": "Vă rugăm să expediați coletul la alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00069",
+      "input": "Adresă poștală: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00070",
+      "input": "Clientul locuiește la mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00071",
+      "input": "Punct de ridicare — annamueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00072",
+      "input": "Vă rugăm să expediați coletul la alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00073",
+      "input": "Adresă poștală: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00074",
+      "input": "Clientul locuiește la marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00075",
+      "input": "Punct de ridicare — anna.mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00076",
+      "input": "Vă rugăm să expediați coletul la alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00077",
+      "input": "Adresă poștală: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00078",
+      "input": "Clientul locuiește la mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00079",
+      "input": "Punct de ridicare — anna_mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00080",
+      "input": "Vă rugăm să expediați coletul la alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00081",
+      "input": "Adresă poștală: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00082",
+      "input": "Clientul locuiește la mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00083",
+      "input": "Punct de ridicare — annamueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00084",
+      "input": "Vă rugăm să expediați coletul la alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00085",
+      "input": "Adresă poștală: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00086",
+      "input": "Clientul locuiește la marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00087",
+      "input": "Punct de ridicare — anna.mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00088",
+      "input": "Vă rugăm să expediați coletul la alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00089",
+      "input": "Adresă poștală: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00090",
+      "input": "Clientul locuiește la mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00091",
+      "input": "Punct de ridicare — anna_mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00092",
+      "input": "Vă rugăm să expediați coletul la alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00093",
+      "input": "Adresă poștală: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00094",
+      "input": "Clientul locuiește la mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00095",
+      "input": "Punct de ridicare — annamueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00096",
+      "input": "Vă rugăm să expediați coletul la alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00097",
+      "input": "Adresă poștală: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00098",
+      "input": "Clientul locuiește la marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00099",
+      "input": "Punct de ridicare — anna.mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00100",
+      "input": "Vă rugăm să expediați coletul la alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00101",
+      "input": "Adresă poștală: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00102",
+      "input": "Clientul locuiește la mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00103",
+      "input": "Punct de ridicare — anna_mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00104",
+      "input": "Vă rugăm să expediați coletul la alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00105",
+      "input": "Adresă poștală: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00106",
+      "input": "Clientul locuiește la mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00107",
+      "input": "Punct de ridicare — annamueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00108",
+      "input": "Vă rugăm să expediați coletul la alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00109",
+      "input": "Adresă poștală: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00110",
+      "input": "Clientul locuiește la marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00111",
+      "input": "Punct de ridicare — anna.mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00112",
+      "input": "Vă rugăm să expediați coletul la alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00113",
+      "input": "Adresă poștală: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00114",
+      "input": "Clientul locuiește la mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00115",
+      "input": "Punct de ridicare — anna_mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00116",
+      "input": "Vă rugăm să expediați coletul la alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00117",
+      "input": "Adresă poștală: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00118",
+      "input": "Clientul locuiește la mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00119",
+      "input": "Punct de ridicare — annamueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00120",
+      "input": "Vă rugăm să expediați coletul la alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00121",
+      "input": "Adresă poștală: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00122",
+      "input": "Clientul locuiește la marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00123",
+      "input": "Punct de ridicare — anna.mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00124",
+      "input": "Vă rugăm să expediați coletul la alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00125",
+      "input": "Adresă poștală: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00126",
+      "input": "Clientul locuiește la mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00127",
+      "input": "Punct de ridicare — anna_mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00128",
+      "input": "Vă rugăm să expediați coletul la alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00129",
+      "input": "Adresă poștală: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00130",
+      "input": "Clientul locuiește la mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00131",
+      "input": "Punct de ridicare — annamueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00132",
+      "input": "Vă rugăm să expediați coletul la alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00133",
+      "input": "Adresă poștală: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00134",
+      "input": "Clientul locuiește la marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00135",
+      "input": "Punct de ridicare — anna.mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00136",
+      "input": "Vă rugăm să expediați coletul la alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00137",
+      "input": "Adresă poștală: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00138",
+      "input": "Clientul locuiește la mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00139",
+      "input": "Punct de ridicare — anna_mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00140",
+      "input": "Vă rugăm să expediați coletul la alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00141",
+      "input": "Adresă poștală: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00142",
+      "input": "Clientul locuiește la mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00143",
+      "input": "Punct de ridicare — annamueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00144",
+      "input": "Vă rugăm să expediați coletul la alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00145",
+      "input": "Adresă poștală: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00146",
+      "input": "Clientul locuiește la marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00147",
+      "input": "Punct de ridicare — anna.mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00148",
+      "input": "Vă rugăm să expediați coletul la alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00149",
+      "input": "Adresă poștală: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00150",
+      "input": "Clientul locuiește la mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00151",
+      "input": "Punct de ridicare — anna_mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00152",
+      "input": "Vă rugăm să expediați coletul la alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00153",
+      "input": "Adresă poștală: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00154",
+      "input": "Clientul locuiește la mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00155",
+      "input": "Punct de ridicare — annamueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00156",
+      "input": "Vă rugăm să expediați coletul la alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00157",
+      "input": "Adresă poștală: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00158",
+      "input": "Clientul locuiește la marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00159",
+      "input": "Punct de ridicare — anna.mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00160",
+      "input": "Vă rugăm să expediați coletul la alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00161",
+      "input": "Adresă poștală: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00162",
+      "input": "Clientul locuiește la mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00163",
+      "input": "Punct de ridicare — anna_mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00164",
+      "input": "Vă rugăm să expediați coletul la alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00165",
+      "input": "Adresă poștală: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00166",
+      "input": "Clientul locuiește la mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00167",
+      "input": "Punct de ridicare — annamueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00168",
+      "input": "Vă rugăm să expediați coletul la alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00169",
+      "input": "Adresă poștală: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00170",
+      "input": "Clientul locuiește la marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00171",
+      "input": "Punct de ridicare — anna.mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00172",
+      "input": "Vă rugăm să expediați coletul la alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00173",
+      "input": "Adresă poștală: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00174",
+      "input": "Clientul locuiește la mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00175",
+      "input": "Punct de ridicare — anna_mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00176",
+      "input": "Vă rugăm să expediați coletul la alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00177",
+      "input": "Adresă poștală: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00178",
+      "input": "Clientul locuiește la mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00179",
+      "input": "Punct de ridicare — annamueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00180",
+      "input": "Vă rugăm să expediați coletul la alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00181",
+      "input": "Adresă poștală: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00182",
+      "input": "Clientul locuiește la marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00183",
+      "input": "Punct de ridicare — anna.mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00184",
+      "input": "Vă rugăm să expediați coletul la alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00185",
+      "input": "Adresă poștală: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00186",
+      "input": "Clientul locuiește la mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00187",
+      "input": "Punct de ridicare — anna_mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00188",
+      "input": "Vă rugăm să expediați coletul la alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00189",
+      "input": "Adresă poștală: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00190",
+      "input": "Clientul locuiește la mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00191",
+      "input": "Punct de ridicare — annamueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00192",
+      "input": "Vă rugăm să expediați coletul la alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00193",
+      "input": "Adresă poștală: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00194",
+      "input": "Clientul locuiește la marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00195",
+      "input": "Punct de ridicare — anna.mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00196",
+      "input": "Vă rugăm să expediați coletul la alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00197",
+      "input": "Adresă poștală: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00198",
+      "input": "Clientul locuiește la mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00199",
+      "input": "Punct de ridicare — anna_mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00200",
+      "input": "Vă rugăm să expediați coletul la alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00201",
+      "input": "Adresă poștală: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00202",
+      "input": "Clientul locuiește la mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00203",
+      "input": "Punct de ridicare — annamueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00204",
+      "input": "Vă rugăm să expediați coletul la alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00205",
+      "input": "Adresă poștală: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00206",
+      "input": "Clientul locuiește la marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00207",
+      "input": "Punct de ridicare — anna.mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00208",
+      "input": "Vă rugăm să expediați coletul la alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00209",
+      "input": "Adresă poștală: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00210",
+      "input": "Clientul locuiește la mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00211",
+      "input": "Punct de ridicare — anna_mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00212",
+      "input": "Vă rugăm să expediați coletul la alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00213",
+      "input": "Adresă poștală: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00214",
+      "input": "Clientul locuiește la mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00215",
+      "input": "Punct de ridicare — annamueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00216",
+      "input": "Vă rugăm să expediați coletul la alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00217",
+      "input": "Adresă poștală: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00218",
+      "input": "Clientul locuiește la marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00219",
+      "input": "Punct de ridicare — anna.mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00220",
+      "input": "Vă rugăm să expediați coletul la alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00221",
+      "input": "Adresă poștală: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00222",
+      "input": "Clientul locuiește la mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00223",
+      "input": "Punct de ridicare — anna_mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00224",
+      "input": "Vă rugăm să expediați coletul la alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00225",
+      "input": "Adresă poștală: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00226",
+      "input": "Clientul locuiește la mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00227",
+      "input": "Punct de ridicare — annamueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00228",
+      "input": "Vă rugăm să expediați coletul la alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00229",
+      "input": "Adresă poștală: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00230",
+      "input": "Clientul locuiește la marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00231",
+      "input": "Punct de ridicare — anna.mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00232",
+      "input": "Vă rugăm să expediați coletul la alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00233",
+      "input": "Adresă poștală: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00234",
+      "input": "Clientul locuiește la mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00235",
+      "input": "Punct de ridicare — anna_mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00236",
+      "input": "Vă rugăm să expediați coletul la alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00237",
+      "input": "Adresă poștală: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00238",
+      "input": "Clientul locuiește la mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00239",
+      "input": "Punct de ridicare — annamueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00240",
+      "input": "Vă rugăm să expediați coletul la alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00241",
+      "input": "Adresă poștală: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00242",
+      "input": "Clientul locuiește la marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00243",
+      "input": "Punct de ridicare — anna.mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00244",
+      "input": "Vă rugăm să expediați coletul la alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00245",
+      "input": "Adresă poștală: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00246",
+      "input": "Clientul locuiește la mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00247",
+      "input": "Punct de ridicare — anna_mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00248",
+      "input": "Vă rugăm să expediați coletul la alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00249",
+      "input": "Adresă poștală: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00250",
+      "input": "Clientul locuiește la mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00251",
+      "input": "Punct de ridicare — annamueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00252",
+      "input": "Vă rugăm să expediați coletul la alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00253",
+      "input": "Adresă poștală: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00254",
+      "input": "Clientul locuiește la marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00255",
+      "input": "Punct de ridicare — anna.mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00256",
+      "input": "Vă rugăm să expediați coletul la alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00257",
+      "input": "Adresă poștală: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00258",
+      "input": "Clientul locuiește la mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00259",
+      "input": "Punct de ridicare — anna_mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00260",
+      "input": "Vă rugăm să expediați coletul la alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00261",
+      "input": "Adresă poștală: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00262",
+      "input": "Clientul locuiește la mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00263",
+      "input": "Punct de ridicare — annamueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00264",
+      "input": "Vă rugăm să expediați coletul la alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00265",
+      "input": "Adresă poștală: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00266",
+      "input": "Clientul locuiește la marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00267",
+      "input": "Punct de ridicare — anna.mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00268",
+      "input": "Vă rugăm să expediați coletul la alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00269",
+      "input": "Adresă poștală: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00270",
+      "input": "Clientul locuiește la mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00271",
+      "input": "Punct de ridicare — anna_mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00272",
+      "input": "Vă rugăm să expediați coletul la alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00273",
+      "input": "Adresă poștală: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00274",
+      "input": "Clientul locuiește la mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00275",
+      "input": "Punct de ridicare — annamueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00276",
+      "input": "Vă rugăm să expediați coletul la alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00277",
+      "input": "Adresă poștală: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00278",
+      "input": "Clientul locuiește la marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00279",
+      "input": "Punct de ridicare — anna.mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00280",
+      "input": "Vă rugăm să expediați coletul la alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00281",
+      "input": "Adresă poștală: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00282",
+      "input": "Clientul locuiește la mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00283",
+      "input": "Punct de ridicare — anna_mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00284",
+      "input": "Vă rugăm să expediați coletul la alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00285",
+      "input": "Adresă poștală: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00286",
+      "input": "Clientul locuiește la mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00287",
+      "input": "Punct de ridicare — annamueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00288",
+      "input": "Vă rugăm să expediați coletul la alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00289",
+      "input": "Adresă poștală: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00290",
+      "input": "Clientul locuiește la marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00291",
+      "input": "Punct de ridicare — anna.mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00292",
+      "input": "Vă rugăm să expediați coletul la alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00293",
+      "input": "Adresă poștală: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00294",
+      "input": "Clientul locuiește la mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00295",
+      "input": "Punct de ridicare — anna_mueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00296",
+      "input": "Vă rugăm să expediați coletul la alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00297",
+      "input": "Adresă poștală: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00298",
+      "input": "Clientul locuiește la mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ro-00299",
+      "input": "Punct de ridicare — annamueller@corp.example — confirmat.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    }
+  ]
+}

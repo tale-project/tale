@@ -65,20 +65,6 @@
     "notFoundBackHome": "Back to docs home",
     "backToTop": "Back to top"
   },
-  "languageSwitcher": {
-    "ariaLabel": "Switch language",
-    "locales": {
-      "en": "English",
-      "de": "Deutsch",
-      "fr": "Français"
-    }
-  },
-  "themeSwitcher": {
-    "ariaLabel": "Switch theme",
-    "light": "Light",
-    "dark": "Dark",
-    "system": "System"
-  },
   "footer": {
     "product": "Product",
     "resources": "Resources",

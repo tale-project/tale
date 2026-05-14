@@ -1,10 +1,11 @@
-import type { ChatFilterCategory } from '../../../lib/shared/schemas/governance';
 import {
   clampMessage,
   escapeRegExp,
   execWithBudget,
   MAX_MESSAGE_BYTES,
-} from '../regex_safety';
+} from '@tale/pii/core/regex-safety';
+
+import type { ChatFilterCategory } from '../../../lib/shared/schemas/governance';
 
 export interface ChatFilterMatch {
   categoryId: string;

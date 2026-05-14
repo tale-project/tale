@@ -1,0 +1,39 @@
+{
+  "locale": "ca",
+  "name": "Catalan",
+  "scripts": ["latn"],
+  "countries": ["ES", "AD"],
+  "phoneContextKeywords": ["telèfon", "mòbil", "número", "tel.", "tel"],
+  "cvcContextKeywords": ["codi de seguretat", "cvc", "cvv", "cv2"],
+  "address": {
+    "forms": ["standard", "po-box"],
+    "postcodeForm": "continental",
+    "postcodeRegex": "\\d{5}",
+    "requireUppercase": true,
+    "streetKeywordsStandard": [
+      "Carrer",
+      "C/",
+      "Avinguda",
+      "Av.",
+      "Plaça",
+      "Pl.",
+      "Passeig",
+      "Pg.",
+      "Ronda",
+      "Camí"
+    ],
+    "poBoxKeywords": ["Apartat de correus", "Apt."],
+    "floorKeywords": ["pis", "planta", "escala"],
+    "countryNames": ["Catalunya", "Andorra", "Spain", "España", "ES", "AD"],
+    "countryPostcodePrefixes": []
+  },
+  "nationalIds": [],
+  "fixtureSeeds": {
+    "wrappers": [
+      "Si us plau, envieu el paquet a {}.",
+      "Adreça postal: {}",
+      "El client viu a {}.",
+      "Punt de recollida — {} — confirmat."
+    ]
+  }
+}

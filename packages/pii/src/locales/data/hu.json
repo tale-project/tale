@@ -1,0 +1,28 @@
+{
+  "locale": "hu",
+  "name": "Hungarian",
+  "scripts": ["latn"],
+  "countries": ["HU"],
+  "phoneContextKeywords": ["telefon", "mobil", "szám", "tel.", "tel"],
+  "cvcContextKeywords": ["biztonsági kód", "cvc", "cvv", "cv2"],
+  "address": {
+    "forms": ["standard", "po-box"],
+    "postcodeForm": "continental",
+    "postcodeRegex": "\\d{4}",
+    "requireUppercase": true,
+    "streetKeywordsStandard": ["utca", "u.", "út", "körút", "tér", "sétány"],
+    "poBoxKeywords": ["Pf.", "Postafiók"],
+    "floorKeywords": ["emelet", "em.", "lakás"],
+    "countryNames": ["Magyarország", "Hungary", "HU"],
+    "countryPostcodePrefixes": []
+  },
+  "nationalIds": [],
+  "fixtureSeeds": {
+    "wrappers": [
+      "Kérjük, küldje el a csomagot a következő címre: {}.",
+      "Postacím: {}",
+      "Az ügyfél a {} címen lakik.",
+      "Átvételi pont — {} — megerősítve."
+    ]
+  }
+}

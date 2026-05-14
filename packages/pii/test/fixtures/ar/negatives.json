@@ -1,0 +1,4065 @@
+{
+  "_meta": {
+    "locale": "ar",
+    "generator": "@tale/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 0,
+      "negatives": 810
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "negatives": [
+    {
+      "id": "neg-prose-ar-00000",
+      "input": "متى أنشئت هذه الجامعة؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00001",
+      "input": "يعزف على البيانو بشكل جيد جداً",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00002",
+      "input": "أتمنى لك نومًا هادئًا يا تِمِي.‏‏",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00003",
+      "input": "لو سمحت، أضعت طريقي.‏‏",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00004",
+      "input": "عيد ميلاد سعيد!‏‏",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00005",
+      "input": "ذهبت اليوم إلى الطبيب",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00006",
+      "input": "إنه وسيم و ذكي.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00007",
+      "input": "هذه القلعة جميلة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00008",
+      "input": "إيطاليا بلد جميل جدا.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00009",
+      "input": "طقس اليوم جميل.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00010",
+      "input": "تعال إلى منزلي.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00011",
+      "input": "أنظر إلى هذا المنزل.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00012",
+      "input": "مرحباً بك في المنزل.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00013",
+      "input": "لا أحب المدرسة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00014",
+      "input": "أنا طالب في هذه المدرسة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00015",
+      "input": "تستطيع معالجة السرطان اذا أكتشف في المراحل الأولى.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00016",
+      "input": "مرض السرطان هو عدو البشريه الأكبر",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00017",
+      "input": "هل تتكلم اللغة الإنجليزية؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00018",
+      "input": "أنا لا أتكلم اللغة اليابانية.‏‏",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00019",
+      "input": "الدوق يمتلك الكثير من الأراضي.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00020",
+      "input": "الشهر القمري أقصر من الشهر الشمسي.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00021",
+      "input": "اليوم أقمارنا الصناعية تدور حول الأرض.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00022",
+      "input": "فكرة جيدة أن نلعب الشوقي بعد الغداء.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00023",
+      "input": "استيقظت في السابعة هذا الصباح.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00024",
+      "input": "تركوا المشكلة بدون حل.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00025",
+      "input": "هل تريد أن تنصحني بشيء ما ؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00026",
+      "input": "تعتمد اليابان على نفط البلدان العربية.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00027",
+      "input": "من رسم هذه اللوحة؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00028",
+      "input": "هذا بيتي وهذه أرضي!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00029",
+      "input": "أحببت هذا الفيلم.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00030",
+      "input": "من كتب هذا الكتاب؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00031",
+      "input": "من وضع هذه الخطة؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00032",
+      "input": "اشتريته بالأمس.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00033",
+      "input": "العالم قرية صغيرة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00034",
+      "input": "عيادة الطبيب في الدور الثاني.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00035",
+      "input": "إنه جدير بأن يكون قائد فريقنا.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00036",
+      "input": "إنه يعرفنا جيداً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00037",
+      "input": "أحبه أكثر من بقية الأولاد.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00038",
+      "input": "لم ينجُ أحد من تحطم الطائرة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00039",
+      "input": "ما أجمل هذه الزهرة!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00040",
+      "input": "تتكاثر الفئران بسرعة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00041",
+      "input": "هذا الحلم سَيَتَحَقَّق.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00042",
+      "input": "هذه قصة حقيقية.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00043",
+      "input": "لكن هذا ليس صحيحاً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00044",
+      "input": "الموسيقى لغة عالمية.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00045",
+      "input": "سرق الرجل حقيبة يدي.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00046",
+      "input": "هناك عوامل كثيرة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00047",
+      "input": "قابلتها في الشارع.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00048",
+      "input": "أيمكنك رؤية الفرق؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00049",
+      "input": "أيمكنك ملاحظة الفرق؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00050",
+      "input": "المهم هو العمل.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00051",
+      "input": "أنت لست صديقنا.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00052",
+      "input": "الدلفين نوع من الثدييات.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00053",
+      "input": "صفق الجمهور للممثلة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00054",
+      "input": "لا تلمس البضاعة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00055",
+      "input": "الأولاد نائمون.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00056",
+      "input": "من فضلك إتّصل بي لاحقاً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00057",
+      "input": "هنا موقع الحادث.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00058",
+      "input": "تنافس عشر فرق على الجائزة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00059",
+      "input": "مبيعات السيارات اليابانية في الخارج جيدة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00060",
+      "input": "أصبح بوب مهندساً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00061",
+      "input": "أعتقد أن شكسبير أعظم كاتب دراما في التاريخ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00062",
+      "input": "حضر اللقاء عدد من أصحاب الإختصاص.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00063",
+      "input": "ترك الباب مفتوحاً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00064",
+      "input": "أعطني انطباعك عن هذا الكتاب.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00065",
+      "input": "يا لها من جملة!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00066",
+      "input": "درّسني التاريخ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00067",
+      "input": "هذا المنتزه يذكّرني بطفولتي.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00068",
+      "input": "هذا المنتزه جميل و نظيف حقاً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00069",
+      "input": "كاد الولد أن يغرق.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00070",
+      "input": "شك المحامي في براءته.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00071",
+      "input": "نصحها الطبيب بأخذ إجازة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00072",
+      "input": "سامحني من فضلك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00073",
+      "input": "لا أحب أن أطبخ عندما يكون الجو حارّاً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00074",
+      "input": "من ارتكب هذه الجريمة حتماً فقد عقله.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00075",
+      "input": "علمتني عمتي كيف أحضّر قهوةً لذيذة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00076",
+      "input": "هذا بيت و ذلك مسجد.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00077",
+      "input": "ذهب بلال إلى المدرسة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00078",
+      "input": "هذا جميل ، و ذلك أيضاً جميل.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00079",
+      "input": "وافق المدرس على خطته.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00080",
+      "input": "قام بالعمل كما طُلب.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00081",
+      "input": "بدأت صحته تتدهور.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00082",
+      "input": "الأرملة امرأة توفي زوجها.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00083",
+      "input": "زُرِعَت الأشجار بجانب الطريق.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00084",
+      "input": "كان رجلاً سابقاً لعصره.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00085",
+      "input": "ها قد أتى الباص.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00086",
+      "input": "هذا الكتاب لعلي.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00087",
+      "input": "المدرس الجديد في الفصل.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00088",
+      "input": "أنا في بيت جديد.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00089",
+      "input": "السيارة التي أمامي لكرم.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00090",
+      "input": "المدرس عند المدير.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00091",
+      "input": "أذهبت إلى المدرسة اليوم؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00092",
+      "input": "أحب اللّغة العربية.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00093",
+      "input": "ماذا تحب أن تأكل؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00094",
+      "input": "سعة الخزان خمسون جالوناً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00095",
+      "input": "أعد الكتاب إلى صاحبه.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00096",
+      "input": "الفتاة تشعر بالوحدة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00097",
+      "input": "كنّا نسبح في النهر.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00098",
+      "input": "قررت أن أعمل لحساب شركة في الولايات المتحدة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00099",
+      "input": "قررت أن أعمل لحساب شركة في أمريكا.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00100",
+      "input": "جون في عمر أخي.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00101",
+      "input": "هذا ما نريد أن نعرفه.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00102",
+      "input": "من فضلك إلغِ هذا الملفّ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00103",
+      "input": "الطالبة التي جلست أمام المدرّسة من ألمانيا.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00104",
+      "input": "بعضهم مدرّسون ، وبعضهم مهندسون.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00105",
+      "input": "من هذان الولدان؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00106",
+      "input": "كم كتاباً قرأت؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00107",
+      "input": "رأيت خمسة رجال.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00108",
+      "input": "لديّ عشرة أقلام.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00109",
+      "input": "حملت ثلاثة كتب.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00110",
+      "input": "مررت بأربعة بيوت.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00111",
+      "input": "يبدو أن العصافة هدأت.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00112",
+      "input": "علينا أن نهتمّ بالمحافظة على تراثنا الوطني.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00113",
+      "input": "لديها خمس إخوة أكبر منها.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00114",
+      "input": "لديها خمسة إخوان كبار.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00115",
+      "input": "صوتها ناعم و واضح.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00116",
+      "input": "خرجت العائلة كلّها لتتمشّى.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00117",
+      "input": "لا أشكّ لحظة في صدقك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00118",
+      "input": "إنّ الكتابَ سهلٌ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00119",
+      "input": "لعلّ الجوّ جميل.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00120",
+      "input": "أمدرّس أنت أم طالب؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00121",
+      "input": "أإلى القاهرة ذهبت أم إلى الاسكندرية؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00122",
+      "input": "ليس البيت بجديد.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00123",
+      "input": "ما زالت تعتمد على والديها.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00124",
+      "input": "جريدة اليوم تحذّر من قدوم عاصفة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00125",
+      "input": "من فضلك أرني إياها مرة أخرى.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00126",
+      "input": "مات لنكولن في عام ١٨٦٥ للميلاد.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00127",
+      "input": "هذه المسألة سهلة لدرجة أن أيّ طالب يمكنه حلّها.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00128",
+      "input": "الرياضيات مادّتي المفضّلة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00129",
+      "input": "من فضلك أعطني قلماً و بضعة أوراق.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00130",
+      "input": "كيف لي أن أعرف؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00131",
+      "input": "رأيت رجلاً يتّجه نحوي.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00132",
+      "input": "كنّا كلّنا متعبون.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00133",
+      "input": "لنواجه الحقائق.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00134",
+      "input": "بدأ يشعر بالمرض.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00135",
+      "input": "أبي لا يقرأ كتاباً الآن.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00136",
+      "input": "البيت مسكون بالأشباح.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00137",
+      "input": "ماذا تظن نفسك فاعلاً؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00138",
+      "input": "عليك أن تطيع والديك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00139",
+      "input": "قفز من النافذة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00140",
+      "input": "أيمكنني أن أدخّن هنا؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00141",
+      "input": "لدينا أخبار جيدة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00142",
+      "input": "يمكنك استعارة هذا الكتاب بشرط أن تبقيه نظيفاً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00143",
+      "input": "يمكنك استعارة الكتاب بشرط أن تحافظ عليه.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00144",
+      "input": "بلال أطْوَلُ من كرم.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00145",
+      "input": "أنت أحْسَنُ منّي.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00146",
+      "input": "كرم أحسن طالب في المدرسة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00147",
+      "input": "كأنّك من الهند.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00148",
+      "input": "كأنّ هذه السيارة له.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00149",
+      "input": "ستتزوّج برجل ثريّ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00150",
+      "input": "يمكن معالجة السرطان إذا اِكْتُشِفَ في مرحلة مبكّرة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00151",
+      "input": "الجميع يحبون الموسيقى.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00152",
+      "input": "ماذا حدث بالأمس؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00153",
+      "input": "ما الذي حصل البارحة؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00154",
+      "input": "بقي القليل من الحليب في الزجاجة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00155",
+      "input": "استطاع أن يبني بيتاً صغيراً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00156",
+      "input": "فاطمة أكبر طالبة في فصلنا.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00157",
+      "input": "استلم الجائزة أحد عشر طالباً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00158",
+      "input": "منذ ١٩٩۰م و حتّى الآن ، استلمت الجائزة إحدى عشرة طالبةً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00159",
+      "input": "لا تصرخ في وجهي.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00160",
+      "input": "لم يكن لديّ وقت للأكل.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00161",
+      "input": "اشترى لنا عمّي جهاز تلفاز جديد.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00162",
+      "input": "أيمكنك أن تعلّمني كيف أستخدم الغسّالة؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00163",
+      "input": "كم من الوقت يلزم للوصول إلى المحطّة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00164",
+      "input": "جلسوا تحت ظل شجرة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00165",
+      "input": "هل الحمّام جاهز؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00166",
+      "input": "أصبحا زوجاً و زوجة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00167",
+      "input": "سيأتي الربيع قريباً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00168",
+      "input": "هل غاب أحد اليوم؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00169",
+      "input": "أتوقّع أن يصل قريباً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00170",
+      "input": "إذا ابتسم المهزوم أفقد المنتصر لذة الفوز.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00171",
+      "input": "كلنا كالقمر ، لنا جانب مظلم لا نظهره لأحد.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00172",
+      "input": "لا تتحدى من ليس لديه ما يخسره.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00173",
+      "input": "جاء الطالب من لندن.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00174",
+      "input": "أُنْشِئَتْ مدارس.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00175",
+      "input": "سلّمت على التلميذ الأسبق.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00176",
+      "input": "لا تجادل وانت غضبان ولا تأكل وانت شبعان.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00177",
+      "input": "هاتان صورتان جميلتان.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00178",
+      "input": "هاتان صورتان جميلتان إطاراهُما.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00179",
+      "input": "هذا عمل ينفع الآخرين.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00180",
+      "input": "يمكنها تحدث اليابانيّة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00181",
+      "input": "لا عجب أنّ البعض يشعرون بالتوتر عند دخولهم المستشفى.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00182",
+      "input": "لا تنس التذكرة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00183",
+      "input": "لا تنس تذكرة الدخول.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00184",
+      "input": "سأوصلك إلى المطار.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00185",
+      "input": "ماذا عليّ أن أحضر؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00186",
+      "input": "إنها ساعة متأخرة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00187",
+      "input": "ارجع إلى الوراء من فضلك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00188",
+      "input": "تنحّى جانبا إذا سمحت.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00189",
+      "input": "هناك الكثير من الفنادق في وسط المدينة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00190",
+      "input": "أتذكّر أنّي شاهدت هذا الفيلم.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00191",
+      "input": "أتمنّى أن تأتي مرّة أخرى.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00192",
+      "input": "لا. أنا آسف، عليّ العودة مبكراً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00193",
+      "input": "هذه التفاحة شديدة الحمرة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00194",
+      "input": "هذه التفاحة حمراء جداً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00195",
+      "input": "سأريك بعض الصور.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00196",
+      "input": "آه ، متى سيتقابلون مجدداً؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00197",
+      "input": "سأعاود الإتصال بك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00198",
+      "input": "لا تنظر إلى الوراء.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00199",
+      "input": "الجو حار اليوم.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00200",
+      "input": "عادة ما أغسل الصحون.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00201",
+      "input": "أحضر أولادك معك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00202",
+      "input": "لا تنس أن لدينا واجباً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00203",
+      "input": "أما زلت تذكرني؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00204",
+      "input": "أنا في المطار الآن.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00205",
+      "input": "ليس هناك ما ينقص.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00206",
+      "input": "الآباء يحبون أولادهم.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00207",
+      "input": "أطفئ الضوء. لا يمكنني النوم.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00208",
+      "input": "أشعل الضوء. لا يمكنني أن أرى شيئاً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00209",
+      "input": "أنا متأكد من أنها ستعود قريباً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00210",
+      "input": "أرني مثالاً آخر.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00211",
+      "input": "أراك غداً في المكتبة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00212",
+      "input": "أراك غداً عند المكتبة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00213",
+      "input": "هذه هي المسألة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00214",
+      "input": "من محاسن القاموس الإلكتروني أنه سهل الحمل.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00215",
+      "input": "عليك أن تقوم بالواجب.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00216",
+      "input": "فبدأ الطبيب بالكشف عليها.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00217",
+      "input": "فبدأ الطبيب بمعاينتها.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00218",
+      "input": "خسر توم وظيفته.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00219",
+      "input": "أين وُلِدَ توم؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00220",
+      "input": "أذكر أني سمعت قصة مشابهة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00221",
+      "input": "هذا الفندق أفضل من ذاك الفندق.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00222",
+      "input": "أذكر أني قابلت ذلك الرجل من قبل في كامبردج.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00223",
+      "input": "هناك صفحة ناقصة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00224",
+      "input": "خسرنا تلك المباراة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00225",
+      "input": "لا أذكر لحن تلك الأغنية.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00226",
+      "input": "كنت مشغولاً بكتابة قصة قصيرة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00227",
+      "input": "لا أقدر أن أسامحه على ما فعل.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00228",
+      "input": "فقدت حقيبة يدها.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00229",
+      "input": "يستطيع الدب تسلق الشجرة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00230",
+      "input": "يبدو أن السيد تناكا اجتاز الإمتحان.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00231",
+      "input": "ندمت على عدم حضوري الخطبة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00232",
+      "input": "فقد الرجل الأمل كلياً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00233",
+      "input": "لماذا أنت في عجلة من أمرك هكذا؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00234",
+      "input": "من فضلك اِنسخ هذه الصفحة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00235",
+      "input": "أبقى جميع النّوافذ مفتوحة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00236",
+      "input": "ضوء القمر ضعيف.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00237",
+      "input": "ضوء القمر خافت.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00238",
+      "input": "بنى سِياجاً حول بيته.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00239",
+      "input": "بنى سِياجاً خشبياً حول بيته.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00240",
+      "input": "هل هذه المعلومة صحيحة؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00241",
+      "input": "نصحني الطبيب بالإقلاع عن التدخين.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00242",
+      "input": "ارتكبت نفس الخطأ مرّة أخرى.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00243",
+      "input": "أهنّئك بمناسبة نجاحك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00244",
+      "input": "كان الجو حاراً جداً ظهيرة اليوم.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00245",
+      "input": "اِصعدوا الباص واحداً تلو الآخر.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00246",
+      "input": "لم يشجّعها أحد.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00247",
+      "input": "حدث ذلك ذات ليلة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00248",
+      "input": "عليّ أن أشتري واحدة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00249",
+      "input": "عدّل رئيس القسم خطّته.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00250",
+      "input": "ذكر هاتوياما أنه يعيل عائلته بالمراهنة على سباق الخيل.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00251",
+      "input": "تفضّل خذ واحدة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00252",
+      "input": "على المرء أن يستحمّ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00253",
+      "input": "يبدو أن رئيس القسم يحب استغلال سلطته.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00254",
+      "input": "على المرء أن يجتهد.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00255",
+      "input": "على المرء أن يفعل كلّ ما بوسعه.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00256",
+      "input": "لم يساعدني أحد.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00257",
+      "input": "لم يكن هناك أحد.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00258",
+      "input": "لا أحد يحب الحرب.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00259",
+      "input": "كان الجو حاراً جداً عصر اليوم.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00260",
+      "input": "سألتني كم عمري.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00261",
+      "input": "سألتني عن عمري.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00262",
+      "input": "رفع قبّعته اِحتراماً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00263",
+      "input": "كل ما عليك فعله هو حفظ هذه الجملة عن ظهر قلب.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00264",
+      "input": "رجال و نساء قاتلوا للدفاع عن وطنهم.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00265",
+      "input": "خرج الأولاد من الغرفة واحداً تلو الآخر.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00266",
+      "input": "لا يستطيع أحدٌ مساعدتي.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00267",
+      "input": "لا أعرف متى سيكون هنا.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00268",
+      "input": "لديّ إحساس أني كنت هنا من قبل.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00269",
+      "input": "عليك أن تنظّف غرفتك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00270",
+      "input": "النتيجة واحد مقابل واحد.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00271",
+      "input": "النتيجة واحد الكلّ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00272",
+      "input": "أيمكنك أن تُرِيَني ذلك؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00273",
+      "input": "وفي يوم من الأيام ، انتحر.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00274",
+      "input": "عد من واحد إلى عشرة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00275",
+      "input": "يبلغ متحدّثي اللغة الإنجليزية مليار نسمة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00276",
+      "input": "مليار شخص يتكلمون الإنجليزية.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00277",
+      "input": "لحسن الحظ لم يتأذ أحد.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00278",
+      "input": "درست لمدة ساعة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00279",
+      "input": "الجو معتدل هنا.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00280",
+      "input": "نجا من الموت بأعجوبة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00281",
+      "input": "كم تبعُد عن هنا؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00282",
+      "input": "أريد أن أقول لك شيئاً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00283",
+      "input": "لا أحد يعرف اسمه.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00284",
+      "input": "لم يصدّق أحد قصّته.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00285",
+      "input": "سنكتفي بهذا الحد اليوم و نقف هنا.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00286",
+      "input": "توقف كِن عن الكلام و بدأ بالأكل.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00287",
+      "input": "أحتاج إلى مساعدتك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00288",
+      "input": "أحتاج مساعدة طبية.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00289",
+      "input": "هل تحتاج لمساعدة؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00290",
+      "input": "\"!صرخت قائلة \"النجدة! ساعدوني.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00291",
+      "input": "النجدة! ساعدني!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00292",
+      "input": "هل لي أن أساعدك؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00293",
+      "input": "تفضّل البيت بيتك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00294",
+      "input": "تفضّل المكان مكانك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00295",
+      "input": "الى متى سنقف مكتوفى الايدى.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00296",
+      "input": "صرخ طالباً النجدة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00297",
+      "input": "أُقَدِّر مساعدتك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00298",
+      "input": "نُقَدِّر مساعدتك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00299",
+      "input": "أيمكنك مساعدتي؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00300",
+      "input": "من فضلك ساعدني.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00301",
+      "input": "مات السنة الماضية.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00302",
+      "input": "كان لديهما ولد واحد.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00303",
+      "input": "رزقوا بولد وحيد.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00304",
+      "input": "وقعوا واحداً تلو الآخر.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00305",
+      "input": "بدأوا واحداً تلو الآخر.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00306",
+      "input": "وصلوا واحداً خلف الآخر.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00307",
+      "input": "ماتوا واحداً تلو الآخر.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00308",
+      "input": "ركّزت على شيء واحد.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00309",
+      "input": "على الأصدقاء مساعدة بعضهم البعض.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00310",
+      "input": "لم يأت أحد سوى ماري.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00311",
+      "input": "السفر يوسع آفاق تفكير المرء.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00312",
+      "input": "أقبل ولكن بشرط واحد.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00313",
+      "input": "هناك تفاحة واحدة على المكتب.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00314",
+      "input": "احترقت المنازل واحدة تلو الأخرى.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00315",
+      "input": "اضرب عصفورين بحجر.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00316",
+      "input": "بقيَ واحد وذهب الآخر.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00317",
+      "input": "ما أسهل أن يكتسب المرء عادات سيئة!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00318",
+      "input": "أرني شيئاً أرخص لو سمحت.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00319",
+      "input": "لم يعد يثق به أحد بعد الآن.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00320",
+      "input": "عليك أن تساعدها.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00321",
+      "input": "أحتاج إلى مساعدته.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00322",
+      "input": "هم يحتاجون المزيد من المساعدة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00323",
+      "input": "صرخوا طالبين النجدة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00324",
+      "input": "عليّ أن أساعده.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00325",
+      "input": "صرخت طالبة المساعدة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00326",
+      "input": "ساعدني في الطبخ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00327",
+      "input": "من الممكن أن تمطر.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00328",
+      "input": "ربما ستمطرُ بعدَ قليل.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00329",
+      "input": "وأخيرًا وجدت مفاتيحها المفقودة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00330",
+      "input": "إحدى حقائبي مفقودة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00331",
+      "input": "لربما تمطر غداً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00332",
+      "input": "فجأة هطل المطر.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00333",
+      "input": "هل ستمطر اليوم؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00334",
+      "input": "ربما ستمطر الليلة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00335",
+      "input": "ربما ستمطر غداً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00336",
+      "input": "فجأة بدأ المطر بالهطول.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00337",
+      "input": "أصبح المطر ثلجاً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00338",
+      "input": "استمر المطر بالهطول لمدة أربعة أيام.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00339",
+      "input": "استمر المطر أسبوعاً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00340",
+      "input": "استمر المطر خمسة أيام.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00341",
+      "input": "استمر المطر بالهطول طوال اليوم.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00342",
+      "input": "أفسد المطر نزهتنا.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00343",
+      "input": "استمر المطر ثلاثة أيام.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00344",
+      "input": "أخيراً توقف المطر.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00345",
+      "input": "سأحضر منشفة أخرى.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00346",
+      "input": "سأحضر فوطة أخرى.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00347",
+      "input": "لا يعرف أحد عنوانه إلّا توم.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00348",
+      "input": "سُأِل كل طالب سؤالاً واحداً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00349",
+      "input": "واحد منّا سيضطر للرحيل.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00350",
+      "input": "إنها مئة دولار.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00351",
+      "input": "إنها ورقة نقدية من فئة المئة دولار.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00352",
+      "input": "إنها ورقة نقدية من فئة المائة دولار.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00353",
+      "input": "لَخِّص التقرير في صفحة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00354",
+      "input": "يزن الطرد أكثر من باوند.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00355",
+      "input": "لا يستطيع أحد أن ينكر هذا.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00356",
+      "input": "نجا من الحادثة شخص واحد.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00357",
+      "input": "يتسع الفندق لمئة شخص.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00358",
+      "input": "إحدى الحقائب فارغة تماماً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00359",
+      "input": "أحد الولدين يعرف ذلك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00360",
+      "input": "أقلعت الطائرات النفاثة واحدة تلو الأخرى.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00361",
+      "input": "إتحدت الدول الثلاث ليكوّنوا دولة واحدة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00362",
+      "input": "كان ذلك أمله الوحيد.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00363",
+      "input": "هذا سؤال مهم جداً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00364",
+      "input": "هذا الكتاب أقدم من ذاك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00365",
+      "input": "هذا الحيوان أكبر من ذاك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00366",
+      "input": "عرض هذا النهر ميل.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00367",
+      "input": "أداء هذه السيارة أفضل من تلك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00368",
+      "input": "هذه السيارة أكبر من تلك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00369",
+      "input": "كنت أمتلك سيارة نيسان قبل أن أمتلك هذه.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00370",
+      "input": "هذا القاموس أفضل من ذاك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00371",
+      "input": "هذه الساعة أفضل من تلك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00372",
+      "input": "أعيش في الطابق الأرضي.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00373",
+      "input": "اطمأن والدا توم عندما سمعا بأنه بخير.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00374",
+      "input": "كان زوجي الأخير غبيًا بالفعل.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00375",
+      "input": "ذهب للمتجر في آخر لحظة، قبل الإغلاق بقليل.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00376",
+      "input": "إنه آخر من أطلب منه المساعدة فهو شخص لا يعتمد عليه.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00377",
+      "input": "استمرت الخطبة ثلاثين دقيقة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00378",
+      "input": "دامت الخطبة ثلاثين دقيقة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00379",
+      "input": "استمر الجو الممطر عشرة أيام متواصلة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00380",
+      "input": "نعم، سيكفي الحليب حتى يوم الجمعة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00381",
+      "input": "ستبدأ المسرحية في الساعة الثامنة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00382",
+      "input": "إنها تتناول العشاء.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00383",
+      "input": "سنلعب التنس في عطلة نهاية الأسبوع.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00384",
+      "input": "سُرقت محفظتي بالأمس.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00385",
+      "input": "نساء فرنسا جميلات.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00386",
+      "input": "أحد أعمامي طبيب.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00387",
+      "input": "السكرتيرة متعبة من الطباعة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00388",
+      "input": "هناك وحش تحت سريري.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00389",
+      "input": "هناك بعبع تحت سريري.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00390",
+      "input": "ذهب إلى الدكان.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00391",
+      "input": "ذهب إلى المحل التجاري.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00392",
+      "input": "ذهب إلى المتجر.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00393",
+      "input": "تتراوح درجة الحرارة في الصيف من ثلاثين إلى أربعين درجة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00394",
+      "input": "فاز فريق مانتشستر يونايتد بأربعة أهداف مقابل إثنين.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00395",
+      "input": "إلى أين أنت ذاهب؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00396",
+      "input": "أحب أكل اللازانيا.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00397",
+      "input": "هل يحب الجميع الموسيقى؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00398",
+      "input": "أحب هذه الصورة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00399",
+      "input": "الحب لا يرى عيوباً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00400",
+      "input": "الطفل يحتاج الى الحنان.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00401",
+      "input": "نحن نحب بعضنا البعض.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00402",
+      "input": "أحب هذا الإعلان التلفزيوني.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00403",
+      "input": "أحب الأفلام الأمريكية.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00404",
+      "input": "أحب مشاهدة مبارايات كرة السلة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00405",
+      "input": "أحب الأفلام الفرنسية.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00406",
+      "input": "أحب قصص الغرام.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00407",
+      "input": "أعشق موسيقى الروك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00408",
+      "input": "أحب قراءة الكتب.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00409",
+      "input": "أحب القصص المصورة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00410",
+      "input": "أنا أيضاً أحب الموسيقى.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00411",
+      "input": "نحن نحب أولادنا.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00412",
+      "input": "الناس يحبون الحرية.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00413",
+      "input": "هل هذا هو الحب؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00414",
+      "input": "عادةً ما تشرب أختي الكبيرة الشاي مع الحليب.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00415",
+      "input": "يلعب الأولاد باللعب.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00416",
+      "input": "أنا اختلف معك في الرأي.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00417",
+      "input": "لا أوافقك الرأي.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00418",
+      "input": "النهار يتبع الليل.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00419",
+      "input": "كان واضحاً كالشمس أن شنجي سيموت من الجوع.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00420",
+      "input": "امش بأسرع ما يمكنك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00421",
+      "input": "كيوتو ليست كبيرة كأوساكا.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00422",
+      "input": "ماري ليست بطوله.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00423",
+      "input": "\"متى ستعود؟\" \"يعتمد ذلك على الجو.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00424",
+      "input": "المال ليس كل شيء.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00425",
+      "input": "!مجدداً؟ ليس مرة أخرى!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00426",
+      "input": "لا لست نعساناً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00427",
+      "input": "يجب أن لا تلعب.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00428",
+      "input": "يجب أن لا تنام.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00429",
+      "input": "أنت لست يابانياً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00430",
+      "input": "لا تتسرع بالإجابة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00431",
+      "input": "هو ليس يابانياً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00432",
+      "input": "من الممكن أن لا تأتي.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00433",
+      "input": "لا ، لا أعتقد ذلك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00434",
+      "input": "أنا عاطل عن العمل.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00435",
+      "input": "لست سريعاً بما فيه الكفاية.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00436",
+      "input": "انها ليست غلطتي!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00437",
+      "input": "الأمل ليس خطةً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00438",
+      "input": "الأمل ليس استراتيجية.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00439",
+      "input": "نحتاج إلى العمل وليس الكلام.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00440",
+      "input": "لم تدم صداقتنا.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00441",
+      "input": "لا أحب مادة العلوم.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00442",
+      "input": "لن يعمل الراديو.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00443",
+      "input": "لن نصل إلى أي مكان.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00444",
+      "input": "لست جاهزاً بعد.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00445",
+      "input": "لا يحترق البلاستيك بسهولة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00446",
+      "input": "لا ينكسر البلاستيك بسهولة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00447",
+      "input": "لا يحب كل الأطفال التفاح.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00448",
+      "input": "أفضل أن لا أذهب.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00449",
+      "input": "دعنا لا نشاهد التلفاز.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00450",
+      "input": "تعمد أن يدوس على قدمي.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00451",
+      "input": "شرحه لم يكن كافياً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00452",
+      "input": "تركتُ كتابك في السيارة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00453",
+      "input": "دخل الغرفة بعد خروجك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00454",
+      "input": "سوف أسافر في مارس-آذار.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00455",
+      "input": "إنها تعمل في مجال التسويق.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00456",
+      "input": "اتصل بي مرة أخرى خلال يومين.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00457",
+      "input": "كلمتني بالإسبانية.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00458",
+      "input": "من المهم أن تتذكر من هم أصدقاؤك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00459",
+      "input": "لست متأكدًا مما إذا كنت أفضل هذا أم ذاك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00460",
+      "input": "ليس من السهل تعلم لغة جديدة بعد سن الخمسين.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00461",
+      "input": "بناءً على الاتجاه الذي سار فيه، أظن أنه كان متجهًا إلى البلدة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00462",
+      "input": "الشوكة الصغيرة للسلطة والكبيرة للوجبة الرئيسية.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00463",
+      "input": "دفع عشرة دولارات فقط لذلك القميص.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00464",
+      "input": "لا أريد القيام بعمله نيابة عنه.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00465",
+      "input": "ذهبوا إلى السينما ليلة أمس.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00466",
+      "input": "و أخيراً وصلنا إلى القرية.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00467",
+      "input": "أكنت في المدرسة في ذلك الوقت؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00468",
+      "input": "هل كنت في المدرسة حينها؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00469",
+      "input": "لا مشكلة مطلقا!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00470",
+      "input": "لا مشكلة على الإطلاق!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00471",
+      "input": "انظر إلى الصورة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00472",
+      "input": "ضحك الجميع عليّ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00473",
+      "input": "اجلس على الطاولة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00474",
+      "input": "و أخيراً استسلم.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00475",
+      "input": "انظر إليّ من فضلك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00476",
+      "input": "ضحك الناس عليه.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00477",
+      "input": "نحن نتعلم بالتجربة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00478",
+      "input": "يدرّب الفريق مدرّب جيّد.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00479",
+      "input": "لم أدرس مادة الرياضيات على الإطلاق.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00480",
+      "input": "إذا كان الكلام من فضة فالسكوت من ذهب.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00481",
+      "input": "في هذه الظروف ، لا يمكننا النجاح.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00482",
+      "input": "يعمل أبي في المصنع.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00483",
+      "input": "أتحس بوجع في بطنك؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00484",
+      "input": "لا أعرف كيف أشكرك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00485",
+      "input": "كلنا يرغب بالنجاح.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00486",
+      "input": "أهم شيء أن تكن صبوراً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00487",
+      "input": "هل كل شيء على ما يرام؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00488",
+      "input": "أيمكنني أن أقول شيئاً؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00489",
+      "input": "من اخترع الهاتف؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00490",
+      "input": "من كسر المزهرية؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00491",
+      "input": "من يدرّسك الفرنسية؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00492",
+      "input": "من كتب الرسالة؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00493",
+      "input": "من يدرب الفريق؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00494",
+      "input": "من يملك هذه الفِلّا؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00495",
+      "input": "من يملك قطعة الأرض هذه؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00496",
+      "input": "من كتب هذه القصيدة؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00497",
+      "input": "من اخترع هذه الآلة؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00498",
+      "input": "من يملك هذا المنزل؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00499",
+      "input": "من مالك هذا البيت؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00500",
+      "input": "من فضلك رتب السرير.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00501",
+      "input": "متى اخترعت الطباعة؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00502",
+      "input": "متى تكون مشغولاً؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00503",
+      "input": "متى عيد ميلادك؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00504",
+      "input": "إذا لم يكن الآن ، فمتى؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00505",
+      "input": "متى سيبدأ الفيلم؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00506",
+      "input": "متى بُنيت القلعة؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00507",
+      "input": "متى حصل الحادث؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00508",
+      "input": "متى بُني هذا المعبد؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00509",
+      "input": "متى تلعب التنس؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00510",
+      "input": "صحح الأخطاء ، إن وُجدت.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00511",
+      "input": "أصلح الأغلاط ، إذا وُجدت.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00512",
+      "input": "يمكنك العودة إلى البيت لو أردت.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00513",
+      "input": "لا تبق التلفاز مفتوحاً!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00514",
+      "input": "هذا أسوأ فلم شاهدته في حياتي.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00515",
+      "input": "حاول أن يتقن الفرنسية.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00516",
+      "input": "إنه موجود في البيت الآن.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00517",
+      "input": "يغادر القطار في الساعة التاسعة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00518",
+      "input": "إنها في اجتماع الآن.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00519",
+      "input": "هناك نافورة ماء للشرب قرب ملعب التنس.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00520",
+      "input": "نمرّ دائمًا بجانب مكتب البريد في طريقنا إلى العمل.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00521",
+      "input": "يجب أن تتم هذا التقرير قبل يوم الأثنين.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00522",
+      "input": "هل نذهب بالسيارة أم بالتكسي؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00523",
+      "input": "ما رأيك ، أنذهب بالسيارة أم بالتاكسي؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00524",
+      "input": "هاملت مسرحية لشكسبير.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00525",
+      "input": "أعرفه بإسمه الأول.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00526",
+      "input": "اشترت البيض بالدزينة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00527",
+      "input": "اشترت البيض بالدرزن.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00528",
+      "input": "أنا أتحدث عن هذا القلم، وليس عن ذاك الموجود هناك على المكتب.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00529",
+      "input": "ماذا فعلت هذا الصباح؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00530",
+      "input": "نحن ذاهبون إلى السينما.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00531",
+      "input": "نحن لا نفعل ذلك عادةً في إسبانيا.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00532",
+      "input": "ما هي طبيعة عملك في المكتب؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00533",
+      "input": "سأقوم بغسل الصحون بما أنك طبختَ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00534",
+      "input": "لربّما كنت كبير السن ولكنني لا زلت أستطيع ركوب الدراجة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00535",
+      "input": "لم يكن بإمكانهم فعل شيء إلا الوقوف والمشاهدة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00536",
+      "input": "أنا من النرويج.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00537",
+      "input": "أتريد الاخضر أو الازرق؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00538",
+      "input": "أتريد الاخضر أم الازرق؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00539",
+      "input": "أي لون تفضل؟ الأزرق أم الأحمر؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00540",
+      "input": "أي لون تحب أكثر؟ الأزرق أم الأحمر؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00541",
+      "input": "يمكنها ان تعد من واحد إلى عشرة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00542",
+      "input": "يمكنها ان تَعُدَّ من الواحد إلى العشرة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00543",
+      "input": "إبحث عن لوحة تحمل رقم واحد مكتوباً بخط كبير.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00544",
+      "input": "أحتاج بصلة واحدة فقط لهذه الوصفة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00545",
+      "input": "لو كان عندي سيارة لذهبت إلى المكتبة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00546",
+      "input": "ترك أبوها البيت لها في وصيته.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00547",
+      "input": "أنجزت المهمة بقوة إرادتها.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00548",
+      "input": "يشكل الفصل الثالث نهاية البداية في الكتاب. توقف هناك واقرأ تعليقات الناقد.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00549",
+      "input": "لا بد من وجود طريقة ما.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00550",
+      "input": "متى غادرت؟ في الرابعة أم في الخامسة؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00551",
+      "input": "أستطيع أن أحمل تلك الحقائب عنك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00552",
+      "input": "بإمكانها العزف على البيانو.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00553",
+      "input": "هل يُمكنني استعارة سيارتك لهذه الليلة؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00554",
+      "input": "يوجد في هذا المتجر حلوى أكثر من المتجر الآخر.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00555",
+      "input": "في هذا المتجر حلوى أكثر من ذاك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00556",
+      "input": "أحتاج لمزيد من الوقت لأنهي واجبي.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00557",
+      "input": "أحتاج لمزيد من الوقت لأنهي واجبي المدرسي.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00558",
+      "input": "أحتاج لمزيد من الوقت لأنجز فروضي.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00559",
+      "input": "إذا كان هذا الكلام صحيحًا، فسنضطر لقبول النتيجة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00560",
+      "input": "في حال كون هذا الكلام صحيحًا ، فسنضطر لقبول تلك النتيجة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00561",
+      "input": "لو كان ذلك الكلام صحيحًا، فسنقبل هذا الإستنتاج.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00562",
+      "input": "سأشتري السيارة بشرط أن يصلحوا المكابح أولاً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00563",
+      "input": "هل تعرف إن كان سيحضر الحفل؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00564",
+      "input": "ستُنشر روايتها الجديدة الشهر القادم.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00565",
+      "input": "الطبيب غير موجود الآن للأسف.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00566",
+      "input": "انطفأت الأضواء.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00567",
+      "input": "لم يعد عندنا أي سكر.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00568",
+      "input": "لم يعد لدينا سكر.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00569",
+      "input": "هناك شئ واحد آخرعليّ فعله.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00570",
+      "input": "سيصل الاخرون في غضون دقائق قليلة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00571",
+      "input": "سيصل الاخرون في غضون دقائق معدودة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00572",
+      "input": "الآخرون على وصول.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00573",
+      "input": "أقلعت عن التدخين منذ ستة أشهر.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00574",
+      "input": "ليس ذلك القميص، بل الآخر.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00575",
+      "input": "أنا جائع، لذلك سأذهب لتناول بعض الطعام.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00576",
+      "input": "كان غاضباً لدرجة أنّه نسي أن يتناول طعام العشاء.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00577",
+      "input": "كان هناك حوالي عشرون شخصاً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00578",
+      "input": "ماذا تريد أن تأكل؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00579",
+      "input": "ماذا؟ لا أسمعك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00580",
+      "input": "ماذا! هل فعلت ذلك حقًا؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00581",
+      "input": "\"كم الساعة الآن؟\" \"إنها الثالثة وعشرون دقيقة.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00582",
+      "input": "كان عمرنا حينها خمس عشرة سنة فقط.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00583",
+      "input": "لقد أكلنا هناك ثلاث مرات.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00584",
+      "input": "إرفع صوت الموسيقى!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00585",
+      "input": "نهض من النوم في الساعة الثامنة صباحاً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00586",
+      "input": "زادت الفرقة الموسيقية عدد الحفلات في جولتها.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00587",
+      "input": "سأذهب إلى لندن في الصيف.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00588",
+      "input": "من الأفضل أن تغادر. إن الوقت متأخر.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00589",
+      "input": "لا يزال أمامنا عشرة أميال.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00590",
+      "input": "يتحدث الكتاب عن ملك يفقد تاجه.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00591",
+      "input": "الكتاب عن ملك فقد تاجه.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00592",
+      "input": "ما رأيك في خطاب الرئيس؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00593",
+      "input": "سمعت صوت اصطدام حوالي العاشرة ليلة الأمس.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00594",
+      "input": "أفضل الغناء على الرقص.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00595",
+      "input": "اصطدمت سيارته بشجرة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00596",
+      "input": "كان باستطاعة أحمد تسلُّق الأشجار العالية عندما كان طفلاً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00597",
+      "input": "يوجد هناك خمسون مقاطعة في الولايات المتحدة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00598",
+      "input": "هناك خمسون مقاطعة في الإتحاد الفدرالي.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00599",
+      "input": "في عام ١٩٤٨م ، تأسست دولة يهودية.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00600",
+      "input": "هناك اثنا عشر شهرًا في السنة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00601",
+      "input": "سيستغرق المشروع سنة على الأقل.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00602",
+      "input": "سيستغرق إنهاء المشروع سنةً على الأقل.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00603",
+      "input": "كل ما أستطيع فعله هو الإنتظار.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00604",
+      "input": "يسمح بالدخول للطلاب فقط لا غير.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00605",
+      "input": "خمس عشرة دقيقة فقط.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00606",
+      "input": "ما يزال هاري في الأربعين من عمره.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00607",
+      "input": "أنت الشخص الوحيد.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00608",
+      "input": "لا أعرف إلّا هذا.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00609",
+      "input": "الله وحده يعلم.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00610",
+      "input": "لو أنّني كنت أعرف!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00611",
+      "input": "أنا طفل وحيد أبي و أمي.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00612",
+      "input": "نريد شيئاً جديداً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00613",
+      "input": "كل سنة و أنت بخير.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00614",
+      "input": "هلا! ما الجديد؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00615",
+      "input": "هذه الكتب جديدة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00616",
+      "input": "الدخول للموظفين فقط.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00617",
+      "input": "هذا هو الخيار الوحيد.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00618",
+      "input": "نمت لساعتين فقط.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00619",
+      "input": "تزداد الحوادث يوماً بعد يوم.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00620",
+      "input": "تزداد الحوادث سنةً بعد سنة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00621",
+      "input": "تقاعدت السنة الماضية.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00622",
+      "input": "خرجت على المعاش السنة الفائتة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00623",
+      "input": "كل سنة و أنتم بخير.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00624",
+      "input": "بعض الثعابين سامة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00625",
+      "input": "أخذ براين بعض الورود.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00626",
+      "input": "بعضهم معتدل ، و البعض الآخر متشدد.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00627",
+      "input": "خذ الكرسي الآخر.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00628",
+      "input": "خذ الطريق المختصر.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00629",
+      "input": "خذ وقتك ،يا يوشيدا..",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00630",
+      "input": "كيف تهجئ \"جميل\"؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00631",
+      "input": "ماذا؟ لم أسمعك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00632",
+      "input": "من رسم هذه اللوحات؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00633",
+      "input": "هذه الألعاب النارية رائعة!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00634",
+      "input": "لمن هذه اللوحات؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00635",
+      "input": "لمن هذين الحذائين؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00636",
+      "input": "هل هذه الأشياء لك؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00637",
+      "input": "أراك الأسبوع القادم!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00638",
+      "input": "أيمكنني الذهاب إلى الحمام؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00639",
+      "input": "أستخدم الحاسوب.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00640",
+      "input": "أحب ضوء الشموع.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00641",
+      "input": "أتحب موسيقى الراب؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00642",
+      "input": "هذا الشبل من ذاك الأسد.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00643",
+      "input": "البعض يحب كرة القاعدة و البعض الآخر يحب كرة القدم.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00644",
+      "input": "ثم أسرعت إلى المنزل.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00645",
+      "input": "كان عمري ثماني عشرة سنة حينها.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00646",
+      "input": "كنت سعيداً يومها.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00647",
+      "input": "كنت سعيداً عند ذلك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00648",
+      "input": "اذهب أنت أولاً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00649",
+      "input": "أحتاج إلى إسعافات أولية.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00650",
+      "input": "أي كتاب سيفي بالغرض.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00651",
+      "input": "أي طفل يعرف ذلك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00652",
+      "input": "عليك أن تعمل بجهد أكبر.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00653",
+      "input": "أين تذهب للعمل؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00654",
+      "input": "لقد أنهيت عملي للتو.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00655",
+      "input": "لا بد أن آندي تمرن كثيراً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00656",
+      "input": "لا بد أن آندي تدرب كثيراً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00657",
+      "input": "لا أستطيع رؤية شيء.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00658",
+      "input": "الخطوة الأولى دائماً ما تكون الأصعب.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00659",
+      "input": "أيمكنك أخذنا إلى المتحف البريطاني؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00660",
+      "input": "ماذا تريد الآن؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00661",
+      "input": "تحمي الثلاجة الأكل من التعفن.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00662",
+      "input": "تحفظ الثلاجة الأكل من الفساد.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00663",
+      "input": "في يوم من الأيام كان هناك مكتب بريدي على هذه الزاوية من الشارع.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00664",
+      "input": "نادراً ما أراها.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00665",
+      "input": "سمعنا ذلك من فلان و فلان.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00666",
+      "input": "يا لها من صدمة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00667",
+      "input": "كانت صدمة قوية.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00668",
+      "input": "يحدث ذلك كثيراً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00669",
+      "input": "يا لها من أزهار جميلة!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00670",
+      "input": "يا لك من ولد جميل!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00671",
+      "input": "قضينا وقتاً ممتعاً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00672",
+      "input": "ما الذي حملها على فعل شيء كهذا؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00673",
+      "input": "لا تقل شيئاً مثل ذلك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00674",
+      "input": "لا تقل شيئاً كهذا.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00675",
+      "input": "البقر يعطينا الحليب.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00676",
+      "input": "أعطني فرصةً أخرى.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00677",
+      "input": "متى ينتهي الدوام المدرسيّ؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00678",
+      "input": "ماذا يوجد هناك؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00679",
+      "input": "قرأ الرسالة مرة بعد مرة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00680",
+      "input": "جرّبها مرة بعد أخرى.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00681",
+      "input": "إنه مشغول بشيء ما.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00682",
+      "input": "إنه مشغول بفعل شيء ما.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00683",
+      "input": "مع من كنت تتكلم؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00684",
+      "input": "استيقظت السابعة صباحاً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00685",
+      "input": "تقوم الجريدة بتزويدنا بالأخبار.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00686",
+      "input": "هذا الخطاب موجه لك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00687",
+      "input": "هذه الرسالة موجهة إليك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00688",
+      "input": "يعتقد الكثيرون ذلك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00689",
+      "input": "ماذا تُسَمّى هذه الوردة؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00690",
+      "input": "لا يعرف أحد اِسمه الحقيقي.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00691",
+      "input": "تزداد جمالاً يوماً بعد يوم.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00692",
+      "input": "وقعت تفاحة عندما فتحت باب الثلاجة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00693",
+      "input": "ما ثمن هذه القبّعة؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00694",
+      "input": "حتى الأطفال يمكنهم فهم ذلك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00695",
+      "input": "لِمَ أُتْعِبُ نفسي.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00696",
+      "input": "الرقم إثنا عشر عدد زوجيّ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00697",
+      "input": "هلّا شاركتنا الحديث؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00698",
+      "input": "لا يمكنني إيجاد تيم.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00699",
+      "input": "أيمكنك أن تبحث عنها؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00700",
+      "input": "أيمكنك إيجادها؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00701",
+      "input": "ابحث عن وظيفة جيّدة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00702",
+      "input": "لم تظن أنني أخبرتها بذلك؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00703",
+      "input": "سأحاول وضع أفكاري في كتاب.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00704",
+      "input": "عليّ العثور عليها.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00705",
+      "input": "لماذا هو موجود هنا؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00706",
+      "input": "تعافى عمّي من مرضه كليّاً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00707",
+      "input": "أبقِ غرفتك نظيفةً بقدر الإمكان.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00708",
+      "input": "يتغيّر الجوّ من يوم إلى آخر.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00709",
+      "input": "يذهب كين للسّباحة يوماً بعد يوم.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00710",
+      "input": "أمضيت ليلة ممتعة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00711",
+      "input": "إذا عرفت الحقيقة سأخبرك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00712",
+      "input": "من سيصبح الضّحيّة التّالية؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00713",
+      "input": "مشيت أنا و هو سوية.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00714",
+      "input": "يصبح الجو أبرد يوماً بعد يوم.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00715",
+      "input": "يصبح الجو أدفأ يوماً بعد يوم.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00716",
+      "input": "إنه يتحسّن يوماً بعد يوم.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00717",
+      "input": "إنه يتحسّن كل يوم.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00718",
+      "input": "كان توم هنا أيضاً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00719",
+      "input": "هذه أكبر قطة رأيتها في حياتي.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00720",
+      "input": "ذهبت إلى هناك أيضاً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00721",
+      "input": "يتكلم الفرنسية أيضاً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00722",
+      "input": "يستطيع تحدُّثَ الفرنسية أيضاً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00723",
+      "input": "لم لا تعتذر و تطلب منه أن يسامحك؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00724",
+      "input": "اِشتريت كل كتاب وجدتّه عن اليابان.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00725",
+      "input": "لم تقصد أيّ أذى.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00726",
+      "input": "لم تقصد أن تؤذي أحداً بكلامها.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00727",
+      "input": "أيّ طريق يؤدّي إلى الشاطئ؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00728",
+      "input": "ليس هناك طريقة أخرى.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00729",
+      "input": "ما من طريقة أخرى.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00730",
+      "input": "أفسح الطريق من فضلك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00731",
+      "input": "سدّ عليّ الطريق.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00732",
+      "input": "أودّ سماع صوتك أيضاً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00733",
+      "input": "لا يمكنني إعطائك جواباً نهائياً اليوم.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00734",
+      "input": "ليس بإمكاني إعطائك جواباً قاطعاً اليوم.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00735",
+      "input": "هناك العديد من الجامعات في كيوتو.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00736",
+      "input": "لدى بيل الكثير من الأصدقاء.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00737",
+      "input": "فاجأ ذلك الكثير.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00738",
+      "input": "هناك مستشفى بالقرب من هنا.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00739",
+      "input": "السرير الذي نمت عليه بالأمس لم يكن مريحاً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00740",
+      "input": "لا بد أنك تمزح!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00741",
+      "input": "حذرته من الذهاب وحده.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00742",
+      "input": "سأقيس حرارتك الآن.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00743",
+      "input": "تبدو شاحب الوجه.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00744",
+      "input": "هل تقابلنا من قبل؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00745",
+      "input": "اِرجع إلى البيت قبل السادسة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00746",
+      "input": "قلت لك ذلك من قبل!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00747",
+      "input": "ألم أقل لك من قبل!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00748",
+      "input": "استحممت قبل تناول الإفطار.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00749",
+      "input": "إلامَ يرمز ذلك؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00750",
+      "input": "أضعت محفظة نقودي.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00751",
+      "input": "كان الألم فظيعاً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00752",
+      "input": "إِذَا كَوَيْتَ سُويسْرَا ، لَأَصْبَحَتْ أَكْبَرَ مِنْ أَلْمَانِيَا.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00753",
+      "input": "خذ حبتين بعد الأكل.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00754",
+      "input": "خذ حبتين من الدواء بعد الأكل.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00755",
+      "input": "لا أحب الطريقة التي يتكلم بها.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00756",
+      "input": "أخذ صورة للكوالا.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00757",
+      "input": "لا بد أنه من الجنوب.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00758",
+      "input": "إنها تمطر بشدة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00759",
+      "input": "إنها تمطر بشدة الآن.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00760",
+      "input": "أثلجت بشدة الأمس.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00761",
+      "input": "كان ذلك صعب التصديق.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00762",
+      "input": "من الصعب التأكد.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00763",
+      "input": "هناك سوق كبيرة للقهوة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00764",
+      "input": "أيمكنك كتابة رسالة بالإنجليزية؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00765",
+      "input": "تتكلم و كأنك رئيسنا.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00766",
+      "input": "تتكلم و كأنك رئيس عملنا.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00767",
+      "input": "هو ذئب في ثياب النعاج.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00768",
+      "input": "كلما أتصل به ، يكون قد خرج.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00769",
+      "input": "خطر له فكرة جيدة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00770",
+      "input": "خطر بباله فكرة جيدة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00771",
+      "input": "قابلته في عدة مناسبات.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00772",
+      "input": "هل لي بكأس ماء؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00773",
+      "input": "تبدو الأرض مبلولة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00774",
+      "input": "القطط تكره البلل.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00775",
+      "input": "أتقبلون الدفع ببطاقة الإئتمان؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00776",
+      "input": "من فضلك وزّع الورق.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00777",
+      "input": "من فضلك أدخل بطاقتك.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00778",
+      "input": "أيمكنني الدفع عن طريق بطاقة الإئتمان؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00779",
+      "input": "تركت بطاقتي في المنزل.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00780",
+      "input": "ألديك بطاقة إئتمان؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00781",
+      "input": "سأقاتل حتى النفس الأخير.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00782",
+      "input": "أين أقرب معرض فني؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00783",
+      "input": "طعمه لذيذ جداً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00784",
+      "input": "لنكولن رجل عظيم.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00785",
+      "input": "إنها فكرة جيدة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00786",
+      "input": "يا إلهي ، هذا المكان يبدو رائعاً.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00787",
+      "input": "هذا الفلم -ببساطة- رائع.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00788",
+      "input": "كم ساعة في اليوم تلعب التنس؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00789",
+      "input": "شعر ماريا طويل.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00790",
+      "input": "تقطع الطيور مسافات طويلة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00791",
+      "input": "إخترقت الرصاصة جسده.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00792",
+      "input": "مررنا بسانت لويس في طريقنا إلى نيو أورلينز.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00793",
+      "input": "كان الطقس باردًا هنا طوال شهر آذار- مارس.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00794",
+      "input": "رسب في امتحاناته بسبب قلة المذاكرة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00795",
+      "input": "تقع المحطة غرب الفندق.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00796",
+      "input": "السيد فورد يملك هذه الأرض.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00797",
+      "input": "هذه الأرض من أملاكي.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00798",
+      "input": "مايك يسبح بمهارة.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ar-00799",
+      "input": "ذهبت أمي إلى السوق.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ar-00000",
+      "input": "Room 304 has the laptops we ordered.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ar-00001",
+      "input": "Bought 5 cookies on the avenue near my office.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ar-00002",
+      "input": "Track #12345 was delivered yesterday.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ar-00003",
+      "input": "I had 5 boxes in storage unit 12.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ar-00004",
+      "input": "Building number 7 was empty.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ar-00005",
+      "input": "Open from January 1990 onwards.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ar-00006",
+      "input": "Floor 3 has the printer.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ar-00007",
+      "input": "Order #98765 is being processed.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ar-00008",
+      "input": "The bus runs every 12 minutes.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ar-00009",
+      "input": "Found 5000 documents in the archive.",
+      "expected": []
+    }
+  ]
+}

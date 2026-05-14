@@ -3496,6 +3496,7 @@
       "modeLabel": "Detection mode",
       "modeMask": "Mask (replace with placeholders)",
       "modeBlock": "Block (reject message)",
+      "modeTokenize": "Tokenize (send to AI then restore)",
       "patternsTitle": "Detection patterns",
       "patternsDescription": "Select which types of personal data to detect.",
       "patterns": {
@@ -3508,7 +3509,8 @@
         "address": "Street addresses",
         "iban": "IBAN numbers",
         "germanId": "German ID numbers",
-        "cvc": "Card security codes (CVC/CVV)"
+        "cvc": "Card security codes (CVC/CVV)",
+        "nationalId": "National IDs and passports (per locale)"
       },
       "customPatternsTitle": "Custom regex rules",
       "customPatternsDescription": "Add custom regex patterns to detect additional types of personal data.",
@@ -3520,11 +3522,6 @@
       "customPatternReplacementPlaceholder": "e.g. [EMPLOYEE_ID]",
       "testAreaTitle": "Test detection",
       "testAreaDescription": "Paste sample text to verify which patterns are detected.",
-      "testInput": "Test input",
-      "testInputPlaceholder": "Paste text here to test PII detection...",
-      "testResultsTitle": "Detected PII",
-      "testNoResults": "No PII detected in the test input.",
-      "testButton": "Test",
       "addCustomPattern": "Add custom pattern",
       "saved": "PII configuration has been updated",
       "saveFailed": "Failed to save PII configuration"

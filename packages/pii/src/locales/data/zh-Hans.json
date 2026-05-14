@@ -1,0 +1,63 @@
+{
+  "locale": "zh-Hans",
+  "name": "Chinese (Simplified)",
+  "scripts": ["hans"],
+  "countries": ["CN", "SG"],
+  "phoneContextKeywords": ["电话", "手机", "联系电话", "tel.", "tel"],
+  "cvcContextKeywords": ["安全码", "cvc", "cvv", "cv2"],
+  "address": {
+    "forms": ["postcode-anchored"],
+    "postcodeForm": "cn",
+    "postcodeRegex": "\\d{6}",
+    "countryNames": ["中国", "China", "CN"],
+    "countryPostcodePrefixes": [],
+    "requireUppercase": false
+  },
+  "nationalIds": [
+    {
+      "id": "cn-resident-id",
+      "name": "Chinese Resident Identity Card",
+      "pattern": "\\b\\d{17}[\\dX]\\b",
+      "checksum": "mod11-2-cn",
+      "replacement": "[CN_ID]"
+    },
+    {
+      "id": "cn-passport",
+      "name": "Chinese Passport",
+      "pattern": "\\b[EG]\\d{8}\\b",
+      "replacement": "[PASSPORT]"
+    }
+  ],
+  "fixtureSeeds": {
+    "addresses": [
+      "北京市朝阳区建国路100号 100025",
+      "上海市浦东新区世纪大道2000号 200120",
+      "广州市天河区天河路208号 510610",
+      "深圳市福田区福华一路123号 518048",
+      "成都市武侯区人民南路四段45号 610041",
+      "杭州市西湖区文三路278号 310012",
+      "南京市鼓楼区中山北路30号 210008",
+      "武汉市江汉区解放大道200号 430022",
+      "西安市新城区解放路1号 710004",
+      "天津市和平区南京路189号 300100"
+    ],
+    "wrappers": [
+      "请将包裹寄送至{}。",
+      "邮寄地址：{}",
+      "客户居住在{}。",
+      "取件点 — {} — 已确认。"
+    ],
+    "prose": [
+      "今天天气很好。",
+      "明天的会议下午三点开始。",
+      "请给我一杯咖啡。",
+      "我喜欢读书。",
+      "北京是一座人口众多的城市。",
+      "我开始了一个新项目。",
+      "樱花盛开非常美丽。",
+      "周末我要去爬山。",
+      "新餐厅开业了。",
+      "她正在努力练习钢琴。"
+    ]
+  }
+}

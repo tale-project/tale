@@ -1,0 +1,4002 @@
+[
+  {
+    "text": "מה אתה רוצה לעשות?",
+    "source": "tatoeba",
+    "upstreamId": "329722"
+  },
+  {
+    "text": "חייך עכשיו, תבכה אחר-כך!",
+    "source": "tatoeba",
+    "upstreamId": "329901"
+  },
+  {
+    "text": "אני עייף עכשיו.",
+    "source": "tatoeba",
+    "upstreamId": "329902"
+  },
+  {
+    "text": "בבקשה תחשוב על זה.",
+    "source": "tatoeba",
+    "upstreamId": "329904"
+  },
+  {
+    "text": "אתה חושב יותר מדי.",
+    "source": "tatoeba",
+    "upstreamId": "329906"
+  },
+  {
+    "text": "לך לרופא לקחת מרשם!",
+    "source": "tatoeba",
+    "upstreamId": "330494"
+  },
+  {
+    "text": "\"איפה הבית שלך?\" \"הוא שם\".",
+    "source": "tatoeba",
+    "upstreamId": "330496"
+  },
+  {
+    "text": "\"אתה המורה של ישראל\", אמר ישו.",
+    "source": "tatoeba",
+    "upstreamId": "330498"
+  },
+  {
+    "text": "מתי אתה מתעורר? אני מתעורר בשמונה.",
+    "source": "tatoeba",
+    "upstreamId": "330499"
+  },
+  {
+    "text": "אני שוכב על הדשא.",
+    "source": "tatoeba",
+    "upstreamId": "330500"
+  },
+  {
+    "text": "לא ללכת על הדשא.",
+    "source": "tatoeba",
+    "upstreamId": "330501"
+  },
+  {
+    "text": "לא מספיק אור כדי לצלם.",
+    "source": "tatoeba",
+    "upstreamId": "330502"
+  },
+  {
+    "text": "לפעמים התמונות האלו לא מספיק טובות.",
+    "source": "tatoeba",
+    "upstreamId": "330503"
+  },
+  {
+    "text": "אתה יכול לזהות את הבן אדם בתמונה?",
+    "source": "tatoeba",
+    "upstreamId": "330504"
+  },
+  {
+    "text": "בתמונה כולם מחייכים.",
+    "source": "tatoeba",
+    "upstreamId": "330505"
+  },
+  {
+    "text": "הסימול \"&\" משמעו ו' החיבור.",
+    "source": "tatoeba",
+    "upstreamId": "330506"
+  },
+  {
+    "text": "\"מי הבחורה הזאת?\" \"זאת קיוקו\".",
+    "source": "tatoeba",
+    "upstreamId": "330508"
+  },
+  {
+    "text": "\"ראיתי אותה לפני חמישה ימים\", אמר.",
+    "source": "tatoeba",
+    "upstreamId": "330510"
+  },
+  {
+    "text": "היא קרעה את המכתב לחתיכות.",
+    "source": "tatoeba",
+    "upstreamId": "336202"
+  },
+  {
+    "text": "הוא אוהב לשתות קפה בלי סוכר.",
+    "source": "tatoeba",
+    "upstreamId": "336203"
+  },
+  {
+    "text": "הוא הדגיש את הצדדים הנוחים של החיים בעיר.",
+    "source": "tatoeba",
+    "upstreamId": "336204"
+  },
+  {
+    "text": "למה לא הקשבת לעצה שלו?",
+    "source": "tatoeba",
+    "upstreamId": "336272"
+  },
+  {
+    "text": "למה אתה לא מקשיב לעצה שלו?",
+    "source": "tatoeba",
+    "upstreamId": "336273"
+  },
+  {
+    "text": "אני רוצה שתשיר לי שיר.",
+    "source": "tatoeba",
+    "upstreamId": "337501"
+  },
+  {
+    "text": "אינני רוצה לבזבז את שנות חיי הטובות ביותר עבורך.",
+    "source": "tatoeba",
+    "upstreamId": "337502"
+  },
+  {
+    "text": "ליום ההולדת שלך, אתן לך אופניים.",
+    "source": "tatoeba",
+    "upstreamId": "337503"
+  },
+  {
+    "text": "\"תודה על עזרתך.\" \"על לא דבר.\"",
+    "source": "tatoeba",
+    "upstreamId": "337504"
+  },
+  {
+    "text": "התחביב שלי הוא לנגן בגיטרה.",
+    "source": "tatoeba",
+    "upstreamId": "337506"
+  },
+  {
+    "text": "לא מוצא חן בעיני שאתה מגיע מאוחר בכל יום.",
+    "source": "tatoeba",
+    "upstreamId": "337508"
+  },
+  {
+    "text": "אני מתייחס בכובד ראש לדעתך.",
+    "source": "tatoeba",
+    "upstreamId": "337509"
+  },
+  {
+    "text": "מדוע אתה מתנצל על דבר שלא עשית?",
+    "source": "tatoeba",
+    "upstreamId": "337510"
+  },
+  {
+    "text": "ייתכן שהתקשורת שלהם יותר מורכבת משחשבנו.",
+    "source": "tatoeba",
+    "upstreamId": "337511"
+  },
+  {
+    "text": "אני רוצה שתחזור במהרה.",
+    "source": "tatoeba",
+    "upstreamId": "337512"
+  },
+  {
+    "text": "לכולם מגיעה הזדמנות שנייה.",
+    "source": "tatoeba",
+    "upstreamId": "337520"
+  },
+  {
+    "text": "ז'אן דארק סרבה להתכחש לאמונתה שהקול ששמעה הוא של לא אחר מאשר האלוהים.",
+    "source": "tatoeba",
+    "upstreamId": "337522"
+  },
+  {
+    "text": "אני גר בבית הזה לבדי.",
+    "source": "tatoeba",
+    "upstreamId": "337523"
+  },
+  {
+    "text": "לא היתה לי כל כוונה לפגוע בך.",
+    "source": "tatoeba",
+    "upstreamId": "337524"
+  },
+  {
+    "text": "אלמלא העולם היה במצב כזה, הייתי יכול להאמין בכל אחד.",
+    "source": "tatoeba",
+    "upstreamId": "337525"
+  },
+  {
+    "text": "אינני יודע כיצד להסביר דבר כה ברור.",
+    "source": "tatoeba",
+    "upstreamId": "337527"
+  },
+  {
+    "text": "ראיתי אותו ננזף על ידי אביו.",
+    "source": "tatoeba",
+    "upstreamId": "337543"
+  },
+  {
+    "text": "הטייפון הכה בעיר וגרם לנזק עצום.",
+    "source": "tatoeba",
+    "upstreamId": "337547"
+  },
+  {
+    "text": "שוויץ היא מדינה יפיפיה.",
+    "source": "tatoeba",
+    "upstreamId": "337549"
+  },
+  {
+    "text": "התצלום הזה מעורר בי בחילה.",
+    "source": "tatoeba",
+    "upstreamId": "337554"
+  },
+  {
+    "text": "בימים אלה מחשיך בסביבות חמש וחצי.",
+    "source": "tatoeba",
+    "upstreamId": "337557"
+  },
+  {
+    "text": "הגן הזה בשיאו באביב.",
+    "source": "tatoeba",
+    "upstreamId": "337560"
+  },
+  {
+    "text": "היא מאחרת בתשלום שכר הדירה.",
+    "source": "tatoeba",
+    "upstreamId": "337563"
+  },
+  {
+    "text": "הוא פתר את הבעיה בקלות.",
+    "source": "tatoeba",
+    "upstreamId": "337564"
+  },
+  {
+    "text": "נאסר עליה לעשן.",
+    "source": "tatoeba",
+    "upstreamId": "337571"
+  },
+  {
+    "text": "אבי מנהל את החנות.",
+    "source": "tatoeba",
+    "upstreamId": "337724"
+  },
+  {
+    "text": "אתמול בלילה לא היתה לנו ברירה אלא לקרוא למשטרה.",
+    "source": "tatoeba",
+    "upstreamId": "337725"
+  },
+  {
+    "text": "היא העיפה מבט באמה.",
+    "source": "tatoeba",
+    "upstreamId": "337726"
+  },
+  {
+    "text": "האם אפשר לקבל עזרה?",
+    "source": "tatoeba",
+    "upstreamId": "337727"
+  },
+  {
+    "text": "כתוב לי אם תתקל בבעיה.",
+    "source": "tatoeba",
+    "upstreamId": "337728"
+  },
+  {
+    "text": "בפסגת הצוק עומדת טירה ישנה.",
+    "source": "tatoeba",
+    "upstreamId": "337729"
+  },
+  {
+    "text": "כאשר חיינו בניו-יורק, שכרנו דירה.",
+    "source": "tatoeba",
+    "upstreamId": "337730"
+  },
+  {
+    "text": "אנא הנח את המזוודה על המשקל.",
+    "source": "tatoeba",
+    "upstreamId": "337731"
+  },
+  {
+    "text": "כשהגעתי לבית הספר, הפעמון כבר צלצל.",
+    "source": "tatoeba",
+    "upstreamId": "337742"
+  },
+  {
+    "text": "אינני יודע מתי הוא יבוא לכאן.",
+    "source": "tatoeba",
+    "upstreamId": "337744"
+  },
+  {
+    "text": "השטח והבית האלה הם שלי!",
+    "source": "tatoeba",
+    "upstreamId": "337747"
+  },
+  {
+    "text": "הצעירים בדרך כלל מלאי אנרגיה.",
+    "source": "tatoeba",
+    "upstreamId": "337751"
+  },
+  {
+    "text": "אוי, התקלקל לי המחשב!",
+    "source": "tatoeba",
+    "upstreamId": "337757"
+  },
+  {
+    "text": "המשטרה פזרה את ההמון.",
+    "source": "tatoeba",
+    "upstreamId": "337762"
+  },
+  {
+    "text": "בין הקהל היו תלמידים, מורים, פקידים וכיוצא בזאת.",
+    "source": "tatoeba",
+    "upstreamId": "337764"
+  },
+  {
+    "text": "אי אפשר לראות אפילו איזשהו סימן של מעט התקדמות אצלו.",
+    "source": "tatoeba",
+    "upstreamId": "337769"
+  },
+  {
+    "text": "בממוצע, פעמיים בחודש אני הולך לראות סרט.",
+    "source": "tatoeba",
+    "upstreamId": "337770"
+  },
+  {
+    "text": "הוא המשיך לכתוב בנושא בעלי החיים.",
+    "source": "tatoeba",
+    "upstreamId": "337771"
+  },
+  {
+    "text": "אתה חייב להקפיד על סידור החדר שלך.",
+    "source": "tatoeba",
+    "upstreamId": "337772"
+  },
+  {
+    "text": "בהתרסקות נהרגו כל הנוסעים.",
+    "source": "tatoeba",
+    "upstreamId": "337773"
+  },
+  {
+    "text": "אני משער שהרכבת הבאה לא תהיה עמוסה כמו זו.",
+    "source": "tatoeba",
+    "upstreamId": "337784"
+  },
+  {
+    "text": "היא נשארה רווקה כל חייה.",
+    "source": "tatoeba",
+    "upstreamId": "337786"
+  },
+  {
+    "text": "אני אוהב מוזיקת ג'אז.",
+    "source": "tatoeba",
+    "upstreamId": "337787"
+  },
+  {
+    "text": "כיוון שעבד במסירות נפש, הצליח.",
+    "source": "tatoeba",
+    "upstreamId": "337788"
+  },
+  {
+    "text": "הכל מתקדם היטב.",
+    "source": "tatoeba",
+    "upstreamId": "337789"
+  },
+  {
+    "text": "לא הבחנו בזמן שעבר.",
+    "source": "tatoeba",
+    "upstreamId": "337790"
+  },
+  {
+    "text": "הוא אכל כל כך הרבה, שקיצר את חייו.",
+    "source": "tatoeba",
+    "upstreamId": "337791"
+  },
+  {
+    "text": "אני רוצה לנסוע לחו\"ל.",
+    "source": "tatoeba",
+    "upstreamId": "337792"
+  },
+  {
+    "text": "אני הולך ברגל לבית הספר בכל יום.",
+    "source": "tatoeba",
+    "upstreamId": "337793"
+  },
+  {
+    "text": "באופן כללי, ניתן לומר שהוא גאון מוסיקלי.",
+    "source": "tatoeba",
+    "upstreamId": "337973"
+  },
+  {
+    "text": "האהבה היא, מטבעה, עיוורת.",
+    "source": "tatoeba",
+    "upstreamId": "337974"
+  },
+  {
+    "text": "הכרטיס הזה תקף לחודש.",
+    "source": "tatoeba",
+    "upstreamId": "337976"
+  },
+  {
+    "text": "הם היו ברובם צעירים.",
+    "source": "tatoeba",
+    "upstreamId": "337977"
+  },
+  {
+    "text": "ראיתי אותם נכנסים לבנק.",
+    "source": "tatoeba",
+    "upstreamId": "337978"
+  },
+  {
+    "text": "הוא חזר הביתה מאוחר בערב.",
+    "source": "tatoeba",
+    "upstreamId": "337979"
+  },
+  {
+    "text": "בעבר היתה כאן כנסיה.",
+    "source": "tatoeba",
+    "upstreamId": "337980"
+  },
+  {
+    "text": "חבל שלא יכולת לבוא.",
+    "source": "tatoeba",
+    "upstreamId": "338007"
+  },
+  {
+    "text": "הוא עדיין לא התרגל לקצב של העיר הגדולה.",
+    "source": "tatoeba",
+    "upstreamId": "338008"
+  },
+  {
+    "text": "מה סיבת הפיצוץ?",
+    "source": "tatoeba",
+    "upstreamId": "338009"
+  },
+  {
+    "text": "פגשתי את טום בדרך.",
+    "source": "tatoeba",
+    "upstreamId": "338010"
+  },
+  {
+    "text": "מר סמית' הוא מורה טוב.",
+    "source": "tatoeba",
+    "upstreamId": "338011"
+  },
+  {
+    "text": "אנו אוכלים את ארוחת הבוקר בשעה שבע.",
+    "source": "tatoeba",
+    "upstreamId": "338012"
+  },
+  {
+    "text": "אתה חייב להגיש את הדו\"ח ביום שני.",
+    "source": "tatoeba",
+    "upstreamId": "338013"
+  },
+  {
+    "text": "הכובע הזה קטן מדי בשבילי.",
+    "source": "tatoeba",
+    "upstreamId": "338014"
+  },
+  {
+    "text": "אני לא אוכל בשר, לא דגים ולא מאכלי ים, וגם לא מרק המכיל בשר.",
+    "source": "tatoeba",
+    "upstreamId": "367966"
+  },
+  {
+    "text": "\"תּוֹדָה\" \"בְּבַקָּשָׁה\"",
+    "source": "tatoeba",
+    "upstreamId": "382152"
+  },
+  {
+    "text": "כל בני האדם נולדו בני חורין ושווים בערכם ובזכויותיהם. כולם חוננו בתבונה ובמצפון, לפיכך חובה עליהם לנהוג איש ברעהו ברוח של אחווה.",
+    "source": "tatoeba",
+    "upstreamId": "382154"
+  },
+  {
+    "text": "היכן ראית את הנשים הללו?",
+    "source": "tatoeba",
+    "upstreamId": "467768"
+  },
+  {
+    "text": "העליתי שני קילוגרמים הקיץ.",
+    "source": "tatoeba",
+    "upstreamId": "467772"
+  },
+  {
+    "text": "המנהל שלי לא סלח לי על כך שאיחרתי לישיבה.",
+    "source": "tatoeba",
+    "upstreamId": "467776"
+  },
+  {
+    "text": "הבה נשיר ונרקוד.",
+    "source": "tatoeba",
+    "upstreamId": "467777"
+  },
+  {
+    "text": "אני מזדהה עם נשאי המחלה הזאת.",
+    "source": "tatoeba",
+    "upstreamId": "467781"
+  },
+  {
+    "text": "כשקרתה רעידת האדמה הגדולה הייתי רק בן עשר.",
+    "source": "tatoeba",
+    "upstreamId": "467785"
+  },
+  {
+    "text": "הוא אוהב לבשל בשביל המשפחה.",
+    "source": "tatoeba",
+    "upstreamId": "469619"
+  },
+  {
+    "text": "מרי תולעת ספרים.",
+    "source": "tatoeba",
+    "upstreamId": "469620"
+  },
+  {
+    "text": "אם תירשם לפייסבוק, פרטיך יישלחו לסוכנויות מודיעין.",
+    "source": "tatoeba",
+    "upstreamId": "477075"
+  },
+  {
+    "text": "הוא לא ציין מתי ישוב.",
+    "source": "tatoeba",
+    "upstreamId": "500780"
+  },
+  {
+    "text": "אהרון הרג את אליזבת.",
+    "source": "tatoeba",
+    "upstreamId": "500783"
+  },
+  {
+    "text": "יש לי הרבה שיעורי בית לעשות היום.",
+    "source": "tatoeba",
+    "upstreamId": "500784"
+  },
+  {
+    "text": "הכתב שלך מאוד מסודר.",
+    "source": "tatoeba",
+    "upstreamId": "500789"
+  },
+  {
+    "text": "איזה מפרק פרקת?",
+    "source": "tatoeba",
+    "upstreamId": "500791"
+  },
+  {
+    "text": "לא היו ורדים בגן.",
+    "source": "tatoeba",
+    "upstreamId": "502161"
+  },
+  {
+    "text": "הוא נפטר על הבמה, מהתקף לב.",
+    "source": "tatoeba",
+    "upstreamId": "502167"
+  },
+  {
+    "text": "בסוף השנה יהיה משבר כלכלי.",
+    "source": "tatoeba",
+    "upstreamId": "502171"
+  },
+  {
+    "text": "תן לי לחשוב על זה, אני אודיע לך מאוחר יותר.",
+    "source": "tatoeba",
+    "upstreamId": "502172"
+  },
+  {
+    "text": "עליך לזכור כמה שיותר מילים באנגלית.",
+    "source": "tatoeba",
+    "upstreamId": "502174"
+  },
+  {
+    "text": "לך כמה שיותר מהר.",
+    "source": "tatoeba",
+    "upstreamId": "502176"
+  },
+  {
+    "text": "הוא גר במעלה הגבעה.",
+    "source": "tatoeba",
+    "upstreamId": "502177"
+  },
+  {
+    "text": "הוא הראה הערצה רבה כלפי תמונות של האל.",
+    "source": "tatoeba",
+    "upstreamId": "502179"
+  },
+  {
+    "text": "הוא לא מאמין באלוהים.",
+    "source": "tatoeba",
+    "upstreamId": "502181"
+  },
+  {
+    "text": "שלחנו את ההזמנות אתמול.",
+    "source": "tatoeba",
+    "upstreamId": "502184"
+  },
+  {
+    "text": "היא לוקחת שיעורי פסנתר פעם בשבוע.",
+    "source": "tatoeba",
+    "upstreamId": "502185"
+  },
+  {
+    "text": "תתקשרי אלי בארבע. עליי לקחת את הרכבת הראשונה.",
+    "source": "tatoeba",
+    "upstreamId": "502190"
+  },
+  {
+    "text": "הוא לא הצליח למצוא את אשר החבאתי.",
+    "source": "tatoeba",
+    "upstreamId": "502193"
+  },
+  {
+    "text": "אני רוצה ללמוד עברית.",
+    "source": "tatoeba",
+    "upstreamId": "502194"
+  },
+  {
+    "text": "יומי יהיה מורה.",
+    "source": "tatoeba",
+    "upstreamId": "502197"
+  },
+  {
+    "text": "הוא אוהב חיות מוזרות, כמו נחשים, לדוגמא.",
+    "source": "tatoeba",
+    "upstreamId": "502199"
+  },
+  {
+    "text": "יש לו מחלה חשוכת מרפא.",
+    "source": "tatoeba",
+    "upstreamId": "502445"
+  },
+  {
+    "text": "הבחורה הזאת נראית חמודה מאוד.",
+    "source": "tatoeba",
+    "upstreamId": "502446"
+  },
+  {
+    "text": "האריה הוא מלך החיות.",
+    "source": "tatoeba",
+    "upstreamId": "502448"
+  },
+  {
+    "text": "יש לי עצה אחת אחרונה בקשר ללחיצת ידיים: לא לשכוח לחייך.",
+    "source": "tatoeba",
+    "upstreamId": "502449"
+  },
+  {
+    "text": "כמה ספרים קראת?",
+    "source": "tatoeba",
+    "upstreamId": "502453"
+  },
+  {
+    "text": "היא מתרברבת ביופיה.",
+    "source": "tatoeba",
+    "upstreamId": "502455"
+  },
+  {
+    "text": "הוא שוטף את האוטו שלו.",
+    "source": "tatoeba",
+    "upstreamId": "504514"
+  },
+  {
+    "text": "אליעזר זמנהוף פולני.",
+    "source": "tatoeba",
+    "upstreamId": "510589"
+  },
+  {
+    "text": "האם תקחו אותי לשם?",
+    "source": "tatoeba",
+    "upstreamId": "519942"
+  },
+  {
+    "text": "בגרב הזה יש חור.",
+    "source": "tatoeba",
+    "upstreamId": "519945"
+  },
+  {
+    "text": "לא ידעתי דבר על תוכניתו.",
+    "source": "tatoeba",
+    "upstreamId": "519947"
+  },
+  {
+    "text": "הוא תיכף יהיה כאן.",
+    "source": "tatoeba",
+    "upstreamId": "519948"
+  },
+  {
+    "text": "ביתו עומד למכירה.",
+    "source": "tatoeba",
+    "upstreamId": "519949"
+  },
+  {
+    "text": "האם תרשו לי לנסות שנית?",
+    "source": "tatoeba",
+    "upstreamId": "519950"
+  },
+  {
+    "text": "הסיבה לשמה נשים מדברות היא שמירת יחסים.",
+    "source": "tatoeba",
+    "upstreamId": "519953"
+  },
+  {
+    "text": "שאלתי את אמי, מה להביא לשם.",
+    "source": "tatoeba",
+    "upstreamId": "519955"
+  },
+  {
+    "text": "חם. האם עלי להדליק את המזגן?",
+    "source": "tatoeba",
+    "upstreamId": "519956"
+  },
+  {
+    "text": "אבי זקן מדי בשביל עבודה.",
+    "source": "tatoeba",
+    "upstreamId": "519959"
+  },
+  {
+    "text": "ילדים קטנים יכולים לשחק במשחק הזה.",
+    "source": "tatoeba",
+    "upstreamId": "519961"
+  },
+  {
+    "text": "זהו הניגוד המוחלט לאמת.",
+    "source": "tatoeba",
+    "upstreamId": "519962"
+  },
+  {
+    "text": "הוא התחתן בהיותו צעיר בשנים, כפי שזה היה נהוג בתקופה ההיא.",
+    "source": "tatoeba",
+    "upstreamId": "519968"
+  },
+  {
+    "text": "עדיין מחפשים את הילד.",
+    "source": "tatoeba",
+    "upstreamId": "519969"
+  },
+  {
+    "text": "האנגלית שלו טובה יותר משלי.",
+    "source": "tatoeba",
+    "upstreamId": "519971"
+  },
+  {
+    "text": "כבר הייתי בסאפורו לפני כן.",
+    "source": "tatoeba",
+    "upstreamId": "519975"
+  },
+  {
+    "text": "פועלי כל העולם, התאחדו!",
+    "source": "tatoeba",
+    "upstreamId": "519981"
+  },
+  {
+    "text": "פועלי כל העולם - התאחדו!",
+    "source": "tatoeba",
+    "upstreamId": "519987"
+  },
+  {
+    "text": "הענשנו אותו לפי הכללים.",
+    "source": "tatoeba",
+    "upstreamId": "519993"
+  },
+  {
+    "text": "ביום ההוא היא הגיעה לבקרני.",
+    "source": "tatoeba",
+    "upstreamId": "519996"
+  },
+  {
+    "text": "לא רציתי לפצוע אותך.",
+    "source": "tatoeba",
+    "upstreamId": "519998"
+  },
+  {
+    "text": "איפה השעון שלי?",
+    "source": "tatoeba",
+    "upstreamId": "520079"
+  },
+  {
+    "text": "אתה פנוי בסופשבוע הזה ?",
+    "source": "tatoeba",
+    "upstreamId": "520080"
+  },
+  {
+    "text": "יש להם שני בנים ובת אחת.",
+    "source": "tatoeba",
+    "upstreamId": "520081"
+  },
+  {
+    "text": "עלייך לבוא איתי.",
+    "source": "tatoeba",
+    "upstreamId": "520083"
+  },
+  {
+    "text": "אני אוהב אותך יותר ממנה.",
+    "source": "tatoeba",
+    "upstreamId": "520086"
+  },
+  {
+    "text": "וכתתו חרבותם לאתים וחניתותיהם למזמרות, לא-ישא גוי אל-גוי חרב ולא ילמדו עוד מלחמה.",
+    "source": "tatoeba",
+    "upstreamId": "520088"
+  },
+  {
+    "text": "בנות רוסיות אוהבות בנים איסלנדיים.",
+    "source": "tatoeba",
+    "upstreamId": "520108"
+  },
+  {
+    "text": "הוא לא יודע צרפתית בכלל.",
+    "source": "tatoeba",
+    "upstreamId": "520915"
+  },
+  {
+    "text": "שני בנים נעדרים היום מבית הספר.",
+    "source": "tatoeba",
+    "upstreamId": "520920"
+  },
+  {
+    "text": "לצערי, החתול שלי ברח לאנשהו.",
+    "source": "tatoeba",
+    "upstreamId": "520941"
+  },
+  {
+    "text": "אל תבלבל לי ת'מוח!",
+    "source": "tatoeba",
+    "upstreamId": "520942"
+  },
+  {
+    "text": "יום אחד אחי רוצה לטוס לירח.",
+    "source": "tatoeba",
+    "upstreamId": "520979"
+  },
+  {
+    "text": "אני הולך לבית הספר בשעה שבע.",
+    "source": "tatoeba",
+    "upstreamId": "520981"
+  },
+  {
+    "text": "מה זה הילדים האלו! אתה שולח אותם להביא סוכריה והם חוזרים עם כלב.",
+    "source": "tatoeba",
+    "upstreamId": "520986"
+  },
+  {
+    "text": "אני ברצון רב אצטרף למפלגה הקומוניסטית של סין.",
+    "source": "tatoeba",
+    "upstreamId": "521153"
+  },
+  {
+    "text": "הפסקתי לעשן ולשתות.",
+    "source": "tatoeba",
+    "upstreamId": "521644"
+  },
+  {
+    "text": "הוא אחד הזמרים הידועים ביותר ביפן.",
+    "source": "tatoeba",
+    "upstreamId": "521647"
+  },
+  {
+    "text": "ראה את הבניין הזה. האם זה מקדש?",
+    "source": "tatoeba",
+    "upstreamId": "521650"
+  },
+  {
+    "text": "לדעתי היא רקדנית טובה.",
+    "source": "tatoeba",
+    "upstreamId": "521652"
+  },
+  {
+    "text": "אני חושב שהיא רקדנית טובה.",
+    "source": "tatoeba",
+    "upstreamId": "521654"
+  },
+  {
+    "text": "עד כמה זה רחוק משדה תעופה עד למלון?",
+    "source": "tatoeba",
+    "upstreamId": "522193"
+  },
+  {
+    "text": "תקָשרו אותי בבקשה עם מחלקת הביטחון של המלון.",
+    "source": "tatoeba",
+    "upstreamId": "522195"
+  },
+  {
+    "text": "העטים האלו שלו.",
+    "source": "tatoeba",
+    "upstreamId": "522339"
+  },
+  {
+    "text": "אנו חרדים לביטחונם.",
+    "source": "tatoeba",
+    "upstreamId": "522364"
+  },
+  {
+    "text": "את מדברת גרמנית?",
+    "source": "tatoeba",
+    "upstreamId": "522432"
+  },
+  {
+    "text": "אח! אילו הייתי עשיר, הייתי קונה לעצמי בית בספרד.",
+    "source": "tatoeba",
+    "upstreamId": "522626"
+  },
+  {
+    "text": "אני מתכנן להישאר בעיר.",
+    "source": "tatoeba",
+    "upstreamId": "523086"
+  },
+  {
+    "text": "לא כל הילדים אוהבים תפוחים.",
+    "source": "tatoeba",
+    "upstreamId": "524157"
+  },
+  {
+    "text": "בני נסע ללונדון, למקום שבו נולדתי.",
+    "source": "tatoeba",
+    "upstreamId": "524949"
+  },
+  {
+    "text": "אני לא יכול לסמוך על המילה שלו.",
+    "source": "tatoeba",
+    "upstreamId": "531066"
+  },
+  {
+    "text": "דבריו הם משענת קנה רצוץ עבורי.",
+    "source": "tatoeba",
+    "upstreamId": "531067"
+  },
+  {
+    "text": "אדם זוהי חיה יחידה שיודעת לצחוק.",
+    "source": "tatoeba",
+    "upstreamId": "531204"
+  },
+  {
+    "text": "פעמיים בירה, בבקשה.",
+    "source": "tatoeba",
+    "upstreamId": "531511"
+  },
+  {
+    "text": "\"מתחשק לי לשחק קלפים.\" \"גם לי.\"",
+    "source": "tatoeba",
+    "upstreamId": "531952"
+  },
+  {
+    "text": "\"בא לי לשחק קלפים.\" \"גם לי.\"",
+    "source": "tatoeba",
+    "upstreamId": "531957"
+  },
+  {
+    "text": "\"יש לי מה זה דודא לאיזה משחק קלפים\". \"ואללה גם לי יש.\"",
+    "source": "tatoeba",
+    "upstreamId": "531964"
+  },
+  {
+    "text": "כמה ילדים יש לך?",
+    "source": "tatoeba",
+    "upstreamId": "531974"
+  },
+  {
+    "text": "גם כי-אלך בגיא צלמוות, לא אירא רע כי אתה עימדי; שבטך ומשענתך, המה ינחמוני.",
+    "source": "tatoeba",
+    "upstreamId": "532005"
+  },
+  {
+    "text": "גַּ֤ם כִּֽי־אֵלֵ֨ךְ בְּגֵ֪יא צַלְמָ֡וֶת לֹא־אִ֘ירָ֤א רָ֗ע כִּי־אַתָּ֥ה עִמָּדִ֑י שִׁבְטְךָ֥ וּ֝מִשְׁעַנְתֶּ֗ךָ הֵ֣מָּה יְנַֽחֲמֻֽנִי׃",
+    "source": "tatoeba",
+    "upstreamId": "532015"
+  },
+  {
+    "text": "הוא שחיין יותר טוב ממני.",
+    "source": "tatoeba",
+    "upstreamId": "532601"
+  },
+  {
+    "text": "נְחֵנו באורח מישרים.",
+    "source": "tatoeba",
+    "upstreamId": "532914"
+  },
+  {
+    "text": "הנחה אותנו בדרך הישר.",
+    "source": "tatoeba",
+    "upstreamId": "532932"
+  },
+  {
+    "text": "הנחנו בדרך הישר.",
+    "source": "tatoeba",
+    "upstreamId": "532941"
+  },
+  {
+    "text": "מוזר שאף אחד לא מכיר אותנו.",
+    "source": "tatoeba",
+    "upstreamId": "532962"
+  },
+  {
+    "text": "כשגרנו בניו יורק, שכרנו דירה.",
+    "source": "tatoeba",
+    "upstreamId": "533329"
+  },
+  {
+    "text": "תודה רבה עבור עזרתך.",
+    "source": "tatoeba",
+    "upstreamId": "533364"
+  },
+  {
+    "text": "על סף מאורתו יושבת זקנתו ולפניה העריבה הישנה המבוקעה.",
+    "source": "tatoeba",
+    "upstreamId": "533396"
+  },
+  {
+    "text": "ובמפתן הבית יושבה זקנתו, ולפניה השוקת השבורה.",
+    "source": "tatoeba",
+    "upstreamId": "533411"
+  },
+  {
+    "text": "אין אלוה מלבד אללה ומוחמד הוא שליח אללה.",
+    "source": "tatoeba",
+    "upstreamId": "533438"
+  },
+  {
+    "text": "היא כל כך השתנתה שלא הצלחתי לזהותהּ.",
+    "source": "tatoeba",
+    "upstreamId": "534755"
+  },
+  {
+    "text": "בעידן של דואר אלקטרוני, אני כל כך שמח כאשר חברי שולח לי מכתב אמיתי.",
+    "source": "tatoeba",
+    "upstreamId": "534783"
+  },
+  {
+    "text": "תנחש את מי פגשתי היום!",
+    "source": "tatoeba",
+    "upstreamId": "535278"
+  },
+  {
+    "text": "טוני מדבר אנגלית טוב, בדיוק כמוך.",
+    "source": "tatoeba",
+    "upstreamId": "535331"
+  },
+  {
+    "text": "יש לך טלפון נייד ?",
+    "source": "tatoeba",
+    "upstreamId": "535452"
+  },
+  {
+    "text": "לא יאמרו עוד אבות אכלו בוסר ושיני בנים תקהינה.",
+    "source": "tatoeba",
+    "upstreamId": "537497"
+  },
+  {
+    "text": "אני חושבת שהרכבת תגיע בקרוב.",
+    "source": "tatoeba",
+    "upstreamId": "537799"
+  },
+  {
+    "text": "הם לא הסכימו להוריד את המחיר.",
+    "source": "tatoeba",
+    "upstreamId": "538009"
+  },
+  {
+    "text": "זהו הבית שבו גרתי כאשר הייתי ילד.",
+    "source": "tatoeba",
+    "upstreamId": "539055"
+  },
+  {
+    "text": "התיישבתי ביניהם.",
+    "source": "tatoeba",
+    "upstreamId": "539483"
+  },
+  {
+    "text": "יש מעט מאוד אתרים במרשתת בשפה הטטרית.",
+    "source": "tatoeba",
+    "upstreamId": "539487"
+  },
+  {
+    "text": "יש מעט מאוד אתרי אינטרנט בשפה הטטרית.",
+    "source": "tatoeba",
+    "upstreamId": "539488"
+  },
+  {
+    "text": "יש מעט מאוד אתרי מרשתת בשפה הטטרית.",
+    "source": "tatoeba",
+    "upstreamId": "539489"
+  },
+  {
+    "text": "חומת אש תבטיח הבטחת המרשתת.",
+    "source": "tatoeba",
+    "upstreamId": "539491"
+  },
+  {
+    "text": "התפשטות השימוש במרשתת הולידה דור חדש של צעירים.",
+    "source": "tatoeba",
+    "upstreamId": "539492"
+  },
+  {
+    "text": "בריאתנות היא מדע מדומה.",
+    "source": "tatoeba",
+    "upstreamId": "541719"
+  },
+  {
+    "text": "בריאתנות זהו פסבדו-מדע.",
+    "source": "tatoeba",
+    "upstreamId": "541721"
+  },
+  {
+    "text": "הממשלה הסינית שלטה במרשתת כדי למנוע מאנשים לדעת את האמת על הטבח בכיכר טיאננמן.",
+    "source": "tatoeba",
+    "upstreamId": "541732"
+  },
+  {
+    "text": "מספר הכיסאות באולם הוא שמונים.",
+    "source": "tatoeba",
+    "upstreamId": "542008"
+  },
+  {
+    "text": "היום הם עוזבים את קהיר לכיוון תל אביב.",
+    "source": "tatoeba",
+    "upstreamId": "543584"
+  },
+  {
+    "text": "חומת אש תערוב לביטחונה של המרשתת.",
+    "source": "tatoeba",
+    "upstreamId": "546414"
+  },
+  {
+    "text": "איזה סוג של מידע אתה מקבל ממרשתת?",
+    "source": "tatoeba",
+    "upstreamId": "546418"
+  },
+  {
+    "text": "האיש הזה הוא שחצן מדי לטעמי.",
+    "source": "tatoeba",
+    "upstreamId": "547066"
+  },
+  {
+    "text": "הוא הודה בתבוסתו.",
+    "source": "tatoeba",
+    "upstreamId": "552419"
+  },
+  {
+    "text": "העוגה שלך טעימה.",
+    "source": "tatoeba",
+    "upstreamId": "553495"
+  },
+  {
+    "text": "הוא מתפאר שהוא יכול לדבר בשש שפות.",
+    "source": "tatoeba",
+    "upstreamId": "553498"
+  },
+  {
+    "text": "היא קישטה את הקיר בתמונות.",
+    "source": "tatoeba",
+    "upstreamId": "553503"
+  },
+  {
+    "text": "אנחנו משתמשים במרגרינה במקום בחמאה.",
+    "source": "tatoeba",
+    "upstreamId": "553506"
+  },
+  {
+    "text": "נהנית אתמול בערב?",
+    "source": "tatoeba",
+    "upstreamId": "553515"
+  },
+  {
+    "text": "ביקשתי ממנו שלא ייסע מהר.",
+    "source": "tatoeba",
+    "upstreamId": "553529"
+  },
+  {
+    "text": "היא דחתה את בקשתי.",
+    "source": "tatoeba",
+    "upstreamId": "553543"
+  },
+  {
+    "text": "היא סירבה לבקשתי.",
+    "source": "tatoeba",
+    "upstreamId": "553545"
+  },
+  {
+    "text": "כשדוב הופיע פתאום, הילדים העמידו פנים כאילו הם מתים.",
+    "source": "tatoeba",
+    "upstreamId": "553667"
+  },
+  {
+    "text": "כשדוב הופיע לפתע, הילדים התחזו למתים.",
+    "source": "tatoeba",
+    "upstreamId": "553674"
+  },
+  {
+    "text": "כשאני מנסה להקשיב למוזיקה במדיה פלייר, מופיעה שגיאה ואני לא יכול להשמיע את הקובץ.",
+    "source": "tatoeba",
+    "upstreamId": "553683"
+  },
+  {
+    "text": "אלה שתי תמונות עם מסגרת יפה.",
+    "source": "tatoeba",
+    "upstreamId": "553734"
+  },
+  {
+    "text": "זה קטן יותר מזה.",
+    "source": "tatoeba",
+    "upstreamId": "553760"
+  },
+  {
+    "text": "אעביר את הסכום.",
+    "source": "tatoeba",
+    "upstreamId": "553783"
+  },
+  {
+    "text": "האם הגעת הנה לבדך?",
+    "source": "tatoeba",
+    "upstreamId": "553786"
+  },
+  {
+    "text": "תן לי לתת לך עצה.",
+    "source": "tatoeba",
+    "upstreamId": "553790"
+  },
+  {
+    "text": "תני לי לתת לך עצה.",
+    "source": "tatoeba",
+    "upstreamId": "553792"
+  },
+  {
+    "text": "אני סומכת עליך.",
+    "source": "tatoeba",
+    "upstreamId": "553838"
+  },
+  {
+    "text": "אני סומך עלייך.",
+    "source": "tatoeba",
+    "upstreamId": "553839"
+  },
+  {
+    "text": "אני סומכת עלייך.",
+    "source": "tatoeba",
+    "upstreamId": "553840"
+  },
+  {
+    "text": "אחרנו לבית הספר בגלל הגשם החזק.",
+    "source": "tatoeba",
+    "upstreamId": "553842"
+  },
+  {
+    "text": "מה שלום ההורים שלכם?",
+    "source": "tatoeba",
+    "upstreamId": "553843"
+  },
+  {
+    "text": "מה שלום ההורים שלך?",
+    "source": "tatoeba",
+    "upstreamId": "553844"
+  },
+  {
+    "text": "היא מתה לפני עשר שנים.",
+    "source": "tatoeba",
+    "upstreamId": "553846"
+  },
+  {
+    "text": "המלון הזה היה קרוב מאוד לאגם.",
+    "source": "tatoeba",
+    "upstreamId": "553848"
+  },
+  {
+    "text": "הוא מדבר גם צרפתית.",
+    "source": "tatoeba",
+    "upstreamId": "553858"
+  },
+  {
+    "text": "יש חיות רבות בפארק.",
+    "source": "tatoeba",
+    "upstreamId": "553866"
+  },
+  {
+    "text": "ישנם הרבה בעלי חיים בפארק.",
+    "source": "tatoeba",
+    "upstreamId": "553868"
+  },
+  {
+    "text": "אני זוכר שנעלתי את הדלת.",
+    "source": "tatoeba",
+    "upstreamId": "553873"
+  },
+  {
+    "text": "אני זוכרת שנעלתי את הדלת.",
+    "source": "tatoeba",
+    "upstreamId": "553875"
+  },
+  {
+    "text": "העובדה שפיטרו אותה הייתה עבורה סטירת לחי בפרצוף, לאחר כל מה שעשתה עבור החברה.",
+    "source": "tatoeba",
+    "upstreamId": "553878"
+  },
+  {
+    "text": "המלון הזה טוב יותר מהמלון ההוא.",
+    "source": "tatoeba",
+    "upstreamId": "553894"
+  },
+  {
+    "text": "לאחרונה מצאתי מילונים חדשים, בשפות נוספות.",
+    "source": "tatoeba",
+    "upstreamId": "553918"
+  },
+  {
+    "text": "האם אביך כבר הגיע?",
+    "source": "tatoeba",
+    "upstreamId": "553923"
+  },
+  {
+    "text": "אני חייב להכיר את המקור של הציטטות האלה.",
+    "source": "tatoeba",
+    "upstreamId": "553981"
+  },
+  {
+    "text": "אני חייב לדעת מה מקורן של הציטטות האלה.",
+    "source": "tatoeba",
+    "upstreamId": "553983"
+  },
+  {
+    "text": "אל תשתה כל כך הרבה בירה.",
+    "source": "tatoeba",
+    "upstreamId": "553991"
+  },
+  {
+    "text": "שמה בדרך כלל בורח לי.",
+    "source": "tatoeba",
+    "upstreamId": "554017"
+  },
+  {
+    "text": "אלגברה היא המקצוע האהוב עליי ביותר.",
+    "source": "tatoeba",
+    "upstreamId": "554026"
+  },
+  {
+    "text": "התחבאתי מתחת לשולחן.",
+    "source": "tatoeba",
+    "upstreamId": "554029"
+  },
+  {
+    "text": "הוא הרבה יותר גבוה ממך.",
+    "source": "tatoeba",
+    "upstreamId": "554030"
+  },
+  {
+    "text": "הוא התלונן על הרעש.",
+    "source": "tatoeba",
+    "upstreamId": "554031"
+  },
+  {
+    "text": "סליחה על האיחור.",
+    "source": "tatoeba",
+    "upstreamId": "554042"
+  },
+  {
+    "text": "הרומן החדש שלה הפך לרב-מכר.",
+    "source": "tatoeba",
+    "upstreamId": "554045"
+  },
+  {
+    "text": "התוכנית שלך נראית מצוינת.",
+    "source": "tatoeba",
+    "upstreamId": "554049"
+  },
+  {
+    "text": "כמות הפחמן הדו-חמצני גדלה בעשרה אחוזים.",
+    "source": "tatoeba",
+    "upstreamId": "554053"
+  },
+  {
+    "text": "כמות דו-תחמוצת הפחמן גדלה בעשרה אחוזים.",
+    "source": "tatoeba",
+    "upstreamId": "554054"
+  },
+  {
+    "text": "התשובה שלך שגויה.",
+    "source": "tatoeba",
+    "upstreamId": "554057"
+  },
+  {
+    "text": "זה היה לילה ארוך.",
+    "source": "tatoeba",
+    "upstreamId": "554060"
+  },
+  {
+    "text": "יש לי שלושה אחים. אחד חי ביפן, והאחרים בחו\"ל.",
+    "source": "tatoeba",
+    "upstreamId": "554062"
+  },
+  {
+    "text": "אני שולח לך מתנת יום הולדת בדואר אוויר.",
+    "source": "tatoeba",
+    "upstreamId": "554075"
+  },
+  {
+    "text": "אני חושב שעומד לרדת גשם.",
+    "source": "tatoeba",
+    "upstreamId": "554086"
+  },
+  {
+    "text": "אני חושבת שעומד לרדת גשם.",
+    "source": "tatoeba",
+    "upstreamId": "554087"
+  },
+  {
+    "text": "הוא הגבוה ביותר בין השלושה.",
+    "source": "tatoeba",
+    "upstreamId": "554098"
+  },
+  {
+    "text": "אמא קנתה לנו גור כלבים.",
+    "source": "tatoeba",
+    "upstreamId": "554099"
+  },
+  {
+    "text": "אין פלא שהשנים שלאחר היציאה לגמלאות נקראות גיל הזהב.",
+    "source": "tatoeba",
+    "upstreamId": "554100"
+  },
+  {
+    "text": "זה לא מפליא שהשנים שלאחר הפרישה נקראות גיל הזהב.",
+    "source": "tatoeba",
+    "upstreamId": "554102"
+  },
+  {
+    "text": "הוא נראה כמו רופא.",
+    "source": "tatoeba",
+    "upstreamId": "554112"
+  },
+  {
+    "text": "לא ראיתי אותך כבר הרבה זמן.",
+    "source": "tatoeba",
+    "upstreamId": "554251"
+  },
+  {
+    "text": "הספרים של הסטודנט הזה חדשים.",
+    "source": "tatoeba",
+    "upstreamId": "554261"
+  },
+  {
+    "text": "הוא יהיה בעל טוב לאחותי.",
+    "source": "tatoeba",
+    "upstreamId": "554264"
+  },
+  {
+    "text": "רוב החברות היפניות הגדולות תלויות ביצוא.",
+    "source": "tatoeba",
+    "upstreamId": "554265"
+  },
+  {
+    "text": "האם הדוח אותנטי?",
+    "source": "tatoeba",
+    "upstreamId": "554268"
+  },
+  {
+    "text": "האם מדובר בדיווח אמיתי?",
+    "source": "tatoeba",
+    "upstreamId": "554269"
+  },
+  {
+    "text": "חבריו נטשו אותו.",
+    "source": "tatoeba",
+    "upstreamId": "554274"
+  },
+  {
+    "text": "הייתי שם לעתים קרובות.",
+    "source": "tatoeba",
+    "upstreamId": "554292"
+  },
+  {
+    "text": "חשבתי שהוא יודע הכול על יפן.",
+    "source": "tatoeba",
+    "upstreamId": "554303"
+  },
+  {
+    "text": "אני לא יודע אם היא תבוא.",
+    "source": "tatoeba",
+    "upstreamId": "554305"
+  },
+  {
+    "text": "איבדתי את העיפרון שלי.",
+    "source": "tatoeba",
+    "upstreamId": "554306"
+  },
+  {
+    "text": "בלילה שעבר הוא עבד בלי הפסקה.",
+    "source": "tatoeba",
+    "upstreamId": "554309"
+  },
+  {
+    "text": "יש לי חום גבוה.",
+    "source": "tatoeba",
+    "upstreamId": "554310"
+  },
+  {
+    "text": "כמובן, היא עברה את הבחינה.",
+    "source": "tatoeba",
+    "upstreamId": "554311"
+  },
+  {
+    "text": "אפריקה היא יבשת, גרנלנד - לא.",
+    "source": "tatoeba",
+    "upstreamId": "554334"
+  },
+  {
+    "text": "היגיינה אישית חשובה מאוד.",
+    "source": "tatoeba",
+    "upstreamId": "554335"
+  },
+  {
+    "text": "אתה יכול לנהוג במכונית?",
+    "source": "tatoeba",
+    "upstreamId": "554477"
+  },
+  {
+    "text": "אתה יכול לנסוע לאט יותר?",
+    "source": "tatoeba",
+    "upstreamId": "554487"
+  },
+  {
+    "text": "התוכל לנסוע לאט יותר?",
+    "source": "tatoeba",
+    "upstreamId": "554488"
+  },
+  {
+    "text": "מצטער, אני לא יכול להישאר להרבה זמן.",
+    "source": "tatoeba",
+    "upstreamId": "555627"
+  },
+  {
+    "text": "מצטערת, אני לא יכולה להישאר להרבה זמן.",
+    "source": "tatoeba",
+    "upstreamId": "555628"
+  },
+  {
+    "text": "אבי נהג לקום כל בוקר בשש, אפילו בחורף.",
+    "source": "tatoeba",
+    "upstreamId": "555654"
+  },
+  {
+    "text": "אני בדרך כלל צועד.",
+    "source": "tatoeba",
+    "upstreamId": "555658"
+  },
+  {
+    "text": "אני בדרך כלל הולך.",
+    "source": "tatoeba",
+    "upstreamId": "555659"
+  },
+  {
+    "text": "הוא צריך להיות כבן ארבעים.",
+    "source": "tatoeba",
+    "upstreamId": "555662"
+  },
+  {
+    "text": "נראה שג'ף יודע איפה היא.",
+    "source": "tatoeba",
+    "upstreamId": "555664"
+  },
+  {
+    "text": "הוא חזר אמש בסביבות השעה תשע.",
+    "source": "tatoeba",
+    "upstreamId": "555667"
+  },
+  {
+    "text": "הוא היה פחות או יותר שיכור.",
+    "source": "tatoeba",
+    "upstreamId": "555671"
+  },
+  {
+    "text": "הוא הראה לי את תמונתה.",
+    "source": "tatoeba",
+    "upstreamId": "555674"
+  },
+  {
+    "text": "סליחה, מי האישה הזאת?",
+    "source": "tatoeba",
+    "upstreamId": "555682"
+  },
+  {
+    "text": "סלח לי, מי זאת?",
+    "source": "tatoeba",
+    "upstreamId": "555684"
+  },
+  {
+    "text": "החלטתי להיות מאושר, כי זה טוב לבריאות.",
+    "source": "tatoeba",
+    "upstreamId": "555695"
+  },
+  {
+    "text": "החלטתי להיות מאושרת, כי זה טוב לבריאות.",
+    "source": "tatoeba",
+    "upstreamId": "555698"
+  },
+  {
+    "text": "הוא הושיט את ידיו לקחת את המילון.",
+    "source": "tatoeba",
+    "upstreamId": "555701"
+  },
+  {
+    "text": "האם זה נכון שלגברים יש עור שמנוני יותר מאשר לנשים?",
+    "source": "tatoeba",
+    "upstreamId": "555703"
+  },
+  {
+    "text": "האם לגברים יש באמת עור שמנוני יותר מאשר לנשים?",
+    "source": "tatoeba",
+    "upstreamId": "555706"
+  },
+  {
+    "text": "די קשה להגיע לשליטה בצרפתית אחרי שנתיים-שלוש.",
+    "source": "tatoeba",
+    "upstreamId": "555713"
+  },
+  {
+    "text": "שמה לא היה ברשימה.",
+    "source": "tatoeba",
+    "upstreamId": "555948"
+  },
+  {
+    "text": "אני מניח שאתה מכיר את העובדות לאשורן.",
+    "source": "tatoeba",
+    "upstreamId": "555953"
+  },
+  {
+    "text": "אני מניחה שאתה מכיר את העובדות לאשורן.",
+    "source": "tatoeba",
+    "upstreamId": "555957"
+  },
+  {
+    "text": "אני מניח שאת מכירה את העובדות לאשורן.",
+    "source": "tatoeba",
+    "upstreamId": "555960"
+  },
+  {
+    "text": "אני מניחה שאת מכירה את העובדות לאשורן.",
+    "source": "tatoeba",
+    "upstreamId": "555982"
+  },
+  {
+    "text": "אני אשתה כוס קפה.",
+    "source": "tatoeba",
+    "upstreamId": "556024"
+  },
+  {
+    "text": "אני מצטער, אני חוזר בי.",
+    "source": "tatoeba",
+    "upstreamId": "556026"
+  },
+  {
+    "text": "אני מצטערת. אני חוזרת בי.",
+    "source": "tatoeba",
+    "upstreamId": "556027"
+  },
+  {
+    "text": "את גבוהה יותר ממני.",
+    "source": "tatoeba",
+    "upstreamId": "556030"
+  },
+  {
+    "text": "אתה גבוה יותר ממני.",
+    "source": "tatoeba",
+    "upstreamId": "556032"
+  },
+  {
+    "text": "הייתי רוצה רשימה של המילים באיטלקית שלא מופיעות עדיין בקורפוס.",
+    "source": "tatoeba",
+    "upstreamId": "556040"
+  },
+  {
+    "text": "איפה הספר שלה? הוא מונח על השולחן.",
+    "source": "tatoeba",
+    "upstreamId": "556046"
+  },
+  {
+    "text": "בלונדינית משוחחת עם הפסיכיאטר שלה.",
+    "source": "tatoeba",
+    "upstreamId": "556051"
+  },
+  {
+    "text": "בלונדינית מדברת עם הפסיכיאטר שלה.",
+    "source": "tatoeba",
+    "upstreamId": "556052"
+  },
+  {
+    "text": "הוא תפס את ידה.",
+    "source": "tatoeba",
+    "upstreamId": "556054"
+  },
+  {
+    "text": "באספרנטו ההטעמה נופלת תמיד על ההברה הלפני האחרונה.",
+    "source": "tatoeba",
+    "upstreamId": "556056"
+  },
+  {
+    "text": "באספרנטו מטעימים תמיד את ההברה הלפני האחרונה.",
+    "source": "tatoeba",
+    "upstreamId": "556057"
+  },
+  {
+    "text": "אני מטייל בפארק.",
+    "source": "tatoeba",
+    "upstreamId": "556060"
+  },
+  {
+    "text": "עדיף שלא תלך לשם שוב.",
+    "source": "tatoeba",
+    "upstreamId": "556085"
+  },
+  {
+    "text": "עדיף שלא תלכי לשם שוב.",
+    "source": "tatoeba",
+    "upstreamId": "556087"
+  },
+  {
+    "text": "המשפט הזה חוזר על עצמו בהמשך.",
+    "source": "tatoeba",
+    "upstreamId": "556108"
+  },
+  {
+    "text": "למרות שהוא כבר עבר את השמונים, הוא עדיין בריא.",
+    "source": "tatoeba",
+    "upstreamId": "556117"
+  },
+  {
+    "text": "הוא קיבל פיצויים בסך מיליון דולר.",
+    "source": "tatoeba",
+    "upstreamId": "556118"
+  },
+  {
+    "text": "ספריו של הסטודנט הזה חדשים.",
+    "source": "tatoeba",
+    "upstreamId": "556130"
+  },
+  {
+    "text": "ניסיתי לומר לך את זה.",
+    "source": "tatoeba",
+    "upstreamId": "556137"
+  },
+  {
+    "text": "התאכזבתי שיש לי כל כך מעט לעשות.",
+    "source": "tatoeba",
+    "upstreamId": "556140"
+  },
+  {
+    "text": "אני ממש לא מבין את הבעיה הזאת.",
+    "source": "tatoeba",
+    "upstreamId": "556141"
+  },
+  {
+    "text": "אני ממש לא מבינה את הבעיה הזאת.",
+    "source": "tatoeba",
+    "upstreamId": "556142"
+  },
+  {
+    "text": "אני תוהה איזו שפה מדברים בברזיל.",
+    "source": "tatoeba",
+    "upstreamId": "556143"
+  },
+  {
+    "text": "חייתי כאן במשך שלושים שנה.",
+    "source": "tatoeba",
+    "upstreamId": "556144"
+  },
+  {
+    "text": "הכוס נשמטה מידיו.",
+    "source": "tatoeba",
+    "upstreamId": "556149"
+  },
+  {
+    "text": "לקחתי אותה הביתה.",
+    "source": "tatoeba",
+    "upstreamId": "556151"
+  },
+  {
+    "text": "הוא לא מסוג האנשים שהיינו רוצים לעבוד איתם.",
+    "source": "tatoeba",
+    "upstreamId": "556155"
+  },
+  {
+    "text": "הוא שאל איך קוראים לי.",
+    "source": "tatoeba",
+    "upstreamId": "556157"
+  },
+  {
+    "text": "הוא שאל מה שמי.",
+    "source": "tatoeba",
+    "upstreamId": "556158"
+  },
+  {
+    "text": "אני יכול לעזור לך?",
+    "source": "tatoeba",
+    "upstreamId": "556159"
+  },
+  {
+    "text": "אני יכולה לעזור לך?",
+    "source": "tatoeba",
+    "upstreamId": "556161"
+  },
+  {
+    "text": "תגיד לי מה עלה בגורלו.",
+    "source": "tatoeba",
+    "upstreamId": "556164"
+  },
+  {
+    "text": "תגיד לי מה קרה לו.",
+    "source": "tatoeba",
+    "upstreamId": "556165"
+  },
+  {
+    "text": "תגידי לי מה קרה לו.",
+    "source": "tatoeba",
+    "upstreamId": "556167"
+  },
+  {
+    "text": "קניתי את המכונית הזאת.",
+    "source": "tatoeba",
+    "upstreamId": "556169"
+  },
+  {
+    "text": "הוא יוצא לניו יורק בשבוע הבא.",
+    "source": "tatoeba",
+    "upstreamId": "556176"
+  },
+  {
+    "text": "הוא טס לניו יורק בשבוע הבא.",
+    "source": "tatoeba",
+    "upstreamId": "556177"
+  },
+  {
+    "text": "רק עכשיו גיליתי שאשתי בגדה בי.",
+    "source": "tatoeba",
+    "upstreamId": "556180"
+  },
+  {
+    "text": "יש לך קונדומים?",
+    "source": "tatoeba",
+    "upstreamId": "556182"
+  },
+  {
+    "text": "מחבר השפה \"סלוביו\" אפילו הקים בה אתר פורנו.",
+    "source": "tatoeba",
+    "upstreamId": "556184"
+  },
+  {
+    "text": "לעזאזל המוסכמות!",
+    "source": "tatoeba",
+    "upstreamId": "556186"
+  },
+  {
+    "text": "איטלקית היא שפת האם שלי.",
+    "source": "tatoeba",
+    "upstreamId": "556189"
+  },
+  {
+    "text": "כשהגעתי הביתה, גיליתי שאיבדתי את הארנק.",
+    "source": "tatoeba",
+    "upstreamId": "556196"
+  },
+  {
+    "text": "אוסטרלים מצטיינים בספורט ובבידור.",
+    "source": "tatoeba",
+    "upstreamId": "556220"
+  },
+  {
+    "text": "קראו את ההערה בתחתית העמוד.",
+    "source": "tatoeba",
+    "upstreamId": "556224"
+  },
+  {
+    "text": "קרא את ההערה בתחתית העמוד.",
+    "source": "tatoeba",
+    "upstreamId": "556225"
+  },
+  {
+    "text": "קראי את ההערה בתחתית העמוד.",
+    "source": "tatoeba",
+    "upstreamId": "556226"
+  },
+  {
+    "text": "הוא ברח כשראה את השוטר.",
+    "source": "tatoeba",
+    "upstreamId": "556232"
+  },
+  {
+    "text": "הוא כתב ספר על סין.",
+    "source": "tatoeba",
+    "upstreamId": "556235"
+  },
+  {
+    "text": "אתם אוהבים מוזיקה?",
+    "source": "tatoeba",
+    "upstreamId": "556240"
+  },
+  {
+    "text": "אתה אוהב מוזיקה?",
+    "source": "tatoeba",
+    "upstreamId": "556242"
+  },
+  {
+    "text": "את אוהבת מוזיקה?",
+    "source": "tatoeba",
+    "upstreamId": "556243"
+  },
+  {
+    "text": "איפה אני יכול למצוא משחת שיניים?",
+    "source": "tatoeba",
+    "upstreamId": "556244"
+  },
+  {
+    "text": "איפה אני יכולה למצוא משחת שיניים?",
+    "source": "tatoeba",
+    "upstreamId": "556245"
+  },
+  {
+    "text": "אבל אילו היינו הגיוניים לגמרי, האם היינו רוצים בכלל ילדים?",
+    "source": "tatoeba",
+    "upstreamId": "556252"
+  },
+  {
+    "text": "אבל אילו היינו חושבים לגמרי בהיגיון, האם היינו רוצים בכלל ילדים?",
+    "source": "tatoeba",
+    "upstreamId": "556256"
+  },
+  {
+    "text": "אם אתה צריך לנסוע לארה\"ב, עדיף שתלמד לנהל שיחה באנגלית.",
+    "source": "tatoeba",
+    "upstreamId": "556262"
+  },
+  {
+    "text": "אם את צריכה לנסוע לארה\"ב, עדיף שתלמדי לנהל שיחה באנגלית.",
+    "source": "tatoeba",
+    "upstreamId": "556264"
+  },
+  {
+    "text": "הם פטרו את הביקורת שלו בתור צביעות.",
+    "source": "tatoeba",
+    "upstreamId": "556267"
+  },
+  {
+    "text": "אף אחד לא שם לב אליו.",
+    "source": "tatoeba",
+    "upstreamId": "556270"
+  },
+  {
+    "text": "אף אחד לא שם לב אליה.",
+    "source": "tatoeba",
+    "upstreamId": "556272"
+  },
+  {
+    "text": "צר לי לשמוע שאביך נפטר.",
+    "source": "tatoeba",
+    "upstreamId": "556274"
+  },
+  {
+    "text": "אני מצטער לשמוע שאביך נפטר.",
+    "source": "tatoeba",
+    "upstreamId": "556276"
+  },
+  {
+    "text": "אני מצטערת לשמוע שאביך נפטר.",
+    "source": "tatoeba",
+    "upstreamId": "556278"
+  },
+  {
+    "text": "אל תקרא ספרים בחדר שהתאורה בו חלשה כל כך.",
+    "source": "tatoeba",
+    "upstreamId": "556281"
+  },
+  {
+    "text": "אל תקראי ספרים בחדר עם תאורה חלשה כל כך.",
+    "source": "tatoeba",
+    "upstreamId": "556284"
+  },
+  {
+    "text": "אל תקרא ספרים בחדר אפלולי כל כך.",
+    "source": "tatoeba",
+    "upstreamId": "556289"
+  },
+  {
+    "text": "הוא קנה לי מצלמה טובה.",
+    "source": "tatoeba",
+    "upstreamId": "556296"
+  },
+  {
+    "text": "למה אני צריך לעשות את זה?",
+    "source": "tatoeba",
+    "upstreamId": "556299"
+  },
+  {
+    "text": "למה אני צריכה לעשות את זה?",
+    "source": "tatoeba",
+    "upstreamId": "556302"
+  },
+  {
+    "text": "תרצה תה או קפה?",
+    "source": "tatoeba",
+    "upstreamId": "556304"
+  },
+  {
+    "text": "תרצי תה או קפה?",
+    "source": "tatoeba",
+    "upstreamId": "556306"
+  },
+  {
+    "text": "זה מספיק, תודה לך. אני מלא.",
+    "source": "tatoeba",
+    "upstreamId": "556308"
+  },
+  {
+    "text": "זה מספיק, תודה לך. אני מלאה.",
+    "source": "tatoeba",
+    "upstreamId": "556309"
+  },
+  {
+    "text": "יש לה בת ושמה מרי.",
+    "source": "tatoeba",
+    "upstreamId": "556311"
+  },
+  {
+    "text": "הכול היה מלהיב עבורי כשביקרתי בספרד בפעם הראשונה.",
+    "source": "tatoeba",
+    "upstreamId": "556316"
+  },
+  {
+    "text": "התלהבתי מכל דבר כשביקרתי בספרד בפעם הראשונה.",
+    "source": "tatoeba",
+    "upstreamId": "556320"
+  },
+  {
+    "text": "יש עליך פלאפון?",
+    "source": "tatoeba",
+    "upstreamId": "556364"
+  },
+  {
+    "text": "החיים הם מה שקורה לך כשאתה עסוק בתוכניות אחרות.",
+    "source": "tatoeba",
+    "upstreamId": "556366"
+  },
+  {
+    "text": "הוא הגיע לטוקיו אתמול.",
+    "source": "tatoeba",
+    "upstreamId": "556371"
+  },
+  {
+    "text": "רק אדם אחד ניצל מהתאונה.",
+    "source": "tatoeba",
+    "upstreamId": "556372"
+  },
+  {
+    "text": "היה רק ניצול אחד מהתאונה.",
+    "source": "tatoeba",
+    "upstreamId": "556374"
+  },
+  {
+    "text": "בבקשה למלא את הטופס הזה.",
+    "source": "tatoeba",
+    "upstreamId": "556377"
+  },
+  {
+    "text": "נא למלא את הטופס הזה.",
+    "source": "tatoeba",
+    "upstreamId": "556378"
+  },
+  {
+    "text": "אין צורך להיפרד מהם.",
+    "source": "tatoeba",
+    "upstreamId": "556380"
+  },
+  {
+    "text": "חזור לכיסא שלך.",
+    "source": "tatoeba",
+    "upstreamId": "556384"
+  },
+  {
+    "text": "חזרי לכיסא שלך.",
+    "source": "tatoeba",
+    "upstreamId": "556386"
+  },
+  {
+    "text": "החינוך בעולם מאכזב אותי.",
+    "source": "tatoeba",
+    "upstreamId": "556390"
+  },
+  {
+    "text": "יש מפלצת מתחת למיטה שלי.",
+    "source": "tatoeba",
+    "upstreamId": "556394"
+  },
+  {
+    "text": "כי הם צופים בטלוויזיה.",
+    "source": "tatoeba",
+    "upstreamId": "556400"
+  },
+  {
+    "text": "האם אפשר לדעת מה אורך הקוטר מתוך ההיקף?",
+    "source": "tatoeba",
+    "upstreamId": "556405"
+  },
+  {
+    "text": "האם אפשר לחשב את הקוטר מתוך ההיקף?",
+    "source": "tatoeba",
+    "upstreamId": "556406"
+  },
+  {
+    "text": "אתה יכול להישאר כאן עד היום בערב.",
+    "source": "tatoeba",
+    "upstreamId": "556407"
+  },
+  {
+    "text": "את יכולה להישאר כאן עד היום בערב.",
+    "source": "tatoeba",
+    "upstreamId": "556408"
+  },
+  {
+    "text": "אתה יכול להישאר כאן עד הערב.",
+    "source": "tatoeba",
+    "upstreamId": "556409"
+  },
+  {
+    "text": "את יכולה להישאר כאן עד הערב.",
+    "source": "tatoeba",
+    "upstreamId": "556410"
+  },
+  {
+    "text": "ההורים משחקים עם ילדיהם במשחק.",
+    "source": "tatoeba",
+    "upstreamId": "556412"
+  },
+  {
+    "text": "אני תוהה אם יירד גשם מחר.",
+    "source": "tatoeba",
+    "upstreamId": "556413"
+  },
+  {
+    "text": "העובדים צריכים להיות עם שיער קצוץ.",
+    "source": "tatoeba",
+    "upstreamId": "556417"
+  },
+  {
+    "text": "אחרי המוות, הרופא.",
+    "source": "tatoeba",
+    "upstreamId": "556423"
+  },
+  {
+    "text": "איך היה סוף השבוע שלך?",
+    "source": "tatoeba",
+    "upstreamId": "556424"
+  },
+  {
+    "text": "הנבחרת שלנו מובילה בחמש נקודות.",
+    "source": "tatoeba",
+    "upstreamId": "556425"
+  },
+  {
+    "text": "אחותי מבוגרת מאחי.",
+    "source": "tatoeba",
+    "upstreamId": "556426"
+  },
+  {
+    "text": "בחורף הלילה יורד מהר.",
+    "source": "tatoeba",
+    "upstreamId": "556429"
+  },
+  {
+    "text": "לא מוכרים כאן בירה.",
+    "source": "tatoeba",
+    "upstreamId": "556452"
+  },
+  {
+    "text": "הוא החמיץ את הרכבת האחרונה.",
+    "source": "tatoeba",
+    "upstreamId": "556453"
+  },
+  {
+    "text": "הוא פספס את הרכבת האחרונה.",
+    "source": "tatoeba",
+    "upstreamId": "556455"
+  },
+  {
+    "text": "היא בחרה שלושה תפוחים נהדרים.",
+    "source": "tatoeba",
+    "upstreamId": "556470"
+  },
+  {
+    "text": "היא בחרה שלושה תפוחים יפים.",
+    "source": "tatoeba",
+    "upstreamId": "556472"
+  },
+  {
+    "text": "לפני מצלמות הטלוויזיה הם רוקנו לביוב בקבוקי יין בורדו, כשהם צועקים סיסמאות נגד צרפת, שסירבה למלחמה בעיראק.",
+    "source": "tatoeba",
+    "upstreamId": "556473"
+  },
+  {
+    "text": "את לא יודעת עד כמה אני אוהב אותך.",
+    "source": "tatoeba",
+    "upstreamId": "556477"
+  },
+  {
+    "text": "אתה לא יודע עד כמה אני אוהבת אותך.",
+    "source": "tatoeba",
+    "upstreamId": "556479"
+  },
+  {
+    "text": "את לא יודעת עד כמה אני אוהבת אותך.",
+    "source": "tatoeba",
+    "upstreamId": "556480"
+  },
+  {
+    "text": "אתה לא יודע עד כמה אני אוהב אותך.",
+    "source": "tatoeba",
+    "upstreamId": "556481"
+  },
+  {
+    "text": "הספר הזה שייך לטוני.",
+    "source": "tatoeba",
+    "upstreamId": "556486"
+  },
+  {
+    "text": "אין לנו אותם ערכים.",
+    "source": "tatoeba",
+    "upstreamId": "556487"
+  },
+  {
+    "text": "זה נמצא במרחק של כמאה שלושים ושלושה קילומטר מלונדון.",
+    "source": "tatoeba",
+    "upstreamId": "556491"
+  },
+  {
+    "text": "ראיתי רק את התפוח.",
+    "source": "tatoeba",
+    "upstreamId": "556492"
+  },
+  {
+    "text": "ציירים כפיקאסו נדירים.",
+    "source": "tatoeba",
+    "upstreamId": "556496"
+  },
+  {
+    "text": "אין הרבה ציירים כמו פיקאסו.",
+    "source": "tatoeba",
+    "upstreamId": "556497"
+  },
+  {
+    "text": "זה הבית שבו התגוררתי בצעירותי.",
+    "source": "tatoeba",
+    "upstreamId": "556498"
+  },
+  {
+    "text": "המכונית החדשה עברה את המבדקים בהצלחה.",
+    "source": "tatoeba",
+    "upstreamId": "556499"
+  },
+  {
+    "text": "המכונית החדשה עברה את הטסטים בהצלחה.",
+    "source": "tatoeba",
+    "upstreamId": "556500"
+  },
+  {
+    "text": "מספר רב של אנשים הולכו שולל על ידי הפרסומת הזאת.",
+    "source": "tatoeba",
+    "upstreamId": "556501"
+  },
+  {
+    "text": "השוטר עצר את הפורץ במקום.",
+    "source": "tatoeba",
+    "upstreamId": "556503"
+  },
+  {
+    "text": "יש דברים בעולם שפשוט אי אפשר לבטא במילים.",
+    "source": "tatoeba",
+    "upstreamId": "556508"
+  },
+  {
+    "text": "יש בעולם דברים שפשוט אי אפשר להסביר במילים.",
+    "source": "tatoeba",
+    "upstreamId": "556510"
+  },
+  {
+    "text": "אני רוצה ללמוד אנגלית תקנית.",
+    "source": "tatoeba",
+    "upstreamId": "556513"
+  },
+  {
+    "text": "שפת האם שלי היא יפנית.",
+    "source": "tatoeba",
+    "upstreamId": "556515"
+  },
+  {
+    "text": "אנגלית היא לא שפת האם שלי.",
+    "source": "tatoeba",
+    "upstreamId": "556520"
+  },
+  {
+    "text": "אומרים שהוא היה עשיר מאוד.",
+    "source": "tatoeba",
+    "upstreamId": "557816"
+  },
+  {
+    "text": "הם הגיעו לבריטניה לפני שבוע.",
+    "source": "tatoeba",
+    "upstreamId": "557818"
+  },
+  {
+    "text": "אף פעם לא ראיתי כלב גדול כל כך.",
+    "source": "tatoeba",
+    "upstreamId": "557852"
+  },
+  {
+    "text": "מעולם לא ראיתי כלב גדול כל כך.",
+    "source": "tatoeba",
+    "upstreamId": "557853"
+  },
+  {
+    "text": "לא כל הנוצץ זהב.",
+    "source": "tatoeba",
+    "upstreamId": "557860"
+  },
+  {
+    "text": "אתם אוהבים לשיר?",
+    "source": "tatoeba",
+    "upstreamId": "557864"
+  },
+  {
+    "text": "תהיה דיפלומט טוב.",
+    "source": "tatoeba",
+    "upstreamId": "557892"
+  },
+  {
+    "text": "תהיי דיפלומטית טובה.",
+    "source": "tatoeba",
+    "upstreamId": "557894"
+  },
+  {
+    "text": "אם צריך ליצור משהו, יש לי שתי ידיים שמאליות.",
+    "source": "tatoeba",
+    "upstreamId": "557896"
+  },
+  {
+    "text": "כשצריך ליצור משהו, יש לי שתי ידיים שמאליות.",
+    "source": "tatoeba",
+    "upstreamId": "557897"
+  },
+  {
+    "text": "הוא בראש הכיתה באנגלית.",
+    "source": "tatoeba",
+    "upstreamId": "557901"
+  },
+  {
+    "text": "הוא הראשון באנגלית בכיתתו.",
+    "source": "tatoeba",
+    "upstreamId": "557902"
+  },
+  {
+    "text": "באוריגמי יש לי שתי ידיים שמאליות.",
+    "source": "tatoeba",
+    "upstreamId": "557904"
+  },
+  {
+    "text": "הוא נשיא החברה, למעשה.",
+    "source": "tatoeba",
+    "upstreamId": "557905"
+  },
+  {
+    "text": "על פי התחזיות המטאורולוגיות, מחר יתבהר.",
+    "source": "tatoeba",
+    "upstreamId": "557911"
+  },
+  {
+    "text": "הוא חסם את הדרך בפניי.",
+    "source": "tatoeba",
+    "upstreamId": "557913"
+  },
+  {
+    "text": "הוא חסם לי את הדרך.",
+    "source": "tatoeba",
+    "upstreamId": "557914"
+  },
+  {
+    "text": "תן לי את הקלינקס.",
+    "source": "tatoeba",
+    "upstreamId": "557916"
+  },
+  {
+    "text": "תני לי את הקלינקס.",
+    "source": "tatoeba",
+    "upstreamId": "557917"
+  },
+  {
+    "text": "תביא לי את הקלינקס.",
+    "source": "tatoeba",
+    "upstreamId": "557918"
+  },
+  {
+    "text": "תביאי לי את הקלינקס.",
+    "source": "tatoeba",
+    "upstreamId": "557919"
+  },
+  {
+    "text": "היא צעירה כמוני.",
+    "source": "tatoeba",
+    "upstreamId": "557943"
+  },
+  {
+    "text": "אין עשן בלי אש.",
+    "source": "tatoeba",
+    "upstreamId": "557946"
+  },
+  {
+    "text": "אני זוכר את המילה הזאת.",
+    "source": "tatoeba",
+    "upstreamId": "557951"
+  },
+  {
+    "text": "עד כה היה רק משתתף אחד בתוכנית \"מי רוצה להיות מיליונר\" בישראל שזכה במיליון שקל.",
+    "source": "tatoeba",
+    "upstreamId": "558052"
+  },
+  {
+    "text": "אתה לא יכול לדחות את זה עד מחר?",
+    "source": "tatoeba",
+    "upstreamId": "558063"
+  },
+  {
+    "text": "את לא יכולה לדחות את זה עד מחר?",
+    "source": "tatoeba",
+    "upstreamId": "558064"
+  },
+  {
+    "text": "אתם לא יכולים לדחות את זה עד מחר?",
+    "source": "tatoeba",
+    "upstreamId": "558066"
+  },
+  {
+    "text": "אני רוצה שתניח בצד את המגזינים, החוברות וכל היתר.",
+    "source": "tatoeba",
+    "upstreamId": "558080"
+  },
+  {
+    "text": "אני מבקש שתניח בצד את המגזינים, החוברות וכל היתר.",
+    "source": "tatoeba",
+    "upstreamId": "558082"
+  },
+  {
+    "text": "אני לא יודע מה לומר.",
+    "source": "tatoeba",
+    "upstreamId": "558084"
+  },
+  {
+    "text": "אני לא יודעת מה לומר.",
+    "source": "tatoeba",
+    "upstreamId": "558085"
+  },
+  {
+    "text": "שחור הולם אותך.",
+    "source": "tatoeba",
+    "upstreamId": "558086"
+  },
+  {
+    "text": "הוא מצפה בקוצר רוח לתוצאות הבחינה.",
+    "source": "tatoeba",
+    "upstreamId": "558153"
+  },
+  {
+    "text": "הגיע הזמן ללכת לישון.",
+    "source": "tatoeba",
+    "upstreamId": "558170"
+  },
+  {
+    "text": "חירות אישית היא נשמת אפה של הדמוקרטיה.",
+    "source": "tatoeba",
+    "upstreamId": "558176"
+  },
+  {
+    "text": "חירות אישית היא תמציתה של הדמוקרטיה.",
+    "source": "tatoeba",
+    "upstreamId": "558179"
+  },
+  {
+    "text": "חירות אישית היא תמצית הדמוקרטיה.",
+    "source": "tatoeba",
+    "upstreamId": "558180"
+  },
+  {
+    "text": "אשמח לקבל תשובה בהקדם האפשרי.",
+    "source": "tatoeba",
+    "upstreamId": "558188"
+  },
+  {
+    "text": "אודה על תשובה בהקדם האפשרי.",
+    "source": "tatoeba",
+    "upstreamId": "558190"
+  },
+  {
+    "text": "אתה צודק לחלוטין.",
+    "source": "tatoeba",
+    "upstreamId": "558194"
+  },
+  {
+    "text": "את צודקת לחלוטין.",
+    "source": "tatoeba",
+    "upstreamId": "558195"
+  },
+  {
+    "text": "אתם צודקים לחלוטין.",
+    "source": "tatoeba",
+    "upstreamId": "558196"
+  },
+  {
+    "text": "אלכס יענה: \"צבע\".",
+    "source": "tatoeba",
+    "upstreamId": "558202"
+  },
+  {
+    "text": "עיכבו אותנו למשך שעתיים עקב תאונה.",
+    "source": "tatoeba",
+    "upstreamId": "558204"
+  },
+  {
+    "text": "עיכבו אותנו למשך שעתיים בגלל תאונה.",
+    "source": "tatoeba",
+    "upstreamId": "558205"
+  },
+  {
+    "text": "התעכבנו למשך שעתיים בגלל תאונה.",
+    "source": "tatoeba",
+    "upstreamId": "558206"
+  },
+  {
+    "text": "קריאה היא תענוג גדול עבורי.",
+    "source": "tatoeba",
+    "upstreamId": "558209"
+  },
+  {
+    "text": "הז'אקט מוצא חן בעיניך?",
+    "source": "tatoeba",
+    "upstreamId": "558211"
+  },
+  {
+    "text": "הז'אקט מוצא חן בעינייך?",
+    "source": "tatoeba",
+    "upstreamId": "558213"
+  },
+  {
+    "text": "הז'אקט מוצא חן בעיניכם?",
+    "source": "tatoeba",
+    "upstreamId": "558214"
+  },
+  {
+    "text": "היה מבדר לראות איך דברים משתנים במהלך השנים.",
+    "source": "tatoeba",
+    "upstreamId": "558323"
+  },
+  {
+    "text": "הוא עומד בפני מכשולים רבים.",
+    "source": "tatoeba",
+    "upstreamId": "558327"
+  },
+  {
+    "text": "מכשולים רבים עומדים בפניו.",
+    "source": "tatoeba",
+    "upstreamId": "558329"
+  },
+  {
+    "text": "הוא מתמודד עם מכשולים מרובים.",
+    "source": "tatoeba",
+    "upstreamId": "558331"
+  },
+  {
+    "text": "לפניי היו שלושה ממתינים בתור.",
+    "source": "tatoeba",
+    "upstreamId": "558452"
+  },
+  {
+    "text": "השארתי את המפתחות שלי על השולחן. תוכל להביא לי אותם בבקשה?",
+    "source": "tatoeba",
+    "upstreamId": "558548"
+  },
+  {
+    "text": "השארתי את המפתחות שלי על השולחן. תוכלי להביא לי אותם בבקשה?",
+    "source": "tatoeba",
+    "upstreamId": "558549"
+  },
+  {
+    "text": "אני לא רוצה להיות אגואיסט.",
+    "source": "tatoeba",
+    "upstreamId": "558550"
+  },
+  {
+    "text": "אני לא רוצה להיות אגואיסטית.",
+    "source": "tatoeba",
+    "upstreamId": "558551"
+  },
+  {
+    "text": "אני לא מתכוון להיות אגואיסטי.",
+    "source": "tatoeba",
+    "upstreamId": "558552"
+  },
+  {
+    "text": "אני לא מתכוונת להיות אגואיסטית.",
+    "source": "tatoeba",
+    "upstreamId": "558553"
+  },
+  {
+    "text": "כשהבן שלה נפטר, היא השתגעה.",
+    "source": "tatoeba",
+    "upstreamId": "558554"
+  },
+  {
+    "text": "עם מותו של בנה, היא השתגעה.",
+    "source": "tatoeba",
+    "upstreamId": "558555"
+  },
+  {
+    "text": "גלגל את הכדור אליי.",
+    "source": "tatoeba",
+    "upstreamId": "558556"
+  },
+  {
+    "text": "הוא הסתכל עליי ונבח.",
+    "source": "tatoeba",
+    "upstreamId": "558557"
+  },
+  {
+    "text": "לא אכפת לה איך היא מתלבשת.",
+    "source": "tatoeba",
+    "upstreamId": "558558"
+  },
+  {
+    "text": "הוא מסוגל לרוץ.",
+    "source": "tatoeba",
+    "upstreamId": "558559"
+  },
+  {
+    "text": "בתור ילד הייתי הולך לעתים קרובות לדוג דגים עם אבא.",
+    "source": "tatoeba",
+    "upstreamId": "558562"
+  },
+  {
+    "text": "אתה מדבר איטלקית?",
+    "source": "tatoeba",
+    "upstreamId": "558579"
+  },
+  {
+    "text": "את מדברת איטלקית?",
+    "source": "tatoeba",
+    "upstreamId": "558581"
+  },
+  {
+    "text": "אתה מדבר עברית?",
+    "source": "tatoeba",
+    "upstreamId": "558582"
+  },
+  {
+    "text": "אני חייב לענות באנגלית?",
+    "source": "tatoeba",
+    "upstreamId": "558594"
+  },
+  {
+    "text": "אני חייבת לענות באנגלית?",
+    "source": "tatoeba",
+    "upstreamId": "558597"
+  },
+  {
+    "text": "בגד הים הזה עשוי מחומר אלסטי.",
+    "source": "tatoeba",
+    "upstreamId": "558600"
+  },
+  {
+    "text": "באיזו שעה התעוררת הבוקר?",
+    "source": "tatoeba",
+    "upstreamId": "558601"
+  },
+  {
+    "text": "לפעמים אני מפקפק באינטליגנציה שלך.",
+    "source": "tatoeba",
+    "upstreamId": "558602"
+  },
+  {
+    "text": "כל הספרים האלה שלי.",
+    "source": "tatoeba",
+    "upstreamId": "558604"
+  },
+  {
+    "text": "לפעמים אני מפקפקת באינטליגנציה שלך.",
+    "source": "tatoeba",
+    "upstreamId": "558605"
+  },
+  {
+    "text": "הוא רצה להיעדר מהכיתה.",
+    "source": "tatoeba",
+    "upstreamId": "558606"
+  },
+  {
+    "text": "התגעגעתי אליך מאוד כשהיית בצרפת.",
+    "source": "tatoeba",
+    "upstreamId": "558613"
+  },
+  {
+    "text": "התגעגעתי אלייך מאוד כשהיית בצרפת.",
+    "source": "tatoeba",
+    "upstreamId": "558615"
+  },
+  {
+    "text": "אבו אל-חוסיין א-רוואנדי, במאה התשיעית לספירה, סבר שהשכל הוא האמצעי היחיד המדריך את בני האדם להגעה לאמת, משימה שההשראה אינה יכולה לעזור בה.",
+    "source": "tatoeba",
+    "upstreamId": "558627"
+  },
+  {
+    "text": "יש הרבה מקום לשיפור.",
+    "source": "tatoeba",
+    "upstreamId": "558643"
+  },
+  {
+    "text": "לפני שאתם מתחילים לרכוש מוצרים בחנות המקוונת הזאת, ודאו בבקשה שאתם מכירים את עקרונות המדיניות של החנות.",
+    "source": "tatoeba",
+    "upstreamId": "558652"
+  },
+  {
+    "text": "לפני רכישת מוצרים בחנות המקוונת הזאת, אנא עיינו להלן בעקרונות המדיניות של החנות.",
+    "source": "tatoeba",
+    "upstreamId": "558653"
+  },
+  {
+    "text": "יש לך ארבעה כלבים.",
+    "source": "tatoeba",
+    "upstreamId": "558668"
+  },
+  {
+    "text": "בגלל זה הוא התרגז.",
+    "source": "tatoeba",
+    "upstreamId": "558674"
+  },
+  {
+    "text": "אני לא רואה שום סיבה להתנצל.",
+    "source": "tatoeba",
+    "upstreamId": "558693"
+  },
+  {
+    "text": "אני לא רואה כל סיבה להתנצל.",
+    "source": "tatoeba",
+    "upstreamId": "558694"
+  },
+  {
+    "text": "וואו, לא יאומן!",
+    "source": "tatoeba",
+    "upstreamId": "558695"
+  },
+  {
+    "text": "וואו, לא ייאמן!",
+    "source": "tatoeba",
+    "upstreamId": "558696"
+  },
+  {
+    "text": "אושר נראה על פניו.",
+    "source": "tatoeba",
+    "upstreamId": "558700"
+  },
+  {
+    "text": "פניו משקפים אושר.",
+    "source": "tatoeba",
+    "upstreamId": "558702"
+  },
+  {
+    "text": "משפחתה עברה לברזיל.",
+    "source": "tatoeba",
+    "upstreamId": "558704"
+  },
+  {
+    "text": "משפחתה עקרה לברזיל.",
+    "source": "tatoeba",
+    "upstreamId": "558705"
+  },
+  {
+    "text": "האוקיאנוס האטלנטי מפריד בין אמריקה לבין אירופה.",
+    "source": "tatoeba",
+    "upstreamId": "558707"
+  },
+  {
+    "text": "הפרפר חי שלושה ימים.",
+    "source": "tatoeba",
+    "upstreamId": "558712"
+  },
+  {
+    "text": "אורך חייו של הפרפר שלושה ימים.",
+    "source": "tatoeba",
+    "upstreamId": "558714"
+  },
+  {
+    "text": "אני מתגורר במלון הזה.",
+    "source": "tatoeba",
+    "upstreamId": "558719"
+  },
+  {
+    "text": "אני מתגוררת במלון הזה.",
+    "source": "tatoeba",
+    "upstreamId": "558720"
+  },
+  {
+    "text": "אני אוהב לשחק כדורסל.",
+    "source": "tatoeba",
+    "upstreamId": "558744"
+  },
+  {
+    "text": "אני אוהבת לשחק כדורסל.",
+    "source": "tatoeba",
+    "upstreamId": "558745"
+  },
+  {
+    "text": "איקדה הוא שם המשפחה שלי, וקזוקו הוא שמי הפרטי.",
+    "source": "tatoeba",
+    "upstreamId": "558746"
+  },
+  {
+    "text": "סליחה על כך שאני קורא לך בשמך הפרטי.",
+    "source": "tatoeba",
+    "upstreamId": "558747"
+  },
+  {
+    "text": "הכול יקר מאוד בחנות הזאת.",
+    "source": "tatoeba",
+    "upstreamId": "558748"
+  },
+  {
+    "text": "הוא שמח שבנו אוהב ספרים.",
+    "source": "tatoeba",
+    "upstreamId": "558751"
+  },
+  {
+    "text": "הוא שמח על כך שבנו אוהב ספרים.",
+    "source": "tatoeba",
+    "upstreamId": "558752"
+  },
+  {
+    "text": "הוא שבע רצון מאהבתו של בנו לספרים.",
+    "source": "tatoeba",
+    "upstreamId": "558753"
+  },
+  {
+    "text": "הוא מרוצה מכך שבנו אוהב ספרים.",
+    "source": "tatoeba",
+    "upstreamId": "558754"
+  },
+  {
+    "text": "הוועדה אישרה את התקציב.",
+    "source": "tatoeba",
+    "upstreamId": "558767"
+  },
+  {
+    "text": "הוא המציא את הסיפור.",
+    "source": "tatoeba",
+    "upstreamId": "558768"
+  },
+  {
+    "text": "כמה משתתפים ברחבי העולם זכו במיליון בתוכנית \"מי רוצה להיות מיליונר\"?",
+    "source": "tatoeba",
+    "upstreamId": "558776"
+  },
+  {
+    "text": "אני מעדיף להישאר מאשר ללכת.",
+    "source": "tatoeba",
+    "upstreamId": "558782"
+  },
+  {
+    "text": "אני מעדיפה להישאר מאשר ללכת.",
+    "source": "tatoeba",
+    "upstreamId": "558783"
+  },
+  {
+    "text": "אלפי קורבנות מתו מהמחלה הזאת.",
+    "source": "tatoeba",
+    "upstreamId": "558784"
+  },
+  {
+    "text": "אלפי קורבנות מתו בגלל המחלה הזאת.",
+    "source": "tatoeba",
+    "upstreamId": "558785"
+  },
+  {
+    "text": "הוא בנה את ביתו על הצוק.",
+    "source": "tatoeba",
+    "upstreamId": "558786"
+  },
+  {
+    "text": "היות שלא ידעתי מה לעשות, ביקשתי את עצתו.",
+    "source": "tatoeba",
+    "upstreamId": "558801"
+  },
+  {
+    "text": "היא החווירה לשמע החדשות הרעות האלה.",
+    "source": "tatoeba",
+    "upstreamId": "558803"
+  },
+  {
+    "text": "סינדרום המבטא הזר הוא מצב רפואי שעדיין לא הוברר, שבו המטופל לא יכול להגות באופן נכון את שפת האם שלו, ונדמה שיש לו מבטא זר.",
+    "source": "tatoeba",
+    "upstreamId": "558809"
+  },
+  {
+    "text": "כבר אחרי השעה עשר.",
+    "source": "tatoeba",
+    "upstreamId": "558812"
+  },
+  {
+    "text": "תודה על הגלויה היפה שלך.",
+    "source": "tatoeba",
+    "upstreamId": "559421"
+  },
+  {
+    "text": "נתתי לו מכה באוזן.",
+    "source": "tatoeba",
+    "upstreamId": "559435"
+  },
+  {
+    "text": "תקבל באבי אביך!",
+    "source": "tatoeba",
+    "upstreamId": "559549"
+  },
+  {
+    "text": "תקבלי באבי אביך!",
+    "source": "tatoeba",
+    "upstreamId": "559551"
+  },
+  {
+    "text": "החטפתי לו באוזן.",
+    "source": "tatoeba",
+    "upstreamId": "559553"
+  },
+  {
+    "text": "כדי לרוץ עשרת אלפים מטר נדרש כוח סבל רב.",
+    "source": "tatoeba",
+    "upstreamId": "559580"
+  },
+  {
+    "text": "כדי לרוץ עשרת אלפים מטר נדרשת סבולת גבוהה.",
+    "source": "tatoeba",
+    "upstreamId": "559585"
+  },
+  {
+    "text": "השיניים שלי בריאות לחלוטין ובלי שום בעיות.",
+    "source": "tatoeba",
+    "upstreamId": "559587"
+  },
+  {
+    "text": "אתה לא לגמרי צודק, תן לי להסביר.",
+    "source": "tatoeba",
+    "upstreamId": "559589"
+  },
+  {
+    "text": "את לא לגמרי צודקת, תני לי להסביר.",
+    "source": "tatoeba",
+    "upstreamId": "559590"
+  },
+  {
+    "text": "את תמנע מעצמך את הנאות החיים!",
+    "source": "tatoeba",
+    "upstreamId": "559593"
+  },
+  {
+    "text": "אל תמנעי מעצמך את הנאות החיים!",
+    "source": "tatoeba",
+    "upstreamId": "559594"
+  },
+  {
+    "text": "אל תמנעו מעצמכם את הנאות החיים!",
+    "source": "tatoeba",
+    "upstreamId": "559597"
+  },
+  {
+    "text": "הוא יחזור בעוד עשר דקות.",
+    "source": "tatoeba",
+    "upstreamId": "559600"
+  },
+  {
+    "text": "ראיתי אותו יושב עם גבו אל הקיר.",
+    "source": "tatoeba",
+    "upstreamId": "559601"
+  },
+  {
+    "text": "אחד אדום והשני לבן.",
+    "source": "tatoeba",
+    "upstreamId": "559602"
+  },
+  {
+    "text": "מה דעתך, מהי הדרך הטובה ביותר ללמוד אנגלית?",
+    "source": "tatoeba",
+    "upstreamId": "559613"
+  },
+  {
+    "text": "מהי לדעתך הדרך הטובה ביותר ללמוד אנגלית?",
+    "source": "tatoeba",
+    "upstreamId": "559615"
+  },
+  {
+    "text": "חשבתי אותו בטעות לאחי.",
+    "source": "tatoeba",
+    "upstreamId": "559618"
+  },
+  {
+    "text": "סליחה, המקום הזה פנוי?",
+    "source": "tatoeba",
+    "upstreamId": "559623"
+  },
+  {
+    "text": "הוא מלמד את חבריו אנגלית.",
+    "source": "tatoeba",
+    "upstreamId": "559628"
+  },
+  {
+    "text": "בארץ מולדתו, צרפת, מיזם \"טאטואבה\" הפך לתופעה תרבותית וחברתית.",
+    "source": "tatoeba",
+    "upstreamId": "559632"
+  },
+  {
+    "text": "בצרפת, ארץ מולדתו, מיזם Tatoeba הפך לתופעה תרבותית וחברתית.",
+    "source": "tatoeba",
+    "upstreamId": "559636"
+  },
+  {
+    "text": "בארץ האם שלו, צרפת, הפך מיזם Tatoeba לתופעה תרבותית וחברתית.",
+    "source": "tatoeba",
+    "upstreamId": "559638"
+  },
+  {
+    "text": "אתה לא יכול להגיד \"לא\".",
+    "source": "tatoeba",
+    "upstreamId": "559654"
+  },
+  {
+    "text": "את לא יכולה להגיד \"לא\".",
+    "source": "tatoeba",
+    "upstreamId": "559656"
+  },
+  {
+    "text": "מהי העונה החמה ביותר מבין עונות השנה?",
+    "source": "tatoeba",
+    "upstreamId": "559666"
+  },
+  {
+    "text": "מהי העונה החמה ביותר?",
+    "source": "tatoeba",
+    "upstreamId": "559667"
+  },
+  {
+    "text": "היא החווירה כששמעה את החדשות הרעות.",
+    "source": "tatoeba",
+    "upstreamId": "559673"
+  },
+  {
+    "text": "האם אתם אוהבים זה את זה מאוד?",
+    "source": "tatoeba",
+    "upstreamId": "559794"
+  },
+  {
+    "text": "אל תקטע אותי כשאני מדבר.",
+    "source": "tatoeba",
+    "upstreamId": "559796"
+  },
+  {
+    "text": "אל תפריע לי כשאני מדבר.",
+    "source": "tatoeba",
+    "upstreamId": "559797"
+  },
+  {
+    "text": "אל תקטע אותי באמצע דבריי.",
+    "source": "tatoeba",
+    "upstreamId": "559799"
+  },
+  {
+    "text": "האם אתם אוהבים זה את זה עד כדי כך?",
+    "source": "tatoeba",
+    "upstreamId": "559810"
+  },
+  {
+    "text": "האם מישהו פתר את התעלומה הזאת?",
+    "source": "tatoeba",
+    "upstreamId": "560300"
+  },
+  {
+    "text": "האם מישהו פיענח את התעלומה הזאת?",
+    "source": "tatoeba",
+    "upstreamId": "560302"
+  },
+  {
+    "text": "הורים אחראים לחינוך ילדיהם.",
+    "source": "tatoeba",
+    "upstreamId": "560331"
+  },
+  {
+    "text": "ראיתי את \"מלחמת הכוכבים\" פעמיים.",
+    "source": "tatoeba",
+    "upstreamId": "560346"
+  },
+  {
+    "text": "ראיתי פעמיים את הסרט \"מלחמת הכוכבים\".",
+    "source": "tatoeba",
+    "upstreamId": "560347"
+  },
+  {
+    "text": "אם נישאר כאן נהיה כמו ברווזים במטווח.",
+    "source": "tatoeba",
+    "upstreamId": "560349"
+  },
+  {
+    "text": "בואו נחשוב מה הדבר הכי גרוע שיכול לקרות.",
+    "source": "tatoeba",
+    "upstreamId": "560351"
+  },
+  {
+    "text": "אני רוצה לשתות כוס תה.",
+    "source": "tatoeba",
+    "upstreamId": "560354"
+  },
+  {
+    "text": "אומרים שהחיים קצרים.",
+    "source": "tatoeba",
+    "upstreamId": "560369"
+  },
+  {
+    "text": "מסיבה זו או אחרת, היא נענעה את ראשה.",
+    "source": "tatoeba",
+    "upstreamId": "560394"
+  },
+  {
+    "text": "ברור שהיא חולה.",
+    "source": "tatoeba",
+    "upstreamId": "560400"
+  },
+  {
+    "text": "אני אוהב היסטוריה.",
+    "source": "tatoeba",
+    "upstreamId": "560401"
+  },
+  {
+    "text": "לעולם לא אראה אותה עוד.",
+    "source": "tatoeba",
+    "upstreamId": "560402"
+  },
+  {
+    "text": "אני חושב שאנה אוהבת את יאקוב.",
+    "source": "tatoeba",
+    "upstreamId": "560403"
+  },
+  {
+    "text": "כבה את הטלוויזיה. אני לא יכול להתרכז.",
+    "source": "tatoeba",
+    "upstreamId": "560406"
+  },
+  {
+    "text": "כבי את הטלוויזיה. אני לא יכול להתרכז.",
+    "source": "tatoeba",
+    "upstreamId": "560408"
+  },
+  {
+    "text": "ילדים צריכים ללכת לישון מוקדם, בלי לצפות בטלוויזיה.",
+    "source": "tatoeba",
+    "upstreamId": "560410"
+  },
+  {
+    "text": "ילדים צריכים ללכת לישון מוקדם, בלי לראות טלוויזיה.",
+    "source": "tatoeba",
+    "upstreamId": "560411"
+  },
+  {
+    "text": "לפעמים ג'יין רצה לבית הספר.",
+    "source": "tatoeba",
+    "upstreamId": "560415"
+  },
+  {
+    "text": "עורך הדין פנה לחוש הצדק של המושבעים.",
+    "source": "tatoeba",
+    "upstreamId": "560455"
+  },
+  {
+    "text": "המתן בכניסה לבניין הזה.",
+    "source": "tatoeba",
+    "upstreamId": "560458"
+  },
+  {
+    "text": "חכה בכניסה לבניין הזה.",
+    "source": "tatoeba",
+    "upstreamId": "560459"
+  },
+  {
+    "text": "חכו בכניסה לבניין הזה.",
+    "source": "tatoeba",
+    "upstreamId": "560460"
+  },
+  {
+    "text": "נסים נקראים \"נסים\" כי הם אף פעם לא קורים!",
+    "source": "tatoeba",
+    "upstreamId": "560468"
+  },
+  {
+    "text": "כל הצעצועים מעץ.",
+    "source": "tatoeba",
+    "upstreamId": "560472"
+  },
+  {
+    "text": "אין לי די כסף לנסיעה שלי.",
+    "source": "tatoeba",
+    "upstreamId": "560474"
+  },
+  {
+    "text": "אין לי די כסף לטיול שלי.",
+    "source": "tatoeba",
+    "upstreamId": "560475"
+  },
+  {
+    "text": "בית הספר נראה כמו בית סוהר.",
+    "source": "tatoeba",
+    "upstreamId": "560476"
+  },
+  {
+    "text": "יש אנשים שקוראים את העיתון וצופים בטלוויזיה במקביל.",
+    "source": "tatoeba",
+    "upstreamId": "560480"
+  },
+  {
+    "text": "מספר אנשים קוראים את העיתון וצופים בטלוויזיה בו-זמנית.",
+    "source": "tatoeba",
+    "upstreamId": "560483"
+  },
+  {
+    "text": "הוא מילא תפקיד חשוב בוועדה.",
+    "source": "tatoeba",
+    "upstreamId": "560485"
+  },
+  {
+    "text": "פרט לאחותי, משפחתי לא צופה בטלוויזיה.",
+    "source": "tatoeba",
+    "upstreamId": "560491"
+  },
+  {
+    "text": "מבחינתי, בשמחה!",
+    "source": "tatoeba",
+    "upstreamId": "560496"
+  },
+  {
+    "text": "החתול בן עשרים יום.",
+    "source": "tatoeba",
+    "upstreamId": "560503"
+  },
+  {
+    "text": "אם אין אני לי, מי לי.",
+    "source": "tatoeba",
+    "upstreamId": "560635"
+  },
+  {
+    "text": "אם אין קמח, אין תורה.",
+    "source": "tatoeba",
+    "upstreamId": "560641"
+  },
+  {
+    "text": "הם אף פעם לא יסכימו.",
+    "source": "tatoeba",
+    "upstreamId": "560695"
+  },
+  {
+    "text": "הם אף פעם לא יגיעו להסכמה.",
+    "source": "tatoeba",
+    "upstreamId": "560696"
+  },
+  {
+    "text": "בקיצור, הפרויקט נכשל.",
+    "source": "tatoeba",
+    "upstreamId": "560698"
+  },
+  {
+    "text": "יש לי תור אצל הרופא.",
+    "source": "tatoeba",
+    "upstreamId": "560701"
+  },
+  {
+    "text": "יש לי תור לרופא.",
+    "source": "tatoeba",
+    "upstreamId": "560702"
+  },
+  {
+    "text": "הבעת פניה הייתה חמוצה יותר מאשר לימון.",
+    "source": "tatoeba",
+    "upstreamId": "560789"
+  },
+  {
+    "text": "הבעת פניו הייתה חמוצה יותר מאשר לימון.",
+    "source": "tatoeba",
+    "upstreamId": "560791"
+  },
+  {
+    "text": "כשתסיים את הספר הזה, הייתי רוצה לקרוא אותו.",
+    "source": "tatoeba",
+    "upstreamId": "560797"
+  },
+  {
+    "text": "כשתסיימי את הספר הזה, הייתי רוצה לקרוא אותו.",
+    "source": "tatoeba",
+    "upstreamId": "560799"
+  },
+  {
+    "text": "יש להכות על הברזל בעודו חם.",
+    "source": "tatoeba",
+    "upstreamId": "560887"
+  },
+  {
+    "text": "בית החרושת הזה מייצר צעצועים.",
+    "source": "tatoeba",
+    "upstreamId": "560898"
+  },
+  {
+    "text": "היא ישבה על ידי.",
+    "source": "tatoeba",
+    "upstreamId": "560900"
+  },
+  {
+    "text": "תאית היא השפה הרשמית של תאילנד.",
+    "source": "tatoeba",
+    "upstreamId": "560902"
+  },
+  {
+    "text": "וכמו רבות מן העיירות באנגליה, יש לה היסטוריה ארוכה למדי.",
+    "source": "tatoeba",
+    "upstreamId": "560906"
+  },
+  {
+    "text": "מה אתה אוהב יותר, תה או קפה?",
+    "source": "tatoeba",
+    "upstreamId": "560910"
+  },
+  {
+    "text": "מה את אוהבת יותר, תה או קפה?",
+    "source": "tatoeba",
+    "upstreamId": "560911"
+  },
+  {
+    "text": "כמעט אף פעם לא יורד כאן גשם.",
+    "source": "tatoeba",
+    "upstreamId": "560914"
+  },
+  {
+    "text": "מה היית עושה במקומי?",
+    "source": "tatoeba",
+    "upstreamId": "560919"
+  },
+  {
+    "text": "היא נוסעת מסביב לעולם.",
+    "source": "tatoeba",
+    "upstreamId": "561348"
+  },
+  {
+    "text": "ירדו גשמים עזים.",
+    "source": "tatoeba",
+    "upstreamId": "561352"
+  },
+  {
+    "text": "רחץ את ידיך בסבון.",
+    "source": "tatoeba",
+    "upstreamId": "561353"
+  },
+  {
+    "text": "רחצי את ידייך בסבון.",
+    "source": "tatoeba",
+    "upstreamId": "561354"
+  },
+  {
+    "text": "רחצו את ידיכם בסבון.",
+    "source": "tatoeba",
+    "upstreamId": "561356"
+  },
+  {
+    "text": "אני מקווה שאוכל להיות לך לעזר בצורה כלשהי.",
+    "source": "tatoeba",
+    "upstreamId": "561362"
+  },
+  {
+    "text": "אני מקווה שאוכל להיות לכם לעזר בצורה כלשהי.",
+    "source": "tatoeba",
+    "upstreamId": "561364"
+  },
+  {
+    "text": "אני מקווה שאוכל לסייע לך בצורה כלשהי.",
+    "source": "tatoeba",
+    "upstreamId": "561365"
+  },
+  {
+    "text": "אני מקווה שאוכל לסייע לך באופן כלשהו.",
+    "source": "tatoeba",
+    "upstreamId": "561366"
+  },
+  {
+    "text": "אחרי שאמרתי דבר כזה לבוס שלי, אני בטוח שאאבד את עבודתי.",
+    "source": "tatoeba",
+    "upstreamId": "561368"
+  },
+  {
+    "text": "אחרי שאמרתי דברים כאלה לבוס שלי, בטוח שאאבד את עבודתי.",
+    "source": "tatoeba",
+    "upstreamId": "561369"
+  },
+  {
+    "text": "זה כמעט בלתי אפשרי לסיים את זה בתוך יום אחד.",
+    "source": "tatoeba",
+    "upstreamId": "561373"
+  },
+  {
+    "text": "כמעט בלתי אפשרי לגמור את זה ביום אחד בלבד.",
+    "source": "tatoeba",
+    "upstreamId": "561374"
+  },
+  {
+    "text": "הוא אמר: \"שאלוהים יעזור לנו!\".",
+    "source": "tatoeba",
+    "upstreamId": "561375"
+  },
+  {
+    "text": "התאונה התרחשה בסמוך לצומת זה.",
+    "source": "tatoeba",
+    "upstreamId": "561547"
+  },
+  {
+    "text": "תזמין אותנו לארוחת ערב במסעדה.",
+    "source": "tatoeba",
+    "upstreamId": "561556"
+  },
+  {
+    "text": "תזמינו אותנו לארוחת ערב במסעדה.",
+    "source": "tatoeba",
+    "upstreamId": "561558"
+  },
+  {
+    "text": "הם מוכרים דגים ובשר.",
+    "source": "tatoeba",
+    "upstreamId": "561559"
+  },
+  {
+    "text": "אבי מורה לאנגלית.",
+    "source": "tatoeba",
+    "upstreamId": "561561"
+  },
+  {
+    "text": "הבוס שלי הוכרח להתפטר.",
+    "source": "tatoeba",
+    "upstreamId": "561563"
+  },
+  {
+    "text": "הבוס שלי התפוטר.",
+    "source": "tatoeba",
+    "upstreamId": "561564"
+  },
+  {
+    "text": "הבוס שלי נאלץ להתפטר.",
+    "source": "tatoeba",
+    "upstreamId": "561565"
+  },
+  {
+    "text": "הדירה שלי נמצאת בסביבה.",
+    "source": "tatoeba",
+    "upstreamId": "561587"
+  },
+  {
+    "text": "הדירה שלי קרובה לכאן.",
+    "source": "tatoeba",
+    "upstreamId": "561589"
+  },
+  {
+    "text": "אחרי שלושה שבועות של חיפוש עבודה, הוא מצא משרה בשכר יפה.",
+    "source": "tatoeba",
+    "upstreamId": "561598"
+  },
+  {
+    "text": "נכנסתי בדרך לחנות הספרים.",
+    "source": "tatoeba",
+    "upstreamId": "561604"
+  },
+  {
+    "text": "בדרך, נכנסתי לחנות הספרים.",
+    "source": "tatoeba",
+    "upstreamId": "561605"
+  },
+  {
+    "text": "נכנסתי לחנות הספרים בדרך.",
+    "source": "tatoeba",
+    "upstreamId": "561607"
+  },
+  {
+    "text": "המחזה הוא סאטירה על עולם הפוליטיקה.",
+    "source": "tatoeba",
+    "upstreamId": "561610"
+  },
+  {
+    "text": "המדע אינו פותר את כל בעיות החיים.",
+    "source": "tatoeba",
+    "upstreamId": "561613"
+  },
+  {
+    "text": "שוק ההון אינו מה שהיה לפני מספר שנים.",
+    "source": "tatoeba",
+    "upstreamId": "561630"
+  },
+  {
+    "text": "גם לה יש מגרעות.",
+    "source": "tatoeba",
+    "upstreamId": "561632"
+  },
+  {
+    "text": "גם לה יש שגיאות.",
+    "source": "tatoeba",
+    "upstreamId": "561635"
+  },
+  {
+    "text": "יש לך משהו להצהיר?",
+    "source": "tatoeba",
+    "upstreamId": "561656"
+  },
+  {
+    "text": "אני חושש שאני לא יכול לעזור לך.",
+    "source": "tatoeba",
+    "upstreamId": "561663"
+  },
+  {
+    "text": "חוששני שאיני יכול לעזור לך.",
+    "source": "tatoeba",
+    "upstreamId": "561664"
+  },
+  {
+    "text": "אצטרף אליך מאוחר יותר.",
+    "source": "tatoeba",
+    "upstreamId": "561668"
+  },
+  {
+    "text": "אצטרף אלייך מאוחר יותר.",
+    "source": "tatoeba",
+    "upstreamId": "561669"
+  },
+  {
+    "text": "אצטרף אליכם מאוחר יותר.",
+    "source": "tatoeba",
+    "upstreamId": "561670"
+  },
+  {
+    "text": "הוא עשה את זה, בנוכחותה.",
+    "source": "tatoeba",
+    "upstreamId": "561770"
+  },
+  {
+    "text": "הוא עשה את זה, ועוד בנוכחותה.",
+    "source": "tatoeba",
+    "upstreamId": "561772"
+  },
+  {
+    "text": "הוא עשה זאת, ועוד בנוכחותה.",
+    "source": "tatoeba",
+    "upstreamId": "561773"
+  },
+  {
+    "text": "אל תחטט בחיי הפרטיים.",
+    "source": "tatoeba",
+    "upstreamId": "562477"
+  },
+  {
+    "text": "אל תחטטי בחיי הפרטיים.",
+    "source": "tatoeba",
+    "upstreamId": "562479"
+  },
+  {
+    "text": "אל תחטטו בחיי הפרטיים.",
+    "source": "tatoeba",
+    "upstreamId": "562481"
+  },
+  {
+    "text": "אל תתערבו בעניינים של אחרים.",
+    "source": "tatoeba",
+    "upstreamId": "562488"
+  },
+  {
+    "text": "אל תתערב בעניינים של אחרים.",
+    "source": "tatoeba",
+    "upstreamId": "562490"
+  },
+  {
+    "text": "אל תתערבי בעניינים של אחרים.",
+    "source": "tatoeba",
+    "upstreamId": "562491"
+  },
+  {
+    "text": "הניסוי עלה בתוהו.",
+    "source": "tatoeba",
+    "upstreamId": "562501"
+  },
+  {
+    "text": "הניסוי הוכתר בכישלון.",
+    "source": "tatoeba",
+    "upstreamId": "562502"
+  },
+  {
+    "text": "ההרצאות שלו משעממות מוות.",
+    "source": "tatoeba",
+    "upstreamId": "562505"
+  },
+  {
+    "text": "היא פינתה את השולחן.",
+    "source": "tatoeba",
+    "upstreamId": "562508"
+  },
+  {
+    "text": "היא לא יכלה להגיד דבר כזה.",
+    "source": "tatoeba",
+    "upstreamId": "562509"
+  },
+  {
+    "text": "החדשות שהוא עדיין בחיים הגיעו אלינו.",
+    "source": "tatoeba",
+    "upstreamId": "562510"
+  },
+  {
+    "text": "אני לוקח את המצלמה שלי לאן שאני הולך.",
+    "source": "tatoeba",
+    "upstreamId": "562513"
+  },
+  {
+    "text": "לקחתי את זה כמובן מאליו שתצטרף.",
+    "source": "tatoeba",
+    "upstreamId": "562532"
+  },
+  {
+    "text": "לקחתי את זה כמובן מאליו שתצטרפי.",
+    "source": "tatoeba",
+    "upstreamId": "562534"
+  },
+  {
+    "text": "התייחסתי לזה כמובן מאליו שתצטרף.",
+    "source": "tatoeba",
+    "upstreamId": "562536"
+  },
+  {
+    "text": "התייחסתי לזה כמובן מאליו שתצטרפי.",
+    "source": "tatoeba",
+    "upstreamId": "562537"
+  },
+  {
+    "text": "היא נאיבית בצורה שלא תיאמן.",
+    "source": "tatoeba",
+    "upstreamId": "562538"
+  },
+  {
+    "text": "אני מעוניין לקנות.",
+    "source": "tatoeba",
+    "upstreamId": "562543"
+  },
+  {
+    "text": "אני מעוניינת לקנות.",
+    "source": "tatoeba",
+    "upstreamId": "562544"
+  },
+  {
+    "text": "הוא נסע לאיטליה לפני עשר שנים ומאז הוא חי שם.",
+    "source": "tatoeba",
+    "upstreamId": "562551"
+  },
+  {
+    "text": "מדוע הפיזיקאים מכונסים? כי הם מונוטוניים ומוגבלים.",
+    "source": "tatoeba",
+    "upstreamId": "562631"
+  },
+  {
+    "text": "אני לא אוהב את שניהם.",
+    "source": "tatoeba",
+    "upstreamId": "562648"
+  },
+  {
+    "text": "אני לא אוהבת את שניהם.",
+    "source": "tatoeba",
+    "upstreamId": "562649"
+  },
+  {
+    "text": "היו לנו שלושה מטוסים.",
+    "source": "tatoeba",
+    "upstreamId": "562651"
+  },
+  {
+    "text": "גם על המאדים יש חתולים.",
+    "source": "tatoeba",
+    "upstreamId": "562655"
+  },
+  {
+    "text": "על מאדים יש חתולים גם כן.",
+    "source": "tatoeba",
+    "upstreamId": "562656"
+  },
+  {
+    "text": "כל המשתתפים מקווים שמיזם Tatoeba יכיל מיליון משפטים עד סוף השנה.",
+    "source": "tatoeba",
+    "upstreamId": "562657"
+  },
+  {
+    "text": "כל המשתתפים מקווים שעד סוף השנה מיזם Tatoeba יכיל מיליון משפטים.",
+    "source": "tatoeba",
+    "upstreamId": "562658"
+  },
+  {
+    "text": "מזג האוויר הגרוע העיב על הטקס.",
+    "source": "tatoeba",
+    "upstreamId": "562661"
+  },
+  {
+    "text": "מזג האוויר הגרוע פגם בטקס.",
+    "source": "tatoeba",
+    "upstreamId": "562662"
+  },
+  {
+    "text": "הייתי צריך לנסות את מכונת הגילוח החשמלית הזאת לפני שקניתי אותה.",
+    "source": "tatoeba",
+    "upstreamId": "562663"
+  },
+  {
+    "text": "הייתי צריכה לנסות את מכונת הגילוח החשמלית הזאת לפני שקניתי אותה.",
+    "source": "tatoeba",
+    "upstreamId": "562665"
+  },
+  {
+    "text": "תוכל להגיד לי מה היתרה שלי?",
+    "source": "tatoeba",
+    "upstreamId": "562670"
+  },
+  {
+    "text": "תוכלי להגיד לי מה היתרה שלי?",
+    "source": "tatoeba",
+    "upstreamId": "562671"
+  },
+  {
+    "text": "הוא צייר תמונה של כלב.",
+    "source": "tatoeba",
+    "upstreamId": "562675"
+  },
+  {
+    "text": "נימוסיה אלגנטיים.",
+    "source": "tatoeba",
+    "upstreamId": "562681"
+  },
+  {
+    "text": "אתה צריך את עזרתנו?",
+    "source": "tatoeba",
+    "upstreamId": "562684"
+  },
+  {
+    "text": "את צריכה את עזרתנו?",
+    "source": "tatoeba",
+    "upstreamId": "562685"
+  },
+  {
+    "text": "אני שמחה שחזרת.",
+    "source": "tatoeba",
+    "upstreamId": "562688"
+  },
+  {
+    "text": "אני לא יכול לחיות בלי טלוויזיה.",
+    "source": "tatoeba",
+    "upstreamId": "562691"
+  },
+  {
+    "text": "אני לא יכולה לחיות בלי טלוויזיה.",
+    "source": "tatoeba",
+    "upstreamId": "562692"
+  },
+  {
+    "text": "שירתו של זמר מקצועי תחוויר אל מול שירתך.",
+    "source": "tatoeba",
+    "upstreamId": "562695"
+  },
+  {
+    "text": "אני לומד מוזיקה.",
+    "source": "tatoeba",
+    "upstreamId": "562698"
+  },
+  {
+    "text": "אני לומדת מוזיקה.",
+    "source": "tatoeba",
+    "upstreamId": "562699"
+  },
+  {
+    "text": "הרעיון שלו טוב יותר משלך.",
+    "source": "tatoeba",
+    "upstreamId": "562701"
+  },
+  {
+    "text": "הרעיון שלה טוב יותר משלך.",
+    "source": "tatoeba",
+    "upstreamId": "562702"
+  },
+  {
+    "text": "הין חלש יותר מהדולר.",
+    "source": "tatoeba",
+    "upstreamId": "562704"
+  },
+  {
+    "text": "תחזיק מעמד עד שאגיע אליך.",
+    "source": "tatoeba",
+    "upstreamId": "562707"
+  },
+  {
+    "text": "תחזיקי מעמד עד שאגיע אלייך.",
+    "source": "tatoeba",
+    "upstreamId": "562708"
+  },
+  {
+    "text": "תחזיקו מעמד עד שאגיע אליכם.",
+    "source": "tatoeba",
+    "upstreamId": "562709"
+  },
+  {
+    "text": "אם תפנה שמאלה, תראה בית קפה.",
+    "source": "tatoeba",
+    "upstreamId": "562727"
+  },
+  {
+    "text": "אם תפני שמאלה, תראי בית קפה.",
+    "source": "tatoeba",
+    "upstreamId": "562728"
+  },
+  {
+    "text": "עסקנו בדיון בתוכניותינו לעתיד.",
+    "source": "tatoeba",
+    "upstreamId": "562729"
+  },
+  {
+    "text": "בואו נעמיד פנים שאנחנו מחו\"ל.",
+    "source": "tatoeba",
+    "upstreamId": "562731"
+  },
+  {
+    "text": "זוהי הרכבת המהירה בעולם.",
+    "source": "tatoeba",
+    "upstreamId": "562732"
+  },
+  {
+    "text": "אני לא אוהב קפה.",
+    "source": "tatoeba",
+    "upstreamId": "562734"
+  },
+  {
+    "text": "אני לא אוהבת קפה.",
+    "source": "tatoeba",
+    "upstreamId": "562735"
+  },
+  {
+    "text": "נשמעה צפירה, והאונייה החלה לצאת באיטיות מן הנמל.",
+    "source": "tatoeba",
+    "upstreamId": "562737"
+  },
+  {
+    "text": "עקב הישיבה הארוכה והבלתי נוחה, הגוף שלי מתחיל עכשיו לכאוב - בעיקר העורף והגב.",
+    "source": "tatoeba",
+    "upstreamId": "562738"
+  },
+  {
+    "text": "דתות אסיה משמשות לו השראה ליצירת פסלים נהדרים.",
+    "source": "tatoeba",
+    "upstreamId": "562740"
+  },
+  {
+    "text": "הם יצאו בחמש, אז הם צריכים להגיע הביתה עד שש.",
+    "source": "tatoeba",
+    "upstreamId": "562741"
+  },
+  {
+    "text": "היות שקשה לסינים ללמוד אספרנטו.",
+    "source": "tatoeba",
+    "upstreamId": "562747"
+  },
+  {
+    "text": "היא העלתה התנגדות חשובה לטיעון שלו.",
+    "source": "tatoeba",
+    "upstreamId": "562751"
+  },
+  {
+    "text": "היא התנדבה במשך שנה שלמה במסגרת שירות המתנדבים האירופי.",
+    "source": "tatoeba",
+    "upstreamId": "562753"
+  },
+  {
+    "text": "אני עסוקה כרגע.",
+    "source": "tatoeba",
+    "upstreamId": "562755"
+  },
+  {
+    "text": "הציפור הלאומית של מינסוטה היא היתוש.",
+    "source": "tatoeba",
+    "upstreamId": "562757"
+  },
+  {
+    "text": "הוא שאל אותי מספר שאלות על המבחן במתמטיקה.",
+    "source": "tatoeba",
+    "upstreamId": "562758"
+  },
+  {
+    "text": "אפשר תמיד לסמוך על הולמס בכל מקרה חירום.",
+    "source": "tatoeba",
+    "upstreamId": "562766"
+  },
+  {
+    "text": "אתה יכול תמיד לסמוך על הולמס בכל מקרה חירום.",
+    "source": "tatoeba",
+    "upstreamId": "562768"
+  },
+  {
+    "text": "הפעולה שלך פגעה בכבודו.",
+    "source": "tatoeba",
+    "upstreamId": "562769"
+  },
+  {
+    "text": "התוכנית שלך חייבת להצליח.",
+    "source": "tatoeba",
+    "upstreamId": "562772"
+  },
+  {
+    "text": "התוכנית שלך בוודאי תצליח.",
+    "source": "tatoeba",
+    "upstreamId": "562774"
+  },
+  {
+    "text": "תסתכל עליי כשאני מדבר אליך!",
+    "source": "tatoeba",
+    "upstreamId": "562777"
+  },
+  {
+    "text": "תסתכלי עליי כשאני מדבר אלייך!",
+    "source": "tatoeba",
+    "upstreamId": "562778"
+  },
+  {
+    "text": "דניאל הודה לשוטרים.",
+    "source": "tatoeba",
+    "upstreamId": "562781"
+  },
+  {
+    "text": "למנהל יש בעיות רבות.",
+    "source": "tatoeba",
+    "upstreamId": "562783"
+  },
+  {
+    "text": "אתה לא בתפקיד הלילה?",
+    "source": "tatoeba",
+    "upstreamId": "562786"
+  },
+  {
+    "text": "את לא בתפקיד הלילה?",
+    "source": "tatoeba",
+    "upstreamId": "562787"
+  },
+  {
+    "text": "אתם לא בתפקיד הלילה?",
+    "source": "tatoeba",
+    "upstreamId": "562789"
+  },
+  {
+    "text": "הוא קודם למשרת מנהל בית הספר.",
+    "source": "tatoeba",
+    "upstreamId": "562801"
+  },
+  {
+    "text": "קידמו אותו בתפקיד למשרת מנהל בית הספר.",
+    "source": "tatoeba",
+    "upstreamId": "562802"
+  },
+  {
+    "text": "הוא קיבל קידום למשרת מנהל בית הספר.",
+    "source": "tatoeba",
+    "upstreamId": "562803"
+  },
+  {
+    "text": "יעברו עוד שלושה חודשים עד שהבית שלנו יהיה מוכן.",
+    "source": "tatoeba",
+    "upstreamId": "562804"
+  },
+  {
+    "text": "בני עכשיו באותו גובה שלי.",
+    "source": "tatoeba",
+    "upstreamId": "562806"
+  },
+  {
+    "text": "הוא לא יודע אנגלית, שלא לומר גרמנית.",
+    "source": "tatoeba",
+    "upstreamId": "562807"
+  },
+  {
+    "text": "הוא לא יודע אנגלית, ואין מה לדבר על גרמנית.",
+    "source": "tatoeba",
+    "upstreamId": "562809"
+  },
+  {
+    "text": "כל אזרח צריך לעזור להם.",
+    "source": "tatoeba",
+    "upstreamId": "562818"
+  },
+  {
+    "text": "מתי אירעה התאונה?",
+    "source": "tatoeba",
+    "upstreamId": "562819"
+  },
+  {
+    "text": "מתי קרתה התאונה?",
+    "source": "tatoeba",
+    "upstreamId": "562823"
+  }
+]

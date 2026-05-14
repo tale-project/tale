@@ -6,6 +6,7 @@
   "description": "{{description}}",
   "exports": {
     ".": "./src/index.ts",
+    "./i18n/messages": "./src/i18n/messages.ts",
     "./globals.css": "./src/globals.css",
     "./tailwind-preset": "./tailwind-preset.ts"
   },
@@ -17,5 +18,8 @@
     "test:watch": "bunx vitest"{{#if storybook}},
     "storybook": "bunx --bun storybook dev -p 6006",
     "storybook:build": "bunx --bun storybook build -o storybook-static"{{/if}}
+  },
+  "dependencies": {
+    "@tale/ui": "workspace:*"
   }
 }

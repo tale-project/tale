@@ -1,0 +1,3315 @@
+{
+  "_meta": {
+    "locale": "vi",
+    "generator": "@tale/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 300,
+      "negatives": 0
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "positives": [
+    {
+      "id": "email-vi-00000",
+      "input": "Vui lòng gửi bưu kiện đến alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00001",
+      "input": "Địa chỉ bưu điện: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00002",
+      "input": "Khách hàng sống tại marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00003",
+      "input": "Điểm nhận hàng — anna.mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00004",
+      "input": "Vui lòng gửi bưu kiện đến alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00005",
+      "input": "Địa chỉ bưu điện: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00006",
+      "input": "Khách hàng sống tại mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00007",
+      "input": "Điểm nhận hàng — anna_mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00008",
+      "input": "Vui lòng gửi bưu kiện đến alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00009",
+      "input": "Địa chỉ bưu điện: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00010",
+      "input": "Khách hàng sống tại mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00011",
+      "input": "Điểm nhận hàng — annamueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00012",
+      "input": "Vui lòng gửi bưu kiện đến alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00013",
+      "input": "Địa chỉ bưu điện: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00014",
+      "input": "Khách hàng sống tại marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00015",
+      "input": "Điểm nhận hàng — anna.mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00016",
+      "input": "Vui lòng gửi bưu kiện đến alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00017",
+      "input": "Địa chỉ bưu điện: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00018",
+      "input": "Khách hàng sống tại mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00019",
+      "input": "Điểm nhận hàng — anna_mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00020",
+      "input": "Vui lòng gửi bưu kiện đến alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00021",
+      "input": "Địa chỉ bưu điện: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00022",
+      "input": "Khách hàng sống tại mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00023",
+      "input": "Điểm nhận hàng — annamueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00024",
+      "input": "Vui lòng gửi bưu kiện đến alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00025",
+      "input": "Địa chỉ bưu điện: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00026",
+      "input": "Khách hàng sống tại marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00027",
+      "input": "Điểm nhận hàng — anna.mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00028",
+      "input": "Vui lòng gửi bưu kiện đến alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00029",
+      "input": "Địa chỉ bưu điện: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00030",
+      "input": "Khách hàng sống tại mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00031",
+      "input": "Điểm nhận hàng — anna_mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00032",
+      "input": "Vui lòng gửi bưu kiện đến alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00033",
+      "input": "Địa chỉ bưu điện: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00034",
+      "input": "Khách hàng sống tại mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00035",
+      "input": "Điểm nhận hàng — annamueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00036",
+      "input": "Vui lòng gửi bưu kiện đến alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00037",
+      "input": "Địa chỉ bưu điện: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00038",
+      "input": "Khách hàng sống tại marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00039",
+      "input": "Điểm nhận hàng — anna.mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00040",
+      "input": "Vui lòng gửi bưu kiện đến alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00041",
+      "input": "Địa chỉ bưu điện: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00042",
+      "input": "Khách hàng sống tại mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00043",
+      "input": "Điểm nhận hàng — anna_mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00044",
+      "input": "Vui lòng gửi bưu kiện đến alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00045",
+      "input": "Địa chỉ bưu điện: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00046",
+      "input": "Khách hàng sống tại mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00047",
+      "input": "Điểm nhận hàng — annamueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00048",
+      "input": "Vui lòng gửi bưu kiện đến alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00049",
+      "input": "Địa chỉ bưu điện: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00050",
+      "input": "Khách hàng sống tại marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00051",
+      "input": "Điểm nhận hàng — anna.mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00052",
+      "input": "Vui lòng gửi bưu kiện đến alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00053",
+      "input": "Địa chỉ bưu điện: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00054",
+      "input": "Khách hàng sống tại mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00055",
+      "input": "Điểm nhận hàng — anna_mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00056",
+      "input": "Vui lòng gửi bưu kiện đến alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00057",
+      "input": "Địa chỉ bưu điện: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00058",
+      "input": "Khách hàng sống tại mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00059",
+      "input": "Điểm nhận hàng — annamueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00060",
+      "input": "Vui lòng gửi bưu kiện đến alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00061",
+      "input": "Địa chỉ bưu điện: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00062",
+      "input": "Khách hàng sống tại marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00063",
+      "input": "Điểm nhận hàng — anna.mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00064",
+      "input": "Vui lòng gửi bưu kiện đến alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00065",
+      "input": "Địa chỉ bưu điện: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00066",
+      "input": "Khách hàng sống tại mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00067",
+      "input": "Điểm nhận hàng — anna_mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00068",
+      "input": "Vui lòng gửi bưu kiện đến alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00069",
+      "input": "Địa chỉ bưu điện: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00070",
+      "input": "Khách hàng sống tại mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00071",
+      "input": "Điểm nhận hàng — annamueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00072",
+      "input": "Vui lòng gửi bưu kiện đến alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00073",
+      "input": "Địa chỉ bưu điện: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00074",
+      "input": "Khách hàng sống tại marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00075",
+      "input": "Điểm nhận hàng — anna.mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00076",
+      "input": "Vui lòng gửi bưu kiện đến alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00077",
+      "input": "Địa chỉ bưu điện: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00078",
+      "input": "Khách hàng sống tại mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00079",
+      "input": "Điểm nhận hàng — anna_mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00080",
+      "input": "Vui lòng gửi bưu kiện đến alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00081",
+      "input": "Địa chỉ bưu điện: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00082",
+      "input": "Khách hàng sống tại mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00083",
+      "input": "Điểm nhận hàng — annamueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00084",
+      "input": "Vui lòng gửi bưu kiện đến alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00085",
+      "input": "Địa chỉ bưu điện: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00086",
+      "input": "Khách hàng sống tại marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00087",
+      "input": "Điểm nhận hàng — anna.mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00088",
+      "input": "Vui lòng gửi bưu kiện đến alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00089",
+      "input": "Địa chỉ bưu điện: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00090",
+      "input": "Khách hàng sống tại mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00091",
+      "input": "Điểm nhận hàng — anna_mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00092",
+      "input": "Vui lòng gửi bưu kiện đến alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00093",
+      "input": "Địa chỉ bưu điện: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00094",
+      "input": "Khách hàng sống tại mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00095",
+      "input": "Điểm nhận hàng — annamueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00096",
+      "input": "Vui lòng gửi bưu kiện đến alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00097",
+      "input": "Địa chỉ bưu điện: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00098",
+      "input": "Khách hàng sống tại marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00099",
+      "input": "Điểm nhận hàng — anna.mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00100",
+      "input": "Vui lòng gửi bưu kiện đến alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00101",
+      "input": "Địa chỉ bưu điện: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00102",
+      "input": "Khách hàng sống tại mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00103",
+      "input": "Điểm nhận hàng — anna_mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00104",
+      "input": "Vui lòng gửi bưu kiện đến alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00105",
+      "input": "Địa chỉ bưu điện: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00106",
+      "input": "Khách hàng sống tại mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00107",
+      "input": "Điểm nhận hàng — annamueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00108",
+      "input": "Vui lòng gửi bưu kiện đến alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00109",
+      "input": "Địa chỉ bưu điện: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00110",
+      "input": "Khách hàng sống tại marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00111",
+      "input": "Điểm nhận hàng — anna.mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00112",
+      "input": "Vui lòng gửi bưu kiện đến alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00113",
+      "input": "Địa chỉ bưu điện: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00114",
+      "input": "Khách hàng sống tại mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00115",
+      "input": "Điểm nhận hàng — anna_mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00116",
+      "input": "Vui lòng gửi bưu kiện đến alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00117",
+      "input": "Địa chỉ bưu điện: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00118",
+      "input": "Khách hàng sống tại mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00119",
+      "input": "Điểm nhận hàng — annamueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00120",
+      "input": "Vui lòng gửi bưu kiện đến alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00121",
+      "input": "Địa chỉ bưu điện: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00122",
+      "input": "Khách hàng sống tại marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00123",
+      "input": "Điểm nhận hàng — anna.mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00124",
+      "input": "Vui lòng gửi bưu kiện đến alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00125",
+      "input": "Địa chỉ bưu điện: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00126",
+      "input": "Khách hàng sống tại mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00127",
+      "input": "Điểm nhận hàng — anna_mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00128",
+      "input": "Vui lòng gửi bưu kiện đến alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00129",
+      "input": "Địa chỉ bưu điện: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00130",
+      "input": "Khách hàng sống tại mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00131",
+      "input": "Điểm nhận hàng — annamueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00132",
+      "input": "Vui lòng gửi bưu kiện đến alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00133",
+      "input": "Địa chỉ bưu điện: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00134",
+      "input": "Khách hàng sống tại marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00135",
+      "input": "Điểm nhận hàng — anna.mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00136",
+      "input": "Vui lòng gửi bưu kiện đến alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00137",
+      "input": "Địa chỉ bưu điện: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00138",
+      "input": "Khách hàng sống tại mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00139",
+      "input": "Điểm nhận hàng — anna_mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00140",
+      "input": "Vui lòng gửi bưu kiện đến alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00141",
+      "input": "Địa chỉ bưu điện: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00142",
+      "input": "Khách hàng sống tại mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00143",
+      "input": "Điểm nhận hàng — annamueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00144",
+      "input": "Vui lòng gửi bưu kiện đến alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00145",
+      "input": "Địa chỉ bưu điện: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00146",
+      "input": "Khách hàng sống tại marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00147",
+      "input": "Điểm nhận hàng — anna.mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00148",
+      "input": "Vui lòng gửi bưu kiện đến alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00149",
+      "input": "Địa chỉ bưu điện: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00150",
+      "input": "Khách hàng sống tại mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00151",
+      "input": "Điểm nhận hàng — anna_mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00152",
+      "input": "Vui lòng gửi bưu kiện đến alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00153",
+      "input": "Địa chỉ bưu điện: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00154",
+      "input": "Khách hàng sống tại mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00155",
+      "input": "Điểm nhận hàng — annamueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00156",
+      "input": "Vui lòng gửi bưu kiện đến alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00157",
+      "input": "Địa chỉ bưu điện: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00158",
+      "input": "Khách hàng sống tại marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00159",
+      "input": "Điểm nhận hàng — anna.mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00160",
+      "input": "Vui lòng gửi bưu kiện đến alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00161",
+      "input": "Địa chỉ bưu điện: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00162",
+      "input": "Khách hàng sống tại mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00163",
+      "input": "Điểm nhận hàng — anna_mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00164",
+      "input": "Vui lòng gửi bưu kiện đến alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00165",
+      "input": "Địa chỉ bưu điện: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00166",
+      "input": "Khách hàng sống tại mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00167",
+      "input": "Điểm nhận hàng — annamueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00168",
+      "input": "Vui lòng gửi bưu kiện đến alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00169",
+      "input": "Địa chỉ bưu điện: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00170",
+      "input": "Khách hàng sống tại marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00171",
+      "input": "Điểm nhận hàng — anna.mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00172",
+      "input": "Vui lòng gửi bưu kiện đến alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00173",
+      "input": "Địa chỉ bưu điện: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00174",
+      "input": "Khách hàng sống tại mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00175",
+      "input": "Điểm nhận hàng — anna_mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00176",
+      "input": "Vui lòng gửi bưu kiện đến alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00177",
+      "input": "Địa chỉ bưu điện: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00178",
+      "input": "Khách hàng sống tại mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00179",
+      "input": "Điểm nhận hàng — annamueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00180",
+      "input": "Vui lòng gửi bưu kiện đến alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00181",
+      "input": "Địa chỉ bưu điện: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00182",
+      "input": "Khách hàng sống tại marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00183",
+      "input": "Điểm nhận hàng — anna.mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00184",
+      "input": "Vui lòng gửi bưu kiện đến alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00185",
+      "input": "Địa chỉ bưu điện: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00186",
+      "input": "Khách hàng sống tại mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00187",
+      "input": "Điểm nhận hàng — anna_mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00188",
+      "input": "Vui lòng gửi bưu kiện đến alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00189",
+      "input": "Địa chỉ bưu điện: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00190",
+      "input": "Khách hàng sống tại mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00191",
+      "input": "Điểm nhận hàng — annamueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00192",
+      "input": "Vui lòng gửi bưu kiện đến alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00193",
+      "input": "Địa chỉ bưu điện: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00194",
+      "input": "Khách hàng sống tại marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00195",
+      "input": "Điểm nhận hàng — anna.mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00196",
+      "input": "Vui lòng gửi bưu kiện đến alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00197",
+      "input": "Địa chỉ bưu điện: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00198",
+      "input": "Khách hàng sống tại mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00199",
+      "input": "Điểm nhận hàng — anna_mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00200",
+      "input": "Vui lòng gửi bưu kiện đến alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00201",
+      "input": "Địa chỉ bưu điện: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00202",
+      "input": "Khách hàng sống tại mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00203",
+      "input": "Điểm nhận hàng — annamueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00204",
+      "input": "Vui lòng gửi bưu kiện đến alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00205",
+      "input": "Địa chỉ bưu điện: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00206",
+      "input": "Khách hàng sống tại marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00207",
+      "input": "Điểm nhận hàng — anna.mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00208",
+      "input": "Vui lòng gửi bưu kiện đến alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00209",
+      "input": "Địa chỉ bưu điện: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00210",
+      "input": "Khách hàng sống tại mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00211",
+      "input": "Điểm nhận hàng — anna_mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00212",
+      "input": "Vui lòng gửi bưu kiện đến alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00213",
+      "input": "Địa chỉ bưu điện: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00214",
+      "input": "Khách hàng sống tại mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00215",
+      "input": "Điểm nhận hàng — annamueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00216",
+      "input": "Vui lòng gửi bưu kiện đến alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00217",
+      "input": "Địa chỉ bưu điện: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00218",
+      "input": "Khách hàng sống tại marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00219",
+      "input": "Điểm nhận hàng — anna.mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00220",
+      "input": "Vui lòng gửi bưu kiện đến alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00221",
+      "input": "Địa chỉ bưu điện: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00222",
+      "input": "Khách hàng sống tại mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00223",
+      "input": "Điểm nhận hàng — anna_mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00224",
+      "input": "Vui lòng gửi bưu kiện đến alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00225",
+      "input": "Địa chỉ bưu điện: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00226",
+      "input": "Khách hàng sống tại mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00227",
+      "input": "Điểm nhận hàng — annamueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00228",
+      "input": "Vui lòng gửi bưu kiện đến alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00229",
+      "input": "Địa chỉ bưu điện: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00230",
+      "input": "Khách hàng sống tại marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00231",
+      "input": "Điểm nhận hàng — anna.mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00232",
+      "input": "Vui lòng gửi bưu kiện đến alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00233",
+      "input": "Địa chỉ bưu điện: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00234",
+      "input": "Khách hàng sống tại mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00235",
+      "input": "Điểm nhận hàng — anna_mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00236",
+      "input": "Vui lòng gửi bưu kiện đến alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00237",
+      "input": "Địa chỉ bưu điện: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00238",
+      "input": "Khách hàng sống tại mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00239",
+      "input": "Điểm nhận hàng — annamueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00240",
+      "input": "Vui lòng gửi bưu kiện đến alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00241",
+      "input": "Địa chỉ bưu điện: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00242",
+      "input": "Khách hàng sống tại marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00243",
+      "input": "Điểm nhận hàng — anna.mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00244",
+      "input": "Vui lòng gửi bưu kiện đến alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00245",
+      "input": "Địa chỉ bưu điện: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00246",
+      "input": "Khách hàng sống tại mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00247",
+      "input": "Điểm nhận hàng — anna_mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00248",
+      "input": "Vui lòng gửi bưu kiện đến alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00249",
+      "input": "Địa chỉ bưu điện: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00250",
+      "input": "Khách hàng sống tại mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00251",
+      "input": "Điểm nhận hàng — annamueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00252",
+      "input": "Vui lòng gửi bưu kiện đến alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00253",
+      "input": "Địa chỉ bưu điện: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00254",
+      "input": "Khách hàng sống tại marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00255",
+      "input": "Điểm nhận hàng — anna.mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00256",
+      "input": "Vui lòng gửi bưu kiện đến alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00257",
+      "input": "Địa chỉ bưu điện: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00258",
+      "input": "Khách hàng sống tại mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00259",
+      "input": "Điểm nhận hàng — anna_mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00260",
+      "input": "Vui lòng gửi bưu kiện đến alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00261",
+      "input": "Địa chỉ bưu điện: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00262",
+      "input": "Khách hàng sống tại mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00263",
+      "input": "Điểm nhận hàng — annamueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00264",
+      "input": "Vui lòng gửi bưu kiện đến alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00265",
+      "input": "Địa chỉ bưu điện: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00266",
+      "input": "Khách hàng sống tại marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00267",
+      "input": "Điểm nhận hàng — anna.mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00268",
+      "input": "Vui lòng gửi bưu kiện đến alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00269",
+      "input": "Địa chỉ bưu điện: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00270",
+      "input": "Khách hàng sống tại mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00271",
+      "input": "Điểm nhận hàng — anna_mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00272",
+      "input": "Vui lòng gửi bưu kiện đến alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00273",
+      "input": "Địa chỉ bưu điện: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00274",
+      "input": "Khách hàng sống tại mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00275",
+      "input": "Điểm nhận hàng — annamueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00276",
+      "input": "Vui lòng gửi bưu kiện đến alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00277",
+      "input": "Địa chỉ bưu điện: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00278",
+      "input": "Khách hàng sống tại marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00279",
+      "input": "Điểm nhận hàng — anna.mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00280",
+      "input": "Vui lòng gửi bưu kiện đến alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00281",
+      "input": "Địa chỉ bưu điện: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00282",
+      "input": "Khách hàng sống tại mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00283",
+      "input": "Điểm nhận hàng — anna_mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00284",
+      "input": "Vui lòng gửi bưu kiện đến alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00285",
+      "input": "Địa chỉ bưu điện: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00286",
+      "input": "Khách hàng sống tại mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00287",
+      "input": "Điểm nhận hàng — annamueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00288",
+      "input": "Vui lòng gửi bưu kiện đến alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00289",
+      "input": "Địa chỉ bưu điện: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00290",
+      "input": "Khách hàng sống tại marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00291",
+      "input": "Điểm nhận hàng — anna.mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00292",
+      "input": "Vui lòng gửi bưu kiện đến alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00293",
+      "input": "Địa chỉ bưu điện: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00294",
+      "input": "Khách hàng sống tại mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00295",
+      "input": "Điểm nhận hàng — anna_mueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00296",
+      "input": "Vui lòng gửi bưu kiện đến alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00297",
+      "input": "Địa chỉ bưu điện: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00298",
+      "input": "Khách hàng sống tại mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-vi-00299",
+      "input": "Điểm nhận hàng — annamueller@corp.example — đã xác nhận.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    }
+  ]
+}

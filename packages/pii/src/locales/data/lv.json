@@ -1,0 +1,28 @@
+{
+  "locale": "lv",
+  "name": "Latvian",
+  "scripts": ["latn"],
+  "countries": ["LV"],
+  "phoneContextKeywords": ["tālrunis", "mobilais", "numurs", "tel.", "tel"],
+  "cvcContextKeywords": ["drošības kods", "cvc", "cvv", "cv2"],
+  "address": {
+    "forms": ["inverted", "po-box"],
+    "postcodeForm": "continental",
+    "postcodeRegex": "LV-?\\d{4}",
+    "requireUppercase": true,
+    "streetKeywordsInverted": ["iela", "bulvāris", "laukums"],
+    "poBoxKeywords": ["a.k.", "abonenta kastīte"],
+    "floorKeywords": ["stāvs", "dzīvoklis"],
+    "countryNames": ["Latvija", "Latvia", "LV"],
+    "countryPostcodePrefixes": []
+  },
+  "nationalIds": [],
+  "fixtureSeeds": {
+    "wrappers": [
+      "Lūdzu, sūtiet sūtījumu uz {}.",
+      "Pasta adrese: {}",
+      "Klients dzīvo {}.",
+      "Saņemšanas vieta — {} — apstiprināta."
+    ]
+  }
+}

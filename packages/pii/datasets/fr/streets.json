@@ -1,0 +1,122 @@
+[
+  {
+    "name": "Rue de l'Église",
+    "countryCode": "FR",
+    "frequency": 7521,
+    "source": "manual"
+  },
+  {
+    "name": "Rue de la Mairie",
+    "countryCode": "FR",
+    "frequency": 6802,
+    "source": "manual"
+  },
+  {
+    "name": "Place de la République",
+    "countryCode": "FR",
+    "frequency": 5301,
+    "source": "manual"
+  },
+  {
+    "name": "Rue Gambetta",
+    "countryCode": "FR",
+    "frequency": 4982,
+    "source": "manual"
+  },
+  {
+    "name": "Avenue Jean Jaurès",
+    "countryCode": "FR",
+    "frequency": 4715,
+    "source": "manual"
+  },
+  {
+    "name": "Rue Victor Hugo",
+    "countryCode": "FR",
+    "frequency": 4502,
+    "source": "manual"
+  },
+  {
+    "name": "Rue Pasteur",
+    "countryCode": "FR",
+    "frequency": 4321,
+    "source": "manual"
+  },
+  {
+    "name": "Avenue Charles de Gaulle",
+    "countryCode": "FR",
+    "frequency": 4205,
+    "source": "manual"
+  },
+  {
+    "name": "Rue Saint-Antoine",
+    "countryCode": "FR",
+    "frequency": 3814,
+    "source": "manual"
+  },
+  {
+    "name": "Rue Jeanne d'Arc",
+    "countryCode": "FR",
+    "frequency": 3611,
+    "source": "manual"
+  },
+  {
+    "name": "Avenue Foch",
+    "countryCode": "FR",
+    "frequency": 3408,
+    "source": "manual"
+  },
+  {
+    "name": "Avenue Clemenceau",
+    "countryCode": "FR",
+    "frequency": 3211,
+    "source": "manual"
+  },
+  {
+    "name": "Rue de la Paix",
+    "countryCode": "FR",
+    "frequency": 3045,
+    "source": "manual"
+  },
+  {
+    "name": "Avenue des Champs-Élysées",
+    "countryCode": "FR",
+    "frequency": 2901,
+    "source": "manual"
+  },
+  {
+    "name": "Rue de Rivoli",
+    "countryCode": "FR",
+    "frequency": 2812,
+    "source": "manual"
+  },
+  {
+    "name": "Rue Saint-Honoré",
+    "countryCode": "FR",
+    "frequency": 2701,
+    "source": "manual"
+  },
+  {
+    "name": "Rue du Faubourg",
+    "countryCode": "FR",
+    "frequency": 2604,
+    "source": "manual"
+  },
+  {
+    "name": "Rue de la Liberté",
+    "countryCode": "FR",
+    "frequency": 2502,
+    "source": "manual"
+  },
+  {
+    "name": "Boulevard Saint-Germain",
+    "countryCode": "FR",
+    "frequency": 2401,
+    "source": "manual"
+  },
+  {
+    "name": "Rue Montmartre",
+    "countryCode": "FR",
+    "frequency": 2305,
+    "source": "manual"
+  }
+]

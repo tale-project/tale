@@ -1,0 +1,53 @@
+{
+  "locale": "fi",
+  "name": "Finnish",
+  "scripts": ["latn"],
+  "countries": ["FI"],
+  "phoneContextKeywords": [
+    "puhelin",
+    "matkapuhelin",
+    "numero",
+    "puh.",
+    "puh",
+    "tel.",
+    "tel"
+  ],
+  "cvcContextKeywords": ["turvakoodi", "cvc", "cvv", "cv2"],
+  "address": {
+    "forms": ["glued-suffix", "standalone-suffix", "po-box"],
+    "postcodeForm": "continental",
+    "postcodeRegex": "\\d{5}",
+    "streetSuffixGlued": [
+      "katu",
+      "tie",
+      "kuja",
+      "polku",
+      "väylä",
+      "raitti",
+      "puistikko",
+      "aukio"
+    ],
+    "streetKeywordsFreeSuffix": ["aukio", "puistikko"],
+    "poBoxKeywords": ["PL", "Postilokero"],
+    "floorKeywords": ["kerros", "krs", "asunto", "as."],
+    "countryNames": ["Suomi", "Finland", "FI"],
+    "countryPostcodePrefixes": [],
+    "requireUppercase": true
+  },
+  "nationalIds": [
+    {
+      "id": "fi-hetu",
+      "name": "Finnish HETU",
+      "pattern": "\\b\\d{6}[+\\-A]\\d{3}[\\dA-Z]\\b",
+      "replacement": "[HETU]"
+    }
+  ],
+  "fixtureSeeds": {
+    "wrappers": [
+      "Lähetä paketti osoitteeseen {}.",
+      "Postiosoite: {}",
+      "Asiakas asuu osoitteessa {}.",
+      "Noutopiste — {} — vahvistettu."
+    ]
+  }
+}

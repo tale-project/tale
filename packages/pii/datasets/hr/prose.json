@@ -1,0 +1,4002 @@
+[
+  {
+    "text": "Ja sam student.",
+    "source": "tatoeba",
+    "upstreamId": "466221"
+  },
+  {
+    "text": "Kako se ti zoveš?",
+    "source": "tatoeba",
+    "upstreamId": "468409"
+  },
+  {
+    "text": "Zove se Tomojuki Ogura.",
+    "source": "tatoeba",
+    "upstreamId": "468598"
+  },
+  {
+    "text": "Moja je, nije njegova.",
+    "source": "tatoeba",
+    "upstreamId": "469084"
+  },
+  {
+    "text": "Moj je, nije njegov.",
+    "source": "tatoeba",
+    "upstreamId": "469087"
+  },
+  {
+    "text": "Moje je, nije njegovo.",
+    "source": "tatoeba",
+    "upstreamId": "469089"
+  },
+  {
+    "text": "Bilježnica nije tvoja, njegova je.",
+    "source": "tatoeba",
+    "upstreamId": "469623"
+  },
+  {
+    "text": "Njezin je, zar ne?",
+    "source": "tatoeba",
+    "upstreamId": "470736"
+  },
+  {
+    "text": "Njezina je, zar ne?",
+    "source": "tatoeba",
+    "upstreamId": "470738"
+  },
+  {
+    "text": "Njezino je, zar ne?",
+    "source": "tatoeba",
+    "upstreamId": "470739"
+  },
+  {
+    "text": "To je njihova knjiga.",
+    "source": "tatoeba",
+    "upstreamId": "471049"
+  },
+  {
+    "text": "To je moja mačka.",
+    "source": "tatoeba",
+    "upstreamId": "471760"
+  },
+  {
+    "text": "Njegov je, zar ne?",
+    "source": "tatoeba",
+    "upstreamId": "475448"
+  },
+  {
+    "text": "Njegovo je, zar ne?",
+    "source": "tatoeba",
+    "upstreamId": "475449"
+  },
+  {
+    "text": "Njegova je, zar ne?",
+    "source": "tatoeba",
+    "upstreamId": "475451"
+  },
+  {
+    "text": "Ovo je dobar udžbenik.",
+    "source": "tatoeba",
+    "upstreamId": "475469"
+  },
+  {
+    "text": "To nije mačka, pas je.",
+    "source": "tatoeba",
+    "upstreamId": "475486"
+  },
+  {
+    "text": "Ovo je moje pitanje.",
+    "source": "tatoeba",
+    "upstreamId": "476588"
+  },
+  {
+    "text": "Dobar dan, kako si?",
+    "source": "tatoeba",
+    "upstreamId": "476798"
+  },
+  {
+    "text": "Pas zove se Ken.",
+    "source": "tatoeba",
+    "upstreamId": "476812"
+  },
+  {
+    "text": "Kako se zovete?",
+    "source": "tatoeba",
+    "upstreamId": "476823"
+  },
+  {
+    "text": "Ovo je moja žena Edita.",
+    "source": "tatoeba",
+    "upstreamId": "478207"
+  },
+  {
+    "text": "Kako se kaže...?",
+    "source": "tatoeba",
+    "upstreamId": "478216"
+  },
+  {
+    "text": "Kako se kaže \"Hvala\" na japanskom?",
+    "source": "tatoeba",
+    "upstreamId": "478222"
+  },
+  {
+    "text": "Kako se kaže to na talijanskom?",
+    "source": "tatoeba",
+    "upstreamId": "478232"
+  },
+  {
+    "text": "Kako se kaže XXX na nizozemskom jeziku?",
+    "source": "tatoeba",
+    "upstreamId": "478247"
+  },
+  {
+    "text": "Kako se kaže \"mačka\" na španjolskom?",
+    "source": "tatoeba",
+    "upstreamId": "478259"
+  },
+  {
+    "text": "Kako se kaže \"doviđenja\" na nemačkom jeziku?",
+    "source": "tatoeba",
+    "upstreamId": "478269"
+  },
+  {
+    "text": "Jesi li ti student?",
+    "source": "tatoeba",
+    "upstreamId": "478636"
+  },
+  {
+    "text": "Jesi li ti studentica?",
+    "source": "tatoeba",
+    "upstreamId": "478764"
+  },
+  {
+    "text": "\"Jesi li ti nastavnik?\" \"Da, jesam.\"",
+    "source": "tatoeba",
+    "upstreamId": "478964"
+  },
+  {
+    "text": "Ja sam profesor.",
+    "source": "tatoeba",
+    "upstreamId": "478979"
+  },
+  {
+    "text": "Ja sam profesorica.",
+    "source": "tatoeba",
+    "upstreamId": "479032"
+  },
+  {
+    "text": "Mačka nije čovjek!",
+    "source": "tatoeba",
+    "upstreamId": "481566"
+  },
+  {
+    "text": "On nije znanstvenik, ali on jest naš prijatelj.",
+    "source": "tatoeba",
+    "upstreamId": "481577"
+  },
+  {
+    "text": "Jesu li oni prijatelji?",
+    "source": "tatoeba",
+    "upstreamId": "481596"
+  },
+  {
+    "text": "Je li on nastavnik?",
+    "source": "tatoeba",
+    "upstreamId": "481617"
+  },
+  {
+    "text": "Je li on doktor?",
+    "source": "tatoeba",
+    "upstreamId": "481627"
+  },
+  {
+    "text": "On je Amerikanac.",
+    "source": "tatoeba",
+    "upstreamId": "481659"
+  },
+  {
+    "text": "Mi smo Australci.",
+    "source": "tatoeba",
+    "upstreamId": "482768"
+  },
+  {
+    "text": "Kako se zove tvoj prijatelj?",
+    "source": "tatoeba",
+    "upstreamId": "486672"
+  },
+  {
+    "text": "Kako se zoveš na bosanskom?",
+    "source": "tatoeba",
+    "upstreamId": "486722"
+  },
+  {
+    "text": "Koje je tvoje bosansko ime?",
+    "source": "tatoeba",
+    "upstreamId": "486790"
+  },
+  {
+    "text": "On je znanstvenik.",
+    "source": "tatoeba",
+    "upstreamId": "486837"
+  },
+  {
+    "text": "To je njegov auto.",
+    "source": "tatoeba",
+    "upstreamId": "486980"
+  },
+  {
+    "text": "Ta torba je moja.",
+    "source": "tatoeba",
+    "upstreamId": "486988"
+  },
+  {
+    "text": "Oprosti, tko je ova žena?",
+    "source": "tatoeba",
+    "upstreamId": "487088"
+  },
+  {
+    "text": "Oprostite, tko je ova žena?",
+    "source": "tatoeba",
+    "upstreamId": "487089"
+  },
+  {
+    "text": "Ona se zove Lucifera.",
+    "source": "tatoeba",
+    "upstreamId": "488763"
+  },
+  {
+    "text": "Tko je ovaj čovjek?",
+    "source": "tatoeba",
+    "upstreamId": "488785"
+  },
+  {
+    "text": "Ona je moja profesorica.",
+    "source": "tatoeba",
+    "upstreamId": "490774"
+  },
+  {
+    "text": "On je moj prijatelj.",
+    "source": "tatoeba",
+    "upstreamId": "490780"
+  },
+  {
+    "text": "Ja sam prevoditelj.",
+    "source": "tatoeba",
+    "upstreamId": "490801"
+  },
+  {
+    "text": "Tko je taj čovjek?",
+    "source": "tatoeba",
+    "upstreamId": "493332"
+  },
+  {
+    "text": "Zadržite ostatak.",
+    "source": "tatoeba",
+    "upstreamId": "508464"
+  },
+  {
+    "text": "Sva ljudska bića rađaju se slobodna i jednaka u dostojanstvu i pravima. Ona su obdarena razumom i sviješću, i trebaju jedni prema drugima postupati u duhu bratstva.",
+    "source": "tatoeba",
+    "upstreamId": "532203"
+  },
+  {
+    "text": "Jedan, dva, tri, četiri, pet, šest, sedam, osam, devet, deset.",
+    "source": "tatoeba",
+    "upstreamId": "534049"
+  },
+  {
+    "text": "Vrijeme je tako lijepo!",
+    "source": "tatoeba",
+    "upstreamId": "536978"
+  },
+  {
+    "text": "Vang Lao Dži nije pivo. Čaj je.",
+    "source": "tatoeba",
+    "upstreamId": "540501"
+  },
+  {
+    "text": "Triput meri, jednom seci.",
+    "source": "tatoeba",
+    "upstreamId": "547433"
+  },
+  {
+    "text": "Jesi li ti siguran?",
+    "source": "tatoeba",
+    "upstreamId": "548794"
+  },
+  {
+    "text": "Jesi li ti Ujgur?",
+    "source": "tatoeba",
+    "upstreamId": "568650"
+  },
+  {
+    "text": "Tvoji rezultati ispita su odlični.",
+    "source": "tatoeba",
+    "upstreamId": "655332"
+  },
+  {
+    "text": "Znaš li da joj se sviđaju životinje?",
+    "source": "tatoeba",
+    "upstreamId": "655335"
+  },
+  {
+    "text": "Kažu da zmije hipnotiziraju male životinje i ptice.",
+    "source": "tatoeba",
+    "upstreamId": "655336"
+  },
+  {
+    "text": "George me otpratio kući.",
+    "source": "tatoeba",
+    "upstreamId": "655338"
+  },
+  {
+    "text": "Najbogatiji čovjek na svijetu ne bi mogao kupiti njezinu ljubav.",
+    "source": "tatoeba",
+    "upstreamId": "655340"
+  },
+  {
+    "text": "Pušenje je štetno za zdravlje.",
+    "source": "tatoeba",
+    "upstreamId": "655343"
+  },
+  {
+    "text": "Imate li slobodnih soba?",
+    "source": "tatoeba",
+    "upstreamId": "655346"
+  },
+  {
+    "text": "Jako me brine tvoje zdravlje.",
+    "source": "tatoeba",
+    "upstreamId": "655348"
+  },
+  {
+    "text": "Oni kopaju rupu.",
+    "source": "tatoeba",
+    "upstreamId": "655354"
+  },
+  {
+    "text": "Bliži se veliki tajfun.",
+    "source": "tatoeba",
+    "upstreamId": "655356"
+  },
+  {
+    "text": "Izgubila je novac, obitelj, prijatelje.",
+    "source": "tatoeba",
+    "upstreamId": "655358"
+  },
+  {
+    "text": "Moraš više raditi.",
+    "source": "tatoeba",
+    "upstreamId": "655361"
+  },
+  {
+    "text": "Kakav je ovo film? Je li popularan?",
+    "source": "tatoeba",
+    "upstreamId": "655364"
+  },
+  {
+    "text": "Trgovina igračaka je zatvorena.",
+    "source": "tatoeba",
+    "upstreamId": "655365"
+  },
+  {
+    "text": "Otišao je na more da bi plivao.",
+    "source": "tatoeba",
+    "upstreamId": "655367"
+  },
+  {
+    "text": "Kažem li svojoj majci, brinut će se, zato mislim da joj neću reći.",
+    "source": "tatoeba",
+    "upstreamId": "655373"
+  },
+  {
+    "text": "Odlučila sam joj reći da ga volim.",
+    "source": "tatoeba",
+    "upstreamId": "655379"
+  },
+  {
+    "text": "Tatoeba: Gdje je pozornost za detalje sveta, a kazna brza.",
+    "source": "tatoeba",
+    "upstreamId": "655383"
+  },
+  {
+    "text": "Vi ste njezine kćeri.",
+    "source": "tatoeba",
+    "upstreamId": "655402"
+  },
+  {
+    "text": "S takvom cijenom vaš proizvod neće preživjeti konkurenciju na japanskom tržištu.",
+    "source": "tatoeba",
+    "upstreamId": "655413"
+  },
+  {
+    "text": "Ne postoji ništa vrijednije od ljubavi.",
+    "source": "tatoeba",
+    "upstreamId": "655414"
+  },
+  {
+    "text": "Mogu li uzeti tvoj rječnik?",
+    "source": "tatoeba",
+    "upstreamId": "655417"
+  },
+  {
+    "text": "Hoćeš li otvoriti vrata?",
+    "source": "tatoeba",
+    "upstreamId": "655418"
+  },
+  {
+    "text": "To se mora promijeniti.",
+    "source": "tatoeba",
+    "upstreamId": "655419"
+  },
+  {
+    "text": "Ne znam hoću li imati vremena.",
+    "source": "tatoeba",
+    "upstreamId": "655423"
+  },
+  {
+    "text": "Kada će se sagraditi ovaj hram?",
+    "source": "tatoeba",
+    "upstreamId": "655425"
+  },
+  {
+    "text": "Koja je tvoja omiljena TV zvijezda?",
+    "source": "tatoeba",
+    "upstreamId": "655426"
+  },
+  {
+    "text": "Hoćemo li stići na koncert?",
+    "source": "tatoeba",
+    "upstreamId": "655427"
+  },
+  {
+    "text": "Nitko me ne razumije.",
+    "source": "tatoeba",
+    "upstreamId": "655428"
+  },
+  {
+    "text": "Dojim svoje dijete.",
+    "source": "tatoeba",
+    "upstreamId": "655429"
+  },
+  {
+    "text": "Ne, nikada nisam tamo bio.",
+    "source": "tatoeba",
+    "upstreamId": "655430"
+  },
+  {
+    "text": "Tko je tvoj omiljeni skladatelj?",
+    "source": "tatoeba",
+    "upstreamId": "655432"
+  },
+  {
+    "text": "Ostavljam ti to.",
+    "source": "tatoeba",
+    "upstreamId": "655434"
+  },
+  {
+    "text": "To ne može biti istina.",
+    "source": "tatoeba",
+    "upstreamId": "655435"
+  },
+  {
+    "text": "Danas je više oblaka nego jučer.",
+    "source": "tatoeba",
+    "upstreamId": "655437"
+  },
+  {
+    "text": "Zašto ste sami?",
+    "source": "tatoeba",
+    "upstreamId": "655438"
+  },
+  {
+    "text": "Kakvo je vrijeme u New Yorku?",
+    "source": "tatoeba",
+    "upstreamId": "655439"
+  },
+  {
+    "text": "Savjest grize bez zuba.",
+    "source": "tatoeba",
+    "upstreamId": "655441"
+  },
+  {
+    "text": "To su umjetne suze.",
+    "source": "tatoeba",
+    "upstreamId": "655442"
+  },
+  {
+    "text": "I što ako sam homoseksualac? Zar je to zločin?",
+    "source": "tatoeba",
+    "upstreamId": "655445"
+  },
+  {
+    "text": "Zlato je skuplje od željeza.",
+    "source": "tatoeba",
+    "upstreamId": "655447"
+  },
+  {
+    "text": "Evo restorana u kojem često jedem.",
+    "source": "tatoeba",
+    "upstreamId": "655448"
+  },
+  {
+    "text": "Ona uvijek marljivo radi.",
+    "source": "tatoeba",
+    "upstreamId": "655452"
+  },
+  {
+    "text": "Djevojke su lagano plesale, kao mnoštvo leptira.",
+    "source": "tatoeba",
+    "upstreamId": "655454"
+  },
+  {
+    "text": "Ne mogu se s tobom dogovoriti po tom pitanju.",
+    "source": "tatoeba",
+    "upstreamId": "655455"
+  },
+  {
+    "text": "Dugo je govorila o svojim inozemnim iskustvima.",
+    "source": "tatoeba",
+    "upstreamId": "655456"
+  },
+  {
+    "text": "Kunići imaju duga uha.",
+    "source": "tatoeba",
+    "upstreamId": "655457"
+  },
+  {
+    "text": "Ne razumiju me kada govorim njemački.",
+    "source": "tatoeba",
+    "upstreamId": "655458"
+  },
+  {
+    "text": "Sviđa mu se talijanska kuhinja.",
+    "source": "tatoeba",
+    "upstreamId": "655459"
+  },
+  {
+    "text": "Razbio je ovaj prozor.",
+    "source": "tatoeba",
+    "upstreamId": "655460"
+  },
+  {
+    "text": "On kaže da će doći.",
+    "source": "tatoeba",
+    "upstreamId": "655461"
+  },
+  {
+    "text": "Muškarac je ustao i zapjevao.",
+    "source": "tatoeba",
+    "upstreamId": "655462"
+  },
+  {
+    "text": "Možete li mi poslati brošuru?",
+    "source": "tatoeba",
+    "upstreamId": "655463"
+  },
+  {
+    "text": "On ima desetke knjiga.",
+    "source": "tatoeba",
+    "upstreamId": "655464"
+  },
+  {
+    "text": "Rodio se u Ohiu.",
+    "source": "tatoeba",
+    "upstreamId": "655465"
+  },
+  {
+    "text": "On često citira Shakespeara.",
+    "source": "tatoeba",
+    "upstreamId": "655466"
+  },
+  {
+    "text": "To jelo je ukusnije od onoga.",
+    "source": "tatoeba",
+    "upstreamId": "655467"
+  },
+  {
+    "text": "Vaš prijedlog je suprotan našemu.",
+    "source": "tatoeba",
+    "upstreamId": "655468"
+  },
+  {
+    "text": "On se ne boji opasnosti.",
+    "source": "tatoeba",
+    "upstreamId": "655469"
+  },
+  {
+    "text": "Žena mu je otvorila vrata.",
+    "source": "tatoeba",
+    "upstreamId": "655470"
+  },
+  {
+    "text": "On nije znanstvenik, ali nam je prijatelj.",
+    "source": "tatoeba",
+    "upstreamId": "655476"
+  },
+  {
+    "text": "Ona je moja prva ljubav.",
+    "source": "tatoeba",
+    "upstreamId": "655477"
+  },
+  {
+    "text": "Bio je strašno ranjen.",
+    "source": "tatoeba",
+    "upstreamId": "655479"
+  },
+  {
+    "text": "Uvijek govori o vladi s prijezirom.",
+    "source": "tatoeba",
+    "upstreamId": "655480"
+  },
+  {
+    "text": "Želim da mi se san ostvari.",
+    "source": "tatoeba",
+    "upstreamId": "655482"
+  },
+  {
+    "text": "Pozdravio nas je i otišao.",
+    "source": "tatoeba",
+    "upstreamId": "655484"
+  },
+  {
+    "text": "Ukratko, neki pištolji imaju odlične sigurnosne sustave kako bi spriječili slučajna opaljivanja (npr. kod ispuštanja), a drugi nemaju.",
+    "source": "tatoeba",
+    "upstreamId": "655485"
+  },
+  {
+    "text": "Daj mu vremena.",
+    "source": "tatoeba",
+    "upstreamId": "655486"
+  },
+  {
+    "text": "Ljeto je gotovo.",
+    "source": "tatoeba",
+    "upstreamId": "655487"
+  },
+  {
+    "text": "Ona govori i engleski i njemački.",
+    "source": "tatoeba",
+    "upstreamId": "655488"
+  },
+  {
+    "text": "Čovjek je racionalno biće.",
+    "source": "tatoeba",
+    "upstreamId": "655489"
+  },
+  {
+    "text": "Studiram američku dramu.",
+    "source": "tatoeba",
+    "upstreamId": "655490"
+  },
+  {
+    "text": "Vatra se proširila na susjednu zgradu prije nego što su vatrogasci pristigli.",
+    "source": "tatoeba",
+    "upstreamId": "655491"
+  },
+  {
+    "text": "Zato sam ga otpustio.",
+    "source": "tatoeba",
+    "upstreamId": "655492"
+  },
+  {
+    "text": "Otac mi je kupio tu knjigu.",
+    "source": "tatoeba",
+    "upstreamId": "655493"
+  },
+  {
+    "text": "On ima oči na potiljku.",
+    "source": "tatoeba",
+    "upstreamId": "655494"
+  },
+  {
+    "text": "Isplati se posjetiti muzej.",
+    "source": "tatoeba",
+    "upstreamId": "655495"
+  },
+  {
+    "text": "Ukoliko pronađem tvoju putovnicu, smjesta ću te nazvati.",
+    "source": "tatoeba",
+    "upstreamId": "655496"
+  },
+  {
+    "text": "Radio sam na tome dan za danom.",
+    "source": "tatoeba",
+    "upstreamId": "655497"
+  },
+  {
+    "text": "Ne volim učiti po ovakvoj vrućini.",
+    "source": "tatoeba",
+    "upstreamId": "655498"
+  },
+  {
+    "text": "Nema koristi da ga se pokuša nagovoriti.",
+    "source": "tatoeba",
+    "upstreamId": "655499"
+  },
+  {
+    "text": "Ne može doći jer je bolestan.",
+    "source": "tatoeba",
+    "upstreamId": "655500"
+  },
+  {
+    "text": "Nisam baš bio spreman.",
+    "source": "tatoeba",
+    "upstreamId": "655501"
+  },
+  {
+    "text": "Napustit ću školu.",
+    "source": "tatoeba",
+    "upstreamId": "655502"
+  },
+  {
+    "text": "Iznosio sam svoje cipele.",
+    "source": "tatoeba",
+    "upstreamId": "655503"
+  },
+  {
+    "text": "Vani je poput ljeta.",
+    "source": "tatoeba",
+    "upstreamId": "655504"
+  },
+  {
+    "text": "Čini se da Cathy voli glazbu.",
+    "source": "tatoeba",
+    "upstreamId": "655505"
+  },
+  {
+    "text": "Učiteljica je, ne čuvši zvono, nastavila pričati.",
+    "source": "tatoeba",
+    "upstreamId": "655506"
+  },
+  {
+    "text": "Ona će stići u Tokio početkom sljedećeg mjeseca.",
+    "source": "tatoeba",
+    "upstreamId": "655507"
+  },
+  {
+    "text": "Dao sam svojoj majci devetnaest cvijetova za Majčin dan.",
+    "source": "tatoeba",
+    "upstreamId": "655508"
+  },
+  {
+    "text": "Učiteljica mi je dodijelila najduže poglavlje.",
+    "source": "tatoeba",
+    "upstreamId": "655509"
+  },
+  {
+    "text": "Vozio je auto ulicom.",
+    "source": "tatoeba",
+    "upstreamId": "655510"
+  },
+  {
+    "text": "To ostavlja loš okus.",
+    "source": "tatoeba",
+    "upstreamId": "655511"
+  },
+  {
+    "text": "Govoriti engleski je zabavno.",
+    "source": "tatoeba",
+    "upstreamId": "655512"
+  },
+  {
+    "text": "Nadam se da sutra neće padati kiša.",
+    "source": "tatoeba",
+    "upstreamId": "655513"
+  },
+  {
+    "text": "Oni su zaista pobijedili.",
+    "source": "tatoeba",
+    "upstreamId": "655514"
+  },
+  {
+    "text": "Brinuo se za dijete.",
+    "source": "tatoeba",
+    "upstreamId": "655515"
+  },
+  {
+    "text": "Bol je malo popustila.",
+    "source": "tatoeba",
+    "upstreamId": "655516"
+  },
+  {
+    "text": "Svi učitelji su bili mladi i voljeli podučavati.",
+    "source": "tatoeba",
+    "upstreamId": "655517"
+  },
+  {
+    "text": "Organizirao je bojkot autobusnog prijevoza.",
+    "source": "tatoeba",
+    "upstreamId": "655518"
+  },
+  {
+    "text": "Njegova priča možda nije istinita.",
+    "source": "tatoeba",
+    "upstreamId": "655519"
+  },
+  {
+    "text": "Visoko je podignuo trofej.",
+    "source": "tatoeba",
+    "upstreamId": "655520"
+  },
+  {
+    "text": "Inzistirala je da on ode u bolnicu.",
+    "source": "tatoeba",
+    "upstreamId": "655521"
+  },
+  {
+    "text": "Svi smo zurili u nju; toliko se promijenila.",
+    "source": "tatoeba",
+    "upstreamId": "655522"
+  },
+  {
+    "text": "Svi vole to mjesto.",
+    "source": "tatoeba",
+    "upstreamId": "655523"
+  },
+  {
+    "text": "Kažeš \"siromašan\", ali postoji puno stupnjeva siromaštva.",
+    "source": "tatoeba",
+    "upstreamId": "655525"
+  },
+  {
+    "text": "Tvar je dovoljno lagana da pluta na vodi.",
+    "source": "tatoeba",
+    "upstreamId": "655526"
+  },
+  {
+    "text": "Čini se da je to prilično veliki muzej.",
+    "source": "tatoeba",
+    "upstreamId": "655527"
+  },
+  {
+    "text": "Dobro je građen.",
+    "source": "tatoeba",
+    "upstreamId": "655528"
+  },
+  {
+    "text": "Popustili smo njihovim zahtjevima.",
+    "source": "tatoeba",
+    "upstreamId": "655529"
+  },
+  {
+    "text": "Njegovo mišljenje je razumno.",
+    "source": "tatoeba",
+    "upstreamId": "655530"
+  },
+  {
+    "text": "Umirem od gladi!",
+    "source": "tatoeba",
+    "upstreamId": "655531"
+  },
+  {
+    "text": "Možeš uvijek računati na mene.",
+    "source": "tatoeba",
+    "upstreamId": "656245"
+  },
+  {
+    "text": "To je bio zao kunić.",
+    "source": "tatoeba",
+    "upstreamId": "656248"
+  },
+  {
+    "text": "U toj knjizi autor uspoređuje Japan i Ameriku.",
+    "source": "tatoeba",
+    "upstreamId": "656252"
+  },
+  {
+    "text": "Nikakve kiše tijekom protekla tri mjeseca nije bilo.",
+    "source": "tatoeba",
+    "upstreamId": "656257"
+  },
+  {
+    "text": "Posudit ću ti svoju knjigu za zabilješke.",
+    "source": "tatoeba",
+    "upstreamId": "656262"
+  },
+  {
+    "text": "Zla je vještica bacila zle čini na muškarca i pretvorila ga u kukca.",
+    "source": "tatoeba",
+    "upstreamId": "656272"
+  },
+  {
+    "text": "Takav običaj je karakterističan za Britance.",
+    "source": "tatoeba",
+    "upstreamId": "656274"
+  },
+  {
+    "text": "Munja prethodi grom.",
+    "source": "tatoeba",
+    "upstreamId": "656286"
+  },
+  {
+    "text": "Meni se sviđa pješačiti.",
+    "source": "tatoeba",
+    "upstreamId": "656290"
+  },
+  {
+    "text": "Nimalo nisam zadovoljan stanjem.",
+    "source": "tatoeba",
+    "upstreamId": "657175"
+  },
+  {
+    "text": "Neka ti Bog pomogne, brate, za to što si nama dvojici tako pomogao.",
+    "source": "tatoeba",
+    "upstreamId": "657181"
+  },
+  {
+    "text": "Zašto ne bismo dijelili sobu?",
+    "source": "tatoeba",
+    "upstreamId": "658892"
+  },
+  {
+    "text": "Dakle, ja želim pojasniti tko su ti ljudi.",
+    "source": "tatoeba",
+    "upstreamId": "658893"
+  },
+  {
+    "text": "Lako je učiti strani jezik.",
+    "source": "tatoeba",
+    "upstreamId": "658894"
+  },
+  {
+    "text": "Ona je veoma lijepa.",
+    "source": "tatoeba",
+    "upstreamId": "658895"
+  },
+  {
+    "text": "Molim vas, ne fotografirajte tu.",
+    "source": "tatoeba",
+    "upstreamId": "658896"
+  },
+  {
+    "text": "Mislimo da je Venecija prekrasan grad.",
+    "source": "tatoeba",
+    "upstreamId": "658897"
+  },
+  {
+    "text": "Tko je pronašao izgubljenog psa?",
+    "source": "tatoeba",
+    "upstreamId": "658898"
+  },
+  {
+    "text": "Japan ima diplomatske odnose s Kinom.",
+    "source": "tatoeba",
+    "upstreamId": "658899"
+  },
+  {
+    "text": "Zanimljivo bi bilo znati, tko je pokopan u toj grobnici.",
+    "source": "tatoeba",
+    "upstreamId": "658902"
+  },
+  {
+    "text": "Nikada mi se nije sviđala biologija.",
+    "source": "tatoeba",
+    "upstreamId": "658904"
+  },
+  {
+    "text": "Tko pod drugim jamu kopa, sam u nju upada.",
+    "source": "tatoeba",
+    "upstreamId": "658905"
+  },
+  {
+    "text": "Tko rano rani, dvije sreće grabi.",
+    "source": "tatoeba",
+    "upstreamId": "658906"
+  },
+  {
+    "text": "Ruka ruku mije.",
+    "source": "tatoeba",
+    "upstreamId": "658907"
+  },
+  {
+    "text": "Tko živ, tko mrtav.",
+    "source": "tatoeba",
+    "upstreamId": "658909"
+  },
+  {
+    "text": "Vuk dlaku mijenja, ali ćud nikad.",
+    "source": "tatoeba",
+    "upstreamId": "658910"
+  },
+  {
+    "text": "Pod vodom se može vidjeti cijeli niz stvorenja.",
+    "source": "tatoeba",
+    "upstreamId": "658911"
+  },
+  {
+    "text": "Cijeli grad je bio pod vodom.",
+    "source": "tatoeba",
+    "upstreamId": "658912"
+  },
+  {
+    "text": "Bilo, pa prošlo.",
+    "source": "tatoeba",
+    "upstreamId": "658913"
+  },
+  {
+    "text": "Koji je glavni grad Sjedinjenih Država, Washington ili New York?",
+    "source": "tatoeba",
+    "upstreamId": "658916"
+  },
+  {
+    "text": "Tko se mača laća, od mača i pogiba.",
+    "source": "tatoeba",
+    "upstreamId": "658918"
+  },
+  {
+    "text": "Pero je jače od mača.",
+    "source": "tatoeba",
+    "upstreamId": "658922"
+  },
+  {
+    "text": "Planirate li dugo ostati?",
+    "source": "tatoeba",
+    "upstreamId": "658924"
+  },
+  {
+    "text": "To je Alina knjiga.",
+    "source": "tatoeba",
+    "upstreamId": "658925"
+  },
+  {
+    "text": "Jučer me usrećio.",
+    "source": "tatoeba",
+    "upstreamId": "658927"
+  },
+  {
+    "text": "On uopće ne zna francuski.",
+    "source": "tatoeba",
+    "upstreamId": "658929"
+  },
+  {
+    "text": "Bog je visoko, a kralj daleko.",
+    "source": "tatoeba",
+    "upstreamId": "658930"
+  },
+  {
+    "text": "Bez muke nema nauke.",
+    "source": "tatoeba",
+    "upstreamId": "658931"
+  },
+  {
+    "text": "Više nije mogao izdržati bol.",
+    "source": "tatoeba",
+    "upstreamId": "658935"
+  },
+  {
+    "text": "Bolje ikad nego nikad.",
+    "source": "tatoeba",
+    "upstreamId": "658936"
+  },
+  {
+    "text": "Bolje spriječiti nego liječiti.",
+    "source": "tatoeba",
+    "upstreamId": "658937"
+  },
+  {
+    "text": "Bolje vrabac u ruci nego golub na grani.",
+    "source": "tatoeba",
+    "upstreamId": "658938"
+  },
+  {
+    "text": "Ptica je letjela nebom.",
+    "source": "tatoeba",
+    "upstreamId": "658940"
+  },
+  {
+    "text": "Ptica je visoko letjela nebom.",
+    "source": "tatoeba",
+    "upstreamId": "658941"
+  },
+  {
+    "text": "Čovjek je čovjeku vuk.",
+    "source": "tatoeba",
+    "upstreamId": "658942"
+  },
+  {
+    "text": "Jedna lasta ne čini proljeće.",
+    "source": "tatoeba",
+    "upstreamId": "658943"
+  },
+  {
+    "text": "Kad mačke nema, miševi kolo vode.",
+    "source": "tatoeba",
+    "upstreamId": "658945"
+  },
+  {
+    "text": "Kako došlo, tako prošlo.",
+    "source": "tatoeba",
+    "upstreamId": "658946"
+  },
+  {
+    "text": "Mi o vuku, a vuk na vrata.",
+    "source": "tatoeba",
+    "upstreamId": "658947"
+  },
+  {
+    "text": "Veoma mi se sviđa engleski jezik, ali mi je ponekad jako težak.",
+    "source": "tatoeba",
+    "upstreamId": "658951"
+  },
+  {
+    "text": "Čim me vidio, pobjegao je.",
+    "source": "tatoeba",
+    "upstreamId": "658952"
+  },
+  {
+    "text": "Nancy se boji pasa.",
+    "source": "tatoeba",
+    "upstreamId": "658953"
+  },
+  {
+    "text": "Ljudi ne postoje na ovome svijetu da postanu bogati, nego da postanu sretni.",
+    "source": "tatoeba",
+    "upstreamId": "658954"
+  },
+  {
+    "text": "Htio sam još govoriti, ali mi je ona jednostavno spustila slušalicu.",
+    "source": "tatoeba",
+    "upstreamId": "658955"
+  },
+  {
+    "text": "Na nebu nema oblaka.",
+    "source": "tatoeba",
+    "upstreamId": "658956"
+  },
+  {
+    "text": "Nadali smo se da će kiša prestati do ručka.",
+    "source": "tatoeba",
+    "upstreamId": "658959"
+  },
+  {
+    "text": "Neki lijekovi nam škode.",
+    "source": "tatoeba",
+    "upstreamId": "658960"
+  },
+  {
+    "text": "Koliko duboko je to jezero?",
+    "source": "tatoeba",
+    "upstreamId": "658961"
+  },
+  {
+    "text": "Tko je otkrio taj otok?",
+    "source": "tatoeba",
+    "upstreamId": "658962"
+  },
+  {
+    "text": "Tata je za mene kupio knjige.",
+    "source": "tatoeba",
+    "upstreamId": "658964"
+  },
+  {
+    "text": "Osjećam se dobro sada.",
+    "source": "tatoeba",
+    "upstreamId": "658965"
+  },
+  {
+    "text": "Ona sliči na majku.",
+    "source": "tatoeba",
+    "upstreamId": "658966"
+  },
+  {
+    "text": "Živite li u gradu?",
+    "source": "tatoeba",
+    "upstreamId": "658968"
+  },
+  {
+    "text": "Mama kupa psa, jer je prljav.",
+    "source": "tatoeba",
+    "upstreamId": "658969"
+  },
+  {
+    "text": "Prestala je pušiti.",
+    "source": "tatoeba",
+    "upstreamId": "658970"
+  },
+  {
+    "text": "Ta gospođa, odjevena u bijelo, je poznata glumica.",
+    "source": "tatoeba",
+    "upstreamId": "658971"
+  },
+  {
+    "text": "Glumi da je bolestan.",
+    "source": "tatoeba",
+    "upstreamId": "658972"
+  },
+  {
+    "text": "Svi su osim mene pjevali.",
+    "source": "tatoeba",
+    "upstreamId": "658975"
+  },
+  {
+    "text": "Koliko košta ta kravata?",
+    "source": "tatoeba",
+    "upstreamId": "658976"
+  },
+  {
+    "text": "Ponosan sam na tebe.",
+    "source": "tatoeba",
+    "upstreamId": "658977"
+  },
+  {
+    "text": "Je li ta crna torba ženska?",
+    "source": "tatoeba",
+    "upstreamId": "658978"
+  },
+  {
+    "text": "Koji si gledao film?",
+    "source": "tatoeba",
+    "upstreamId": "658980"
+  },
+  {
+    "text": "Je li to tvoj automobil?",
+    "source": "tatoeba",
+    "upstreamId": "658985"
+  },
+  {
+    "text": "On je usamljen čovjek, nema puno prijatelja.",
+    "source": "tatoeba",
+    "upstreamId": "658988"
+  },
+  {
+    "text": "Gimnastika je njegova jaka strana.",
+    "source": "tatoeba",
+    "upstreamId": "658992"
+  },
+  {
+    "text": "Pij svoj čaj, jer će se ohladiti.",
+    "source": "tatoeba",
+    "upstreamId": "658994"
+  },
+  {
+    "text": "Što se dogodilo da se tako smiješ?",
+    "source": "tatoeba",
+    "upstreamId": "658997"
+  },
+  {
+    "text": "Molim, ispunite taj formular.",
+    "source": "tatoeba",
+    "upstreamId": "658999"
+  },
+  {
+    "text": "Jesi li vježbao danas?",
+    "source": "tatoeba",
+    "upstreamId": "659000"
+  },
+  {
+    "text": "On je liječnik, a osim toga i pisac.",
+    "source": "tatoeba",
+    "upstreamId": "659002"
+  },
+  {
+    "text": "Neću to nikome nikada reći.",
+    "source": "tatoeba",
+    "upstreamId": "659003"
+  },
+  {
+    "text": "Bez vode je nemoguće živjeti.",
+    "source": "tatoeba",
+    "upstreamId": "659007"
+  },
+  {
+    "text": "On sliči na svog djeda.",
+    "source": "tatoeba",
+    "upstreamId": "659008"
+  },
+  {
+    "text": "Ja, osobno, nikada nisam vidio NLO.",
+    "source": "tatoeba",
+    "upstreamId": "659011"
+  },
+  {
+    "text": "Sviđa li ti se ta majica?",
+    "source": "tatoeba",
+    "upstreamId": "670180"
+  },
+  {
+    "text": "Tom i Frank su dobri prijatelji.",
+    "source": "tatoeba",
+    "upstreamId": "670182"
+  },
+  {
+    "text": "Zanimljivo, on će danas doći?",
+    "source": "tatoeba",
+    "upstreamId": "670183"
+  },
+  {
+    "text": "Kako mogu zaboraviti te dane?",
+    "source": "tatoeba",
+    "upstreamId": "670185"
+  },
+  {
+    "text": "Slažem se s vama.",
+    "source": "tatoeba",
+    "upstreamId": "670186"
+  },
+  {
+    "text": "Evo tvoje torbe.",
+    "source": "tatoeba",
+    "upstreamId": "670187"
+  },
+  {
+    "text": "Hoće li on stići na vlak?",
+    "source": "tatoeba",
+    "upstreamId": "670188"
+  },
+  {
+    "text": "Taj bicikl treba popraviti.",
+    "source": "tatoeba",
+    "upstreamId": "670189"
+  },
+  {
+    "text": "Kako ste proveli odmor?",
+    "source": "tatoeba",
+    "upstreamId": "670190"
+  },
+  {
+    "text": "Najveća životinja na Zemlji je plavi kit.",
+    "source": "tatoeba",
+    "upstreamId": "670191"
+  },
+  {
+    "text": "Možda ti znaš gdje ona živi?",
+    "source": "tatoeba",
+    "upstreamId": "670192"
+  },
+  {
+    "text": "Umorio sam se i hoću spavati.",
+    "source": "tatoeba",
+    "upstreamId": "670196"
+  },
+  {
+    "text": "Koliko imate olovaka?",
+    "source": "tatoeba",
+    "upstreamId": "670200"
+  },
+  {
+    "text": "Jedite što hoćete.",
+    "source": "tatoeba",
+    "upstreamId": "670202"
+  },
+  {
+    "text": "Sve što znam o moralu, znam zahvaljujući nogometu.",
+    "source": "tatoeba",
+    "upstreamId": "670204"
+  },
+  {
+    "text": "Ne mogu pisati ispit, jer sam se razbolio.",
+    "source": "tatoeba",
+    "upstreamId": "670205"
+  },
+  {
+    "text": "On je znanstvenik i glazbenik.",
+    "source": "tatoeba",
+    "upstreamId": "670206"
+  },
+  {
+    "text": "Pitala je o svojem prijatelju.",
+    "source": "tatoeba",
+    "upstreamId": "670208"
+  },
+  {
+    "text": "Oplakujem svoju izgubljeni mladost.",
+    "source": "tatoeba",
+    "upstreamId": "670210"
+  },
+  {
+    "text": "Mislim otići u inozemstvo.",
+    "source": "tatoeba",
+    "upstreamId": "670211"
+  },
+  {
+    "text": "Gdje se nalazi muzej?",
+    "source": "tatoeba",
+    "upstreamId": "670212"
+  },
+  {
+    "text": "Isusova majka je bila tamo.",
+    "source": "tatoeba",
+    "upstreamId": "670213"
+  },
+  {
+    "text": "Inteligentan je, ali svejedno mi se ne sviđa.",
+    "source": "tatoeba",
+    "upstreamId": "670216"
+  },
+  {
+    "text": "Škrinja je napravljena od drva.",
+    "source": "tatoeba",
+    "upstreamId": "670218"
+  },
+  {
+    "text": "Možeš li mi dodati sol?",
+    "source": "tatoeba",
+    "upstreamId": "670219"
+  },
+  {
+    "text": "Na krovu je bijeli golub.",
+    "source": "tatoeba",
+    "upstreamId": "670221"
+  },
+  {
+    "text": "Žena mu je rodila dvije kćeri i sina.",
+    "source": "tatoeba",
+    "upstreamId": "670223"
+  },
+  {
+    "text": "Koliko mi je poznato, nema.",
+    "source": "tatoeba",
+    "upstreamId": "670224"
+  },
+  {
+    "text": "Bojim se padanja.",
+    "source": "tatoeba",
+    "upstreamId": "670225"
+  },
+  {
+    "text": "Nemoj se bojati grešaka.",
+    "source": "tatoeba",
+    "upstreamId": "670233"
+  },
+  {
+    "text": "Vrata su se automatski otvorila.",
+    "source": "tatoeba",
+    "upstreamId": "670234"
+  },
+  {
+    "text": "Nemoj zakasniti na vlak.",
+    "source": "tatoeba",
+    "upstreamId": "670235"
+  },
+  {
+    "text": "Nismo u stanju ispuniti očekivanja gospode.",
+    "source": "tatoeba",
+    "upstreamId": "670238"
+  },
+  {
+    "text": "Lakše je reći nego napraviti.",
+    "source": "tatoeba",
+    "upstreamId": "670267"
+  },
+  {
+    "text": "U ponedjeljak sam najviše zauzet.",
+    "source": "tatoeba",
+    "upstreamId": "670269"
+  },
+  {
+    "text": "Ti si velika ljubav mog života.",
+    "source": "tatoeba",
+    "upstreamId": "670271"
+  },
+  {
+    "text": "Dijete je šutilo.",
+    "source": "tatoeba",
+    "upstreamId": "670274"
+  },
+  {
+    "text": "Njen prijatelj je pjevač.",
+    "source": "tatoeba",
+    "upstreamId": "670276"
+  },
+  {
+    "text": "Koplimenti su laž.",
+    "source": "tatoeba",
+    "upstreamId": "670284"
+  },
+  {
+    "text": "Moj mač možda jest tupi, ali za nekoga takvoga kao ti je potpuno dovoljan.",
+    "source": "tatoeba",
+    "upstreamId": "670285"
+  },
+  {
+    "text": "Dečko, kojeg volim, me ne voli.",
+    "source": "tatoeba",
+    "upstreamId": "670286"
+  },
+  {
+    "text": "On ima inozemni automobil.",
+    "source": "tatoeba",
+    "upstreamId": "670288"
+  },
+  {
+    "text": "Hodao je na prstima, da ga ne čuju.",
+    "source": "tatoeba",
+    "upstreamId": "670289"
+  },
+  {
+    "text": "Akira je veoma dobra tenisačica.",
+    "source": "tatoeba",
+    "upstreamId": "670290"
+  },
+  {
+    "text": "Ona živi iz dana u dan.",
+    "source": "tatoeba",
+    "upstreamId": "670291"
+  },
+  {
+    "text": "To je bilo godinama prije.",
+    "source": "tatoeba",
+    "upstreamId": "670292"
+  },
+  {
+    "text": "To je od mog brata.",
+    "source": "tatoeba",
+    "upstreamId": "670293"
+  },
+  {
+    "text": "Imala je dugu plavu kosu.",
+    "source": "tatoeba",
+    "upstreamId": "670295"
+  },
+  {
+    "text": "Prekjučer smo stigli u Osaku.",
+    "source": "tatoeba",
+    "upstreamId": "670296"
+  },
+  {
+    "text": "Otvoreno reci što misliš.",
+    "source": "tatoeba",
+    "upstreamId": "670297"
+  },
+  {
+    "text": "Bio sam u kupovini u subotu.",
+    "source": "tatoeba",
+    "upstreamId": "670298"
+  },
+  {
+    "text": "Idealno je vrijeme za piknik.",
+    "source": "tatoeba",
+    "upstreamId": "670299"
+  },
+  {
+    "text": "To je besplatno.",
+    "source": "tatoeba",
+    "upstreamId": "670300"
+  },
+  {
+    "text": "Prošle godine je puno padalo.",
+    "source": "tatoeba",
+    "upstreamId": "670301"
+  },
+  {
+    "text": "To je njihova kuća.",
+    "source": "tatoeba",
+    "upstreamId": "670302"
+  },
+  {
+    "text": "Izgradnja mosta je završena na vrijeme.",
+    "source": "tatoeba",
+    "upstreamId": "670303"
+  },
+  {
+    "text": "Jesi li već napravio domaću zadaću?",
+    "source": "tatoeba",
+    "upstreamId": "670304"
+  },
+  {
+    "text": "Prešli su Atlantik.",
+    "source": "tatoeba",
+    "upstreamId": "670305"
+  },
+  {
+    "text": "Ona se jako brine o njegovom zdravlju.",
+    "source": "tatoeba",
+    "upstreamId": "670306"
+  },
+  {
+    "text": "Imao je probleme, jer je izgubio putovnicu.",
+    "source": "tatoeba",
+    "upstreamId": "670307"
+  },
+  {
+    "text": "Nogomet je popularniji od bejzbola.",
+    "source": "tatoeba",
+    "upstreamId": "670308"
+  },
+  {
+    "text": "Uzmi djecu sa sobom.",
+    "source": "tatoeba",
+    "upstreamId": "670309"
+  },
+  {
+    "text": "Navijači su se potukli poslije nogometne utakmice.",
+    "source": "tatoeba",
+    "upstreamId": "670310"
+  },
+  {
+    "text": "Amerika je jako velika.",
+    "source": "tatoeba",
+    "upstreamId": "670314"
+  },
+  {
+    "text": "Ovo je moja sestra. Ona se zove Julia.",
+    "source": "tatoeba",
+    "upstreamId": "695559"
+  },
+  {
+    "text": "Triput mjeri, jednom sijeci.",
+    "source": "tatoeba",
+    "upstreamId": "699842"
+  },
+  {
+    "text": "Bezbojne zelene ideje spavaju bijesno.",
+    "source": "tatoeba",
+    "upstreamId": "719068"
+  },
+  {
+    "text": "Izaberi jednu osobu, molim te.",
+    "source": "tatoeba",
+    "upstreamId": "742803"
+  },
+  {
+    "text": "Govori se da je njegova zgrada premala za zapadne standarde.",
+    "source": "tatoeba",
+    "upstreamId": "742807"
+  },
+  {
+    "text": "To je najbolji restoran s plodovima mora u ovoj četvrti.",
+    "source": "tatoeba",
+    "upstreamId": "742811"
+  },
+  {
+    "text": "Semafor se promijenio u crveno.",
+    "source": "tatoeba",
+    "upstreamId": "742813"
+  },
+  {
+    "text": "Dajte, molim vas, čašu vode.",
+    "source": "tatoeba",
+    "upstreamId": "742814"
+  },
+  {
+    "text": "Ja ću radije umrijeti, nego se osramiti.",
+    "source": "tatoeba",
+    "upstreamId": "742815"
+  },
+  {
+    "text": "Svi su se nasmijali.",
+    "source": "tatoeba",
+    "upstreamId": "742817"
+  },
+  {
+    "text": "Pronašao sam knjigu koju sam jučer zagubio.",
+    "source": "tatoeba",
+    "upstreamId": "742818"
+  },
+  {
+    "text": "Kako tvoja prehlada?",
+    "source": "tatoeba",
+    "upstreamId": "742820"
+  },
+  {
+    "text": "Znam da si bogat.",
+    "source": "tatoeba",
+    "upstreamId": "742821"
+  },
+  {
+    "text": "Ne znam čime ju otvoriti.",
+    "source": "tatoeba",
+    "upstreamId": "742822"
+  },
+  {
+    "text": "Ona je bogata, a on siromašan.",
+    "source": "tatoeba",
+    "upstreamId": "742823"
+  },
+  {
+    "text": "Ona je opet takva, kakva je bila.",
+    "source": "tatoeba",
+    "upstreamId": "742825"
+  },
+  {
+    "text": "Reci što hoćeš, a ja ću napraviti po svojem!",
+    "source": "tatoeba",
+    "upstreamId": "742826"
+  },
+  {
+    "text": "Zauvijek sam otišao iz Afrike.",
+    "source": "tatoeba",
+    "upstreamId": "742829"
+  },
+  {
+    "text": "Ako ga pozoveš, sigurno će doći.",
+    "source": "tatoeba",
+    "upstreamId": "742831"
+  },
+  {
+    "text": "Kava mi se više sviđa, nego čaj.",
+    "source": "tatoeba",
+    "upstreamId": "742833"
+  },
+  {
+    "text": "Sjećam se da sam vas negdje sreo.",
+    "source": "tatoeba",
+    "upstreamId": "742834"
+  },
+  {
+    "text": "Vino, koje tu rade, je poznato.",
+    "source": "tatoeba",
+    "upstreamId": "742835"
+  },
+  {
+    "text": "Njegov odgovor je daleko od ispravnosti.",
+    "source": "tatoeba",
+    "upstreamId": "742836"
+  },
+  {
+    "text": "Nazvali su je Alice, u čast njezine tete.",
+    "source": "tatoeba",
+    "upstreamId": "742838"
+  },
+  {
+    "text": "Kako bi ti raspoznao Amerikanca od Engleza?",
+    "source": "tatoeba",
+    "upstreamId": "742839"
+  },
+  {
+    "text": "Vratio se iz Kanade.",
+    "source": "tatoeba",
+    "upstreamId": "742840"
+  },
+  {
+    "text": "Hoćete znati moju tajnu? Jako je jednostavna...",
+    "source": "tatoeba",
+    "upstreamId": "742841"
+  },
+  {
+    "text": "Gledao sam kako skače.",
+    "source": "tatoeba",
+    "upstreamId": "742842"
+  },
+  {
+    "text": "Ne mogu sve ptice letjeti.",
+    "source": "tatoeba",
+    "upstreamId": "742844"
+  },
+  {
+    "text": "Jezero se smrznulo.",
+    "source": "tatoeba",
+    "upstreamId": "742846"
+  },
+  {
+    "text": "Sviđa mi se kako si uredio stan.",
+    "source": "tatoeba",
+    "upstreamId": "742849"
+  },
+  {
+    "text": "Zauvijek ću te voljeti.",
+    "source": "tatoeba",
+    "upstreamId": "742850"
+  },
+  {
+    "text": "Usporedi činjenice.",
+    "source": "tatoeba",
+    "upstreamId": "742854"
+  },
+  {
+    "text": "Ona nije visoka.",
+    "source": "tatoeba",
+    "upstreamId": "755930"
+  },
+  {
+    "text": "Bez sunca nema života!",
+    "source": "tatoeba",
+    "upstreamId": "933646"
+  },
+  {
+    "text": "Pitala nas je želimo li kuhati.",
+    "source": "tatoeba",
+    "upstreamId": "933670"
+  },
+  {
+    "text": "Slučajno sam sreo starog prijatelja u Tokiu.",
+    "source": "tatoeba",
+    "upstreamId": "933687"
+  },
+  {
+    "text": "Ovog ljeta ćemo putovati skupno.",
+    "source": "tatoeba",
+    "upstreamId": "933691"
+  },
+  {
+    "text": "Uskoro ću naučiti plivati.",
+    "source": "tatoeba",
+    "upstreamId": "933693"
+  },
+  {
+    "text": "Poznat je u cijelome svijetu.",
+    "source": "tatoeba",
+    "upstreamId": "933695"
+  },
+  {
+    "text": "Imam časopis u svojoj sobi.",
+    "source": "tatoeba",
+    "upstreamId": "933700"
+  },
+  {
+    "text": "Kada ćemo jesti?",
+    "source": "tatoeba",
+    "upstreamId": "933702"
+  },
+  {
+    "text": "Došao je u ponoć.",
+    "source": "tatoeba",
+    "upstreamId": "933707"
+  },
+  {
+    "text": "Znam da novac nije sve.",
+    "source": "tatoeba",
+    "upstreamId": "933711"
+  },
+  {
+    "text": "Svi putovi vode u Rim.",
+    "source": "tatoeba",
+    "upstreamId": "933713"
+  },
+  {
+    "text": "Ne možeš praviti omlete, a da ne razbiješ jaja.",
+    "source": "tatoeba",
+    "upstreamId": "933720"
+  },
+  {
+    "text": "Vozač je održavao veliku brzinu.",
+    "source": "tatoeba",
+    "upstreamId": "933743"
+  },
+  {
+    "text": "Nisam rekao to svojim roditeljima, trebam li to reći tebi?",
+    "source": "tatoeba",
+    "upstreamId": "933748"
+  },
+  {
+    "text": "Ona putuje cijelim svijetom.",
+    "source": "tatoeba",
+    "upstreamId": "933756"
+  },
+  {
+    "text": "To nije slučaj u Japanu.",
+    "source": "tatoeba",
+    "upstreamId": "933758"
+  },
+  {
+    "text": "Pjevala je prekrasnim glasom.",
+    "source": "tatoeba",
+    "upstreamId": "933760"
+  },
+  {
+    "text": "Tko radi i želi, taj i dobiva, -- tko sam ne ustraje, ništa ne postiže.",
+    "source": "tatoeba",
+    "upstreamId": "933766"
+  },
+  {
+    "text": "Ovaj sustav ima očite nedostatke.",
+    "source": "tatoeba",
+    "upstreamId": "933768"
+  },
+  {
+    "text": "Kada otiđeš, nedostajat ćeš mi.",
+    "source": "tatoeba",
+    "upstreamId": "933770"
+  },
+  {
+    "text": "Mogao bih plakati od sreće.",
+    "source": "tatoeba",
+    "upstreamId": "933771"
+  },
+  {
+    "text": "Bio je duže vremena u hotelu.",
+    "source": "tatoeba",
+    "upstreamId": "933774"
+  },
+  {
+    "text": "Zaboravio sam ga pitati.",
+    "source": "tatoeba",
+    "upstreamId": "933776"
+  },
+  {
+    "text": "Zamolio sam Toma da otvori prozor.",
+    "source": "tatoeba",
+    "upstreamId": "933778"
+  },
+  {
+    "text": "Ne pitaj me toliko. Koristi svoju glavu.",
+    "source": "tatoeba",
+    "upstreamId": "933786"
+  },
+  {
+    "text": "Sto je moj najomiljeniji broj.",
+    "source": "tatoeba",
+    "upstreamId": "933794"
+  },
+  {
+    "text": "Ja sam iz Nizozemske.",
+    "source": "tatoeba",
+    "upstreamId": "933796"
+  },
+  {
+    "text": "Jesi li ti iz SAD-a?",
+    "source": "tatoeba",
+    "upstreamId": "933797"
+  },
+  {
+    "text": "Sada sam neovisan o svome ocu.",
+    "source": "tatoeba",
+    "upstreamId": "933799"
+  },
+  {
+    "text": "Osoba koja ne želi čitati nema nikakvu prednost nad onom osobom koja ne može čitati.",
+    "source": "tatoeba",
+    "upstreamId": "933806"
+  },
+  {
+    "text": "Kakvo je vrijeme tamo?",
+    "source": "tatoeba",
+    "upstreamId": "933808"
+  },
+  {
+    "text": "Ne, ja nisam iz SAD-a.",
+    "source": "tatoeba",
+    "upstreamId": "933835"
+  },
+  {
+    "text": "Manga \"One Piece\" je vrlo popularna u Maleziji.",
+    "source": "tatoeba",
+    "upstreamId": "933836"
+  },
+  {
+    "text": "Moj otac je umro prije pet godina.",
+    "source": "tatoeba",
+    "upstreamId": "933837"
+  },
+  {
+    "text": "Jesi li sretan?",
+    "source": "tatoeba",
+    "upstreamId": "933839"
+  },
+  {
+    "text": "Jesi li sretna?",
+    "source": "tatoeba",
+    "upstreamId": "933840"
+  },
+  {
+    "text": "Ne mogu natjerati svog sina da jede povrće.",
+    "source": "tatoeba",
+    "upstreamId": "933843"
+  },
+  {
+    "text": "Uvijek je obučena u crno.",
+    "source": "tatoeba",
+    "upstreamId": "933845"
+  },
+  {
+    "text": "Bilo je oblačno jučer.",
+    "source": "tatoeba",
+    "upstreamId": "933846"
+  },
+  {
+    "text": "Morate naporno raditi.",
+    "source": "tatoeba",
+    "upstreamId": "933848"
+  },
+  {
+    "text": "Preko trnja do zvijezda!",
+    "source": "tatoeba",
+    "upstreamId": "933849"
+  },
+  {
+    "text": "Reci mi molim te, gdje je policijska stanica?",
+    "source": "tatoeba",
+    "upstreamId": "933850"
+  },
+  {
+    "text": "Tom je polupao prozor.",
+    "source": "tatoeba",
+    "upstreamId": "933851"
+  },
+  {
+    "text": "Ljubav osljepljuje.",
+    "source": "tatoeba",
+    "upstreamId": "933852"
+  },
+  {
+    "text": "Ne mogu trpiti njezino ponašanje.",
+    "source": "tatoeba",
+    "upstreamId": "933854"
+  },
+  {
+    "text": "Šećernica je prazna.",
+    "source": "tatoeba",
+    "upstreamId": "933855"
+  },
+  {
+    "text": "Kiriurg me je uvjerio da se podvrgem transplantaciji organa.",
+    "source": "tatoeba",
+    "upstreamId": "933857"
+  },
+  {
+    "text": "Radio je naporno da podupre svoju obitelj.",
+    "source": "tatoeba",
+    "upstreamId": "933860"
+  },
+  {
+    "text": "Odakle je ta zastava?",
+    "source": "tatoeba",
+    "upstreamId": "933861"
+  },
+  {
+    "text": "Dijamanti su najbolji djevojčini prijatelji.",
+    "source": "tatoeba",
+    "upstreamId": "933862"
+  },
+  {
+    "text": "Kada bi imao milijun jena, što bi učinio s njima?",
+    "source": "tatoeba",
+    "upstreamId": "933863"
+  },
+  {
+    "text": "Nikada ga nismo čuli da pjeva.",
+    "source": "tatoeba",
+    "upstreamId": "933864"
+  },
+  {
+    "text": "Možeš li trčati brzo?",
+    "source": "tatoeba",
+    "upstreamId": "933865"
+  },
+  {
+    "text": "Mogu li se poslužiti tvojim telefonom?",
+    "source": "tatoeba",
+    "upstreamId": "933866"
+  },
+  {
+    "text": "Mogu li uzeti tvoj telefon?",
+    "source": "tatoeba",
+    "upstreamId": "933867"
+  },
+  {
+    "text": "Mogu li dobiti tvoj telefon?",
+    "source": "tatoeba",
+    "upstreamId": "933868"
+  },
+  {
+    "text": "Kada se može reći da čovjek ima problema s alkoholom?",
+    "source": "tatoeba",
+    "upstreamId": "933869"
+  },
+  {
+    "text": "Volim fiziku, a matematiku čak i više.",
+    "source": "tatoeba",
+    "upstreamId": "933870"
+  },
+  {
+    "text": "Idem pješke u školu.",
+    "source": "tatoeba",
+    "upstreamId": "933871"
+  },
+  {
+    "text": "Zašto si me probudio/probudila da mi kažeš nešto tako važno? Sada se neću moći koncentrirati na svoj posao.",
+    "source": "tatoeba",
+    "upstreamId": "933873"
+  },
+  {
+    "text": "Ne znam engleski, još manje španjolski.",
+    "source": "tatoeba",
+    "upstreamId": "933874"
+  },
+  {
+    "text": "Moramo marljivo raditi.",
+    "source": "tatoeba",
+    "upstreamId": "933875"
+  },
+  {
+    "text": "Naše ovce su žigosane da ih možemo prepoznati.",
+    "source": "tatoeba",
+    "upstreamId": "933877"
+  },
+  {
+    "text": "Vrlo je vješt ručni izrađivač.",
+    "source": "tatoeba",
+    "upstreamId": "933878"
+  },
+  {
+    "text": "Vrlo je vješt u ručnim poslovima.",
+    "source": "tatoeba",
+    "upstreamId": "933879"
+  },
+  {
+    "text": "Koale se mogu naći u Australiji.",
+    "source": "tatoeba",
+    "upstreamId": "933880"
+  },
+  {
+    "text": "Stablo je četiri stope promjera.",
+    "source": "tatoeba",
+    "upstreamId": "933881"
+  },
+  {
+    "text": "Jer je važno, brinuti ću se o tome.",
+    "source": "tatoeba",
+    "upstreamId": "933882"
+  },
+  {
+    "text": "Zanimljivo je promatrati bebe.",
+    "source": "tatoeba",
+    "upstreamId": "933883"
+  },
+  {
+    "text": "Gdje su tvoje kreditne kartice?",
+    "source": "tatoeba",
+    "upstreamId": "933884"
+  },
+  {
+    "text": "\"Je li istina?\" \"Da, istina je.\"",
+    "source": "tatoeba",
+    "upstreamId": "933885"
+  },
+  {
+    "text": "Moja sestra me je pitala da ju naučim skijati.",
+    "source": "tatoeba",
+    "upstreamId": "933886"
+  },
+  {
+    "text": "Imam dvije sestre koje su obje udane.",
+    "source": "tatoeba",
+    "upstreamId": "933887"
+  },
+  {
+    "text": "Većina ljudi misli da sam luda.",
+    "source": "tatoeba",
+    "upstreamId": "933888"
+  },
+  {
+    "text": "Ova ruža je lijepa.",
+    "source": "tatoeba",
+    "upstreamId": "933889"
+  },
+  {
+    "text": "Nisam sudjelovao u razgovoru.",
+    "source": "tatoeba",
+    "upstreamId": "933890"
+  },
+  {
+    "text": "Biti će mi drago doći.",
+    "source": "tatoeba",
+    "upstreamId": "933891"
+  },
+  {
+    "text": "Molim te, primi ovaj mali dar.",
+    "source": "tatoeba",
+    "upstreamId": "933892"
+  },
+  {
+    "text": "Koliko ja znam, nikada nije došao na vrijeme.",
+    "source": "tatoeba",
+    "upstreamId": "933893"
+  },
+  {
+    "text": "Ta činjenica ne smije biti zaboravljena.",
+    "source": "tatoeba",
+    "upstreamId": "933894"
+  },
+  {
+    "text": "Koje vino imaš?",
+    "source": "tatoeba",
+    "upstreamId": "933895"
+  },
+  {
+    "text": "Pobijedili smo bez problema, jer su ostali igrači bili slabi.",
+    "source": "tatoeba",
+    "upstreamId": "933896"
+  },
+  {
+    "text": "Sudjelovanje muslimana u politici je od velike važnosti za društvo.",
+    "source": "tatoeba",
+    "upstreamId": "933898"
+  },
+  {
+    "text": "Želiš li čaj ili kavu?",
+    "source": "tatoeba",
+    "upstreamId": "933899"
+  },
+  {
+    "text": "Koju god igru igram s tobom, ti nikada ne pobijediš.",
+    "source": "tatoeba",
+    "upstreamId": "933900"
+  },
+  {
+    "text": "Nemam snage dalje pokušavati.",
+    "source": "tatoeba",
+    "upstreamId": "933901"
+  },
+  {
+    "text": "Ne možeš čitati tu novelu, a da ne plačeš.",
+    "source": "tatoeba",
+    "upstreamId": "933902"
+  },
+  {
+    "text": "Razočarana je u ljubavi.",
+    "source": "tatoeba",
+    "upstreamId": "933903"
+  },
+  {
+    "text": "Korijeni stabla su se duboko ukorijenili u zemlju.",
+    "source": "tatoeba",
+    "upstreamId": "933904"
+  },
+  {
+    "text": "Ona je naša radodajka.",
+    "source": "tatoeba",
+    "upstreamId": "933905"
+  },
+  {
+    "text": "Uskoro je ispit.",
+    "source": "tatoeba",
+    "upstreamId": "933906"
+  },
+  {
+    "text": "Kao i u mnogim aspektima britanskog života, postoje dobri povijesni razlozi za to.",
+    "source": "tatoeba",
+    "upstreamId": "933907"
+  },
+  {
+    "text": "Dobar dan, kako vam mogu pomoći?",
+    "source": "tatoeba",
+    "upstreamId": "933908"
+  },
+  {
+    "text": "Ovo vino je vrlo ukusno.",
+    "source": "tatoeba",
+    "upstreamId": "933909"
+  },
+  {
+    "text": "Došao je kao gost.",
+    "source": "tatoeba",
+    "upstreamId": "933910"
+  },
+  {
+    "text": "Povjeriti ću ti jednu tajnu.",
+    "source": "tatoeba",
+    "upstreamId": "933911"
+  },
+  {
+    "text": "Više volim gladovati, nego krasti.",
+    "source": "tatoeba",
+    "upstreamId": "933913"
+  },
+  {
+    "text": "Prije bih bio gladan, nego nešto ukrao.",
+    "source": "tatoeba",
+    "upstreamId": "933914"
+  },
+  {
+    "text": "Išla je u Takasu-kliniku.",
+    "source": "tatoeba",
+    "upstreamId": "933915"
+  },
+  {
+    "text": "Još je uvijek bolje odbaciti svoj profesionalni nego svoj privatni život.",
+    "source": "tatoeba",
+    "upstreamId": "933917"
+  },
+  {
+    "text": "Misliš li da je novac stvarno važan za mene?",
+    "source": "tatoeba",
+    "upstreamId": "933918"
+  },
+  {
+    "text": "Vidjet ćeš da je siromašan, kada budeš vidio/vidjela njegov dom.",
+    "source": "tatoeba",
+    "upstreamId": "933920"
+  },
+  {
+    "text": "Vašu ulaznicu, molim.",
+    "source": "tatoeba",
+    "upstreamId": "933921"
+  },
+  {
+    "text": "Taj koncert je bio odličan.",
+    "source": "tatoeba",
+    "upstreamId": "933922"
+  },
+  {
+    "text": "Očekujem da će doći.",
+    "source": "tatoeba",
+    "upstreamId": "933923"
+  },
+  {
+    "text": "Radnici su bili goli do pasa.",
+    "source": "tatoeba",
+    "upstreamId": "934325"
+  },
+  {
+    "text": "Dokad ćeš ostati u Japanu?",
+    "source": "tatoeba",
+    "upstreamId": "934330"
+  },
+  {
+    "text": "Dokad ćeš biti u Japanu.",
+    "source": "tatoeba",
+    "upstreamId": "934331"
+  },
+  {
+    "text": "Nisi bio trebao doći tako rano.",
+    "source": "tatoeba",
+    "upstreamId": "934334"
+  },
+  {
+    "text": "Na mojim crnim cipelama pete trebaju bi popravljene.",
+    "source": "tatoeba",
+    "upstreamId": "934335"
+  },
+  {
+    "text": "Smijem li posuditi tvoj rječnik?",
+    "source": "tatoeba",
+    "upstreamId": "934336"
+  },
+  {
+    "text": "Moj učitelj je gospodin Haddad.",
+    "source": "tatoeba",
+    "upstreamId": "934338"
+  },
+  {
+    "text": "Kako se zove ova ulica?",
+    "source": "tatoeba",
+    "upstreamId": "934339"
+  },
+  {
+    "text": "On prisustvuje ovoj sjednici.",
+    "source": "tatoeba",
+    "upstreamId": "934340"
+  },
+  {
+    "text": "Doslovce sam shvatio njezine riječi.",
+    "source": "tatoeba",
+    "upstreamId": "934341"
+  },
+  {
+    "text": "To ne smije raditi.",
+    "source": "tatoeba",
+    "upstreamId": "934342"
+  },
+  {
+    "text": "Koja je njezina nacionalnost?",
+    "source": "tatoeba",
+    "upstreamId": "934343"
+  },
+  {
+    "text": "Je li blizu poštanski sandučić?",
+    "source": "tatoeba",
+    "upstreamId": "934979"
+  },
+  {
+    "text": "Hoćeš li mi dati euro?",
+    "source": "tatoeba",
+    "upstreamId": "934980"
+  },
+  {
+    "text": "Vozač je zahtijevao da izađe iz busa, jer nije imala kartu.",
+    "source": "tatoeba",
+    "upstreamId": "934995"
+  },
+  {
+    "text": "Ne mogu je razlikovati od njezine sestre blizanke.",
+    "source": "tatoeba",
+    "upstreamId": "935003"
+  },
+  {
+    "text": "Njezin otac je Japanac.",
+    "source": "tatoeba",
+    "upstreamId": "935004"
+  },
+  {
+    "text": "Njegov otac je Japanac.",
+    "source": "tatoeba",
+    "upstreamId": "935005"
+  },
+  {
+    "text": "Otišli smo u rodilište i ostali tamo jedan tjedan.",
+    "source": "tatoeba",
+    "upstreamId": "935009"
+  },
+  {
+    "text": "Dužnost je djece voljeti svoje roditelje.",
+    "source": "tatoeba",
+    "upstreamId": "935013"
+  },
+  {
+    "text": "Želi kupiti neke knjige.",
+    "source": "tatoeba",
+    "upstreamId": "935015"
+  },
+  {
+    "text": "Ona sudjeluje u mnogim školskim aktivnostima.",
+    "source": "tatoeba",
+    "upstreamId": "935016"
+  },
+  {
+    "text": "Posve sam ozdravio.",
+    "source": "tatoeba",
+    "upstreamId": "935017"
+  },
+  {
+    "text": "Rajčice, bilo svježe ili kuhane, su uvijek ukusni dodatak.",
+    "source": "tatoeba",
+    "upstreamId": "935018"
+  },
+  {
+    "text": "Besmisao djelovanja ga je uplašio.",
+    "source": "tatoeba",
+    "upstreamId": "935019"
+  },
+  {
+    "text": "On ima savršene načine, zato se nikad ne zna što zapravo misli.",
+    "source": "tatoeba",
+    "upstreamId": "935020"
+  },
+  {
+    "text": "Najprije perem svoje lice i ruke.",
+    "source": "tatoeba",
+    "upstreamId": "935021"
+  },
+  {
+    "text": "Ne mogu izdržati ovu bol.",
+    "source": "tatoeba",
+    "upstreamId": "935022"
+  },
+  {
+    "text": "On dobro govori japanski, ali ne znam govoriti njemački.",
+    "source": "tatoeba",
+    "upstreamId": "935024"
+  },
+  {
+    "text": "Ovaj cvijet prekrasno miriši.",
+    "source": "tatoeba",
+    "upstreamId": "935025"
+  },
+  {
+    "text": "Gdje je svjetlost, tu je i sjena.",
+    "source": "tatoeba",
+    "upstreamId": "935026"
+  },
+  {
+    "text": "Ovdje se govori španjolski.",
+    "source": "tatoeba",
+    "upstreamId": "935027"
+  },
+  {
+    "text": "Crna mačka je zadovoljno predila.",
+    "source": "tatoeba",
+    "upstreamId": "935028"
+  },
+  {
+    "text": "Crna mačka je predila, kada je bila zadovoljna.",
+    "source": "tatoeba",
+    "upstreamId": "935029"
+  },
+  {
+    "text": "Mi svi smo sretni.",
+    "source": "tatoeba",
+    "upstreamId": "935031"
+  },
+  {
+    "text": "Svake subote igramo nogomet.",
+    "source": "tatoeba",
+    "upstreamId": "935032"
+  },
+  {
+    "text": "Odlično, danas će pod biti očišćen do sjaja.",
+    "source": "tatoeba",
+    "upstreamId": "935040"
+  },
+  {
+    "text": "Imaš li kemijsku olovku?",
+    "source": "tatoeba",
+    "upstreamId": "935080"
+  },
+  {
+    "text": "Čekao sam ju jako dugo.",
+    "source": "tatoeba",
+    "upstreamId": "935177"
+  },
+  {
+    "text": "Izašao sam na pogrešnoj stanici.",
+    "source": "tatoeba",
+    "upstreamId": "935182"
+  },
+  {
+    "text": "Kada učim, slušam glazbu pomoću slušalica.",
+    "source": "tatoeba",
+    "upstreamId": "935184"
+  },
+  {
+    "text": "Ovaj gradić, kao i mnogi gradići u Engleskoj, ima prilično dugu povijest.",
+    "source": "tatoeba",
+    "upstreamId": "935191"
+  },
+  {
+    "text": "Ona mora posjetiti Englesku ovog ljeta.",
+    "source": "tatoeba",
+    "upstreamId": "935194"
+  },
+  {
+    "text": "Sljedećeg tjedna ćemo se preseliti u naš novi dom, ako bude spreman dotada.",
+    "source": "tatoeba",
+    "upstreamId": "935195"
+  },
+  {
+    "text": "Jesi li kupio meso u trgovini?",
+    "source": "tatoeba",
+    "upstreamId": "935196"
+  },
+  {
+    "text": "Dr. Patterson: Da, bilo je užasno.",
+    "source": "tatoeba",
+    "upstreamId": "935197"
+  },
+  {
+    "text": "Kada se otvara klub?",
+    "source": "tatoeba",
+    "upstreamId": "935213"
+  },
+  {
+    "text": "Ne vrijedi žaliti.",
+    "source": "tatoeba",
+    "upstreamId": "935218"
+  },
+  {
+    "text": "Stari učitelj je počeo nostalgično govoriti o dobrim, starim vremenima.",
+    "source": "tatoeba",
+    "upstreamId": "935222"
+  },
+  {
+    "text": "Išli smo u crkvu svake nedjelje, kada smo bili u Americi.",
+    "source": "tatoeba",
+    "upstreamId": "935223"
+  },
+  {
+    "text": "Tip je nevjerojatan.",
+    "source": "tatoeba",
+    "upstreamId": "935226"
+  },
+  {
+    "text": "Potresi često pogađaju Japan.",
+    "source": "tatoeba",
+    "upstreamId": "935228"
+  },
+  {
+    "text": "Zatvorite sva vrata i prozore.",
+    "source": "tatoeba",
+    "upstreamId": "935237"
+  },
+  {
+    "text": "Ne mogu zapamtiti njezin broj telefona, unatoč velikom trudu da zapamtim.",
+    "source": "tatoeba",
+    "upstreamId": "935241"
+  },
+  {
+    "text": "Odbila je reći više o tome.",
+    "source": "tatoeba",
+    "upstreamId": "936373"
+  },
+  {
+    "text": "Molim te, popravi moju igračku.",
+    "source": "tatoeba",
+    "upstreamId": "936377"
+  },
+  {
+    "text": "Takvo ponašanje može uzrokovati nesreću.",
+    "source": "tatoeba",
+    "upstreamId": "936384"
+  },
+  {
+    "text": "Ta knjiga je nova.",
+    "source": "tatoeba",
+    "upstreamId": "936392"
+  },
+  {
+    "text": "Želim umrijeti s Getter Jaani.",
+    "source": "tatoeba",
+    "upstreamId": "936411"
+  },
+  {
+    "text": "Magdalena i Ania su dobre prijateljice.",
+    "source": "tatoeba",
+    "upstreamId": "936418"
+  },
+  {
+    "text": "I Magdalena i Ania su iz Poljske.",
+    "source": "tatoeba",
+    "upstreamId": "936425"
+  },
+  {
+    "text": "Aniu zanimaju računala.",
+    "source": "tatoeba",
+    "upstreamId": "936431"
+  },
+  {
+    "text": "Magdalenu zanima zemljopis.",
+    "source": "tatoeba",
+    "upstreamId": "936437"
+  },
+  {
+    "text": "Također Piotr i Lech su dobri prijatelji.",
+    "source": "tatoeba",
+    "upstreamId": "936443"
+  },
+  {
+    "text": "I Piotr i Lech su iz Poljske.",
+    "source": "tatoeba",
+    "upstreamId": "936453"
+  },
+  {
+    "text": "Piotra zanima nogomet.",
+    "source": "tatoeba",
+    "upstreamId": "936455"
+  },
+  {
+    "text": "Lecha zanima povijest.",
+    "source": "tatoeba",
+    "upstreamId": "936459"
+  },
+  {
+    "text": "On ne zna puno o Japanu.",
+    "source": "tatoeba",
+    "upstreamId": "936472"
+  },
+  {
+    "text": "Piotr ima crnu, a Lech plavu kosu.",
+    "source": "tatoeba",
+    "upstreamId": "936477"
+  },
+  {
+    "text": "Optički radari funkcioniraju koristeći svjetlo umjesto radiovalova kao kod običnih radara.",
+    "source": "tatoeba",
+    "upstreamId": "936481"
+  },
+  {
+    "text": "Ania ima crnu, a Magdalena plavu kosu.",
+    "source": "tatoeba",
+    "upstreamId": "936484"
+  },
+  {
+    "text": "Ohrabrio me je da pokušam ponovno.",
+    "source": "tatoeba",
+    "upstreamId": "936490"
+  },
+  {
+    "text": "Ovaj roman je težak za razumjeti.",
+    "source": "tatoeba",
+    "upstreamId": "936492"
+  },
+  {
+    "text": "Ania i Piotr su dvanaest.",
+    "source": "tatoeba",
+    "upstreamId": "936497"
+  },
+  {
+    "text": "Magdalena i Lech imaju trinaest.",
+    "source": "tatoeba",
+    "upstreamId": "936499"
+  },
+  {
+    "text": "Imam dvije ulaznice za Boston protiv Vancouver u subotu navečer. Želiš li ići sa mnom?",
+    "source": "tatoeba",
+    "upstreamId": "936500"
+  },
+  {
+    "text": "Oprostite. Kako se zovete?",
+    "source": "tatoeba",
+    "upstreamId": "936502"
+  },
+  {
+    "text": "Isitnabog, ne volim ga.",
+    "source": "tatoeba",
+    "upstreamId": "936504"
+  },
+  {
+    "text": "Dosadila mi je njegova priča.",
+    "source": "tatoeba",
+    "upstreamId": "936521"
+  },
+  {
+    "text": "Nije korektno kritizirati druge iza leđa.",
+    "source": "tatoeba",
+    "upstreamId": "936524"
+  },
+  {
+    "text": "Oženio sam se Poljakinjom.",
+    "source": "tatoeba",
+    "upstreamId": "936526"
+  },
+  {
+    "text": "Oženit ću lijepu Estonku.",
+    "source": "tatoeba",
+    "upstreamId": "936528"
+  },
+  {
+    "text": "Ne sanjaj svoj život, nego živi svoj san.",
+    "source": "tatoeba",
+    "upstreamId": "936529"
+  },
+  {
+    "text": "Na taj vlak je Aomori trideset minuta kasnio, zato se bojim da nećemo stići u Tokijo prijepodne.",
+    "source": "tatoeba",
+    "upstreamId": "936544"
+  },
+  {
+    "text": "Nazvali smo našeg psa \"White\".",
+    "source": "tatoeba",
+    "upstreamId": "936546"
+  },
+  {
+    "text": "Popio je previše jučer.",
+    "source": "tatoeba",
+    "upstreamId": "936547"
+  },
+  {
+    "text": "Jesi li išao u London taj dan?",
+    "source": "tatoeba",
+    "upstreamId": "936549"
+  },
+  {
+    "text": "Zaluđen sam američkim nogometom.",
+    "source": "tatoeba",
+    "upstreamId": "936550"
+  },
+  {
+    "text": "Sve što trebaš je dobar sir i pekmez od višanja.",
+    "source": "tatoeba",
+    "upstreamId": "936557"
+  },
+  {
+    "text": "Imam malo temperature.",
+    "source": "tatoeba",
+    "upstreamId": "936559"
+  },
+  {
+    "text": "Moja žena se zove Lidia Zarębowa.",
+    "source": "tatoeba",
+    "upstreamId": "936561"
+  },
+  {
+    "text": "Imamo dvije kćeri i dva sina.",
+    "source": "tatoeba",
+    "upstreamId": "936562"
+  },
+  {
+    "text": "Moja starija kći je Magdalena Zarębówna.",
+    "source": "tatoeba",
+    "upstreamId": "936565"
+  },
+  {
+    "text": "Ušao je kroz prozor.",
+    "source": "tatoeba",
+    "upstreamId": "936566"
+  },
+  {
+    "text": "Moja jakna nije ista tvojoj.",
+    "source": "tatoeba",
+    "upstreamId": "936571"
+  },
+  {
+    "text": "Moja majica još nije suha.",
+    "source": "tatoeba",
+    "upstreamId": "936573"
+  },
+  {
+    "text": "Molim te pripazi na moj kofer.",
+    "source": "tatoeba",
+    "upstreamId": "936576"
+  },
+  {
+    "text": "Ne mogu naći svoj kofer.",
+    "source": "tatoeba",
+    "upstreamId": "936577"
+  },
+  {
+    "text": "Moja suknja je predugačka.",
+    "source": "tatoeba",
+    "upstreamId": "936578"
+  },
+  {
+    "text": "Odlučio je postati liječnik.",
+    "source": "tatoeba",
+    "upstreamId": "936579"
+  },
+  {
+    "text": "Njegova teorija zaslužuje pozornost.",
+    "source": "tatoeba",
+    "upstreamId": "936582"
+  },
+  {
+    "text": "Izgledala je oduševljena glazbom.",
+    "source": "tatoeba",
+    "upstreamId": "936584"
+  },
+  {
+    "text": "To je vrlo čudno pismo.",
+    "source": "tatoeba",
+    "upstreamId": "936586"
+  },
+  {
+    "text": "Također i na Marsu su mačke.",
+    "source": "tatoeba",
+    "upstreamId": "936588"
+  },
+  {
+    "text": "Visoke cijene su postale zapreka međunarodnoj trgovini.",
+    "source": "tatoeba",
+    "upstreamId": "936593"
+  },
+  {
+    "text": "U svijetu je preko sedam tisuća jezika.",
+    "source": "tatoeba",
+    "upstreamId": "936595"
+  },
+  {
+    "text": "Vjerojatno je promašio vlak.",
+    "source": "tatoeba",
+    "upstreamId": "936597"
+  },
+  {
+    "text": "Ta kuća pripada njemu.",
+    "source": "tatoeba",
+    "upstreamId": "936602"
+  },
+  {
+    "text": "Koliko si dugo čekao/čekala?",
+    "source": "tatoeba",
+    "upstreamId": "936603"
+  },
+  {
+    "text": "Koliko Ste dugo čekali?",
+    "source": "tatoeba",
+    "upstreamId": "936607"
+  },
+  {
+    "text": "Prosječni prostor življenja u Americi je dva puta veći nego u Japanu.",
+    "source": "tatoeba",
+    "upstreamId": "936611"
+  },
+  {
+    "text": "Zbog međunarodnog protivljenja, mnoge zemlje su prestale loviti kitove.",
+    "source": "tatoeba",
+    "upstreamId": "936613"
+  },
+  {
+    "text": "Njezin sastav je vrlo dobar, osim nekoliko grešaka u izgovoru.",
+    "source": "tatoeba",
+    "upstreamId": "936620"
+  },
+  {
+    "text": "Riješio je problem s lakoćom.",
+    "source": "tatoeba",
+    "upstreamId": "936624"
+  },
+  {
+    "text": "\"Jesi li vidio moj mobitel?\" \"Na stolu je.\"",
+    "source": "tatoeba",
+    "upstreamId": "936626"
+  },
+  {
+    "text": "Dao joj je sve što je tražila.",
+    "source": "tatoeba",
+    "upstreamId": "936634"
+  },
+  {
+    "text": "Bill je ustao rano da ne propusti prvi vlak.",
+    "source": "tatoeba",
+    "upstreamId": "936637"
+  },
+  {
+    "text": "Jedan moj prijatelj studira u inozemstvu.",
+    "source": "tatoeba",
+    "upstreamId": "936640"
+  },
+  {
+    "text": "Neki moji prijatelji jako dobro govore engelski.",
+    "source": "tatoeba",
+    "upstreamId": "936641"
+  },
+  {
+    "text": "Vrlo je pametna, zar ne?",
+    "source": "tatoeba",
+    "upstreamId": "936643"
+  },
+  {
+    "text": "Umoran si, zar ne?",
+    "source": "tatoeba",
+    "upstreamId": "936644"
+  },
+  {
+    "text": "Živiš li ovdje?",
+    "source": "tatoeba",
+    "upstreamId": "936647"
+  },
+  {
+    "text": "Izgledaš vrlo blijedo.",
+    "source": "tatoeba",
+    "upstreamId": "936648"
+  },
+  {
+    "text": "Moraš se kontrolirati.",
+    "source": "tatoeba",
+    "upstreamId": "936649"
+  },
+  {
+    "text": "Izgledaš sretno danas.",
+    "source": "tatoeba",
+    "upstreamId": "936650"
+  },
+  {
+    "text": "Predpostavljam da si gladan.",
+    "source": "tatoeba",
+    "upstreamId": "936653"
+  },
+  {
+    "text": "Što te je probudilo.",
+    "source": "tatoeba",
+    "upstreamId": "936654"
+  },
+  {
+    "text": "Učiš li engleski?",
+    "source": "tatoeba",
+    "upstreamId": "936656"
+  },
+  {
+    "text": "Znaš plivati, zar ne?",
+    "source": "tatoeba",
+    "upstreamId": "936658"
+  },
+  {
+    "text": "Nikada nećeš biti sam.",
+    "source": "tatoeba",
+    "upstreamId": "936659"
+  },
+  {
+    "text": "Trebao bi znati bolje.",
+    "source": "tatoeba",
+    "upstreamId": "936660"
+  },
+  {
+    "text": "Govoriš li francuski?",
+    "source": "tatoeba",
+    "upstreamId": "936661"
+  },
+  {
+    "text": "Zašto ne možeš doći?",
+    "source": "tatoeba",
+    "upstreamId": "936662"
+  },
+  {
+    "text": "Vrlo si hrabar.",
+    "source": "tatoeba",
+    "upstreamId": "936663"
+  },
+  {
+    "text": "Jesi li završio?",
+    "source": "tatoeba",
+    "upstreamId": "936668"
+  },
+  {
+    "text": "Možeš ići tamo.",
+    "source": "tatoeba",
+    "upstreamId": "936669"
+  },
+  {
+    "text": "Možeš učiti ovdje.",
+    "source": "tatoeba",
+    "upstreamId": "936671"
+  },
+  {
+    "text": "Uvijek se žališ.",
+    "source": "tatoeba",
+    "upstreamId": "936673"
+  },
+  {
+    "text": "Volim tvoju hrabrost.",
+    "source": "tatoeba",
+    "upstreamId": "936675"
+  },
+  {
+    "text": "Znam tvoje ime.",
+    "source": "tatoeba",
+    "upstreamId": "936677"
+  },
+  {
+    "text": "Tvoj odgovor je točan.",
+    "source": "tatoeba",
+    "upstreamId": "936680"
+  },
+  {
+    "text": "Tvoj odgovor je netočan.",
+    "source": "tatoeba",
+    "upstreamId": "936681"
+  },
+  {
+    "text": "Gledaj svoje poslove!",
+    "source": "tatoeba",
+    "upstreamId": "936683"
+  },
+  {
+    "text": "Napiši svoju adresu ovdje.",
+    "source": "tatoeba",
+    "upstreamId": "936686"
+  },
+  {
+    "text": "Jesu li ti ruke čiste?",
+    "source": "tatoeba",
+    "upstreamId": "936687"
+  },
+  {
+    "text": "Je li tvoj sat točan?",
+    "source": "tatoeba",
+    "upstreamId": "936688"
+  },
+  {
+    "text": "Gdje su tvoje stvari?",
+    "source": "tatoeba",
+    "upstreamId": "936689"
+  },
+  {
+    "text": "Jednostavno slijedi svoje srce.",
+    "source": "tatoeba",
+    "upstreamId": "936690"
+  },
+  {
+    "text": "Mislim da si u pravu.",
+    "source": "tatoeba",
+    "upstreamId": "936691"
+  },
+  {
+    "text": "Mogao bi imati pravo.",
+    "source": "tatoeba",
+    "upstreamId": "936692"
+  },
+  {
+    "text": "Želim tvoje mišljenje.",
+    "source": "tatoeba",
+    "upstreamId": "936693"
+  },
+  {
+    "text": "Tvoje vrijeme je isteklo.",
+    "source": "tatoeba",
+    "upstreamId": "936694"
+  },
+  {
+    "text": "Tvoj plan zvuči odlično.",
+    "source": "tatoeba",
+    "upstreamId": "936696"
+  },
+  {
+    "text": "Tvoja torta je ukusna.",
+    "source": "tatoeba",
+    "upstreamId": "936698"
+  },
+  {
+    "text": "Zaslužuješ nagradu.",
+    "source": "tatoeba",
+    "upstreamId": "936701"
+  },
+  {
+    "text": "Nisam inteligentniji više nego on.",
+    "source": "tatoeba",
+    "upstreamId": "936703"
+  },
+  {
+    "text": "Mr Koizumi je pun sebe.",
+    "source": "tatoeba",
+    "upstreamId": "936706"
+  },
+  {
+    "text": "Požurili smo da ne zaksanimo na koncert.",
+    "source": "tatoeba",
+    "upstreamId": "936710"
+  },
+  {
+    "text": "Što Vam se dogodilo jučer navečer?",
+    "source": "tatoeba",
+    "upstreamId": "936714"
+  },
+  {
+    "text": "Trebaš li našu pomoć?",
+    "source": "tatoeba",
+    "upstreamId": "936715"
+  },
+  {
+    "text": "Vaš odgovor je netočan.",
+    "source": "tatoeba",
+    "upstreamId": "936723"
+  },
+  {
+    "text": "Jesi li završila?",
+    "source": "tatoeba",
+    "upstreamId": "936727"
+  },
+  {
+    "text": "Titanik je potonuo na svojoj prvoj plovidbi.",
+    "source": "tatoeba",
+    "upstreamId": "936728"
+  },
+  {
+    "text": "Kome pripada hrana ovdje?",
+    "source": "tatoeba",
+    "upstreamId": "936888"
+  },
+  {
+    "text": "Zašto je napustio svoj posao?",
+    "source": "tatoeba",
+    "upstreamId": "936904"
+  },
+  {
+    "text": "Nikada se ne ustručavaj reći istinu.",
+    "source": "tatoeba",
+    "upstreamId": "936905"
+  },
+  {
+    "text": "Mislim otići u planine.",
+    "source": "tatoeba",
+    "upstreamId": "936907"
+  },
+  {
+    "text": "Ann je mala djevojčica.",
+    "source": "tatoeba",
+    "upstreamId": "936930"
+  },
+  {
+    "text": "Rijeka koja teče kroz Pariz se zove Seine.",
+    "source": "tatoeba",
+    "upstreamId": "936931"
+  },
+  {
+    "text": "Učiniti ću te sretnim.",
+    "source": "tatoeba",
+    "upstreamId": "936932"
+  },
+  {
+    "text": "Učiniti ću te sretnom.",
+    "source": "tatoeba",
+    "upstreamId": "936933"
+  },
+  {
+    "text": "Granice moga jezika su granice moga svijeta.",
+    "source": "tatoeba",
+    "upstreamId": "936943"
+  },
+  {
+    "text": "Želim proputovati cijeli svijet.",
+    "source": "tatoeba",
+    "upstreamId": "936960"
+  },
+  {
+    "text": "Ima novca i više nego dovoljno.",
+    "source": "tatoeba",
+    "upstreamId": "936966"
+  },
+  {
+    "text": "Felicjina djeca misle da je njihov otac ljepši od Justina Biebera.",
+    "source": "tatoeba",
+    "upstreamId": "936969"
+  },
+  {
+    "text": "Ne može svaki čovjek biti umjetnik.",
+    "source": "tatoeba",
+    "upstreamId": "936977"
+  },
+  {
+    "text": "Ti govoriš engleski tečno.",
+    "source": "tatoeba",
+    "upstreamId": "936987"
+  },
+  {
+    "text": "Ubrzo smo vidjeli kuću, čiji je krov bio crven.",
+    "source": "tatoeba",
+    "upstreamId": "936994"
+  },
+  {
+    "text": "Sada je najbolje vrijeme gledati cvjetanje trešanja.",
+    "source": "tatoeba",
+    "upstreamId": "937006"
+  },
+  {
+    "text": "Kako dobro pričaš japanski!",
+    "source": "tatoeba",
+    "upstreamId": "937009"
+  },
+  {
+    "text": "Jesam li trudna?",
+    "source": "tatoeba",
+    "upstreamId": "937024"
+  },
+  {
+    "text": "Atraktivni ljudi me odbijaju.",
+    "source": "tatoeba",
+    "upstreamId": "937027"
+  },
+  {
+    "text": "U engleskom glagol prethodi objektu.",
+    "source": "tatoeba",
+    "upstreamId": "937030"
+  },
+  {
+    "text": "Umrijeti nije ništa. Zato počni živjeti, manje je smiješno i traje duže.",
+    "source": "tatoeba",
+    "upstreamId": "937032"
+  },
+  {
+    "text": "U Kanadi se govori engleski i francuski.",
+    "source": "tatoeba",
+    "upstreamId": "937037"
+  },
+  {
+    "text": "Nikada nije kasno za učenje.",
+    "source": "tatoeba",
+    "upstreamId": "937043"
+  },
+  {
+    "text": "Molim te pokaži mi drugu kameru.",
+    "source": "tatoeba",
+    "upstreamId": "937045"
+  },
+  {
+    "text": "Koliko često preko tjedna provodiš vrijeme igrajući se s djecom?",
+    "source": "tatoeba",
+    "upstreamId": "937046"
+  },
+  {
+    "text": "Molim te, govori sporije.",
+    "source": "tatoeba",
+    "upstreamId": "937049"
+  },
+  {
+    "text": "Molim Vas, govorite sporije.",
+    "source": "tatoeba",
+    "upstreamId": "937050"
+  },
+  {
+    "text": "Te cipele mi ne odgovoraju.",
+    "source": "tatoeba",
+    "upstreamId": "937051"
+  },
+  {
+    "text": "Trebao bi provoditi više vremena vani, a manje unutra.",
+    "source": "tatoeba",
+    "upstreamId": "937052"
+  },
+  {
+    "text": "Smrt ne razlikuje, sve jednako sustiže.",
+    "source": "tatoeba",
+    "upstreamId": "937053"
+  },
+  {
+    "text": "Nitko nema pravo oduzeti mi slobodu.",
+    "source": "tatoeba",
+    "upstreamId": "937056"
+  },
+  {
+    "text": "Gdje je vatra, tu je i dim.",
+    "source": "tatoeba",
+    "upstreamId": "937058"
+  },
+  {
+    "text": "Podijelimo taj novac.",
+    "source": "tatoeba",
+    "upstreamId": "937066"
+  },
+  {
+    "text": "Kiša je upravo prestala. Možemo ići.",
+    "source": "tatoeba",
+    "upstreamId": "937070"
+  },
+  {
+    "text": "I feminizam? Što misliš o feminizmu?",
+    "source": "tatoeba",
+    "upstreamId": "937075"
+  },
+  {
+    "text": "Nogomet je dobar.",
+    "source": "tatoeba",
+    "upstreamId": "937076"
+  },
+  {
+    "text": "Njemačka je hladna zemlja.",
+    "source": "tatoeba",
+    "upstreamId": "937078"
+  },
+  {
+    "text": "Tko je otkrio otok?",
+    "source": "tatoeba",
+    "upstreamId": "937080"
+  },
+  {
+    "text": "Sumatra je otok.",
+    "source": "tatoeba",
+    "upstreamId": "937081"
+  },
+  {
+    "text": "Ići ću u knjižnicu sutra da konačno počnem učiti.",
+    "source": "tatoeba",
+    "upstreamId": "937083"
+  },
+  {
+    "text": "Nigdje ne možeš jesti tako dobru hranu kao ovdje.",
+    "source": "tatoeba",
+    "upstreamId": "937086"
+  },
+  {
+    "text": "Njezine oči se smiju.",
+    "source": "tatoeba",
+    "upstreamId": "937088"
+  },
+  {
+    "text": "Svaki svemir dovoljno jednostavan za razumjeti je previše jednostavan da stvori biće sposobno razumjeti ga.",
+    "source": "tatoeba",
+    "upstreamId": "937090"
+  },
+  {
+    "text": "Zaželimo si dobar tek i neka se svi volimo.",
+    "source": "tatoeba",
+    "upstreamId": "938172"
+  },
+  {
+    "text": "Sada mi je puno bolje.",
+    "source": "tatoeba",
+    "upstreamId": "938183"
+  },
+  {
+    "text": "Kakav otac, takav sin.",
+    "source": "tatoeba",
+    "upstreamId": "938194"
+  },
+  {
+    "text": "Koje oko te boli?",
+    "source": "tatoeba",
+    "upstreamId": "939551"
+  },
+  {
+    "text": "Svi poznaju njegovo ime u okolici.",
+    "source": "tatoeba",
+    "upstreamId": "942590"
+  },
+  {
+    "text": "Želim još jednu čašu piva.",
+    "source": "tatoeba",
+    "upstreamId": "942592"
+  },
+  {
+    "text": "Pisati ću o našim parkovima i planinama.",
+    "source": "tatoeba",
+    "upstreamId": "942593"
+  },
+  {
+    "text": "Počeli su snažnim napadom protiv neprijatelja.",
+    "source": "tatoeba",
+    "upstreamId": "942595"
+  },
+  {
+    "text": "Život sliči putovanju.",
+    "source": "tatoeba",
+    "upstreamId": "942597"
+  },
+  {
+    "text": "Život je poput putovanja.",
+    "source": "tatoeba",
+    "upstreamId": "942598"
+  },
+  {
+    "text": "Mogu li doći pješke?",
+    "source": "tatoeba",
+    "upstreamId": "942599"
+  },
+  {
+    "text": "Želim cijeli svijet proputovati.",
+    "source": "tatoeba",
+    "upstreamId": "942600"
+  },
+  {
+    "text": "Neki studenti su u knjižnici, dok su ostali u učionici.",
+    "source": "tatoeba",
+    "upstreamId": "942601"
+  },
+  {
+    "text": "Ovaj čovjek je pijan.",
+    "source": "tatoeba",
+    "upstreamId": "942603"
+  },
+  {
+    "text": "Sinoć je vdio NLO na nebu.",
+    "source": "tatoeba",
+    "upstreamId": "942608"
+  },
+  {
+    "text": "To je rekao mlađi od braće.",
+    "source": "tatoeba",
+    "upstreamId": "942610"
+  },
+  {
+    "text": "Tom nije loš glazbenik.",
+    "source": "tatoeba",
+    "upstreamId": "942617"
+  },
+  {
+    "text": "Vratili su se zajedno iz kina.",
+    "source": "tatoeba",
+    "upstreamId": "942620"
+  },
+  {
+    "text": "Zadovoljan se smijao.",
+    "source": "tatoeba",
+    "upstreamId": "942622"
+  },
+  {
+    "text": "Nakon Cezarove smrti, komet je sjajio sedam dana.",
+    "source": "tatoeba",
+    "upstreamId": "942663"
+  },
+  {
+    "text": "Mađarska i Slovačka su susjedi.",
+    "source": "tatoeba",
+    "upstreamId": "942670"
+  },
+  {
+    "text": "Kati Wolf je dobra pjevačica.",
+    "source": "tatoeba",
+    "upstreamId": "942673"
+  },
+  {
+    "text": "Tímea je Mađarka i živi u Poljskoj.",
+    "source": "tatoeba",
+    "upstreamId": "942676"
+  },
+  {
+    "text": "Lidia ima plavu ravnu kosu.",
+    "source": "tatoeba",
+    "upstreamId": "942677"
+  },
+  {
+    "text": "Moj stariji sin je Lech Zaręba.",
+    "source": "tatoeba",
+    "upstreamId": "942678"
+  },
+  {
+    "text": "Želim ostati duže tu.",
+    "source": "tatoeba",
+    "upstreamId": "942682"
+  },
+  {
+    "text": "Moram li ići s tobom?",
+    "source": "tatoeba",
+    "upstreamId": "942683"
+  },
+  {
+    "text": "Zašto si došao u Japan?",
+    "source": "tatoeba",
+    "upstreamId": "942684"
+  },
+  {
+    "text": "Iznenađen sam što tvoja obitelj ima japanski auto.",
+    "source": "tatoeba",
+    "upstreamId": "942685"
+  },
+  {
+    "text": "Penis je jedan od muških spolnih organa.",
+    "source": "tatoeba",
+    "upstreamId": "942686"
+  },
+  {
+    "text": "Bojim se oluje.",
+    "source": "tatoeba",
+    "upstreamId": "942688"
+  },
+  {
+    "text": "Nema boga osim Boga i Muhamed je poslanik Božji.",
+    "source": "tatoeba",
+    "upstreamId": "942691"
+  },
+  {
+    "text": "Neću tako dugo čekati.",
+    "source": "tatoeba",
+    "upstreamId": "942693"
+  },
+  {
+    "text": "Pokaži nam pravi put.",
+    "source": "tatoeba",
+    "upstreamId": "942694"
+  },
+  {
+    "text": "Da mi je i dolinom smrti proći, zla se ja ne bojim, jer Ti si sa mnom Oče, tvoj štap i palica tvoja utjeha su meni.",
+    "source": "tatoeba",
+    "upstreamId": "942698"
+  },
+  {
+    "text": "Ellen ne govori engleski.",
+    "source": "tatoeba",
+    "upstreamId": "942702"
+  },
+  {
+    "text": "Prekrasne li duge!",
+    "source": "tatoeba",
+    "upstreamId": "942703"
+  },
+  {
+    "text": "Tko je taj muškarac?",
+    "source": "tatoeba",
+    "upstreamId": "942704"
+  },
+  {
+    "text": "Jesu li svi isti?",
+    "source": "tatoeba",
+    "upstreamId": "942705"
+  },
+  {
+    "text": "Moj dom je blizu željezničke stanice.",
+    "source": "tatoeba",
+    "upstreamId": "942706"
+  },
+  {
+    "text": "Autobusna stanica je blizu naše škole.",
+    "source": "tatoeba",
+    "upstreamId": "942707"
+  },
+  {
+    "text": "Je li netko tamo?",
+    "source": "tatoeba",
+    "upstreamId": "942710"
+  },
+  {
+    "text": "Nekad sam htio biti astrofizičar.",
+    "source": "tatoeba",
+    "upstreamId": "942713"
+  },
+  {
+    "text": "Život je lijep.",
+    "source": "tatoeba",
+    "upstreamId": "942714"
+  },
+  {
+    "text": "Mora se mnogo učiti.",
+    "source": "tatoeba",
+    "upstreamId": "942716"
+  },
+  {
+    "text": "To je stvarno strašno.",
+    "source": "tatoeba",
+    "upstreamId": "942717"
+  },
+  {
+    "text": "Kupio sam torbu.",
+    "source": "tatoeba",
+    "upstreamId": "942718"
+  },
+  {
+    "text": "Imaš li bojicu kod sebe?",
+    "source": "tatoeba",
+    "upstreamId": "942719"
+  },
+  {
+    "text": "Sigurno imaš gripu.",
+    "source": "tatoeba",
+    "upstreamId": "942723"
+  },
+  {
+    "text": "Upravo jedem jabuku.",
+    "source": "tatoeba",
+    "upstreamId": "942724"
+  },
+  {
+    "text": "Šećer se otapa u vrućoj vodi.",
+    "source": "tatoeba",
+    "upstreamId": "944048"
+  },
+  {
+    "text": "Proglasili su ga krivim.",
+    "source": "tatoeba",
+    "upstreamId": "944061"
+  },
+  {
+    "text": "Trebamo smanjiti naše troškove.",
+    "source": "tatoeba",
+    "upstreamId": "944062"
+  },
+  {
+    "text": "Sada se moram posvetiti svome radu.",
+    "source": "tatoeba",
+    "upstreamId": "944063"
+  },
+  {
+    "text": "Sudac je izgovorio petogodišnju kaznu teškog rada.",
+    "source": "tatoeba",
+    "upstreamId": "944064"
+  },
+  {
+    "text": "Supruzi i supruge bi trebali pomagati jedno drugome dokle god žive.",
+    "source": "tatoeba",
+    "upstreamId": "944068"
+  },
+  {
+    "text": "Osjećao sam se loše.",
+    "source": "tatoeba",
+    "upstreamId": "944577"
+  },
+  {
+    "text": "Oprostite, što je sati?",
+    "source": "tatoeba",
+    "upstreamId": "944772"
+  },
+  {
+    "text": "Hoćeš li me naučiti igrati šah?",
+    "source": "tatoeba",
+    "upstreamId": "944948"
+  },
+  {
+    "text": "Ta haljina je jeftinija od tvoje.",
+    "source": "tatoeba",
+    "upstreamId": "944949"
+  },
+  {
+    "text": "Gledaš AnnoZero, eh?",
+    "source": "tatoeba",
+    "upstreamId": "944952"
+  },
+  {
+    "text": "\"Voliš li zmije'\" \"Naravno da ne.\"",
+    "source": "tatoeba",
+    "upstreamId": "944953"
+  },
+  {
+    "text": "Liječnik ju je temeljito pregledao.",
+    "source": "tatoeba",
+    "upstreamId": "944956"
+  },
+  {
+    "text": "Nada nije strategija.",
+    "source": "tatoeba",
+    "upstreamId": "944957"
+  },
+  {
+    "text": "Rastavili su se nakon godišnjice braka.",
+    "source": "tatoeba",
+    "upstreamId": "944958"
+  },
+  {
+    "text": "Stijena visi nad morem.",
+    "source": "tatoeba",
+    "upstreamId": "944960"
+  },
+  {
+    "text": "On zna francuski, a očito i engelski.",
+    "source": "tatoeba",
+    "upstreamId": "944963"
+  },
+  {
+    "text": "Pola četiri je.",
+    "source": "tatoeba",
+    "upstreamId": "944965"
+  },
+  {
+    "text": "Uspio sam postići da shvati to.",
+    "source": "tatoeba",
+    "upstreamId": "944967"
+  },
+  {
+    "text": "Prema Tomu Jane se udala prošli mjesec.",
+    "source": "tatoeba",
+    "upstreamId": "944969"
+  },
+  {
+    "text": "Mars je \"crveni planet.\"",
+    "source": "tatoeba",
+    "upstreamId": "944974"
+  },
+  {
+    "text": "Uzaludno je dalje navaljivati na njega.",
+    "source": "tatoeba",
+    "upstreamId": "944979"
+  },
+  {
+    "text": "Nisam mogao zadržati suze.",
+    "source": "tatoeba",
+    "upstreamId": "944982"
+  },
+  {
+    "text": "Ima više djevojčica nego dječaka u našoj školi.",
+    "source": "tatoeba",
+    "upstreamId": "944987"
+  },
+  {
+    "text": "Pitam se što znači ova rečenica.",
+    "source": "tatoeba",
+    "upstreamId": "944989"
+  },
+  {
+    "text": "Tokijska burza je zabilježila neviđeni gubitak.",
+    "source": "tatoeba",
+    "upstreamId": "944992"
+  },
+  {
+    "text": "Trebaš obogatiti svoj duh dok si mlad.",
+    "source": "tatoeba",
+    "upstreamId": "944993"
+  },
+  {
+    "text": "Oštrica moga noža je vrlo oštra.",
+    "source": "tatoeba",
+    "upstreamId": "944995"
+  },
+  {
+    "text": "Tajfun se bliži Japanu.",
+    "source": "tatoeba",
+    "upstreamId": "944996"
+  },
+  {
+    "text": "Njegovo objašnjenje me je uvjerilo.",
+    "source": "tatoeba",
+    "upstreamId": "944997"
+  },
+  {
+    "text": "Dobio sam toplu dobrodošlicu.",
+    "source": "tatoeba",
+    "upstreamId": "945002"
+  },
+  {
+    "text": "Bez tvoje pomoći on ne bi uspio.",
+    "source": "tatoeba",
+    "upstreamId": "945004"
+  },
+  {
+    "text": "Danas nemamo školu.",
+    "source": "tatoeba",
+    "upstreamId": "945005"
+  },
+  {
+    "text": "Koncentrirao se na to.",
+    "source": "tatoeba",
+    "upstreamId": "945007"
+  },
+  {
+    "text": "Jednostavno taj program troši bateriju.",
+    "source": "tatoeba",
+    "upstreamId": "945009"
+  },
+  {
+    "text": "Kiša prijeti iz tamnog neba.",
+    "source": "tatoeba",
+    "upstreamId": "945012"
+  },
+  {
+    "text": "Bila je ushićena prstenom kojeg joj je kupio.",
+    "source": "tatoeba",
+    "upstreamId": "945017"
+  },
+  {
+    "text": "Kao što znaš već.",
+    "source": "tatoeba",
+    "upstreamId": "945018"
+  },
+  {
+    "text": "Bilo koja djelatnost koju trebaš izvršiti će ti uzeti više vremena nego što imaš.",
+    "source": "tatoeba",
+    "upstreamId": "945026"
+  },
+  {
+    "text": "John se ispružio na naslonjaču.",
+    "source": "tatoeba",
+    "upstreamId": "945029"
+  },
+  {
+    "text": "Nikad nisam bio u Americi.",
+    "source": "tatoeba",
+    "upstreamId": "945032"
+  },
+  {
+    "text": "On studira američku povijest.",
+    "source": "tatoeba",
+    "upstreamId": "945034"
+  },
+  {
+    "text": "Mogu li uzeti slobodan dan?",
+    "source": "tatoeba",
+    "upstreamId": "945036"
+  },
+  {
+    "text": "Ozbiljno je počeo raditi.",
+    "source": "tatoeba",
+    "upstreamId": "945040"
+  },
+  {
+    "text": "Radi i ne pričaj.",
+    "source": "tatoeba",
+    "upstreamId": "945044"
+  },
+  {
+    "text": "Možemo čuti crkvena zvona svakoga jutra.",
+    "source": "tatoeba",
+    "upstreamId": "945048"
+  },
+  {
+    "text": "Vidio sam učenike kako čiste svoju učionicu poslije škole.",
+    "source": "tatoeba",
+    "upstreamId": "945051"
+  },
+  {
+    "text": "Njegov sin je izbačen iz škole.",
+    "source": "tatoeba",
+    "upstreamId": "945052"
+  },
+  {
+    "text": "Kucao je na vrata.",
+    "source": "tatoeba",
+    "upstreamId": "945053"
+  },
+  {
+    "text": "Gdje si slikao to?",
+    "source": "tatoeba",
+    "upstreamId": "945056"
+  },
+  {
+    "text": "Ne mijenjaj tako često svoja mišljenja.",
+    "source": "tatoeba",
+    "upstreamId": "945064"
+  },
+  {
+    "text": "Na stolu je šalica čaja i jaje.",
+    "source": "tatoeba",
+    "upstreamId": "945067"
+  },
+  {
+    "text": "Ti si sljedeći.",
+    "source": "tatoeba",
+    "upstreamId": "945069"
+  },
+  {
+    "text": "Protiv je rasne diskriminacije.",
+    "source": "tatoeba",
+    "upstreamId": "945070"
+  },
+  {
+    "text": "Sada imam malo novaca.",
+    "source": "tatoeba",
+    "upstreamId": "945072"
+  },
+  {
+    "text": "Kutija je prazna.",
+    "source": "tatoeba",
+    "upstreamId": "945074"
+  },
+  {
+    "text": "Živi u New Yorku tri godine i poznaje mnogo dobrih restorana tamo.",
+    "source": "tatoeba",
+    "upstreamId": "945083"
+  },
+  {
+    "text": "Treba biti više autobusa tijekom sati najživljeg prometa.",
+    "source": "tatoeba",
+    "upstreamId": "945097"
+  },
+  {
+    "text": "Onda smo posjetili Washington D.C., glavni grad Sjedinjenih Američkih Država.",
+    "source": "tatoeba",
+    "upstreamId": "945104"
+  },
+  {
+    "text": "Kojeg god je podrijetla, Valentinovo je uvijek imalo dugu i romantičnu povijest.",
+    "source": "tatoeba",
+    "upstreamId": "945112"
+  },
+  {
+    "text": "Katkada izgubi živce za ništa.",
+    "source": "tatoeba",
+    "upstreamId": "945121"
+  },
+  {
+    "text": "Nadmašuje svoje protivnike u svemu.",
+    "source": "tatoeba",
+    "upstreamId": "945123"
+  },
+  {
+    "text": "Odlično. Nitko mi ne daje bilo što.",
+    "source": "tatoeba",
+    "upstreamId": "945130"
+  },
+  {
+    "text": "Englezi nazivaju elevatore \"liftovima.\"",
+    "source": "tatoeba",
+    "upstreamId": "945132"
+  },
+  {
+    "text": "Pokaži mi kako se radi to.",
+    "source": "tatoeba",
+    "upstreamId": "945137"
+  },
+  {
+    "text": "Možete li doći sutra na sastanak?",
+    "source": "tatoeba",
+    "upstreamId": "945141"
+  },
+  {
+    "text": "Inzistirala je da mi pomogne.",
+    "source": "tatoeba",
+    "upstreamId": "945143"
+  },
+  {
+    "text": "Učinjena je pogreška.",
+    "source": "tatoeba",
+    "upstreamId": "945146"
+  },
+  {
+    "text": "Puno je toga za napraviti, želiš li pomoć?",
+    "source": "tatoeba",
+    "upstreamId": "945147"
+  },
+  {
+    "text": "Jer je bio bolestan, nije mogao ići na zabavu.",
+    "source": "tatoeba",
+    "upstreamId": "945150"
+  },
+  {
+    "text": "Odgovorio mi je smiješkom.",
+    "source": "tatoeba",
+    "upstreamId": "945155"
+  },
+  {
+    "text": "On želi pokloniti knjigu učitelju.",
+    "source": "tatoeba",
+    "upstreamId": "945157"
+  },
+  {
+    "text": "Taj čovjek ne može bit pošten.",
+    "source": "tatoeba",
+    "upstreamId": "945160"
+  },
+  {
+    "text": "On uvijek ima glavnu riječ.",
+    "source": "tatoeba",
+    "upstreamId": "945163"
+  },
+  {
+    "text": "On održava svoju mladost trčanjem.",
+    "source": "tatoeba",
+    "upstreamId": "945165"
+  },
+  {
+    "text": "Tom ne trči tako brzo kao Bill.",
+    "source": "tatoeba",
+    "upstreamId": "945169"
+  },
+  {
+    "text": "Uzeo si je truda da pomogne tome siromašnome čovjeku.",
+    "source": "tatoeba",
+    "upstreamId": "945174"
+  },
+  {
+    "text": "Bila je to poprilično mala kuća, čvrsta i dobro građena.",
+    "source": "tatoeba",
+    "upstreamId": "945176"
+  },
+  {
+    "text": "Nitko ga ne može razumjeti.",
+    "source": "tatoeba",
+    "upstreamId": "945177"
+  },
+  {
+    "text": "Ovo je pošta, a ovo banka.",
+    "source": "tatoeba",
+    "upstreamId": "945180"
+  },
+  {
+    "text": "On je današnji Bach.",
+    "source": "tatoeba",
+    "upstreamId": "945182"
+  },
+  {
+    "text": "Dobro se razumije sa svojim suradnicima.",
+    "source": "tatoeba",
+    "upstreamId": "945187"
+  },
+  {
+    "text": "Čak i ako bude padala kiša, početi ću sutra rano.",
+    "source": "tatoeba",
+    "upstreamId": "945190"
+  }
+]

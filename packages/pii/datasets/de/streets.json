@@ -1,0 +1,146 @@
+[
+  {
+    "name": "Hauptstraße",
+    "countryCode": "DE",
+    "frequency": 8211,
+    "source": "manual"
+  },
+  {
+    "name": "Schulstraße",
+    "countryCode": "DE",
+    "frequency": 7102,
+    "source": "manual"
+  },
+  {
+    "name": "Gartenstraße",
+    "countryCode": "DE",
+    "frequency": 6815,
+    "source": "manual"
+  },
+  {
+    "name": "Bahnhofstraße",
+    "countryCode": "DE",
+    "frequency": 6604,
+    "source": "manual"
+  },
+  {
+    "name": "Dorfstraße",
+    "countryCode": "DE",
+    "frequency": 5901,
+    "source": "manual"
+  },
+  {
+    "name": "Kirchstraße",
+    "countryCode": "DE",
+    "frequency": 5712,
+    "source": "manual"
+  },
+  {
+    "name": "Bergstraße",
+    "countryCode": "DE",
+    "frequency": 5302,
+    "source": "manual"
+  },
+  {
+    "name": "Lindenstraße",
+    "countryCode": "DE",
+    "frequency": 4881,
+    "source": "manual"
+  },
+  {
+    "name": "Friedrichstraße",
+    "countryCode": "DE",
+    "frequency": 4654,
+    "source": "manual"
+  },
+  {
+    "name": "Mühlenweg",
+    "countryCode": "DE",
+    "frequency": 4502,
+    "source": "manual"
+  },
+  {
+    "name": "Goethestraße",
+    "countryCode": "DE",
+    "frequency": 4321,
+    "source": "manual"
+  },
+  {
+    "name": "Schillerstraße",
+    "countryCode": "DE",
+    "frequency": 4205,
+    "source": "manual"
+  },
+  {
+    "name": "Marktplatz",
+    "countryCode": "DE",
+    "frequency": 4022,
+    "source": "manual"
+  },
+  {
+    "name": "Lessingstraße",
+    "countryCode": "DE",
+    "frequency": 3814,
+    "source": "manual"
+  },
+  {
+    "name": "Mozartstraße",
+    "countryCode": "DE",
+    "frequency": 3611,
+    "source": "manual"
+  },
+  {
+    "name": "Beethovenstraße",
+    "countryCode": "DE",
+    "frequency": 3408,
+    "source": "manual"
+  },
+  {
+    "name": "Karl-Marx-Allee",
+    "countryCode": "DE",
+    "frequency": 22,
+    "source": "manual"
+  },
+  {
+    "name": "Unter den Linden",
+    "countryCode": "DE",
+    "frequency": 18,
+    "source": "manual"
+  },
+  {
+    "name": "Kurfürstendamm",
+    "countryCode": "DE",
+    "frequency": 14,
+    "source": "manual"
+  },
+  {
+    "name": "Reeperbahn",
+    "countryCode": "DE",
+    "frequency": 12,
+    "source": "manual"
+  },
+  {
+    "name": "Rathausplatz",
+    "countryCode": "AT",
+    "frequency": 1206,
+    "source": "manual"
+  },
+  {
+    "name": "Mariahilfer Straße",
+    "countryCode": "AT",
+    "frequency": 18,
+    "source": "manual"
+  },
+  {
+    "name": "Bahnhofstrasse",
+    "countryCode": "CH",
+    "frequency": 2204,
+    "source": "manual"
+  },
+  {
+    "name": "Limmatquai",
+    "countryCode": "CH",
+    "frequency": 23,
+    "source": "manual"
+  }
+]

@@ -10,5 +10,11 @@
   },
   "[python]": {
     "editor.defaultFormatter": "charliermarsh.ruff"
+  },
+  "search.exclude": {
+    "**/*.pen": true
+  },
+  "files.watcherExclude": {
+    "**/*.pen": true
   }
 }

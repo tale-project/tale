@@ -1,0 +1,5602 @@
+[
+  {
+    "name": "Berlin",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 3426354
+  },
+  {
+    "name": "Hamburg",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 1973896
+  },
+  {
+    "name": "Vienna",
+    "countryCode": "AT",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 1691468
+  },
+  {
+    "name": "Munich",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 1505005
+  },
+  {
+    "name": "Köln",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 1024621
+  },
+  {
+    "name": "Frankfurt am Main",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 650000
+  },
+  {
+    "name": "Düsseldorf",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 618685
+  },
+  {
+    "name": "Stuttgart",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 612663
+  },
+  {
+    "name": "Essen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 593085
+  },
+  {
+    "name": "Dortmund",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 588462
+  },
+  {
+    "name": "Dresden",
+    "countryCode": "DE",
+    "admin1": "13",
+    "postcodeSample": null,
+    "population": 564904
+  },
+  {
+    "name": "Bremen",
+    "countryCode": "DE",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 546501
+  },
+  {
+    "name": "Nuremberg",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 515543
+  },
+  {
+    "name": "Hannover",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 515140
+  },
+  {
+    "name": "Leipzig",
+    "countryCode": "DE",
+    "admin1": "13",
+    "postcodeSample": null,
+    "population": 504971
+  },
+  {
+    "name": "Duisburg",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 504358
+  },
+  {
+    "name": "Zürich",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 415367
+  },
+  {
+    "name": "Wandsbek",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 411422
+  },
+  {
+    "name": "Bochum",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 385729
+  },
+  {
+    "name": "Wuppertal",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 360797
+  },
+  {
+    "name": "Bielefeld",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 331906
+  },
+  {
+    "name": "Bonn",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 330579
+  },
+  {
+    "name": "Hamburg-Nord",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 315514
+  },
+  {
+    "name": "Münster",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 308258
+  },
+  {
+    "name": "Mannheim",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 307960
+  },
+  {
+    "name": "Graz",
+    "countryCode": "AT",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 303270
+  },
+  {
+    "name": "Hamburg-Mitte",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 301231
+  },
+  {
+    "name": "Augsburg",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 301105
+  },
+  {
+    "name": "Wiesbaden",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 288850
+  },
+  {
+    "name": "Marienthal",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 287101
+  },
+  {
+    "name": "Karlsruhe",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 283799
+  },
+  {
+    "name": "Gelsenkirchen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 270028
+  },
+  {
+    "name": "Eimsbüttel",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 269118
+  },
+  {
+    "name": "Aachen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 265208
+  },
+  {
+    "name": "Mönchengladbach",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 261742
+  },
+  {
+    "name": "Kiel",
+    "countryCode": "DE",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 252668
+  },
+  {
+    "name": "Altona",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 250192
+  },
+  {
+    "name": "Chemnitz",
+    "countryCode": "DE",
+    "admin1": "13",
+    "postcodeSample": null,
+    "population": 247220
+  },
+  {
+    "name": "Braunschweig",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 244715
+  },
+  {
+    "name": "Magdeburg",
+    "countryCode": "DE",
+    "admin1": "14",
+    "postcodeSample": null,
+    "population": 244329
+  },
+  {
+    "name": "Krefeld",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 237984
+  },
+  {
+    "name": "Halle (Saale)",
+    "countryCode": "DE",
+    "admin1": "14",
+    "postcodeSample": null,
+    "population": 237865
+  },
+  {
+    "name": "Freiburg",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 237460
+  },
+  {
+    "name": "Neue Neustadt",
+    "countryCode": "DE",
+    "admin1": "14",
+    "postcodeSample": null,
+    "population": 226851
+  },
+  {
+    "name": "Mainz",
+    "countryCode": "DE",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 222889
+  },
+  {
+    "name": "Oberhausen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 219176
+  },
+  {
+    "name": "Erfurt",
+    "countryCode": "DE",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 218793
+  },
+  {
+    "name": "Lübeck",
+    "countryCode": "DE",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 212207
+  },
+  {
+    "name": "Linz",
+    "countryCode": "AT",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 204846
+  },
+  {
+    "name": "Favoriten",
+    "countryCode": "AT",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 201882
+  },
+  {
+    "name": "Genève",
+    "countryCode": "CH",
+    "admin1": "GE",
+    "postcodeSample": null,
+    "population": 201741
+  },
+  {
+    "name": "Hagen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 198972
+  },
+  {
+    "name": "Rostock",
+    "countryCode": "DE",
+    "admin1": "12",
+    "postcodeSample": null,
+    "population": 198293
+  },
+  {
+    "name": "Kassel",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 197230
+  },
+  {
+    "name": "Donaustadt",
+    "countryCode": "AT",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 187007
+  },
+  {
+    "name": "Potsdam",
+    "countryCode": "DE",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 184754
+  },
+  {
+    "name": "Saarbrücken",
+    "countryCode": "DE",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 182971
+  },
+  {
+    "name": "Hamm",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 178967
+  },
+  {
+    "name": "Basel",
+    "countryCode": "CH",
+    "admin1": "BS",
+    "postcodeSample": null,
+    "population": 177595
+  },
+  {
+    "name": "Mülheim",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 173050
+  },
+  {
+    "name": "Herne",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 172108
+  },
+  {
+    "name": "Harburg",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 169221
+  },
+  {
+    "name": "Darmstadt",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 167029
+  },
+  {
+    "name": "Osnabrück",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 166462
+  },
+  {
+    "name": "Neukölln",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 164636
+  },
+  {
+    "name": "Solingen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 164359
+  },
+  {
+    "name": "Ludwigshafen am Rhein",
+    "countryCode": "DE",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 163196
+  },
+  {
+    "name": "Floridsdorf",
+    "countryCode": "AT",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 162779
+  },
+  {
+    "name": "Leverkusen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 162738
+  },
+  {
+    "name": "Oldenburg",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 159218
+  },
+  {
+    "name": "Salzburg",
+    "countryCode": "AT",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 157245
+  },
+  {
+    "name": "Kreuzberg",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 153135
+  },
+  {
+    "name": "Neuss",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 152457
+  },
+  {
+    "name": "Regensburg",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 151389
+  },
+  {
+    "name": "Prenzlauer Berg",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 148878
+  },
+  {
+    "name": "Heidelberg",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 143345
+  },
+  {
+    "name": "Paderborn",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 142161
+  },
+  {
+    "name": "Lausanne",
+    "countryCode": "CH",
+    "admin1": "VD",
+    "postcodeSample": null,
+    "population": 139111
+  },
+  {
+    "name": "Würzburg",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 133731
+  },
+  {
+    "name": "Innsbruck",
+    "countryCode": "AT",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 132493
+  },
+  {
+    "name": "Fürth",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 132036
+  },
+  {
+    "name": "Charlottenburg",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 129359
+  },
+  {
+    "name": "Wolfsburg",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 123064
+  },
+  {
+    "name": "Schöneberg",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 122658
+  },
+  {
+    "name": "Recklinghausen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 122438
+  },
+  {
+    "name": "Göttingen",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 122149
+  },
+  {
+    "name": "Bern",
+    "countryCode": "CH",
+    "admin1": "BE",
+    "postcodeSample": null,
+    "population": 121631
+  },
+  {
+    "name": "Heilbronn",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 120733
+  },
+  {
+    "name": "Ingolstadt",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 120658
+  },
+  {
+    "name": "Ulm",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 120451
+  },
+  {
+    "name": "Bottrop",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 119909
+  },
+  {
+    "name": "Bergedorf",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 119665
+  },
+  {
+    "name": "Pforzheim",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 119313
+  },
+  {
+    "name": "Offenbach",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 119192
+  },
+  {
+    "name": "Bremerhaven",
+    "countryCode": "DE",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 118610
+  },
+  {
+    "name": "Friedrichshain",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 117829
+  },
+  {
+    "name": "Remscheid",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 117118
+  },
+  {
+    "name": "Nippes",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 113487
+  },
+  {
+    "name": "Porz am Rhein",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 113415
+  },
+  {
+    "name": "Reutlingen",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 112627
+  },
+  {
+    "name": "Winterthur",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 111840
+  },
+  {
+    "name": "Marzahn",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 111508
+  },
+  {
+    "name": "Rodenkirchen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 110158
+  },
+  {
+    "name": "Koblenz",
+    "countryCode": "DE",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 107319
+  },
+  {
+    "name": "Siegen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 107242
+  },
+  {
+    "name": "Bergisch Gladbach",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 106184
+  },
+  {
+    "name": "Salzgitter",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 104970
+  },
+  {
+    "name": "Jena",
+    "countryCode": "DE",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 104712
+  },
+  {
+    "name": "Gera",
+    "countryCode": "DE",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 104659
+  },
+  {
+    "name": "Ottakring",
+    "countryCode": "AT",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 104627
+  },
+  {
+    "name": "Moers",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 103487
+  },
+  {
+    "name": "Hildesheim",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 103052
+  },
+  {
+    "name": "Erlangen",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 102675
+  },
+  {
+    "name": "Mitte",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 102338
+  },
+  {
+    "name": "Wilmersdorf",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 101877
+  },
+  {
+    "name": "Simmering",
+    "countryCode": "AT",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 101420
+  },
+  {
+    "name": "Klagenfurt am Wörthersee",
+    "countryCode": "AT",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 100316
+  },
+  {
+    "name": "Trier",
+    "countryCode": "DE",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 100129
+  },
+  {
+    "name": "Zwickau",
+    "countryCode": "DE",
+    "admin1": "13",
+    "postcodeSample": null,
+    "population": 98796
+  },
+  {
+    "name": "Kaiserslautern",
+    "countryCode": "DE",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 98732
+  },
+  {
+    "name": "Landstraße",
+    "countryCode": "AT",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 98389
+  },
+  {
+    "name": "Penzing",
+    "countryCode": "AT",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 98176
+  },
+  {
+    "name": "Meidling",
+    "countryCode": "AT",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 97624
+  },
+  {
+    "name": "Schwerin",
+    "countryCode": "DE",
+    "admin1": "12",
+    "postcodeSample": null,
+    "population": 96641
+  },
+  {
+    "name": "Gütersloh",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 96180
+  },
+  {
+    "name": "Gesundbrunnen",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 93862
+  },
+  {
+    "name": "Düren",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 93440
+  },
+  {
+    "name": "Rahlstedt",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 92511
+  },
+  {
+    "name": "Esslingen",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 92390
+  },
+  {
+    "name": "Tübingen",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 92322
+  },
+  {
+    "name": "Iserlohn",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 91811
+  },
+  {
+    "name": "Witten",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 91808
+  },
+  {
+    "name": "Ratingen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 91606
+  },
+  {
+    "name": "Marl",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 91398
+  },
+  {
+    "name": "Lünen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 91009
+  },
+  {
+    "name": "Gießen",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 89179
+  },
+  {
+    "name": "Hanau am Main",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 88648
+  },
+  {
+    "name": "Velbert",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 87669
+  },
+  {
+    "name": "Ludwigsburg",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 87603
+  },
+  {
+    "name": "Brigittenau",
+    "countryCode": "AT",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 86967
+  },
+  {
+    "name": "Lichterfelde",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 85885
+  },
+  {
+    "name": "Flensburg",
+    "countryCode": "DE",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 85838
+  },
+  {
+    "name": "Wedding",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 85275
+  },
+  {
+    "name": "Cottbus",
+    "countryCode": "DE",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 84754
+  },
+  {
+    "name": "Wilhelmshaven",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 84393
+  },
+  {
+    "name": "Hellersdorf",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 84103
+  },
+  {
+    "name": "Reinickendorf",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 83972
+  },
+  {
+    "name": "Minden",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 82879
+  },
+  {
+    "name": "Norderstedt",
+    "countryCode": "DE",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 82844
+  },
+  {
+    "name": "Villingen-Schwenningen",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 81770
+  },
+  {
+    "name": "Luzern",
+    "countryCode": "CH",
+    "admin1": "LU",
+    "postcodeSample": null,
+    "population": 81691
+  },
+  {
+    "name": "Konstanz",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 81275
+  },
+  {
+    "name": "Worms",
+    "countryCode": "DE",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 81099
+  },
+  {
+    "name": "Moabit",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 81021
+  },
+  {
+    "name": "Neumünster",
+    "countryCode": "DE",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 80196
+  },
+  {
+    "name": "Dorsten",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 79981
+  },
+  {
+    "name": "Lüdenscheid",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 79386
+  },
+  {
+    "name": "Marburg an der Lahn",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 78895
+  },
+  {
+    "name": "Rheinhausen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 78203
+  },
+  {
+    "name": "Castrop-Rauxel",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 77924
+  },
+  {
+    "name": "Bogenhausen",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 77542
+  },
+  {
+    "name": "Luxembourg",
+    "countryCode": "LU",
+    "admin1": "LU",
+    "postcodeSample": null,
+    "population": 76684
+  },
+  {
+    "name": "Rheine",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 76491
+  },
+  {
+    "name": "Fünfhaus",
+    "countryCode": "AT",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 76396
+  },
+  {
+    "name": "Viersen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 76153
+  },
+  {
+    "name": "Delmenhorst",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 75893
+  },
+  {
+    "name": "Sankt Gallen",
+    "countryCode": "CH",
+    "admin1": "SG",
+    "postcodeSample": null,
+    "population": 75833
+  },
+  {
+    "name": "Gladbeck",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 75499
+  },
+  {
+    "name": "Döbling",
+    "countryCode": "AT",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 75418
+  },
+  {
+    "name": "Arnsberg",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 74879
+  },
+  {
+    "name": "Troisdorf",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 74749
+  },
+  {
+    "name": "Wattenscheid",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 73965
+  },
+  {
+    "name": "Bocholt",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 73943
+  },
+  {
+    "name": "Detmold",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 73680
+  },
+  {
+    "name": "Bayreuth",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 72940
+  },
+  {
+    "name": "Steglitz",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 72464
+  },
+  {
+    "name": "Landshut",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 71863
+  },
+  {
+    "name": "Lüneburg",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 71260
+  },
+  {
+    "name": "Billstedt",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 71077
+  },
+  {
+    "name": "Celle",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 71010
+  },
+  {
+    "name": "Bamberg",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 70047
+  },
+  {
+    "name": "Aschaffenburg",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 68551
+  },
+  {
+    "name": "Neubrandenburg",
+    "countryCode": "DE",
+    "admin1": "12",
+    "postcodeSample": null,
+    "population": 68082
+  },
+  {
+    "name": "Dessau",
+    "countryCode": "DE",
+    "admin1": "14",
+    "postcodeSample": null,
+    "population": 67747
+  },
+  {
+    "name": "Lippstadt",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 67219
+  },
+  {
+    "name": "Köpenick",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 67148
+  },
+  {
+    "name": "Aalen",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 67085
+  },
+  {
+    "name": "Dinslaken",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 66993
+  },
+  {
+    "name": "Neuwied",
+    "countryCode": "DE",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 66805
+  },
+  {
+    "name": "Unna",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 66734
+  },
+  {
+    "name": "Plauen",
+    "countryCode": "DE",
+    "admin1": "13",
+    "postcodeSample": null,
+    "population": 66412
+  },
+  {
+    "name": "Pankow",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 65375
+  },
+  {
+    "name": "Herten",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 65306
+  },
+  {
+    "name": "Herford",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 64879
+  },
+  {
+    "name": "Grevenbroich",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 64779
+  },
+  {
+    "name": "Weimar",
+    "countryCode": "DE",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 64727
+  },
+  {
+    "name": "Kerpen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 64226
+  },
+  {
+    "name": "Fulda",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 63760
+  },
+  {
+    "name": "Dormagen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 63582
+  },
+  {
+    "name": "Bergheim",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 63558
+  },
+  {
+    "name": "Garbsen",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 63355
+  },
+  {
+    "name": "Lugano",
+    "countryCode": "CH",
+    "admin1": "TI",
+    "postcodeSample": null,
+    "population": 63185
+  },
+  {
+    "name": "Tempelhof",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 61769
+  },
+  {
+    "name": "Wesel",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 61685
+  },
+  {
+    "name": "Kempten (Allgäu)",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 61399
+  },
+  {
+    "name": "Sindelfingen",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 61311
+  },
+  {
+    "name": "Schwäbisch Gmünd",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 61216
+  },
+  {
+    "name": "Rosenheim",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 60167
+  },
+  {
+    "name": "Brandenburg an der Havel",
+    "countryCode": "DE",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 59826
+  },
+  {
+    "name": "Rüsselsheim am Main",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 59730
+  },
+  {
+    "name": "Berlin Köpenick",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 59561
+  },
+  {
+    "name": "Offenburg",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 59238
+  },
+  {
+    "name": "Langenfeld",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 59112
+  },
+  {
+    "name": "Stralsund",
+    "countryCode": "DE",
+    "admin1": "12",
+    "postcodeSample": null,
+    "population": 58976
+  },
+  {
+    "name": "Villach",
+    "countryCode": "AT",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 58882
+  },
+  {
+    "name": "Hameln",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 58666
+  },
+  {
+    "name": "Friedrichshafen",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 58403
+  },
+  {
+    "name": "Göppingen",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 58040
+  },
+  {
+    "name": "Görlitz",
+    "countryCode": "DE",
+    "admin1": "13",
+    "postcodeSample": null,
+    "population": 57751
+  },
+  {
+    "name": "Stolberg",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 57684
+  },
+  {
+    "name": "Hernals",
+    "countryCode": "AT",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 57546
+  },
+  {
+    "name": "Frankfurt (Oder)",
+    "countryCode": "DE",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 57107
+  },
+  {
+    "name": "Neu-Hohenschönhausen",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 56921
+  },
+  {
+    "name": "Baden-Baden",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 56881
+  },
+  {
+    "name": "Hattingen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 56866
+  },
+  {
+    "name": "Hilden",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 56565
+  },
+  {
+    "name": "Winterhude",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 56382
+  },
+  {
+    "name": "Sankt Augustin",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 56094
+  },
+  {
+    "name": "Eschweiler",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 55778
+  },
+  {
+    "name": "Friedrichsfelde",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 55423
+  },
+  {
+    "name": "Ahlen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 55280
+  },
+  {
+    "name": "Biel/Bienne",
+    "countryCode": "CH",
+    "admin1": "BE",
+    "postcodeSample": null,
+    "population": 55120
+  },
+  {
+    "name": "Bad Salzuflen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 54899
+  },
+  {
+    "name": "Euskirchen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 54889
+  },
+  {
+    "name": "Meerbusch",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 54826
+  },
+  {
+    "name": "Wolfenbüttel",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 54740
+  },
+  {
+    "name": "Hürth",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 54678
+  },
+  {
+    "name": "Margareten",
+    "countryCode": "AT",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 54412
+  },
+  {
+    "name": "Zehlendorf",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 54328
+  },
+  {
+    "name": "Hietzing",
+    "countryCode": "AT",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 54265
+  },
+  {
+    "name": "Zürich (Kreis 11)",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 54260
+  },
+  {
+    "name": "Schweinfurt",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 54012
+  },
+  {
+    "name": "Neustadt an der Weinstraße",
+    "countryCode": "DE",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 53984
+  },
+  {
+    "name": "Pulheim",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 53762
+  },
+  {
+    "name": "Gummersbach",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 53131
+  },
+  {
+    "name": "Wilhelmsburg",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 53064
+  },
+  {
+    "name": "Waiblingen",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 52945
+  },
+  {
+    "name": "Nordhorn",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 52803
+  },
+  {
+    "name": "Mariendorf",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 52734
+  },
+  {
+    "name": "Universitäts- und Hansestadt Greifswald",
+    "countryCode": "DE",
+    "admin1": "12",
+    "postcodeSample": null,
+    "population": 52731
+  },
+  {
+    "name": "Cuxhaven",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 52677
+  },
+  {
+    "name": "Wetzlar",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 52656
+  },
+  {
+    "name": "Menden",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 52452
+  },
+  {
+    "name": "Bergkamen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 52329
+  },
+  {
+    "name": "Frechen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 52309
+  },
+  {
+    "name": "Lichtenrade",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 52110
+  },
+  {
+    "name": "Bad Homburg vor der Höhe",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 51859
+  },
+  {
+    "name": "Willich",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 51843
+  },
+  {
+    "name": "Emden",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 51526
+  },
+  {
+    "name": "Währing",
+    "countryCode": "AT",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 51402
+  },
+  {
+    "name": "Neu-Ulm",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 51389
+  },
+  {
+    "name": "Lingen",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 51310
+  },
+  {
+    "name": "Erftstadt",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 51207
+  },
+  {
+    "name": "Neubrück",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 51109
+  },
+  {
+    "name": "Lahr",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 50775
+  },
+  {
+    "name": "Aspern",
+    "countryCode": "AT",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 50687
+  },
+  {
+    "name": "Ibbenbueren",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 50577
+  },
+  {
+    "name": "Passau",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 50560
+  },
+  {
+    "name": "Gronau",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 50547
+  },
+  {
+    "name": "Langenhagen",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 50439
+  },
+  {
+    "name": "Schwerte",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 50399
+  },
+  {
+    "name": "Speyer",
+    "countryCode": "DE",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 50343
+  },
+  {
+    "name": "Alt-Hohenschönhausen",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 50070
+  },
+  {
+    "name": "Heidenheim an der Brenz",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 50067
+  },
+  {
+    "name": "Treptow",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 50000
+  },
+  {
+    "name": "Peine",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 49953
+  },
+  {
+    "name": "Neunkirchen",
+    "countryCode": "DE",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 49843
+  },
+  {
+    "name": "Bad Oeynhausen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 49513
+  },
+  {
+    "name": "Leonberg",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 49480
+  },
+  {
+    "name": "Dornbirn",
+    "countryCode": "AT",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 49278
+  },
+  {
+    "name": "Hof",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 49239
+  },
+  {
+    "name": "Kleve",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 49072
+  },
+  {
+    "name": "Ravensburg",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 48825
+  },
+  {
+    "name": "Elmshorn",
+    "countryCode": "DE",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 48703
+  },
+  {
+    "name": "Bornheim",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 48523
+  },
+  {
+    "name": "Soest",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 48037
+  },
+  {
+    "name": "Hennef (Sieg)",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 48002
+  },
+  {
+    "name": "Rastatt",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 47906
+  },
+  {
+    "name": "Erkrath",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 47815
+  },
+  {
+    "name": "Bruchsal",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 47784
+  },
+  {
+    "name": "Weißensee",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 47693
+  },
+  {
+    "name": "Singen",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 47621
+  },
+  {
+    "name": "Stuttgart-Ost",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 47500
+  },
+  {
+    "name": "Dülmen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 47495
+  },
+  {
+    "name": "Frankenthal",
+    "countryCode": "DE",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 47438
+  },
+  {
+    "name": "Herzogenrath",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 47381
+  },
+  {
+    "name": "Lörrach",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 47002
+  },
+  {
+    "name": "Albstadt",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 46950
+  },
+  {
+    "name": "Oberursel",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 46736
+  },
+  {
+    "name": "Gotha",
+    "countryCode": "DE",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 46615
+  },
+  {
+    "name": "Melle",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 46436
+  },
+  {
+    "name": "Staaken",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 46369
+  },
+  {
+    "name": "Bünde",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 46365
+  },
+  {
+    "name": "Alsdorf",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 46340
+  },
+  {
+    "name": "Böblingen",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 46282
+  },
+  {
+    "name": "Langenhorn",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 46272
+  },
+  {
+    "name": "Rheda-Wiedenbrück",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 46123
+  },
+  {
+    "name": "Zürich (Kreis 3)",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 46018
+  },
+  {
+    "name": "Kamen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 45927
+  },
+  {
+    "name": "Gohlis",
+    "countryCode": "DE",
+    "admin1": "13",
+    "postcodeSample": null,
+    "population": 45924
+  },
+  {
+    "name": "Hansestadt Stade",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 45634
+  },
+  {
+    "name": "Meiderich",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 45297
+  },
+  {
+    "name": "Wismar",
+    "countryCode": "DE",
+    "admin1": "12",
+    "postcodeSample": null,
+    "population": 45255
+  },
+  {
+    "name": "Zürich (Kreis 9)",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 44878
+  },
+  {
+    "name": "Wiener Neustadt",
+    "countryCode": "AT",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 44820
+  },
+  {
+    "name": "Amberg",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 44737
+  },
+  {
+    "name": "Neustadt am Rübenberge",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 44668
+  },
+  {
+    "name": "Erkelenz",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 44650
+  },
+  {
+    "name": "Homburg",
+    "countryCode": "DE",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 44607
+  },
+  {
+    "name": "Straubing",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 44580
+  },
+  {
+    "name": "Halle-Neustadt",
+    "countryCode": "DE",
+    "admin1": "14",
+    "postcodeSample": null,
+    "population": 44515
+  },
+  {
+    "name": "Memmingen",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 44192
+  },
+  {
+    "name": "Brühl",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 44137
+  },
+  {
+    "name": "Fellbach",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 43935
+  },
+  {
+    "name": "Lehrte",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 43920
+  },
+  {
+    "name": "Nordhausen",
+    "countryCode": "DE",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 43912
+  },
+  {
+    "name": "Thun",
+    "countryCode": "CH",
+    "admin1": "BE",
+    "postcodeSample": null,
+    "population": 43723
+  },
+  {
+    "name": "Freiberg",
+    "countryCode": "DE",
+    "admin1": "13",
+    "postcodeSample": null,
+    "population": 43670
+  },
+  {
+    "name": "Pirmasens",
+    "countryCode": "DE",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 43582
+  },
+  {
+    "name": "Goslar",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 43560
+  },
+  {
+    "name": "Lankwitz",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 43558
+  },
+  {
+    "name": "Bietigheim-Bissingen",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 43556
+  },
+  {
+    "name": "Filderstadt",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 43550
+  },
+  {
+    "name": "Suhl",
+    "countryCode": "DE",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 43509
+  },
+  {
+    "name": "Weinheim",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 43325
+  },
+  {
+    "name": "Rodgau",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 43315
+  },
+  {
+    "name": "Bellinzona",
+    "countryCode": "CH",
+    "admin1": "TI",
+    "postcodeSample": null,
+    "population": 43220
+  },
+  {
+    "name": "Bad Kreuznach",
+    "countryCode": "DE",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 43213
+  },
+  {
+    "name": "Ohligs",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 43063
+  },
+  {
+    "name": "Monheim am Rhein",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 43038
+  },
+  {
+    "name": "Gifhorn",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 43000
+  },
+  {
+    "name": "Britz",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 42846
+  },
+  {
+    "name": "Rottenburg",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 42721
+  },
+  {
+    "name": "Rudow",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 42631
+  },
+  {
+    "name": "Freising",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 42570
+  },
+  {
+    "name": "Weiden",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 42550
+  },
+  {
+    "name": "Kaufbeuren",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 42505
+  },
+  {
+    "name": "Nettetal",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 42417
+  },
+  {
+    "name": "Kaarst",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 42112
+  },
+  {
+    "name": "Gallus",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 42012
+  },
+  {
+    "name": "Eberswalde",
+    "countryCode": "DE",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 41980
+  },
+  {
+    "name": "Bautzen",
+    "countryCode": "DE",
+    "admin1": "13",
+    "postcodeSample": null,
+    "population": 41972
+  },
+  {
+    "name": "Lemgo",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 41943
+  },
+  {
+    "name": "Coburg",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 41901
+  },
+  {
+    "name": "Laatzen",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 41838
+  },
+  {
+    "name": "Köniz",
+    "countryCode": "CH",
+    "admin1": "BE",
+    "postcodeSample": null,
+    "population": 41784
+  },
+  {
+    "name": "Mülheim",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 41711
+  },
+  {
+    "name": "Dreieich",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 41692
+  },
+  {
+    "name": "Schorndorf",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 41647
+  },
+  {
+    "name": "Alsergrund",
+    "countryCode": "AT",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 41645
+  },
+  {
+    "name": "Landau in der Pfalz",
+    "countryCode": "DE",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 41612
+  },
+  {
+    "name": "Heinsberg",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 41505
+  },
+  {
+    "name": "Lichtenberg",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 41359
+  },
+  {
+    "name": "Westend",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 41328
+  },
+  {
+    "name": "Seevetal",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 41266
+  },
+  {
+    "name": "Wunstorf",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 41211
+  },
+  {
+    "name": "Leinfelden-Echterdingen",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 41185
+  },
+  {
+    "name": "Königswinter",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 41164
+  },
+  {
+    "name": "Bensheim",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 41124
+  },
+  {
+    "name": "Völklingen",
+    "countryCode": "DE",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 40952
+  },
+  {
+    "name": "Germering",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 40916
+  },
+  {
+    "name": "Niendorf",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 40906
+  },
+  {
+    "name": "Borken",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 40876
+  },
+  {
+    "name": "Buchholz in der Nordheide",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 40849
+  },
+  {
+    "name": "Oranienburg",
+    "countryCode": "DE",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 40793
+  },
+  {
+    "name": "Eisenach",
+    "countryCode": "DE",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 40747
+  },
+  {
+    "name": "Pinneberg",
+    "countryCode": "DE",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 40577
+  },
+  {
+    "name": "Südstadt",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 40557
+  },
+  {
+    "name": "Wilhelmstadt",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 40463
+  },
+  {
+    "name": "Pirna",
+    "countryCode": "DE",
+    "admin1": "13",
+    "postcodeSample": null,
+    "population": 40322
+  },
+  {
+    "name": "Aurich",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 40319
+  },
+  {
+    "name": "Barmbek-Nord",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 40261
+  },
+  {
+    "name": "Nürtingen",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 40210
+  },
+  {
+    "name": "Kirchheim unter Teck",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 40206
+  },
+  {
+    "name": "Buckow",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 40146
+  },
+  {
+    "name": "Märkisches Viertel",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 40119
+  },
+  {
+    "name": "Hückelhoven",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 39828
+  },
+  {
+    "name": "Dachau",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 39740
+  },
+  {
+    "name": "Halberstadt",
+    "countryCode": "DE",
+    "admin1": "14",
+    "postcodeSample": null,
+    "population": 39729
+  },
+  {
+    "name": "Spandau",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 39653
+  },
+  {
+    "name": "Kehl",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 39584
+  },
+  {
+    "name": "Neumarkt in der Oberpfalz",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 39557
+  },
+  {
+    "name": "Mettmann",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 39550
+  },
+  {
+    "name": "Löhne",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 39521
+  },
+  {
+    "name": "Kamp-Lintfort",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 39490
+  },
+  {
+    "name": "Freital",
+    "countryCode": "DE",
+    "admin1": "13",
+    "postcodeSample": null,
+    "population": 39281
+  },
+  {
+    "name": "Siegburg",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 39135
+  },
+  {
+    "name": "Maintal",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 38987
+  },
+  {
+    "name": "Ilmenau",
+    "countryCode": "DE",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 38834
+  },
+  {
+    "name": "Backnang",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 38818
+  },
+  {
+    "name": "Langen",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 38785
+  },
+  {
+    "name": "Biebrich",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 38758
+  },
+  {
+    "name": "Warendorf",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 38707
+  },
+  {
+    "name": "Sankt Ingbert",
+    "countryCode": "DE",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 38697
+  },
+  {
+    "name": "Falkenhagener Feld",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 38667
+  },
+  {
+    "name": "Ettlingen",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 38578
+  },
+  {
+    "name": "Altenburg",
+    "countryCode": "DE",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 38568
+  },
+  {
+    "name": "Schwabach",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 38554
+  },
+  {
+    "name": "Fribourg",
+    "countryCode": "CH",
+    "admin1": "FR",
+    "postcodeSample": null,
+    "population": 38365
+  },
+  {
+    "name": "Leuben",
+    "countryCode": "DE",
+    "admin1": "13",
+    "postcodeSample": null,
+    "population": 38353
+  },
+  {
+    "name": "Saarlouis",
+    "countryCode": "DE",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 38333
+  },
+  {
+    "name": "Steyr",
+    "countryCode": "AT",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 38331
+  },
+  {
+    "name": "Linden",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 38284
+  },
+  {
+    "name": "Buxtehude",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 38192
+  },
+  {
+    "name": "Ahaus",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 38165
+  },
+  {
+    "name": "Haltern am See",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 38142
+  },
+  {
+    "name": "Mühlhausen",
+    "countryCode": "DE",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 38108
+  },
+  {
+    "name": "Hamm",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 37989
+  },
+  {
+    "name": "La Chaux-de-Fonds",
+    "countryCode": "CH",
+    "admin1": "NE",
+    "postcodeSample": null,
+    "population": 37942
+  },
+  {
+    "name": "Neustadt/Süd",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 37939
+  },
+  {
+    "name": "Weißenfels",
+    "countryCode": "DE",
+    "admin1": "14",
+    "postcodeSample": null,
+    "population": 37929
+  },
+  {
+    "name": "Horn",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 37903
+  },
+  {
+    "name": "Beckum",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 37814
+  },
+  {
+    "name": "Hofheim am Taunus",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 37750
+  },
+  {
+    "name": "Stendal",
+    "countryCode": "DE",
+    "admin1": "14",
+    "postcodeSample": null,
+    "population": 37722
+  },
+  {
+    "name": "Gropiusstadt",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 37686
+  },
+  {
+    "name": "Hemer",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 37502
+  },
+  {
+    "name": "Falkensee",
+    "countryCode": "DE",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 37468
+  },
+  {
+    "name": "Würselen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 37074
+  },
+  {
+    "name": "Sinsheim",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 37036
+  },
+  {
+    "name": "Wermelskirchen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 36816
+  },
+  {
+    "name": "Tegel",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 36764
+  },
+  {
+    "name": "Coesfeld",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 36631
+  },
+  {
+    "name": "Esch-sur-Alzette",
+    "countryCode": "LU",
+    "admin1": "ES",
+    "postcodeSample": null,
+    "population": 36625
+  },
+  {
+    "name": "Bitterfeld-Wolfen",
+    "countryCode": "DE",
+    "admin1": "14",
+    "postcodeSample": null,
+    "population": 36592
+  },
+  {
+    "name": "Schaffhausen",
+    "countryCode": "CH",
+    "admin1": "SH",
+    "postcodeSample": null,
+    "population": 36587
+  },
+  {
+    "name": "Schwäbisch Hall",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 36543
+  },
+  {
+    "name": "Lurup",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 36521
+  },
+  {
+    "name": "Niederkassel",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 36480
+  },
+  {
+    "name": "Porta Westfalica",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 36364
+  },
+  {
+    "name": "Datteln",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 36338
+  },
+  {
+    "name": "Zürich (Kreis 10)",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 36216
+  },
+  {
+    "name": "Bad Vilbel",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 35961
+  },
+  {
+    "name": "Barmbek-Süd",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 35880
+  },
+  {
+    "name": "Crailsheim",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 35755
+  },
+  {
+    "name": "Pasing",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 35728
+  },
+  {
+    "name": "Wesseling",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 35665
+  },
+  {
+    "name": "Voerde",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 35661
+  },
+  {
+    "name": "Emsdetten",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 35582
+  },
+  {
+    "name": "Farmsen-Berne",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 35477
+  },
+  {
+    "name": "Chur",
+    "countryCode": "CH",
+    "admin1": "GR",
+    "postcodeSample": null,
+    "population": 35373
+  },
+  {
+    "name": "Neu-Isenburg",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 35293
+  },
+  {
+    "name": "Zweibrücken",
+    "countryCode": "DE",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 35221
+  },
+  {
+    "name": "Ottensen",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 35136
+  },
+  {
+    "name": "Greven",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 35080
+  },
+  {
+    "name": "Eidelstedt",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 35078
+  },
+  {
+    "name": "Lage",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 35054
+  },
+  {
+    "name": "Hötting",
+    "countryCode": "AT",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 35043
+  },
+  {
+    "name": "Bonn Hardtberg",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 35000
+  },
+  {
+    "name": "Uelzen",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 34996
+  },
+  {
+    "name": "Wedel",
+    "countryCode": "DE",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 34912
+  },
+  {
+    "name": "Bernau bei Berlin",
+    "countryCode": "DE",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 34866
+  },
+  {
+    "name": "Tuttlingen",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 34847
+  },
+  {
+    "name": "Merseburg",
+    "countryCode": "DE",
+    "admin1": "14",
+    "postcodeSample": null,
+    "population": 34780
+  },
+  {
+    "name": "Rapperswil",
+    "countryCode": "CH",
+    "admin1": "SG",
+    "postcodeSample": null,
+    "population": 34776
+  },
+  {
+    "name": "Vegesack",
+    "countryCode": "DE",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 34757
+  },
+  {
+    "name": "Uster",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 34715
+  },
+  {
+    "name": "Sitten",
+    "countryCode": "CH",
+    "admin1": "VS",
+    "postcodeSample": null,
+    "population": 34708
+  },
+  {
+    "name": "Rheinfelden",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 34674
+  },
+  {
+    "name": "Steinfurt",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 34601
+  },
+  {
+    "name": "Balingen",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 34414
+  },
+  {
+    "name": "Seelze",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 34364
+  },
+  {
+    "name": "Meppen",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 34198
+  },
+  {
+    "name": "Herrenberg",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 34192
+  },
+  {
+    "name": "Papenburg",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 34117
+  },
+  {
+    "name": "Kempen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 34105
+  },
+  {
+    "name": "Geldern",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 34013
+  },
+  {
+    "name": "Kornwestheim",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 33980
+  },
+  {
+    "name": "Jülich",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 33911
+  },
+  {
+    "name": "Leer",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 33886
+  },
+  {
+    "name": "Zürich (Kreis 7)",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 33820
+  },
+  {
+    "name": "Limburg an der Lahn",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 33820
+  },
+  {
+    "name": "Fennpfuhl",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 33751
+  },
+  {
+    "name": "Schwedt (Oder)",
+    "countryCode": "DE",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 33730
+  },
+  {
+    "name": "Goch",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 33706
+  },
+  {
+    "name": "Ostfildern",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 33598
+  },
+  {
+    "name": "Fürstenwalde",
+    "countryCode": "DE",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 33539
+  },
+  {
+    "name": "Fürstenfeldbruck",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 33533
+  },
+  {
+    "name": "Erding",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 33519
+  },
+  {
+    "name": "Neuchâtel",
+    "countryCode": "CH",
+    "admin1": "NE",
+    "postcodeSample": null,
+    "population": 33475
+  },
+  {
+    "name": "Feldkirch",
+    "countryCode": "AT",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 33420
+  },
+  {
+    "name": "Korschenbroich",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 33406
+  },
+  {
+    "name": "Dietzenbach",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 33256
+  },
+  {
+    "name": "Itzehoe",
+    "countryCode": "DE",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 33047
+  },
+  {
+    "name": "Burglesum",
+    "countryCode": "DE",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 33000
+  },
+  {
+    "name": "Radebeul",
+    "countryCode": "DE",
+    "admin1": "13",
+    "postcodeSample": null,
+    "population": 32979
+  },
+  {
+    "name": "Buer",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 32919
+  },
+  {
+    "name": "Jakomini",
+    "countryCode": "AT",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 32912
+  },
+  {
+    "name": "Achim",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 32870
+  },
+  {
+    "name": "Mörfelden-Walldorf",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 32753
+  },
+  {
+    "name": "Höxter",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 32713
+  },
+  {
+    "name": "Gevelsberg",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 32664
+  },
+  {
+    "name": "Winsen",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 32662
+  },
+  {
+    "name": "Nienburg",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 32629
+  },
+  {
+    "name": "Viernheim",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 32620
+  },
+  {
+    "name": "Ennepetal",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 32607
+  },
+  {
+    "name": "Pradl",
+    "countryCode": "AT",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 32588
+  },
+  {
+    "name": "Königs Wusterhausen",
+    "countryCode": "DE",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 32513
+  },
+  {
+    "name": "Stuhr",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 32507
+  },
+  {
+    "name": "Lampertheim",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 32400
+  },
+  {
+    "name": "Biberach an der Riß",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 32333
+  },
+  {
+    "name": "Marienfelde",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 32270
+  },
+  {
+    "name": "Weil am Rhein",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 32236
+  },
+  {
+    "name": "Meschede",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 32224
+  },
+  {
+    "name": "Rheinberg",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 32188
+  },
+  {
+    "name": "Wernigerode",
+    "countryCode": "DE",
+    "admin1": "14",
+    "postcodeSample": null,
+    "population": 32167
+  },
+  {
+    "name": "Werl",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 32149
+  },
+  {
+    "name": "Bernburg",
+    "countryCode": "DE",
+    "admin1": "14",
+    "postcodeSample": null,
+    "population": 32113
+  },
+  {
+    "name": "Neugraben-Fischbek",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 32054
+  },
+  {
+    "name": "Eisenhüttenstadt",
+    "countryCode": "DE",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 32052
+  },
+  {
+    "name": "Langendreer",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 32047
+  },
+  {
+    "name": "Niederschönhausen",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 32037
+  },
+  {
+    "name": "Neuruppin",
+    "countryCode": "DE",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 31901
+  },
+  {
+    "name": "Ansbach",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 31839
+  },
+  {
+    "name": "Emmerich",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 31829
+  },
+  {
+    "name": "Kreuztal",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 31772
+  },
+  {
+    "name": "Radolfzell",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 31734
+  },
+  {
+    "name": "Neubau",
+    "countryCode": "AT",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 31521
+  },
+  {
+    "name": "Osterholz-Scharmbeck",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 31405
+  },
+  {
+    "name": "Mariahilf",
+    "countryCode": "AT",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 31381
+  },
+  {
+    "name": "Lohmar",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 31339
+  },
+  {
+    "name": "Hakenfelde",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 31327
+  },
+  {
+    "name": "Georgsmarienhütte",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 31244
+  },
+  {
+    "name": "Güstrow",
+    "countryCode": "DE",
+    "admin1": "12",
+    "postcodeSample": null,
+    "population": 31217
+  },
+  {
+    "name": "Cloppenburg",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 31177
+  },
+  {
+    "name": "Lend",
+    "countryCode": "AT",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 31147
+  },
+  {
+    "name": "Ganderkesee",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 31141
+  },
+  {
+    "name": "Merzig",
+    "countryCode": "DE",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 31118
+  },
+  {
+    "name": "Deggendorf",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 31081
+  },
+  {
+    "name": "Burgdorf",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 31051
+  },
+  {
+    "name": "Emmen",
+    "countryCode": "CH",
+    "admin1": "LU",
+    "postcodeSample": null,
+    "population": 30926
+  },
+  {
+    "name": "Northeim",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 30894
+  },
+  {
+    "name": "Werne",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 30810
+  },
+  {
+    "name": "Hoyerswerda",
+    "countryCode": "DE",
+    "admin1": "13",
+    "postcodeSample": null,
+    "population": 30759
+  },
+  {
+    "name": "Bad Hersfeld",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 30725
+  },
+  {
+    "name": "Zug",
+    "countryCode": "CH",
+    "admin1": "ZG",
+    "postcodeSample": null,
+    "population": 30542
+  },
+  {
+    "name": "Forchheim",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 30442
+  },
+  {
+    "name": "Schönebeck",
+    "countryCode": "DE",
+    "admin1": "14",
+    "postcodeSample": null,
+    "population": 30419
+  },
+  {
+    "name": "Oer-Erkenschwick",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 30409
+  },
+  {
+    "name": "Andernach",
+    "countryCode": "DE",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 30408
+  },
+  {
+    "name": "Tönisvorst",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 30296
+  },
+  {
+    "name": "Bad Nauheim",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 30291
+  },
+  {
+    "name": "Bretten",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 30274
+  },
+  {
+    "name": "Schwelm",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 30235
+  },
+  {
+    "name": "Waltrop",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 30220
+  },
+  {
+    "name": "Yverdon-les-Bains",
+    "countryCode": "CH",
+    "admin1": "VD",
+    "postcodeSample": null,
+    "population": 30157
+  },
+  {
+    "name": "Taunusstein",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 30145
+  },
+  {
+    "name": "Ahrensburg",
+    "countryCode": "DE",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 30103
+  },
+  {
+    "name": "Schnelsen",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 30100
+  },
+  {
+    "name": "Vernier",
+    "countryCode": "CH",
+    "admin1": "GE",
+    "postcodeSample": null,
+    "population": 30086
+  },
+  {
+    "name": "Rietberg",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 30055
+  },
+  {
+    "name": "Wittenberg",
+    "countryCode": "DE",
+    "admin1": "14",
+    "postcodeSample": null,
+    "population": 30000
+  },
+  {
+    "name": "Friedberg",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 29953
+  },
+  {
+    "name": "Zürich (Kreis 6)",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 29951
+  },
+  {
+    "name": "Delbrück",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 29884
+  },
+  {
+    "name": "Winnenden",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 29876
+  },
+  {
+    "name": "Springe",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 29828
+  },
+  {
+    "name": "Bregenz",
+    "countryCode": "AT",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 29806
+  },
+  {
+    "name": "Mahlsdorf",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 29757
+  },
+  {
+    "name": "Einbeck",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 29751
+  },
+  {
+    "name": "Vechta",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 29729
+  },
+  {
+    "name": "Naumburg",
+    "countryCode": "DE",
+    "admin1": "14",
+    "postcodeSample": null,
+    "population": 29722
+  },
+  {
+    "name": "Altglienicke",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 29595
+  },
+  {
+    "name": "Gaggenau",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 29529
+  },
+  {
+    "name": "Geesthacht",
+    "countryCode": "DE",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 29487
+  },
+  {
+    "name": "Altona-Altstadt",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 29455
+  },
+  {
+    "name": "Haan",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 29431
+  },
+  {
+    "name": "Riesa",
+    "countryCode": "DE",
+    "admin1": "13",
+    "postcodeSample": null,
+    "population": 29373
+  },
+  {
+    "name": "Gries",
+    "countryCode": "AT",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 29363
+  },
+  {
+    "name": "Oelde",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 29297
+  },
+  {
+    "name": "Zürich (Kreis 2)",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 29215
+  },
+  {
+    "name": "Idar-Oberstein",
+    "countryCode": "DE",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 29158
+  },
+  {
+    "name": "Wetter",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 29146
+  },
+  {
+    "name": "Blankenfelde-Mahlow",
+    "countryCode": "DE",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 29129
+  },
+  {
+    "name": "Senftenberg",
+    "countryCode": "DE",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 28988
+  },
+  {
+    "name": "Biesdorf",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 28955
+  },
+  {
+    "name": "Düsseldorf-Pempelfort",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 28941
+  },
+  {
+    "name": "Vaihingen an der Enz",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 28798
+  },
+  {
+    "name": "Köthen",
+    "countryCode": "DE",
+    "admin1": "14",
+    "postcodeSample": null,
+    "population": 28710
+  },
+  {
+    "name": "Geislingen an der Steige",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 28655
+  },
+  {
+    "name": "Bühl",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 28608
+  },
+  {
+    "name": "Mühlheim am Main",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 28534
+  },
+  {
+    "name": "Warstein",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 28532
+  },
+  {
+    "name": "Meissen",
+    "countryCode": "DE",
+    "admin1": "13",
+    "postcodeSample": null,
+    "population": 28492
+  },
+  {
+    "name": "Unterschleißheim",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 28482
+  },
+  {
+    "name": "Neuburg an der Donau",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 28370
+  },
+  {
+    "name": "Geilenkirchen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 28334
+  },
+  {
+    "name": "Zeitz",
+    "countryCode": "DE",
+    "admin1": "14",
+    "postcodeSample": null,
+    "population": 28328
+  },
+  {
+    "name": "Rendsburg",
+    "countryCode": "DE",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 28323
+  },
+  {
+    "name": "Zürich (Kreis 9) / Altstetten",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 28307
+  },
+  {
+    "name": "Schwandorf in Bayern",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 28235
+  },
+  {
+    "name": "Bramsche",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 28220
+  },
+  {
+    "name": "Plettenberg",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 28206
+  },
+  {
+    "name": "Karlshorst",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 28206
+  },
+  {
+    "name": "Zürich (Kreis 12)",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 28189
+  },
+  {
+    "name": "Kelkheim",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 28175
+  },
+  {
+    "name": "Neustadt/Nord",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 28146
+  },
+  {
+    "name": "Neukirchen-Vluyn",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 28110
+  },
+  {
+    "name": "Lennestadt",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 28102
+  },
+  {
+    "name": "Wegberg",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 28089
+  },
+  {
+    "name": "Lohne",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 28089
+  },
+  {
+    "name": "Leichlingen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 28078
+  },
+  {
+    "name": "Kevelaer",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 28064
+  },
+  {
+    "name": "Stuttgart Feuerbach",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 28046
+  },
+  {
+    "name": "Saalfeld",
+    "countryCode": "DE",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 28023
+  },
+  {
+    "name": "Friedenau",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 27998
+  },
+  {
+    "name": "Baunatal",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 27929
+  },
+  {
+    "name": "Königsbrunn",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 27879
+  },
+  {
+    "name": "Baesweiler",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 27834
+  },
+  {
+    "name": "Bad Neuenahr-Ahrweiler",
+    "countryCode": "DE",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 27823
+  },
+  {
+    "name": "Ehingen",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 27764
+  },
+  {
+    "name": "Wiesloch",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 27731
+  },
+  {
+    "name": "Heiligenhaus",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 27700
+  },
+  {
+    "name": "Hörde",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 27660
+  },
+  {
+    "name": "Dorstfeld",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 27655
+  },
+  {
+    "name": "Sundern",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 27654
+  },
+  {
+    "name": "Kulmbach",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 27565
+  },
+  {
+    "name": "Dotzheim",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 27557
+  },
+  {
+    "name": "Bad Zwischenahn",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 27550
+  },
+  {
+    "name": "Selm",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 27540
+  },
+  {
+    "name": "Mechernich",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 27537
+  },
+  {
+    "name": "Grimma",
+    "countryCode": "DE",
+    "admin1": "13",
+    "postcodeSample": null,
+    "population": 27529
+  },
+  {
+    "name": "Altstadt Sud",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 27515
+  },
+  {
+    "name": "Friedberg",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 27484
+  },
+  {
+    "name": "Hamminkeln",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 27433
+  },
+  {
+    "name": "Emmendingen",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 27383
+  },
+  {
+    "name": "Lancy",
+    "countryCode": "CH",
+    "admin1": "GE",
+    "postcodeSample": null,
+    "population": 27291
+  },
+  {
+    "name": "Zürich (Kreis 4) / Aussersihl",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 27273
+  },
+  {
+    "name": "Overath",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 27203
+  },
+  {
+    "name": "Wersten",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 27151
+  },
+  {
+    "name": "Leimen",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 27142
+  },
+  {
+    "name": "Rathenow",
+    "countryCode": "DE",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 27115
+  },
+  {
+    "name": "Petershagen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 27090
+  },
+  {
+    "name": "Wangen",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 27045
+  },
+  {
+    "name": "Niederrad",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 27043
+  },
+  {
+    "name": "Brilon",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 27030
+  },
+  {
+    "name": "Landsberg am Lech",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 27017
+  },
+  {
+    "name": "Verden",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 26924
+  },
+  {
+    "name": "Sankt Wendel",
+    "countryCode": "DE",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 26904
+  },
+  {
+    "name": "Rösrath",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 26868
+  },
+  {
+    "name": "Lübbecke",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 26815
+  },
+  {
+    "name": "Mühlacker",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 26787
+  },
+  {
+    "name": "Achern",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 26733
+  },
+  {
+    "name": "Strausberg",
+    "countryCode": "DE",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 26649
+  },
+  {
+    "name": "Weiterstadt",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 26583
+  },
+  {
+    "name": "Remseck am Neckar",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 26549
+  },
+  {
+    "name": "Neckarsulm",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 26431
+  },
+  {
+    "name": "Osdorf",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 26420
+  },
+  {
+    "name": "Lauf an der Pegnitz",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 26403
+  },
+  {
+    "name": "Sprockhövel",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 26400
+  },
+  {
+    "name": "Espelkamp",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 26378
+  },
+  {
+    "name": "Bingen am Rhein",
+    "countryCode": "DE",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 26339
+  },
+  {
+    "name": "Wiehl",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 26291
+  },
+  {
+    "name": "Baden",
+    "countryCode": "AT",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 26286
+  },
+  {
+    "name": "Rheinbach",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 26262
+  },
+  {
+    "name": "Weinstadt-Endersbach",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 26166
+  },
+  {
+    "name": "Schmallenberg",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 26132
+  },
+  {
+    "name": "Hennigsdorf",
+    "countryCode": "DE",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 26122
+  },
+  {
+    "name": "Misburg",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 26114
+  },
+  {
+    "name": "Stuttgart Mühlhausen",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 26111
+  },
+  {
+    "name": "Fischeln",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 26030
+  },
+  {
+    "name": "Garmisch-Partenkirchen",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 26022
+  },
+  {
+    "name": "Montreux",
+    "countryCode": "CH",
+    "admin1": "VD",
+    "postcodeSample": null,
+    "population": 25984
+  },
+  {
+    "name": "Delitzsch",
+    "countryCode": "DE",
+    "admin1": "13",
+    "postcodeSample": null,
+    "population": 25895
+  },
+  {
+    "name": "Nordenham",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 25889
+  },
+  {
+    "name": "Altona-Nord",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 25802
+  },
+  {
+    "name": "Zirndorf",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 25734
+  },
+  {
+    "name": "Rummelsburg",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 25697
+  },
+  {
+    "name": "Olpe",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 25686
+  },
+  {
+    "name": "Arnstadt",
+    "countryCode": "DE",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 25678
+  },
+  {
+    "name": "Horb am Neckar",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 25651
+  },
+  {
+    "name": "Aschersleben",
+    "countryCode": "DE",
+    "admin1": "14",
+    "postcodeSample": null,
+    "population": 25647
+  },
+  {
+    "name": "Herdecke",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 25618
+  },
+  {
+    "name": "Frauenfeld",
+    "countryCode": "CH",
+    "admin1": "TG",
+    "postcodeSample": null,
+    "population": 25607
+  },
+  {
+    "name": "Rinteln",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 25602
+  },
+  {
+    "name": "Übach-Palenberg",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 25544
+  },
+  {
+    "name": "Meckenheim",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 25515
+  },
+  {
+    "name": "Helmstedt",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 25515
+  },
+  {
+    "name": "Rottweil",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 25510
+  },
+  {
+    "name": "Heppenheim an der Bergstrasse",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 25442
+  },
+  {
+    "name": "Pfungstadt",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 25415
+  },
+  {
+    "name": "Bad Honnef",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 25348
+  },
+  {
+    "name": "Traun",
+    "countryCode": "AT",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 25345
+  },
+  {
+    "name": "Markkleeberg",
+    "countryCode": "DE",
+    "admin1": "13",
+    "postcodeSample": null,
+    "population": 25331
+  },
+  {
+    "name": "Obertshausen",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 25316
+  },
+  {
+    "name": "Griesheim",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 25287
+  },
+  {
+    "name": "Zittau",
+    "countryCode": "DE",
+    "admin1": "13",
+    "postcodeSample": null,
+    "population": 25286
+  },
+  {
+    "name": "Reinbek",
+    "countryCode": "DE",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 25261
+  },
+  {
+    "name": "Wolfen",
+    "countryCode": "DE",
+    "admin1": "14",
+    "postcodeSample": null,
+    "population": 25251
+  },
+  {
+    "name": "Varel",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 25212
+  },
+  {
+    "name": "Netphen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 25163
+  },
+  {
+    "name": "Butzbach",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 25156
+  },
+  {
+    "name": "Mosbach",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 25106
+  },
+  {
+    "name": "Roth",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 25083
+  },
+  {
+    "name": "Hannoversch Münden",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 25073
+  },
+  {
+    "name": "Wolfsberg",
+    "countryCode": "AT",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 25035
+  },
+  {
+    "name": "Hattersheim",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 25035
+  },
+  {
+    "name": "Kriens",
+    "countryCode": "CH",
+    "admin1": "LU",
+    "postcodeSample": null,
+    "population": 25010
+  },
+  {
+    "name": "Ellwangen",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 25001
+  },
+  {
+    "name": "Gonsenheim",
+    "countryCode": "DE",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 25000
+  },
+  {
+    "name": "Ingelheim am Rhein",
+    "countryCode": "DE",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 24998
+  },
+  {
+    "name": "Burg bei Magdeburg",
+    "countryCode": "DE",
+    "admin1": "14",
+    "postcodeSample": null,
+    "population": 24958
+  },
+  {
+    "name": "Bedburg",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 24937
+  },
+  {
+    "name": "Brackel",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 24930
+  },
+  {
+    "name": "Wertheim",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 24869
+  },
+  {
+    "name": "Eißendorf",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 24863
+  },
+  {
+    "name": "Blasewitz",
+    "countryCode": "DE",
+    "admin1": "13",
+    "postcodeSample": null,
+    "population": 24863
+  },
+  {
+    "name": "Rudolstadt",
+    "countryCode": "DE",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 24852
+  },
+  {
+    "name": "Eppendorf",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 24806
+  },
+  {
+    "name": "Apolda",
+    "countryCode": "DE",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 24793
+  },
+  {
+    "name": "Attendorn",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 24773
+  },
+  {
+    "name": "Geidorf",
+    "countryCode": "AT",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 24767
+  },
+  {
+    "name": "Norden",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 24767
+  },
+  {
+    "name": "Wetzikon",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 24764
+  },
+  {
+    "name": "Wittenau",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 24726
+  },
+  {
+    "name": "Waldkraiburg",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 24676
+  },
+  {
+    "name": "Nieder-Ingelheim",
+    "countryCode": "DE",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 24596
+  },
+  {
+    "name": "Salzkotten",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 24561
+  },
+  {
+    "name": "Lindau",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 24518
+  },
+  {
+    "name": "Josefstadt",
+    "countryCode": "AT",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 24499
+  },
+  {
+    "name": "Korbach",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 24481
+  },
+  {
+    "name": "Walsrode",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 24448
+  },
+  {
+    "name": "Friedrichsdorf",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 24435
+  },
+  {
+    "name": "Bad Oldesloe",
+    "countryCode": "DE",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 24322
+  },
+  {
+    "name": "Warburg",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 24317
+  },
+  {
+    "name": "Syke",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 24274
+  },
+  {
+    "name": "Herzogenaurach",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 24237
+  },
+  {
+    "name": "Harsewinkel",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 24207
+  },
+  {
+    "name": "Wallenhorst",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 24201
+  },
+  {
+    "name": "Ludwigsfelde",
+    "countryCode": "DE",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 24164
+  },
+  {
+    "name": "Ditzingen",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 24149
+  },
+  {
+    "name": "Greiz",
+    "countryCode": "DE",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 24147
+  },
+  {
+    "name": "Poppenbüttel",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 24135
+  },
+  {
+    "name": "Schleswig",
+    "countryCode": "DE",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 24114
+  },
+  {
+    "name": "Radevormwald",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 24100
+  },
+  {
+    "name": "Lüdinghausen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 24094
+  },
+  {
+    "name": "Verl",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 24002
+  },
+  {
+    "name": "Olching",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 23978
+  },
+  {
+    "name": "Wil",
+    "countryCode": "CH",
+    "admin1": "SG",
+    "postcodeSample": null,
+    "population": 23955
+  },
+  {
+    "name": "Starnberg",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 23940
+  },
+  {
+    "name": "Sonneberg",
+    "countryCode": "DE",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 23908
+  },
+  {
+    "name": "Freudenstadt",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 23868
+  },
+  {
+    "name": "Döbeln",
+    "countryCode": "DE",
+    "admin1": "13",
+    "postcodeSample": null,
+    "population": 23819
+  },
+  {
+    "name": "Weingarten",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 23802
+  },
+  {
+    "name": "Calw",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 23740
+  },
+  {
+    "name": "Wipperfürth",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 23723
+  },
+  {
+    "name": "Limbach-Oberfrohna",
+    "countryCode": "DE",
+    "admin1": "13",
+    "postcodeSample": null,
+    "population": 23673
+  },
+  {
+    "name": "Groß-Gerau",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 23641
+  },
+  {
+    "name": "Oberschöneweide",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 23638
+  },
+  {
+    "name": "Neuehrenfeld",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 23621
+  },
+  {
+    "name": "Stellingen",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 23472
+  },
+  {
+    "name": "Bulle",
+    "countryCode": "CH",
+    "admin1": "FR",
+    "postcodeSample": null,
+    "population": 23438
+  },
+  {
+    "name": "Ronnenberg",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 23416
+  },
+  {
+    "name": "Weilheim",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 23378
+  },
+  {
+    "name": "Misburg-Nord",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 23369
+  },
+  {
+    "name": "Geretsried",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 23364
+  },
+  {
+    "name": "Sangerhausen",
+    "countryCode": "DE",
+    "admin1": "14",
+    "postcodeSample": null,
+    "population": 23347
+  },
+  {
+    "name": "Pfaffenhofen an der Ilm",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 23192
+  },
+  {
+    "name": "Staßfurt",
+    "countryCode": "DE",
+    "admin1": "14",
+    "postcodeSample": null,
+    "population": 23181
+  },
+  {
+    "name": "Riedstadt",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 23146
+  },
+  {
+    "name": "Quedlinburg",
+    "countryCode": "DE",
+    "admin1": "14",
+    "postcodeSample": null,
+    "population": 23139
+  },
+  {
+    "name": "Sasel",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 23131
+  },
+  {
+    "name": "Hoheluft-Ost",
+    "countryCode": "DE",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 23116
+  },
+  {
+    "name": "Bad Soden am Taunus",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 23103
+  },
+  {
+    "name": "Annaberg-Buchholz",
+    "countryCode": "DE",
+    "admin1": "13",
+    "postcodeSample": null,
+    "population": 23092
+  },
+  {
+    "name": "Stadthagen",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 23076
+  },
+  {
+    "name": "Lütgendortmund",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 23065
+  },
+  {
+    "name": "Sehnde",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 23060
+  },
+  {
+    "name": "Opladen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 23000
+  },
+  {
+    "name": "Neheim",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 23000
+  },
+  {
+    "name": "Dillenburg",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 22974
+  },
+  {
+    "name": "Bad Harzburg",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 22954
+  },
+  {
+    "name": "Nagold",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 22912
+  },
+  {
+    "name": "Duderstadt",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 22910
+  },
+  {
+    "name": "Neusäß",
+    "countryCode": "DE",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 22904
+  },
+  {
+    "name": "Forst",
+    "countryCode": "DE",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 22843
+  },
+  {
+    "name": "Lustenau",
+    "countryCode": "AT",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 22821
+  },
+  {
+    "name": "Idstein",
+    "countryCode": "DE",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 22810
+  },
+  {
+    "name": "Kalk",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 22802
+  },
+  {
+    "name": "Öhringen",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 22765
+  },
+  {
+    "name": "Schmargendorf",
+    "countryCode": "DE",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 22733
+  },
+  {
+    "name": "Kapellen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 22711
+  },
+  {
+    "name": "Lengerich",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 22697
+  },
+  {
+    "name": "Horgen",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 22662
+  },
+  {
+    "name": "Isernhagen Farster Bauerschaft",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 22601
+  },
+  {
+    "name": "Schwetzingen",
+    "countryCode": "DE",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 22593
+  },
+  {
+    "name": "Jüchen",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 22562
+  },
+  {
+    "name": "Haren",
+    "countryCode": "DE",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 22545
+  },
+  {
+    "name": "Rees",
+    "countryCode": "DE",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 22544
+  },
+  {
+    "name": "Reichenbach/Vogtland",
+    "countryCode": "DE",
+    "admin1": "13",
+    "postcodeSample": null,
+    "population": 22530
+  }
+]

@@ -1,0 +1,31 @@
+{
+  "extends": ["@commitlint/config-conventional"],
+  "rules": {
+    "scope-enum": [
+      2,
+      "always",
+      [
+        "cli",
+        "convex",
+        "crawler",
+        "db",
+        "deps",
+        "design",
+        "docs",
+        "platform",
+        "plop",
+        "pii",
+        "proxy",
+        "rag",
+        "storybook",
+        "ui",
+        "web",
+        "webui",
+        "workflow"
+      ]
+    ],
+    "scope-empty": [0],
+    "body-max-line-length": [0],
+    "footer-max-line-length": [0]
+  }
+}

@@ -3496,6 +3496,7 @@
       "modeLabel": "Erkennungsmodus",
       "modeMask": "Maskieren (durch Platzhalter ersetzen)",
       "modeBlock": "Blockieren (Nachricht ablehnen)",
+      "modeTokenize": "Tokenisieren (an KI senden, dann wiederherstellen)",
       "patternsTitle": "Erkennungsmuster",
       "patternsDescription": "Wähle aus, welche Arten von personenbezogenen Daten erkannt werden sollen.",
       "patterns": {
@@ -3508,7 +3509,8 @@
         "address": "Straßenadressen",
         "iban": "IBAN-Nummern",
         "germanId": "Personalausweisnummern",
-        "cvc": "Kartenprüfziffern (CVC/CVV)"
+        "cvc": "Kartenprüfziffern (CVC/CVV)",
+        "nationalId": "Personalausweise und Pässe (je Land)"
       },
       "customPatternsTitle": "Benutzerdefinierte Regex-Regeln",
       "customPatternsDescription": "Füge benutzerdefinierte Regex-Muster hinzu, um weitere Arten personenbezogener Daten zu erkennen.",
@@ -3520,11 +3522,6 @@
       "customPatternReplacementPlaceholder": "z. B. [MITARBEITER_ID]",
       "testAreaTitle": "Erkennung testen",
       "testAreaDescription": "Beispieltext einfügen, um zu prüfen, welche Muster erkannt werden.",
-      "testInput": "Testeingabe",
-      "testInputPlaceholder": "Text hier einfügen, um PII-Erkennung zu testen...",
-      "testResultsTitle": "Erkannte PII",
-      "testNoResults": "Keine PII in der Testeingabe erkannt.",
-      "testButton": "Testen",
       "addCustomPattern": "Benutzerdefiniertes Muster hinzufügen",
       "saved": "PII-Konfiguration wurde aktualisiert",
       "saveFailed": "PII-Konfiguration konnte nicht gespeichert werden"

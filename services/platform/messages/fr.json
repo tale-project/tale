@@ -3408,6 +3408,7 @@
       "modeLabel": "Mode de détection",
       "modeMask": "Masquer (remplacer par des espaces réservés)",
       "modeBlock": "Bloquer (rejeter le message)",
+      "modeTokenize": "Tokeniser (envoyer à l'IA puis restaurer)",
       "patternsTitle": "Modèles de détection",
       "patternsDescription": "Sélectionne les types de données personnelles à détecter.",
       "patterns": {
@@ -3420,7 +3421,8 @@
         "address": "Adresses postales",
         "iban": "Numéros IBAN",
         "germanId": "Numéros d'identité allemands",
-        "cvc": "Codes de sécurité des cartes (CVC/CVV)"
+        "cvc": "Codes de sécurité des cartes (CVC/CVV)",
+        "nationalId": "Pièces d'identité et passeports (par locale)"
       },
       "customPatternsTitle": "Règles regex personnalisées",
       "customPatternsDescription": "Ajoute des expressions régulières personnalisées pour détecter des types supplémentaires de données personnelles.",
@@ -3432,11 +3434,6 @@
       "customPatternReplacementPlaceholder": "ex. [IDENTIFIANT_EMPLOYE]",
       "testAreaTitle": "Tester la détection",
       "testAreaDescription": "Colle un texte d'exemple pour vérifier quels modèles sont détectés.",
-      "testInput": "Texte de test",
-      "testInputPlaceholder": "Colle du texte ici pour tester la détection des DCP...",
-      "testResultsTitle": "DCP détectées",
-      "testNoResults": "Aucune DCP détectée dans le texte de test.",
-      "testButton": "Tester",
       "addCustomPattern": "Ajouter un modèle personnalisé",
       "saved": "La configuration des DCP a été mise à jour",
       "saveFailed": "Échec de l'enregistrement de la configuration des DCP"

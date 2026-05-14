@@ -1,0 +1,3315 @@
+{
+  "_meta": {
+    "locale": "bg",
+    "generator": "@tale/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 300,
+      "negatives": 0
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "positives": [
+    {
+      "id": "email-bg-00000",
+      "input": "Моля, изпратете пакета до alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00001",
+      "input": "Пощенски адрес: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00002",
+      "input": "Клиентът живее на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00003",
+      "input": "Място за получаване — anna.mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00004",
+      "input": "Моля, изпратете пакета до alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00005",
+      "input": "Пощенски адрес: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00006",
+      "input": "Клиентът живее на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00007",
+      "input": "Място за получаване — anna_mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00008",
+      "input": "Моля, изпратете пакета до alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00009",
+      "input": "Пощенски адрес: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00010",
+      "input": "Клиентът живее на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00011",
+      "input": "Място за получаване — annamueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00012",
+      "input": "Моля, изпратете пакета до alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00013",
+      "input": "Пощенски адрес: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00014",
+      "input": "Клиентът живее на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00015",
+      "input": "Място за получаване — anna.mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00016",
+      "input": "Моля, изпратете пакета до alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00017",
+      "input": "Пощенски адрес: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00018",
+      "input": "Клиентът живее на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00019",
+      "input": "Място за получаване — anna_mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00020",
+      "input": "Моля, изпратете пакета до alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00021",
+      "input": "Пощенски адрес: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00022",
+      "input": "Клиентът живее на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00023",
+      "input": "Място за получаване — annamueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00024",
+      "input": "Моля, изпратете пакета до alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00025",
+      "input": "Пощенски адрес: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00026",
+      "input": "Клиентът живее на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00027",
+      "input": "Място за получаване — anna.mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00028",
+      "input": "Моля, изпратете пакета до alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00029",
+      "input": "Пощенски адрес: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00030",
+      "input": "Клиентът живее на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00031",
+      "input": "Място за получаване — anna_mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00032",
+      "input": "Моля, изпратете пакета до alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00033",
+      "input": "Пощенски адрес: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00034",
+      "input": "Клиентът живее на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00035",
+      "input": "Място за получаване — annamueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00036",
+      "input": "Моля, изпратете пакета до alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00037",
+      "input": "Пощенски адрес: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00038",
+      "input": "Клиентът живее на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00039",
+      "input": "Място за получаване — anna.mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00040",
+      "input": "Моля, изпратете пакета до alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00041",
+      "input": "Пощенски адрес: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00042",
+      "input": "Клиентът живее на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00043",
+      "input": "Място за получаване — anna_mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00044",
+      "input": "Моля, изпратете пакета до alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00045",
+      "input": "Пощенски адрес: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00046",
+      "input": "Клиентът живее на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00047",
+      "input": "Място за получаване — annamueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00048",
+      "input": "Моля, изпратете пакета до alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00049",
+      "input": "Пощенски адрес: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00050",
+      "input": "Клиентът живее на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00051",
+      "input": "Място за получаване — anna.mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00052",
+      "input": "Моля, изпратете пакета до alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00053",
+      "input": "Пощенски адрес: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00054",
+      "input": "Клиентът живее на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00055",
+      "input": "Място за получаване — anna_mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00056",
+      "input": "Моля, изпратете пакета до alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00057",
+      "input": "Пощенски адрес: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00058",
+      "input": "Клиентът живее на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00059",
+      "input": "Място за получаване — annamueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00060",
+      "input": "Моля, изпратете пакета до alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00061",
+      "input": "Пощенски адрес: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00062",
+      "input": "Клиентът живее на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00063",
+      "input": "Място за получаване — anna.mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00064",
+      "input": "Моля, изпратете пакета до alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00065",
+      "input": "Пощенски адрес: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00066",
+      "input": "Клиентът живее на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00067",
+      "input": "Място за получаване — anna_mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00068",
+      "input": "Моля, изпратете пакета до alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00069",
+      "input": "Пощенски адрес: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00070",
+      "input": "Клиентът живее на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00071",
+      "input": "Място за получаване — annamueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00072",
+      "input": "Моля, изпратете пакета до alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00073",
+      "input": "Пощенски адрес: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00074",
+      "input": "Клиентът живее на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00075",
+      "input": "Място за получаване — anna.mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00076",
+      "input": "Моля, изпратете пакета до alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00077",
+      "input": "Пощенски адрес: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00078",
+      "input": "Клиентът живее на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00079",
+      "input": "Място за получаване — anna_mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00080",
+      "input": "Моля, изпратете пакета до alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00081",
+      "input": "Пощенски адрес: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00082",
+      "input": "Клиентът живее на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00083",
+      "input": "Място за получаване — annamueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00084",
+      "input": "Моля, изпратете пакета до alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00085",
+      "input": "Пощенски адрес: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00086",
+      "input": "Клиентът живее на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00087",
+      "input": "Място за получаване — anna.mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00088",
+      "input": "Моля, изпратете пакета до alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00089",
+      "input": "Пощенски адрес: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00090",
+      "input": "Клиентът живее на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00091",
+      "input": "Място за получаване — anna_mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00092",
+      "input": "Моля, изпратете пакета до alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00093",
+      "input": "Пощенски адрес: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00094",
+      "input": "Клиентът живее на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00095",
+      "input": "Място за получаване — annamueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00096",
+      "input": "Моля, изпратете пакета до alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00097",
+      "input": "Пощенски адрес: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00098",
+      "input": "Клиентът живее на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00099",
+      "input": "Място за получаване — anna.mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00100",
+      "input": "Моля, изпратете пакета до alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00101",
+      "input": "Пощенски адрес: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00102",
+      "input": "Клиентът живее на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00103",
+      "input": "Място за получаване — anna_mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00104",
+      "input": "Моля, изпратете пакета до alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00105",
+      "input": "Пощенски адрес: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00106",
+      "input": "Клиентът живее на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00107",
+      "input": "Място за получаване — annamueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00108",
+      "input": "Моля, изпратете пакета до alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00109",
+      "input": "Пощенски адрес: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00110",
+      "input": "Клиентът живее на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00111",
+      "input": "Място за получаване — anna.mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00112",
+      "input": "Моля, изпратете пакета до alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00113",
+      "input": "Пощенски адрес: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00114",
+      "input": "Клиентът живее на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00115",
+      "input": "Място за получаване — anna_mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00116",
+      "input": "Моля, изпратете пакета до alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00117",
+      "input": "Пощенски адрес: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00118",
+      "input": "Клиентът живее на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00119",
+      "input": "Място за получаване — annamueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00120",
+      "input": "Моля, изпратете пакета до alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00121",
+      "input": "Пощенски адрес: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00122",
+      "input": "Клиентът живее на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00123",
+      "input": "Място за получаване — anna.mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00124",
+      "input": "Моля, изпратете пакета до alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00125",
+      "input": "Пощенски адрес: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00126",
+      "input": "Клиентът живее на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00127",
+      "input": "Място за получаване — anna_mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00128",
+      "input": "Моля, изпратете пакета до alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00129",
+      "input": "Пощенски адрес: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00130",
+      "input": "Клиентът живее на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00131",
+      "input": "Място за получаване — annamueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00132",
+      "input": "Моля, изпратете пакета до alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00133",
+      "input": "Пощенски адрес: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00134",
+      "input": "Клиентът живее на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00135",
+      "input": "Място за получаване — anna.mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00136",
+      "input": "Моля, изпратете пакета до alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00137",
+      "input": "Пощенски адрес: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00138",
+      "input": "Клиентът живее на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00139",
+      "input": "Място за получаване — anna_mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00140",
+      "input": "Моля, изпратете пакета до alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00141",
+      "input": "Пощенски адрес: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00142",
+      "input": "Клиентът живее на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00143",
+      "input": "Място за получаване — annamueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00144",
+      "input": "Моля, изпратете пакета до alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00145",
+      "input": "Пощенски адрес: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00146",
+      "input": "Клиентът живее на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00147",
+      "input": "Място за получаване — anna.mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00148",
+      "input": "Моля, изпратете пакета до alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00149",
+      "input": "Пощенски адрес: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00150",
+      "input": "Клиентът живее на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00151",
+      "input": "Място за получаване — anna_mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00152",
+      "input": "Моля, изпратете пакета до alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00153",
+      "input": "Пощенски адрес: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00154",
+      "input": "Клиентът живее на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00155",
+      "input": "Място за получаване — annamueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00156",
+      "input": "Моля, изпратете пакета до alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00157",
+      "input": "Пощенски адрес: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00158",
+      "input": "Клиентът живее на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00159",
+      "input": "Място за получаване — anna.mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00160",
+      "input": "Моля, изпратете пакета до alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00161",
+      "input": "Пощенски адрес: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00162",
+      "input": "Клиентът живее на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00163",
+      "input": "Място за получаване — anna_mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00164",
+      "input": "Моля, изпратете пакета до alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00165",
+      "input": "Пощенски адрес: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00166",
+      "input": "Клиентът живее на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00167",
+      "input": "Място за получаване — annamueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00168",
+      "input": "Моля, изпратете пакета до alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00169",
+      "input": "Пощенски адрес: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00170",
+      "input": "Клиентът живее на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00171",
+      "input": "Място за получаване — anna.mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00172",
+      "input": "Моля, изпратете пакета до alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00173",
+      "input": "Пощенски адрес: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00174",
+      "input": "Клиентът живее на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00175",
+      "input": "Място за получаване — anna_mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00176",
+      "input": "Моля, изпратете пакета до alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00177",
+      "input": "Пощенски адрес: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00178",
+      "input": "Клиентът живее на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00179",
+      "input": "Място за получаване — annamueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00180",
+      "input": "Моля, изпратете пакета до alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00181",
+      "input": "Пощенски адрес: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00182",
+      "input": "Клиентът живее на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00183",
+      "input": "Място за получаване — anna.mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00184",
+      "input": "Моля, изпратете пакета до alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00185",
+      "input": "Пощенски адрес: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00186",
+      "input": "Клиентът живее на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00187",
+      "input": "Място за получаване — anna_mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00188",
+      "input": "Моля, изпратете пакета до alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00189",
+      "input": "Пощенски адрес: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00190",
+      "input": "Клиентът живее на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00191",
+      "input": "Място за получаване — annamueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00192",
+      "input": "Моля, изпратете пакета до alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00193",
+      "input": "Пощенски адрес: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00194",
+      "input": "Клиентът живее на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00195",
+      "input": "Място за получаване — anna.mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00196",
+      "input": "Моля, изпратете пакета до alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00197",
+      "input": "Пощенски адрес: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00198",
+      "input": "Клиентът живее на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00199",
+      "input": "Място за получаване — anna_mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00200",
+      "input": "Моля, изпратете пакета до alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00201",
+      "input": "Пощенски адрес: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00202",
+      "input": "Клиентът живее на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00203",
+      "input": "Място за получаване — annamueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00204",
+      "input": "Моля, изпратете пакета до alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00205",
+      "input": "Пощенски адрес: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00206",
+      "input": "Клиентът живее на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00207",
+      "input": "Място за получаване — anna.mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00208",
+      "input": "Моля, изпратете пакета до alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00209",
+      "input": "Пощенски адрес: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00210",
+      "input": "Клиентът живее на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00211",
+      "input": "Място за получаване — anna_mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00212",
+      "input": "Моля, изпратете пакета до alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00213",
+      "input": "Пощенски адрес: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00214",
+      "input": "Клиентът живее на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00215",
+      "input": "Място за получаване — annamueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00216",
+      "input": "Моля, изпратете пакета до alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00217",
+      "input": "Пощенски адрес: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00218",
+      "input": "Клиентът живее на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00219",
+      "input": "Място за получаване — anna.mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00220",
+      "input": "Моля, изпратете пакета до alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00221",
+      "input": "Пощенски адрес: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00222",
+      "input": "Клиентът живее на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00223",
+      "input": "Място за получаване — anna_mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00224",
+      "input": "Моля, изпратете пакета до alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00225",
+      "input": "Пощенски адрес: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00226",
+      "input": "Клиентът живее на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00227",
+      "input": "Място за получаване — annamueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00228",
+      "input": "Моля, изпратете пакета до alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00229",
+      "input": "Пощенски адрес: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00230",
+      "input": "Клиентът живее на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00231",
+      "input": "Място за получаване — anna.mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00232",
+      "input": "Моля, изпратете пакета до alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00233",
+      "input": "Пощенски адрес: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00234",
+      "input": "Клиентът живее на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00235",
+      "input": "Място за получаване — anna_mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00236",
+      "input": "Моля, изпратете пакета до alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00237",
+      "input": "Пощенски адрес: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00238",
+      "input": "Клиентът живее на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00239",
+      "input": "Място за получаване — annamueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00240",
+      "input": "Моля, изпратете пакета до alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00241",
+      "input": "Пощенски адрес: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00242",
+      "input": "Клиентът живее на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00243",
+      "input": "Място за получаване — anna.mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00244",
+      "input": "Моля, изпратете пакета до alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00245",
+      "input": "Пощенски адрес: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00246",
+      "input": "Клиентът живее на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00247",
+      "input": "Място за получаване — anna_mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00248",
+      "input": "Моля, изпратете пакета до alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00249",
+      "input": "Пощенски адрес: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00250",
+      "input": "Клиентът живее на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00251",
+      "input": "Място за получаване — annamueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00252",
+      "input": "Моля, изпратете пакета до alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00253",
+      "input": "Пощенски адрес: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00254",
+      "input": "Клиентът живее на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00255",
+      "input": "Място за получаване — anna.mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00256",
+      "input": "Моля, изпратете пакета до alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00257",
+      "input": "Пощенски адрес: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00258",
+      "input": "Клиентът живее на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00259",
+      "input": "Място за получаване — anna_mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00260",
+      "input": "Моля, изпратете пакета до alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00261",
+      "input": "Пощенски адрес: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00262",
+      "input": "Клиентът живее на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00263",
+      "input": "Място за получаване — annamueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00264",
+      "input": "Моля, изпратете пакета до alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00265",
+      "input": "Пощенски адрес: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00266",
+      "input": "Клиентът живее на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00267",
+      "input": "Място за получаване — anna.mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00268",
+      "input": "Моля, изпратете пакета до alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00269",
+      "input": "Пощенски адрес: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00270",
+      "input": "Клиентът живее на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00271",
+      "input": "Място за получаване — anna_mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00272",
+      "input": "Моля, изпратете пакета до alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00273",
+      "input": "Пощенски адрес: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00274",
+      "input": "Клиентът живее на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00275",
+      "input": "Място за получаване — annamueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00276",
+      "input": "Моля, изпратете пакета до alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00277",
+      "input": "Пощенски адрес: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00278",
+      "input": "Клиентът живее на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00279",
+      "input": "Място за получаване — anna.mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00280",
+      "input": "Моля, изпратете пакета до alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00281",
+      "input": "Пощенски адрес: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00282",
+      "input": "Клиентът живее на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00283",
+      "input": "Място за получаване — anna_mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00284",
+      "input": "Моля, изпратете пакета до alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00285",
+      "input": "Пощенски адрес: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00286",
+      "input": "Клиентът живее на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00287",
+      "input": "Място за получаване — annamueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00288",
+      "input": "Моля, изпратете пакета до alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00289",
+      "input": "Пощенски адрес: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00290",
+      "input": "Клиентът живее на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00291",
+      "input": "Място за получаване — anna.mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00292",
+      "input": "Моля, изпратете пакета до alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00293",
+      "input": "Пощенски адрес: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00294",
+      "input": "Клиентът живее на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00295",
+      "input": "Място за получаване — anna_mueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00296",
+      "input": "Моля, изпратете пакета до alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 26,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00297",
+      "input": "Пощенски адрес: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00298",
+      "input": "Клиентът живее на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-bg-00299",
+      "input": "Място за получаване — annamueller@corp.example — потвърдено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    }
+  ]
+}

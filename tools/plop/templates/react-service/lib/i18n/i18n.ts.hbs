@@ -1,4 +1,6 @@
 import { initServiceI18n } from '@tale/ui/i18n/init-service';
+import { uiMessages } from '@tale/ui/i18n/messages';
+import { webuiMessages } from '@tale/webui/i18n/messages';
 
 import deMessages from '@/messages/de.json';
 import enMessages from '@/messages/en.json';
@@ -7,6 +9,10 @@ import globalMessages from '@/messages/global.json';
 
 type Bundle = Record<string, Record<string, unknown>>;
 
+// `packages` layers the shared component libraries' message bundles
+// under this service's own keys. Drop entries that aren't pulled into
+// the bundle here (e.g. a service that doesn't render any `@tale/webui`
+// component can omit `webuiMessages`).
 export const i18n = initServiceI18n({
   bundles: { en: enMessages, de: deMessages, fr: frMessages },
   // Vite requires the glob pattern to be a literal at the call site.
@@ -15,4 +21,5 @@ export const i18n = initServiceI18n({
     import: 'default',
   }),
   global: globalMessages,
+  packages: [uiMessages, webuiMessages],
 });

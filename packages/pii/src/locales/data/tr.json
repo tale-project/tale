@@ -1,0 +1,55 @@
+{
+  "locale": "tr",
+  "name": "Turkish",
+  "scripts": ["latn"],
+  "countries": ["TR"],
+  "phoneContextKeywords": [
+    "telefon",
+    "cep telefonu",
+    "numara",
+    "tel.",
+    "tel",
+    "gsm"
+  ],
+  "cvcContextKeywords": ["güvenlik kodu", "cvc", "cvv", "cv2"],
+  "address": {
+    "forms": ["inverted", "standard", "po-box"],
+    "postcodeForm": "continental",
+    "postcodeRegex": "\\d{5}",
+    "streetKeywordsInverted": [
+      "Sokak",
+      "Sok.",
+      "Cadde",
+      "Cad.",
+      "Mahalle",
+      "Mah.",
+      "Bulvar",
+      "Bulvarı",
+      "Bulv.",
+      "Meydan"
+    ],
+    "houseNumberMarkers": ["No.", "no:", "no"],
+    "poBoxKeywords": ["Posta Kutusu", "P.K."],
+    "floorKeywords": ["Daire", "D.", "Kat", "K."],
+    "countryNames": ["Türkiye", "Turkey", "TR"],
+    "countryPostcodePrefixes": [],
+    "requireUppercase": true
+  },
+  "nationalIds": [
+    {
+      "id": "tr-tckn",
+      "name": "Turkish TC Kimlik No",
+      "pattern": "\\b[1-9]\\d{10}\\b",
+      "checksum": "tr-tckn",
+      "replacement": "[TC_KIMLIK]"
+    }
+  ],
+  "fixtureSeeds": {
+    "wrappers": [
+      "Lütfen paketi {} adresine gönderin.",
+      "Posta adresi: {}",
+      "Müşteri {} adresinde oturuyor.",
+      "Teslim noktası — {} — onaylandı."
+    ]
+  }
+}

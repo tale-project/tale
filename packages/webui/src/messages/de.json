@@ -1,0 +1,11 @@
+{
+  "languageSwitcher": {
+    "ariaLabel": "Sprache wechseln"
+  },
+  "themeSwitcher": {
+    "ariaLabel": "Design wechseln",
+    "light": "Hell",
+    "dark": "Dunkel",
+    "system": "System"
+  }
+}

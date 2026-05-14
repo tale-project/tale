@@ -63,7 +63,15 @@ Eine blockierte Nachricht erreicht das Modell nie, ein blockiertes Token wird de
 
 #### PII-Erkennung {#pii-detection}
 
-Aktiviere automatische Erkennung und Maskierung (oder Blockierung) personenbezogener Daten in Nachrichten. Eingebaute Muster decken Email, Telefon, Kreditkarten- und IBAN-Nummern, US-Adressen und einige nationale Ausweise ab; eigene Regex-Regeln ergänzen interne Formate (Mitarbeiter-ID, Ticket-Nummern, Produkt-SKUs). Jedes Muster wählt seinen eigenen Durchsetzungsmodus. Erkannte PII in Anhängen durchläuft dieselbe Pipeline wie getippte Nachrichten.
+Aktiviere automatische Erkennung personenbezogener Daten in Nachrichten. Eingebaute Muster decken **Email, Telefon, Kreditkarte, IBAN, IP-Adresse, SSN, CVC, Geburtsdaten, Postadressen (43 Sprachen) sowie nationale Ausweise und Reisepässe** ab (Personalausweis, NIR, DNI/NIE, Codice Fiscale, BSN, PESEL, UK-NI-Nummer, kanadische SIN, irische PPS, Aadhaar, chinesischer 身份证, japanische My Number, koreanische RRN und 30+ weitere). Jeder Ausweistyp nutzt die kanonische Prüfsumme (ICAO 9303, Luhn, mod-11, Verhoeff, mod-23), damit zufällige Zeichenketten keine Treffer auslösen. Eigene Regex-Regeln ergänzen interne Formate (Mitarbeiter-ID, Ticket-Nummern, Produkt-SKUs). Erkannte PII in Anhängen durchläuft dieselbe Pipeline wie getippte Nachrichten.
+
+Drei Durchsetzungsmodi:
+
+- **Maskieren** — jeden Treffer durch einen festen Platzhalter ersetzen (`[EMAIL]`, `[PHONE]`, …). Empfohlen für Audit-Logs und gespeicherten Chat-Verlauf, in denen der Originalwert nicht mehr benötigt wird. Einbahnstraße: das Original ist weg.
+- **Blockieren** — die gesamte Nachricht ablehnen. Empfohlen, wenn deine Richtlinie keinerlei PII an Upstream-Modelle erlaubt.
+- **Tokenisieren** — jeden Treffer durch ein stabiles indiziertes Token ersetzen (`[EMAIL_1]`, `[PHONE_1]`) und eine pro-Nachricht-Zuordnung im Speicher halten. Das Modell sieht nur die Tokens; die Antwort enthält die Originaldaten wieder. Empfohlen für die natürlichste Nutzererfahrung ohne Schutzverlust. Die Zuordnung bleibt nur für den Round-Trip im Speicher und wird danach verworfen — niemals geloggt.
+
+Ein eingebautes **Test-Playground** unter Einstellungen → Governance → PII zeigt den gesamten Round-Trip live: Tippe einen Satz und beobachte Erkennung → Tokenisierung → simulierte KI-Antwort → Wiederherstellung in Echtzeit. Fahre über eine markierte Stelle, um den erkannten Datentyp zu sehen (übersetzt).
 
 #### Moderations-Anbieter
 

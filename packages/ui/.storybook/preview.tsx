@@ -9,10 +9,22 @@ import {
 import { useMemo, useState } from 'react';
 import type { DecoratorFunction } from 'storybook/internal/types';
 
+import { initServiceI18n } from '../src/i18n/init-service';
+import { uiMessages } from '../src/i18n/messages';
 import { ThemeContext } from '../src/theme';
 
 import '../src/globals.css';
 import '../src/markdown/globals.css';
+
+// Bootstraps i18next with the package's own bundles so any story whose
+// component calls `useT(...)` resolves real translations instead of
+// rendering raw key names. Service consumers initialise the same way
+// from their `lib/i18n/i18n.ts`; Storybook is the standalone harness.
+initServiceI18n({
+  bundles: { en: {}, de: {}, fr: {} },
+  regional: {},
+  packages: [uiMessages],
+});
 
 const rootRoute = createRootRoute();
 

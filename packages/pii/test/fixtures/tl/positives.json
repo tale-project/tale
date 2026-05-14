@@ -1,0 +1,3315 @@
+{
+  "_meta": {
+    "locale": "tl",
+    "generator": "@tale/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 300,
+      "negatives": 0
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "positives": [
+    {
+      "id": "email-tl-00000",
+      "input": "Mangyaring ipadala ang pakete sa alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00001",
+      "input": "Address sa koreo: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00002",
+      "input": "Ang customer ay nakatira sa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00003",
+      "input": "Pickup point — anna.mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00004",
+      "input": "Mangyaring ipadala ang pakete sa alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00005",
+      "input": "Address sa koreo: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00006",
+      "input": "Ang customer ay nakatira sa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00007",
+      "input": "Pickup point — anna_mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00008",
+      "input": "Mangyaring ipadala ang pakete sa alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00009",
+      "input": "Address sa koreo: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00010",
+      "input": "Ang customer ay nakatira sa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00011",
+      "input": "Pickup point — annamueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00012",
+      "input": "Mangyaring ipadala ang pakete sa alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00013",
+      "input": "Address sa koreo: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00014",
+      "input": "Ang customer ay nakatira sa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00015",
+      "input": "Pickup point — anna.mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00016",
+      "input": "Mangyaring ipadala ang pakete sa alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00017",
+      "input": "Address sa koreo: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00018",
+      "input": "Ang customer ay nakatira sa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00019",
+      "input": "Pickup point — anna_mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00020",
+      "input": "Mangyaring ipadala ang pakete sa alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00021",
+      "input": "Address sa koreo: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00022",
+      "input": "Ang customer ay nakatira sa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00023",
+      "input": "Pickup point — annamueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00024",
+      "input": "Mangyaring ipadala ang pakete sa alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00025",
+      "input": "Address sa koreo: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00026",
+      "input": "Ang customer ay nakatira sa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00027",
+      "input": "Pickup point — anna.mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00028",
+      "input": "Mangyaring ipadala ang pakete sa alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00029",
+      "input": "Address sa koreo: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00030",
+      "input": "Ang customer ay nakatira sa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00031",
+      "input": "Pickup point — anna_mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00032",
+      "input": "Mangyaring ipadala ang pakete sa alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00033",
+      "input": "Address sa koreo: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00034",
+      "input": "Ang customer ay nakatira sa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00035",
+      "input": "Pickup point — annamueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00036",
+      "input": "Mangyaring ipadala ang pakete sa alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00037",
+      "input": "Address sa koreo: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00038",
+      "input": "Ang customer ay nakatira sa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00039",
+      "input": "Pickup point — anna.mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00040",
+      "input": "Mangyaring ipadala ang pakete sa alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00041",
+      "input": "Address sa koreo: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00042",
+      "input": "Ang customer ay nakatira sa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00043",
+      "input": "Pickup point — anna_mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00044",
+      "input": "Mangyaring ipadala ang pakete sa alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00045",
+      "input": "Address sa koreo: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00046",
+      "input": "Ang customer ay nakatira sa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00047",
+      "input": "Pickup point — annamueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00048",
+      "input": "Mangyaring ipadala ang pakete sa alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00049",
+      "input": "Address sa koreo: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00050",
+      "input": "Ang customer ay nakatira sa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00051",
+      "input": "Pickup point — anna.mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00052",
+      "input": "Mangyaring ipadala ang pakete sa alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00053",
+      "input": "Address sa koreo: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00054",
+      "input": "Ang customer ay nakatira sa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00055",
+      "input": "Pickup point — anna_mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00056",
+      "input": "Mangyaring ipadala ang pakete sa alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00057",
+      "input": "Address sa koreo: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00058",
+      "input": "Ang customer ay nakatira sa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00059",
+      "input": "Pickup point — annamueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00060",
+      "input": "Mangyaring ipadala ang pakete sa alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00061",
+      "input": "Address sa koreo: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00062",
+      "input": "Ang customer ay nakatira sa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00063",
+      "input": "Pickup point — anna.mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00064",
+      "input": "Mangyaring ipadala ang pakete sa alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00065",
+      "input": "Address sa koreo: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00066",
+      "input": "Ang customer ay nakatira sa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00067",
+      "input": "Pickup point — anna_mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00068",
+      "input": "Mangyaring ipadala ang pakete sa alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00069",
+      "input": "Address sa koreo: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00070",
+      "input": "Ang customer ay nakatira sa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00071",
+      "input": "Pickup point — annamueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00072",
+      "input": "Mangyaring ipadala ang pakete sa alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00073",
+      "input": "Address sa koreo: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00074",
+      "input": "Ang customer ay nakatira sa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00075",
+      "input": "Pickup point — anna.mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00076",
+      "input": "Mangyaring ipadala ang pakete sa alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00077",
+      "input": "Address sa koreo: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00078",
+      "input": "Ang customer ay nakatira sa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00079",
+      "input": "Pickup point — anna_mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00080",
+      "input": "Mangyaring ipadala ang pakete sa alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00081",
+      "input": "Address sa koreo: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00082",
+      "input": "Ang customer ay nakatira sa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00083",
+      "input": "Pickup point — annamueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00084",
+      "input": "Mangyaring ipadala ang pakete sa alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00085",
+      "input": "Address sa koreo: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00086",
+      "input": "Ang customer ay nakatira sa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00087",
+      "input": "Pickup point — anna.mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00088",
+      "input": "Mangyaring ipadala ang pakete sa alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00089",
+      "input": "Address sa koreo: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00090",
+      "input": "Ang customer ay nakatira sa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00091",
+      "input": "Pickup point — anna_mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00092",
+      "input": "Mangyaring ipadala ang pakete sa alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00093",
+      "input": "Address sa koreo: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00094",
+      "input": "Ang customer ay nakatira sa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00095",
+      "input": "Pickup point — annamueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00096",
+      "input": "Mangyaring ipadala ang pakete sa alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00097",
+      "input": "Address sa koreo: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00098",
+      "input": "Ang customer ay nakatira sa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00099",
+      "input": "Pickup point — anna.mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00100",
+      "input": "Mangyaring ipadala ang pakete sa alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00101",
+      "input": "Address sa koreo: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00102",
+      "input": "Ang customer ay nakatira sa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00103",
+      "input": "Pickup point — anna_mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00104",
+      "input": "Mangyaring ipadala ang pakete sa alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00105",
+      "input": "Address sa koreo: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00106",
+      "input": "Ang customer ay nakatira sa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00107",
+      "input": "Pickup point — annamueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00108",
+      "input": "Mangyaring ipadala ang pakete sa alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00109",
+      "input": "Address sa koreo: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00110",
+      "input": "Ang customer ay nakatira sa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00111",
+      "input": "Pickup point — anna.mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00112",
+      "input": "Mangyaring ipadala ang pakete sa alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00113",
+      "input": "Address sa koreo: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00114",
+      "input": "Ang customer ay nakatira sa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00115",
+      "input": "Pickup point — anna_mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00116",
+      "input": "Mangyaring ipadala ang pakete sa alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00117",
+      "input": "Address sa koreo: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00118",
+      "input": "Ang customer ay nakatira sa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00119",
+      "input": "Pickup point — annamueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00120",
+      "input": "Mangyaring ipadala ang pakete sa alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00121",
+      "input": "Address sa koreo: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00122",
+      "input": "Ang customer ay nakatira sa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00123",
+      "input": "Pickup point — anna.mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00124",
+      "input": "Mangyaring ipadala ang pakete sa alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00125",
+      "input": "Address sa koreo: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00126",
+      "input": "Ang customer ay nakatira sa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00127",
+      "input": "Pickup point — anna_mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00128",
+      "input": "Mangyaring ipadala ang pakete sa alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00129",
+      "input": "Address sa koreo: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00130",
+      "input": "Ang customer ay nakatira sa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00131",
+      "input": "Pickup point — annamueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00132",
+      "input": "Mangyaring ipadala ang pakete sa alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00133",
+      "input": "Address sa koreo: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00134",
+      "input": "Ang customer ay nakatira sa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00135",
+      "input": "Pickup point — anna.mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00136",
+      "input": "Mangyaring ipadala ang pakete sa alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00137",
+      "input": "Address sa koreo: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00138",
+      "input": "Ang customer ay nakatira sa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00139",
+      "input": "Pickup point — anna_mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00140",
+      "input": "Mangyaring ipadala ang pakete sa alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00141",
+      "input": "Address sa koreo: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00142",
+      "input": "Ang customer ay nakatira sa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00143",
+      "input": "Pickup point — annamueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00144",
+      "input": "Mangyaring ipadala ang pakete sa alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00145",
+      "input": "Address sa koreo: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00146",
+      "input": "Ang customer ay nakatira sa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00147",
+      "input": "Pickup point — anna.mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00148",
+      "input": "Mangyaring ipadala ang pakete sa alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00149",
+      "input": "Address sa koreo: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00150",
+      "input": "Ang customer ay nakatira sa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00151",
+      "input": "Pickup point — anna_mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00152",
+      "input": "Mangyaring ipadala ang pakete sa alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00153",
+      "input": "Address sa koreo: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00154",
+      "input": "Ang customer ay nakatira sa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00155",
+      "input": "Pickup point — annamueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00156",
+      "input": "Mangyaring ipadala ang pakete sa alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00157",
+      "input": "Address sa koreo: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00158",
+      "input": "Ang customer ay nakatira sa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00159",
+      "input": "Pickup point — anna.mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00160",
+      "input": "Mangyaring ipadala ang pakete sa alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00161",
+      "input": "Address sa koreo: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00162",
+      "input": "Ang customer ay nakatira sa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00163",
+      "input": "Pickup point — anna_mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00164",
+      "input": "Mangyaring ipadala ang pakete sa alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00165",
+      "input": "Address sa koreo: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00166",
+      "input": "Ang customer ay nakatira sa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00167",
+      "input": "Pickup point — annamueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00168",
+      "input": "Mangyaring ipadala ang pakete sa alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00169",
+      "input": "Address sa koreo: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00170",
+      "input": "Ang customer ay nakatira sa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00171",
+      "input": "Pickup point — anna.mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00172",
+      "input": "Mangyaring ipadala ang pakete sa alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00173",
+      "input": "Address sa koreo: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00174",
+      "input": "Ang customer ay nakatira sa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00175",
+      "input": "Pickup point — anna_mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00176",
+      "input": "Mangyaring ipadala ang pakete sa alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00177",
+      "input": "Address sa koreo: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00178",
+      "input": "Ang customer ay nakatira sa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00179",
+      "input": "Pickup point — annamueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00180",
+      "input": "Mangyaring ipadala ang pakete sa alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00181",
+      "input": "Address sa koreo: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00182",
+      "input": "Ang customer ay nakatira sa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00183",
+      "input": "Pickup point — anna.mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00184",
+      "input": "Mangyaring ipadala ang pakete sa alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00185",
+      "input": "Address sa koreo: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00186",
+      "input": "Ang customer ay nakatira sa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00187",
+      "input": "Pickup point — anna_mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00188",
+      "input": "Mangyaring ipadala ang pakete sa alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00189",
+      "input": "Address sa koreo: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00190",
+      "input": "Ang customer ay nakatira sa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00191",
+      "input": "Pickup point — annamueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00192",
+      "input": "Mangyaring ipadala ang pakete sa alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00193",
+      "input": "Address sa koreo: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00194",
+      "input": "Ang customer ay nakatira sa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00195",
+      "input": "Pickup point — anna.mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00196",
+      "input": "Mangyaring ipadala ang pakete sa alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00197",
+      "input": "Address sa koreo: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00198",
+      "input": "Ang customer ay nakatira sa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00199",
+      "input": "Pickup point — anna_mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00200",
+      "input": "Mangyaring ipadala ang pakete sa alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00201",
+      "input": "Address sa koreo: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00202",
+      "input": "Ang customer ay nakatira sa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00203",
+      "input": "Pickup point — annamueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00204",
+      "input": "Mangyaring ipadala ang pakete sa alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00205",
+      "input": "Address sa koreo: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00206",
+      "input": "Ang customer ay nakatira sa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00207",
+      "input": "Pickup point — anna.mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00208",
+      "input": "Mangyaring ipadala ang pakete sa alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00209",
+      "input": "Address sa koreo: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00210",
+      "input": "Ang customer ay nakatira sa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00211",
+      "input": "Pickup point — anna_mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00212",
+      "input": "Mangyaring ipadala ang pakete sa alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00213",
+      "input": "Address sa koreo: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00214",
+      "input": "Ang customer ay nakatira sa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00215",
+      "input": "Pickup point — annamueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00216",
+      "input": "Mangyaring ipadala ang pakete sa alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00217",
+      "input": "Address sa koreo: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00218",
+      "input": "Ang customer ay nakatira sa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00219",
+      "input": "Pickup point — anna.mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00220",
+      "input": "Mangyaring ipadala ang pakete sa alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00221",
+      "input": "Address sa koreo: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00222",
+      "input": "Ang customer ay nakatira sa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00223",
+      "input": "Pickup point — anna_mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00224",
+      "input": "Mangyaring ipadala ang pakete sa alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00225",
+      "input": "Address sa koreo: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00226",
+      "input": "Ang customer ay nakatira sa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00227",
+      "input": "Pickup point — annamueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00228",
+      "input": "Mangyaring ipadala ang pakete sa alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00229",
+      "input": "Address sa koreo: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00230",
+      "input": "Ang customer ay nakatira sa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00231",
+      "input": "Pickup point — anna.mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00232",
+      "input": "Mangyaring ipadala ang pakete sa alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00233",
+      "input": "Address sa koreo: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00234",
+      "input": "Ang customer ay nakatira sa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00235",
+      "input": "Pickup point — anna_mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00236",
+      "input": "Mangyaring ipadala ang pakete sa alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00237",
+      "input": "Address sa koreo: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00238",
+      "input": "Ang customer ay nakatira sa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00239",
+      "input": "Pickup point — annamueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00240",
+      "input": "Mangyaring ipadala ang pakete sa alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00241",
+      "input": "Address sa koreo: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00242",
+      "input": "Ang customer ay nakatira sa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00243",
+      "input": "Pickup point — anna.mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00244",
+      "input": "Mangyaring ipadala ang pakete sa alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00245",
+      "input": "Address sa koreo: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00246",
+      "input": "Ang customer ay nakatira sa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00247",
+      "input": "Pickup point — anna_mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00248",
+      "input": "Mangyaring ipadala ang pakete sa alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00249",
+      "input": "Address sa koreo: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00250",
+      "input": "Ang customer ay nakatira sa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00251",
+      "input": "Pickup point — annamueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00252",
+      "input": "Mangyaring ipadala ang pakete sa alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00253",
+      "input": "Address sa koreo: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00254",
+      "input": "Ang customer ay nakatira sa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00255",
+      "input": "Pickup point — anna.mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00256",
+      "input": "Mangyaring ipadala ang pakete sa alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00257",
+      "input": "Address sa koreo: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00258",
+      "input": "Ang customer ay nakatira sa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00259",
+      "input": "Pickup point — anna_mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00260",
+      "input": "Mangyaring ipadala ang pakete sa alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00261",
+      "input": "Address sa koreo: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00262",
+      "input": "Ang customer ay nakatira sa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00263",
+      "input": "Pickup point — annamueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00264",
+      "input": "Mangyaring ipadala ang pakete sa alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00265",
+      "input": "Address sa koreo: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00266",
+      "input": "Ang customer ay nakatira sa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00267",
+      "input": "Pickup point — anna.mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00268",
+      "input": "Mangyaring ipadala ang pakete sa alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00269",
+      "input": "Address sa koreo: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00270",
+      "input": "Ang customer ay nakatira sa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00271",
+      "input": "Pickup point — anna_mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00272",
+      "input": "Mangyaring ipadala ang pakete sa alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00273",
+      "input": "Address sa koreo: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00274",
+      "input": "Ang customer ay nakatira sa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00275",
+      "input": "Pickup point — annamueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00276",
+      "input": "Mangyaring ipadala ang pakete sa alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00277",
+      "input": "Address sa koreo: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00278",
+      "input": "Ang customer ay nakatira sa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00279",
+      "input": "Pickup point — anna.mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00280",
+      "input": "Mangyaring ipadala ang pakete sa alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00281",
+      "input": "Address sa koreo: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00282",
+      "input": "Ang customer ay nakatira sa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00283",
+      "input": "Pickup point — anna_mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00284",
+      "input": "Mangyaring ipadala ang pakete sa alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00285",
+      "input": "Address sa koreo: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00286",
+      "input": "Ang customer ay nakatira sa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00287",
+      "input": "Pickup point — annamueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00288",
+      "input": "Mangyaring ipadala ang pakete sa alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00289",
+      "input": "Address sa koreo: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00290",
+      "input": "Ang customer ay nakatira sa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00291",
+      "input": "Pickup point — anna.mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00292",
+      "input": "Mangyaring ipadala ang pakete sa alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00293",
+      "input": "Address sa koreo: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00294",
+      "input": "Ang customer ay nakatira sa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00295",
+      "input": "Pickup point — anna_mueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00296",
+      "input": "Mangyaring ipadala ang pakete sa alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 33,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00297",
+      "input": "Address sa koreo: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00298",
+      "input": "Ang customer ay nakatira sa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-tl-00299",
+      "input": "Pickup point — annamueller@corp.example — nakumpirma.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    }
+  ]
+}

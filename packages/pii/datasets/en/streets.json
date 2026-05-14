@@ -1,0 +1,298 @@
+[
+  {
+    "name": "Main Street",
+    "countryCode": "US",
+    "frequency": 10866,
+    "source": "manual"
+  },
+  {
+    "name": "Second Street",
+    "countryCode": "US",
+    "frequency": 10131,
+    "source": "manual"
+  },
+  {
+    "name": "Third Street",
+    "countryCode": "US",
+    "frequency": 8901,
+    "source": "manual"
+  },
+  {
+    "name": "First Street",
+    "countryCode": "US",
+    "frequency": 8567,
+    "source": "manual"
+  },
+  {
+    "name": "Fourth Street",
+    "countryCode": "US",
+    "frequency": 7886,
+    "source": "manual"
+  },
+  {
+    "name": "Park Avenue",
+    "countryCode": "US",
+    "frequency": 6783,
+    "source": "manual"
+  },
+  {
+    "name": "Fifth Avenue",
+    "countryCode": "US",
+    "frequency": 6510,
+    "source": "manual"
+  },
+  {
+    "name": "Oak Street",
+    "countryCode": "US",
+    "frequency": 6024,
+    "source": "manual"
+  },
+  {
+    "name": "Maple Avenue",
+    "countryCode": "US",
+    "frequency": 5712,
+    "source": "manual"
+  },
+  {
+    "name": "Washington Street",
+    "countryCode": "US",
+    "frequency": 5664,
+    "source": "manual"
+  },
+  {
+    "name": "Pine Street",
+    "countryCode": "US",
+    "frequency": 5318,
+    "source": "manual"
+  },
+  {
+    "name": "Lincoln Avenue",
+    "countryCode": "US",
+    "frequency": 5104,
+    "source": "manual"
+  },
+  {
+    "name": "Sunset Boulevard",
+    "countryCode": "US",
+    "frequency": 4922,
+    "source": "manual"
+  },
+  {
+    "name": "Broadway",
+    "countryCode": "US",
+    "frequency": 4810,
+    "source": "manual"
+  },
+  {
+    "name": "Cedar Lane",
+    "countryCode": "US",
+    "frequency": 4567,
+    "source": "manual"
+  },
+  {
+    "name": "Elm Street",
+    "countryCode": "US",
+    "frequency": 4521,
+    "source": "manual"
+  },
+  {
+    "name": "Riverside Drive",
+    "countryCode": "US",
+    "frequency": 4422,
+    "source": "manual"
+  },
+  {
+    "name": "Jefferson Road",
+    "countryCode": "US",
+    "frequency": 4321,
+    "source": "manual"
+  },
+  {
+    "name": "Madison Avenue",
+    "countryCode": "US",
+    "frequency": 4205,
+    "source": "manual"
+  },
+  {
+    "name": "Hill Road",
+    "countryCode": "US",
+    "frequency": 4023,
+    "source": "manual"
+  },
+  {
+    "name": "Lake Drive",
+    "countryCode": "US",
+    "frequency": 3905,
+    "source": "manual"
+  },
+  {
+    "name": "Spring Street",
+    "countryCode": "US",
+    "frequency": 3812,
+    "source": "manual"
+  },
+  {
+    "name": "Forest Lane",
+    "countryCode": "US",
+    "frequency": 3768,
+    "source": "manual"
+  },
+  {
+    "name": "Highland Avenue",
+    "countryCode": "US",
+    "frequency": 3720,
+    "source": "manual"
+  },
+  {
+    "name": "Church Street",
+    "countryCode": "US",
+    "frequency": 3613,
+    "source": "manual"
+  },
+  {
+    "name": "Mill Road",
+    "countryCode": "US",
+    "frequency": 3506,
+    "source": "manual"
+  },
+  {
+    "name": "School Street",
+    "countryCode": "US",
+    "frequency": 3402,
+    "source": "manual"
+  },
+  {
+    "name": "Adams Court",
+    "countryCode": "US",
+    "frequency": 3211,
+    "source": "manual"
+  },
+  {
+    "name": "Madison Court",
+    "countryCode": "US",
+    "frequency": 3045,
+    "source": "manual"
+  },
+  {
+    "name": "Jefferson Drive",
+    "countryCode": "US",
+    "frequency": 2941,
+    "source": "manual"
+  },
+
+  {
+    "name": "High Street",
+    "countryCode": "GB",
+    "frequency": 9023,
+    "source": "manual"
+  },
+  {
+    "name": "Church Lane",
+    "countryCode": "GB",
+    "frequency": 6711,
+    "source": "manual"
+  },
+  {
+    "name": "Park Road",
+    "countryCode": "GB",
+    "frequency": 5882,
+    "source": "manual"
+  },
+  {
+    "name": "Victoria Road",
+    "countryCode": "GB",
+    "frequency": 5311,
+    "source": "manual"
+  },
+  {
+    "name": "Station Road",
+    "countryCode": "GB",
+    "frequency": 4904,
+    "source": "manual"
+  },
+  {
+    "name": "Queens Road",
+    "countryCode": "GB",
+    "frequency": 4615,
+    "source": "manual"
+  },
+  {
+    "name": "Mill Lane",
+    "countryCode": "GB",
+    "frequency": 4203,
+    "source": "manual"
+  },
+  {
+    "name": "Albert Road",
+    "countryCode": "GB",
+    "frequency": 3819,
+    "source": "manual"
+  },
+  {
+    "name": "Manor Road",
+    "countryCode": "GB",
+    "frequency": 3504,
+    "source": "manual"
+  },
+  {
+    "name": "Kings Road",
+    "countryCode": "GB",
+    "frequency": 3402,
+    "source": "manual"
+  },
+  {
+    "name": "Church Road",
+    "countryCode": "GB",
+    "frequency": 3210,
+    "source": "manual"
+  },
+  {
+    "name": "Downing Street",
+    "countryCode": "GB",
+    "frequency": 22,
+    "source": "manual"
+  },
+  {
+    "name": "Baker Street",
+    "countryCode": "GB",
+    "frequency": 18,
+    "source": "manual"
+  },
+  {
+    "name": "Oxford Street",
+    "countryCode": "GB",
+    "frequency": 14,
+    "source": "manual"
+  },
+  {
+    "name": "Regent Street",
+    "countryCode": "GB",
+    "frequency": 12,
+    "source": "manual"
+  },
+
+  {
+    "name": "Queen Street",
+    "countryCode": "AU",
+    "frequency": 4012,
+    "source": "manual"
+  },
+  {
+    "name": "George Street",
+    "countryCode": "AU",
+    "frequency": 3814,
+    "source": "manual"
+  },
+  {
+    "name": "King Street",
+    "countryCode": "AU",
+    "frequency": 3611,
+    "source": "manual"
+  },
+  {
+    "name": "Elizabeth Street",
+    "countryCode": "AU",
+    "frequency": 3422,
+    "source": "manual"
+  }
+]

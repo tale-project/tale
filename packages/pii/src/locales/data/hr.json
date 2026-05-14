@@ -1,0 +1,28 @@
+{
+  "locale": "hr",
+  "name": "Croatian",
+  "scripts": ["latn"],
+  "countries": ["HR"],
+  "phoneContextKeywords": ["telefon", "mobitel", "broj", "tel.", "tel"],
+  "cvcContextKeywords": ["sigurnosni kod", "cvc", "cvv", "cv2"],
+  "address": {
+    "forms": ["inverted", "po-box"],
+    "postcodeForm": "continental",
+    "postcodeRegex": "\\d{5}",
+    "requireUppercase": true,
+    "streetKeywordsInverted": ["ulica", "ul.", "trg", "aveniju"],
+    "poBoxKeywords": ["P.P.", "Poštanski pretinac"],
+    "floorKeywords": ["kat", "stan"],
+    "countryNames": ["Hrvatska", "Croatia", "HR"],
+    "countryPostcodePrefixes": []
+  },
+  "nationalIds": [],
+  "fixtureSeeds": {
+    "wrappers": [
+      "Molimo pošaljite paket na {}.",
+      "Poštanska adresa: {}",
+      "Klijent živi na {}.",
+      "Mjesto preuzimanja — {} — potvrđeno."
+    ]
+  }
+}

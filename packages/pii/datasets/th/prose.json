@@ -1,0 +1,4002 @@
+[
+  {
+    "text": "คุณแต่งงานแล้วหรือยัง",
+    "source": "tatoeba",
+    "upstreamId": "477173"
+  },
+  {
+    "text": "ภาษาไทยเป็นภาษาราชการในประเทศไทย",
+    "source": "tatoeba",
+    "upstreamId": "477178"
+  },
+  {
+    "text": "ผมอ่านเดอะนิวยอร์กไทมส์",
+    "source": "tatoeba",
+    "upstreamId": "477604"
+  },
+  {
+    "text": "ภาษาเดียวไม่เคยพอ",
+    "source": "tatoeba",
+    "upstreamId": "478296"
+  },
+  {
+    "text": "มนุษย์ทั้งหลายเกิดมาอิสระเสรีและเท่าเทียมกันทั้งศักดิ์ศรีและสิทธิ ทุกคนได้รับการประสิทธิประสาทเหตุผลและมโนธรรม และควรปฏิบัติต่อกันอย่างฉันพี่น้อง",
+    "source": "tatoeba",
+    "upstreamId": "532218"
+  },
+  {
+    "text": "ฉันมีจักรยานใหม่",
+    "source": "tatoeba",
+    "upstreamId": "718219"
+  },
+  {
+    "text": "เปิดประตูให้ความรัก",
+    "source": "tatoeba",
+    "upstreamId": "719601"
+  },
+  {
+    "text": "ผมกำลังอยู่ที่คุนหมิง",
+    "source": "tatoeba",
+    "upstreamId": "726931"
+  },
+  {
+    "text": "เขาอยู่ที่โตเกียว",
+    "source": "tatoeba",
+    "upstreamId": "744808"
+  },
+  {
+    "text": "ความผิดพลาดเกิดขึ้นเมื่อไหร่",
+    "source": "tatoeba",
+    "upstreamId": "749411"
+  },
+  {
+    "text": "การติดตั้งอุปกรณ์ขณะทดลองหรือใช้งานเป็นเช่นไร อุปกรณ์ใดต่อกับอุปกรณ์ใดและต่อกันอย่างไร",
+    "source": "tatoeba",
+    "upstreamId": "749438"
+  },
+  {
+    "text": "ความผิดพลาดเกิดขึ้นในทันทีที่เริ่มใช้งาน หรือหลังจากนั้น – ตอนไหน",
+    "source": "tatoeba",
+    "upstreamId": "749454"
+  },
+  {
+    "text": "สังเกตพบความผิดพลาดได้ยังไง",
+    "source": "tatoeba",
+    "upstreamId": "749466"
+  },
+  {
+    "text": "ความผิดพลาดเกิดขึ้นเป็นประจำ หรือนานๆ ครั้ง เป็นความผิดพลาดซ้ำอย่างเดิมหรือเปล่า",
+    "source": "tatoeba",
+    "upstreamId": "749479"
+  },
+  {
+    "text": "คุณรู้จักผมไหม — ไม่ ฉันไม่รู้จักคุณ",
+    "source": "tatoeba",
+    "upstreamId": "753085"
+  },
+  {
+    "text": "แม้ว่าคุณไม่สามารถเทียบพละกำลังคนกับเสือได้ แต่กระนั้นเสือก็เป็นแค่เดรัจฉาน",
+    "source": "tatoeba",
+    "upstreamId": "810152"
+  },
+  {
+    "text": "คุณส่งจดหมายไปแล้วเมื่อวานหรือว่าวันนี้",
+    "source": "tatoeba",
+    "upstreamId": "810153"
+  },
+  {
+    "text": "ฉันทำงานด้านอุปโภคบริโภค",
+    "source": "tatoeba",
+    "upstreamId": "810157"
+  },
+  {
+    "text": "ฉันโค้งให้เจ้านายตอนทักทาย แล้วเขาก็พยักหน้าตอบ",
+    "source": "tatoeba",
+    "upstreamId": "810160"
+  },
+  {
+    "text": "ฉันรู้สึกกับคุณแบบลึกซึ้ง",
+    "source": "tatoeba",
+    "upstreamId": "810162"
+  },
+  {
+    "text": "สมัยก่อน เด็กทุกคนสามารถแยกดีชั่วได้",
+    "source": "tatoeba",
+    "upstreamId": "810164"
+  },
+  {
+    "text": "กรุณาเปิดกล่องใบนี้ด้วย",
+    "source": "tatoeba",
+    "upstreamId": "810165"
+  },
+  {
+    "text": "ขอความกรุณาบอกทางไปสถานีกับฉันด้วยเถอะ",
+    "source": "tatoeba",
+    "upstreamId": "810167"
+  },
+  {
+    "text": "พี่สาวของฉันอวดนาฬิกาใหม่ให้ฉันดู",
+    "source": "tatoeba",
+    "upstreamId": "810169"
+  },
+  {
+    "text": "เธอเติบโตเป็นผู้หญิงที่เพรียบพร้อม",
+    "source": "tatoeba",
+    "upstreamId": "810171"
+  },
+  {
+    "text": "ฉันอ่านหนังสือการ์ตูนตอนเวลาเหลือ ที่ทำงานบ่อยๆ",
+    "source": "tatoeba",
+    "upstreamId": "810175"
+  },
+  {
+    "text": "ขอยืมใช้โทรศัพท์ของคุณได้ไหมครับ",
+    "source": "tatoeba",
+    "upstreamId": "810182"
+  },
+  {
+    "text": "ผู้ใหญ่สองคนค่ะ/ครับ",
+    "source": "tatoeba",
+    "upstreamId": "810183"
+  },
+  {
+    "text": "อะไรทำให้คุณมาตั้งแต่เช้าเนี่ย",
+    "source": "tatoeba",
+    "upstreamId": "810185"
+  },
+  {
+    "text": "ฉันสนุกมากจนเต็มอิ่ม",
+    "source": "tatoeba",
+    "upstreamId": "810189"
+  },
+  {
+    "text": "ช่วงนี้เราสองคนไม่เจอกันบ่อยคงดีกว่า",
+    "source": "tatoeba",
+    "upstreamId": "810193"
+  },
+  {
+    "text": "ฉันจะลองทำอาหารดู",
+    "source": "tatoeba",
+    "upstreamId": "810195"
+  },
+  {
+    "text": "คุณควรศึกษาเพิ่ม",
+    "source": "tatoeba",
+    "upstreamId": "810197"
+  },
+  {
+    "text": "พินัยกรรมถูกตัดสินเป็นโมฆะโดยศาล",
+    "source": "tatoeba",
+    "upstreamId": "810201"
+  },
+  {
+    "text": "ฉันเป็นโรคเบาหวาน",
+    "source": "tatoeba",
+    "upstreamId": "810204"
+  },
+  {
+    "text": "พวกเขาบังคับให้เขาลงนามในสัญญา",
+    "source": "tatoeba",
+    "upstreamId": "810207"
+  },
+  {
+    "text": "ขอพูดช้าลงหน่อยได้ไหมครับ",
+    "source": "tatoeba",
+    "upstreamId": "822119"
+  },
+  {
+    "text": "ผมลืมชื่อของเขา",
+    "source": "tatoeba",
+    "upstreamId": "822124"
+  },
+  {
+    "text": "เขาเสียชีวิตเมื่อสามปีก่อน",
+    "source": "tatoeba",
+    "upstreamId": "822125"
+  },
+  {
+    "text": "อยากจะเซ้งกิจการร้านขายเสื้อผ้าในเชียงใหม่",
+    "source": "tatoeba",
+    "upstreamId": "936733"
+  },
+  {
+    "text": "กรุณาส่งเอกสารนี้ก่อนสิ้นเดือน",
+    "source": "tatoeba",
+    "upstreamId": "936742"
+  },
+  {
+    "text": "ฉันพักอยู่บ้านป้าช่วงฤดูร้อน",
+    "source": "tatoeba",
+    "upstreamId": "936749"
+  },
+  {
+    "text": "เมื่อไหร่จะมีการนำเที่ยวอีก",
+    "source": "tatoeba",
+    "upstreamId": "948488"
+  },
+  {
+    "text": "โปรดอย่าเขียนลงหนังสือ ขอบคุณที่ให้ความร่วมมือ",
+    "source": "tatoeba",
+    "upstreamId": "963661"
+  },
+  {
+    "text": "เขาซื้อรถใหม่แล้ว",
+    "source": "tatoeba",
+    "upstreamId": "1069535"
+  },
+  {
+    "text": "ตอนเย็นนี้ผมว่าง",
+    "source": "tatoeba",
+    "upstreamId": "1123458"
+  },
+  {
+    "text": "ทอมรู้ว่าแมรีเป็นอาจารย์",
+    "source": "tatoeba",
+    "upstreamId": "1126994"
+  },
+  {
+    "text": "ผมชอบนักร้องคนนั้นมาก",
+    "source": "tatoeba",
+    "upstreamId": "1127616"
+  },
+  {
+    "text": "น้องชายของฉันกำลังดูทีวี",
+    "source": "tatoeba",
+    "upstreamId": "1128545"
+  },
+  {
+    "text": "เขาก็พูดภาษาฝรั่งเศสได้",
+    "source": "tatoeba",
+    "upstreamId": "1131025"
+  },
+  {
+    "text": "คุณหวังมาจากประเทศจีน",
+    "source": "tatoeba",
+    "upstreamId": "1131118"
+  },
+  {
+    "text": "พ่อคุณมาถึงเมื่อไหร่",
+    "source": "tatoeba",
+    "upstreamId": "1131122"
+  },
+  {
+    "text": "คุณกำลังทำอะไรอยู่",
+    "source": "tatoeba",
+    "upstreamId": "1164869"
+  },
+  {
+    "text": "ที่นี่มีคนที่พูดภาษาจีนได้ไหม",
+    "source": "tatoeba",
+    "upstreamId": "1173437"
+  },
+  {
+    "text": "ผมชอบกินแอปเปิ้ล",
+    "source": "tatoeba",
+    "upstreamId": "1184734"
+  },
+  {
+    "text": "นี่เป็นดอกไม้รึเปล่า",
+    "source": "tatoeba",
+    "upstreamId": "1187314"
+  },
+  {
+    "text": "รถของคุณแพงกว่ารถของผม",
+    "source": "tatoeba",
+    "upstreamId": "1187320"
+  },
+  {
+    "text": "ฤดูหนาวที่แปรปรวน มันทำให้ฉันใกล้จะบ้าไปแล้ว ยังดีที่ใกล้จะปิดเทอมแล้ว",
+    "source": "tatoeba",
+    "upstreamId": "1189745"
+  },
+  {
+    "text": "ถึงเวลาไปนอนหลับ",
+    "source": "tatoeba",
+    "upstreamId": "1199880"
+  },
+  {
+    "text": "เพราะว่าผมพูดภาษาจีน",
+    "source": "tatoeba",
+    "upstreamId": "1328092"
+  },
+  {
+    "text": "กรุงเทพมหานครเป็นเมืองหลวงของประเทศไทย",
+    "source": "tatoeba",
+    "upstreamId": "1392633"
+  },
+  {
+    "text": "คุณชอบกินอาหารญี่ปุ่นไหมครับ",
+    "source": "tatoeba",
+    "upstreamId": "1419188"
+  },
+  {
+    "text": "อันนี้เป็นของพ่อฉัน",
+    "source": "tatoeba",
+    "upstreamId": "1431239"
+  },
+  {
+    "text": "ผมมีเพื่อนชาวเวียดนาม ชื่อเตียน",
+    "source": "tatoeba",
+    "upstreamId": "1442022"
+  },
+  {
+    "text": "ผมไม่กินเม็ดแอปเปิ้ล",
+    "source": "tatoeba",
+    "upstreamId": "1442025"
+  },
+  {
+    "text": "เขาไม่สูบบุหรี่",
+    "source": "tatoeba",
+    "upstreamId": "1444130"
+  },
+  {
+    "text": "คุณเฉินไม่ใช่นักธุรกิจครับ",
+    "source": "tatoeba",
+    "upstreamId": "1444180"
+  },
+  {
+    "text": "ผมเล่นฟุตบอลได้",
+    "source": "tatoeba",
+    "upstreamId": "1452805"
+  },
+  {
+    "text": "พวกคุณอยากดื่มน้ำชาหรือกาแฟครับ",
+    "source": "tatoeba",
+    "upstreamId": "1452934"
+  },
+  {
+    "text": "เขาอยู่ที่ป่าคนเดียว",
+    "source": "tatoeba",
+    "upstreamId": "1454086"
+  },
+  {
+    "text": "ขอเรียกคุณว่า บ๊อบ ได้ไหมครับ",
+    "source": "tatoeba",
+    "upstreamId": "1454122"
+  },
+  {
+    "text": "ฉันจะรักเธอตลอดไป",
+    "source": "tatoeba",
+    "upstreamId": "1465887"
+  },
+  {
+    "text": "เขาอยู่ที่ไหนครับ",
+    "source": "tatoeba",
+    "upstreamId": "1465961"
+  },
+  {
+    "text": "เขาอยู่ที่ไหนคะ",
+    "source": "tatoeba",
+    "upstreamId": "1465963"
+  },
+  {
+    "text": "ไม่มีใครเข้าใจฉัน",
+    "source": "tatoeba",
+    "upstreamId": "1517348"
+  },
+  {
+    "text": "ฝรั่งเศสอยู่ในยุโรปตะวันตก",
+    "source": "tatoeba",
+    "upstreamId": "1518761"
+  },
+  {
+    "text": "ลืมเกี่ยวกับเรื่องนี้",
+    "source": "tatoeba",
+    "upstreamId": "1518859"
+  },
+  {
+    "text": "ผมไม่ชอบชื่อของคุณครับ",
+    "source": "tatoeba",
+    "upstreamId": "1657788"
+  },
+  {
+    "text": "หมีโคอาลาไม่มีสะดือ",
+    "source": "tatoeba",
+    "upstreamId": "1750078"
+  },
+  {
+    "text": "หัวหอมโลละเท่าไหร่ครับ",
+    "source": "tatoeba",
+    "upstreamId": "1750094"
+  },
+  {
+    "text": "เขาพูดภาษาอังกฤษได้ไหม",
+    "source": "tatoeba",
+    "upstreamId": "1757481"
+  },
+  {
+    "text": "ฉันชอบฝนตกในหน้าร้อน",
+    "source": "tatoeba",
+    "upstreamId": "1762950"
+  },
+  {
+    "text": "เราไปนั่งเรือข้ามแม่น้ำมา",
+    "source": "tatoeba",
+    "upstreamId": "1762957"
+  },
+  {
+    "text": "หล่อนชื่ออะไรครับ",
+    "source": "tatoeba",
+    "upstreamId": "1771742"
+  },
+  {
+    "text": "ฉันนิยมอาหารที่ออสเตรเลีย",
+    "source": "tatoeba",
+    "upstreamId": "1777448"
+  },
+  {
+    "text": "พ่ออยู่ในห้องครัวหรือเปล่า",
+    "source": "tatoeba",
+    "upstreamId": "1777516"
+  },
+  {
+    "text": "ผมไม่ชอบมหาสมุทร",
+    "source": "tatoeba",
+    "upstreamId": "1777587"
+  },
+  {
+    "text": "พระเจ้า ฉันคัดค้าน",
+    "source": "tatoeba",
+    "upstreamId": "1791316"
+  },
+  {
+    "text": "สองคูณสองเท่ากับสี่",
+    "source": "tatoeba",
+    "upstreamId": "1791319"
+  },
+  {
+    "text": "พวกเรามีปัญหาเหมือนกัน",
+    "source": "tatoeba",
+    "upstreamId": "1791320"
+  },
+  {
+    "text": "เมื่อวานฉันกินแกงกะหรี่",
+    "source": "tatoeba",
+    "upstreamId": "1791322"
+  },
+  {
+    "text": "ได้โปรดอย่าร้องไห้อีก",
+    "source": "tatoeba",
+    "upstreamId": "1791323"
+  },
+  {
+    "text": "ฉันต้องการความรักของคุณ",
+    "source": "tatoeba",
+    "upstreamId": "1792484"
+  },
+  {
+    "text": "มีบางอย่างที่เธอต้องรู้",
+    "source": "tatoeba",
+    "upstreamId": "1792803"
+  },
+  {
+    "text": "มีบางอย่างที่ฉันต้องรู้",
+    "source": "tatoeba",
+    "upstreamId": "1792804"
+  },
+  {
+    "text": "ช่วงฤดูร้อนฉันไปทะเล ช่วงฤดูหนาวฉันไปภูเขา",
+    "source": "tatoeba",
+    "upstreamId": "1792805"
+  },
+  {
+    "text": "อาหารเที่ยงของฉันคือ แอปเปิ้ล แพร์ และทับทิม",
+    "source": "tatoeba",
+    "upstreamId": "1792808"
+  },
+  {
+    "text": "เมื่อวานอากาศดีมาก",
+    "source": "tatoeba",
+    "upstreamId": "1794225"
+  },
+  {
+    "text": "เขาตาย แล้ววิญญาณของเขาตกนรก",
+    "source": "tatoeba",
+    "upstreamId": "1794260"
+  },
+  {
+    "text": "หล่อนต่อสู้จนถึงที่สุด",
+    "source": "tatoeba",
+    "upstreamId": "1794639"
+  },
+  {
+    "text": "ผมมีพจนานุกรมเล่มหนึ่ง",
+    "source": "tatoeba",
+    "upstreamId": "1897455"
+  },
+  {
+    "text": "คุณเคยถูบ้านหรือยัง",
+    "source": "tatoeba",
+    "upstreamId": "1968503"
+  },
+  {
+    "text": "ผมจะไม่พูดภาษาฝรั่งเศสกับคุณอีกที",
+    "source": "tatoeba",
+    "upstreamId": "1973206"
+  },
+  {
+    "text": "โทโทโร่พูดว่า โทโทโร่พูดภาษาจีนไม่ได้",
+    "source": "tatoeba",
+    "upstreamId": "2107685"
+  },
+  {
+    "text": "เด็กชายสองคนกำลังหาบนํ้า",
+    "source": "tatoeba",
+    "upstreamId": "2119586"
+  },
+  {
+    "text": "ผู้หญิงมีแก้มสวย",
+    "source": "tatoeba",
+    "upstreamId": "2125853"
+  },
+  {
+    "text": "แอนนาหน้าบูดเพราะจิมมาสาย",
+    "source": "tatoeba",
+    "upstreamId": "2157372"
+  },
+  {
+    "text": "คุณกินพริกหรือเปล่าครับ",
+    "source": "tatoeba",
+    "upstreamId": "2159661"
+  },
+  {
+    "text": "ทุกเช้าฉันออกไปชอปปิ้ง",
+    "source": "tatoeba",
+    "upstreamId": "2177567"
+  },
+  {
+    "text": "ฉันอยากไปที่พระจันทร์",
+    "source": "tatoeba",
+    "upstreamId": "2177568"
+  },
+  {
+    "text": "ท้องของฉันบิดด้วยความหิวกระหาย",
+    "source": "tatoeba",
+    "upstreamId": "2177591"
+  },
+  {
+    "text": "อากาศนั้นนุ่มและดินนั้นชื้น",
+    "source": "tatoeba",
+    "upstreamId": "2177592"
+  },
+  {
+    "text": "มันเป็นการยากที่จะยึดความสนใจไปที่การผ่อนคลายกฎระเบียบ",
+    "source": "tatoeba",
+    "upstreamId": "2177594"
+  },
+  {
+    "text": "ผมกินข้าวที่นี่",
+    "source": "tatoeba",
+    "upstreamId": "2177976"
+  },
+  {
+    "text": "ในที่สุดฉันทำการบ้านเสร็จแล้ว เดี่ยวนี้ฉันไปนอนได้แล้ว",
+    "source": "tatoeba",
+    "upstreamId": "2185506"
+  },
+  {
+    "text": "ไปๆ มาๆ พวกเราถึงจุดหมายปลายทางแล้ว",
+    "source": "tatoeba",
+    "upstreamId": "2185511"
+  },
+  {
+    "text": "ในที่สุดพวกเรามาถึงจุดหมายปลายทางแล้ว",
+    "source": "tatoeba",
+    "upstreamId": "2185515"
+  },
+  {
+    "text": "ในที่สุดฉันทำงานเส็รดแล้ว",
+    "source": "tatoeba",
+    "upstreamId": "2185529"
+  },
+  {
+    "text": "ถ้าตอนบายนี้คูณกำลังจะไปห้องสมุด ขอคืนหนังสือสองเล่มนี้ เวลาคุณที่นั้น",
+    "source": "tatoeba",
+    "upstreamId": "2185818"
+  },
+  {
+    "text": "คูณกำลังพูดเร็วหน้อยสำหรับฉัน ขอพูดชัากว่าได้ไหมค่ะ",
+    "source": "tatoeba",
+    "upstreamId": "2185843"
+  },
+  {
+    "text": "ต้นไม้หลายต้นสีเขียว",
+    "source": "tatoeba",
+    "upstreamId": "2188521"
+  },
+  {
+    "text": "ต่อนนี้ที่เยอรมันเป็นอย่างไรบ้าง",
+    "source": "tatoeba",
+    "upstreamId": "2238249"
+  },
+  {
+    "text": "ที่เมืองไทยตอนนี้มีอากาศที่ร้อนมาก",
+    "source": "tatoeba",
+    "upstreamId": "2238257"
+  },
+  {
+    "text": "เมื่อไรแอนดรูจะมาเยี่ยมค่ะ",
+    "source": "tatoeba",
+    "upstreamId": "2238266"
+  },
+  {
+    "text": "หรือไปฉลองกับแฟนมาค่ะ",
+    "source": "tatoeba",
+    "upstreamId": "2238272"
+  },
+  {
+    "text": "ผมเป็นซอมบี้ครับ",
+    "source": "tatoeba",
+    "upstreamId": "2264833"
+  },
+  {
+    "text": "ในยามแห่งอาวุธ กฎหมายทรุดเงียบเสียงลง",
+    "source": "tatoeba",
+    "upstreamId": "2269754"
+  },
+  {
+    "text": "แม่คุณอยู่ที่บ้านไหม",
+    "source": "tatoeba",
+    "upstreamId": "2345935"
+  },
+  {
+    "text": "นี่คอมพิวเตอร์ของฉัน",
+    "source": "tatoeba",
+    "upstreamId": "2346873"
+  },
+  {
+    "text": "พวกนั้นมีชีวิตอยู่อย่างหาเช้ากินค่ำ",
+    "source": "tatoeba",
+    "upstreamId": "2505853"
+  },
+  {
+    "text": "ฉันไม่เป็นคุณหมอ",
+    "source": "tatoeba",
+    "upstreamId": "2775646"
+  },
+  {
+    "text": "ผมรักคุณมากกว่าที่คุณรักผม",
+    "source": "tatoeba",
+    "upstreamId": "2847974"
+  },
+  {
+    "text": "เธอดูตื่นเต้นสุดๆเลย",
+    "source": "tatoeba",
+    "upstreamId": "2847975"
+  },
+  {
+    "text": "ฉันคิดว่ามันเป็นวิธีที่ดีที่สุด",
+    "source": "tatoeba",
+    "upstreamId": "2847981"
+  },
+  {
+    "text": "ถึงเขาจะขอโทษ ฉันก็ยังโกรธ",
+    "source": "tatoeba",
+    "upstreamId": "2847987"
+  },
+  {
+    "text": "ถึงเขาจะขอโทษแล้ว แต่ฉันก็ยังโกรธ",
+    "source": "tatoeba",
+    "upstreamId": "2847988"
+  },
+  {
+    "text": "ภูมิอากาศของประเทศญี่ปุ่นอ่อนกว่าประเทศอังกฤษ",
+    "source": "tatoeba",
+    "upstreamId": "2848000"
+  },
+  {
+    "text": "เมื่อวานอากาศโคตรร้อนเลย",
+    "source": "tatoeba",
+    "upstreamId": "2852274"
+  },
+  {
+    "text": "อย่าถูกเนื้อต้องตัวผู้หญิงที่ท่านไม่รู้จักดี",
+    "source": "tatoeba",
+    "upstreamId": "2864349"
+  },
+  {
+    "text": "ก็ไม่มีใครชวนผม",
+    "source": "tatoeba",
+    "upstreamId": "2864356"
+  },
+  {
+    "text": "ก่อนเก็บมีดเช็ดให้แห้งด้วย จะได้ไม่เป็นสนิม",
+    "source": "tatoeba",
+    "upstreamId": "2864359"
+  },
+  {
+    "text": "ไม่ได้เล่นน้ำทะเล แค่แวะพักทานข้าวเฉยๆค่ะ",
+    "source": "tatoeba",
+    "upstreamId": "2864366"
+  },
+  {
+    "text": "ก็สนุกดี ร้องคาราโอเกะกัน",
+    "source": "tatoeba",
+    "upstreamId": "2864373"
+  },
+  {
+    "text": "อย่าทำเป็น \" หมาหวงก้าง \"",
+    "source": "tatoeba",
+    "upstreamId": "2865867"
+  },
+  {
+    "text": "เขาภูมิใจที่เป็นจิตกร",
+    "source": "tatoeba",
+    "upstreamId": "2866273"
+  },
+  {
+    "text": "ถ้าพรุ่งนี้คุณไม่ไปตกปลา ผมก็จะไม่ไปเหมือนกัน",
+    "source": "tatoeba",
+    "upstreamId": "2866274"
+  },
+  {
+    "text": "เช็ดเหงื่อออกจากหน้าผาก",
+    "source": "tatoeba",
+    "upstreamId": "2866360"
+  },
+  {
+    "text": "เขาพึมพำอะไรสักอย่าง",
+    "source": "tatoeba",
+    "upstreamId": "2866378"
+  },
+  {
+    "text": "พวกเราต้องไปอย่างระมัดระวัง",
+    "source": "tatoeba",
+    "upstreamId": "2866385"
+  },
+  {
+    "text": "ดูเหมือนว่าฉันติดหวัดแล้ว",
+    "source": "tatoeba",
+    "upstreamId": "2866474"
+  },
+  {
+    "text": "เธอไม่ค่อยมีเพื่อนที่เกียวโต",
+    "source": "tatoeba",
+    "upstreamId": "2874201"
+  },
+  {
+    "text": "เขาแหงนหน้ามองท้องฟ้า",
+    "source": "tatoeba",
+    "upstreamId": "2874207"
+  },
+  {
+    "text": "ทอมมีฟาร์มอยู่ไม่ไกลจากบอสตัน",
+    "source": "tatoeba",
+    "upstreamId": "2874210"
+  },
+  {
+    "text": "เค้าดูเด็ก แต่จริงๆอายุเกินสี่สิบปี",
+    "source": "tatoeba",
+    "upstreamId": "2874212"
+  },
+  {
+    "text": "เค้าดูเด็ก แต่จริงๆอายุเกินสี่สิบแล้ว",
+    "source": "tatoeba",
+    "upstreamId": "2874226"
+  },
+  {
+    "text": "ฉันกำลังดื่มน้ำในครัว",
+    "source": "tatoeba",
+    "upstreamId": "2905276"
+  },
+  {
+    "text": "ฉันจะไปโรงเรียน",
+    "source": "tatoeba",
+    "upstreamId": "2905391"
+  },
+  {
+    "text": "ฉันกำลังว่ายในมหาสมุทร",
+    "source": "tatoeba",
+    "upstreamId": "2905457"
+  },
+  {
+    "text": "คุณพูดภาษาอังกฤษ",
+    "source": "tatoeba",
+    "upstreamId": "2905539"
+  },
+  {
+    "text": "มีข้อผิดพลาดในประโยค",
+    "source": "tatoeba",
+    "upstreamId": "2905543"
+  },
+  {
+    "text": "คุณรักเขาหรือเปล่า",
+    "source": "tatoeba",
+    "upstreamId": "2905558"
+  },
+  {
+    "text": "กล่องจดหมายของฉันเป็นที่เต็ม",
+    "source": "tatoeba",
+    "upstreamId": "2905816"
+  },
+  {
+    "text": "เอมิลี่เขียนประโยค",
+    "source": "tatoeba",
+    "upstreamId": "2906248"
+  },
+  {
+    "text": "ฉันมีสิทธิที่จะวิพากษ์วิจารณ์",
+    "source": "tatoeba",
+    "upstreamId": "2908916"
+  },
+  {
+    "text": "ห้องมีหน้าต่างสองบาน",
+    "source": "tatoeba",
+    "upstreamId": "2928673"
+  },
+  {
+    "text": "บ้านนี้มีห้องน้ำสองห้อง",
+    "source": "tatoeba",
+    "upstreamId": "2928686"
+  },
+  {
+    "text": "ห้องของฉันมีหน้าต่างสองบาน",
+    "source": "tatoeba",
+    "upstreamId": "2928690"
+  },
+  {
+    "text": "นาฬิกามีมือสองข้าง",
+    "source": "tatoeba",
+    "upstreamId": "2928692"
+  },
+  {
+    "text": "พวกเขาเปิดประตู",
+    "source": "tatoeba",
+    "upstreamId": "2928699"
+  },
+  {
+    "text": "ผมชอบสาวญี่ปุ่น",
+    "source": "tatoeba",
+    "upstreamId": "2928707"
+  },
+  {
+    "text": "คุณควรจะปล่อยให้ทอมทำสิ่งที่เขาอยากทำ",
+    "source": "tatoeba",
+    "upstreamId": "2978334"
+  },
+  {
+    "text": "เธอไม่ขี้อายอย่างเคย",
+    "source": "tatoeba",
+    "upstreamId": "2978336"
+  },
+  {
+    "text": "ทอมขับรถพาแมรี่ไปส่งที่สนามบิน",
+    "source": "tatoeba",
+    "upstreamId": "2978337"
+  },
+  {
+    "text": "ทอมอยากเจอแมรี่",
+    "source": "tatoeba",
+    "upstreamId": "2978339"
+  },
+  {
+    "text": "ลองสวมหมวกนี้ดูว่าพอดีไหม",
+    "source": "tatoeba",
+    "upstreamId": "2978342"
+  },
+  {
+    "text": "ฉันไม่เข้าใจความคิดของเขา",
+    "source": "tatoeba",
+    "upstreamId": "2978343"
+  },
+  {
+    "text": "ผมของเธอยาวประบ่า",
+    "source": "tatoeba",
+    "upstreamId": "2978344"
+  },
+  {
+    "text": "เธอยุ่งมากเลยมาไม่ได้",
+    "source": "tatoeba",
+    "upstreamId": "2978345"
+  },
+  {
+    "text": "มีอะไรจะพูดนอกเหนือจากนี้อีกไหม",
+    "source": "tatoeba",
+    "upstreamId": "2978351"
+  },
+  {
+    "text": "ฉันเป็นห่วงที่เธอหน้าซีด",
+    "source": "tatoeba",
+    "upstreamId": "2978353"
+  },
+  {
+    "text": "ไม่ต้องกังวล ฉันจะปกป้องเธอเอง",
+    "source": "tatoeba",
+    "upstreamId": "2978354"
+  },
+  {
+    "text": "การถ่ายทอดความคิดออกมาเป็นคำพูดยากสำหรับฉัน",
+    "source": "tatoeba",
+    "upstreamId": "2978357"
+  },
+  {
+    "text": "กรุณาเข้ามา ประตูเปิดอยู่",
+    "source": "tatoeba",
+    "upstreamId": "2978358"
+  },
+  {
+    "text": "ขณะนี้ทุกอย่างกำลังดำเนินไปด้วยดี",
+    "source": "tatoeba",
+    "upstreamId": "2978360"
+  },
+  {
+    "text": "ม้าของเขากระโดดข้ามรั้วแล้ว",
+    "source": "tatoeba",
+    "upstreamId": "2978362"
+  },
+  {
+    "text": "ปกติแล้วฉันขอบอยู่คนเดียว",
+    "source": "tatoeba",
+    "upstreamId": "2978365"
+  },
+  {
+    "text": "ทารกของฉันต้องการที่จะพูดคุย",
+    "source": "tatoeba",
+    "upstreamId": "3036893"
+  },
+  {
+    "text": "จริงๆ ก็อยากเรียนภาษาญี่ปุ่นอยู่เหมือนกัน",
+    "source": "tatoeba",
+    "upstreamId": "3153801"
+  },
+  {
+    "text": "เส้นผ่าศูนย์กลางของรูใหญ่กว่านิดหน่อย",
+    "source": "tatoeba",
+    "upstreamId": "3172109"
+  },
+  {
+    "text": "รถไฟขบวนนี้ออกจากอาโอโมริสายสามสิบนาที น่าเสียดายที่เราจะไปไม่ถึงโตเกียวก่อนเที่ยง",
+    "source": "tatoeba",
+    "upstreamId": "3182659"
+  },
+  {
+    "text": "บางคนบอกว่า ไม่ควรตรวจสอบอีเมลเป็นสิ่งแรกในตอนเช้า",
+    "source": "tatoeba",
+    "upstreamId": "3182680"
+  },
+  {
+    "text": "เธอโดนเขา แบล็คเมล์",
+    "source": "tatoeba",
+    "upstreamId": "3196039"
+  },
+  {
+    "text": "หายใจลำบาก เมื่อความชื้นสูง",
+    "source": "tatoeba",
+    "upstreamId": "3196044"
+  },
+  {
+    "text": "ครั้งหนึ่ง เคยมีสะพานที่นี่",
+    "source": "tatoeba",
+    "upstreamId": "3196048"
+  },
+  {
+    "text": "พวกเขานมัสการทุกวันอาทิตย์",
+    "source": "tatoeba",
+    "upstreamId": "3196057"
+  },
+  {
+    "text": "อย่าเสียเวลาของคุณกับเรื่องไร้สาระ",
+    "source": "tatoeba",
+    "upstreamId": "3196062"
+  },
+  {
+    "text": "ทอมบอกว่าฉันไม่ควรใส่กระโปรงสีชมพู",
+    "source": "tatoeba",
+    "upstreamId": "3235071"
+  },
+  {
+    "text": "คุณกำลังรีบร้อนไปไหน? เรามีเวลาอีกมาก ดังนั้นขับรถอย่างปลอดภัย",
+    "source": "tatoeba",
+    "upstreamId": "3239807"
+  },
+  {
+    "text": "ทั้งๆที่เขาใช้ความพยายามทั้งหมด เขาก็ยังล้มเหลวในการสอบ",
+    "source": "tatoeba",
+    "upstreamId": "3239808"
+  },
+  {
+    "text": "ฉันค่อนข้างอยากอยู่บ้านมากกว่าที่จะออกไป",
+    "source": "tatoeba",
+    "upstreamId": "3239809"
+  },
+  {
+    "text": "ผลข้างเคียงของการผ่าตัดตาคือตาแห้ง",
+    "source": "tatoeba",
+    "upstreamId": "3239810"
+  },
+  {
+    "text": "ฉันหวังว่าครูของฉันจะกระตือรือร้นที่จะทำงาน",
+    "source": "tatoeba",
+    "upstreamId": "3239811"
+  },
+  {
+    "text": "ในประเทศญี่ปุ่น ประชาชนบรรลุนิติภาวะเมื่ออายุยี่สิบปี",
+    "source": "tatoeba",
+    "upstreamId": "3239812"
+  },
+  {
+    "text": "แหวนวงนี้แพง ขอดูวงถูกๆหน่อย",
+    "source": "tatoeba",
+    "upstreamId": "3239831"
+  },
+  {
+    "text": "คุณกำลังทำให้ฉันเบื่อ!",
+    "source": "tatoeba",
+    "upstreamId": "3239832"
+  },
+  {
+    "text": "ฉันไม่สามารถกินไก่",
+    "source": "tatoeba",
+    "upstreamId": "3257824"
+  },
+  {
+    "text": "ฉันไม่สามารถกินเนื้อ",
+    "source": "tatoeba",
+    "upstreamId": "3257832"
+  },
+  {
+    "text": "ซุปเป็นสิ่งที่ร้อนเกินไป ฉันไม่สามารถกินมัน",
+    "source": "tatoeba",
+    "upstreamId": "3257842"
+  },
+  {
+    "text": "ฉันไม่สามารถกินช็อคโกแลต",
+    "source": "tatoeba",
+    "upstreamId": "3257853"
+  },
+  {
+    "text": "ฉันไม่สามารถกินนี้",
+    "source": "tatoeba",
+    "upstreamId": "3257856"
+  },
+  {
+    "text": "ฉันไม่สามารถกินเนื้อหมู",
+    "source": "tatoeba",
+    "upstreamId": "3257861"
+  },
+  {
+    "text": "ฉันไม่สามารถกิน",
+    "source": "tatoeba",
+    "upstreamId": "3257865"
+  },
+  {
+    "text": "ฉันขอโทษ ฉันไม่สามารถไป",
+    "source": "tatoeba",
+    "upstreamId": "3259082"
+  },
+  {
+    "text": "โอ้ ไม่นานเดี๋ยวก็ชิน",
+    "source": "tatoeba",
+    "upstreamId": "3265761"
+  },
+  {
+    "text": "เมื่อวานฉันได้เจอเขา",
+    "source": "tatoeba",
+    "upstreamId": "3274499"
+  },
+  {
+    "text": "พ่อของฉันเป็นครู",
+    "source": "tatoeba",
+    "upstreamId": "3274507"
+  },
+  {
+    "text": "ผมแอบรักเขาข้างเดียว",
+    "source": "tatoeba",
+    "upstreamId": "3274509"
+  },
+  {
+    "text": "เธอนับถือเจ้านายของเธอเหมือนกับพ่อ",
+    "source": "tatoeba",
+    "upstreamId": "3292366"
+  },
+  {
+    "text": "หมายความว่าอะไร",
+    "source": "tatoeba",
+    "upstreamId": "3388353"
+  },
+  {
+    "text": "ฉันกำลังเรียนภาษาพม่าอยู่",
+    "source": "tatoeba",
+    "upstreamId": "3388357"
+  },
+  {
+    "text": "ไปทางไหนดีที่สุด",
+    "source": "tatoeba",
+    "upstreamId": "3388362"
+  },
+  {
+    "text": "ฉันซาบซึ้งที่คุณบอกฉัน",
+    "source": "tatoeba",
+    "upstreamId": "3480201"
+  },
+  {
+    "text": "นยังคงไม่เชื่อ ว่ามีเสือดาวหิมะที่อยู่ในสวนสัตว์ ฉันคิดว่าพวกมันคงเป็นสัตว์ที่ใกล้สูญพันธุ์",
+    "source": "tatoeba",
+    "upstreamId": "3573407"
+  },
+  {
+    "text": "เห็นไหม ว่ามนุษย์ไม่ได้เป็นผู้สร้างเวลา เพราะหากเราทำได้ เวลาก็จะไม่มีวันหมด",
+    "source": "tatoeba",
+    "upstreamId": "3573409"
+  },
+  {
+    "text": "ฉันจะรับรองให้สำหรับคุณ",
+    "source": "tatoeba",
+    "upstreamId": "3573411"
+  },
+  {
+    "text": "ฉันทิ้งโทรศัพท์ไว้ในรถ",
+    "source": "tatoeba",
+    "upstreamId": "3573412"
+  },
+  {
+    "text": "ฉันกำลังพักอยู่",
+    "source": "tatoeba",
+    "upstreamId": "3573414"
+  },
+  {
+    "text": "งานใด ๆ อาจทำให้ระทมทุกข์",
+    "source": "tatoeba",
+    "upstreamId": "3573417"
+  },
+  {
+    "text": "ฉันบอกแล้วว่าทอมพร้อมแล้ว",
+    "source": "tatoeba",
+    "upstreamId": "3573419"
+  },
+  {
+    "text": "เขาเชื่อว่าพวกเขาได้ทำลายมัน",
+    "source": "tatoeba",
+    "upstreamId": "3573425"
+  },
+  {
+    "text": "ประเทศญี่ปุ่นอยู่ในเอเชียตะวันออก",
+    "source": "tatoeba",
+    "upstreamId": "3573429"
+  },
+  {
+    "text": "ฉันคิดว่าเขาเป็นพี่ชายของฉัน",
+    "source": "tatoeba",
+    "upstreamId": "3573431"
+  },
+  {
+    "text": "เขาตัดสินใจที่จะเป็นนักบิน",
+    "source": "tatoeba",
+    "upstreamId": "3573433"
+  },
+  {
+    "text": "มีร้านหนังสือหนึ่งแห่งอยู่หน้าห้างสรรพสินค้า",
+    "source": "tatoeba",
+    "upstreamId": "3573434"
+  },
+  {
+    "text": "ฉันหวังว่าเขาคงจะสบายดี",
+    "source": "tatoeba",
+    "upstreamId": "3573436"
+  },
+  {
+    "text": "วันพรุ่งนี้เขาจะเดินทางออกจากชิคาโก้",
+    "source": "tatoeba",
+    "upstreamId": "3573437"
+  },
+  {
+    "text": "วานนี้ฉันได้ฟังเรื่องสนุก",
+    "source": "tatoeba",
+    "upstreamId": "3573439"
+  },
+  {
+    "text": "ทอมไม่ค่อยยิ้มอีกต่อไป",
+    "source": "tatoeba",
+    "upstreamId": "3573440"
+  },
+  {
+    "text": "ซุปร้อนเกินไป ฉันกินมันไม่ได้",
+    "source": "tatoeba",
+    "upstreamId": "3593903"
+  },
+  {
+    "text": "ฉันไม่สามารถไปได้",
+    "source": "tatoeba",
+    "upstreamId": "3594876"
+  },
+  {
+    "text": "ฉันขอโทษ ฉันไม่สามารถไปได้",
+    "source": "tatoeba",
+    "upstreamId": "3594881"
+  },
+  {
+    "text": "ลูกของฉันต้องการที่จะพูด",
+    "source": "tatoeba",
+    "upstreamId": "3594890"
+  },
+  {
+    "text": "ฉันจะกลับมาเร็วๆ นี้",
+    "source": "tatoeba",
+    "upstreamId": "3608978"
+  },
+  {
+    "text": "เขาบอกอะไรกับคุณบ้างไหม?",
+    "source": "tatoeba",
+    "upstreamId": "3608984"
+  },
+  {
+    "text": "ฉันได้ถามกับคนรอบข้างและทุกคนต่างก็บอกว่าทอมเป็นคนที่ดี",
+    "source": "tatoeba",
+    "upstreamId": "3608992"
+  },
+  {
+    "text": "คุณบอกเรื่องนั้นกับทอมจริงๆ หรือ?",
+    "source": "tatoeba",
+    "upstreamId": "3608994"
+  },
+  {
+    "text": "คุณไม่เคยมาที่นี่ก่อนใช่ไหม?",
+    "source": "tatoeba",
+    "upstreamId": "3609003"
+  },
+  {
+    "text": "คุณลืมเงินของคุณเป็นประจำ",
+    "source": "tatoeba",
+    "upstreamId": "3609014"
+  },
+  {
+    "text": "ผมคิดว่าทุกคนควรเรียนภาษาอื่น",
+    "source": "tatoeba",
+    "upstreamId": "3623776"
+  },
+  {
+    "text": "มีเกาะมากมายในทะเล",
+    "source": "tatoeba",
+    "upstreamId": "3663720"
+  },
+  {
+    "text": "ในทะเลมีหมู่เกาะต่าง ๆ มากมาย",
+    "source": "tatoeba",
+    "upstreamId": "3713305"
+  },
+  {
+    "text": "บุรจญ์เคาะลีฟะฮ์ปัจจุบันเป็นตึกระฟ้าที่สูงที่สุดในโลก",
+    "source": "tatoeba",
+    "upstreamId": "3714211"
+  },
+  {
+    "text": "ซานต้าอยู่ที่ขั้วโลกเหนือ",
+    "source": "tatoeba",
+    "upstreamId": "3716045"
+  },
+  {
+    "text": "น้ำแกงเค็มเกินไป",
+    "source": "tatoeba",
+    "upstreamId": "3751675"
+  },
+  {
+    "text": "คุณรู้จักผมนานเท่าไรครับ",
+    "source": "tatoeba",
+    "upstreamId": "3752000"
+  },
+  {
+    "text": "ผมรู้ว่าคุณอยากกลับบ้าน",
+    "source": "tatoeba",
+    "upstreamId": "3754527"
+  },
+  {
+    "text": "กรีซเป็นประเทศเก่าแก่",
+    "source": "tatoeba",
+    "upstreamId": "3935525"
+  },
+  {
+    "text": "ทอมไม่กลัวแมรี่",
+    "source": "tatoeba",
+    "upstreamId": "3981132"
+  },
+  {
+    "text": "ฉันต้องไปนอนแล้ว",
+    "source": "tatoeba",
+    "upstreamId": "4284485"
+  },
+  {
+    "text": "คุณชอบเบียร์เยอรมันมั้ย?",
+    "source": "tatoeba",
+    "upstreamId": "4284486"
+  },
+  {
+    "text": "ฉันเกลียดทอมด้วยหลายๆเหตุผล",
+    "source": "tatoeba",
+    "upstreamId": "4284487"
+  },
+  {
+    "text": "ฉันจะปล่อยสิ่งต่างๆไปอย่างที่มันเป็นเพื่อหลีกหนีปัญหา",
+    "source": "tatoeba",
+    "upstreamId": "4284488"
+  },
+  {
+    "text": "เว้นระยะห่างจากรถบรรทุกและพาหนะคันอื่นๆระหว่างขับรถ",
+    "source": "tatoeba",
+    "upstreamId": "4284489"
+  },
+  {
+    "text": "คุณรู้หรือเปล่าว่าใครทำกระจกแตก?",
+    "source": "tatoeba",
+    "upstreamId": "4284490"
+  },
+  {
+    "text": "คำศัพท์เป็นรากฐานของภาษา",
+    "source": "tatoeba",
+    "upstreamId": "4284491"
+  },
+  {
+    "text": "ยิ่งมีมาก ก็ยิ่งต้องเสียมาก",
+    "source": "tatoeba",
+    "upstreamId": "4284492"
+  },
+  {
+    "text": "ฉันจะไม่กินมันหรอกถ้าฉันเป็นคุณ",
+    "source": "tatoeba",
+    "upstreamId": "4284493"
+  },
+  {
+    "text": "ฉันจะไม่ดื่มมันหรอกถ้าฉันเป็นคุณ",
+    "source": "tatoeba",
+    "upstreamId": "4284494"
+  },
+  {
+    "text": "ฉันไม่รู้ว่าหล่อนอายุมากขนาดนั้น",
+    "source": "tatoeba",
+    "upstreamId": "4284495"
+  },
+  {
+    "text": "ฉันเห็นเป้าหมายแล้ว",
+    "source": "tatoeba",
+    "upstreamId": "4284497"
+  },
+  {
+    "text": "บอกหล่อนว่าฉันจะโทรกลับไปทีหลัง",
+    "source": "tatoeba",
+    "upstreamId": "4284498"
+  },
+  {
+    "text": "พวกเธอต้องไม่เชื่อแน่ๆ!",
+    "source": "tatoeba",
+    "upstreamId": "4284501"
+  },
+  {
+    "text": "นี่คุณสิ้นหวังขนาดนั้นเลยเหรอ?",
+    "source": "tatoeba",
+    "upstreamId": "4284502"
+  },
+  {
+    "text": "เราควรที่จะทำแบบนี้มั้ยเนี่ย?",
+    "source": "tatoeba",
+    "upstreamId": "4284505"
+  },
+  {
+    "text": "ถ้าคุณสนใจก็บอกฉันนะ แล้วฉันจะให้เบอร์ของเขาแก่คุณ",
+    "source": "tatoeba",
+    "upstreamId": "4284507"
+  },
+  {
+    "text": "ในที่สุดอาหารก็มาถึงบนโต๊ะแล้ว",
+    "source": "tatoeba",
+    "upstreamId": "4284509"
+  },
+  {
+    "text": "อาหารมาถึงบนโต๊ะแล้ว",
+    "source": "tatoeba",
+    "upstreamId": "4284510"
+  },
+  {
+    "text": "ถ้าคุณพลาดในการวางแผน คุณก็วางแผนที่จะพลาด",
+    "source": "tatoeba",
+    "upstreamId": "4284511"
+  },
+  {
+    "text": "แมรี่กำลังเก็บเบอร์รี่ในป่า",
+    "source": "tatoeba",
+    "upstreamId": "4284512"
+  },
+  {
+    "text": "เมเรดิธเป็นเพื่อนของแมรี่",
+    "source": "tatoeba",
+    "upstreamId": "4284513"
+  },
+  {
+    "text": "นั่นมันเสียงอะไร?",
+    "source": "tatoeba",
+    "upstreamId": "4284515"
+  },
+  {
+    "text": "นี่มันความโมโหล้วนๆ!",
+    "source": "tatoeba",
+    "upstreamId": "4284520"
+  },
+  {
+    "text": "ฉันอยากไปเดินเล่นในชนบท",
+    "source": "tatoeba",
+    "upstreamId": "4284522"
+  },
+  {
+    "text": "ฉันคงจะขายหมาตัวนี้ถ้ามันตัวสูงกว่านี้",
+    "source": "tatoeba",
+    "upstreamId": "4284525"
+  },
+  {
+    "text": "ผู้สูบบุหรี่มีความเสี่ยงในการแท้งลูกเพิ่มมากขึ้น",
+    "source": "tatoeba",
+    "upstreamId": "4284526"
+  },
+  {
+    "text": "ฉันเกลียดการออกกำลังกาย แต่ฉันก็รู้ว่ามันดีต่อสุขภาพ",
+    "source": "tatoeba",
+    "upstreamId": "4284528"
+  },
+  {
+    "text": "ไมค์ออกกำลังกายในยิมสองถึงสามครั้งต่อสัปดาห์",
+    "source": "tatoeba",
+    "upstreamId": "4284529"
+  },
+  {
+    "text": "โทรทัศน์เครื่องนั้นราคาเท่าไหร่คะ?",
+    "source": "tatoeba",
+    "upstreamId": "4284530"
+  },
+  {
+    "text": "ฉันนอนเปิดไฟไม่ได้",
+    "source": "tatoeba",
+    "upstreamId": "4284531"
+  },
+  {
+    "text": "อะไรคือบทลงโทษของฉัน?",
+    "source": "tatoeba",
+    "upstreamId": "4284532"
+  },
+  {
+    "text": "ในที่สุดวันนี้ฉันก็มีความกล้าที่จะบอกเธอว่า \"ฉันรักเธอ!\"",
+    "source": "tatoeba",
+    "upstreamId": "4284534"
+  },
+  {
+    "text": "พระเจ้าสร้างคุณขึ้นมาอย่างมีเป้าหมาย",
+    "source": "tatoeba",
+    "upstreamId": "4284535"
+  },
+  {
+    "text": "ไม่มีอะไรสำเร็จได้โดยปราศจากการดิ้นรน",
+    "source": "tatoeba",
+    "upstreamId": "4284536"
+  },
+  {
+    "text": "ประเทศรัสเซียไหญ่กว่าดาวพลูโตเสียอีก",
+    "source": "tatoeba",
+    "upstreamId": "4284537"
+  },
+  {
+    "text": "ในบางครั้งก็จำเป็นที่จะต้องปกปิดความจริง",
+    "source": "tatoeba",
+    "upstreamId": "4284539"
+  },
+  {
+    "text": "ทอมเจอตู้เซฟเก่าในโรงรถ",
+    "source": "tatoeba",
+    "upstreamId": "4284541"
+  },
+  {
+    "text": "สามีของคุณมีศัตรูมากไหม?",
+    "source": "tatoeba",
+    "upstreamId": "4284542"
+  },
+  {
+    "text": "แม่กับพ่อไม่ได้มากับฉัน",
+    "source": "tatoeba",
+    "upstreamId": "4284543"
+  },
+  {
+    "text": "ดาวเคราะห์ดวงไหนเล็กที่สุด?",
+    "source": "tatoeba",
+    "upstreamId": "4284544"
+  },
+  {
+    "text": "เธอมาทำอะไรที่นี่? ทำไมถึงไม่อยู่บ้าน?",
+    "source": "tatoeba",
+    "upstreamId": "4284546"
+  },
+  {
+    "text": "เธอกลัวว่ามะเร็งจะฆ่าสามีของเธอก่อนที่เหลนของพวกเขาจะเกิด",
+    "source": "tatoeba",
+    "upstreamId": "4287108"
+  },
+  {
+    "text": "มาลองบางอย่างกันเถอะ",
+    "source": "tatoeba",
+    "upstreamId": "4287116"
+  },
+  {
+    "text": "การศึกษาบนโลกใบนี้ทำให้ผิดหวัง",
+    "source": "tatoeba",
+    "upstreamId": "4287120"
+  },
+  {
+    "text": "ฉันไม่รู้ว่ามีเวลามั้ย",
+    "source": "tatoeba",
+    "upstreamId": "4287121"
+  },
+  {
+    "text": "นี่เป็นภาพล่าสุดรึเปล่า?",
+    "source": "tatoeba",
+    "upstreamId": "4287122"
+  },
+  {
+    "text": "ตอนนั้นฉันอยู่ในเขา",
+    "source": "tatoeba",
+    "upstreamId": "4287126"
+  },
+  {
+    "text": "ฉันแค่ไม่รู้จะพูดอะไร",
+    "source": "tatoeba",
+    "upstreamId": "4287127"
+  },
+  {
+    "text": "มันจะไม่มีวันจบ",
+    "source": "tatoeba",
+    "upstreamId": "4287129"
+  },
+  {
+    "text": "เดี๋ยวฉันจะกลับมาเร็วๆนี้",
+    "source": "tatoeba",
+    "upstreamId": "4287131"
+  },
+  {
+    "text": "รหัสผ่านคือ \"Muiriel\"",
+    "source": "tatoeba",
+    "upstreamId": "4287133"
+  },
+  {
+    "text": "ฉันทำได้แค่เพียงสงสัยว่าทุกคนเป็นเหมือนกันมั้ย",
+    "source": "tatoeba",
+    "upstreamId": "4287134"
+  },
+  {
+    "text": "ฉันจะพยายามสุดความสามารถที่จะไม่รบกวนการเรียนของเธอ",
+    "source": "tatoeba",
+    "upstreamId": "4287138"
+  },
+  {
+    "text": "บางทีเขาก็เป็นคนแปลกๆ",
+    "source": "tatoeba",
+    "upstreamId": "4287140"
+  },
+  {
+    "text": "มันจะไม่เกิดขึ้น",
+    "source": "tatoeba",
+    "upstreamId": "4287142"
+  },
+  {
+    "text": "มันเป็นเพราะว่าเธอไม่อยากอยู่คนเดียว",
+    "source": "tatoeba",
+    "upstreamId": "4287143"
+  },
+  {
+    "text": "ฉันอาจจะยอมแพ้แล้วไปงีบแทน",
+    "source": "tatoeba",
+    "upstreamId": "4287144"
+  },
+  {
+    "text": "เธอขวางทางฉันอยู่",
+    "source": "tatoeba",
+    "upstreamId": "4287148"
+  },
+  {
+    "text": "เธอรูปร่างดีกว่าฉันเสียอีก",
+    "source": "tatoeba",
+    "upstreamId": "4287150"
+  },
+  {
+    "text": "ฉันใช้ชีวิตแบบนั้นไม่ได้",
+    "source": "tatoeba",
+    "upstreamId": "4287152"
+  },
+  {
+    "text": "เธอใจร้อนกับฉันจังเลย",
+    "source": "tatoeba",
+    "upstreamId": "4287153"
+  },
+  {
+    "text": "ฉันบอกให้พวกเขาส่งตั๋วอีกใบมาให้",
+    "source": "tatoeba",
+    "upstreamId": "4287154"
+  },
+  {
+    "text": "ฉันมักจะชอบตัวละครที่ลึกลับมากกว่า",
+    "source": "tatoeba",
+    "upstreamId": "4287158"
+  },
+  {
+    "text": "ฉันจะโทรหาพวกเขาพรุ่งนี้เมื่อฉันกลับมา",
+    "source": "tatoeba",
+    "upstreamId": "4287159"
+  },
+  {
+    "text": "เธอนี่แขวะฉันเรื่องเสื้อผ้าตลอดเลยนะ",
+    "source": "tatoeba",
+    "upstreamId": "4287166"
+  },
+  {
+    "text": "ยอมรับในสิ่งที่เธอพูดเถอะ ยังไงฉันก็คิดว่าเธอผิด",
+    "source": "tatoeba",
+    "upstreamId": "4287168"
+  },
+  {
+    "text": "ฉันช่วยเธอไม่ได้ ถึงแม้ฉันจะสงสารเธอก็เถอะ",
+    "source": "tatoeba",
+    "upstreamId": "4287169"
+  },
+  {
+    "text": "ฉันเจอสิ่งนั้นที่เธอตามหาแล้ว",
+    "source": "tatoeba",
+    "upstreamId": "4287171"
+  },
+  {
+    "text": "โลกนี้จะเหงาขนาดไหนถ้าไม่มีเธอ",
+    "source": "tatoeba",
+    "upstreamId": "4287173"
+  },
+  {
+    "text": "เราเห็นสิ่งต่างๆแตกต่างกันไปไม่ว่าเราจะรวยหรือจน",
+    "source": "tatoeba",
+    "upstreamId": "4287181"
+  },
+  {
+    "text": "เราทุกคนต้องตายแม้ว่าเราจะมีเงินหรือไม่",
+    "source": "tatoeba",
+    "upstreamId": "4287184"
+  },
+  {
+    "text": "ระหว่างที่พวกเราไปเที่ยววันหยุดกัน มีเพื่อนบ้านคนหนึ่งช่วยดูแลแมวของพวกเราให้",
+    "source": "tatoeba",
+    "upstreamId": "4287195"
+  },
+  {
+    "text": "แก้ไขข้อผิดพลาดด้วยถ้ามี",
+    "source": "tatoeba",
+    "upstreamId": "4287196"
+  },
+  {
+    "text": "เธอควรเริ่มจากหนังสือพวกนี้ที่เธอสามารถเข้าใจได้ง่าย",
+    "source": "tatoeba",
+    "upstreamId": "4287197"
+  },
+  {
+    "text": "เขาออกจากทีมเนื่องจากเขาไม่เข้าขากับผู้จัดการ",
+    "source": "tatoeba",
+    "upstreamId": "4287200"
+  },
+  {
+    "text": "แทบจะไม่มีนักเรียนที่ได้คะแนนเต็มในวิชาภาษาจีนดั้งเดิมเลย",
+    "source": "tatoeba",
+    "upstreamId": "4287201"
+  },
+  {
+    "text": "ผู้ป่วยมักจะเสียชีวิตไปง่ายๆเพราะพวกเขายอมแพ้ให้กับความเจ็บป่วย",
+    "source": "tatoeba",
+    "upstreamId": "4287203"
+  },
+  {
+    "text": "อนุญาตให้นักเรียนขาดเรียนได้",
+    "source": "tatoeba",
+    "upstreamId": "4287204"
+  },
+  {
+    "text": "ฉันเข้านอนเวลาสี่ทุ่มในวันที่มีเรียนเสมอ",
+    "source": "tatoeba",
+    "upstreamId": "4287205"
+  },
+  {
+    "text": "ฉันจะต้องรอจนกว่าจะเรียนจบแล้วเริ่มหาเงิน",
+    "source": "tatoeba",
+    "upstreamId": "4287206"
+  },
+  {
+    "text": "เธอห้ามอ่านหนังสือพวกนี้เพรามันไม่ดีสำหรับเธอ",
+    "source": "tatoeba",
+    "upstreamId": "4287207"
+  },
+  {
+    "text": "ถ้าคุณลงไปใต้น้ำ ปิดจมูกแล้วหายใจออกเพื่อเคลียร์หู",
+    "source": "tatoeba",
+    "upstreamId": "4287208"
+  },
+  {
+    "text": "เราเห็นเขาเป็นรุ่นพี่ที่ดี",
+    "source": "tatoeba",
+    "upstreamId": "4287209"
+  },
+  {
+    "text": "เราทานอาหารวันละสามมื้อ",
+    "source": "tatoeba",
+    "upstreamId": "4287210"
+  },
+  {
+    "text": "พระเจ้าผู้ให้ทั้งชีวิตและเสรีภาพแก่เราในเวลาเดียวกัน",
+    "source": "tatoeba",
+    "upstreamId": "4287211"
+  },
+  {
+    "text": "ฉันเห็นดอกไม้หายากอยู่ในแจกัน",
+    "source": "tatoeba",
+    "upstreamId": "4287212"
+  },
+  {
+    "text": "ทันที่ที่ฉันออกจากบ้าน ฉันก็บังเอิญพบเธอบนถนน",
+    "source": "tatoeba",
+    "upstreamId": "4287214"
+  },
+  {
+    "text": "คุณได้เห็นพระอาทิตย์ขึ้นเมื่อกี้ไหม? มันสวยมากเลย",
+    "source": "tatoeba",
+    "upstreamId": "4288167"
+  },
+  {
+    "text": "ผู้คนมากมายชอบที่จะเดินทาง",
+    "source": "tatoeba",
+    "upstreamId": "4288180"
+  },
+  {
+    "text": "เธอสนุกกับการเรียนมั้ย?",
+    "source": "tatoeba",
+    "upstreamId": "4288196"
+  },
+  {
+    "text": "ทอมยังไม่ได้ล้างจาน",
+    "source": "tatoeba",
+    "upstreamId": "4288201"
+  },
+  {
+    "text": "ทอมบอกว่าแมรี่กำลังมาในมื้อเย็น",
+    "source": "tatoeba",
+    "upstreamId": "4288221"
+  },
+  {
+    "text": "เธอนั่งสูบบุหรี่",
+    "source": "tatoeba",
+    "upstreamId": "4293618"
+  },
+  {
+    "text": "ขอโทษนะคะ คุณพูดภาษาอังกฤษได้มั้ย? ได้ครับ นิดหน่อย",
+    "source": "tatoeba",
+    "upstreamId": "4293620"
+  },
+  {
+    "text": "ยิว, คริสเตียน หรือมุสลิม พวกเราล้วนเป็นบุตรของพระเจ้า",
+    "source": "tatoeba",
+    "upstreamId": "4293622"
+  },
+  {
+    "text": "แม่ของฉันเปิดประตูอย่างระมัดระวัง",
+    "source": "tatoeba",
+    "upstreamId": "4293623"
+  },
+  {
+    "text": "ผู้คนมักไม่ชอบในสิ่งที่พวกเขาไม่เข้าใจ",
+    "source": "tatoeba",
+    "upstreamId": "4293625"
+  },
+  {
+    "text": "ภาษาอารบิคจะอ่านจากขวาไปซ้าย",
+    "source": "tatoeba",
+    "upstreamId": "4293626"
+  },
+  {
+    "text": "ทหารคนนั้นไม่เคยได้แผลจากการต่อสู้เลย",
+    "source": "tatoeba",
+    "upstreamId": "4293627"
+  },
+  {
+    "text": "ห้ามสรรพสินค้าผุดขึ้นเป็นดอกเห็ดอย่างรวดเร็วในเมืองที่เจริญมากๆ",
+    "source": "tatoeba",
+    "upstreamId": "4293628"
+  },
+  {
+    "text": "มีรั้วกั้นแบ่งสวนและถนนออกจากกัน",
+    "source": "tatoeba",
+    "upstreamId": "4293629"
+  },
+  {
+    "text": "เขาเคยสะสมแมลงเมื่อครั้งยังเป็นเด็ก",
+    "source": "tatoeba",
+    "upstreamId": "4293630"
+  },
+  {
+    "text": "ฉันมีแค่หนังสือเล่มเดียว",
+    "source": "tatoeba",
+    "upstreamId": "4293631"
+  },
+  {
+    "text": "เหลือเวลาอีกกี่ชั่วโมงกว่าจะเดินทางไปถึง?",
+    "source": "tatoeba",
+    "upstreamId": "4293632"
+  },
+  {
+    "text": "มีอะไรที่เธอต้องการจะซื้อมั้ย?",
+    "source": "tatoeba",
+    "upstreamId": "4293633"
+  },
+  {
+    "text": "ทางแก้ปัญหาที่ง่ายที่สุดมักจะเป็นทางที่ดีที่สุดเสมอ",
+    "source": "tatoeba",
+    "upstreamId": "4293634"
+  },
+  {
+    "text": "ฉันไม่รู้ว่าคุณรู้หรือไม่ แต่ในอเมริกานี้คุณควรจะให้ทิปเด็กเสิร์ฟนะ",
+    "source": "tatoeba",
+    "upstreamId": "4293635"
+  },
+  {
+    "text": "หางานเป็นไงบ้าง?",
+    "source": "tatoeba",
+    "upstreamId": "4293636"
+  },
+  {
+    "text": "ได้เวลาปลุกทอมแล้ว",
+    "source": "tatoeba",
+    "upstreamId": "4293637"
+  },
+  {
+    "text": "เฮเลน เคลเลอร์เป็นคนตาบอด หูหนวก และเป็นใบ้",
+    "source": "tatoeba",
+    "upstreamId": "4293638"
+  },
+  {
+    "text": "หนังสือเกี่ยวกับชีวิตที่เยี่ยมที่สุดก็คือชีวิตนั่นเอง",
+    "source": "tatoeba",
+    "upstreamId": "4293639"
+  },
+  {
+    "text": "ฉันอยากซื้อแจ็คเก็ตตัวนี้",
+    "source": "tatoeba",
+    "upstreamId": "4293640"
+  },
+  {
+    "text": "สำหรับใช้ทางปาก",
+    "source": "tatoeba",
+    "upstreamId": "4293641"
+  },
+  {
+    "text": "เก็บยาให้ห่างจากมือและสายตาเด็ก",
+    "source": "tatoeba",
+    "upstreamId": "4293642"
+  },
+  {
+    "text": "ฉันไม่เคยนั่งเครื่องบินมาก่อนเลย",
+    "source": "tatoeba",
+    "upstreamId": "4293643"
+  },
+  {
+    "text": "คุณเจอหนังสือที่ตามหาตอนนั้นหรือยัง",
+    "source": "tatoeba",
+    "upstreamId": "4293644"
+  },
+  {
+    "text": "นี่ใช่หนังสือที่คุณตามหาอยู่รึเปล่า?",
+    "source": "tatoeba",
+    "upstreamId": "4293645"
+  },
+  {
+    "text": "นี่มันหนังสือเล่มที่คุณกำลังหาอยู่",
+    "source": "tatoeba",
+    "upstreamId": "4293646"
+  },
+  {
+    "text": "เขาก็เป็นแค่นักการเมือง",
+    "source": "tatoeba",
+    "upstreamId": "4293648"
+  },
+  {
+    "text": "มันก็แค่ภาพจินตานาการ",
+    "source": "tatoeba",
+    "upstreamId": "4293649"
+  },
+  {
+    "text": "ฉันไม่ได้เป็นสมาชิกของคลับนี้",
+    "source": "tatoeba",
+    "upstreamId": "4293652"
+  },
+  {
+    "text": "เธอเอาอะไรจากโรมมาฝากฉัน?",
+    "source": "tatoeba",
+    "upstreamId": "4293653"
+  },
+  {
+    "text": "ฉันมาจากบูดาเปส",
+    "source": "tatoeba",
+    "upstreamId": "4293654"
+  },
+  {
+    "text": "เขามักจะทานอาหารเช้าที่นี่",
+    "source": "tatoeba",
+    "upstreamId": "4293656"
+  },
+  {
+    "text": "คุณเคยเห็นวิธีทำไส้กรอกไหม?",
+    "source": "tatoeba",
+    "upstreamId": "4293657"
+  },
+  {
+    "text": "ที่จริงแล้วผู้ชายคนที่เธอเห็นเป็นผู้หญิง",
+    "source": "tatoeba",
+    "upstreamId": "4293660"
+  },
+  {
+    "text": "เธอท้องหรือว่าแค่อ้วนกันแน่?",
+    "source": "tatoeba",
+    "upstreamId": "4332356"
+  },
+  {
+    "text": "พวกเขาพูดอะไรบ้าง",
+    "source": "tatoeba",
+    "upstreamId": "4437204"
+  },
+  {
+    "text": "ฉันไม่รู้ว่าปรึกษากับใครดี",
+    "source": "tatoeba",
+    "upstreamId": "4558207"
+  },
+  {
+    "text": "ฟุตบอลอาจจะยกเลิกเพราะฝนตก",
+    "source": "tatoeba",
+    "upstreamId": "4558212"
+  },
+  {
+    "text": "ผู้ชายสารภาพว่าเค้าปล้นผู้หญิงแก่คนนั้น",
+    "source": "tatoeba",
+    "upstreamId": "4558220"
+  },
+  {
+    "text": "ให้เวลาฉันสักวันสองวัน",
+    "source": "tatoeba",
+    "upstreamId": "4558228"
+  },
+  {
+    "text": "พวกเค้าไม่ได้เห็นอะไร",
+    "source": "tatoeba",
+    "upstreamId": "4558232"
+  },
+  {
+    "text": "ทอมไปอย่างเร่งรีบ",
+    "source": "tatoeba",
+    "upstreamId": "4558237"
+  },
+  {
+    "text": "ฉันจะเรียนภาษาฝรั่งเศษเป็นเวลาหนึ่งเทอม",
+    "source": "tatoeba",
+    "upstreamId": "4558240"
+  },
+  {
+    "text": "เพราะว่าพวกเขากำลังดูทีวี",
+    "source": "tatoeba",
+    "upstreamId": "4558242"
+  },
+  {
+    "text": "ฉันเกรงว่าพวกเขาไปด้วยกันได้ไม่ค่อยดีเท่าไหร่",
+    "source": "tatoeba",
+    "upstreamId": "4558272"
+  },
+  {
+    "text": "เมื่อวานเขาเจอผู้ชายตัวใหญ่",
+    "source": "tatoeba",
+    "upstreamId": "4558279"
+  },
+  {
+    "text": "ไม่นะ! พาสปอร์ดฉันหายไปแล้ว!",
+    "source": "tatoeba",
+    "upstreamId": "4558286"
+  },
+  {
+    "text": "ฉันไม่รู้ว่ามีเวลาหรือเปล่า",
+    "source": "tatoeba",
+    "upstreamId": "4558293"
+  },
+  {
+    "text": "พรุ่งนี้พยายามอย่าสายอีกหละ",
+    "source": "tatoeba",
+    "upstreamId": "4558302"
+  },
+  {
+    "text": "ฉันคันจากการถูกยุงกัด เธอมียาอะไรช่วยหรือเปล่า?",
+    "source": "tatoeba",
+    "upstreamId": "4558311"
+  },
+  {
+    "text": "เธอขอร้องให้เขาอยู่",
+    "source": "tatoeba",
+    "upstreamId": "4558318"
+  },
+  {
+    "text": "เขาน่าจะเป็นสามีที่ดีของน้องสาวฉัน",
+    "source": "tatoeba",
+    "upstreamId": "4558346"
+  },
+  {
+    "text": "เขาน่าจะเป็นสามีที่ดีของพี่สาวฉัน",
+    "source": "tatoeba",
+    "upstreamId": "4558349"
+  },
+  {
+    "text": "แอปเปิลของพวกเขาไม่อร่อยเท่าของพวกเรา",
+    "source": "tatoeba",
+    "upstreamId": "4558356"
+  },
+  {
+    "text": "ทอมไม่อยากคุยกับแมรี่",
+    "source": "tatoeba",
+    "upstreamId": "4558361"
+  },
+  {
+    "text": "ทำไมพวกเราไม่ได้ถูกบอกความจริงมา?",
+    "source": "tatoeba",
+    "upstreamId": "4558374"
+  },
+  {
+    "text": "ชายหาดอยู่ไม่ไกลจากที่นี่",
+    "source": "tatoeba",
+    "upstreamId": "4558388"
+  },
+  {
+    "text": "พวกเราควรปาตี้กัน",
+    "source": "tatoeba",
+    "upstreamId": "4558392"
+  },
+  {
+    "text": "พวกเราควรฉลองกัน",
+    "source": "tatoeba",
+    "upstreamId": "4558394"
+  },
+  {
+    "text": "เก้าอี้ตัวนี้นั่งสบายจัง",
+    "source": "tatoeba",
+    "upstreamId": "4558461"
+  },
+  {
+    "text": "ความรักของฉันสำหรับเขาลดลงแล้ว",
+    "source": "tatoeba",
+    "upstreamId": "4558475"
+  },
+  {
+    "text": "เราไม่อยากคุยเกี่ยวกับเรื่องนี้",
+    "source": "tatoeba",
+    "upstreamId": "4558484"
+  },
+  {
+    "text": "จงเคารพตัวเอง แล้วพวกเขาจะเคารพคุณ",
+    "source": "tatoeba",
+    "upstreamId": "4836304"
+  },
+  {
+    "text": "จงเคารพตัวเองแล้วคุณจะได้รับความเคารพ",
+    "source": "tatoeba",
+    "upstreamId": "4840869"
+  },
+  {
+    "text": "เราจะทานอาหารเที่ยงด้วยกันตอนเที่ยงครึ่ง",
+    "source": "tatoeba",
+    "upstreamId": "4840870"
+  },
+  {
+    "text": "หนังสือกองนี้ของฉัน ส่วนกองโน้นน่ะของเค้า",
+    "source": "tatoeba",
+    "upstreamId": "4903607"
+  },
+  {
+    "text": "แม่ฉันป่วยมาตั้งแต่เดือนที่แล้ว",
+    "source": "tatoeba",
+    "upstreamId": "5021458"
+  },
+  {
+    "text": "ฝนจะตกไหมพรุ่งนี้",
+    "source": "tatoeba",
+    "upstreamId": "5021459"
+  },
+  {
+    "text": "ฉันจะไปที่นั่นถึงแม้ฝนจะตก",
+    "source": "tatoeba",
+    "upstreamId": "5021461"
+  },
+  {
+    "text": "การเปลี่ยนแปลงทางสังคมเป็นสิ่งจำเป็นเร่งด่วนของที่นั่น",
+    "source": "tatoeba",
+    "upstreamId": "5021464"
+  },
+  {
+    "text": "วัฒนธรรมทางสังคมมีการแปรเปลี่ยนไปในแต่ละประเทศ",
+    "source": "tatoeba",
+    "upstreamId": "5021465"
+  },
+  {
+    "text": "ทำไมต้องฉันล่ะ?",
+    "source": "tatoeba",
+    "upstreamId": "5344111"
+  },
+  {
+    "text": "ผมเป็นโรคลมบ้าหมู",
+    "source": "tatoeba",
+    "upstreamId": "5603214"
+  },
+  {
+    "text": "ห้ามทำบาร์บีคิวที่นี่",
+    "source": "tatoeba",
+    "upstreamId": "6159038"
+  },
+  {
+    "text": "บิล ถ้าพี่มากับฉัน พี่ก็จะลอยเหมือนกัน",
+    "source": "tatoeba",
+    "upstreamId": "6310054"
+  },
+  {
+    "text": "คุณคิดว่าอันไหนถูก?",
+    "source": "tatoeba",
+    "upstreamId": "6537584"
+  },
+  {
+    "text": "งานของฉันพึ่งเริ่มเท่านั้น",
+    "source": "tatoeba",
+    "upstreamId": "6537586"
+  },
+  {
+    "text": "ถามผู้หญิงที่ไหนก็ได้",
+    "source": "tatoeba",
+    "upstreamId": "6537618"
+  },
+  {
+    "text": "ฉันบอกหล่อนแล้วว่ามันเกิดอะไรขึ้น",
+    "source": "tatoeba",
+    "upstreamId": "6537620"
+  },
+  {
+    "text": "ฉันสงสัยว่าจะแขวนรูปที่ทอมให้มาตรงไหนดี",
+    "source": "tatoeba",
+    "upstreamId": "6563859"
+  },
+  {
+    "text": "ฉันสงสัยว่าทำไมทอมถึงไม่มาที่ปาร์ตี้ของแมรี่",
+    "source": "tatoeba",
+    "upstreamId": "6563860"
+  },
+  {
+    "text": "คุณจำเป็นจะต้องควบคุมตัวเอง",
+    "source": "tatoeba",
+    "upstreamId": "6563862"
+  },
+  {
+    "text": "เยรูซาเล็มคือเมืองหลวงของประเทศปาเลสไตน์",
+    "source": "tatoeba",
+    "upstreamId": "6563863"
+  },
+  {
+    "text": "สิ่งที่ฉันต้องการคือความรัก",
+    "source": "tatoeba",
+    "upstreamId": "6563866"
+  },
+  {
+    "text": "ฉันต้องการความรัก",
+    "source": "tatoeba",
+    "upstreamId": "6563867"
+  },
+  {
+    "text": "ฉันอยากจะพูดอะไรบางอย่าง",
+    "source": "tatoeba",
+    "upstreamId": "6563868"
+  },
+  {
+    "text": "ทอมจำแมรี่ได้ทันทีที่เขาเห็นเธอ",
+    "source": "tatoeba",
+    "upstreamId": "6563870"
+  },
+  {
+    "text": "พวกเขาคือคนแก่สามคน",
+    "source": "tatoeba",
+    "upstreamId": "6633661"
+  },
+  {
+    "text": "มนุษย์ทุกคนเกิดมาอิสระและเท่าเทียมกันในเกียรติและสิทธิ์ พวกเขาถูกมอบด้วยเหตุผลและมโนธรรมและควรปฏิบัติต่อกันและกันด้วยจิตวิญญาณแห่งพี่น้อ",
+    "source": "tatoeba",
+    "upstreamId": "6633674"
+  },
+  {
+    "text": "ขอบคุณกับคุณ ฉันมาถึงตรงเวลา",
+    "source": "tatoeba",
+    "upstreamId": "6633675"
+  },
+  {
+    "text": "ทอมและแมรี่พูดว่าพวกเขาไม่ได้วางแผนที่จะทำอย่างนั้น",
+    "source": "tatoeba",
+    "upstreamId": "6633677"
+  },
+  {
+    "text": "ทอมพูดว่าแมรี่ไม่ได้คิดว่าจอห์นทำอย่างนั้นจริง",
+    "source": "tatoeba",
+    "upstreamId": "6633678"
+  },
+  {
+    "text": "ทอมพูดว่าเขามีความสุขที่ได้ทำมัน",
+    "source": "tatoeba",
+    "upstreamId": "6633681"
+  },
+  {
+    "text": "ฉันต้องการที่จะทำมันในทันที",
+    "source": "tatoeba",
+    "upstreamId": "6633682"
+  },
+  {
+    "text": "ทอมพูดว่าเขาสนุกกับตัวเขาเอง",
+    "source": "tatoeba",
+    "upstreamId": "6633684"
+  },
+  {
+    "text": "ฉันต้องการที่ทำดีขึึ้นในเวลาหน้า",
+    "source": "tatoeba",
+    "upstreamId": "6633686"
+  },
+  {
+    "text": "ทอมเตือนแมรี่ว่าเธอต้องทำสิ่งนั้นวันนี้",
+    "source": "tatoeba",
+    "upstreamId": "6633688"
+  },
+  {
+    "text": "ทอมพูดว่าเขาขอให้ทำอย่างนั้น",
+    "source": "tatoeba",
+    "upstreamId": "6633690"
+  },
+  {
+    "text": "ไม่, บ้านในหมู่บ้านของฉันไม่ได้สูง แต่สวนใหญ่",
+    "source": "tatoeba",
+    "upstreamId": "6633693"
+  },
+  {
+    "text": "ไม่, ดอกไม้ไม่ได้มีสีเขียว แต่แดง, ขาว, เหลือง, หรือน้ำเงิน",
+    "source": "tatoeba",
+    "upstreamId": "6633696"
+  },
+  {
+    "text": "หนูไม่ได้เป็นสัตว์ใหญ่",
+    "source": "tatoeba",
+    "upstreamId": "6633697"
+  },
+  {
+    "text": "นั่นแหละทำไมเธอต้องการที่พบเขา",
+    "source": "tatoeba",
+    "upstreamId": "6633699"
+  },
+  {
+    "text": "มันมีสมุดสีน้ำเงินบนโต๊ะ",
+    "source": "tatoeba",
+    "upstreamId": "6633700"
+  },
+  {
+    "text": "ข้าแต่พระเยซูคริสต์ พระบุตรพระเจ้า โปรดทรงพระเมตตาลูก ผู้เป็นคนบาป เถิดพระเจ้าข้า.",
+    "source": "tatoeba",
+    "upstreamId": "6671948"
+  },
+  {
+    "text": "คุณไม่จำเป็นต้องทำเช่นนี้.",
+    "source": "tatoeba",
+    "upstreamId": "6698451"
+  },
+  {
+    "text": "ทุกคนต้องรู้จัก",
+    "source": "tatoeba",
+    "upstreamId": "7141996"
+  },
+  {
+    "text": "คุณต้องล้อเล่นแน่ๆเลย",
+    "source": "tatoeba",
+    "upstreamId": "7141998"
+  },
+  {
+    "text": "เขาต้องติดอยู่บนถนนแน่ ๆเลย",
+    "source": "tatoeba",
+    "upstreamId": "7142006"
+  },
+  {
+    "text": "ผมดื่มกาแฟไม่ได้",
+    "source": "tatoeba",
+    "upstreamId": "7668729"
+  },
+  {
+    "text": "ฉันดื่มกาแฟไม่ได้",
+    "source": "tatoeba",
+    "upstreamId": "7668730"
+  },
+  {
+    "text": "เป็นลูกผู้ชายหน่อย",
+    "source": "tatoeba",
+    "upstreamId": "7765769"
+  },
+  {
+    "text": "ออกไปหางานทำเลย",
+    "source": "tatoeba",
+    "upstreamId": "7765770"
+  },
+  {
+    "text": "ฉันเป็นระดับมืออาชีพนะ",
+    "source": "tatoeba",
+    "upstreamId": "7765774"
+  },
+  {
+    "text": "อย่ามายุ่ง จะทำอะไรก็ไป",
+    "source": "tatoeba",
+    "upstreamId": "7765778"
+  },
+  {
+    "text": "ฉันเป็นเด็กผู้ชาย",
+    "source": "tatoeba",
+    "upstreamId": "7765793"
+  },
+  {
+    "text": "มันเป็นเทร็นใหม่",
+    "source": "tatoeba",
+    "upstreamId": "7765806"
+  },
+  {
+    "text": "นั่งซิ (เป็นคำพูดที่ไม่เป็นทางการ)",
+    "source": "tatoeba",
+    "upstreamId": "7766150"
+  },
+  {
+    "text": "นั่งสิ (พูดแบบสุภาพ)",
+    "source": "tatoeba",
+    "upstreamId": "7766153"
+  },
+  {
+    "text": "เขาเป็นคนขี้โกหก",
+    "source": "tatoeba",
+    "upstreamId": "7766155"
+  },
+  {
+    "text": "ฉันเป็นพ่อครัว แม่ครัว",
+    "source": "tatoeba",
+    "upstreamId": "7766156"
+  },
+  {
+    "text": "ฉันเคยเห็นสุนัข",
+    "source": "tatoeba",
+    "upstreamId": "7766159"
+  },
+  {
+    "text": "ฉันเคยเห็นจานบินยูเอฟโอ",
+    "source": "tatoeba",
+    "upstreamId": "7766160"
+  },
+  {
+    "text": "ฉันเป็นคนทำขนมปัง ขนมอบ",
+    "source": "tatoeba",
+    "upstreamId": "7766162"
+  },
+  {
+    "text": "ฉันเป็นหมอฝึกหัด ฉันเป็นนักเรียนแพทย์",
+    "source": "tatoeba",
+    "upstreamId": "7766163"
+  },
+  {
+    "text": "ความหมายตรงตัวคือ โอเค นัดกันแล้วนะ / โอเค ตามนั้น",
+    "source": "tatoeba",
+    "upstreamId": "7766165"
+  },
+  {
+    "text": "โอเค ตามนั้นล่ะ",
+    "source": "tatoeba",
+    "upstreamId": "7766166"
+  },
+  {
+    "text": "มันเป็นของปลอม มันปลอม",
+    "source": "tatoeba",
+    "upstreamId": "7766169"
+  },
+  {
+    "text": "มันคือการหลอกหลวง",
+    "source": "tatoeba",
+    "upstreamId": "7766173"
+  },
+  {
+    "text": "จดใว้ว่ามีอะไรบ้าง",
+    "source": "tatoeba",
+    "upstreamId": "7766176"
+  },
+  {
+    "text": "ให้อธิษฐาน อธิษฐานซิ",
+    "source": "tatoeba",
+    "upstreamId": "7766177"
+  },
+  {
+    "text": "หล่อนคือสุนัข(ตัวเมีย)",
+    "source": "tatoeba",
+    "upstreamId": "7766179"
+  },
+  {
+    "text": "ลองกัดชิมดูสักคำซิ",
+    "source": "tatoeba",
+    "upstreamId": "7766181"
+  },
+  {
+    "text": "เธอมีความสามารถด้านดนตรี",
+    "source": "tatoeba",
+    "upstreamId": "7784161"
+  },
+  {
+    "text": "ทอมเท่านั้นที่จะมีความกล้าที่จะทำสิ่งอย่างนั้น",
+    "source": "tatoeba",
+    "upstreamId": "7784163"
+  },
+  {
+    "text": "มันค่อนข้างแปลกสำหรับฉัน",
+    "source": "tatoeba",
+    "upstreamId": "7784164"
+  },
+  {
+    "text": "เธอจะสร้างภรรยาที่ดี",
+    "source": "tatoeba",
+    "upstreamId": "7784166"
+  },
+  {
+    "text": "เขาถามฉันว่าฉันชื่อฉันคืออะไร",
+    "source": "tatoeba",
+    "upstreamId": "7784168"
+  },
+  {
+    "text": "บอกฉันเกี่ยวกับ Tatoeba",
+    "source": "tatoeba",
+    "upstreamId": "7784170"
+  },
+  {
+    "text": "อย่ามัวแต่กังวลมัน ชีวิตมีช่วงขึ้นและลง",
+    "source": "tatoeba",
+    "upstreamId": "7784171"
+  },
+  {
+    "text": "คุณมีดวงตาที่น่ารัก หรือไม่ใช่",
+    "source": "tatoeba",
+    "upstreamId": "7784175"
+  },
+  {
+    "text": "เราไปที่พิพิธภัณฑ์เพื่อศึกษาประวัติศาสตร์ญี่ปุ่น",
+    "source": "tatoeba",
+    "upstreamId": "7784177"
+  },
+  {
+    "text": "ฉันหวังว่าคุณจะมากับเราได้",
+    "source": "tatoeba",
+    "upstreamId": "7784178"
+  },
+  {
+    "text": "บางครั้งฉันก็ล้ม แต่ฉันไม่เคยยอมแพ้",
+    "source": "tatoeba",
+    "upstreamId": "7784180"
+  },
+  {
+    "text": "แม่ของฉันเป็นอาจารย์ด้านจิตวิทยา",
+    "source": "tatoeba",
+    "upstreamId": "7784182"
+  },
+  {
+    "text": "แค่ไปทำงานของคุณและเลิกมองฉัน",
+    "source": "tatoeba",
+    "upstreamId": "7784184"
+  },
+  {
+    "text": "ทุกปัญหามีทางออก",
+    "source": "tatoeba",
+    "upstreamId": "7784185"
+  },
+  {
+    "text": "ตอนนี้ฉันไม่มีเวลาแล้ว",
+    "source": "tatoeba",
+    "upstreamId": "7784187"
+  },
+  {
+    "text": "ฉันคุ้นชินกับการทำงานหนัก",
+    "source": "tatoeba",
+    "upstreamId": "7784189"
+  },
+  {
+    "text": "คุณกลับมาจากญี่ปุ่นหรือยัง",
+    "source": "tatoeba",
+    "upstreamId": "7784193"
+  },
+  {
+    "text": "ข่าวยังไม่ได้รับการยืนยัน",
+    "source": "tatoeba",
+    "upstreamId": "7784197"
+  },
+  {
+    "text": "เขาฟังอย่างระมัดระวังเพื่อไม่ให้พลาดแม้แต่คำเดียว",
+    "source": "tatoeba",
+    "upstreamId": "7784201"
+  },
+  {
+    "text": "มันทำให้เจนใช้เวลายี่สิบชั่วโมงในการบินไปญี่ปุ่น",
+    "source": "tatoeba",
+    "upstreamId": "7784203"
+  },
+  {
+    "text": "ทอมนั่งในความมืด สูบบุหรี่",
+    "source": "tatoeba",
+    "upstreamId": "7784204"
+  },
+  {
+    "text": "ฉันบอกว่ามันไม่ใช่ความคิดที่ดี",
+    "source": "tatoeba",
+    "upstreamId": "7784205"
+  },
+  {
+    "text": "สองเดือนที่ผ่านมาฉันมีประสบการณ์ทำงานในโรงงาน",
+    "source": "tatoeba",
+    "upstreamId": "7784208"
+  },
+  {
+    "text": "เขาเคยเป็นคนจนมาเป็นเวลานาน แต่ตอนนี้เขาดีแล้ว",
+    "source": "tatoeba",
+    "upstreamId": "7784209"
+  },
+  {
+    "text": "คุณไม่สามารถคาดหวังให้ฉันคิดถึงทุกสิ่งได้เสมอ!",
+    "source": "tatoeba",
+    "upstreamId": "7784210"
+  },
+  {
+    "text": "คุณอาจเครียดเกินไปซึ่งนั่นทำให้คุณนอนหลับไม่สนิท",
+    "source": "tatoeba",
+    "upstreamId": "7784211"
+  },
+  {
+    "text": "พวกเราจะดูหนังตอนนี้เลยมั้ย?",
+    "source": "tatoeba",
+    "upstreamId": "7784212"
+  },
+  {
+    "text": "โรงเรียนของเราห้ามไม่ให้เราไปดูหนังคนเดียว",
+    "source": "tatoeba",
+    "upstreamId": "7784213"
+  },
+  {
+    "text": "ในกรณีที่เลวร้ายที่สุดเราจะต้องดูมีความสุขที่สุดเท่าที่จะทำได้",
+    "source": "tatoeba",
+    "upstreamId": "7784214"
+  },
+  {
+    "text": "ฉันยังพูดภาษาอินโดนีเซียไม่คล่อง",
+    "source": "tatoeba",
+    "upstreamId": "7784216"
+  },
+  {
+    "text": "คุณมีอะไรในตู้เย็นที่ฉันกินได้ไหม",
+    "source": "tatoeba",
+    "upstreamId": "7784218"
+  },
+  {
+    "text": "จินตนาการของทอมถูกกระตุ้น",
+    "source": "tatoeba",
+    "upstreamId": "7784219"
+  },
+  {
+    "text": "ระบบการเขียนทั้งหมดมีทั้งข้อดีและข้อเสีย",
+    "source": "tatoeba",
+    "upstreamId": "7784221"
+  },
+  {
+    "text": "ฉันชอบข้อเสนอของคุณ",
+    "source": "tatoeba",
+    "upstreamId": "7784223"
+  },
+  {
+    "text": "ฉันจะไปเบอร์ลินเพื่อเยี่ยมเพื่อนของฉัน",
+    "source": "tatoeba",
+    "upstreamId": "7784224"
+  },
+  {
+    "text": "ปิดประตูแล้วเปิดหน้าต่าง!",
+    "source": "tatoeba",
+    "upstreamId": "7784225"
+  },
+  {
+    "text": "ฉันยังพูดภาษาไทยได้ไม่คล่อง",
+    "source": "tatoeba",
+    "upstreamId": "7784226"
+  },
+  {
+    "text": "ฉันเคยไปเที่ยวที่ไทยแล้ว",
+    "source": "tatoeba",
+    "upstreamId": "7784228"
+  },
+  {
+    "text": "คุณชื่อสมชายใช่มั้ย",
+    "source": "tatoeba",
+    "upstreamId": "7784231"
+  },
+  {
+    "text": "ฉันรักประเทศไทย",
+    "source": "tatoeba",
+    "upstreamId": "7784232"
+  },
+  {
+    "text": "ฉันรู้จักเขามาตั้งแต่เขายังเป็นเด็ก",
+    "source": "tatoeba",
+    "upstreamId": "7784234"
+  },
+  {
+    "text": "ทอมไม่ได้คาดหวังสิ่งนี้เลย",
+    "source": "tatoeba",
+    "upstreamId": "7784239"
+  },
+  {
+    "text": "ทำไมต้องเป็นฉัน?",
+    "source": "tatoeba",
+    "upstreamId": "7784270"
+  },
+  {
+    "text": "ฉันหวังว่าเราไม่ได้ปลุกคุณ",
+    "source": "tatoeba",
+    "upstreamId": "7784319"
+  },
+  {
+    "text": "ฉันด้วยเหมือนกัน",
+    "source": "tatoeba",
+    "upstreamId": "7784332"
+  },
+  {
+    "text": "ฉันเป็นชาวบราซิลและไม่รู้ภาษาอื่นนอกจากภาษาของฉันเอง",
+    "source": "tatoeba",
+    "upstreamId": "7784349"
+  },
+  {
+    "text": "ใครเป็นผู้รับผิดชอบที่นี่?",
+    "source": "tatoeba",
+    "upstreamId": "7784351"
+  },
+  {
+    "text": "คุณไปเที่ยวที่ไหนในออสเตรเลีย",
+    "source": "tatoeba",
+    "upstreamId": "7784352"
+  },
+  {
+    "text": "ฉันสงสัยว่าทอมมีเหตุผลอะไรในการทำอย่างนั้น",
+    "source": "tatoeba",
+    "upstreamId": "7784353"
+  },
+  {
+    "text": "คุณคิดอย่างไรกับทัศนคติของทอม?",
+    "source": "tatoeba",
+    "upstreamId": "7784354"
+  },
+  {
+    "text": "ทำไมคุณไม่ฟังคำแนะนำของทอม?",
+    "source": "tatoeba",
+    "upstreamId": "7784355"
+  },
+  {
+    "text": "ทอมตั้งใจที่จะเป็นหมอหรือไม่?",
+    "source": "tatoeba",
+    "upstreamId": "7784356"
+  },
+  {
+    "text": "ทอมมีแรงจูงใจอะไรในการทำ?",
+    "source": "tatoeba",
+    "upstreamId": "7784357"
+  },
+  {
+    "text": "ทอมกินแซนด์วิชสำหรับอาหารกลางวันหรือไม่",
+    "source": "tatoeba",
+    "upstreamId": "7784358"
+  },
+  {
+    "text": "คุณจำได้มั้ยว่าทอมเป็นอย่างไร?",
+    "source": "tatoeba",
+    "upstreamId": "7784359"
+  },
+  {
+    "text": "คุณคิดอย่างไรกับบทกวีของทอม?",
+    "source": "tatoeba",
+    "upstreamId": "7784360"
+  },
+  {
+    "text": "ทอมเป็นสมาชิกชมรมที่คุณอยู่หรือไม่?",
+    "source": "tatoeba",
+    "upstreamId": "7784365"
+  },
+  {
+    "text": "คุณคิดว่าทอมชอบสีอะไร?",
+    "source": "tatoeba",
+    "upstreamId": "7784369"
+  },
+  {
+    "text": "การใช้คอมพิวเตอร์ช่วยให้คุณประหยัดเวลา",
+    "source": "tatoeba",
+    "upstreamId": "7784371"
+  },
+  {
+    "text": "คุณคิดว่าทอมช่วยเราได้มั้ย?",
+    "source": "tatoeba",
+    "upstreamId": "7784372"
+  },
+  {
+    "text": "ทอมจำเป็นต้องไปเลยมั้ย?",
+    "source": "tatoeba",
+    "upstreamId": "7784373"
+  },
+  {
+    "text": "ทอมต้องไปตอนนี้หรือไม่?",
+    "source": "tatoeba",
+    "upstreamId": "7784374"
+  },
+  {
+    "text": "ทำไมทอมต้องทำอย่างนั้นในวันนี้?",
+    "source": "tatoeba",
+    "upstreamId": "7784375"
+  },
+  {
+    "text": "ทอมต้องทำนั่นวันนี้จริง ๆ มั้ย?",
+    "source": "tatoeba",
+    "upstreamId": "7784376"
+  },
+  {
+    "text": "ทอมบอกว่าเขาจะมาเวลาเท่าไหร่",
+    "source": "tatoeba",
+    "upstreamId": "7784377"
+  },
+  {
+    "text": "ทอมวาดรูปนี้ด้วยตัวเองเหรอ?",
+    "source": "tatoeba",
+    "upstreamId": "7784378"
+  },
+  {
+    "text": "ฉันจะไปกับทอมกับแมรี่",
+    "source": "tatoeba",
+    "upstreamId": "7784381"
+  },
+  {
+    "text": "คุณต้องการทำมันกับฉันมั้ย",
+    "source": "tatoeba",
+    "upstreamId": "7784382"
+  },
+  {
+    "text": "อย่าทำอย่างนั้น",
+    "source": "tatoeba",
+    "upstreamId": "7784383"
+  },
+  {
+    "text": "สิ่งนั้นคืออะไร?",
+    "source": "tatoeba",
+    "upstreamId": "7784386"
+  },
+  {
+    "text": "คุณไปโรงเรียนไหน",
+    "source": "tatoeba",
+    "upstreamId": "7784387"
+  },
+  {
+    "text": "พวกนั้นคือของของฉัน",
+    "source": "tatoeba",
+    "upstreamId": "7784388"
+  },
+  {
+    "text": "พ่อคุณเป็นอย่างไร",
+    "source": "tatoeba",
+    "upstreamId": "7784389"
+  },
+  {
+    "text": "ฉันกำลังมองหาคนซักเสื้อผ้าสำหรับฉัน",
+    "source": "tatoeba",
+    "upstreamId": "7789805"
+  },
+  {
+    "text": "คุณซักรีดเสื้อผ้าของตัวเองหรือไม่?",
+    "source": "tatoeba",
+    "upstreamId": "7789806"
+  },
+  {
+    "text": "คุณคิดค่าบริการฉันเท่าไรสำหรับการซักรีดให้ฉัน",
+    "source": "tatoeba",
+    "upstreamId": "7789807"
+  },
+  {
+    "text": "ใครซักเสื้อผ้าของคุณให้คุณ",
+    "source": "tatoeba",
+    "upstreamId": "7789808"
+  },
+  {
+    "text": "เราไม่สามารถทำสิ่งนั้นได้ในตอนนี้",
+    "source": "tatoeba",
+    "upstreamId": "7789809"
+  },
+  {
+    "text": "กรุณามีส่วนร่วม",
+    "source": "tatoeba",
+    "upstreamId": "7789811"
+  },
+  {
+    "text": "เราได้รับการตอบรับเชิงบวกมากมาย",
+    "source": "tatoeba",
+    "upstreamId": "7789812"
+  },
+  {
+    "text": "คุณต้องมีทัศนคติที่ดีต่องานของคุณ",
+    "source": "tatoeba",
+    "upstreamId": "7789813"
+  },
+  {
+    "text": "คำพูดของทอมจบลงด้วยหมายเหตุที่เป็นบวก",
+    "source": "tatoeba",
+    "upstreamId": "7789814"
+  },
+  {
+    "text": "ทอมให้มองเห็นทุกอย่างในแง่ลบเสมอ",
+    "source": "tatoeba",
+    "upstreamId": "7789815"
+  },
+  {
+    "text": "ฉันพยายามที่จะมองในด้านบวกตลอดเวลา",
+    "source": "tatoeba",
+    "upstreamId": "7789816"
+  },
+  {
+    "text": "พวกคุณทุกคนเป็นเพื่อนกันหรือเปล่า?",
+    "source": "tatoeba",
+    "upstreamId": "7789817"
+  },
+  {
+    "text": "ตอนนี้คุณดูยุ่งมาก",
+    "source": "tatoeba",
+    "upstreamId": "7789818"
+  },
+  {
+    "text": "ทอมต้องการบรรลุอะไร",
+    "source": "tatoeba",
+    "upstreamId": "7789819"
+  },
+  {
+    "text": "กรุณาส่งการบ้านของคุณ",
+    "source": "tatoeba",
+    "upstreamId": "7789820"
+  },
+  {
+    "text": "พวกเราส่วนใหญ่ต้องทำเช่นนั้น",
+    "source": "tatoeba",
+    "upstreamId": "7789821"
+  },
+  {
+    "text": "พวกเราส่วนใหญ่ต้องการทำเช่นนั้น",
+    "source": "tatoeba",
+    "upstreamId": "7789822"
+  },
+  {
+    "text": "คุณคุยกับทอมมานานเท่าไหร่แล้ว?",
+    "source": "tatoeba",
+    "upstreamId": "7789823"
+  },
+  {
+    "text": "สำหรับฉันดูเหมือนว่าทอมประมาทเกินไป",
+    "source": "tatoeba",
+    "upstreamId": "7789824"
+  },
+  {
+    "text": "ฉันมีงานที่ต้องทำมากมาย",
+    "source": "tatoeba",
+    "upstreamId": "7789825"
+  },
+  {
+    "text": "ฉันเดาว่าฝนจะตก",
+    "source": "tatoeba",
+    "upstreamId": "7789826"
+  },
+  {
+    "text": "ฉันให้ทอมถ่ายรูปฉัน",
+    "source": "tatoeba",
+    "upstreamId": "7789827"
+  },
+  {
+    "text": "ฉันเรียนมาสามชั่วโมงแล้ว",
+    "source": "tatoeba",
+    "upstreamId": "7789829"
+  },
+  {
+    "text": "ฉันยุ่งเป็นเวลาสามวันแล้ว",
+    "source": "tatoeba",
+    "upstreamId": "7789830"
+  },
+  {
+    "text": "ฉันเล่นสเก็ตมามากแล้ว",
+    "source": "tatoeba",
+    "upstreamId": "7789831"
+  },
+  {
+    "text": "ฉันโต้คลื่นไปมากแล้ว",
+    "source": "tatoeba",
+    "upstreamId": "7789833"
+  },
+  {
+    "text": "ทอมไปที่ประชุมมั๊ย?",
+    "source": "tatoeba",
+    "upstreamId": "7789834"
+  },
+  {
+    "text": "อะไรทำให้ทอมทำอย่างนั้น",
+    "source": "tatoeba",
+    "upstreamId": "7789835"
+  },
+  {
+    "text": "ฉันชนทอมในบอสตัน",
+    "source": "tatoeba",
+    "upstreamId": "7789836"
+  },
+  {
+    "text": "ฉันคิดว่าทอมจะไม่บอกแมรี่ว่าเกิดอะไรขึ้นกับเขาเมื่อวานนี้",
+    "source": "tatoeba",
+    "upstreamId": "7789838"
+  },
+  {
+    "text": "อะไรทำให้ทอมไม่มาเมื่อวานนี้?",
+    "source": "tatoeba",
+    "upstreamId": "7789839"
+  },
+  {
+    "text": "คุณต้องการสเต็กคืนนี้หรือไม่?",
+    "source": "tatoeba",
+    "upstreamId": "7789840"
+  },
+  {
+    "text": "คุณมีปากกาอยู่ในรถไหม?",
+    "source": "tatoeba",
+    "upstreamId": "7789841"
+  },
+  {
+    "text": "ฉันมุ่งเน้นไปที่นั่น",
+    "source": "tatoeba",
+    "upstreamId": "7789842"
+  },
+  {
+    "text": "ฉันเป็นนักสู้เสมอ",
+    "source": "tatoeba",
+    "upstreamId": "7789843"
+  },
+  {
+    "text": "คุณไม่สามารถอยู่ได้โดยปราศจากน้ำ",
+    "source": "tatoeba",
+    "upstreamId": "7878350"
+  },
+  {
+    "text": "อาหารขบเคี้ยวที่คุณชอบที่สุดคืออะไร",
+    "source": "tatoeba",
+    "upstreamId": "7878351"
+  },
+  {
+    "text": "คุณไม่ควรผิดสัญญา",
+    "source": "tatoeba",
+    "upstreamId": "7878352"
+  },
+  {
+    "text": "คุณควรเคาะประตูก่อนที่จะเข้ามา",
+    "source": "tatoeba",
+    "upstreamId": "7878353"
+  },
+  {
+    "text": "ทอมไม่รู้ว่าเขาควรเชื่ออะไร",
+    "source": "tatoeba",
+    "upstreamId": "7878354"
+  },
+  {
+    "text": "ในแคนาดาผู้คนพูดภาษาอังกฤษและฝรั่งเศส",
+    "source": "tatoeba",
+    "upstreamId": "7878355"
+  },
+  {
+    "text": "ฉันคิดไปว่าพวกเขาจะได้ยินเรา",
+    "source": "tatoeba",
+    "upstreamId": "7878357"
+  },
+  {
+    "text": "ฉันเกลี้ยกล่อมทอมให้อยู่ในบอสตันจนถึงวันจันทร์",
+    "source": "tatoeba",
+    "upstreamId": "7878360"
+  },
+  {
+    "text": "ลองทำอะไรสักอย่างกัน",
+    "source": "tatoeba",
+    "upstreamId": "7878361"
+  },
+  {
+    "text": "มันขึ้นอยู่กับบริบท",
+    "source": "tatoeba",
+    "upstreamId": "7878363"
+  },
+  {
+    "text": "คนส่วนใหญ่คิดว่าฉันบ้า",
+    "source": "tatoeba",
+    "upstreamId": "7878366"
+  },
+  {
+    "text": "ฉันไม่เคยชอบชีววิทยา",
+    "source": "tatoeba",
+    "upstreamId": "7878367"
+  },
+  {
+    "text": "ฉันเคยต้องการที่จะเป็นนักดาราศาสตร์ฟิสิกส์",
+    "source": "tatoeba",
+    "upstreamId": "7878368"
+  },
+  {
+    "text": "นั่นคือสิ่งที่โง่ที่สุดที่ฉันเคยพูด",
+    "source": "tatoeba",
+    "upstreamId": "7878370"
+  },
+  {
+    "text": "เมื่อฉันโตขึ้น ฉันอยากเป็นราชา",
+    "source": "tatoeba",
+    "upstreamId": "7878371"
+  },
+  {
+    "text": "นั่นอาจเป็นสิ่งที่มีอิทธิพลต่อการตัดสินใจของพวกเขา",
+    "source": "tatoeba",
+    "upstreamId": "7878373"
+  },
+  {
+    "text": "ฉันสงสัยอยู่เสมอว่ามันจะเป็นอย่างไรที่มีพี่น้อง",
+    "source": "tatoeba",
+    "upstreamId": "7878374"
+  },
+  {
+    "text": "มันคงใช้เวลานานมากสำหรับฉันที่จะอธิบายทุกอย่าง",
+    "source": "tatoeba",
+    "upstreamId": "7878379"
+  },
+  {
+    "text": "นั่นเป็นเพราะว่าคุณเป็นผู้หญิง",
+    "source": "tatoeba",
+    "upstreamId": "7878380"
+  },
+  {
+    "text": "ลองพิจารณาสิ่งที่แย่ที่สุดที่อาจเกิดขึ้นได้",
+    "source": "tatoeba",
+    "upstreamId": "7878381"
+  },
+  {
+    "text": "คุณมีเพื่อนสนิทกี่คน?",
+    "source": "tatoeba",
+    "upstreamId": "7878382"
+  },
+  {
+    "text": "นี่คือสิ่งที่เคยเป็นมาเสมอ",
+    "source": "tatoeba",
+    "upstreamId": "7878384"
+  },
+  {
+    "text": "ฉันคิดว่าเป็นการดีที่สุดถ้าจะไม่สุภาพ",
+    "source": "tatoeba",
+    "upstreamId": "7878385"
+  },
+  {
+    "text": "คนหนึ่งสามารถหาเวลาได้เสมอ",
+    "source": "tatoeba",
+    "upstreamId": "7878386"
+  },
+  {
+    "text": "ฉันจะไม่มีความสุข แต่ฉันจะไม่ฆ่าตัวตาย",
+    "source": "tatoeba",
+    "upstreamId": "7878387"
+  },
+  {
+    "text": "คนส่วนใหญ่เขียนเกี่ยวกับชีวิตประจำวันของพวกเขา",
+    "source": "tatoeba",
+    "upstreamId": "7878391"
+  },
+  {
+    "text": "ในการทำเช่นนั้น คุณต้องยอมรับความเสี่ยง",
+    "source": "tatoeba",
+    "upstreamId": "7878392"
+  },
+  {
+    "text": "ฉันบอกเธอไม่ได้ตอนนี้ มันไม่ง่ายอย่างนั้นอีกแล้ว",
+    "source": "tatoeba",
+    "upstreamId": "7878394"
+  },
+  {
+    "text": "เมื่อใดก็ตามที่ฉันพบบางสิ่งที่ฉันชอบมันจะแพงเกินไป",
+    "source": "tatoeba",
+    "upstreamId": "7878395"
+  },
+  {
+    "text": "คุณอยู่นานแค่ไหน?",
+    "source": "tatoeba",
+    "upstreamId": "7878396"
+  },
+  {
+    "text": "คุณพูดภาษาอังกฤษได้ไหม?",
+    "source": "tatoeba",
+    "upstreamId": "7878400"
+  },
+  {
+    "text": "คุณกำลังจะไปไหน?",
+    "source": "tatoeba",
+    "upstreamId": "7878402"
+  },
+  {
+    "text": "ขอแสดงความยินดี!",
+    "source": "tatoeba",
+    "upstreamId": "7878403"
+  },
+  {
+    "text": "คุณอายุเท่าไหร่?",
+    "source": "tatoeba",
+    "upstreamId": "7878406"
+  },
+  {
+    "text": "คุณอาศัยอยู่ที่ไหน?",
+    "source": "tatoeba",
+    "upstreamId": "7878407"
+  },
+  {
+    "text": "คุณกำลังพูดถึงอะไร?",
+    "source": "tatoeba",
+    "upstreamId": "7878408"
+  },
+  {
+    "text": "ฉันไม่ได้เป็นคุณหมอ",
+    "source": "tatoeba",
+    "upstreamId": "7878411"
+  },
+  {
+    "text": "ฉันไม่อยากไปโรงเรียน",
+    "source": "tatoeba",
+    "upstreamId": "7878412"
+  },
+  {
+    "text": "คุณต้องการอะไร?",
+    "source": "tatoeba",
+    "upstreamId": "7878414"
+  },
+  {
+    "text": "โรงเรียนของคุณอยู่ที่ไหน?",
+    "source": "tatoeba",
+    "upstreamId": "7878417"
+  },
+  {
+    "text": "สุขสันต์วันคริสต์มาส!",
+    "source": "tatoeba",
+    "upstreamId": "7878418"
+  },
+  {
+    "text": "คุณร้องไห้ทำไม?",
+    "source": "tatoeba",
+    "upstreamId": "7878420"
+  },
+  {
+    "text": "คุณอาศัยอยู่ที่นี่หรือไม่?",
+    "source": "tatoeba",
+    "upstreamId": "7878422"
+  },
+  {
+    "text": "พ่อของคุณอยู่ที่ไหน?",
+    "source": "tatoeba",
+    "upstreamId": "7878436"
+  },
+  {
+    "text": "สุขสันต์วันเกิด!",
+    "source": "tatoeba",
+    "upstreamId": "7878438"
+  },
+  {
+    "text": "ฉันไม่มีเงินเลย",
+    "source": "tatoeba",
+    "upstreamId": "7878441"
+  },
+  {
+    "text": "ครูของคุณคือใคร?",
+    "source": "tatoeba",
+    "upstreamId": "7878446"
+  },
+  {
+    "text": "ฉันคิดว่าคุณพูดถูก",
+    "source": "tatoeba",
+    "upstreamId": "7878447"
+  },
+  {
+    "text": "นาฬิกาข้อมือของคุณถูกต้องหรือไม่",
+    "source": "tatoeba",
+    "upstreamId": "7878449"
+  },
+  {
+    "text": "เหมือนพ่อ เหมือนลูกชาย",
+    "source": "tatoeba",
+    "upstreamId": "7878450"
+  },
+  {
+    "text": "\"ขอบคุณ\" \"ไม่เป็นอะไร\"",
+    "source": "tatoeba",
+    "upstreamId": "7878452"
+  },
+  {
+    "text": "ตอนนี้เวลากี่โมง?",
+    "source": "tatoeba",
+    "upstreamId": "7878454"
+  },
+  {
+    "text": "ฉันช่วยคุณได้ไหม?",
+    "source": "tatoeba",
+    "upstreamId": "7878455"
+  },
+  {
+    "text": "คุณพูดภาษาฝรั่งเศสได้ไหม?",
+    "source": "tatoeba",
+    "upstreamId": "7878457"
+  },
+  {
+    "text": "ห้องน้ำอยู่ที่ไหน?",
+    "source": "tatoeba",
+    "upstreamId": "7878460"
+  },
+  {
+    "text": "ฉันอยู่ไม่ได้โดยไม่มีคุณ",
+    "source": "tatoeba",
+    "upstreamId": "7878467"
+  },
+  {
+    "text": "สิงโตเป็นราชาแห่งป่า",
+    "source": "tatoeba",
+    "upstreamId": "7878472"
+  },
+  {
+    "text": "คุณมีความสุขไหม?",
+    "source": "tatoeba",
+    "upstreamId": "7878486"
+  },
+  {
+    "text": "ฉันไม่ต้องการทำงานภายใต้เงื่อนไขเหล่านี้",
+    "source": "tatoeba",
+    "upstreamId": "7878491"
+  },
+  {
+    "text": "คุณใช้ Facebook หรือเปล่า",
+    "source": "tatoeba",
+    "upstreamId": "7878496"
+  },
+  {
+    "text": "กล้วยมีสีเหลือง",
+    "source": "tatoeba",
+    "upstreamId": "7878498"
+  },
+  {
+    "text": "เธอชอบส้มหรือไม่?",
+    "source": "tatoeba",
+    "upstreamId": "7878500"
+  },
+  {
+    "text": "ไม่มีอะไรเกิดขึ้น",
+    "source": "tatoeba",
+    "upstreamId": "7878515"
+  },
+  {
+    "text": "มันไม่ใช่ธุระของคุณ",
+    "source": "tatoeba",
+    "upstreamId": "7878521"
+  },
+  {
+    "text": "มาสายดีกว่าไม่มา",
+    "source": "tatoeba",
+    "upstreamId": "7878524"
+  },
+  {
+    "text": "เขากำลังนอนหลับเหมือนเด็กทารก",
+    "source": "tatoeba",
+    "upstreamId": "7878526"
+  },
+  {
+    "text": "ฉันอ่านหนังสือเล่มนี้เสร็จแล้ว",
+    "source": "tatoeba",
+    "upstreamId": "7878528"
+  },
+  {
+    "text": "มันไม่ใช่ความผิดของฉัน",
+    "source": "tatoeba",
+    "upstreamId": "7878535"
+  },
+  {
+    "text": "ฉันอยู่ที่ลอนดอน",
+    "source": "tatoeba",
+    "upstreamId": "7878537"
+  },
+  {
+    "text": "ขับรถอย่างระมัดระวัง",
+    "source": "tatoeba",
+    "upstreamId": "7878538"
+  },
+  {
+    "text": "คุณจะไปเมื่อไหร่?",
+    "source": "tatoeba",
+    "upstreamId": "7878662"
+  },
+  {
+    "text": "มันเป็นของคุณหรือเปล่า?",
+    "source": "tatoeba",
+    "upstreamId": "7878664"
+  },
+  {
+    "text": "ทิ้งฉันไว้คนเดียว!",
+    "source": "tatoeba",
+    "upstreamId": "7878670"
+  },
+  {
+    "text": "คุณคิดเกี่ยวกับอะไร?",
+    "source": "tatoeba",
+    "upstreamId": "7878672"
+  },
+  {
+    "text": "เงินบันดาลทุกสิ่ง",
+    "source": "tatoeba",
+    "upstreamId": "7878675"
+  },
+  {
+    "text": "ทำไมคุณมาไม่ได้?",
+    "source": "tatoeba",
+    "upstreamId": "7878677"
+  },
+  {
+    "text": "ขาหายตัวไปอย่างไร้ร่องรอย",
+    "source": "tatoeba",
+    "upstreamId": "7878682"
+  },
+  {
+    "text": "ฉันทำกระเป๋าเงินของฉันหาย",
+    "source": "tatoeba",
+    "upstreamId": "7878683"
+  },
+  {
+    "text": "มันไกลจากที่นี่ไหม?",
+    "source": "tatoeba",
+    "upstreamId": "7878685"
+  },
+  {
+    "text": "ฉันพูดภาษาญี่ปุ่นไม่ได้",
+    "source": "tatoeba",
+    "upstreamId": "7878686"
+  },
+  {
+    "text": "ทอมสอนภาษาฝรั่งเศส",
+    "source": "tatoeba",
+    "upstreamId": "7878687"
+  },
+  {
+    "text": "เกิดอะไรขึ้นกับคุณ?",
+    "source": "tatoeba",
+    "upstreamId": "7878689"
+  },
+  {
+    "text": "เราต้องการประโยคที่สมบูรณ์",
+    "source": "tatoeba",
+    "upstreamId": "7878691"
+  },
+  {
+    "text": "เขามีเงินจำนวนมาก",
+    "source": "tatoeba",
+    "upstreamId": "7878694"
+  },
+  {
+    "text": "ฉันอาศัยอยู่ที่นี่",
+    "source": "tatoeba",
+    "upstreamId": "7878695"
+  },
+  {
+    "text": "ฉันผิดหรือเปล่า?",
+    "source": "tatoeba",
+    "upstreamId": "7878697"
+  },
+  {
+    "text": "เรากำลังกินแอปเปิ้ล",
+    "source": "tatoeba",
+    "upstreamId": "7878699"
+  },
+  {
+    "text": "มันไม่แปลกใจเลยสำหรับฉัน",
+    "source": "tatoeba",
+    "upstreamId": "7878704"
+  },
+  {
+    "text": "คุณอยากทานอะไร?",
+    "source": "tatoeba",
+    "upstreamId": "7878706"
+  },
+  {
+    "text": "เธอสามารถพูดภาษาฝรั่งเศสได้",
+    "source": "tatoeba",
+    "upstreamId": "7878711"
+  },
+  {
+    "text": "ฉันกำลังเขียนจดหมาย",
+    "source": "tatoeba",
+    "upstreamId": "7878720"
+  },
+  {
+    "text": "คุณยุ่งอยู่ใช่ไหม?",
+    "source": "tatoeba",
+    "upstreamId": "7878725"
+  },
+  {
+    "text": "นี่คือรถของคุณหรือไม่",
+    "source": "tatoeba",
+    "upstreamId": "7878726"
+  },
+  {
+    "text": "ฉันไม่เหนื่อยทั้งหมดเลย",
+    "source": "tatoeba",
+    "upstreamId": "7878729"
+  },
+  {
+    "text": "ทุกอย่างพร้อมแล้ว",
+    "source": "tatoeba",
+    "upstreamId": "7878732"
+  },
+  {
+    "text": "ฉันยินดีที่จะช่วยคุณ",
+    "source": "tatoeba",
+    "upstreamId": "7878735"
+  },
+  {
+    "text": "สิ่งที่เปล่งประกายนั่นไม่ใช่ทองคำ",
+    "source": "tatoeba",
+    "upstreamId": "7878737"
+  },
+  {
+    "text": "สีเชียวเหมาะสมกับคุณ",
+    "source": "tatoeba",
+    "upstreamId": "7878750"
+  },
+  {
+    "text": "ฉันไม่เห็นด้วยกับคุณ",
+    "source": "tatoeba",
+    "upstreamId": "7878751"
+  },
+  {
+    "text": "เขียนที่อยู่ของคุณที่นี่",
+    "source": "tatoeba",
+    "upstreamId": "7878757"
+  },
+  {
+    "text": "ไปยุ่งกับเรื่องของตัวเองเถอะ",
+    "source": "tatoeba",
+    "upstreamId": "7878762"
+  },
+  {
+    "text": "คุณตื่นเพราะอะไร?",
+    "source": "tatoeba",
+    "upstreamId": "7878764"
+  },
+  {
+    "text": "คุณกำลังมองอะไรอยู่?",
+    "source": "tatoeba",
+    "upstreamId": "7878768"
+  },
+  {
+    "text": "คุณกำลังเขียนจดหมายหรือไม่?",
+    "source": "tatoeba",
+    "upstreamId": "7878778"
+  },
+  {
+    "text": "คุณเหนื่อยแล้วไม่ใช่หรือ?",
+    "source": "tatoeba",
+    "upstreamId": "7878785"
+  },
+  {
+    "text": "คุณเก็บไว้เป็นความลับได้ไหม?",
+    "source": "tatoeba",
+    "upstreamId": "7878788"
+  },
+  {
+    "text": "พวกเขาทะเลาะกัน",
+    "source": "tatoeba",
+    "upstreamId": "7878791"
+  },
+  {
+    "text": "ชีวิตช่างสวยงาม",
+    "source": "tatoeba",
+    "upstreamId": "7878796"
+  },
+  {
+    "text": "กรุณาโทรอีกครั้งในภายหลังได้ไหม?",
+    "source": "tatoeba",
+    "upstreamId": "7878798"
+  },
+  {
+    "text": "ฉันกำลังจะหิวตาย!",
+    "source": "tatoeba",
+    "upstreamId": "7878806"
+  },
+  {
+    "text": "มองมาที่ฉันเมื่อฉันคุยกับคุณ!",
+    "source": "tatoeba",
+    "upstreamId": "7878807"
+  },
+  {
+    "text": "ฉันไม่ชอบคุณอีกต่อไป",
+    "source": "tatoeba",
+    "upstreamId": "7878813"
+  },
+  {
+    "text": "ทอมกำลังทำเช่นนั้น",
+    "source": "tatoeba",
+    "upstreamId": "7878952"
+  },
+  {
+    "text": "ทอมต้องการทำเช่นนั้น",
+    "source": "tatoeba",
+    "upstreamId": "7878954"
+  },
+  {
+    "text": "คุณจะไม่ทำมันเหรอ?",
+    "source": "tatoeba",
+    "upstreamId": "7878957"
+  },
+  {
+    "text": "นั่นคือสิ่งที่ทอมพูด",
+    "source": "tatoeba",
+    "upstreamId": "7878958"
+  },
+  {
+    "text": "ทอมชอบมันที่นั่น",
+    "source": "tatoeba",
+    "upstreamId": "7878960"
+  },
+  {
+    "text": "พวกนี้สำหรับคุณ",
+    "source": "tatoeba",
+    "upstreamId": "7878961"
+  },
+  {
+    "text": "ฉันเป็นคนที่พวกเขาต้องการ",
+    "source": "tatoeba",
+    "upstreamId": "7878963"
+  },
+  {
+    "text": "นั่นคือสิ่งที่ฉันพูดไม่ได้เหรอ?",
+    "source": "tatoeba",
+    "upstreamId": "7878965"
+  },
+  {
+    "text": "ฉันทำสิ่งนี้เพื่อครอบครัวของฉัน",
+    "source": "tatoeba",
+    "upstreamId": "7878968"
+  },
+  {
+    "text": "คุณอยู่ที่นั่นหรือไม่?",
+    "source": "tatoeba",
+    "upstreamId": "7878982"
+  },
+  {
+    "text": "พวกนี้เป็นของคุณหรือไม่?",
+    "source": "tatoeba",
+    "upstreamId": "7878996"
+  },
+  {
+    "text": "พวกเราคือผู้ชาย",
+    "source": "tatoeba",
+    "upstreamId": "7879004"
+  },
+  {
+    "text": "ไม่มีใครนอกจากทอมทำเช่นนั้น",
+    "source": "tatoeba",
+    "upstreamId": "7879010"
+  },
+  {
+    "text": "ฉันไม่ไปโรงเรียน",
+    "source": "tatoeba",
+    "upstreamId": "7879011"
+  },
+  {
+    "text": "เด็กชายคนนั้นชื่ออะไร",
+    "source": "tatoeba",
+    "upstreamId": "7879012"
+  },
+  {
+    "text": "ฉันบอกว่าฉันจะไป",
+    "source": "tatoeba",
+    "upstreamId": "7879016"
+  },
+  {
+    "text": "ทอมทำได้อย่างไร",
+    "source": "tatoeba",
+    "upstreamId": "7879017"
+  },
+  {
+    "text": "ทอมคือผู้ชายคนนั้นเหรอ?",
+    "source": "tatoeba",
+    "upstreamId": "7879018"
+  },
+  {
+    "text": "เราจะไม่ไปบอสตัน",
+    "source": "tatoeba",
+    "upstreamId": "7879020"
+  },
+  {
+    "text": "ฉันไม่ต้องการไป",
+    "source": "tatoeba",
+    "upstreamId": "7879021"
+  },
+  {
+    "text": "นั่นมาจากทอมไม่ใช่หรือ?",
+    "source": "tatoeba",
+    "upstreamId": "7879022"
+  },
+  {
+    "text": "ทอมกับฉันสบายดี",
+    "source": "tatoeba",
+    "upstreamId": "7879023"
+  },
+  {
+    "text": "ใช่นั่นคือสิ่งที่ฉันจะทำ",
+    "source": "tatoeba",
+    "upstreamId": "7879024"
+  },
+  {
+    "text": "สิ่งที่คุณทำกับมันขึ้นอยู่กับคุณ",
+    "source": "tatoeba",
+    "upstreamId": "7879025"
+  },
+  {
+    "text": "คุณไปโรงเรียนไหม?",
+    "source": "tatoeba",
+    "upstreamId": "7879028"
+  },
+  {
+    "text": "นั่นคือสิ่งที่คุณพูดหรือ?",
+    "source": "tatoeba",
+    "upstreamId": "7879029"
+  },
+  {
+    "text": "นี่มีไว้เพื่ออะไร?",
+    "source": "tatoeba",
+    "upstreamId": "7879031"
+  },
+  {
+    "text": "ทอมกับแมรี่ต้องทำอย่างนั้นเหรอ?",
+    "source": "tatoeba",
+    "upstreamId": "7879035"
+  },
+  {
+    "text": "ฉันไม่ชอบชื่อนั้น",
+    "source": "tatoeba",
+    "upstreamId": "7879036"
+  },
+  {
+    "text": "คุณจะไม่ชอบสิ่งนี้",
+    "source": "tatoeba",
+    "upstreamId": "7879050"
+  },
+  {
+    "text": "ทอมชอบทำอย่างนั้น",
+    "source": "tatoeba",
+    "upstreamId": "7879052"
+  },
+  {
+    "text": "เธอเป็นคนแบบไหน?",
+    "source": "tatoeba",
+    "upstreamId": "7879055"
+  },
+  {
+    "text": "มันขึ้นอยู่กับคุณ",
+    "source": "tatoeba",
+    "upstreamId": "7879059"
+  },
+  {
+    "text": "ทอมอยู่ที่โรงเรียนไหม?",
+    "source": "tatoeba",
+    "upstreamId": "7879063"
+  },
+  {
+    "text": "สิ่งนั้นเกี่ยวข้องกับฉันอย่างไร?",
+    "source": "tatoeba",
+    "upstreamId": "7879066"
+  },
+  {
+    "text": "ฉันอยากไปกับคุณ",
+    "source": "tatoeba",
+    "upstreamId": "7879068"
+  },
+  {
+    "text": "ฉันจะไม่พูดอย่างนั้น",
+    "source": "tatoeba",
+    "upstreamId": "7879069"
+  },
+  {
+    "text": "แม่คุณสบายดีมั้ย?",
+    "source": "tatoeba",
+    "upstreamId": "7879071"
+  },
+  {
+    "text": "ทอมจะทำมันได้อย่างไร?",
+    "source": "tatoeba",
+    "upstreamId": "7879075"
+  },
+  {
+    "text": "ไม่มีใครอยู่กับทอม",
+    "source": "tatoeba",
+    "upstreamId": "7879077"
+  },
+  {
+    "text": "ฉันต้องการให้คุณไปบอสตันกับทอม",
+    "source": "tatoeba",
+    "upstreamId": "7879078"
+  },
+  {
+    "text": "ผู้ชายคุณต้องการอะไร",
+    "source": "tatoeba",
+    "upstreamId": "7879079"
+  },
+  {
+    "text": "พวกนี้เป็นของคุณไหมทอม?",
+    "source": "tatoeba",
+    "upstreamId": "7879082"
+  },
+  {
+    "text": "ออสเตรเลียเป็นอย่างไรบ้าง?",
+    "source": "tatoeba",
+    "upstreamId": "7879084"
+  },
+  {
+    "text": "เราจะทำมันอย่างไร?",
+    "source": "tatoeba",
+    "upstreamId": "7879087"
+  },
+  {
+    "text": "ทอมต้องการให้คุณทำ",
+    "source": "tatoeba",
+    "upstreamId": "7879089"
+  },
+  {
+    "text": "เราจะทำอย่างไรกับทอม?",
+    "source": "tatoeba",
+    "upstreamId": "7879092"
+  },
+  {
+    "text": "คุณเป็นอย่างไรในโรงเรียน?",
+    "source": "tatoeba",
+    "upstreamId": "7879094"
+  },
+  {
+    "text": "คุณพลาดนั่นไม่ใช่หรือ?",
+    "source": "tatoeba",
+    "upstreamId": "7879099"
+  },
+  {
+    "text": "ทอมเป็นคนอย่างไร?",
+    "source": "tatoeba",
+    "upstreamId": "7879100"
+  },
+  {
+    "text": "มันเป็นอย่างไร?",
+    "source": "tatoeba",
+    "upstreamId": "7879102"
+  },
+  {
+    "text": "คุณต้องการให้ฉันทำอะไรกับสิ่งนี้?",
+    "source": "tatoeba",
+    "upstreamId": "7879103"
+  },
+  {
+    "text": "คุณต้องการอะไรจากฉัน?",
+    "source": "tatoeba",
+    "upstreamId": "7879106"
+  },
+  {
+    "text": "คุณเป็นแม่ของทอมหรือเปล่า?",
+    "source": "tatoeba",
+    "upstreamId": "7879109"
+  },
+  {
+    "text": "คุณคือผู้หญิงของฉัน",
+    "source": "tatoeba",
+    "upstreamId": "7879110"
+  },
+  {
+    "text": "พวกเขาบอกว่ามันขึ้นอยู่กับคุณ",
+    "source": "tatoeba",
+    "upstreamId": "7879112"
+  },
+  {
+    "text": "เราจะไม่เป็นอะไร",
+    "source": "tatoeba",
+    "upstreamId": "7879114"
+  },
+  {
+    "text": "ทอมกับฉันจะสบายดี",
+    "source": "tatoeba",
+    "upstreamId": "7879115"
+  },
+  {
+    "text": "สวัสดีฉันชื่อทอม",
+    "source": "tatoeba",
+    "upstreamId": "7879118"
+  },
+  {
+    "text": "คุณทำสิ่งที่คุณต้องทำ",
+    "source": "tatoeba",
+    "upstreamId": "7879119"
+  },
+  {
+    "text": "ฉันจะไม่ทำอย่างนั้น",
+    "source": "tatoeba",
+    "upstreamId": "7879120"
+  },
+  {
+    "text": "คุณและทอมกำลังทำอะไรอยู่",
+    "source": "tatoeba",
+    "upstreamId": "7879121"
+  },
+  {
+    "text": "ฉันจะไม่ไปบอสตันกับทอม",
+    "source": "tatoeba",
+    "upstreamId": "7879122"
+  },
+  {
+    "text": "มันไม่ใช่อย่างนั้น",
+    "source": "tatoeba",
+    "upstreamId": "7879123"
+  },
+  {
+    "text": "ฉันชอบเพลงอาร์แอนด์บี",
+    "source": "tatoeba",
+    "upstreamId": "7920731"
+  },
+  {
+    "text": "ฉันไม่ชอบสิ่งที่เขาพูด",
+    "source": "tatoeba",
+    "upstreamId": "7920733"
+  },
+  {
+    "text": "คุณต้องการที่จะบอกลาไหม?",
+    "source": "tatoeba",
+    "upstreamId": "7920738"
+  },
+  {
+    "text": "ทอมบอกว่าเขาต้องการทำอย่างนั้น",
+    "source": "tatoeba",
+    "upstreamId": "7920742"
+  },
+  {
+    "text": "ทอมต้องการทำอย่างนั้นไม่ใช่เหรอ?",
+    "source": "tatoeba",
+    "upstreamId": "7920743"
+  },
+  {
+    "text": "นั่นคือสิ่งที่ทอมพูดหรือเปล่า?",
+    "source": "tatoeba",
+    "upstreamId": "7920746"
+  },
+  {
+    "text": "พวกนี้ไม่ใช่หนังสือของคุณเหรอ?",
+    "source": "tatoeba",
+    "upstreamId": "7920748"
+  },
+  {
+    "text": "ทอมชอบแมรี่ไหม?",
+    "source": "tatoeba",
+    "upstreamId": "7920750"
+  },
+  {
+    "text": "นั่นมาจากทอมเหรอ?",
+    "source": "tatoeba",
+    "upstreamId": "7920751"
+  },
+  {
+    "text": "คุณต้องการให้ฉันทำอะไรกับสิ่งเหล่านี้",
+    "source": "tatoeba",
+    "upstreamId": "7920753"
+  },
+  {
+    "text": "ฉันจะไม่ไปกับคุณ",
+    "source": "tatoeba",
+    "upstreamId": "7920754"
+  },
+  {
+    "text": "พวกเขาเหมือนครอบครัว",
+    "source": "tatoeba",
+    "upstreamId": "7920756"
+  },
+  {
+    "text": "คุณไม่ใช่แม่ของฉัน",
+    "source": "tatoeba",
+    "upstreamId": "7920758"
+  },
+  {
+    "text": "หนังสือเล่มนั้นเป็นของฉัน",
+    "source": "tatoeba",
+    "upstreamId": "7920762"
+  },
+  {
+    "text": "ผมเคยพูดภาษารัสเซียได้",
+    "source": "tatoeba",
+    "upstreamId": "8199573"
+  },
+  {
+    "text": "ฉันเคยพูดภาษารัสเซียได้",
+    "source": "tatoeba",
+    "upstreamId": "8199574"
+  },
+  {
+    "text": "เมื่อคืนฉันเห็นกระรอกนอกหน้าต่าง",
+    "source": "tatoeba",
+    "upstreamId": "8368675"
+  },
+  {
+    "text": "อันนั้นพรมของเรา!",
+    "source": "tatoeba",
+    "upstreamId": "8665770"
+  },
+  {
+    "text": "คุณขอส่วนลดหรือเปล่า",
+    "source": "tatoeba",
+    "upstreamId": "8665776"
+  },
+  {
+    "text": "การประชุมถูกเลื่อนออกไปเนื่องจากสภาพอากาศที่เลวร้าย",
+    "source": "tatoeba",
+    "upstreamId": "8668939"
+  },
+  {
+    "text": "คุณชอบไปดูคอนเสิร์ตไหม?",
+    "source": "tatoeba",
+    "upstreamId": "8668961"
+  },
+  {
+    "text": "ทอมพูดสิ่งที่ไม่ดีเกี่ยวกับฉัน",
+    "source": "tatoeba",
+    "upstreamId": "8668965"
+  },
+  {
+    "text": "สุนัขของทอมตัวใหญ่กว่าสุนัขของแมรี่มาก",
+    "source": "tatoeba",
+    "upstreamId": "8668967"
+  },
+  {
+    "text": "หมาของทอมตัวใหญ่กว่าหมาของแมรี่มาก",
+    "source": "tatoeba",
+    "upstreamId": "8668969"
+  },
+  {
+    "text": "ฉันเห็นบางสิ่งบางอย่างเคลื่อนที่อยู่ข้างนอกนั่น",
+    "source": "tatoeba",
+    "upstreamId": "8668976"
+  },
+  {
+    "text": "ฉันหวังว่าฉันสามารถทำมันได้ด้วยตัวเอง",
+    "source": "tatoeba",
+    "upstreamId": "8668977"
+  },
+  {
+    "text": "ทอมและพี่ชายของเขามีนิสัยที่ต่างกันมาก",
+    "source": "tatoeba",
+    "upstreamId": "8668980"
+  },
+  {
+    "text": "ทอมและน้องชายของเขามีนิสัยที่ต่างกันมาก",
+    "source": "tatoeba",
+    "upstreamId": "8668982"
+  },
+  {
+    "text": "ทอมเป็นสมาชิกของชมรมหนังสือ",
+    "source": "tatoeba",
+    "upstreamId": "8668985"
+  },
+  {
+    "text": "พวกเราคือที่หนึ่ง",
+    "source": "tatoeba",
+    "upstreamId": "8668987"
+  },
+  {
+    "text": "นั่นดูน่าอร่อย ฉันจะลองชิมดู",
+    "source": "tatoeba",
+    "upstreamId": "8668997"
+  },
+  {
+    "text": "กรุณาอย่าให้อาหารนกพิราบ",
+    "source": "tatoeba",
+    "upstreamId": "8669001"
+  },
+  {
+    "text": "นั่นดูน่าสนุก ฉันอยากลองมันดู",
+    "source": "tatoeba",
+    "upstreamId": "8669003"
+  }
+]

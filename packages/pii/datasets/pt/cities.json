@@ -1,0 +1,5602 @@
+[
+  {
+    "name": "São Paulo",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "01000-000",
+    "population": 12400232
+  },
+  {
+    "name": "Rio de Janeiro",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "20000-000",
+    "population": 6747815
+  },
+  {
+    "name": "Luanda",
+    "countryCode": "AO",
+    "admin1": "20",
+    "postcodeSample": null,
+    "population": 2776168
+  },
+  {
+    "name": "Belo Horizonte",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "30000-000",
+    "population": 2721564
+  },
+  {
+    "name": "Salvador",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "40000-000",
+    "population": 2711840
+  },
+  {
+    "name": "Fortaleza",
+    "countryCode": "BR",
+    "admin1": "06",
+    "postcodeSample": "60000-000",
+    "population": 2400000
+  },
+  {
+    "name": "Manaus",
+    "countryCode": "BR",
+    "admin1": "04",
+    "postcodeSample": "69000-000",
+    "population": 2219580
+  },
+  {
+    "name": "Brasília",
+    "countryCode": "BR",
+    "admin1": "07",
+    "postcodeSample": "70000-000",
+    "population": 2207718
+  },
+  {
+    "name": "Curitiba",
+    "countryCode": "BR",
+    "admin1": "18",
+    "postcodeSample": "80000-000",
+    "population": 1948626
+  },
+  {
+    "name": "Recife",
+    "countryCode": "BR",
+    "admin1": "30",
+    "postcodeSample": "50000-000",
+    "population": 1653461
+  },
+  {
+    "name": "Goiânia",
+    "countryCode": "BR",
+    "admin1": "29",
+    "postcodeSample": "74000-000",
+    "population": 1536097
+  },
+  {
+    "name": "Belém",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "57630-000",
+    "population": 1499641
+  },
+  {
+    "name": "Porto Alegre",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "90000-000",
+    "population": 1488252
+  },
+  {
+    "name": "Maputo",
+    "countryCode": "MZ",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 1254837
+  },
+  {
+    "name": "Matola",
+    "countryCode": "MZ",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 1198988
+  },
+  {
+    "name": "Guarulhos",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "07000-000",
+    "population": 1169577
+  },
+  {
+    "name": "Maceió",
+    "countryCode": "BR",
+    "admin1": "02",
+    "postcodeSample": "57000-000",
+    "population": 1031597
+  },
+  {
+    "name": "Campinas",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "13000-000",
+    "population": 1031554
+  },
+  {
+    "name": "São Luís",
+    "countryCode": "BR",
+    "admin1": "13",
+    "postcodeSample": "65000-000",
+    "population": 917237
+  },
+  {
+    "name": "Campo Grande",
+    "countryCode": "BR",
+    "admin1": "11",
+    "postcodeSample": "57350-000",
+    "population": 906092
+  },
+  {
+    "name": "Natal",
+    "countryCode": "BR",
+    "admin1": "22",
+    "postcodeSample": "59000-000",
+    "population": 896708
+  },
+  {
+    "name": "Mulenvos",
+    "countryCode": "AO",
+    "admin1": "20",
+    "postcodeSample": null,
+    "population": 882014
+  },
+  {
+    "name": "Teresina",
+    "countryCode": "BR",
+    "admin1": "20",
+    "postcodeSample": "64000-000",
+    "population": 871126
+  },
+  {
+    "name": "Viana",
+    "countryCode": "AO",
+    "admin1": "20",
+    "postcodeSample": null,
+    "population": 865863
+  },
+  {
+    "name": "Nova Iguaçu",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "26000-000",
+    "population": 823302
+  },
+  {
+    "name": "Duque de Caxias",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "25000-000",
+    "population": 818329
+  },
+  {
+    "name": "João Pessoa",
+    "countryCode": "BR",
+    "admin1": "17",
+    "postcodeSample": "58000-000",
+    "population": 817511
+  },
+  {
+    "name": "Nampula",
+    "countryCode": "MZ",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 770379
+  },
+  {
+    "name": "São Bernardo do Campo",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "09700-000",
+    "population": 743372
+  },
+  {
+    "name": "São José dos Campos",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "12200-000",
+    "population": 729737
+  },
+  {
+    "name": "Osasco",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "06000-000",
+    "population": 728615
+  },
+  {
+    "name": "Kikolo",
+    "countryCode": "AO",
+    "admin1": "20",
+    "postcodeSample": null,
+    "population": 728205
+  },
+  {
+    "name": "Maianga",
+    "countryCode": "AO",
+    "admin1": "20",
+    "postcodeSample": null,
+    "population": 727681
+  },
+  {
+    "name": "Ribeirão Preto",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "14000-000",
+    "population": 711825
+  },
+  {
+    "name": "Jaboatão",
+    "countryCode": "BR",
+    "admin1": "30",
+    "postcodeSample": null,
+    "population": 702621
+  },
+  {
+    "name": "Beira",
+    "countryCode": "MZ",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 687764
+  },
+  {
+    "name": "Sorocaba",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "18000-000",
+    "population": 687357
+  },
+  {
+    "name": "Camama",
+    "countryCode": "AO",
+    "admin1": "20",
+    "postcodeSample": null,
+    "population": 667094
+  },
+  {
+    "name": "Aracaju",
+    "countryCode": "BR",
+    "admin1": "28",
+    "postcodeSample": "49000-000",
+    "population": 664908
+  },
+  {
+    "name": "Santo André",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "58675-000",
+    "population": 662373
+  },
+  {
+    "name": "Golfe",
+    "countryCode": "AO",
+    "admin1": "20",
+    "postcodeSample": null,
+    "population": 655796
+  },
+  {
+    "name": "Calumbo",
+    "countryCode": "AO",
+    "admin1": "19",
+    "postcodeSample": null,
+    "population": 652270
+  },
+  {
+    "name": "Jaboatão dos Guararapes",
+    "countryCode": "BR",
+    "admin1": "30",
+    "postcodeSample": "54000-000",
+    "population": 644037
+  },
+  {
+    "name": "Hoji ya Henda",
+    "countryCode": "AO",
+    "admin1": "20",
+    "postcodeSample": null,
+    "population": 642050
+  },
+  {
+    "name": "Contagem",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "32000-000",
+    "population": 627123
+  },
+  {
+    "name": "Feira de Santana",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "44000-000",
+    "population": 619609
+  },
+  {
+    "name": "Cuiabá",
+    "countryCode": "BR",
+    "admin1": "14",
+    "postcodeSample": "78000-000",
+    "population": 618124
+  },
+  {
+    "name": "Lubango",
+    "countryCode": "AO",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 600751
+  },
+  {
+    "name": "Huambo",
+    "countryCode": "AO",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 595304
+  },
+  {
+    "name": "Londrina",
+    "countryCode": "BR",
+    "admin1": "18",
+    "postcodeSample": "86000-000",
+    "population": 588125
+  },
+  {
+    "name": "Juiz de Fora",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "36000-000",
+    "population": 573285
+  },
+  {
+    "name": "Uberlândia",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "38400-000",
+    "population": 563536
+  },
+  {
+    "name": "Benguela",
+    "countryCode": "AO",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 555124
+  },
+  {
+    "name": "Cabinda",
+    "countryCode": "AO",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 550000
+  },
+  {
+    "name": "Porto Velho",
+    "countryCode": "BR",
+    "admin1": "24",
+    "postcodeSample": "78900-000",
+    "population": 548952
+  },
+  {
+    "name": "Serra",
+    "countryCode": "BR",
+    "admin1": "08",
+    "postcodeSample": "29160-000",
+    "population": 520653
+  },
+  {
+    "name": "Lisbon",
+    "countryCode": "PT",
+    "admin1": "14",
+    "postcodeSample": null,
+    "population": 517802
+  },
+  {
+    "name": "Macapá",
+    "countryCode": "BR",
+    "admin1": "03",
+    "postcodeSample": "68900-000",
+    "population": 512902
+  },
+  {
+    "name": "Campos dos Goytacazes",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "28000-000",
+    "population": 511168
+  },
+  {
+    "name": "Aparecida de Goiânia",
+    "countryCode": "BR",
+    "admin1": "29",
+    "postcodeSample": "74900-000",
+    "population": 510770
+  },
+  {
+    "name": "Florianópolis",
+    "countryCode": "BR",
+    "admin1": "26",
+    "postcodeSample": "88000-000",
+    "population": 508826
+  },
+  {
+    "name": "Talatona",
+    "countryCode": "AO",
+    "admin1": "20",
+    "postcodeSample": null,
+    "population": 500000
+  },
+  {
+    "name": "São José do Rio Preto",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "15000-000",
+    "population": 480393
+  },
+  {
+    "name": "Mauá",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "09300-000",
+    "population": 477552
+  },
+  {
+    "name": "São João de Meriti",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "25500-000",
+    "population": 466536
+  },
+  {
+    "name": "Belford Roxo",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "26100-000",
+    "population": 466096
+  },
+  {
+    "name": "Nova Vida",
+    "countryCode": "AO",
+    "admin1": "20",
+    "postcodeSample": null,
+    "population": 464985
+  },
+  {
+    "name": "Joinville",
+    "countryCode": "BR",
+    "admin1": "26",
+    "postcodeSample": "89200-000",
+    "population": 461304
+  },
+  {
+    "name": "Niterói",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "24000-000",
+    "population": 456456
+  },
+  {
+    "name": "Malanje",
+    "countryCode": "AO",
+    "admin1": "12",
+    "postcodeSample": null,
+    "population": 455000
+  },
+  {
+    "name": "Jundiaí",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "13200-000",
+    "population": 443221
+  },
+  {
+    "name": "Bissau",
+    "countryCode": "GW",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 439704
+  },
+  {
+    "name": "Ananindeua",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "67000-000",
+    "population": 433956
+  },
+  {
+    "name": "Santos",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "11000-000",
+    "population": 433656
+  },
+  {
+    "name": "Kima Kieza",
+    "countryCode": "AO",
+    "admin1": "20",
+    "postcodeSample": null,
+    "population": 428855
+  },
+  {
+    "name": "Chimoio",
+    "countryCode": "MZ",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 422046
+  },
+  {
+    "name": "Boa Vista",
+    "countryCode": "BR",
+    "admin1": "25",
+    "postcodeSample": "58123-000",
+    "population": 419652
+  },
+  {
+    "name": "Rio Branco",
+    "countryCode": "BR",
+    "admin1": "01",
+    "postcodeSample": "69900-000",
+    "population": 419452
+  },
+  {
+    "name": "Montes Claros",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "39400-000",
+    "population": 414240
+  },
+  {
+    "name": "Piracicaba",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "13400-000",
+    "population": 407252
+  },
+  {
+    "name": "Caruaru",
+    "countryCode": "BR",
+    "admin1": "30",
+    "postcodeSample": "55000-000",
+    "population": 402290
+  },
+  {
+    "name": "Vila Velha",
+    "countryCode": "BR",
+    "admin1": "08",
+    "postcodeSample": "29100-000",
+    "population": 394930
+  },
+  {
+    "name": "Cazenga",
+    "countryCode": "AO",
+    "admin1": "20",
+    "postcodeSample": null,
+    "population": 394170
+  },
+  {
+    "name": "Diadema",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "09900-000",
+    "population": 393237
+  },
+  {
+    "name": "Saurimo",
+    "countryCode": "AO",
+    "admin1": "18",
+    "postcodeSample": null,
+    "population": 393000
+  },
+  {
+    "name": "Carapicuíba",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "06300-000",
+    "population": 386984
+  },
+  {
+    "name": "Petrolina",
+    "countryCode": "BR",
+    "admin1": "30",
+    "postcodeSample": "56300-000",
+    "population": 386791
+  },
+  {
+    "name": "Grajaú",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "65940-000",
+    "population": 384873
+  },
+  {
+    "name": "Betim",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "32500-000",
+    "population": 384000
+  },
+  {
+    "name": "Caxias do Sul",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "95000-000",
+    "population": 381270
+  },
+  {
+    "name": "Bauru",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "17000-000",
+    "population": 379297
+  },
+  {
+    "name": "Itaquaquecetuba",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "08570-000",
+    "population": 369275
+  },
+  {
+    "name": "Olinda",
+    "countryCode": "BR",
+    "admin1": "30",
+    "postcodeSample": "53000-000",
+    "population": 366754
+  },
+  {
+    "name": "Samba",
+    "countryCode": "AO",
+    "admin1": "20",
+    "postcodeSample": null,
+    "population": 364986
+  },
+  {
+    "name": "Blumenau",
+    "countryCode": "BR",
+    "admin1": "26",
+    "postcodeSample": "89000-000",
+    "population": 361855
+  },
+  {
+    "name": "Franca",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "14400-000",
+    "population": 358539
+  },
+  {
+    "name": "Lobito",
+    "countryCode": "AO",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 357950
+  },
+  {
+    "name": "Tete",
+    "countryCode": "MZ",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 357000
+  },
+  {
+    "name": "Caucaia",
+    "countryCode": "BR",
+    "admin1": "06",
+    "postcodeSample": "61600-000",
+    "population": 355679
+  },
+  {
+    "name": "Cuíto",
+    "countryCode": "AO",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 355423
+  },
+  {
+    "name": "Cariacica",
+    "countryCode": "BR",
+    "admin1": "08",
+    "postcodeSample": "29140-000",
+    "population": 353491
+  },
+  {
+    "name": "Praia Grande",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "88990-000",
+    "population": 349935
+  },
+  {
+    "name": "Quelimane",
+    "countryCode": "MZ",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 349842
+  },
+  {
+    "name": "Campina Grande",
+    "countryCode": "BR",
+    "admin1": "17",
+    "postcodeSample": "58100-000",
+    "population": 348936
+  },
+  {
+    "name": "Paulista",
+    "countryCode": "BR",
+    "admin1": "30",
+    "postcodeSample": "58860-000",
+    "population": 342167
+  },
+  {
+    "name": "Uberaba",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "38000-000",
+    "population": 337836
+  },
+  {
+    "name": "São Vicente",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "59340-000",
+    "population": 329911
+  },
+  {
+    "name": "Ribeirão das Neves",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "33800-000",
+    "population": 329794
+  },
+  {
+    "name": "São José dos Pinhais",
+    "countryCode": "BR",
+    "admin1": "18",
+    "postcodeSample": "83000-000",
+    "population": 329628
+  },
+  {
+    "name": "Canoas",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "92000-000",
+    "population": 328291
+  },
+  {
+    "name": "Mogi das Cruzes",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 325746
+  },
+  {
+    "name": "Ramiros",
+    "countryCode": "AO",
+    "admin1": "20",
+    "postcodeSample": null,
+    "population": 323576
+  },
+  {
+    "name": "Guarujá",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "11400-000",
+    "population": 322750
+  },
+  {
+    "name": "Uíge",
+    "countryCode": "AO",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 322531
+  },
+  {
+    "name": "Pelotas",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "96000-000",
+    "population": 320674
+  },
+  {
+    "name": "Anápolis",
+    "countryCode": "BR",
+    "admin1": "29",
+    "postcodeSample": "75000-000",
+    "population": 319587
+  },
+  {
+    "name": "Taubaté",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "12000-000",
+    "population": 317915
+  },
+  {
+    "name": "Barueri",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "06400-000",
+    "population": 316473
+  },
+  {
+    "name": "Várzea Grande",
+    "countryCode": "BR",
+    "admin1": "14",
+    "postcodeSample": "78110-000",
+    "population": 314627
+  },
+  {
+    "name": "Vitória",
+    "countryCode": "BR",
+    "admin1": "08",
+    "postcodeSample": "29000-000",
+    "population": 312656
+  },
+  {
+    "name": "Maringá",
+    "countryCode": "BR",
+    "admin1": "18",
+    "postcodeSample": "87000-000",
+    "population": 311724
+  },
+  {
+    "name": "Jardim Angela",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 311432
+  },
+  {
+    "name": "Suzano",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "08600-000",
+    "population": 307429
+  },
+  {
+    "name": "Palmas",
+    "countryCode": "BR",
+    "admin1": "31",
+    "postcodeSample": "85555-000",
+    "population": 306296
+  },
+  {
+    "name": "Ponta Grossa",
+    "countryCode": "BR",
+    "admin1": "18",
+    "postcodeSample": "84000-000",
+    "population": 292177
+  },
+  {
+    "name": "Limeira",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "13480-000",
+    "population": 291869
+  },
+  {
+    "name": "Ceilândia",
+    "countryCode": "BR",
+    "admin1": "07",
+    "postcodeSample": "72200-000",
+    "population": 287023
+  },
+  {
+    "name": "Sumaré",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "13170-000",
+    "population": 286211
+  },
+  {
+    "name": "Viamão",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "94400-000",
+    "population": 285269
+  },
+  {
+    "name": "Santa Maria",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "72500-000",
+    "population": 283677
+  },
+  {
+    "name": "Lichinga",
+    "countryCode": "MZ",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 281341
+  },
+  {
+    "name": "Volta Redonda",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "27200-000",
+    "population": 279898
+  },
+  {
+    "name": "Luena",
+    "countryCode": "AO",
+    "admin1": "14",
+    "postcodeSample": null,
+    "population": 273675
+  },
+  {
+    "name": "Taboão da Serra",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "06750-000",
+    "population": 273542
+  },
+  {
+    "name": "Petrópolis",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "25600-000",
+    "population": 272691
+  },
+  {
+    "name": "Capao Redondo",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 270767
+  },
+  {
+    "name": "São José",
+    "countryCode": "BR",
+    "admin1": "26",
+    "postcodeSample": "88100-000",
+    "population": 270299
+  },
+  {
+    "name": "Parauapebas",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "68515-000",
+    "population": 267836
+  },
+  {
+    "name": "Parnamirim",
+    "countryCode": "BR",
+    "admin1": "22",
+    "postcodeSample": "59150-000",
+    "population": 267036
+  },
+  {
+    "name": "Sapopemba",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 266715
+  },
+  {
+    "name": "Gravataí",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "94000-000",
+    "population": 265074
+  },
+  {
+    "name": "Mossoró",
+    "countryCode": "BR",
+    "admin1": "22",
+    "postcodeSample": "59600-000",
+    "population": 264577
+  },
+  {
+    "name": "Sacomã",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 261436
+  },
+  {
+    "name": "Jardim Sao Luis",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 259377
+  },
+  {
+    "name": "Rondonópolis",
+    "countryCode": "BR",
+    "admin1": "14",
+    "postcodeSample": "78700-000",
+    "population": 259167
+  },
+  {
+    "name": "Foz do Iguaçu",
+    "countryCode": "BR",
+    "admin1": "18",
+    "postcodeSample": "85850-000",
+    "population": 258248
+  },
+  {
+    "name": "Cascavel",
+    "countryCode": "BR",
+    "admin1": "18",
+    "postcodeSample": "62850-000",
+    "population": 257172
+  },
+  {
+    "name": "Indaiatuba",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "13330-000",
+    "population": 256223
+  },
+  {
+    "name": "Vila Flor",
+    "countryCode": "AO",
+    "admin1": "20",
+    "postcodeSample": null,
+    "population": 256066
+  },
+  {
+    "name": "Mossamedes",
+    "countryCode": "AO",
+    "admin1": "13",
+    "postcodeSample": null,
+    "population": 255000
+  },
+  {
+    "name": "Novo Hamburgo",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "93300-000",
+    "population": 253841
+  },
+  {
+    "name": "Cotia",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "06700-000",
+    "population": 253608
+  },
+  {
+    "name": "Vitória da Conquista",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "45000-000",
+    "population": 253137
+  },
+  {
+    "name": "Porto",
+    "countryCode": "PT",
+    "admin1": "17",
+    "postcodeSample": "6100-830",
+    "population": 252687
+  },
+  {
+    "name": "Menongue",
+    "countryCode": "AO",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 251178
+  },
+  {
+    "name": "Governador Valadares",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "35000-000",
+    "population": 250878
+  },
+  {
+    "name": "Embu das Artes",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 250691
+  },
+  {
+    "name": "Cidade Ademar",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 249218
+  },
+  {
+    "name": "Chitato",
+    "countryCode": "AO",
+    "admin1": "17",
+    "postcodeSample": null,
+    "population": 246880
+  },
+  {
+    "name": "Americana",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "13465-000",
+    "population": 246655
+  },
+  {
+    "name": "Colombo",
+    "countryCode": "BR",
+    "admin1": "18",
+    "postcodeSample": "83400-000",
+    "population": 246540
+  },
+  {
+    "name": "São José de Ribamar",
+    "countryCode": "BR",
+    "admin1": "13",
+    "postcodeSample": "65110-000",
+    "population": 244579
+  },
+  {
+    "name": "Magé",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "25900-000",
+    "population": 244092
+  },
+  {
+    "name": "Arapiraca",
+    "countryCode": "BR",
+    "admin1": "02",
+    "postcodeSample": "57300-000",
+    "population": 243661
+  },
+  {
+    "name": "Brasilandia",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 243273
+  },
+  {
+    "name": "Itapevi",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "06650-000",
+    "population": 240961
+  },
+  {
+    "name": "Marília",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "17500-000",
+    "population": 240590
+  },
+  {
+    "name": "Navegantes",
+    "countryCode": "AO",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 240075
+  },
+  {
+    "name": "Itaboraí",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "24800-000",
+    "population": 240040
+  },
+  {
+    "name": "Nacala",
+    "countryCode": "MZ",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 239808
+  },
+  {
+    "name": "Cabo Frio",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "28900-000",
+    "population": 238166
+  },
+  {
+    "name": "Juazeiro",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "48900-000",
+    "population": 237821
+  },
+  {
+    "name": "Kilamba",
+    "countryCode": "AO",
+    "admin1": "20",
+    "postcodeSample": null,
+    "population": 237528
+  },
+  {
+    "name": "Campo Limpo",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 236162
+  },
+  {
+    "name": "Maracanaú",
+    "countryCode": "BR",
+    "admin1": "06",
+    "postcodeSample": "61900-000",
+    "population": 234509
+  },
+  {
+    "name": "Hortolândia",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "13183-000",
+    "population": 234259
+  },
+  {
+    "name": "Pemba",
+    "countryCode": "MZ",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 232932
+  },
+  {
+    "name": "Divinópolis",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "35500-000",
+    "population": 231091
+  },
+  {
+    "name": "Ipatinga",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "35160-000",
+    "population": 228746
+  },
+  {
+    "name": "Sete Lagoas",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "35700-000",
+    "population": 227397
+  },
+  {
+    "name": "Rio Verde",
+    "countryCode": "BR",
+    "admin1": "29",
+    "postcodeSample": "75900-000",
+    "population": 225696
+  },
+  {
+    "name": "Águas Lindas de Goiás",
+    "countryCode": "BR",
+    "admin1": "29",
+    "postcodeSample": "72910-000",
+    "population": 225693
+  },
+  {
+    "name": "Presidente Prudente",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "19000-000",
+    "population": 225668
+  },
+  {
+    "name": "Juazeiro do Norte",
+    "countryCode": "BR",
+    "admin1": "06",
+    "postcodeSample": "63000-000",
+    "population": 225230
+  },
+  {
+    "name": "Santa Luzia",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "45865-000",
+    "population": 219132
+  },
+  {
+    "name": "Samambaia",
+    "countryCode": "BR",
+    "admin1": "07",
+    "postcodeSample": "72300-000",
+    "population": 218840
+  },
+  {
+    "name": "Imperatriz",
+    "countryCode": "BR",
+    "admin1": "13",
+    "postcodeSample": "65900-000",
+    "population": 218106
+  },
+  {
+    "name": "Cabo de Santo Agostinho",
+    "countryCode": "BR",
+    "admin1": "30",
+    "postcodeSample": "54500-000",
+    "population": 216969
+  },
+  {
+    "name": "Sinop",
+    "countryCode": "BR",
+    "admin1": "14",
+    "postcodeSample": "78550-000",
+    "population": 216029
+  },
+  {
+    "name": "Jabaquara",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 214958
+  },
+  {
+    "name": "Jacareí",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "12300-000",
+    "population": 213110
+  },
+  {
+    "name": "Maricá",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "24900-000",
+    "population": 211986
+  },
+  {
+    "name": "Jaraguá",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "76330-000",
+    "population": 211610
+  },
+  {
+    "name": "Itaquera",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 210960
+  },
+  {
+    "name": "São Leopoldo",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "93000-000",
+    "population": 209229
+  },
+  {
+    "name": "Luziânia",
+    "countryCode": "BR",
+    "admin1": "29",
+    "postcodeSample": "72800-000",
+    "population": 209129
+  },
+  {
+    "name": "Sumbe",
+    "countryCode": "AO",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 205832
+  },
+  {
+    "name": "Itabuna",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "45600-000",
+    "population": 205660
+  },
+  {
+    "name": "Itaim Paulista",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 205295
+  },
+  {
+    "name": "São Carlos",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "89885-000",
+    "population": 205035
+  },
+  {
+    "name": "Lauro de Freitas",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "42700-000",
+    "population": 203331
+  },
+  {
+    "name": "Sobral",
+    "countryCode": "BR",
+    "admin1": "06",
+    "postcodeSample": "62000-000",
+    "population": 203023
+  },
+  {
+    "name": "Rio Claro",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "27460-000",
+    "population": 201418
+  },
+  {
+    "name": "Soyo",
+    "countryCode": "AO",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 200920
+  },
+  {
+    "name": "São José",
+    "countryCode": "BR",
+    "admin1": "26",
+    "postcodeSample": "88100-000",
+    "population": 200000
+  },
+  {
+    "name": "Valparaíso de Goiás",
+    "countryCode": "BR",
+    "admin1": "29",
+    "postcodeSample": "72870-000",
+    "population": 198861
+  },
+  {
+    "name": "Plano Piloto",
+    "countryCode": "BR",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 198697
+  },
+  {
+    "name": "Zango",
+    "countryCode": "AO",
+    "admin1": "20",
+    "postcodeSample": null,
+    "population": 198538
+  },
+  {
+    "name": "Mocuba",
+    "countryCode": "MZ",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 196001
+  },
+  {
+    "name": "Taguatinga",
+    "countryCode": "BR",
+    "admin1": "07",
+    "postcodeSample": "72000-000",
+    "population": 193367
+  },
+  {
+    "name": "Braga",
+    "countryCode": "PT",
+    "admin1": "04",
+    "postcodeSample": "4700-000",
+    "population": 193324
+  },
+  {
+    "name": "Nossa Senhora do Socorro",
+    "countryCode": "BR",
+    "admin1": "28",
+    "postcodeSample": "49160-000",
+    "population": 192330
+  },
+  {
+    "name": "Castanhal",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "68740-000",
+    "population": 192256
+  },
+  {
+    "name": "Cidade Tiradentes",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 192177
+  },
+  {
+    "name": "Benfica",
+    "countryCode": "AO",
+    "admin1": "20",
+    "postcodeSample": null,
+    "population": 191828
+  },
+  {
+    "name": "Nova Friburgo",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "28600-000",
+    "population": 191158
+  },
+  {
+    "name": "Rangel",
+    "countryCode": "AO",
+    "admin1": "20",
+    "postcodeSample": null,
+    "population": 190569
+  },
+  {
+    "name": "Planaltina",
+    "countryCode": "BR",
+    "admin1": "07",
+    "postcodeSample": "73300-000",
+    "population": 189412
+  },
+  {
+    "name": "Santarém",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "68000-000",
+    "population": 189047
+  },
+  {
+    "name": "Camaçari",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "42800-000",
+    "population": 188758
+  },
+  {
+    "name": "Santa Bárbara d'Oeste",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "13450-000",
+    "population": 188000
+  },
+  {
+    "name": "Rio Grande",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "96200-000",
+    "population": 187838
+  },
+  {
+    "name": "Alvorada",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "94800-000",
+    "population": 187315
+  },
+  {
+    "name": "Cachoeiro de Itapemirim",
+    "countryCode": "BR",
+    "admin1": "08",
+    "postcodeSample": "29300-000",
+    "population": 187019
+  },
+  {
+    "name": "Jaraguá do Sul",
+    "countryCode": "BR",
+    "admin1": "26",
+    "postcodeSample": "89250-000",
+    "population": 182660
+  },
+  {
+    "name": "Cidade Dutra",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 182459
+  },
+  {
+    "name": "Guarapuava",
+    "countryCode": "BR",
+    "admin1": "18",
+    "postcodeSample": "85000-000",
+    "population": 182093
+  },
+  {
+    "name": "Pirituba",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 179724
+  },
+  {
+    "name": "Passo Fundo",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "99000-000",
+    "population": 179529
+  },
+  {
+    "name": "Ferraz de Vasconcelos",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "08500-000",
+    "population": 179198
+  },
+  {
+    "name": "Angra dos Reis",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "23900-000",
+    "population": 179120
+  },
+  {
+    "name": "Amadora",
+    "countryCode": "PT",
+    "admin1": "14",
+    "postcodeSample": "2610-001",
+    "population": 178858
+  },
+  {
+    "name": "Sambizanga",
+    "countryCode": "AO",
+    "admin1": "20",
+    "postcodeSample": null,
+    "population": 177808
+  },
+  {
+    "name": "Dundo",
+    "countryCode": "AO",
+    "admin1": "17",
+    "postcodeSample": null,
+    "population": 177604
+  },
+  {
+    "name": "Bragança Paulista",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "12900-000",
+    "population": 176811
+  },
+  {
+    "name": "Teresópolis",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "25950-000",
+    "population": 176692
+  },
+  {
+    "name": "Palhoça",
+    "countryCode": "BR",
+    "admin1": "26",
+    "postcodeSample": "88130-000",
+    "population": 175272
+  },
+  {
+    "name": "Timon",
+    "countryCode": "BR",
+    "admin1": "13",
+    "postcodeSample": "65630-000",
+    "population": 174465
+  },
+  {
+    "name": "Ibirité",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "32400-000",
+    "population": 170537
+  },
+  {
+    "name": "Araçatuba",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "16000-000",
+    "population": 170024
+  },
+  {
+    "name": "Gurúè",
+    "countryCode": "MZ",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 168971
+  },
+  {
+    "name": "Vila Andrade",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 168669
+  },
+  {
+    "name": "Poços de Caldas",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "37700-000",
+    "population": 168641
+  },
+  {
+    "name": "Araraquara",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "14800-000",
+    "population": 168468
+  },
+  {
+    "name": "Porto Seguro",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "45810-000",
+    "population": 168326
+  },
+  {
+    "name": "Rio das Ostras",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "28890-000",
+    "population": 168099
+  },
+  {
+    "name": "Linhares",
+    "countryCode": "BR",
+    "admin1": "08",
+    "postcodeSample": "29900-000",
+    "population": 166786
+  },
+  {
+    "name": "São Caetano do Sul",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "09500-000",
+    "population": 165655
+  },
+  {
+    "name": "Pindamonhangaba",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "12400-000",
+    "population": 165428
+  },
+  {
+    "name": "Francisco Morato",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "07900-000",
+    "population": 165139
+  },
+  {
+    "name": "Lages",
+    "countryCode": "BR",
+    "admin1": "26",
+    "postcodeSample": "88500-000",
+    "population": 164676
+  },
+  {
+    "name": "Lajeado",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "95900-000",
+    "population": 164391
+  },
+  {
+    "name": "Barra Mansa",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "27300-000",
+    "population": 164052
+  },
+  {
+    "name": "Pedreira",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "13920-000",
+    "population": 163586
+  },
+  {
+    "name": "Dourados",
+    "countryCode": "BR",
+    "admin1": "11",
+    "postcodeSample": "79800-000",
+    "population": 162202
+  },
+  {
+    "name": "Criciúma",
+    "countryCode": "BR",
+    "admin1": "26",
+    "postcodeSample": "88800-000",
+    "population": 161954
+  },
+  {
+    "name": "N'dalatando",
+    "countryCode": "AO",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 161584
+  },
+  {
+    "name": "Chapecó",
+    "countryCode": "BR",
+    "admin1": "26",
+    "postcodeSample": "89800-000",
+    "population": 160157
+  },
+  {
+    "name": "Barreiras",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "47800-000",
+    "population": 159734
+  },
+  {
+    "name": "Patos de Minas",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "38700-000",
+    "population": 159235
+  },
+  {
+    "name": "Itapecerica da Serra",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "06850-000",
+    "population": 158522
+  },
+  {
+    "name": "Abaetetuba",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "68440-000",
+    "population": 158188
+  },
+  {
+    "name": "Panguíla",
+    "countryCode": "AO",
+    "admin1": "19",
+    "postcodeSample": null,
+    "population": 158068
+  },
+  {
+    "name": "Itapetininga",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "18200-000",
+    "population": 157790
+  },
+  {
+    "name": "Caxias",
+    "countryCode": "BR",
+    "admin1": "13",
+    "postcodeSample": "65600-000",
+    "population": 156973
+  },
+  {
+    "name": "Camaragibe",
+    "countryCode": "BR",
+    "admin1": "30",
+    "postcodeSample": "54750-000",
+    "population": 155771
+  },
+  {
+    "name": "Itajaí",
+    "countryCode": "BR",
+    "admin1": "26",
+    "postcodeSample": "88300-000",
+    "population": 155716
+  },
+  {
+    "name": "São Mateus",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "29930-000",
+    "population": 155682
+  },
+  {
+    "name": "Ilhéus",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "45650-000",
+    "population": 155499
+  },
+  {
+    "name": "Xai-Xai",
+    "countryCode": "MZ",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 154356
+  },
+  {
+    "name": "Santana de Parnaíba",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "06500-000",
+    "population": 154105
+  },
+  {
+    "name": "Parelheiros",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 153695
+  },
+  {
+    "name": "Mogi Guaçu",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "13840-000",
+    "population": 153658
+  },
+  {
+    "name": "Pouso Alegre",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "37550-000",
+    "population": 152217
+  },
+  {
+    "name": "Araucária",
+    "countryCode": "BR",
+    "admin1": "18",
+    "postcodeSample": "83700-000",
+    "population": 151666
+  },
+  {
+    "name": "Garanhuns",
+    "countryCode": "BR",
+    "admin1": "30",
+    "postcodeSample": "55290-000",
+    "population": 151064
+  },
+  {
+    "name": "Dili",
+    "countryCode": "TL",
+    "admin1": "DI",
+    "postcodeSample": null,
+    "population": 150000
+  },
+  {
+    "name": "Santa Rita",
+    "countryCode": "BR",
+    "admin1": "17",
+    "postcodeSample": "65105-000",
+    "population": 149910
+  },
+  {
+    "name": "Iguatemi",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "79960-000",
+    "population": 149700
+  },
+  {
+    "name": "Queimados",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "26300-000",
+    "population": 149093
+  },
+  {
+    "name": "Fazenda Rio Grande",
+    "countryCode": "BR",
+    "admin1": "18",
+    "postcodeSample": "83820-000",
+    "population": 148873
+  },
+  {
+    "name": "Sao Rafael",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 148145
+  },
+  {
+    "name": "Botucatu",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "18600-000",
+    "population": 148130
+  },
+  {
+    "name": "Mbanza Kongo",
+    "countryCode": "AO",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 148000
+  },
+  {
+    "name": "Nilópolis",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "26500-000",
+    "population": 147281
+  },
+  {
+    "name": "Cacuaco",
+    "countryCode": "AO",
+    "admin1": "20",
+    "postcodeSample": null,
+    "population": 146867
+  },
+  {
+    "name": "Marabá",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "68500-000",
+    "population": 145860
+  },
+  {
+    "name": "Paço do Lumiar",
+    "countryCode": "BR",
+    "admin1": "13",
+    "postcodeSample": "65130-000",
+    "population": 145643
+  },
+  {
+    "name": "Ingombota",
+    "countryCode": "AO",
+    "admin1": "20",
+    "postcodeSample": null,
+    "population": 144911
+  },
+  {
+    "name": "Franco da Rocha",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "07800-000",
+    "population": 144849
+  },
+  {
+    "name": "Atibaia",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "12940-000",
+    "population": 144088
+  },
+  {
+    "name": "Cachoeirinha",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "94900-000",
+    "population": 143366
+  },
+  {
+    "name": "Macaé",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "27900-000",
+    "population": 143029
+  },
+  {
+    "name": "Trindade",
+    "countryCode": "BR",
+    "admin1": "29",
+    "postcodeSample": "75380-000",
+    "population": 142431
+  },
+  {
+    "name": "Brusque",
+    "countryCode": "BR",
+    "admin1": "26",
+    "postcodeSample": "88350-000",
+    "population": 141385
+  },
+  {
+    "name": "Cangaiba",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 141172
+  },
+  {
+    "name": "Paranaguá",
+    "countryCode": "BR",
+    "admin1": "18",
+    "postcodeSample": "83200-000",
+    "population": 141013
+  },
+  {
+    "name": "Coimbra",
+    "countryCode": "PT",
+    "admin1": "07",
+    "postcodeSample": "3000-000",
+    "population": 140796
+  },
+  {
+    "name": "Vila Curuca",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 140673
+  },
+  {
+    "name": "Gama",
+    "countryCode": "BR",
+    "admin1": "07",
+    "postcodeSample": "72400-000",
+    "population": 139467
+  },
+  {
+    "name": "Balneário Camboriú",
+    "countryCode": "BR",
+    "admin1": "26",
+    "postcodeSample": "88330-000",
+    "population": 139155
+  },
+  {
+    "name": "Sao Lucas",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 138038
+  },
+  {
+    "name": "Parnaíba",
+    "countryCode": "BR",
+    "admin1": "20",
+    "postcodeSample": "64200-000",
+    "population": 138008
+  },
+  {
+    "name": "Praia",
+    "countryCode": "CV",
+    "admin1": "14",
+    "postcodeSample": null,
+    "population": 137868
+  },
+  {
+    "name": "Araruama",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "28970-000",
+    "population": 137773
+  },
+  {
+    "name": "Itu",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "13300-000",
+    "population": 137586
+  },
+  {
+    "name": "Freguesia do Ó",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 137240
+  },
+  {
+    "name": "Cidade Lider",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 136660
+  },
+  {
+    "name": "Varginha",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "37000-000",
+    "population": 136467
+  },
+  {
+    "name": "Campo Largo",
+    "countryCode": "BR",
+    "admin1": "18",
+    "postcodeSample": "83600-000",
+    "population": 136327
+  },
+  {
+    "name": "Cachoeirinha",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "94900-000",
+    "population": 136258
+  },
+  {
+    "name": "Araras",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "13600-000",
+    "population": 135331
+  },
+  {
+    "name": "Vila Jacui",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 134189
+  },
+  {
+    "name": "Cametá",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "68400-000",
+    "population": 134184
+  },
+  {
+    "name": "Vitória de Santo Antão",
+    "countryCode": "BR",
+    "admin1": "30",
+    "postcodeSample": "55600-000",
+    "population": 134084
+  },
+  {
+    "name": "Jaú",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "17200-000",
+    "population": 133497
+  },
+  {
+    "name": "Santa Cruz do Sul",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "96800-000",
+    "population": 133230
+  },
+  {
+    "name": "Sapucaia do Sul",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "93200-000",
+    "population": 132107
+  },
+  {
+    "name": "Rio Pequeno",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 131631
+  },
+  {
+    "name": "Itapipoca",
+    "countryCode": "BR",
+    "admin1": "06",
+    "postcodeSample": "62500-000",
+    "population": 131123
+  },
+  {
+    "name": "Crato",
+    "countryCode": "BR",
+    "admin1": "06",
+    "postcodeSample": "63100-000",
+    "population": 131050
+  },
+  {
+    "name": "Apucarana",
+    "countryCode": "BR",
+    "admin1": "18",
+    "postcodeSample": "86800-000",
+    "population": 130134
+  },
+  {
+    "name": "Caála",
+    "countryCode": "AO",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 130000
+  },
+  {
+    "name": "Jardim Helena",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 129409
+  },
+  {
+    "name": "Sabará",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "34500-000",
+    "population": 129380
+  },
+  {
+    "name": "Vespasiano",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "33200-000",
+    "population": 129246
+  },
+  {
+    "name": "Leiria",
+    "countryCode": "PT",
+    "admin1": "13",
+    "postcodeSample": "2400-000",
+    "population": 128640
+  },
+  {
+    "name": "Águas Claras",
+    "countryCode": "BR",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 128486
+  },
+  {
+    "name": "Bosque Saúde",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 128469
+  },
+  {
+    "name": "Jose Bonifacio",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 128243
+  },
+  {
+    "name": "Votorantim",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "18110-000",
+    "population": 127923
+  },
+  {
+    "name": "Jequié",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "45200-000",
+    "population": 127475
+  },
+  {
+    "name": "Vila Mariana",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 127286
+  },
+  {
+    "name": "Sertãozinho",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "58268-000",
+    "population": 126887
+  },
+  {
+    "name": "Barcarena",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "68445-000",
+    "population": 126650
+  },
+  {
+    "name": "Maxixe",
+    "countryCode": "MZ",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 126408
+  },
+  {
+    "name": "Valinhos",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "13270-000",
+    "population": 126373
+  },
+  {
+    "name": "Altamira",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "68370-000",
+    "population": 126279
+  },
+  {
+    "name": "Barbacena",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "36200-000",
+    "population": 125317
+  },
+  {
+    "name": "Guarapari",
+    "countryCode": "BR",
+    "admin1": "08",
+    "postcodeSample": "29200-000",
+    "population": 124656
+  },
+  {
+    "name": "Ji Paraná",
+    "countryCode": "BR",
+    "admin1": "24",
+    "postcodeSample": null,
+    "population": 124333
+  },
+  {
+    "name": "Itaguaí",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "23800-000",
+    "population": 123980
+  },
+  {
+    "name": "São Mateus",
+    "countryCode": "BR",
+    "admin1": "08",
+    "postcodeSample": "29930-000",
+    "population": 123752
+  },
+  {
+    "name": "Butanta",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 123748
+  },
+  {
+    "name": "Uruguaiana",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "97500-000",
+    "population": 123480
+  },
+  {
+    "name": "Caraguatatuba",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "11660-000",
+    "population": 123389
+  },
+  {
+    "name": "Itaituba",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "68180-000",
+    "population": 123314
+  },
+  {
+    "name": "Bento Gonçalves",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "95700-000",
+    "population": 123151
+  },
+  {
+    "name": "Bragança",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "68600-000",
+    "population": 123082
+  },
+  {
+    "name": "Tatuí",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "18270-000",
+    "population": 122967
+  },
+  {
+    "name": "Alagoinhas",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "48000-000",
+    "population": 122688
+  },
+  {
+    "name": "Itatiba",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "13250-000",
+    "population": 122581
+  },
+  {
+    "name": "Barretos",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "14780-000",
+    "population": 122485
+  },
+  {
+    "name": "Igarassu",
+    "countryCode": "BR",
+    "admin1": "30",
+    "postcodeSample": "53600-000",
+    "population": 122312
+  },
+  {
+    "name": "Ondjiva",
+    "countryCode": "AO",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 121537
+  },
+  {
+    "name": "Sorriso",
+    "countryCode": "BR",
+    "admin1": "14",
+    "postcodeSample": "78890-000",
+    "population": 120985
+  },
+  {
+    "name": "Guará",
+    "countryCode": "BR",
+    "admin1": "07",
+    "postcodeSample": "14580-000",
+    "population": 120641
+  },
+  {
+    "name": "Almirante Tamandaré",
+    "countryCode": "BR",
+    "admin1": "18",
+    "postcodeSample": "83500-000",
+    "population": 119825
+  },
+  {
+    "name": "Salto",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "13320-000",
+    "population": 119736
+  },
+  {
+    "name": "Toledo",
+    "countryCode": "BR",
+    "admin1": "18",
+    "postcodeSample": "37630-000",
+    "population": 119313
+  },
+  {
+    "name": "Arapongas",
+    "countryCode": "BR",
+    "admin1": "18",
+    "postcodeSample": "86700-000",
+    "population": 119138
+  },
+  {
+    "name": "Mandimba",
+    "countryCode": "MZ",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 118922
+  },
+  {
+    "name": "Piraquara",
+    "countryCode": "BR",
+    "admin1": "18",
+    "postcodeSample": "83300-000",
+    "population": 118730
+  },
+  {
+    "name": "Sarandi",
+    "countryCode": "BR",
+    "admin1": "18",
+    "postcodeSample": "87110-000",
+    "population": 118455
+  },
+  {
+    "name": "Senador Canedo",
+    "countryCode": "BR",
+    "admin1": "29",
+    "postcodeSample": "75250-000",
+    "population": 118451
+  },
+  {
+    "name": "Setúbal",
+    "countryCode": "PT",
+    "admin1": "19",
+    "postcodeSample": "2900-000",
+    "population": 118166
+  },
+  {
+    "name": "Jandira",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "06600-000",
+    "population": 118045
+  },
+  {
+    "name": "Guaratinguetá",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "12500-000",
+    "population": 118044
+  },
+  {
+    "name": "Araguari",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "38440-000",
+    "population": 117808
+  },
+  {
+    "name": "Raposo Tavares",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 117738
+  },
+  {
+    "name": "Bairro da Penha",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 117691
+  },
+  {
+    "name": "Umuarama",
+    "countryCode": "BR",
+    "admin1": "18",
+    "postcodeSample": "87500-000",
+    "population": 117095
+  },
+  {
+    "name": "Pinhais",
+    "countryCode": "BR",
+    "admin1": "18",
+    "postcodeSample": "83320-000",
+    "population": 117000
+  },
+  {
+    "name": "Gabela",
+    "countryCode": "AO",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 116903
+  },
+  {
+    "name": "Santa Maria",
+    "countryCode": "BR",
+    "admin1": "07",
+    "postcodeSample": "72500-000",
+    "population": 116622
+  },
+  {
+    "name": "Ipiranga",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "84450-000",
+    "population": 116271
+  },
+  {
+    "name": "Campo Grande",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "57350-000",
+    "population": 115925
+  },
+  {
+    "name": "Formosa",
+    "countryCode": "BR",
+    "admin1": "29",
+    "postcodeSample": "73800-000",
+    "population": 115901
+  },
+  {
+    "name": "São Gonçalo do Amarante",
+    "countryCode": "BR",
+    "admin1": "22",
+    "postcodeSample": "62670-000",
+    "population": 115838
+  },
+  {
+    "name": "Catanduva",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "15800-000",
+    "population": 115791
+  },
+  {
+    "name": "Várzea Paulista",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "13220-000",
+    "population": 115771
+  },
+  {
+    "name": "Santana",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "68925-000",
+    "population": 115689
+  },
+  {
+    "name": "Ribeirão Pires",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "09400-000",
+    "population": 115559
+  },
+  {
+    "name": "Recanto das Emas",
+    "countryCode": "BR",
+    "admin1": "07",
+    "postcodeSample": "72600-000",
+    "population": 115550
+  },
+  {
+    "name": "Vila Medeiros",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 114839
+  },
+  {
+    "name": "Simões Filho",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "43700-000",
+    "population": 114559
+  },
+  {
+    "name": "Catalão",
+    "countryCode": "BR",
+    "admin1": "29",
+    "postcodeSample": "75700-000",
+    "population": 114427
+  },
+  {
+    "name": "Codó",
+    "countryCode": "BR",
+    "admin1": "13",
+    "postcodeSample": "65400-000",
+    "population": 114275
+  },
+  {
+    "name": "Eunápolis",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "45820-000",
+    "population": 113710
+  },
+  {
+    "name": "Itabira",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "35900-000",
+    "population": 113343
+  },
+  {
+    "name": "Paulo Afonso",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "48600-000",
+    "population": 112870
+  },
+  {
+    "name": "Tangará da Serra",
+    "countryCode": "BR",
+    "admin1": "14",
+    "postcodeSample": "78300-000",
+    "population": 112547
+  },
+  {
+    "name": "Itacoatiara",
+    "countryCode": "BR",
+    "admin1": "04",
+    "postcodeSample": "69100-000",
+    "population": 112520
+  },
+  {
+    "name": "Cubatão",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "11500-000",
+    "population": 112476
+  },
+  {
+    "name": "Ermelino Matarazzo",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 112333
+  },
+  {
+    "name": "Paulínia",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "13140-000",
+    "population": 112003
+  },
+  {
+    "name": "Passos",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "37900-000",
+    "population": 111939
+  },
+  {
+    "name": "Marituba",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "67200-000",
+    "population": 111785
+  },
+  {
+    "name": "Nova Lima",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "34000-000",
+    "population": 111697
+  },
+  {
+    "name": "Araxá",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "38180-000",
+    "population": 111691
+  },
+  {
+    "name": "Conselheiro Lafaiete",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "36400-000",
+    "population": 111596
+  },
+  {
+    "name": "Resende",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "27500-000",
+    "population": 111514
+  },
+  {
+    "name": "São Lourenço da Mata",
+    "countryCode": "BR",
+    "admin1": "30",
+    "postcodeSample": "54700-000",
+    "population": 111249
+  },
+  {
+    "name": "Manacapuru",
+    "countryCode": "BR",
+    "admin1": "04",
+    "postcodeSample": "69400-000",
+    "population": 110691
+  },
+  {
+    "name": "São Pedro da Aldeia",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "28940-000",
+    "population": 110556
+  },
+  {
+    "name": "Tubarão",
+    "countryCode": "BR",
+    "admin1": "26",
+    "postcodeSample": "88700-000",
+    "population": 110088
+  },
+  {
+    "name": "Lucapa",
+    "countryCode": "AO",
+    "admin1": "17",
+    "postcodeSample": null,
+    "population": 110000
+  },
+  {
+    "name": "Ressano Garcia",
+    "countryCode": "MZ",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 110000
+  },
+  {
+    "name": "Guaianases",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 109316
+  },
+  {
+    "name": "Vila Maria",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "99155-000",
+    "population": 108543
+  },
+  {
+    "name": "Luis Eduardo Magalhães",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 107909
+  },
+  {
+    "name": "Santana",
+    "countryCode": "BR",
+    "admin1": "03",
+    "postcodeSample": "68925-000",
+    "population": 107618
+  },
+  {
+    "name": "Itaperuna",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "28300-000",
+    "population": 107246
+  },
+  {
+    "name": "Cambé",
+    "countryCode": "BR",
+    "admin1": "18",
+    "postcodeSample": "86180-000",
+    "population": 107208
+  },
+  {
+    "name": "Breves",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "68800-000",
+    "population": 106968
+  },
+  {
+    "name": "Açailândia",
+    "countryCode": "BR",
+    "admin1": "13",
+    "postcodeSample": "65930-000",
+    "population": 106550
+  },
+  {
+    "name": "Funchal",
+    "countryCode": "PT",
+    "admin1": "10",
+    "postcodeSample": "8600-111",
+    "population": 105795
+  },
+  {
+    "name": "Jataí",
+    "countryCode": "BR",
+    "admin1": "29",
+    "postcodeSample": "75800-000",
+    "population": 105729
+  },
+  {
+    "name": "Ipojuca",
+    "countryCode": "BR",
+    "admin1": "30",
+    "postcodeSample": "55590-000",
+    "population": 105638
+  },
+  {
+    "name": "Vila Prudente",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 105590
+  },
+  {
+    "name": "Nova Serrana",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "35519-000",
+    "population": 105552
+  },
+  {
+    "name": "Paragominas",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "68625-000",
+    "population": 105550
+  },
+  {
+    "name": "Riacho Fundo II",
+    "countryCode": "BR",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 105210
+  },
+  {
+    "name": "Maranguape",
+    "countryCode": "BR",
+    "admin1": "06",
+    "postcodeSample": "61940-000",
+    "population": 105093
+  },
+  {
+    "name": "Assis",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "19800-000",
+    "population": 105087
+  },
+  {
+    "name": "Planaltina",
+    "countryCode": "BR",
+    "admin1": "29",
+    "postcodeSample": "73300-000",
+    "population": 105031
+  },
+  {
+    "name": "Araguaína",
+    "countryCode": "BR",
+    "admin1": "31",
+    "postcodeSample": "77800-000",
+    "population": 105019
+  },
+  {
+    "name": "Artur Alvim",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 104864
+  },
+  {
+    "name": "Lavras",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "37200-000",
+    "population": 104761
+  },
+  {
+    "name": "Coronel Fabriciano",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "35170-000",
+    "population": 104736
+  },
+  {
+    "name": "Angoche",
+    "countryCode": "MZ",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 104540
+  },
+  {
+    "name": "Muriaé",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "36880-000",
+    "population": 104108
+  },
+  {
+    "name": "Ourinhos",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "19900-000",
+    "population": 103970
+  },
+  {
+    "name": "Abreu e Lima",
+    "countryCode": "BR",
+    "admin1": "30",
+    "postcodeSample": "53500-000",
+    "population": 103945
+  },
+  {
+    "name": "Novo Gama",
+    "countryCode": "BR",
+    "admin1": "29",
+    "postcodeSample": "72860-000",
+    "population": 103804
+  },
+  {
+    "name": "Poá",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "08550-000",
+    "population": 103765
+  },
+  {
+    "name": "Bacabal",
+    "countryCode": "BR",
+    "admin1": "13",
+    "postcodeSample": "65700-000",
+    "population": 103711
+  },
+  {
+    "name": "Mandaqui",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 103665
+  },
+  {
+    "name": "Vila Matilde",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 103558
+  },
+  {
+    "name": "Viseu",
+    "countryCode": "PT",
+    "admin1": "22",
+    "postcodeSample": "3500-001",
+    "population": 103502
+  },
+  {
+    "name": "Itabaiana",
+    "countryCode": "BR",
+    "admin1": "28",
+    "postcodeSample": "58360-000",
+    "population": 103440
+  },
+  {
+    "name": "Queluz",
+    "countryCode": "PT",
+    "admin1": "14",
+    "postcodeSample": "2745-000",
+    "population": 103399
+  },
+  {
+    "name": "Ubá",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "36500-000",
+    "population": 103365
+  },
+  {
+    "name": "Cursino",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 103171
+  },
+  {
+    "name": "Itanhaém",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "11740-000",
+    "population": 103102
+  },
+  {
+    "name": "Santo Antônio de Jesus",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "44570-000",
+    "population": 103055
+  },
+  {
+    "name": "Caieiras",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "07700-000",
+    "population": 102775
+  },
+  {
+    "name": "Perdizes",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "38170-000",
+    "population": 102391
+  },
+  {
+    "name": "Birigui",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "16200-000",
+    "population": 102277
+  },
+  {
+    "name": "Ituiutaba",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "38300-000",
+    "population": 102217
+  },
+  {
+    "name": "Japeri",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "26400-000",
+    "population": 102149
+  },
+  {
+    "name": "Parintins",
+    "countryCode": "BR",
+    "admin1": "04",
+    "postcodeSample": "69150-000",
+    "population": 101956
+  },
+  {
+    "name": "Mairiporã",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "07600-000",
+    "population": 101937
+  },
+  {
+    "name": "Pôr do Sol",
+    "countryCode": "BR",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 101866
+  },
+  {
+    "name": "Balsas",
+    "countryCode": "BR",
+    "admin1": "13",
+    "postcodeSample": "65800-000",
+    "population": 101767
+  },
+  {
+    "name": "Lagarto",
+    "countryCode": "BR",
+    "admin1": "28",
+    "postcodeSample": "49400-000",
+    "population": 101579
+  },
+  {
+    "name": "Itaim Bibi",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 101452
+  },
+  {
+    "name": "Colatina",
+    "countryCode": "BR",
+    "admin1": "08",
+    "postcodeSample": "29700-000",
+    "population": 101190
+  },
+  {
+    "name": "Teófilo Otoni",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "39800-000",
+    "population": 101170
+  },
+  {
+    "name": "Tucuruvi",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 99559
+  },
+  {
+    "name": "Campo Mourão",
+    "countryCode": "BR",
+    "admin1": "18",
+    "postcodeSample": "87300-000",
+    "population": 99432
+  },
+  {
+    "name": "Bagé",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "96400-000",
+    "population": 98940
+  },
+  {
+    "name": "Caldas Novas",
+    "countryCode": "BR",
+    "admin1": "29",
+    "postcodeSample": "75690-000",
+    "population": 98622
+  },
+  {
+    "name": "São Sebastião",
+    "countryCode": "BR",
+    "admin1": "07",
+    "postcodeSample": "57275-000",
+    "population": 98612
+  },
+  {
+    "name": "Tatuapé",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 98601
+  },
+  {
+    "name": "Barra do Piraí",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "27000-000",
+    "population": 98501
+  },
+  {
+    "name": "Santa Cruz do Capibaribe",
+    "countryCode": "BR",
+    "admin1": "30",
+    "postcodeSample": "55190-000",
+    "population": 98254
+  },
+  {
+    "name": "Leme",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "13610-000",
+    "population": 98161
+  },
+  {
+    "name": "Iguatu",
+    "countryCode": "BR",
+    "admin1": "06",
+    "postcodeSample": "63500-000",
+    "population": 98064
+  },
+  {
+    "name": "Itaúna",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "35680-000",
+    "population": 97669
+  },
+  {
+    "name": "Rio Largo",
+    "countryCode": "BR",
+    "admin1": "02",
+    "postcodeSample": "57100-000",
+    "population": 97435
+  },
+  {
+    "name": "Pará de Minas",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "35660-000",
+    "population": 97139
+  },
+  {
+    "name": "Vicente Pires",
+    "countryCode": "BR",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 96871
+  },
+  {
+    "name": "Ariquemes",
+    "countryCode": "BR",
+    "admin1": "24",
+    "postcodeSample": "78930-000",
+    "population": 96833
+  },
+  {
+    "name": "Francisco Beltrão",
+    "countryCode": "BR",
+    "admin1": "18",
+    "postcodeSample": "85600-000",
+    "population": 96666
+  },
+  {
+    "name": "Corumbá",
+    "countryCode": "BR",
+    "admin1": "11",
+    "postcodeSample": "79300-000",
+    "population": 96520
+  },
+  {
+    "name": "Caçapava",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "12280-000",
+    "population": 96202
+  },
+  {
+    "name": "Avaré",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "18700-000",
+    "population": 96098
+  },
+  {
+    "name": "Erechim",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "99700-000",
+    "population": 96087
+  },
+  {
+    "name": "Vilhena",
+    "countryCode": "BR",
+    "admin1": "24",
+    "postcodeSample": "78995-000",
+    "population": 95832
+  },
+  {
+    "name": "São Cristóvão",
+    "countryCode": "BR",
+    "admin1": "28",
+    "postcodeSample": "49100-000",
+    "population": 95612
+  },
+  {
+    "name": "Inhambane",
+    "countryCode": "MZ",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 95388
+  },
+  {
+    "name": "Saquarema",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "28990-000",
+    "population": 95201
+  },
+  {
+    "name": "Catumbela",
+    "countryCode": "AO",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 95034
+  },
+  {
+    "name": "Aracruz",
+    "countryCode": "BR",
+    "admin1": "08",
+    "postcodeSample": "29190-000",
+    "population": 94765
+  },
+  {
+    "name": "Jaçanã",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "59225-000",
+    "population": 94609
+  },
+  {
+    "name": "Paracatu",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "38600-000",
+    "population": 94023
+  },
+  {
+    "name": "Cacém",
+    "countryCode": "PT",
+    "admin1": "14",
+    "postcodeSample": null,
+    "population": 93982
+  },
+  {
+    "name": "Lajeado",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "95900-000",
+    "population": 93646
+  },
+  {
+    "name": "Itajubá",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "37500-000",
+    "population": 93073
+  },
+  {
+    "name": "Negage",
+    "countryCode": "AO",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 92950
+  },
+  {
+    "name": "Guaíba",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "92500-000",
+    "population": 92924
+  },
+  {
+    "name": "Cajamar",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "07750-000",
+    "population": 92689
+  },
+  {
+    "name": "Patos",
+    "countryCode": "BR",
+    "admin1": "17",
+    "postcodeSample": "58700-000",
+    "population": 92575
+  },
+  {
+    "name": "São João da Boa Vista",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "13870-000",
+    "population": 92547
+  },
+  {
+    "name": "Lucas do Rio Verde",
+    "countryCode": "BR",
+    "admin1": "14",
+    "postcodeSample": "78455-000",
+    "population": 92256
+  },
+  {
+    "name": "Vila Formosa",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 92186
+  },
+  {
+    "name": "Ponta Porã",
+    "countryCode": "BR",
+    "admin1": "11",
+    "postcodeSample": "79900-000",
+    "population": 92017
+  },
+  {
+    "name": "Paranavaí",
+    "countryCode": "BR",
+    "admin1": "18",
+    "postcodeSample": "87700-000",
+    "population": 92001
+  },
+  {
+    "name": "Cruzeiro do Sul",
+    "countryCode": "BR",
+    "admin1": "01",
+    "postcodeSample": "69980-000",
+    "population": 91888
+  },
+  {
+    "name": "Gravatá",
+    "countryCode": "BR",
+    "admin1": "30",
+    "postcodeSample": "55640-000",
+    "population": 91887
+  },
+  {
+    "name": "Manhuaçu",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "36900-000",
+    "population": 91886
+  },
+  {
+    "name": "Pato Branco",
+    "countryCode": "BR",
+    "admin1": "18",
+    "postcodeSample": "85500-000",
+    "population": 91836
+  },
+  {
+    "name": "Ubatuba",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "11680-000",
+    "population": 91824
+  },
+  {
+    "name": "Cuamba",
+    "countryCode": "MZ",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 91780
+  },
+  {
+    "name": "Cidade Ocidental",
+    "countryCode": "BR",
+    "admin1": "29",
+    "postcodeSample": "72880-000",
+    "population": 91767
+  },
+  {
+    "name": "Cáceres",
+    "countryCode": "BR",
+    "admin1": "14",
+    "postcodeSample": "78200-000",
+    "population": 91626
+  },
+  {
+    "name": "Porto Amboim",
+    "countryCode": "AO",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 91605
+  },
+  {
+    "name": "Tucuruí",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "68455-000",
+    "population": 91306
+  },
+  {
+    "name": "Arujá",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "07400-000",
+    "population": 91157
+  },
+  {
+    "name": "Cubal",
+    "countryCode": "AO",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 90367
+  },
+  {
+    "name": "Araripina",
+    "countryCode": "BR",
+    "admin1": "30",
+    "postcodeSample": "56280-000",
+    "population": 90104
+  },
+  {
+    "name": "Cela",
+    "countryCode": "AO",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 90000
+  },
+  {
+    "name": "Cafunfo",
+    "countryCode": "AO",
+    "admin1": "17",
+    "postcodeSample": null,
+    "population": 90000
+  },
+  {
+    "name": "Quissecula",
+    "countryCode": "AO",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 90000
+  },
+  {
+    "name": "Ponte Rasa",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 89881
+  },
+  {
+    "name": "Patrocínio",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "38740-000",
+    "population": 89826
+  },
+  {
+    "name": "Itapeva",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "37655-000",
+    "population": 89728
+  },
+  {
+    "name": "Gurupi",
+    "countryCode": "BR",
+    "admin1": "31",
+    "postcodeSample": "77400-000",
+    "population": 89574
+  },
+  {
+    "name": "Aricanduva",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "39678-000",
+    "population": 89574
+  },
+  {
+    "name": "Sao Domingos",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 88884
+  },
+  {
+    "name": "Montepuez",
+    "countryCode": "MZ",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 88442
+  },
+  {
+    "name": "Perus",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 87823
+  },
+  {
+    "name": "Guanambi",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "46430-000",
+    "population": 87817
+  },
+  {
+    "name": "Caratinga",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "35300-000",
+    "population": 87360
+  },
+  {
+    "name": "Serra Talhada",
+    "countryCode": "BR",
+    "admin1": "30",
+    "postcodeSample": "56900-000",
+    "population": 86915
+  },
+  {
+    "name": "Cacoal",
+    "countryCode": "BR",
+    "admin1": "24",
+    "postcodeSample": "78975-000",
+    "population": 86887
+  },
+  {
+    "name": "Barra do Corda",
+    "countryCode": "BR",
+    "admin1": "13",
+    "postcodeSample": "65950-000",
+    "population": 86662
+  },
+  {
+    "name": "Unaí",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "38610-000",
+    "population": 86619
+  },
+  {
+    "name": "Navegantes",
+    "countryCode": "BR",
+    "admin1": "26",
+    "postcodeSample": "88375-000",
+    "population": 86401
+  },
+  {
+    "name": "Agua Rasa",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 85788
+  },
+  {
+    "name": "Valença",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "45400-000",
+    "population": 85655
+  },
+  {
+    "name": "Esmeraldas",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "35740-000",
+    "population": 85598
+  },
+  {
+    "name": "Redenção",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "62790-000",
+    "population": 85597
+  },
+  {
+    "name": "Santo Amaro",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "44200-000",
+    "population": 85349
+  },
+  {
+    "name": "Goiana",
+    "countryCode": "BR",
+    "admin1": "30",
+    "postcodeSample": "55900-000",
+    "population": 85160
+  },
+  {
+    "name": "Camboriú",
+    "countryCode": "BR",
+    "admin1": "26",
+    "postcodeSample": "88340-000",
+    "population": 85105
+  },
+  {
+    "name": "Santa Inês",
+    "countryCode": "BR",
+    "admin1": "13",
+    "postcodeSample": "45320-000",
+    "population": 85014
+  },
+  {
+    "name": "Lorena",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "12600-000",
+    "population": 84855
+  },
+  {
+    "name": "Ijuí",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "98700-000",
+    "population": 84780
+  },
+  {
+    "name": "Seropédica",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "23890-000",
+    "population": 84737
+  },
+  {
+    "name": "Pinheiro",
+    "countryCode": "BR",
+    "admin1": "13",
+    "postcodeSample": "65200-000",
+    "population": 84621
+  },
+  {
+    "name": "Sant'Ana do Livramento",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": null,
+    "population": 84421
+  },
+  {
+    "name": "Carrao",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 84397
+  },
+  {
+    "name": "Quixadá",
+    "countryCode": "BR",
+    "admin1": "06",
+    "postcodeSample": "63900-000",
+    "population": 84168
+  },
+  {
+    "name": "Moju",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "68450-000",
+    "population": 84094
+  },
+  {
+    "name": "Cianorte",
+    "countryCode": "BR",
+    "admin1": "18",
+    "postcodeSample": "87200-000",
+    "population": 83816
+  },
+  {
+    "name": "Jardim Paulista",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 83667
+  },
+  {
+    "name": "Belo Jardim",
+    "countryCode": "BR",
+    "admin1": "30",
+    "postcodeSample": "55150-000",
+    "population": 83647
+  },
+  {
+    "name": "São Bento do Sul",
+    "countryCode": "BR",
+    "admin1": "26",
+    "postcodeSample": "89290-000",
+    "population": 83277
+  },
+  {
+    "name": "Carpina",
+    "countryCode": "BR",
+    "admin1": "30",
+    "postcodeSample": "55810-000",
+    "population": 83205
+  },
+  {
+    "name": "Picos",
+    "countryCode": "BR",
+    "admin1": "20",
+    "postcodeSample": "64600-000",
+    "population": 83090
+  },
+  {
+    "name": "Sobradinho II",
+    "countryCode": "BR",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 82785
+  },
+  {
+    "name": "Bayeux",
+    "countryCode": "BR",
+    "admin1": "17",
+    "postcodeSample": "58305-000",
+    "population": 82742
+  },
+  {
+    "name": "Jacobina",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "44700-000",
+    "population": 82590
+  },
+  {
+    "name": "Limão",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 82373
+  },
+  {
+    "name": "Três Rios",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "25800-000",
+    "population": 82300
+  },
+  {
+    "name": "Dondo",
+    "countryCode": "MZ",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 82260
+  },
+  {
+    "name": "Macaíba",
+    "countryCode": "BR",
+    "admin1": "22",
+    "postcodeSample": "59280-000",
+    "population": 82249
+  },
+  {
+    "name": "Quixeramobim",
+    "countryCode": "BR",
+    "admin1": "06",
+    "postcodeSample": "63800-000",
+    "population": 82177
+  },
+  {
+    "name": "Arcoverde",
+    "countryCode": "BR",
+    "admin1": "30",
+    "postcodeSample": "56500-000",
+    "population": 82003
+  },
+  {
+    "name": "Moema",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "35604-000",
+    "population": 81899
+  },
+  {
+    "name": "Concórdia",
+    "countryCode": "BR",
+    "admin1": "26",
+    "postcodeSample": "89700-000",
+    "population": 81646
+  },
+  {
+    "name": "São Sebastião",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "57275-000",
+    "population": 81595
+  },
+  {
+    "name": "Timóteo",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "35180-000",
+    "population": 81579
+  },
+  {
+    "name": "Pacatuba",
+    "countryCode": "BR",
+    "admin1": "06",
+    "postcodeSample": "61800-000",
+    "population": 81524
+  },
+  {
+    "name": "Tianguá",
+    "countryCode": "BR",
+    "admin1": "06",
+    "postcodeSample": "62320-000",
+    "population": 81506
+  },
+  {
+    "name": "Chapadinha",
+    "countryCode": "BR",
+    "admin1": "13",
+    "postcodeSample": "65500-000",
+    "population": 81386
+  },
+  {
+    "name": "São Miguel",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "59920-000",
+    "population": 81011
+  },
+  {
+    "name": "Santa Cecilia",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 80972
+  },
+  {
+    "name": "Mooca",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 80880
+  },
+  {
+    "name": "Aveiro",
+    "countryCode": "PT",
+    "admin1": "02",
+    "postcodeSample": "3800-000",
+    "population": 80880
+  },
+  {
+    "name": "Curvelo",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "35790-000",
+    "population": 80665
+  },
+  {
+    "name": "Casa Verde",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 80536
+  },
+  {
+    "name": "Água Rasa",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 80484
+  },
+  {
+    "name": "Serrinha",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "48700-000",
+    "population": 80435
+  },
+  {
+    "name": "João Monlevade",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "35930-000",
+    "population": 80187
+  },
+  {
+    "name": "Vinhedo",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "13280-000",
+    "population": 80111
+  },
+  {
+    "name": "Cachoeira do Sul",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "96500-000",
+    "population": 80070
+  },
+  {
+    "name": "Itumbiara",
+    "countryCode": "BR",
+    "admin1": "29",
+    "postcodeSample": "75500-000",
+    "population": 79582
+  },
+  {
+    "name": "São Roque",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "18130-000",
+    "population": 79484
+  },
+  {
+    "name": "Tefé",
+    "countryCode": "BR",
+    "admin1": "04",
+    "postcodeSample": "69470-000",
+    "population": 79278
+  },
+  {
+    "name": "Ceará-Mirim",
+    "countryCode": "BR",
+    "admin1": "22",
+    "postcodeSample": "59570-000",
+    "population": 79115
+  },
+  {
+    "name": "Matão",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "15990-000",
+    "population": 79033
+  },
+  {
+    "name": "Alfenas",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "37130-000",
+    "population": 78970
+  },
+  {
+    "name": "Três Lagoas",
+    "countryCode": "BR",
+    "admin1": "11",
+    "postcodeSample": "79600-000",
+    "population": 78712
+  },
+  {
+    "name": "São João del Rei",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "36300-000",
+    "population": 78592
+  },
+  {
+    "name": "Lins",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "16400-000",
+    "population": 78503
+  },
+  {
+    "name": "Mogi Mirim",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 78244
+  },
+  {
+    "name": "Matala",
+    "countryCode": "AO",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 78000
+  },
+  {
+    "name": "Jardim Botânico",
+    "countryCode": "BR",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 77767
+  },
+  {
+    "name": "Campo Limpo Paulista",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "13230-000",
+    "population": 77632
+  },
+  {
+    "name": "Canaã dos Carajás",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "68537-000",
+    "population": 77079
+  },
+  {
+    "name": "Santa Rosa",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "98900-000",
+    "population": 76963
+  },
+  {
+    "name": "Santo Ângelo",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "98800-000",
+    "population": 76917
+  },
+  {
+    "name": "Biguaçu",
+    "countryCode": "BR",
+    "admin1": "26",
+    "postcodeSample": "88160-000",
+    "population": 76773
+  },
+  {
+    "name": "Viçosa",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "57700-000",
+    "population": 76430
+  },
+  {
+    "name": "Crateús",
+    "countryCode": "BR",
+    "admin1": "06",
+    "postcodeSample": "63700-000",
+    "population": 76390
+  },
+  {
+    "name": "Bebedouro",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "14700-000",
+    "population": 76373
+  },
+  {
+    "name": "Esteio",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "93250-000",
+    "population": 76137
+  },
+  {
+    "name": "Itapema",
+    "countryCode": "BR",
+    "admin1": "26",
+    "postcodeSample": "88220-000",
+    "population": 75940
+  },
+  {
+    "name": "Sapiranga",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "93800-000",
+    "population": 75648
+  },
+  {
+    "name": "Ibiúna",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "18150-000",
+    "population": 75605
+  },
+  {
+    "name": "Lapa",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "83750-000",
+    "population": 75533
+  },
+  {
+    "name": "Três Corações",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "37410-000",
+    "population": 75485
+  },
+  {
+    "name": "Anhanguera",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "75770-000",
+    "population": 75360
+  },
+  {
+    "name": "Lagoa Santa",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "33400-000",
+    "population": 75145
+  },
+  {
+    "name": "Telêmaco Borba",
+    "countryCode": "BR",
+    "admin1": "18",
+    "postcodeSample": "84260-000",
+    "population": 75042
+  },
+  {
+    "name": "Barbalha",
+    "countryCode": "BR",
+    "admin1": "06",
+    "postcodeSample": "63180-000",
+    "population": 75033
+  },
+  {
+    "name": "Barra do Dande",
+    "countryCode": "AO",
+    "admin1": "19",
+    "postcodeSample": null,
+    "population": 75000
+  },
+  {
+    "name": "Cruzeiro",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "70640-000",
+    "population": 74961
+  },
+  {
+    "name": "Ouro Preto",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "35400-000",
+    "population": 74821
+  },
+  {
+    "name": "Parque Do Carmo",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 74677
+  },
+  {
+    "name": "Senhor do Bonfim",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "48970-000",
+    "population": 74523
+  },
+  {
+    "name": "Irecê",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "44900-000",
+    "population": 74507
+  },
+  {
+    "name": "Canindé",
+    "countryCode": "BR",
+    "admin1": "06",
+    "postcodeSample": "62700-000",
+    "population": 74174
+  },
+  {
+    "name": "Eusébio",
+    "countryCode": "BR",
+    "admin1": "06",
+    "postcodeSample": "61760-000",
+    "population": 74170
+  },
+  {
+    "name": "Grajaú",
+    "countryCode": "BR",
+    "admin1": "13",
+    "postcodeSample": "65940-000",
+    "population": 73872
+  },
+  {
+    "name": "Coari",
+    "countryCode": "BR",
+    "admin1": "04",
+    "postcodeSample": "69460-000",
+    "population": 73820
+  },
+  {
+    "name": "Caçador",
+    "countryCode": "BR",
+    "admin1": "26",
+    "postcodeSample": "89500-000",
+    "population": 73720
+  },
+  {
+    "name": "Goianésia",
+    "countryCode": "BR",
+    "admin1": "29",
+    "postcodeSample": "76380-000",
+    "population": 73707
+  },
+  {
+    "name": "Pirassununga",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "13630-000",
+    "population": 73545
+  },
+  {
+    "name": "Viana",
+    "countryCode": "BR",
+    "admin1": "08",
+    "postcodeSample": "29135-000",
+    "population": 73423
+  },
+  {
+    "name": "Chibuto",
+    "countryCode": "MZ",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 73393
+  },
+  {
+    "name": "Castro",
+    "countryCode": "BR",
+    "admin1": "18",
+    "postcodeSample": "84160-000",
+    "population": 73075
+  },
+  {
+    "name": "Santa Isabel do Pará",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "68790-000",
+    "population": 73019
+  },
+  {
+    "name": "Russas",
+    "countryCode": "BR",
+    "admin1": "06",
+    "postcodeSample": "62900-000",
+    "population": 72928
+  },
+  {
+    "name": "Cascavel",
+    "countryCode": "BR",
+    "admin1": "06",
+    "postcodeSample": "62850-000",
+    "population": 72720
+  },
+  {
+    "name": "Barra do Garças",
+    "countryCode": "BR",
+    "admin1": "14",
+    "postcodeSample": "78600-000",
+    "population": 72694
+  },
+  {
+    "name": "Amparo",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "58548-000",
+    "population": 72677
+  },
+  {
+    "name": "Rio do Sul",
+    "countryCode": "BR",
+    "admin1": "26",
+    "postcodeSample": "89160-000",
+    "population": 72587
+  },
+  {
+    "name": "Gaspar",
+    "countryCode": "BR",
+    "admin1": "26",
+    "postcodeSample": "89110-000",
+    "population": 72570
+  },
+  {
+    "name": "Tailândia",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "68695-000",
+    "population": 72493
+  },
+  {
+    "name": "Alegrete",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "97540-000",
+    "population": 72409
+  },
+  {
+    "name": "Candeias",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "43800-000",
+    "population": 72382
+  },
+  {
+    "name": "Tabatinga",
+    "countryCode": "BR",
+    "admin1": "04",
+    "postcodeSample": "69640-000",
+    "population": 72283
+  },
+  {
+    "name": "Sobradinho",
+    "countryCode": "BR",
+    "admin1": "07",
+    "postcodeSample": "48925-000",
+    "population": 72273
+  },
+  {
+    "name": "Santo Antônio do Descoberto",
+    "countryCode": "BR",
+    "admin1": "29",
+    "postcodeSample": "72900-000",
+    "population": 72127
+  },
+  {
+    "name": "Casa Nova",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "47300-000",
+    "population": 72086
+  },
+  {
+    "name": "Itapira",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "13970-000",
+    "population": 72022
+  },
+  {
+    "name": "Araranguá",
+    "countryCode": "BR",
+    "admin1": "26",
+    "postcodeSample": "88900-000",
+    "population": 71922
+  },
+  {
+    "name": "Goianira",
+    "countryCode": "BR",
+    "admin1": "29",
+    "postcodeSample": "75370-000",
+    "population": 71916
+  },
+  {
+    "name": "Jaboticabal",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "14870-000",
+    "population": 71821
+  },
+  {
+    "name": "São Sebastião do Paraíso",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "37950-000",
+    "population": 71796
+  },
+  {
+    "name": "Rolândia",
+    "countryCode": "BR",
+    "admin1": "18",
+    "postcodeSample": "86600-000",
+    "population": 71670
+  },
+  {
+    "name": "Indaial",
+    "countryCode": "BR",
+    "admin1": "26",
+    "postcodeSample": "89130-000",
+    "population": 71549
+  },
+  {
+    "name": "Dias d'Ávila",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "42850-000",
+    "population": 71485
+  },
+  {
+    "name": "Valença",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "45400-000",
+    "population": 71462
+  },
+  {
+    "name": "Campo Formoso",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "44790-000",
+    "population": 71377
+  },
+  {
+    "name": "Fernandópolis",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "15600-000",
+    "population": 71186
+  },
+  {
+    "name": "Campo Belo",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "37270-000",
+    "population": 71058
+  },
+  {
+    "name": "Pacajus",
+    "countryCode": "BR",
+    "admin1": "06",
+    "postcodeSample": "62870-000",
+    "population": 70983
+  },
+  {
+    "name": "Horizonte",
+    "countryCode": "BR",
+    "admin1": "06",
+    "postcodeSample": "62880-000",
+    "population": 70983
+  },
+  {
+    "name": "Vila Nova de Gaia",
+    "countryCode": "PT",
+    "admin1": "17",
+    "postcodeSample": "4400-000",
+    "population": 70811
+  },
+  {
+    "name": "Janaúba",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "39440-000",
+    "population": 70699
+  },
+  {
+    "name": "Brumado",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "46100-000",
+    "population": 70510
+  },
+  {
+    "name": "Bailundo",
+    "countryCode": "AO",
+    "admin1": "12",
+    "postcodeSample": null,
+    "population": 70481
+  },
+  {
+    "name": "Capanema",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "68700-000",
+    "population": 70394
+  },
+  {
+    "name": "Faro",
+    "countryCode": "PT",
+    "admin1": "09",
+    "postcodeSample": "4740-594",
+    "population": 70347
+  },
+  {
+    "name": "Farroupilha",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "95180-000",
+    "population": 70286
+  },
+  {
+    "name": "Mineiros",
+    "countryCode": "BR",
+    "admin1": "29",
+    "postcodeSample": "75830-000",
+    "population": 70081
+  },
+  {
+    "name": "Votuporanga",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "15500-000",
+    "population": 69863
+  },
+  {
+    "name": "Bairro Parque Nossa Senhora do Carmo",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 69630
+  },
+  {
+    "name": "Luquembo",
+    "countryCode": "AO",
+    "admin1": "12",
+    "postcodeSample": null,
+    "population": 69420
+  },
+  {
+    "name": "Alenquer",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "68200-000",
+    "population": 69377
+  },
+  {
+    "name": "Mindelo",
+    "countryCode": "CV",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 69013
+  },
+  {
+    "name": "Venâncio Aires",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "95800-000",
+    "population": 68763
+  },
+  {
+    "name": "Porto Nacional",
+    "countryCode": "BR",
+    "admin1": "31",
+    "postcodeSample": "77500-000",
+    "population": 68555
+  },
+  {
+    "name": "Peruíbe",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "11750-000",
+    "population": 68352
+  },
+  {
+    "name": "Oriximiná",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "68270-000",
+    "population": 68294
+  },
+  {
+    "name": "Formiga",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "35570-000",
+    "population": 68248
+  },
+  {
+    "name": "Conceição do Coité",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "48730-000",
+    "population": 67825
+  },
+  {
+    "name": "Mococa",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "13730-000",
+    "population": 67681
+  },
+  {
+    "name": "Tomé-Açu",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "68680-000",
+    "population": 67585
+  },
+  {
+    "name": "Sousa",
+    "countryCode": "BR",
+    "admin1": "17",
+    "postcodeSample": "58800-000",
+    "population": 67259
+  },
+  {
+    "name": "Iranduba",
+    "countryCode": "BR",
+    "admin1": "04",
+    "postcodeSample": "69405-000",
+    "population": 67114
+  },
+  {
+    "name": "Embu-Guaçu",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "06900-000",
+    "population": 66970
+  },
+  {
+    "name": "Cabedelo",
+    "countryCode": "BR",
+    "admin1": "17",
+    "postcodeSample": "58310-000",
+    "population": 66519
+  },
+  {
+    "name": "Lençóis Paulista",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "18680-000",
+    "population": 66505
+  },
+  {
+    "name": "Cataguases",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "36770-000",
+    "population": 66261
+  },
+  {
+    "name": "Algueirão",
+    "countryCode": "PT",
+    "admin1": "14",
+    "postcodeSample": "2725-003",
+    "population": 66250
+  },
+  {
+    "name": "Loures",
+    "countryCode": "PT",
+    "admin1": "14",
+    "postcodeSample": "2670-012",
+    "population": 66231
+  },
+  {
+    "name": "Gama",
+    "countryCode": "AO",
+    "admin1": "19",
+    "postcodeSample": null,
+    "population": 66202
+  },
+  {
+    "name": "Camucuio",
+    "countryCode": "AO",
+    "admin1": "13",
+    "postcodeSample": null,
+    "population": 66112
+  },
+  {
+    "name": "Liberdade",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "37350-000",
+    "population": 66056
+  },
+  {
+    "name": "Itapetinga",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "45700-000",
+    "population": 65897
+  },
+  {
+    "name": "Montenegro",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "95780-000",
+    "population": 65721
+  },
+  {
+    "name": "Maués",
+    "countryCode": "BR",
+    "admin1": "04",
+    "postcodeSample": "69190-000",
+    "population": 65714
+  },
+  {
+    "name": "Barreirinhas",
+    "countryCode": "BR",
+    "admin1": "13",
+    "postcodeSample": "65590-000",
+    "population": 65589
+  },
+  {
+    "name": "Bom Jesus da Lapa",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "47600-000",
+    "population": 65550
+  },
+  {
+    "name": "Piripiri",
+    "countryCode": "BR",
+    "admin1": "20",
+    "postcodeSample": "64260-000",
+    "population": 65538
+  },
+  {
+    "name": "São Félix do Xingu",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "68380-000",
+    "population": 65418
+  },
+  {
+    "name": "Itapoã",
+    "countryCode": "BR",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 65408
+  },
+  {
+    "name": "Acaraú",
+    "countryCode": "BR",
+    "admin1": "06",
+    "postcodeSample": "62580-000",
+    "population": 65264
+  },
+  {
+    "name": "Ouricuri",
+    "countryCode": "BR",
+    "admin1": "30",
+    "postcodeSample": "56200-000",
+    "population": 65245
+  },
+  {
+    "name": "Manhiça",
+    "countryCode": "MZ",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 65240
+  },
+  {
+    "name": "Januária",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "39480-000",
+    "population": 65150
+  },
+  {
+    "name": "Pinheiros",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "29980-000",
+    "population": 65145
+  },
+  {
+    "name": "Aquiraz",
+    "countryCode": "BR",
+    "admin1": "06",
+    "postcodeSample": "61700-000",
+    "population": 65116
+  },
+  {
+    "name": "Estância",
+    "countryCode": "BR",
+    "admin1": "28",
+    "postcodeSample": "49200-000",
+    "population": 65078
+  },
+  {
+    "name": "Itaberaba",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "46880-000",
+    "population": 65073
+  },
+  {
+    "name": "Ganda",
+    "countryCode": "AO",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 65000
+  },
+  {
+    "name": "Igarapé Miri",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 64831
+  },
+  {
+    "name": "Bezerros",
+    "countryCode": "BR",
+    "admin1": "30",
+    "postcodeSample": "55660-000",
+    "population": 64809
+  },
+  {
+    "name": "Bertioga",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "11250-000",
+    "population": 64723
+  },
+  {
+    "name": "Monte Mor",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "13190-000",
+    "population": 64662
+  },
+  {
+    "name": "Itaitinga",
+    "countryCode": "BR",
+    "admin1": "06",
+    "postcodeSample": "61880-000",
+    "population": 64650
+  },
+  {
+    "name": "Dondo",
+    "countryCode": "AO",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 64643
+  },
+  {
+    "name": "Dondo",
+    "countryCode": "AO",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 64643
+  },
+  {
+    "name": "Vacaria",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "95200-000",
+    "population": 64197
+  },
+  {
+    "name": "Surubim",
+    "countryCode": "BR",
+    "admin1": "30",
+    "postcodeSample": "55750-000",
+    "population": 64120
+  },
+  {
+    "name": "Tupã",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "17600-000",
+    "population": 63928
+  },
+  {
+    "name": "Paranoá",
+    "countryCode": "BR",
+    "admin1": "07",
+    "postcodeSample": "71570-000",
+    "population": 63923
+  },
+  {
+    "name": "Chokwé",
+    "countryCode": "MZ",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 63695
+  },
+  {
+    "name": "Capão da Canoa",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "95555-000",
+    "population": 63594
+  },
+  {
+    "name": "Benevides",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "68795-000",
+    "population": 63567
+  },
+  {
+    "name": "Mirassol",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "15130-000",
+    "population": 63337
+  },
+  {
+    "name": "Cajazeiras",
+    "countryCode": "BR",
+    "admin1": "17",
+    "postcodeSample": "58900-000",
+    "population": 63239
+  },
+  {
+    "name": "Campo Bom",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "93700-000",
+    "population": 62886
+  },
+  {
+    "name": "Pesqueira",
+    "countryCode": "BR",
+    "admin1": "30",
+    "postcodeSample": "55200-000",
+    "population": 62722
+  },
+  {
+    "name": "Icó",
+    "countryCode": "BR",
+    "admin1": "06",
+    "postcodeSample": "63430-000",
+    "population": 62642
+  },
+  {
+    "name": "Pedro Leopoldo",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "33600-000",
+    "population": 62580
+  },
+  {
+    "name": "Portel",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "68480-000",
+    "population": 62503
+  },
+  {
+    "name": "Salgueiro",
+    "countryCode": "BR",
+    "admin1": "30",
+    "postcodeSample": "56000-000",
+    "population": 62372
+  },
+  {
+    "name": "Marechal Deodoro",
+    "countryCode": "BR",
+    "admin1": "02",
+    "postcodeSample": "57160-000",
+    "population": 62341
+  },
+  {
+    "name": "Camocim",
+    "countryCode": "BR",
+    "admin1": "06",
+    "postcodeSample": "62400-000",
+    "population": 62326
+  },
+  {
+    "name": "Humaitá",
+    "countryCode": "BR",
+    "admin1": "04",
+    "postcodeSample": "69800-000",
+    "population": 62312
+  },
+  {
+    "name": "Escada",
+    "countryCode": "BR",
+    "admin1": "30",
+    "postcodeSample": "55500-000",
+    "population": 62252
+  },
+  {
+    "name": "Camaquã",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "96180-000",
+    "population": 62200
+  },
+  {
+    "name": "Boituva",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "18550-000",
+    "population": 62170
+  },
+  {
+    "name": "Floriano",
+    "countryCode": "BR",
+    "admin1": "20",
+    "postcodeSample": "64800-000",
+    "population": 62036
+  },
+  {
+    "name": "Nova Odessa",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "13460-000",
+    "population": 62019
+  },
+  {
+    "name": "Carazinho",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "99500-000",
+    "population": 61804
+  },
+  {
+    "name": "Penápolis",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "16300-000",
+    "population": 61679
+  },
+  {
+    "name": "Extremoz",
+    "countryCode": "BR",
+    "admin1": "22",
+    "postcodeSample": "59575-000",
+    "population": 61635
+  },
+  {
+    "name": "Andradina",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "16900-000",
+    "population": 61473
+  },
+  {
+    "name": "Euclides da Cunha",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "48500-000",
+    "population": 61456
+  },
+  {
+    "name": "Morada Nova",
+    "countryCode": "BR",
+    "admin1": "06",
+    "postcodeSample": "62940-000",
+    "population": 61443
+  },
+  {
+    "name": "Mariana",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "35420-000",
+    "population": 61387
+  },
+  {
+    "name": "Coroatá",
+    "countryCode": "BR",
+    "admin1": "13",
+    "postcodeSample": "65415-000",
+    "population": 61351
+  },
+  {
+    "name": "Tauá",
+    "countryCode": "BR",
+    "admin1": "06",
+    "postcodeSample": "63660-000",
+    "population": 61227
+  },
+  {
+    "name": "Nova Mutum",
+    "countryCode": "BR",
+    "admin1": "14",
+    "postcodeSample": "78450-000",
+    "population": 61223
+  },
+  {
+    "name": "Caicó",
+    "countryCode": "BR",
+    "admin1": "22",
+    "postcodeSample": "59300-000",
+    "population": 61146
+  },
+  {
+    "name": "União dos Palmares",
+    "countryCode": "BR",
+    "admin1": "02",
+    "postcodeSample": "57800-000",
+    "population": 60874
+  },
+  {
+    "name": "Novo Repartimento",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "68473-000",
+    "population": 60732
+  },
+  {
+    "name": "Republica",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 60720
+  },
+  {
+    "name": "Itapecuru Mirim",
+    "countryCode": "BR",
+    "admin1": "13",
+    "postcodeSample": "65485-000",
+    "population": 60440
+  },
+  {
+    "name": "Cruz das Almas",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "44380-000",
+    "population": 60348
+  },
+  {
+    "name": "Cristalina",
+    "countryCode": "BR",
+    "admin1": "29",
+    "postcodeSample": "73850-000",
+    "population": 60210
+  },
+  {
+    "name": "Penedo",
+    "countryCode": "BR",
+    "admin1": "02",
+    "postcodeSample": "57200-000",
+    "population": 60189
+  },
+  {
+    "name": "Ibitinga",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "14940-000",
+    "population": 60033
+  },
+  {
+    "name": "Bela Vista",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "79260-000",
+    "population": 60024
+  },
+  {
+    "name": "São Borja",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "97670-000",
+    "population": 60019
+  },
+  {
+    "name": "Monte Alegre",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "68220-000",
+    "population": 60012
+  },
+  {
+    "name": "Nzagi",
+    "countryCode": "AO",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 60000
+  },
+  {
+    "name": "Registro",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "11900-000",
+    "population": 59947
+  },
+  {
+    "name": "Jacundá",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "68590-000",
+    "population": 59842
+  },
+  {
+    "name": "Cachoeiras de Macacu",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "28680-000",
+    "population": 59837
+  },
+  {
+    "name": "Cosmópolis",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "13150-000",
+    "population": 59773
+  },
+  {
+    "name": "Viçosa do Ceará",
+    "countryCode": "BR",
+    "admin1": "06",
+    "postcodeSample": "62300-000",
+    "population": 59712
+  },
+  {
+    "name": "Itamaraju",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "45836-000",
+    "population": 59605
+  },
+  {
+    "name": "Limoeiro do Norte",
+    "countryCode": "BR",
+    "admin1": "06",
+    "postcodeSample": "62930-000",
+    "population": 59560
+  },
+  {
+    "name": "Irati",
+    "countryCode": "BR",
+    "admin1": "18",
+    "postcodeSample": "84500-000",
+    "population": 59250
+  },
+  {
+    "name": "Rio Bonito",
+    "countryCode": "BR",
+    "admin1": "21",
+    "postcodeSample": "28800-000",
+    "population": 59113
+  },
+  {
+    "name": "Içara",
+    "countryCode": "BR",
+    "admin1": "26",
+    "postcodeSample": "88820-000",
+    "population": 59035
+  },
+  {
+    "name": "Acará",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "68690-000",
+    "population": 59023
+  },
+  {
+    "name": "Camacupa",
+    "countryCode": "AO",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 59000
+  },
+  {
+    "name": "Cruz Alta",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "98000-000",
+    "population": 58913
+  },
+  {
+    "name": "Jaguariúna",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "13820-000",
+    "population": 58722
+  },
+  {
+    "name": "Viseu",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "68620-000",
+    "population": 58692
+  },
+  {
+    "name": "Frutal",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "38200-000",
+    "population": 58588
+  },
+  {
+    "name": "São Gabriel",
+    "countryCode": "BR",
+    "admin1": "23",
+    "postcodeSample": "44915-000",
+    "population": 58487
+  },
+  {
+    "name": "Dom Eliseu",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "68633-000",
+    "population": 58484
+  },
+  {
+    "name": "Trairi",
+    "countryCode": "BR",
+    "admin1": "06",
+    "postcodeSample": "62690-000",
+    "population": 58415
+  },
+  {
+    "name": "Batatais",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "14300-000",
+    "population": 58402
+  },
+  {
+    "name": "Felgueiras",
+    "countryCode": "PT",
+    "admin1": "17",
+    "postcodeSample": "3720-114",
+    "population": 58065
+  },
+  {
+    "name": "Ponte Nova",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "35430-000",
+    "population": 57776
+  },
+  {
+    "name": "Manicoré",
+    "countryCode": "BR",
+    "admin1": "04",
+    "postcodeSample": "69280-000",
+    "population": 57758
+  },
+  {
+    "name": "Mongaguá",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": "11730-000",
+    "population": 57648
+  },
+  {
+    "name": "Santa Luzia",
+    "countryCode": "BR",
+    "admin1": "13",
+    "postcodeSample": "45865-000",
+    "population": 57635
+  },
+  {
+    "name": "Guarabira",
+    "countryCode": "BR",
+    "admin1": "17",
+    "postcodeSample": "58200-000",
+    "population": 57484
+  },
+  {
+    "name": "Ipirá",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "44600-000",
+    "population": 56876
+  },
+  {
+    "name": "Paudalho",
+    "countryCode": "BR",
+    "admin1": "30",
+    "postcodeSample": "55825-000",
+    "population": 56665
+  },
+  {
+    "name": "Limoeiro",
+    "countryCode": "BR",
+    "admin1": "30",
+    "postcodeSample": "55700-000",
+    "population": 56510
+  },
+  {
+    "name": "Capitão Poço",
+    "countryCode": "BR",
+    "admin1": "16",
+    "postcodeSample": "68650-000",
+    "population": 56506
+  },
+  {
+    "name": "Açu",
+    "countryCode": "BR",
+    "admin1": "22",
+    "postcodeSample": "59650-000",
+    "population": 56496
+  },
+  {
+    "name": "São Gabriel da Cachoeira",
+    "countryCode": "BR",
+    "admin1": "04",
+    "postcodeSample": "69750-000",
+    "population": 56406
+  },
+  {
+    "name": "Rolim de Moura",
+    "countryCode": "BR",
+    "admin1": "24",
+    "postcodeSample": "78987-000",
+    "population": 56406
+  },
+  {
+    "name": "Santo Amaro",
+    "countryCode": "BR",
+    "admin1": "05",
+    "postcodeSample": "44200-000",
+    "population": 56012
+  },
+  {
+    "name": "Marechal Cândido Rondon",
+    "countryCode": "BR",
+    "admin1": "18",
+    "postcodeSample": "85960-000",
+    "population": 55836
+  },
+  {
+    "name": "Mozambique",
+    "countryCode": "MZ",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 55829
+  },
+  {
+    "name": "Belem",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 55785
+  },
+  {
+    "name": "Pirapora",
+    "countryCode": "BR",
+    "admin1": "15",
+    "postcodeSample": "39270-000",
+    "population": 55606
+  },
+  {
+    "name": "Brazlândia",
+    "countryCode": "BR",
+    "admin1": "07",
+    "postcodeSample": "72700-000",
+    "population": 55561
+  },
+  {
+    "name": "Buriticupu",
+    "countryCode": "BR",
+    "admin1": "13",
+    "postcodeSample": "65393-000",
+    "population": 55499
+  },
+  {
+    "name": "Videira",
+    "countryCode": "BR",
+    "admin1": "26",
+    "postcodeSample": "89560-000",
+    "population": 55466
+  },
+  {
+    "name": "Luau",
+    "countryCode": "AO",
+    "admin1": "14",
+    "postcodeSample": null,
+    "population": 55432
+  },
+  {
+    "name": "Jaguare",
+    "countryCode": "BR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 55382
+  },
+  {
+    "name": "Moreno",
+    "countryCode": "BR",
+    "admin1": "30",
+    "postcodeSample": "54800-000",
+    "population": 55292
+  },
+  {
+    "name": "Mafra",
+    "countryCode": "BR",
+    "admin1": "26",
+    "postcodeSample": "89300-000",
+    "population": 55286
+  }
+]

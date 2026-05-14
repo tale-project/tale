@@ -1,0 +1,90 @@
+{
+  "locale": "it",
+  "name": "Italian",
+  "scripts": ["latn"],
+  "countries": ["IT", "CH", "SM", "VA"],
+  "phoneContextKeywords": [
+    "telefono",
+    "cellulare",
+    "telefoni",
+    "numero",
+    "tel.",
+    "tel",
+    "n°"
+  ],
+  "cvcContextKeywords": ["codice di sicurezza", "cvc", "cvv", "cv2"],
+  "address": {
+    "forms": ["inverted", "po-box"],
+    "postcodeForm": "continental",
+    "postcodeRegex": "\\d{5}",
+    "streetKeywordsInverted": [
+      "Via",
+      "Viale",
+      "Piazza",
+      "Piazzale",
+      "Corso",
+      "Vicolo",
+      "Strada",
+      "Salita",
+      "Largo",
+      "Calle"
+    ],
+    "poBoxKeywords": ["Casella postale", "C.P."],
+    "floorKeywords": [
+      "appartamento",
+      "interno",
+      "scala",
+      "piano",
+      "app.",
+      "int.",
+      "sc.",
+      "p."
+    ],
+    "countryNames": [
+      "Italia",
+      "Italy",
+      "Italien",
+      "San Marino",
+      "Svizzera",
+      "Switzerland",
+      "Vaticano",
+      "IT",
+      "CH",
+      "SM",
+      "VA"
+    ],
+    "houseNumberMarkers": ["n.", "n°", "no."],
+    "countryPostcodePrefixes": [],
+    "requireUppercase": true
+  },
+  "nationalIds": [
+    {
+      "id": "it-codice-fiscale",
+      "name": "Italian Codice Fiscale",
+      "pattern": "\\b[A-Z]{6}\\d{2}[A-EHLMPRST]\\d{2}[A-Z]\\d{3}[A-Z]\\b",
+      "replacement": "[CODICE_FISCALE]"
+    },
+    {
+      "id": "it-piva",
+      "name": "Italian Partita IVA",
+      "pattern": "\\b\\d{11}\\b",
+      "checksum": "luhn",
+      "replacement": "[IT_PIVA]"
+    },
+    {
+      "id": "it-passport",
+      "name": "Italian Passport Number",
+      "pattern": "\\b[A-Z]{2}\\d{7}\\b",
+      "replacement": "[PASSPORT]"
+    }
+  ],
+  "fixtureSeeds": {
+    "wrappers": [
+      "Si prega di spedire il pacco a {}.",
+      "Indirizzo postale: {}",
+      "Il cliente abita a {}.",
+      "Punto di ritiro — {} — confermato.",
+      "Inviare la corrispondenza a {}, grazie."
+    ]
+  }
+}

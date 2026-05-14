@@ -1,0 +1,4002 @@
+[
+  {
+    "text": "Piękne są chmury płynące po niebie.",
+    "source": "tatoeba",
+    "upstreamId": "348570"
+  },
+  {
+    "text": "Twój zegarek jest na biurku.",
+    "source": "tatoeba",
+    "upstreamId": "348625"
+  },
+  {
+    "text": "Spójrz na dom z czerwonym dachem.",
+    "source": "tatoeba",
+    "upstreamId": "348626"
+  },
+  {
+    "text": "Pogoda pogarszała się z upływem dnia.",
+    "source": "tatoeba",
+    "upstreamId": "348627"
+  },
+  {
+    "text": "Po drodze do domu wpadnę na pocztę.",
+    "source": "tatoeba",
+    "upstreamId": "348629"
+  },
+  {
+    "text": "Mam w pokoju niezły burdel.",
+    "source": "tatoeba",
+    "upstreamId": "348630"
+  },
+  {
+    "text": "Złapali nieprzyjaciela w zasadzkę.",
+    "source": "tatoeba",
+    "upstreamId": "348631"
+  },
+  {
+    "text": "Jestem w ciąży.",
+    "source": "tatoeba",
+    "upstreamId": "348632"
+  },
+  {
+    "text": "Nasz nauczyciel zawsze przychodzi punktualnie na zajęcia.",
+    "source": "tatoeba",
+    "upstreamId": "348634"
+  },
+  {
+    "text": "Rozdziel te jabłka na trzy osoby.",
+    "source": "tatoeba",
+    "upstreamId": "348635"
+  },
+  {
+    "text": "Jutro mnie nie ma.",
+    "source": "tatoeba",
+    "upstreamId": "348636"
+  },
+  {
+    "text": "Przyjdź też jutro!",
+    "source": "tatoeba",
+    "upstreamId": "348637"
+  },
+  {
+    "text": "Idźcie prosto tą ulicą.",
+    "source": "tatoeba",
+    "upstreamId": "348638"
+  },
+  {
+    "text": "On wystąpił w dubbingu do „Avatara”.",
+    "source": "tatoeba",
+    "upstreamId": "348639"
+  },
+  {
+    "text": "Poprzysiągłem sobie nigdy już się do niej nie odzywać.",
+    "source": "tatoeba",
+    "upstreamId": "348640"
+  },
+  {
+    "text": "On jest Anglikiem.",
+    "source": "tatoeba",
+    "upstreamId": "348641"
+  },
+  {
+    "text": "Ależ z ciebie kutwa!",
+    "source": "tatoeba",
+    "upstreamId": "348643"
+  },
+  {
+    "text": "Roger pracuje od świtu do zmroku.",
+    "source": "tatoeba",
+    "upstreamId": "348644"
+  },
+  {
+    "text": "Ta skrzynka zawiera pięć jabłek.",
+    "source": "tatoeba",
+    "upstreamId": "348645"
+  },
+  {
+    "text": "Tłukłeś się z Kenem?",
+    "source": "tatoeba",
+    "upstreamId": "348646"
+  },
+  {
+    "text": "Jego książka znana jest nie tylko w Anglii, ale i w Japonii.",
+    "source": "tatoeba",
+    "upstreamId": "348647"
+  },
+  {
+    "text": "To jest tego samego koloru co moje.",
+    "source": "tatoeba",
+    "upstreamId": "348648"
+  },
+  {
+    "text": "Jak zamierza naprawić wyrządzoną stratę?",
+    "source": "tatoeba",
+    "upstreamId": "348649"
+  },
+  {
+    "text": "To, że jeszcze żyję, zawdzięczam tobie.",
+    "source": "tatoeba",
+    "upstreamId": "348650"
+  },
+  {
+    "text": "„Jestem głodny!” – rzekł mały biały króliczek, więc zatrzymali się i zjedli dużego hiacynta.",
+    "source": "tatoeba",
+    "upstreamId": "348651"
+  },
+  {
+    "text": "„Nickel” to moneta pięciocentowa.",
+    "source": "tatoeba",
+    "upstreamId": "348652"
+  },
+  {
+    "text": "W końcu wpadł na to, jak to się robi.",
+    "source": "tatoeba",
+    "upstreamId": "348654"
+  },
+  {
+    "text": "Zaśpiewajmy tę angielską piosenkę.",
+    "source": "tatoeba",
+    "upstreamId": "348655"
+  },
+  {
+    "text": "Z jakiegoś powodu mikrofon wcześniej nie działał.",
+    "source": "tatoeba",
+    "upstreamId": "348656"
+  },
+  {
+    "text": "Zwyczajnie nie wiem, co powiedzieć...",
+    "source": "tatoeba",
+    "upstreamId": "348657"
+  },
+  {
+    "text": "To, co powiedziałeś, nie ma sensu.",
+    "source": "tatoeba",
+    "upstreamId": "348658"
+  },
+  {
+    "text": "Nic nie powiedział, co ją wkurzyło.",
+    "source": "tatoeba",
+    "upstreamId": "348659"
+  },
+  {
+    "text": "Proszę pana, zostawił pan zapalniczkę na stole!",
+    "source": "tatoeba",
+    "upstreamId": "348660"
+  },
+  {
+    "text": "Mówią, że w tej okolicy jest zakopany skarb.",
+    "source": "tatoeba",
+    "upstreamId": "348661"
+  },
+  {
+    "text": "Proszę bardzo, nie ma za co.",
+    "source": "tatoeba",
+    "upstreamId": "348662"
+  },
+  {
+    "text": "Z całym szacunkiem.",
+    "source": "tatoeba",
+    "upstreamId": "348663"
+  },
+  {
+    "text": "To dobry pomysł, żeby pograć w shogi po obiedzie.",
+    "source": "tatoeba",
+    "upstreamId": "348666"
+  },
+  {
+    "text": "Umyj dobrze zęby.",
+    "source": "tatoeba",
+    "upstreamId": "348667"
+  },
+  {
+    "text": "Ładna dziś pogoda.",
+    "source": "tatoeba",
+    "upstreamId": "348668"
+  },
+  {
+    "text": "Dobranoc, Timmy.",
+    "source": "tatoeba",
+    "upstreamId": "348670"
+  },
+  {
+    "text": "Wszystkie istoty ludzkie rodzą się wolne i równe w godności i prawach. Są one obdarzone rozumem i sumieniem oraz powinny postępować w stosunku do siebie wzajemnie w duchu braterstwa.",
+    "source": "tatoeba",
+    "upstreamId": "348677"
+  },
+  {
+    "text": "Cały dzień grałem w tenisa.",
+    "source": "tatoeba",
+    "upstreamId": "348678"
+  },
+  {
+    "text": "Czy mówi pan po angielsku?",
+    "source": "tatoeba",
+    "upstreamId": "348679"
+  },
+  {
+    "text": "Uważa się, ze to ważna sprawa.",
+    "source": "tatoeba",
+    "upstreamId": "348680"
+  },
+  {
+    "text": "Nie jesteś winien tego wypadku.",
+    "source": "tatoeba",
+    "upstreamId": "348682"
+  },
+  {
+    "text": "Wspomniano twoje nazwisko.",
+    "source": "tatoeba",
+    "upstreamId": "348683"
+  },
+  {
+    "text": "Doprawdy? A myślałem, że wyjdzie za mąż jako ostatnia.",
+    "source": "tatoeba",
+    "upstreamId": "348684"
+  },
+  {
+    "text": "Pożycz mi coś do cięcia.",
+    "source": "tatoeba",
+    "upstreamId": "348685"
+  },
+  {
+    "text": "Od dawna jest pan w Osace?",
+    "source": "tatoeba",
+    "upstreamId": "348686"
+  },
+  {
+    "text": "Nasz ogród był zachwaszczony.",
+    "source": "tatoeba",
+    "upstreamId": "348699"
+  },
+  {
+    "text": "Jak dla mnie, Australia jest jednym z najlepszych krajów na świecie.",
+    "source": "tatoeba",
+    "upstreamId": "348701"
+  },
+  {
+    "text": "Jane ścięła włosy przed zawodami.",
+    "source": "tatoeba",
+    "upstreamId": "348702"
+  },
+  {
+    "text": "Jaki jest ostateczny cel nauczania?",
+    "source": "tatoeba",
+    "upstreamId": "348703"
+  },
+  {
+    "text": "Jest zależny finansowo od swej żony.",
+    "source": "tatoeba",
+    "upstreamId": "348705"
+  },
+  {
+    "text": "Mój ojciec jest nieco staromodny.",
+    "source": "tatoeba",
+    "upstreamId": "348706"
+  },
+  {
+    "text": "Mój wujek zmarł wczoraj na raka żołądka.",
+    "source": "tatoeba",
+    "upstreamId": "348707"
+  },
+  {
+    "text": "Pan Wang jest z Chin.",
+    "source": "tatoeba",
+    "upstreamId": "348708"
+  },
+  {
+    "text": "Niestety nie zdążyłem na jego wystąpienie.",
+    "source": "tatoeba",
+    "upstreamId": "348709"
+  },
+  {
+    "text": "Ile kosztuje przejazd z Osaki do Akity?",
+    "source": "tatoeba",
+    "upstreamId": "348710"
+  },
+  {
+    "text": "Spójrz na ten dym.",
+    "source": "tatoeba",
+    "upstreamId": "348712"
+  },
+  {
+    "text": "Proszę, na przyszłość bardziej uważaj.",
+    "source": "tatoeba",
+    "upstreamId": "348713"
+  },
+  {
+    "text": "Często mówi się, że Japończycy są dobrymi pracownikami.",
+    "source": "tatoeba",
+    "upstreamId": "348714"
+  },
+  {
+    "text": "Udało mi się uzyskać zgodę rodziców na małżeństwo.",
+    "source": "tatoeba",
+    "upstreamId": "348715"
+  },
+  {
+    "text": "Było już późno, więc wróciłem do domu.",
+    "source": "tatoeba",
+    "upstreamId": "348716"
+  },
+  {
+    "text": "Astronomia zajmuje się gwiazdami i planetami.",
+    "source": "tatoeba",
+    "upstreamId": "348717"
+  },
+  {
+    "text": "Z daleka wygląda to na piłkę.",
+    "source": "tatoeba",
+    "upstreamId": "348718"
+  },
+  {
+    "text": "Nieważne, co czytasz, ale jak czytasz.",
+    "source": "tatoeba",
+    "upstreamId": "348719"
+  },
+  {
+    "text": "Nie muszę ci się tłumaczyć z mojego postępowania.",
+    "source": "tatoeba",
+    "upstreamId": "348720"
+  },
+  {
+    "text": "Eksport idzie marnie.",
+    "source": "tatoeba",
+    "upstreamId": "348721"
+  },
+  {
+    "text": "Przez nierozważną jazdę napytał sobie biedy – zginął.",
+    "source": "tatoeba",
+    "upstreamId": "348722"
+  },
+  {
+    "text": "Proszę załączyć świadectwo jakości.",
+    "source": "tatoeba",
+    "upstreamId": "348723"
+  },
+  {
+    "text": "Bardzo nierozważnie jest pływać wśród takich prądów.",
+    "source": "tatoeba",
+    "upstreamId": "348724"
+  },
+  {
+    "text": "Popełniłem koszmarny błąd.",
+    "source": "tatoeba",
+    "upstreamId": "348725"
+  },
+  {
+    "text": "Sędzia skazał go na rok pozbawienia wolności.",
+    "source": "tatoeba",
+    "upstreamId": "348726"
+  },
+  {
+    "text": "Spociłem się pod pachami.",
+    "source": "tatoeba",
+    "upstreamId": "348727"
+  },
+  {
+    "text": "Co się zdarzyło na tym skrzyżowaniu?",
+    "source": "tatoeba",
+    "upstreamId": "348728"
+  },
+  {
+    "text": "Pracowała wyłącznie dla pieniędzy.",
+    "source": "tatoeba",
+    "upstreamId": "348729"
+  },
+  {
+    "text": "Ona nie znosi zielonego pieprzu.",
+    "source": "tatoeba",
+    "upstreamId": "348730"
+  },
+  {
+    "text": "On nigdy nie traci nadziei.",
+    "source": "tatoeba",
+    "upstreamId": "348731"
+  },
+  {
+    "text": "Mam wrażenie, że kiedyś już tu byłem.",
+    "source": "tatoeba",
+    "upstreamId": "348732"
+  },
+  {
+    "text": "Nasz pociąg zatrzymał się nagle.",
+    "source": "tatoeba",
+    "upstreamId": "348733"
+  },
+  {
+    "text": "Gdybyś był w kłopocie, pomógłbym ci.",
+    "source": "tatoeba",
+    "upstreamId": "348734"
+  },
+  {
+    "text": "Przyszedł około czternastej.",
+    "source": "tatoeba",
+    "upstreamId": "348735"
+  },
+  {
+    "text": "Uszczęśliwił rodziców.",
+    "source": "tatoeba",
+    "upstreamId": "348736"
+  },
+  {
+    "text": "Jeśli wieczorem będzie padać, nie wyjdę z domu.",
+    "source": "tatoeba",
+    "upstreamId": "348737"
+  },
+  {
+    "text": "Musisz tylko posprzątać pokój.",
+    "source": "tatoeba",
+    "upstreamId": "348739"
+  },
+  {
+    "text": "Niewielu studentów umie czytać po łacinie.",
+    "source": "tatoeba",
+    "upstreamId": "348740"
+  },
+  {
+    "text": "Na północy znajduje się Szkocja, na południu Anglia, na zachodzie Walia, a jeszcze dalej na zachód – Irlandia Północna.",
+    "source": "tatoeba",
+    "upstreamId": "348741"
+  },
+  {
+    "text": "Jego ojczyzną są Niemcy.",
+    "source": "tatoeba",
+    "upstreamId": "348742"
+  },
+  {
+    "text": "Czasami śni mi się dom.",
+    "source": "tatoeba",
+    "upstreamId": "348743"
+  },
+  {
+    "text": "U nas w styczniu pada śnieg.",
+    "source": "tatoeba",
+    "upstreamId": "348744"
+  },
+  {
+    "text": "Kura wysiadywała jaja przez tydzień.",
+    "source": "tatoeba",
+    "upstreamId": "348745"
+  },
+  {
+    "text": "Czekałem na niego do dziesiątej.",
+    "source": "tatoeba",
+    "upstreamId": "348747"
+  },
+  {
+    "text": "Powiedziałem sobie: to dobry pomysł.",
+    "source": "tatoeba",
+    "upstreamId": "348748"
+  },
+  {
+    "text": "To najnowsza książka p. Millera i mamy nadzieję, że nie ostatnia.",
+    "source": "tatoeba",
+    "upstreamId": "348749"
+  },
+  {
+    "text": "Zaproszono mnie na wycieczkę zagraniczną, ale nie chcę jechać.",
+    "source": "tatoeba",
+    "upstreamId": "348750"
+  },
+  {
+    "text": "Co by nie robić, nie da się opanować angielskiego w kilka miesięcy.",
+    "source": "tatoeba",
+    "upstreamId": "348751"
+  },
+  {
+    "text": "To najlepsza restauracja z owocami morza w całej dzielnicy.",
+    "source": "tatoeba",
+    "upstreamId": "348752"
+  },
+  {
+    "text": "Nie wiń jej za to.",
+    "source": "tatoeba",
+    "upstreamId": "348753"
+  },
+  {
+    "text": "Czytaj codziennie gazetę, inaczej nie będziesz na bieżąco.",
+    "source": "tatoeba",
+    "upstreamId": "348754"
+  },
+  {
+    "text": "Pociąg spóźnia się pół godziny.",
+    "source": "tatoeba",
+    "upstreamId": "348755"
+  },
+  {
+    "text": "Jego życzliwość była tylko na pokaz.",
+    "source": "tatoeba",
+    "upstreamId": "348756"
+  },
+  {
+    "text": "Przyszła mi do głowy niezła myśl.",
+    "source": "tatoeba",
+    "upstreamId": "348757"
+  },
+  {
+    "text": "Mówi pan po angielsku?",
+    "source": "tatoeba",
+    "upstreamId": "348758"
+  },
+  {
+    "text": "Mój dom jest duży.",
+    "source": "tatoeba",
+    "upstreamId": "348760"
+  },
+  {
+    "text": "Jest niezwykle przystojny.",
+    "source": "tatoeba",
+    "upstreamId": "348761"
+  },
+  {
+    "text": "Nie lubię szkoły.",
+    "source": "tatoeba",
+    "upstreamId": "348762"
+  },
+  {
+    "text": "Nie mówię po japońsku.",
+    "source": "tatoeba",
+    "upstreamId": "348763"
+  },
+  {
+    "text": "Rak to wielki wróg ludzkości.",
+    "source": "tatoeba",
+    "upstreamId": "348764"
+  },
+  {
+    "text": "Oto nasza szkoła.",
+    "source": "tatoeba",
+    "upstreamId": "348765"
+  },
+  {
+    "text": "Włochy to piękny kraj.",
+    "source": "tatoeba",
+    "upstreamId": "348766"
+  },
+  {
+    "text": "Przepraszam, zgubiłem się.",
+    "source": "tatoeba",
+    "upstreamId": "348767"
+  },
+  {
+    "text": "Ta suknia dobrze leży.",
+    "source": "tatoeba",
+    "upstreamId": "348768"
+  },
+  {
+    "text": "Wczoraj wieczorem musieliśmy wezwać policję.",
+    "source": "tatoeba",
+    "upstreamId": "348770"
+  },
+  {
+    "text": "Miłość jest ślepa z natury rzeczy.",
+    "source": "tatoeba",
+    "upstreamId": "348771"
+  },
+  {
+    "text": "Mam dużo problemów do rozwiązania.",
+    "source": "tatoeba",
+    "upstreamId": "348773"
+  },
+  {
+    "text": "Zimą szybko zapada noc.",
+    "source": "tatoeba",
+    "upstreamId": "348774"
+  },
+  {
+    "text": "Bardzo lubi swoją szkołę.",
+    "source": "tatoeba",
+    "upstreamId": "348775"
+  },
+  {
+    "text": "Zostawiłem parasol w pociągu.",
+    "source": "tatoeba",
+    "upstreamId": "348777"
+  },
+  {
+    "text": "Policja szybko rozprawiła się z zamieszkami.",
+    "source": "tatoeba",
+    "upstreamId": "348778"
+  },
+  {
+    "text": "Co rano czyta gazetę.",
+    "source": "tatoeba",
+    "upstreamId": "348779"
+  },
+  {
+    "text": "Do szkoły idę o siódmej.",
+    "source": "tatoeba",
+    "upstreamId": "348780"
+  },
+  {
+    "text": "Dziewczyny sprzeciwiły się naszemu planowi.",
+    "source": "tatoeba",
+    "upstreamId": "348781"
+  },
+  {
+    "text": "O której taksówka odjeżdża na lotnisko?",
+    "source": "tatoeba",
+    "upstreamId": "348782"
+  },
+  {
+    "text": "Nie ma rzeczy ważniejszej niż przyjaźń.",
+    "source": "tatoeba",
+    "upstreamId": "348783"
+  },
+  {
+    "text": "Może być jakiekolwiek czasopismo.",
+    "source": "tatoeba",
+    "upstreamId": "348784"
+  },
+  {
+    "text": "To zdjęcie zrobiono w Narze.",
+    "source": "tatoeba",
+    "upstreamId": "348785"
+  },
+  {
+    "text": "Tacie się to nie spodoba.",
+    "source": "tatoeba",
+    "upstreamId": "348786"
+  },
+  {
+    "text": "Sto lat, Muiriel!",
+    "source": "tatoeba",
+    "upstreamId": "348787"
+  },
+  {
+    "text": "Byłem w górach.",
+    "source": "tatoeba",
+    "upstreamId": "348788"
+  },
+  {
+    "text": "W moim poduszkowcu jest pełno węgorzy.",
+    "source": "tatoeba",
+    "upstreamId": "348789"
+  },
+  {
+    "text": "Poznaj mnie z jakąś ładną dziewczyną.",
+    "source": "tatoeba",
+    "upstreamId": "348791"
+  },
+  {
+    "text": "Zwrócił uwagę synowi, że się leni.",
+    "source": "tatoeba",
+    "upstreamId": "348792"
+  },
+  {
+    "text": "Czy to świeże zdjęcie?",
+    "source": "tatoeba",
+    "upstreamId": "348795"
+  },
+  {
+    "text": "Powiedziałeś, że nigdy nie wygram?",
+    "source": "tatoeba",
+    "upstreamId": "348797"
+  },
+  {
+    "text": "Czekam godzinami.",
+    "source": "tatoeba",
+    "upstreamId": "348798"
+  },
+  {
+    "text": "Dobry wieczór, jak leci?",
+    "source": "tatoeba",
+    "upstreamId": "348799"
+  },
+  {
+    "text": "Paco maluje widoki miast.",
+    "source": "tatoeba",
+    "upstreamId": "348801"
+  },
+  {
+    "text": "Przepraszam bardzo.",
+    "source": "tatoeba",
+    "upstreamId": "348803"
+  },
+  {
+    "text": "Gdzie on się urodził?",
+    "source": "tatoeba",
+    "upstreamId": "348804"
+  },
+  {
+    "text": "Bardzo mi to pomogło.",
+    "source": "tatoeba",
+    "upstreamId": "348805"
+  },
+  {
+    "text": "Wróciłem! O! Mamy gości?",
+    "source": "tatoeba",
+    "upstreamId": "348809"
+  },
+  {
+    "text": "Spróbuję ponownie.",
+    "source": "tatoeba",
+    "upstreamId": "348810"
+  },
+  {
+    "text": "Kiedy się urodziła?",
+    "source": "tatoeba",
+    "upstreamId": "348811"
+  },
+  {
+    "text": "Mówiłem ci już, że go już tu nie ma.",
+    "source": "tatoeba",
+    "upstreamId": "348812"
+  },
+  {
+    "text": "Zgubił się pan?",
+    "source": "tatoeba",
+    "upstreamId": "348813"
+  },
+  {
+    "text": "Idziemy do kina?",
+    "source": "tatoeba",
+    "upstreamId": "348814"
+  },
+  {
+    "text": "To nówka sztuka.",
+    "source": "tatoeba",
+    "upstreamId": "348816"
+  },
+  {
+    "text": "Co robisz przed śniadaniem?",
+    "source": "tatoeba",
+    "upstreamId": "348836"
+  },
+  {
+    "text": "Nie lubię sposobu w jaki on mówi.",
+    "source": "tatoeba",
+    "upstreamId": "348837"
+  },
+  {
+    "text": "Ja też chciałbym pojechać sobie na Hawaje.",
+    "source": "tatoeba",
+    "upstreamId": "348925"
+  },
+  {
+    "text": "Jeszcze nie odzyskał przytomności.",
+    "source": "tatoeba",
+    "upstreamId": "348927"
+  },
+  {
+    "text": "Kiedy się ożeniłeś?",
+    "source": "tatoeba",
+    "upstreamId": "348929"
+  },
+  {
+    "text": "Mógłby pan wysłać mi ten list mailem?",
+    "source": "tatoeba",
+    "upstreamId": "348931"
+  },
+  {
+    "text": "Staruszek lubi przesadzać.",
+    "source": "tatoeba",
+    "upstreamId": "348932"
+  },
+  {
+    "text": "Japonia zużywa dużo papieru.",
+    "source": "tatoeba",
+    "upstreamId": "348934"
+  },
+  {
+    "text": "Ona ma trzech braci.",
+    "source": "tatoeba",
+    "upstreamId": "348935"
+  },
+  {
+    "text": "Możesz jechać, gdzie ci się podoba.",
+    "source": "tatoeba",
+    "upstreamId": "348936"
+  },
+  {
+    "text": "Nie przywykłem do publicznych wystąpień.",
+    "source": "tatoeba",
+    "upstreamId": "348939"
+  },
+  {
+    "text": "Moja praca polega na opiece nad dziećmi.",
+    "source": "tatoeba",
+    "upstreamId": "348941"
+  },
+  {
+    "text": "Dostałem od dziadka prezent na urodziny.",
+    "source": "tatoeba",
+    "upstreamId": "348943"
+  },
+  {
+    "text": "Czy jest tu gdzieś centrum handlowe?",
+    "source": "tatoeba",
+    "upstreamId": "348944"
+  },
+  {
+    "text": "Trwa budowa nowej szkoły.",
+    "source": "tatoeba",
+    "upstreamId": "348947"
+  },
+  {
+    "text": "Jestem głodny jak wilk.",
+    "source": "tatoeba",
+    "upstreamId": "348948"
+  },
+  {
+    "text": "Co znaczy to słowo?",
+    "source": "tatoeba",
+    "upstreamId": "348949"
+  },
+  {
+    "text": "W języku angielskim jest dużo wyrazów zapożyczonych z francuskiego.",
+    "source": "tatoeba",
+    "upstreamId": "348951"
+  },
+  {
+    "text": "Sen jest ważny, ale po co istnieje - to stanowi zagadkę.",
+    "source": "tatoeba",
+    "upstreamId": "348953"
+  },
+  {
+    "text": "Jest biedna, ale szczęśliwa.",
+    "source": "tatoeba",
+    "upstreamId": "348955"
+  },
+  {
+    "text": "Czy jest jakieś zagraniczne piwo?",
+    "source": "tatoeba",
+    "upstreamId": "348960"
+  },
+  {
+    "text": "Byłem wtedy dzieckiem.",
+    "source": "tatoeba",
+    "upstreamId": "348962"
+  },
+  {
+    "text": "Ona jest zdania, że wszystko jest kwestią pieniędzy.",
+    "source": "tatoeba",
+    "upstreamId": "348963"
+  },
+  {
+    "text": "Muszę iść spać.",
+    "source": "tatoeba",
+    "upstreamId": "348964"
+  },
+  {
+    "text": "Nie chcieć oznacza mieć.",
+    "source": "tatoeba",
+    "upstreamId": "348965"
+  },
+  {
+    "text": "Niestety to prawda.",
+    "source": "tatoeba",
+    "upstreamId": "348966"
+  },
+  {
+    "text": "To dlatego, że nie chcesz być sam.",
+    "source": "tatoeba",
+    "upstreamId": "348967"
+  },
+  {
+    "text": "Samotny człowiek jest sam, bo się obawia innych.",
+    "source": "tatoeba",
+    "upstreamId": "348968"
+  },
+  {
+    "text": "Wyglądasz na durnia.",
+    "source": "tatoeba",
+    "upstreamId": "348971"
+  },
+  {
+    "text": "Hasło brzmi „Muiriel”.",
+    "source": "tatoeba",
+    "upstreamId": "348974"
+  },
+  {
+    "text": "Chciałbym móc pojechać do Japonii.",
+    "source": "tatoeba",
+    "upstreamId": "348976"
+  },
+  {
+    "text": "Znalazłem rozwiązanie, ale coś za szybko, więc nie może być poprawne.",
+    "source": "tatoeba",
+    "upstreamId": "348977"
+  },
+  {
+    "text": "To się nigdy nie skończy.",
+    "source": "tatoeba",
+    "upstreamId": "348978"
+  },
+  {
+    "text": "Jesteśmy szczęśliwi.",
+    "source": "tatoeba",
+    "upstreamId": "348979"
+  },
+  {
+    "text": "Chociaż przeprosił, ja wciąż jestem wściekły.",
+    "source": "tatoeba",
+    "upstreamId": "348981"
+  },
+  {
+    "text": "Zrobiłem wielki błąd przy wyborze żony.",
+    "source": "tatoeba",
+    "upstreamId": "348982"
+  },
+  {
+    "text": "W naszych szacunkach założyliśmy margines błędu.",
+    "source": "tatoeba",
+    "upstreamId": "348983"
+  },
+  {
+    "text": "Studiuję na uniwersytecie Hyōgo.",
+    "source": "tatoeba",
+    "upstreamId": "348984"
+  },
+  {
+    "text": "Zdecyduj, czy idziemy, czy nie.",
+    "source": "tatoeba",
+    "upstreamId": "348985"
+  },
+  {
+    "text": "Na pewno kiedyś pojadę do Francji, tylko nie wiem kiedy.",
+    "source": "tatoeba",
+    "upstreamId": "348988"
+  },
+  {
+    "text": "Muszę iść po zakupy, będę za godzinę.",
+    "source": "tatoeba",
+    "upstreamId": "348989"
+  },
+  {
+    "text": "Nie należę do żadnego klubu.",
+    "source": "tatoeba",
+    "upstreamId": "348990"
+  },
+  {
+    "text": "Za długo by objaśniać, dlaczego to nie zadziała.",
+    "source": "tatoeba",
+    "upstreamId": "348991"
+  },
+  {
+    "text": "Zgadza się. Jest dużo wilgoci w powietrzu.",
+    "source": "tatoeba",
+    "upstreamId": "348992"
+  },
+  {
+    "text": "Czy są wolne miejsca?",
+    "source": "tatoeba",
+    "upstreamId": "348995"
+  },
+  {
+    "text": "Niebo jest błękitne.",
+    "source": "tatoeba",
+    "upstreamId": "348996"
+  },
+  {
+    "text": "Gdzie są moje okulary?",
+    "source": "tatoeba",
+    "upstreamId": "348997"
+  },
+  {
+    "text": "Biały jacht płynął po falach.",
+    "source": "tatoeba",
+    "upstreamId": "348998"
+  },
+  {
+    "text": "To nasza sąsiadka.",
+    "source": "tatoeba",
+    "upstreamId": "348999"
+  },
+  {
+    "text": "Matka była wykończona.",
+    "source": "tatoeba",
+    "upstreamId": "349000"
+  },
+  {
+    "text": "Powinna tu być około południa.",
+    "source": "tatoeba",
+    "upstreamId": "349001"
+  },
+  {
+    "text": "Zapisała się na kurs hiszpańskiego.",
+    "source": "tatoeba",
+    "upstreamId": "349002"
+  },
+  {
+    "text": "Nie może chodzić, a cóż dopiero biegać.",
+    "source": "tatoeba",
+    "upstreamId": "349003"
+  },
+  {
+    "text": "Chyba mu na mnie nie zależy.",
+    "source": "tatoeba",
+    "upstreamId": "349004"
+  },
+  {
+    "text": "Nie lubi upałów.",
+    "source": "tatoeba",
+    "upstreamId": "349005"
+  },
+  {
+    "text": "Miło się z nią rozmawiało.",
+    "source": "tatoeba",
+    "upstreamId": "349006"
+  },
+  {
+    "text": "Nie licz na jego pomoc.",
+    "source": "tatoeba",
+    "upstreamId": "349007"
+  },
+  {
+    "text": "Jako obywatel świata, umiem przekraczać bariery kulturowe.",
+    "source": "tatoeba",
+    "upstreamId": "349008"
+  },
+  {
+    "text": "Kłopot w tym, że mamy mało pieniędzy.",
+    "source": "tatoeba",
+    "upstreamId": "349009"
+  },
+  {
+    "text": "Nie lubię takiej muzyki.",
+    "source": "tatoeba",
+    "upstreamId": "349010"
+  },
+  {
+    "text": "On zawsze się spóźnia do szkoły.",
+    "source": "tatoeba",
+    "upstreamId": "349011"
+  },
+  {
+    "text": "Zatrzymasz to dla siebie?",
+    "source": "tatoeba",
+    "upstreamId": "349012"
+  },
+  {
+    "text": "Dziewczyna, która rozmawia z Johnem, to Susan.",
+    "source": "tatoeba",
+    "upstreamId": "349014"
+  },
+  {
+    "text": "Proszę wezwać ochronę hotelu.",
+    "source": "tatoeba",
+    "upstreamId": "349015"
+  },
+  {
+    "text": "Wierzę w tę metodę nauczania.",
+    "source": "tatoeba",
+    "upstreamId": "349016"
+  },
+  {
+    "text": "Ma głowę do interesów.",
+    "source": "tatoeba",
+    "upstreamId": "349017"
+  },
+  {
+    "text": "Zaczęło świtać, długa noc się skończyła.",
+    "source": "tatoeba",
+    "upstreamId": "349018"
+  },
+  {
+    "text": "To był zły królik.",
+    "source": "tatoeba",
+    "upstreamId": "349019"
+  },
+  {
+    "text": "Cześć, jestem Nancy.",
+    "source": "tatoeba",
+    "upstreamId": "349020"
+  },
+  {
+    "text": "Halo, jesteś jeszcze?",
+    "source": "tatoeba",
+    "upstreamId": "349022"
+  },
+  {
+    "text": "Dzieci wyglądają na zmęczone pływaniem.",
+    "source": "tatoeba",
+    "upstreamId": "349024"
+  },
+  {
+    "text": "Nie dane mu było spotkać się z nią ponownie.",
+    "source": "tatoeba",
+    "upstreamId": "349025"
+  },
+  {
+    "text": "Seria wybuchów obróciła pracownię w ruinę.",
+    "source": "tatoeba",
+    "upstreamId": "349026"
+  },
+  {
+    "text": "Japonia ma wiele cech szczególnych.",
+    "source": "tatoeba",
+    "upstreamId": "349027"
+  },
+  {
+    "text": "Jak daleko jest do lotniska?",
+    "source": "tatoeba",
+    "upstreamId": "349029"
+  },
+  {
+    "text": "Cieszę się, że cię znów widzę.",
+    "source": "tatoeba",
+    "upstreamId": "349030"
+  },
+  {
+    "text": "Poproszę do hotelu Hilton.",
+    "source": "tatoeba",
+    "upstreamId": "349031"
+  },
+  {
+    "text": "Zwykle to ja myję naczynia.",
+    "source": "tatoeba",
+    "upstreamId": "349032"
+  },
+  {
+    "text": "Nie zapominaj, że mamy zadanie domowe.",
+    "source": "tatoeba",
+    "upstreamId": "349033"
+  },
+  {
+    "text": "Chciałbym filiżankę kawy.",
+    "source": "tatoeba",
+    "upstreamId": "349035"
+  },
+  {
+    "text": "Pamiętasz mnie?",
+    "source": "tatoeba",
+    "upstreamId": "349036"
+  },
+  {
+    "text": "To jest mojego brata.",
+    "source": "tatoeba",
+    "upstreamId": "349040"
+  },
+  {
+    "text": "Nie brakuje niczego.",
+    "source": "tatoeba",
+    "upstreamId": "349041"
+  },
+  {
+    "text": "Weź książkę i przeczytaj ją!",
+    "source": "tatoeba",
+    "upstreamId": "349042"
+  },
+  {
+    "text": "Powiedział mi, że pojedzie do Wenecji.",
+    "source": "tatoeba",
+    "upstreamId": "349043"
+  },
+  {
+    "text": "Odpowiedz na pytanie.",
+    "source": "tatoeba",
+    "upstreamId": "349045"
+  },
+  {
+    "text": "Kiedy byłem mały, czytałem godzinami, sam w swoim pokoju.",
+    "source": "tatoeba",
+    "upstreamId": "349047"
+  },
+  {
+    "text": "Jaką masz grupę krwi?",
+    "source": "tatoeba",
+    "upstreamId": "349048"
+  },
+  {
+    "text": "Pamiętam pierwszy raz.",
+    "source": "tatoeba",
+    "upstreamId": "349049"
+  },
+  {
+    "text": "Był ubogi, ale nie pożyczał pieniędzy od innych.",
+    "source": "tatoeba",
+    "upstreamId": "349050"
+  },
+  {
+    "text": "Nie ma wątpliwości, że jest utalentowana.",
+    "source": "tatoeba",
+    "upstreamId": "349051"
+  },
+  {
+    "text": "Poczta przychodzi przed południem.",
+    "source": "tatoeba",
+    "upstreamId": "349052"
+  },
+  {
+    "text": "Przestraszyłem się, mijając go.",
+    "source": "tatoeba",
+    "upstreamId": "349053"
+  },
+  {
+    "text": "Jak możemy się upewnić co do jego uczciwości?",
+    "source": "tatoeba",
+    "upstreamId": "349054"
+  },
+  {
+    "text": "Nie, to nie jest mój nowy chłopak.",
+    "source": "tatoeba",
+    "upstreamId": "349056"
+  },
+  {
+    "text": "Nie wiem, jak to udowodnić, to zbyt oczywiste.",
+    "source": "tatoeba",
+    "upstreamId": "349057"
+  },
+  {
+    "text": "Zamówiłem dwa hamburgery.",
+    "source": "tatoeba",
+    "upstreamId": "349058"
+  },
+  {
+    "text": "Mogę się tylko domyślać, czy tak samo sądzą inni.",
+    "source": "tatoeba",
+    "upstreamId": "349059"
+  },
+  {
+    "text": "Nie jestem wielkim podróżnikiem.",
+    "source": "tatoeba",
+    "upstreamId": "349060"
+  },
+  {
+    "text": "Każdy ma swoje silne i słabe strony.",
+    "source": "tatoeba",
+    "upstreamId": "349061"
+  },
+  {
+    "text": "Jego smutna historia poruszyła mnie.",
+    "source": "tatoeba",
+    "upstreamId": "349071"
+  },
+  {
+    "text": "Świeczka sama zgasła.",
+    "source": "tatoeba",
+    "upstreamId": "349072"
+  },
+  {
+    "text": "Ojciec zabronił mi czytać książki w łóżku.",
+    "source": "tatoeba",
+    "upstreamId": "349075"
+  },
+  {
+    "text": "Zostajesz w domu dziś wieczorem?",
+    "source": "tatoeba",
+    "upstreamId": "349076"
+  },
+  {
+    "text": "Przyznanie się do winy to połowa drogi do jej wybaczenia.",
+    "source": "tatoeba",
+    "upstreamId": "349080"
+  },
+  {
+    "text": "Jaka praca, taka płaca.",
+    "source": "tatoeba",
+    "upstreamId": "349082"
+  },
+  {
+    "text": "Boję się spadania.",
+    "source": "tatoeba",
+    "upstreamId": "349083"
+  },
+  {
+    "text": "Skąd pochodzisz?",
+    "source": "tatoeba",
+    "upstreamId": "349084"
+  },
+  {
+    "text": "Film trwał dwie godziny.",
+    "source": "tatoeba",
+    "upstreamId": "349086"
+  },
+  {
+    "text": "Chciałbym odebrać swoje kosztowności.",
+    "source": "tatoeba",
+    "upstreamId": "349088"
+  },
+  {
+    "text": "W Wenecji jest zawsze wielu turystów.",
+    "source": "tatoeba",
+    "upstreamId": "349089"
+  },
+  {
+    "text": "Wczoraj było trzęsienie ziemi.",
+    "source": "tatoeba",
+    "upstreamId": "349091"
+  },
+  {
+    "text": "Wiesz może, gdzie położyłem moje klucze?",
+    "source": "tatoeba",
+    "upstreamId": "349093"
+  },
+  {
+    "text": "Mam dużo przygotowań na jutro.",
+    "source": "tatoeba",
+    "upstreamId": "349095"
+  },
+  {
+    "text": "Powiedziane ulatuje, napisane pozostaje.",
+    "source": "tatoeba",
+    "upstreamId": "349097"
+  },
+  {
+    "text": "Jesteś przy mnie, a więc wszystko dobrze.",
+    "source": "tatoeba",
+    "upstreamId": "349098"
+  },
+  {
+    "text": "Państwo nie zdołało sprostać oczekiwaniom obywateli.",
+    "source": "tatoeba",
+    "upstreamId": "349099"
+  },
+  {
+    "text": "Ci, co go znają, lubią go.",
+    "source": "tatoeba",
+    "upstreamId": "349100"
+  },
+  {
+    "text": "Ściany mają uszy.",
+    "source": "tatoeba",
+    "upstreamId": "349101"
+  },
+  {
+    "text": "Myślałem, że to prawda.",
+    "source": "tatoeba",
+    "upstreamId": "349102"
+  },
+  {
+    "text": "Zawołajcie policję!",
+    "source": "tatoeba",
+    "upstreamId": "349104"
+  },
+  {
+    "text": "Czy mówi pan po włosku?",
+    "source": "tatoeba",
+    "upstreamId": "349106"
+  },
+  {
+    "text": "Właśnie miałem wychodzić, kiedy zadzwonił telefon.",
+    "source": "tatoeba",
+    "upstreamId": "349107"
+  },
+  {
+    "text": "Bez wątpienia Wszechświat jest nieskończony.",
+    "source": "tatoeba",
+    "upstreamId": "349109"
+  },
+  {
+    "text": "Nie wiedziałem, że tyle wypił.",
+    "source": "tatoeba",
+    "upstreamId": "349110"
+  },
+  {
+    "text": "Jak się masz? Jak minęła podróż?",
+    "source": "tatoeba",
+    "upstreamId": "349112"
+  },
+  {
+    "text": "Ta dziewczyna zmieniła styl.",
+    "source": "tatoeba",
+    "upstreamId": "349113"
+  },
+  {
+    "text": "Dobrze mi służył ten nóż.",
+    "source": "tatoeba",
+    "upstreamId": "349117"
+  },
+  {
+    "text": "Jesteś w moim typie.",
+    "source": "tatoeba",
+    "upstreamId": "349118"
+  },
+  {
+    "text": "Nie każ mi powtarzać.",
+    "source": "tatoeba",
+    "upstreamId": "349119"
+  },
+  {
+    "text": "A jednak znów prawdą jest coś przeciwnego.",
+    "source": "tatoeba",
+    "upstreamId": "349122"
+  },
+  {
+    "text": "Życie bez miłości nie ma żadnego sensu.",
+    "source": "tatoeba",
+    "upstreamId": "349123"
+  },
+  {
+    "text": "Możesz zadzwonić później?",
+    "source": "tatoeba",
+    "upstreamId": "349124"
+  },
+  {
+    "text": "Wcale nie jestem przekonany.",
+    "source": "tatoeba",
+    "upstreamId": "349125"
+  },
+  {
+    "text": "Dziś idziemy tańczyć.",
+    "source": "tatoeba",
+    "upstreamId": "349127"
+  },
+  {
+    "text": "Czy to poważne?",
+    "source": "tatoeba",
+    "upstreamId": "349130"
+  },
+  {
+    "text": "Jesteś wielką miłością mego życia.",
+    "source": "tatoeba",
+    "upstreamId": "349131"
+  },
+  {
+    "text": "Ostrzegłem go przed niebezpieczeństwem.",
+    "source": "tatoeba",
+    "upstreamId": "349132"
+  },
+  {
+    "text": "– Kto to? – To twoja matka.",
+    "source": "tatoeba",
+    "upstreamId": "349133"
+  },
+  {
+    "text": "Proszę poczekać w poczekalni.",
+    "source": "tatoeba",
+    "upstreamId": "349134"
+  },
+  {
+    "text": "Czekają na was pod drzwiami.",
+    "source": "tatoeba",
+    "upstreamId": "349136"
+  },
+  {
+    "text": "Przyszłaś właśnie kiedy wychodziłem.",
+    "source": "tatoeba",
+    "upstreamId": "349137"
+  },
+  {
+    "text": "Oni chcą emigrować do Ameryki.",
+    "source": "tatoeba",
+    "upstreamId": "349138"
+  },
+  {
+    "text": "Prowadził interesy przez wiele lat.",
+    "source": "tatoeba",
+    "upstreamId": "349140"
+  },
+  {
+    "text": "Pogodę przewiduje się naukowo.",
+    "source": "tatoeba",
+    "upstreamId": "349141"
+  },
+  {
+    "text": "Wlał do herbaty mleka i zamieszał.",
+    "source": "tatoeba",
+    "upstreamId": "349142"
+  },
+  {
+    "text": "On pozostawia po sobie niezatarte wrażenie.",
+    "source": "tatoeba",
+    "upstreamId": "349143"
+  },
+  {
+    "text": "Jest niefotogeniczna.",
+    "source": "tatoeba",
+    "upstreamId": "349144"
+  },
+  {
+    "text": "Wyśmiali nasze wysiłki.",
+    "source": "tatoeba",
+    "upstreamId": "349145"
+  },
+  {
+    "text": "Pracuję jak szalony, żeby zdążyć w terminie.",
+    "source": "tatoeba",
+    "upstreamId": "349147"
+  },
+  {
+    "text": "Ojciec i młodsza siostra są stolarzami.",
+    "source": "tatoeba",
+    "upstreamId": "349148"
+  },
+  {
+    "text": "W celu ochrony głowy należy nosić kask.",
+    "source": "tatoeba",
+    "upstreamId": "349149"
+  },
+  {
+    "text": "Nie otwierać przed zatrzymaniem pociągu.",
+    "source": "tatoeba",
+    "upstreamId": "349150"
+  },
+  {
+    "text": "Dlaczego przywiązujesz wagę do tego zdarzenia?",
+    "source": "tatoeba",
+    "upstreamId": "349151"
+  },
+  {
+    "text": "Ile zostało kanapek?",
+    "source": "tatoeba",
+    "upstreamId": "349153"
+  },
+  {
+    "text": "Jeśli nawet to nie prawda, to dobrze wymyślone.",
+    "source": "tatoeba",
+    "upstreamId": "349154"
+  },
+  {
+    "text": "Języki obce uważam za nadzwyczaj interesujące.",
+    "source": "tatoeba",
+    "upstreamId": "349155"
+  },
+  {
+    "text": "To dobry człowiek.",
+    "source": "tatoeba",
+    "upstreamId": "349156"
+  },
+  {
+    "text": "Muszę wam się przyznać, że chrapię...",
+    "source": "tatoeba",
+    "upstreamId": "349160"
+  },
+  {
+    "text": "Są mocni tylko w gębie.",
+    "source": "tatoeba",
+    "upstreamId": "349161"
+  },
+  {
+    "text": "Dziesięć tysięcy dodać pięć tysięcy pięćset daje piętnaście tysięcy pięćset.",
+    "source": "tatoeba",
+    "upstreamId": "349162"
+  },
+  {
+    "text": "Już przynoszę rachunek.",
+    "source": "tatoeba",
+    "upstreamId": "349163"
+  },
+  {
+    "text": "Byłeś tam kiedyś?",
+    "source": "tatoeba",
+    "upstreamId": "349166"
+  },
+  {
+    "text": "Kto nie ryzykuje, ten nic nie ma.",
+    "source": "tatoeba",
+    "upstreamId": "349167"
+  },
+  {
+    "text": "Dzieci, wstawać!",
+    "source": "tatoeba",
+    "upstreamId": "349168"
+  },
+  {
+    "text": "Moje gratulacje!",
+    "source": "tatoeba",
+    "upstreamId": "349169"
+  },
+  {
+    "text": "Żeby to osiągnąć, musisz zaryzykować.",
+    "source": "tatoeba",
+    "upstreamId": "349170"
+  },
+  {
+    "text": "Dziękuję, to wszystko.",
+    "source": "tatoeba",
+    "upstreamId": "349171"
+  },
+  {
+    "text": "Idę po samochód.",
+    "source": "tatoeba",
+    "upstreamId": "349172"
+  },
+  {
+    "text": "Znikł bez śladu.",
+    "source": "tatoeba",
+    "upstreamId": "349174"
+  },
+  {
+    "text": "Pić mi się chce.",
+    "source": "tatoeba",
+    "upstreamId": "349176"
+  },
+  {
+    "text": "Zrobiłeś to celowo!",
+    "source": "tatoeba",
+    "upstreamId": "349178"
+  },
+  {
+    "text": "Nic mu nie powiedziałeś?",
+    "source": "tatoeba",
+    "upstreamId": "349179"
+  },
+  {
+    "text": "Musisz więcej pracować.",
+    "source": "tatoeba",
+    "upstreamId": "349180"
+  },
+  {
+    "text": "Bardzo lubię swoją pracę.",
+    "source": "tatoeba",
+    "upstreamId": "349181"
+  },
+  {
+    "text": "Poznałem sympatycznych ludzi.",
+    "source": "tatoeba",
+    "upstreamId": "349184"
+  },
+  {
+    "text": "Rozmawiałem z przyjaciółmi.",
+    "source": "tatoeba",
+    "upstreamId": "349185"
+  },
+  {
+    "text": "Film zaczął się o drugiej.",
+    "source": "tatoeba",
+    "upstreamId": "349186"
+  },
+  {
+    "text": "Miło mi widzieć cię ponownie.",
+    "source": "tatoeba",
+    "upstreamId": "349187"
+  },
+  {
+    "text": "Bardzoś się zmienił.",
+    "source": "tatoeba",
+    "upstreamId": "349188"
+  },
+  {
+    "text": "Powiedz mi, co się stało.",
+    "source": "tatoeba",
+    "upstreamId": "349190"
+  },
+  {
+    "text": "Pozostaje tylko płakać.",
+    "source": "tatoeba",
+    "upstreamId": "349191"
+  },
+  {
+    "text": "To poważne dziewczyny.",
+    "source": "tatoeba",
+    "upstreamId": "349192"
+  },
+  {
+    "text": "Ależ jesteś piękna!",
+    "source": "tatoeba",
+    "upstreamId": "349194"
+  },
+  {
+    "text": "Jest tyle kościołów, co muzeów.",
+    "source": "tatoeba",
+    "upstreamId": "349195"
+  },
+  {
+    "text": "Rozrywka jest łatwiejsza od pracy.",
+    "source": "tatoeba",
+    "upstreamId": "349196"
+  },
+  {
+    "text": "To trudniejsze niż myślisz.",
+    "source": "tatoeba",
+    "upstreamId": "349197"
+  },
+  {
+    "text": "Nie można jechać na dwóch koniach jednocześnie.",
+    "source": "tatoeba",
+    "upstreamId": "349198"
+  },
+  {
+    "text": "Mam męża i dwoje dzieci.",
+    "source": "tatoeba",
+    "upstreamId": "349199"
+  },
+  {
+    "text": "Rzadko go widuję.",
+    "source": "tatoeba",
+    "upstreamId": "349200"
+  },
+  {
+    "text": "Dowiedział się o tym z gazety.",
+    "source": "tatoeba",
+    "upstreamId": "349201"
+  },
+  {
+    "text": "Nie wiem, czy będę mieć na to czas.",
+    "source": "tatoeba",
+    "upstreamId": "349202"
+  },
+  {
+    "text": "Zapytaj Tranga, czy dziś wieczór wychodzi.",
+    "source": "tatoeba",
+    "upstreamId": "349203"
+  },
+  {
+    "text": "Kto to powiedział? To zupełna nieprawda!",
+    "source": "tatoeba",
+    "upstreamId": "349204"
+  },
+  {
+    "text": "Kiedy to usłyszałem, nie wierzyłem własnym uszom.",
+    "source": "tatoeba",
+    "upstreamId": "349206"
+  },
+  {
+    "text": "Przejął interes.",
+    "source": "tatoeba",
+    "upstreamId": "349207"
+  },
+  {
+    "text": "Ona zagrała w tej sztuce.",
+    "source": "tatoeba",
+    "upstreamId": "349208"
+  },
+  {
+    "text": "Ile wynosi ludność Japonii?",
+    "source": "tatoeba",
+    "upstreamId": "349209"
+  },
+  {
+    "text": "Jeśli wybuchnie światowa wojna jądrowa, uważa się, że „atomowa zima” w skali całego globu może trwać kilka miesięcy.",
+    "source": "tatoeba",
+    "upstreamId": "349211"
+  },
+  {
+    "text": "Pojechał do Paryża, gdzie spotkał się mną po raz pierwszy.",
+    "source": "tatoeba",
+    "upstreamId": "349212"
+  },
+  {
+    "text": "Na suficie siedzi wielka mucha.",
+    "source": "tatoeba",
+    "upstreamId": "349213"
+  },
+  {
+    "text": "Szaleją za jazzem.",
+    "source": "tatoeba",
+    "upstreamId": "349214"
+  },
+  {
+    "text": "Zwykle siedzi do późna w nocy.",
+    "source": "tatoeba",
+    "upstreamId": "349215"
+  },
+  {
+    "text": "Jego starszy brat jest bardziej cierpliwy niż on.",
+    "source": "tatoeba",
+    "upstreamId": "349216"
+  },
+  {
+    "text": "Jej matka mieszka na wsi zupełnie sama.",
+    "source": "tatoeba",
+    "upstreamId": "349217"
+  },
+  {
+    "text": "Samolot wylądował dokładnie o szóstej.",
+    "source": "tatoeba",
+    "upstreamId": "349218"
+  },
+  {
+    "text": "Żyli ze sobą w zgodzie.",
+    "source": "tatoeba",
+    "upstreamId": "349219"
+  },
+  {
+    "text": "Szedł brzegiem morza.",
+    "source": "tatoeba",
+    "upstreamId": "349221"
+  },
+  {
+    "text": "Pozdrów ją ode mnie.",
+    "source": "tatoeba",
+    "upstreamId": "349222"
+  },
+  {
+    "text": "Daję spokój z matematyką.",
+    "source": "tatoeba",
+    "upstreamId": "349223"
+  },
+  {
+    "text": "Nie mogłem sobie przypomnieć ich nazwisk.",
+    "source": "tatoeba",
+    "upstreamId": "349225"
+  },
+  {
+    "text": "Moja matka świetnie przyrządzała ziemniaki.",
+    "source": "tatoeba",
+    "upstreamId": "349226"
+  },
+  {
+    "text": "W końcu przyjdzie.",
+    "source": "tatoeba",
+    "upstreamId": "349227"
+  },
+  {
+    "text": "On nie ma ani żony, ani dzieci, ani przyjaciół.",
+    "source": "tatoeba",
+    "upstreamId": "349228"
+  },
+  {
+    "text": "W jego ogrodzie zawsze kwitną rozmaite kwiaty.",
+    "source": "tatoeba",
+    "upstreamId": "349229"
+  },
+  {
+    "text": "Czy masz gorączkę?",
+    "source": "tatoeba",
+    "upstreamId": "349230"
+  },
+  {
+    "text": "Wczoraj tam poszedł.",
+    "source": "tatoeba",
+    "upstreamId": "349231"
+  },
+  {
+    "text": "Zachowywał się jak wariat.",
+    "source": "tatoeba",
+    "upstreamId": "349232"
+  },
+  {
+    "text": "Wypogodziło się.",
+    "source": "tatoeba",
+    "upstreamId": "349233"
+  },
+  {
+    "text": "Ziewnął potężnie.",
+    "source": "tatoeba",
+    "upstreamId": "349234"
+  },
+  {
+    "text": "Ona jest trudna w kontakcie.",
+    "source": "tatoeba",
+    "upstreamId": "349235"
+  },
+  {
+    "text": "Jej ojciec podobno zginął w wypadku.",
+    "source": "tatoeba",
+    "upstreamId": "349236"
+  },
+  {
+    "text": "Jak się pan nazywa?",
+    "source": "tatoeba",
+    "upstreamId": "349237"
+  },
+  {
+    "text": "Natsume Soseki żył w tych samych czasach co Mori Ogai.",
+    "source": "tatoeba",
+    "upstreamId": "349238"
+  },
+  {
+    "text": "Nie zmieniaj tematu.",
+    "source": "tatoeba",
+    "upstreamId": "349239"
+  },
+  {
+    "text": "Czy mówi pan po japońsku?",
+    "source": "tatoeba",
+    "upstreamId": "349240"
+  },
+  {
+    "text": "Uchodźcy ściągali z całego kraju.",
+    "source": "tatoeba",
+    "upstreamId": "349241"
+  },
+  {
+    "text": "Płakał z radości.",
+    "source": "tatoeba",
+    "upstreamId": "349242"
+  },
+  {
+    "text": "Nazwali tę wioskę „Nowy Amsterdam”.",
+    "source": "tatoeba",
+    "upstreamId": "349243"
+  },
+  {
+    "text": "Po latach stała się równie piękna jak jej matka.",
+    "source": "tatoeba",
+    "upstreamId": "349244"
+  },
+  {
+    "text": "Objaśni mi pan drogę na stację metra?",
+    "source": "tatoeba",
+    "upstreamId": "349245"
+  },
+  {
+    "text": "Biedował, mieszkał w małej chatce.",
+    "source": "tatoeba",
+    "upstreamId": "349246"
+  },
+  {
+    "text": "Pojechał do Anglii, by studiować literaturę angielską.",
+    "source": "tatoeba",
+    "upstreamId": "349248"
+  },
+  {
+    "text": "Samolot zniknął w mgnieniu oka.",
+    "source": "tatoeba",
+    "upstreamId": "349249"
+  },
+  {
+    "text": "Miał nadzieję na fotel prezesa.",
+    "source": "tatoeba",
+    "upstreamId": "349250"
+  },
+  {
+    "text": "To dobry pomysł, by poprosić go o pomoc.",
+    "source": "tatoeba",
+    "upstreamId": "349251"
+  },
+  {
+    "text": "Japonia to kraj przemysłowy.",
+    "source": "tatoeba",
+    "upstreamId": "349252"
+  },
+  {
+    "text": "Ona świata nie widzi poza pracą.",
+    "source": "tatoeba",
+    "upstreamId": "349253"
+  },
+  {
+    "text": "Sam się obudził.",
+    "source": "tatoeba",
+    "upstreamId": "349254"
+  },
+  {
+    "text": "Aby uniknąć przenikliwego zimna, włożyła ciepły płaszcz.",
+    "source": "tatoeba",
+    "upstreamId": "349255"
+  },
+  {
+    "text": "Policja przypuszcza, że mógł napaść na bank.",
+    "source": "tatoeba",
+    "upstreamId": "349256"
+  },
+  {
+    "text": "Uważany był za japońską odpowiedź na Picassa.",
+    "source": "tatoeba",
+    "upstreamId": "349257"
+  },
+  {
+    "text": "Mama leży w łóżku z przeziębieniem.",
+    "source": "tatoeba",
+    "upstreamId": "349258"
+  },
+  {
+    "text": "Ona jest zbyt wstydliwa, żeby otwarcie wyrażać swe opinie.",
+    "source": "tatoeba",
+    "upstreamId": "349259"
+  },
+  {
+    "text": "„Kim jest ta dziewczyna?” „To Keiko.”",
+    "source": "tatoeba",
+    "upstreamId": "349301"
+  },
+  {
+    "text": "Jakimś cudem znalazłem jego dom.",
+    "source": "tatoeba",
+    "upstreamId": "349302"
+  },
+  {
+    "text": "Wykuł stalowy miecz.",
+    "source": "tatoeba",
+    "upstreamId": "349303"
+  },
+  {
+    "text": "Dziecko niemal zadławiło się jedząc słodycze.",
+    "source": "tatoeba",
+    "upstreamId": "349304"
+  },
+  {
+    "text": "Czas iść do szkoły.",
+    "source": "tatoeba",
+    "upstreamId": "349305"
+  },
+  {
+    "text": "Czy twoja matka umie prowadzić samochód?",
+    "source": "tatoeba",
+    "upstreamId": "349306"
+  },
+  {
+    "text": "W tym hotelu panuje domowa atmosfera.",
+    "source": "tatoeba",
+    "upstreamId": "349308"
+  },
+  {
+    "text": "Czy przyjedziemy na czas?",
+    "source": "tatoeba",
+    "upstreamId": "349309"
+  },
+  {
+    "text": "Świeca sama zgasła.",
+    "source": "tatoeba",
+    "upstreamId": "349310"
+  },
+  {
+    "text": "Każda istota ma instynkt samozachowawczy.",
+    "source": "tatoeba",
+    "upstreamId": "349311"
+  },
+  {
+    "text": "Do wakacji jeszcze tylko tydzień.",
+    "source": "tatoeba",
+    "upstreamId": "349312"
+  },
+  {
+    "text": "Miło cię widzieć.",
+    "source": "tatoeba",
+    "upstreamId": "349313"
+  },
+  {
+    "text": "Właśnie na to czekałem.",
+    "source": "tatoeba",
+    "upstreamId": "349314"
+  },
+  {
+    "text": "Miała na sobie czerwoną spódniczkę.",
+    "source": "tatoeba",
+    "upstreamId": "349315"
+  },
+  {
+    "text": "Według mnie, jesteś w błędzie.",
+    "source": "tatoeba",
+    "upstreamId": "349316"
+  },
+  {
+    "text": "Przyjaciel zawiódł jej zaufanie, teraz chce się na nim zemścić.",
+    "source": "tatoeba",
+    "upstreamId": "349317"
+  },
+  {
+    "text": "Dobrze, byś się z nim spotkał i posłuchał, co ma do powiedzenia.",
+    "source": "tatoeba",
+    "upstreamId": "349318"
+  },
+  {
+    "text": "Ona nic tylko narzeka.",
+    "source": "tatoeba",
+    "upstreamId": "349319"
+  },
+  {
+    "text": "W czasie orgii Megumi biegała nago po trawniku.",
+    "source": "tatoeba",
+    "upstreamId": "349320"
+  },
+  {
+    "text": "Co, nie mogę ci mówić po imieniu?",
+    "source": "tatoeba",
+    "upstreamId": "349321"
+  },
+  {
+    "text": "Sądził, zresztą słusznie, że to najlepsze, co można zrobić.",
+    "source": "tatoeba",
+    "upstreamId": "349322"
+  },
+  {
+    "text": "Nie miał nic wspólnego ze skandalem.",
+    "source": "tatoeba",
+    "upstreamId": "349323"
+  },
+  {
+    "text": "Gdy usłyszała tę wiadomość, płakała wniebogłosy.",
+    "source": "tatoeba",
+    "upstreamId": "349325"
+  },
+  {
+    "text": "Jeśli wcześnie wstaniesz, zobaczysz wschód słońca.",
+    "source": "tatoeba",
+    "upstreamId": "349326"
+  },
+  {
+    "text": "Po bójce miał pełno siniaków.",
+    "source": "tatoeba",
+    "upstreamId": "349328"
+  },
+  {
+    "text": "Ona mówi dość szybko.",
+    "source": "tatoeba",
+    "upstreamId": "349329"
+  },
+  {
+    "text": "Obiecał, że mi pomoże.",
+    "source": "tatoeba",
+    "upstreamId": "349331"
+  },
+  {
+    "text": "USA nazywają siebie „światowym żandarmem” i stosują siłę wojskową.",
+    "source": "tatoeba",
+    "upstreamId": "349332"
+  },
+  {
+    "text": "Wyraźnie powiedział, o co mu chodzi.",
+    "source": "tatoeba",
+    "upstreamId": "349333"
+  },
+  {
+    "text": "Jestem zły, że nie dotrzymała obietnicy.",
+    "source": "tatoeba",
+    "upstreamId": "349334"
+  },
+  {
+    "text": "Jego młodszy brat zabłądził w mieście.",
+    "source": "tatoeba",
+    "upstreamId": "349335"
+  },
+  {
+    "text": "Niezależnie, czy on przyjdzie, czy nie, ja idę.",
+    "source": "tatoeba",
+    "upstreamId": "349336"
+  },
+  {
+    "text": "Gdy dorósł, został po latach sławnym muzykiem.",
+    "source": "tatoeba",
+    "upstreamId": "349337"
+  },
+  {
+    "text": "Jest otwartym człowiekiem, dobrze się z nim rozmawia.",
+    "source": "tatoeba",
+    "upstreamId": "349338"
+  },
+  {
+    "text": "W zeszłym miesiącu pojechała do Europy.",
+    "source": "tatoeba",
+    "upstreamId": "349339"
+  },
+  {
+    "text": "Nie był świadom swych słabych stron.",
+    "source": "tatoeba",
+    "upstreamId": "349340"
+  },
+  {
+    "text": "Podniosła kamyk.",
+    "source": "tatoeba",
+    "upstreamId": "349341"
+  },
+  {
+    "text": "Przyszedł do mnie po prośbie i zapytał o pożyczkę.",
+    "source": "tatoeba",
+    "upstreamId": "349342"
+  },
+  {
+    "text": "Przypisywał swój sukces ciężkiej pracy.",
+    "source": "tatoeba",
+    "upstreamId": "349343"
+  },
+  {
+    "text": "Dostał sporo pieniędzy jako rekompensatę za swój wypadek.",
+    "source": "tatoeba",
+    "upstreamId": "349344"
+  },
+  {
+    "text": "Byli zaniepokojeni tą wiadomością.",
+    "source": "tatoeba",
+    "upstreamId": "349345"
+  },
+  {
+    "text": "Ojciec wróci pewnie około siódmej.",
+    "source": "tatoeba",
+    "upstreamId": "349346"
+  },
+  {
+    "text": "Działaj, nie gadaj.",
+    "source": "tatoeba",
+    "upstreamId": "349347"
+  },
+  {
+    "text": "Pojechała do Niemiec studiować medycynę.",
+    "source": "tatoeba",
+    "upstreamId": "349348"
+  },
+  {
+    "text": "Grał na fortepianie bez nut.",
+    "source": "tatoeba",
+    "upstreamId": "349349"
+  },
+  {
+    "text": "Często pisze listy do rodziców.",
+    "source": "tatoeba",
+    "upstreamId": "349350"
+  },
+  {
+    "text": "Wrak zidentyfikowano jako Titanica.",
+    "source": "tatoeba",
+    "upstreamId": "349351"
+  },
+  {
+    "text": "Mieszkańcy północnej Japonii korzystają z zimowej aury i szusują na nartach.",
+    "source": "tatoeba",
+    "upstreamId": "349352"
+  },
+  {
+    "text": "Karmię dziecko piersią.",
+    "source": "tatoeba",
+    "upstreamId": "349353"
+  },
+  {
+    "text": "Nie zamknęła drzwi wejściowych.",
+    "source": "tatoeba",
+    "upstreamId": "349354"
+  },
+  {
+    "text": "Nie został dopuszczony do studiów.",
+    "source": "tatoeba",
+    "upstreamId": "349355"
+  },
+  {
+    "text": "Jest wielkim artystą, wszyscy winniśmy mu podziw.",
+    "source": "tatoeba",
+    "upstreamId": "349357"
+  },
+  {
+    "text": "On pewnie czeka na ciebie.",
+    "source": "tatoeba",
+    "upstreamId": "349358"
+  },
+  {
+    "text": "On przeprowadza doświadczenia w swojej pracowni.",
+    "source": "tatoeba",
+    "upstreamId": "349359"
+  },
+  {
+    "text": "Oznaczyli parcelę pod dom układając kamienie.",
+    "source": "tatoeba",
+    "upstreamId": "349360"
+  },
+  {
+    "text": "Niejednokrotnie musiała używać słownika.",
+    "source": "tatoeba",
+    "upstreamId": "349361"
+  },
+  {
+    "text": "Amazonka płynie zakosami przez północną Brazylię.",
+    "source": "tatoeba",
+    "upstreamId": "349362"
+  },
+  {
+    "text": "Jeszcze nie wrócił z gór.",
+    "source": "tatoeba",
+    "upstreamId": "349363"
+  },
+  {
+    "text": "Ma koszmarnego pecha.",
+    "source": "tatoeba",
+    "upstreamId": "349364"
+  },
+  {
+    "text": "Wysłali natychmiast chorego do szpitala.",
+    "source": "tatoeba",
+    "upstreamId": "349365"
+  },
+  {
+    "text": "Ona intensywnie przygotowuje się do egzaminów.",
+    "source": "tatoeba",
+    "upstreamId": "349366"
+  },
+  {
+    "text": "On żałuje tego, co zrobił.",
+    "source": "tatoeba",
+    "upstreamId": "349367"
+  },
+  {
+    "text": "Spróbujmy coś zrobić!",
+    "source": "tatoeba",
+    "upstreamId": "349370"
+  },
+  {
+    "text": "Jesteś w lepszym położeniu niż ja.",
+    "source": "tatoeba",
+    "upstreamId": "349374"
+  },
+  {
+    "text": "Oprowadzę pana po mieście.",
+    "source": "tatoeba",
+    "upstreamId": "349376"
+  },
+  {
+    "text": "To trzecie co do wielkości miasto Serbii.",
+    "source": "tatoeba",
+    "upstreamId": "349377"
+  },
+  {
+    "text": "Poproszę rachunek.",
+    "source": "tatoeba",
+    "upstreamId": "349380"
+  },
+  {
+    "text": "Wyznałem swoje grzechy.",
+    "source": "tatoeba",
+    "upstreamId": "349381"
+  },
+  {
+    "text": "Możesz zostać ile chcesz.",
+    "source": "tatoeba",
+    "upstreamId": "349382"
+  },
+  {
+    "text": "Czas leczy rany.",
+    "source": "tatoeba",
+    "upstreamId": "349383"
+  },
+  {
+    "text": "Jutro o tej porze będę w Londynie.",
+    "source": "tatoeba",
+    "upstreamId": "349384"
+  },
+  {
+    "text": "Był ranny na wojnie.",
+    "source": "tatoeba",
+    "upstreamId": "349385"
+  },
+  {
+    "text": "Ojciec przetłumaczył list po niemiecku na japoński.",
+    "source": "tatoeba",
+    "upstreamId": "349386"
+  },
+  {
+    "text": "Oskarżył ją, że go okłamała.",
+    "source": "tatoeba",
+    "upstreamId": "349387"
+  },
+  {
+    "text": "Mają bliźniaczki.",
+    "source": "tatoeba",
+    "upstreamId": "349388"
+  },
+  {
+    "text": "Dla niego głód był zawsze pojęciem abstrakcyjnym – zawsze miał co jeść.",
+    "source": "tatoeba",
+    "upstreamId": "349389"
+  },
+  {
+    "text": "Postaram się nie przeszkadzać ci w nauce.",
+    "source": "tatoeba",
+    "upstreamId": "349390"
+  },
+  {
+    "text": "Jesteś bez serca.",
+    "source": "tatoeba",
+    "upstreamId": "349391"
+  },
+  {
+    "text": "Błyskawica poprzedza grom.",
+    "source": "tatoeba",
+    "upstreamId": "349392"
+  },
+  {
+    "text": "Często chodzę do kina.",
+    "source": "tatoeba",
+    "upstreamId": "349393"
+  },
+  {
+    "text": "Chłopak bał się ciemności.",
+    "source": "tatoeba",
+    "upstreamId": "349394"
+  },
+  {
+    "text": "Prawie się przestraszyłem nie widząc cię przez cały dzień w sieci.",
+    "source": "tatoeba",
+    "upstreamId": "349396"
+  },
+  {
+    "text": "Nie mam usprawiedliwienia.",
+    "source": "tatoeba",
+    "upstreamId": "349397"
+  },
+  {
+    "text": "Nie mogę sobie przypomnieć jego nazwiska.",
+    "source": "tatoeba",
+    "upstreamId": "349398"
+  },
+  {
+    "text": "Jesteś dla mnie wszystkim.",
+    "source": "tatoeba",
+    "upstreamId": "349399"
+  },
+  {
+    "text": "Przejrzał gazetę przed pójściem spać.",
+    "source": "tatoeba",
+    "upstreamId": "349400"
+  },
+  {
+    "text": "Kupił mi nowy słownik.",
+    "source": "tatoeba",
+    "upstreamId": "349401"
+  },
+  {
+    "text": "Przepraszam, że kazałem ci czekać tak długo.",
+    "source": "tatoeba",
+    "upstreamId": "349402"
+  },
+  {
+    "text": "Ilu godzin snu potrzebujesz?",
+    "source": "tatoeba",
+    "upstreamId": "349403"
+  },
+  {
+    "text": "Łatwo wkurza się o byle co.",
+    "source": "tatoeba",
+    "upstreamId": "349404"
+  },
+  {
+    "text": "Tokio jest większe niż inne miasta w Japonii.",
+    "source": "tatoeba",
+    "upstreamId": "349405"
+  },
+  {
+    "text": "Chciałbym pojechać za granicę.",
+    "source": "tatoeba",
+    "upstreamId": "349406"
+  },
+  {
+    "text": "Pomyliłem panią z panią Brown.",
+    "source": "tatoeba",
+    "upstreamId": "349407"
+  },
+  {
+    "text": "Moje życie jest nierealne.",
+    "source": "tatoeba",
+    "upstreamId": "349408"
+  },
+  {
+    "text": "Chciałbym prowadzić samochód.",
+    "source": "tatoeba",
+    "upstreamId": "349409"
+  },
+  {
+    "text": "Dlaczego robi awanturę o takie drobnostki?",
+    "source": "tatoeba",
+    "upstreamId": "349410"
+  },
+  {
+    "text": "Ucz się dobrze, inaczej poniesiesz klęskę.",
+    "source": "tatoeba",
+    "upstreamId": "349411"
+  },
+  {
+    "text": "Tak właśnie myślałem.",
+    "source": "tatoeba",
+    "upstreamId": "349412"
+  },
+  {
+    "text": "Pomyślała, że trzeba coś z tym zrobić.",
+    "source": "tatoeba",
+    "upstreamId": "349413"
+  },
+  {
+    "text": "To była nowa książka.",
+    "source": "tatoeba",
+    "upstreamId": "349414"
+  },
+  {
+    "text": "Kiedy zobaczyła, jak się wystroił, wybuchnęła śmiechem.",
+    "source": "tatoeba",
+    "upstreamId": "349415"
+  },
+  {
+    "text": "Nie wiem, czy mam czas.",
+    "source": "tatoeba",
+    "upstreamId": "349416"
+  },
+  {
+    "text": "Cześć, jak się masz?",
+    "source": "tatoeba",
+    "upstreamId": "349418"
+  },
+  {
+    "text": "Cześć, to jest Mike.",
+    "source": "tatoeba",
+    "upstreamId": "349419"
+  },
+  {
+    "text": "Napoleon poprowadził swoje wojska na Rosję.",
+    "source": "tatoeba",
+    "upstreamId": "349422"
+  },
+  {
+    "text": "Bez problemu rozwiązał to zadanie.",
+    "source": "tatoeba",
+    "upstreamId": "349423"
+  },
+  {
+    "text": "Ten lek przyspieszył proces wzrostu.",
+    "source": "tatoeba",
+    "upstreamId": "349424"
+  },
+  {
+    "text": "Miałem straszny sen.",
+    "source": "tatoeba",
+    "upstreamId": "349425"
+  },
+  {
+    "text": "Chiny są znacznie większe niż Japonia.",
+    "source": "tatoeba",
+    "upstreamId": "349426"
+  },
+  {
+    "text": "Może padać śnieg.",
+    "source": "tatoeba",
+    "upstreamId": "349427"
+  },
+  {
+    "text": "Rozmawiałem z rodzicami na temat mojego studiowania za granicą.",
+    "source": "tatoeba",
+    "upstreamId": "349428"
+  },
+  {
+    "text": "Połowa jabłek zgniła.",
+    "source": "tatoeba",
+    "upstreamId": "349429"
+  },
+  {
+    "text": "W spisie powszechnym trasianka będzie utożsamiona z białoruskim.",
+    "source": "tatoeba",
+    "upstreamId": "349430"
+  },
+  {
+    "text": "Czy to produkt szwajcarski?",
+    "source": "tatoeba",
+    "upstreamId": "349433"
+  },
+  {
+    "text": "Siostra niedługo będzie z nami.",
+    "source": "tatoeba",
+    "upstreamId": "349434"
+  },
+  {
+    "text": "Nie zapominaj o nas!",
+    "source": "tatoeba",
+    "upstreamId": "349435"
+  },
+  {
+    "text": "Trzeba było nie podlewać kwiatów. Kiedy tylko skończyłem, zaczęło padać.",
+    "source": "tatoeba",
+    "upstreamId": "349438"
+  },
+  {
+    "text": "Chiny to największy kraj Azji.",
+    "source": "tatoeba",
+    "upstreamId": "349439"
+  },
+  {
+    "text": "Ten dom jest duży.",
+    "source": "tatoeba",
+    "upstreamId": "349440"
+  },
+  {
+    "text": "Na koncercie było miło, ale w sali panował chłód.",
+    "source": "tatoeba",
+    "upstreamId": "349441"
+  },
+  {
+    "text": "Policja bada przyczyny nieszczęśliwego wypadku.",
+    "source": "tatoeba",
+    "upstreamId": "349442"
+  },
+  {
+    "text": "Świat to dom wariatów.",
+    "source": "tatoeba",
+    "upstreamId": "349445"
+  },
+  {
+    "text": "Akta odesłano do ministerstwa.",
+    "source": "tatoeba",
+    "upstreamId": "349446"
+  },
+  {
+    "text": "Dlaczego pytasz?",
+    "source": "tatoeba",
+    "upstreamId": "349447"
+  },
+  {
+    "text": "Posprzątaj pokój.",
+    "source": "tatoeba",
+    "upstreamId": "349449"
+  },
+  {
+    "text": "Jest dwudziesty szósty.",
+    "source": "tatoeba",
+    "upstreamId": "349451"
+  },
+  {
+    "text": "Boli mnie głowa.",
+    "source": "tatoeba",
+    "upstreamId": "349454"
+  },
+  {
+    "text": "Sztuka dla sztuki.",
+    "source": "tatoeba",
+    "upstreamId": "349459"
+  },
+  {
+    "text": "O gustach się nie dyskutuje.",
+    "source": "tatoeba",
+    "upstreamId": "349462"
+  },
+  {
+    "text": "To mnie nie zaskakuje.",
+    "source": "tatoeba",
+    "upstreamId": "349464"
+  },
+  {
+    "text": "Na stole stoi butelka wina.",
+    "source": "tatoeba",
+    "upstreamId": "349465"
+  },
+  {
+    "text": "Proszę zażądać nowej wersji oprogramowania.",
+    "source": "tatoeba",
+    "upstreamId": "349466"
+  },
+  {
+    "text": "Życie to nie tylko radość i beztroska.",
+    "source": "tatoeba",
+    "upstreamId": "349467"
+  },
+  {
+    "text": "Obaj chłopcy krzyknęli.",
+    "source": "tatoeba",
+    "upstreamId": "349468"
+  },
+  {
+    "text": "Wiesz, że jesteś pierwszą sekretarką, która tak otwarcie ze mną rozmawia?",
+    "source": "tatoeba",
+    "upstreamId": "349469"
+  },
+  {
+    "text": "Nie mam czucia w palcach.",
+    "source": "tatoeba",
+    "upstreamId": "349470"
+  },
+  {
+    "text": "Żenił się kilka razy.",
+    "source": "tatoeba",
+    "upstreamId": "349471"
+  },
+  {
+    "text": "Graliśmy sobie w baseball.",
+    "source": "tatoeba",
+    "upstreamId": "349472"
+  },
+  {
+    "text": "W obie strony? Nie, tylko w jedną.",
+    "source": "tatoeba",
+    "upstreamId": "349473"
+  },
+  {
+    "text": "Nie mam zielonego pojęcia.",
+    "source": "tatoeba",
+    "upstreamId": "349474"
+  },
+  {
+    "text": "Człowiek nie otrzymuje niczego, jak tylko z niebios.",
+    "source": "tatoeba",
+    "upstreamId": "349475"
+  },
+  {
+    "text": "Korzystaliśmy z zasobów energetycznych Ziemi tak, jakby były nieograniczone.",
+    "source": "tatoeba",
+    "upstreamId": "349476"
+  },
+  {
+    "text": "To nie może być prawda.",
+    "source": "tatoeba",
+    "upstreamId": "349477"
+  },
+  {
+    "text": "Mój dom jest wygodnie położony – blisko dworca.",
+    "source": "tatoeba",
+    "upstreamId": "349478"
+  },
+  {
+    "text": "Historia o rozdzieleniu dwóch tygrysiątek wydała mi się nieco banalna.",
+    "source": "tatoeba",
+    "upstreamId": "349479"
+  },
+  {
+    "text": "W tym muzeum jest podobno jeden obraz Picassa i dwa Renoira.",
+    "source": "tatoeba",
+    "upstreamId": "349480"
+  },
+  {
+    "text": "Bomba atomowa to straszliwa broń.",
+    "source": "tatoeba",
+    "upstreamId": "349481"
+  },
+  {
+    "text": "Jest pan bardzo miły.",
+    "source": "tatoeba",
+    "upstreamId": "349482"
+  },
+  {
+    "text": "Zmusiła mnie, bym z nią poszedł.",
+    "source": "tatoeba",
+    "upstreamId": "349483"
+  },
+  {
+    "text": "Założył czerwoną marynarkę.",
+    "source": "tatoeba",
+    "upstreamId": "349484"
+  },
+  {
+    "text": "Jak na swoją cenę, ta tkanina jest dobrej jakości.",
+    "source": "tatoeba",
+    "upstreamId": "349485"
+  },
+  {
+    "text": "Przed wyjściem zamykaj drzwi.",
+    "source": "tatoeba",
+    "upstreamId": "349486"
+  },
+  {
+    "text": "To tylko twoja wyobraźnia.",
+    "source": "tatoeba",
+    "upstreamId": "349487"
+  },
+  {
+    "text": "To jabłko jest intensywnie czerwone.",
+    "source": "tatoeba",
+    "upstreamId": "349488"
+  },
+  {
+    "text": "To niczego nie zmieni.",
+    "source": "tatoeba",
+    "upstreamId": "349490"
+  },
+  {
+    "text": "Muszę oddzwonić do pana.",
+    "source": "tatoeba",
+    "upstreamId": "349491"
+  },
+  {
+    "text": "O, proszę mi to pokazać!",
+    "source": "tatoeba",
+    "upstreamId": "349492"
+  },
+  {
+    "text": "Wstyd mi za siebie.",
+    "source": "tatoeba",
+    "upstreamId": "349493"
+  },
+  {
+    "text": "Masz prezerwatywę?",
+    "source": "tatoeba",
+    "upstreamId": "349494"
+  },
+  {
+    "text": "Zainspirowany religiami azjatyckmi, stworzył liczne wspaniałe rzeźby.",
+    "source": "tatoeba",
+    "upstreamId": "349495"
+  },
+  {
+    "text": "Henry James był rodowitym Amerykaninem.",
+    "source": "tatoeba",
+    "upstreamId": "349496"
+  },
+  {
+    "text": "Wycisnął sok z kilku pomarańcz.",
+    "source": "tatoeba",
+    "upstreamId": "349497"
+  },
+  {
+    "text": "Spokojnie, przyspieszanie spraw przyniesie efekt odwrotny.",
+    "source": "tatoeba",
+    "upstreamId": "349498"
+  },
+  {
+    "text": "Nie chcę tak długo czekać.",
+    "source": "tatoeba",
+    "upstreamId": "349499"
+  },
+  {
+    "text": "Ten film nie osiągnął sukcesu w Japonii.",
+    "source": "tatoeba",
+    "upstreamId": "349500"
+  },
+  {
+    "text": "Ptaki mają dobry wzrok.",
+    "source": "tatoeba",
+    "upstreamId": "349501"
+  },
+  {
+    "text": "Była gęsta mgła, nie było widać nic na wyciągnięcie ręki.",
+    "source": "tatoeba",
+    "upstreamId": "349502"
+  },
+  {
+    "text": "Dziś mam wolne, chodźmy na plażę.",
+    "source": "tatoeba",
+    "upstreamId": "349503"
+  },
+  {
+    "text": "Do tego budynku nie ma wstępu.",
+    "source": "tatoeba",
+    "upstreamId": "349561"
+  },
+  {
+    "text": "To się powinno spodobać każdemu.",
+    "source": "tatoeba",
+    "upstreamId": "349562"
+  },
+  {
+    "text": "Posiadła znajomość angielskiego.",
+    "source": "tatoeba",
+    "upstreamId": "349563"
+  },
+  {
+    "text": "Wiał przyjemny wiatr od rzeki.",
+    "source": "tatoeba",
+    "upstreamId": "349564"
+  },
+  {
+    "text": "Poprosiłem ją o zrobienie czterech kopii tego listu.",
+    "source": "tatoeba",
+    "upstreamId": "349565"
+  },
+  {
+    "text": "Pod względem wieku jest odpowiednia do tej pracy.",
+    "source": "tatoeba",
+    "upstreamId": "349567"
+  },
+  {
+    "text": "Zadaniem żołnierzy było zniszczenie tego mostu.",
+    "source": "tatoeba",
+    "upstreamId": "349568"
+  },
+  {
+    "text": "Wolę iść niż jechać samochodem.",
+    "source": "tatoeba",
+    "upstreamId": "349569"
+  },
+  {
+    "text": "Starannie uporządkował pokój.",
+    "source": "tatoeba",
+    "upstreamId": "349571"
+  },
+  {
+    "text": "Pies rzadko gryzie nie atakowany.",
+    "source": "tatoeba",
+    "upstreamId": "349572"
+  },
+  {
+    "text": "Czy są kursy jednodniowe?",
+    "source": "tatoeba",
+    "upstreamId": "349573"
+  },
+  {
+    "text": "Wszyscy studenci wstali.",
+    "source": "tatoeba",
+    "upstreamId": "349574"
+  },
+  {
+    "text": "W czasie wakacji pracowałem na poczcie.",
+    "source": "tatoeba",
+    "upstreamId": "349575"
+  },
+  {
+    "text": "Nie gap się na ludzi.",
+    "source": "tatoeba",
+    "upstreamId": "349576"
+  },
+  {
+    "text": "Muzyk mocno walił w bębny.",
+    "source": "tatoeba",
+    "upstreamId": "349577"
+  },
+  {
+    "text": "Kupiłem czapkę w tym sklepie.",
+    "source": "tatoeba",
+    "upstreamId": "349578"
+  },
+  {
+    "text": "Przedstawiła mi tę panią.",
+    "source": "tatoeba",
+    "upstreamId": "349579"
+  },
+  {
+    "text": "Oliwa sprawiedliwa zawsze na wierzch wypływa.",
+    "source": "tatoeba",
+    "upstreamId": "349580"
+  },
+  {
+    "text": "Dziękuję za pański list z siódmego stycznia.",
+    "source": "tatoeba",
+    "upstreamId": "349581"
+  },
+  {
+    "text": "Pracowała dłużej niż zwykle, odczuwała więc zmęczenie.",
+    "source": "tatoeba",
+    "upstreamId": "349582"
+  },
+  {
+    "text": "Powodem spóźnienia była zła pogoda.",
+    "source": "tatoeba",
+    "upstreamId": "349583"
+  },
+  {
+    "text": "Wieczorem może padać.",
+    "source": "tatoeba",
+    "upstreamId": "349584"
+  },
+  {
+    "text": "Poradziłem mu, by zaraz wracał do domu.",
+    "source": "tatoeba",
+    "upstreamId": "349585"
+  },
+  {
+    "text": "Czekam na pańską odpowiedź, jeszcze jej nie dostałem.",
+    "source": "tatoeba",
+    "upstreamId": "349586"
+  },
+  {
+    "text": "Coś nagle taki wygadany?",
+    "source": "tatoeba",
+    "upstreamId": "349587"
+  },
+  {
+    "text": "Myślę, że ona jest po trzydziestce.",
+    "source": "tatoeba",
+    "upstreamId": "349588"
+  },
+  {
+    "text": "Nie przychodź w taki deszcz.",
+    "source": "tatoeba",
+    "upstreamId": "349589"
+  },
+  {
+    "text": "Tego robić absolutnie nie wolno.",
+    "source": "tatoeba",
+    "upstreamId": "349590"
+  },
+  {
+    "text": "Ona nie chce być zależna od rodziców.",
+    "source": "tatoeba",
+    "upstreamId": "349591"
+  },
+  {
+    "text": "Lody robimy w ten sposób.",
+    "source": "tatoeba",
+    "upstreamId": "349592"
+  },
+  {
+    "text": "Ten słoń nie ruszy nawet na krok.",
+    "source": "tatoeba",
+    "upstreamId": "349593"
+  },
+  {
+    "text": "Wydanie tej książki zbiegło się z urodzinami autora.",
+    "source": "tatoeba",
+    "upstreamId": "349594"
+  },
+  {
+    "text": "To przepiękna filiżanka.",
+    "source": "tatoeba",
+    "upstreamId": "349595"
+  },
+  {
+    "text": "To człowiek żądny władzy.",
+    "source": "tatoeba",
+    "upstreamId": "349596"
+  },
+  {
+    "text": "Jakież byłoby nasze życie bez elektryczności?",
+    "source": "tatoeba",
+    "upstreamId": "349597"
+  },
+  {
+    "text": "Każdemu uczniowi zadano jedno pytanie.",
+    "source": "tatoeba",
+    "upstreamId": "349598"
+  },
+  {
+    "text": "Oglądasz reprodukcję obrazu Picassa.",
+    "source": "tatoeba",
+    "upstreamId": "349599"
+  },
+  {
+    "text": "Umiesz pływać tak szybko jak on?",
+    "source": "tatoeba",
+    "upstreamId": "349600"
+  },
+  {
+    "text": "Zobaczyli go w tłumie ludzi.",
+    "source": "tatoeba",
+    "upstreamId": "349601"
+  },
+  {
+    "text": "Szybko przywykł do chłodnego klimatu.",
+    "source": "tatoeba",
+    "upstreamId": "349602"
+  },
+  {
+    "text": "Zjedz teraz kolację.",
+    "source": "tatoeba",
+    "upstreamId": "349603"
+  },
+  {
+    "text": "W tym domu mieszkałem jako dziecko.",
+    "source": "tatoeba",
+    "upstreamId": "349604"
+  },
+  {
+    "text": "Wreszcie skończyłem robotę.",
+    "source": "tatoeba",
+    "upstreamId": "349605"
+  },
+  {
+    "text": "Zmiany klimatu wytwarzają nowe gatunki.",
+    "source": "tatoeba",
+    "upstreamId": "349606"
+  },
+  {
+    "text": "Wrócił, ale nie z tęsknoty, a z braku pieniędzy.",
+    "source": "tatoeba",
+    "upstreamId": "349607"
+  },
+  {
+    "text": "To będzie cenne doświadczenie dla moich metod nauki angielskiego.",
+    "source": "tatoeba",
+    "upstreamId": "349608"
+  },
+  {
+    "text": "Nie mogę się obejść bez kawy po posiłku.",
+    "source": "tatoeba",
+    "upstreamId": "349609"
+  },
+  {
+    "text": "Myśli o zawodzie marynarza.",
+    "source": "tatoeba",
+    "upstreamId": "349610"
+  },
+  {
+    "text": "Pozwól mi ponieść twoją walizkę.",
+    "source": "tatoeba",
+    "upstreamId": "349611"
+  },
+  {
+    "text": "Nie umiesz jeździć na rowerze?",
+    "source": "tatoeba",
+    "upstreamId": "349612"
+  },
+  {
+    "text": "Byłem na wakacjach za granicą.",
+    "source": "tatoeba",
+    "upstreamId": "349613"
+  },
+  {
+    "text": "Urodziła się i wychowała w Osace.",
+    "source": "tatoeba",
+    "upstreamId": "349615"
+  },
+  {
+    "text": "Zrobiłem test na AIDS.",
+    "source": "tatoeba",
+    "upstreamId": "349616"
+  },
+  {
+    "text": "Niebo wygląda groźnie.",
+    "source": "tatoeba",
+    "upstreamId": "349617"
+  },
+  {
+    "text": "Sawako chce jechać do Francji.",
+    "source": "tatoeba",
+    "upstreamId": "349618"
+  },
+  {
+    "text": "Wszystkie te książki są moje.",
+    "source": "tatoeba",
+    "upstreamId": "349619"
+  },
+  {
+    "text": "W razie potrzeby zgłoś się do mnie.",
+    "source": "tatoeba",
+    "upstreamId": "349621"
+  },
+  {
+    "text": "On jest na tym statku.",
+    "source": "tatoeba",
+    "upstreamId": "349622"
+  },
+  {
+    "text": "Sędzia mimowolnie wybuchnął śmiechem.",
+    "source": "tatoeba",
+    "upstreamId": "349623"
+  },
+  {
+    "text": "Odprowadzało mnie wielu przyjaciół.",
+    "source": "tatoeba",
+    "upstreamId": "349625"
+  },
+  {
+    "text": "Czy jest jakaś zniżka?",
+    "source": "tatoeba",
+    "upstreamId": "349626"
+  },
+  {
+    "text": "Nie przychodź, jeśli nie powiem, że masz.",
+    "source": "tatoeba",
+    "upstreamId": "349627"
+  },
+  {
+    "text": "Ten wypadek miał zapewne związek ze śnieżycami.",
+    "source": "tatoeba",
+    "upstreamId": "349628"
+  },
+  {
+    "text": "Jesteś młodym Amerykaninem.",
+    "source": "tatoeba",
+    "upstreamId": "349629"
+  },
+  {
+    "text": "Wszystko poszło gładko.",
+    "source": "tatoeba",
+    "upstreamId": "349630"
+  },
+  {
+    "text": "Było jej przykro, że nikt jej nie zauważył.",
+    "source": "tatoeba",
+    "upstreamId": "349631"
+  },
+  {
+    "text": "Jest tu wiele zapożyczeń obcojęzycznych.",
+    "source": "tatoeba",
+    "upstreamId": "349632"
+  },
+  {
+    "text": "Ja również go nie znałem.",
+    "source": "tatoeba",
+    "upstreamId": "349633"
+  },
+  {
+    "text": "A przecież było zadanie domowe do zrobienia.",
+    "source": "tatoeba",
+    "upstreamId": "349634"
+  },
+  {
+    "text": "Sprzątanie tego pokoju trwało trzy dni.",
+    "source": "tatoeba",
+    "upstreamId": "349635"
+  },
+  {
+    "text": "Nie mówię po angielsku, a tym bardziej po niemiecku.",
+    "source": "tatoeba",
+    "upstreamId": "349988"
+  },
+  {
+    "text": "Nie mam pieniędzy.",
+    "source": "tatoeba",
+    "upstreamId": "349989"
+  },
+  {
+    "text": "Zmarł przed moim przyjazdem.",
+    "source": "tatoeba",
+    "upstreamId": "349991"
+  },
+  {
+    "text": "Przed moim domem jest księgarnia.",
+    "source": "tatoeba",
+    "upstreamId": "349993"
+  },
+  {
+    "text": "Nie mieli jeszcze do czynienia z takim problemem, nie wiedzą więc, co z tym zrobić.",
+    "source": "tatoeba",
+    "upstreamId": "349994"
+  },
+  {
+    "text": "Jego żądania są rozsądne.",
+    "source": "tatoeba",
+    "upstreamId": "349995"
+  },
+  {
+    "text": "Myjcie ręce przed jedzeniem.",
+    "source": "tatoeba",
+    "upstreamId": "349997"
+  },
+  {
+    "text": "Ile by nie jadła, nie tyje.",
+    "source": "tatoeba",
+    "upstreamId": "349999"
+  },
+  {
+    "text": "Nie ponoszę odpowiedzialności za ten błąd.",
+    "source": "tatoeba",
+    "upstreamId": "350000"
+  },
+  {
+    "text": "Ponoszę odpowiedzialność za ten błąd.",
+    "source": "tatoeba",
+    "upstreamId": "350001"
+  },
+  {
+    "text": "Jestem dziś naprawdę zmęczony.",
+    "source": "tatoeba",
+    "upstreamId": "350004"
+  },
+  {
+    "text": "Po wiośnie przychodzi lato.",
+    "source": "tatoeba",
+    "upstreamId": "350005"
+  },
+  {
+    "text": "Weź parę dni urlopu.",
+    "source": "tatoeba",
+    "upstreamId": "350006"
+  },
+  {
+    "text": "Szczerze mówiąc, nie lubię go.",
+    "source": "tatoeba",
+    "upstreamId": "350007"
+  },
+  {
+    "text": "Dziś po południu będzie padać.",
+    "source": "tatoeba",
+    "upstreamId": "350009"
+  },
+  {
+    "text": "Mnóstwo ludzi jest w Sensoji.",
+    "source": "tatoeba",
+    "upstreamId": "350010"
+  },
+  {
+    "text": "Co się tyczy mojego dziecka, to kłopotom nie ma końca.",
+    "source": "tatoeba",
+    "upstreamId": "350012"
+  },
+  {
+    "text": "Bitelsi składali się z czterech muzyków.",
+    "source": "tatoeba",
+    "upstreamId": "350014"
+  },
+  {
+    "text": "Prawda nie potrzebuje wielu słów.",
+    "source": "tatoeba",
+    "upstreamId": "350015"
+  },
+  {
+    "text": "Dałem mu tę trochę pieniędzy, które miałem przy sobie.",
+    "source": "tatoeba",
+    "upstreamId": "350016"
+  },
+  {
+    "text": "Nie zapomnij zadzwonić do nas, kiedy przyjedziesz do Kioto.",
+    "source": "tatoeba",
+    "upstreamId": "350017"
+  },
+  {
+    "text": "Bill przyniósł mi tę książkę.",
+    "source": "tatoeba",
+    "upstreamId": "350018"
+  },
+  {
+    "text": "Inwestycje w edukację pobudzają wzrost gospodarczy.",
+    "source": "tatoeba",
+    "upstreamId": "350019"
+  },
+  {
+    "text": "Miała na sobie czarny kapelusz.",
+    "source": "tatoeba",
+    "upstreamId": "350020"
+  },
+  {
+    "text": "Czasem kłamiemy, żeby nie zranić czyichś uczuć.",
+    "source": "tatoeba",
+    "upstreamId": "350021"
+  },
+  {
+    "text": "Zrozumiałeś, co powiedział?",
+    "source": "tatoeba",
+    "upstreamId": "350022"
+  },
+  {
+    "text": "To dlatego, że jesteś dziewczyną.",
+    "source": "tatoeba",
+    "upstreamId": "350023"
+  },
+  {
+    "text": "Daj spokój! Przez ciebie jest jej przykro.",
+    "source": "tatoeba",
+    "upstreamId": "350025"
+  },
+  {
+    "text": "Daje jej wszystko, o co ona poprosi.",
+    "source": "tatoeba",
+    "upstreamId": "350026"
+  },
+  {
+    "text": "Płakała z radości, kiedy usłyszała, że jej syn przeżył katastrofę samolotu.",
+    "source": "tatoeba",
+    "upstreamId": "350027"
+  },
+  {
+    "text": "Musimy go natychmiast zabrać do szpitala! Jest ciężko ranny!",
+    "source": "tatoeba",
+    "upstreamId": "350028"
+  },
+  {
+    "text": "O, byłeś u fryzjera!",
+    "source": "tatoeba",
+    "upstreamId": "350029"
+  },
+  {
+    "text": "Telewizja niszczy życie rodzinne.",
+    "source": "tatoeba",
+    "upstreamId": "350030"
+  },
+  {
+    "text": "Czy będzie padać jutro?",
+    "source": "tatoeba",
+    "upstreamId": "350031"
+  },
+  {
+    "text": "Oczy go zawiodły.",
+    "source": "tatoeba",
+    "upstreamId": "350032"
+  },
+  {
+    "text": "Zaraz będzie ciemno.",
+    "source": "tatoeba",
+    "upstreamId": "350033"
+  },
+  {
+    "text": "Nasz jachtklub ma dziesięciu członków.",
+    "source": "tatoeba",
+    "upstreamId": "350034"
+  },
+  {
+    "text": "Wygląda na to, że była szczęśliwa.",
+    "source": "tatoeba",
+    "upstreamId": "350035"
+  },
+  {
+    "text": "On ma dobrą opinię.",
+    "source": "tatoeba",
+    "upstreamId": "350036"
+  },
+  {
+    "text": "Ten most powstał dwa lata temu.",
+    "source": "tatoeba",
+    "upstreamId": "350037"
+  },
+  {
+    "text": "Wziąłem udział w tym spotkaniu w zamian za nią.",
+    "source": "tatoeba",
+    "upstreamId": "350038"
+  },
+  {
+    "text": "Przyjaznym zachowaniem maskował złe intencje.",
+    "source": "tatoeba",
+    "upstreamId": "350039"
+  },
+  {
+    "text": "W zeszłym roku po raz pierwszy zetknęła się z kulturą japońską.",
+    "source": "tatoeba",
+    "upstreamId": "350040"
+  },
+  {
+    "text": "Dam ci wszystko, co tylko chcesz.",
+    "source": "tatoeba",
+    "upstreamId": "350041"
+  },
+  {
+    "text": "W tym biurze jest pełno zdolnych ludzi.",
+    "source": "tatoeba",
+    "upstreamId": "350042"
+  },
+  {
+    "text": "Kot wyprężył grzbiet.",
+    "source": "tatoeba",
+    "upstreamId": "350043"
+  },
+  {
+    "text": "Życie jest piękne.",
+    "source": "tatoeba",
+    "upstreamId": "350044"
+  },
+  {
+    "text": "Jaki ojciec, taki syn.",
+    "source": "tatoeba",
+    "upstreamId": "350046"
+  },
+  {
+    "text": "Może umówmy się nieco wcześniej?",
+    "source": "tatoeba",
+    "upstreamId": "350047"
+  },
+  {
+    "text": "To nic poważnego, nie mam do niego żalu.",
+    "source": "tatoeba",
+    "upstreamId": "350048"
+  },
+  {
+    "text": "Wydaje mi się, że ten pociąg ma spóźnienie.",
+    "source": "tatoeba",
+    "upstreamId": "350049"
+  },
+  {
+    "text": "Ile to kosztuje?",
+    "source": "tatoeba",
+    "upstreamId": "350051"
+  },
+  {
+    "text": "Wszelkie zadanie wymaga do ukończenia więcej czasu, niż mamy.",
+    "source": "tatoeba",
+    "upstreamId": "350052"
+  },
+  {
+    "text": "Nie wiecie, kim jestem.",
+    "source": "tatoeba",
+    "upstreamId": "350053"
+  },
+  {
+    "text": "Wyskoczył oknem.",
+    "source": "tatoeba",
+    "upstreamId": "350054"
+  },
+  {
+    "text": "Skąd ci przyszedł do głowy tak głupi pomysł?",
+    "source": "tatoeba",
+    "upstreamId": "350055"
+  },
+  {
+    "text": "Ach, gdybym był bogaty, kupiłbym dom w Hiszpanii.",
+    "source": "tatoeba",
+    "upstreamId": "350056"
+  },
+  {
+    "text": "To zbyt piękne, by było prawdziwe.",
+    "source": "tatoeba",
+    "upstreamId": "350058"
+  },
+  {
+    "text": "Daj spokój, nie warto.",
+    "source": "tatoeba",
+    "upstreamId": "350059"
+  },
+  {
+    "text": "Gorąco dzisiaj.",
+    "source": "tatoeba",
+    "upstreamId": "350060"
+  },
+  {
+    "text": "Poszedłem na piwo z przyjaciółmi.",
+    "source": "tatoeba",
+    "upstreamId": "350061"
+  },
+  {
+    "text": "To najlepsza szaszłykarnia w Osace.",
+    "source": "tatoeba",
+    "upstreamId": "350063"
+  },
+  {
+    "text": "Sytuacja jest gorsza niż myśleliśmy.",
+    "source": "tatoeba",
+    "upstreamId": "350064"
+  },
+  {
+    "text": "Zastanawiamy się, dlaczego.",
+    "source": "tatoeba",
+    "upstreamId": "350065"
+  },
+  {
+    "text": "Nie czuję się dobrze.",
+    "source": "tatoeba",
+    "upstreamId": "350066"
+  },
+  {
+    "text": "Nie mogę powiedzieć czegoś przeciwnego.",
+    "source": "tatoeba",
+    "upstreamId": "350067"
+  },
+  {
+    "text": "Następnego lata chciałbym pojechać na Hawaje.",
+    "source": "tatoeba",
+    "upstreamId": "350068"
+  },
+  {
+    "text": "Kibune znajduje się w Kioto.",
+    "source": "tatoeba",
+    "upstreamId": "350069"
+  },
+  {
+    "text": "Kto idzie ze mną?",
+    "source": "tatoeba",
+    "upstreamId": "350071"
+  },
+  {
+    "text": "Wyjechaliśmy pociągiem.",
+    "source": "tatoeba",
+    "upstreamId": "350072"
+  },
+  {
+    "text": "To nie do wiary!",
+    "source": "tatoeba",
+    "upstreamId": "350074"
+  },
+  {
+    "text": "Chciałbym wiedzieć, kto idzie z nami.",
+    "source": "tatoeba",
+    "upstreamId": "350077"
+  },
+  {
+    "text": "Shitennoji jest najstarszą świątynią w Japonii.",
+    "source": "tatoeba",
+    "upstreamId": "350078"
+  },
+  {
+    "text": "To nie takie proste, z wyjątkiem tego tu.",
+    "source": "tatoeba",
+    "upstreamId": "350079"
+  },
+  {
+    "text": "Nie rozumiem po niemiecku.",
+    "source": "tatoeba",
+    "upstreamId": "350080"
+  },
+  {
+    "text": "Na Tokae w Narze było bardzo romantycznie!",
+    "source": "tatoeba",
+    "upstreamId": "350081"
+  },
+  {
+    "text": "I komu to mówisz!",
+    "source": "tatoeba",
+    "upstreamId": "350082"
+  },
+  {
+    "text": "Musiałem przepchać się do wyjścia z metra.",
+    "source": "tatoeba",
+    "upstreamId": "350083"
+  },
+  {
+    "text": "Ale on potrzebował pracy.",
+    "source": "tatoeba",
+    "upstreamId": "350084"
+  },
+  {
+    "text": "Mężczyźni poszli polować na lwy.",
+    "source": "tatoeba",
+    "upstreamId": "350085"
+  },
+  {
+    "text": "Moja matka nie zawsze jest w domu.",
+    "source": "tatoeba",
+    "upstreamId": "350086"
+  },
+  {
+    "text": "Każdy ma swój gust.",
+    "source": "tatoeba",
+    "upstreamId": "350087"
+  },
+  {
+    "text": "Można płacić czekami podróżnymi?",
+    "source": "tatoeba",
+    "upstreamId": "350088"
+  },
+  {
+    "text": "Czuj się jak u siebie w domu.",
+    "source": "tatoeba",
+    "upstreamId": "350089"
+  },
+  {
+    "text": "Nikt mnie nie rozumie.",
+    "source": "tatoeba",
+    "upstreamId": "350094"
+  },
+  {
+    "text": "Tęskniłeś przez wszystkie te lata.",
+    "source": "tatoeba",
+    "upstreamId": "350095"
+  },
+  {
+    "text": "Jest niechlujnie ubrany.",
+    "source": "tatoeba",
+    "upstreamId": "350096"
+  },
+  {
+    "text": "Ten samochód jest z przyczepą.",
+    "source": "tatoeba",
+    "upstreamId": "350097"
+  },
+  {
+    "text": "Z narażeniem życia walczyli z ogniem.",
+    "source": "tatoeba",
+    "upstreamId": "350098"
+  },
+  {
+    "text": "Nie widziałem go od zeszłej niedzieli.",
+    "source": "tatoeba",
+    "upstreamId": "350099"
+  },
+  {
+    "text": "Już nie wiem, co robić.",
+    "source": "tatoeba",
+    "upstreamId": "350101"
+  },
+  {
+    "text": "Matematyka to dziedzina wiedzy, którą można by się zajmować nawet wtedy, gdybyś się obudził i stwierdził, że świat zniknął.",
+    "source": "tatoeba",
+    "upstreamId": "350102"
+  },
+  {
+    "text": "Zaskoczenie i zachwyt - oto pierwszy krok ku zrozumieniu.",
+    "source": "tatoeba",
+    "upstreamId": "350103"
+  },
+  {
+    "text": "Nie wiem, czy będę miał czas.",
+    "source": "tatoeba",
+    "upstreamId": "350104"
+  },
+  {
+    "text": "Jestem ciągle zajęty.",
+    "source": "tatoeba",
+    "upstreamId": "350105"
+  },
+  {
+    "text": "Zwyczajnie nie wiem, co powiedzieć.",
+    "source": "tatoeba",
+    "upstreamId": "350106"
+  },
+  {
+    "text": "„Wygląda całkiem ciekawie” – rzekł Hiroshi.",
+    "source": "tatoeba",
+    "upstreamId": "350107"
+  },
+  {
+    "text": "Wykształcenie na tym świecie jest dla mnie rozczarowaniem.",
+    "source": "tatoeba",
+    "upstreamId": "350108"
+  },
+  {
+    "text": "Nie ma sensu mówić do mnie „Jak się masz?”, skoro nie masz nic więcej do powiedzenia.",
+    "source": "tatoeba",
+    "upstreamId": "350109"
+  },
+  {
+    "text": "Widzimy rzeczy nie takimi, jakimi są, ale takimi, jakimi sami jesteśmy.",
+    "source": "tatoeba",
+    "upstreamId": "350110"
+  },
+  {
+    "text": "Wszyscy chcą cię poznać, jesteś sławny!",
+    "source": "tatoeba",
+    "upstreamId": "350111"
+  },
+  {
+    "text": "On pisze zupełnie nieczytelnie.",
+    "source": "tatoeba",
+    "upstreamId": "350113"
+  },
+  {
+    "text": "Czekamy na wydanie jego książki.",
+    "source": "tatoeba",
+    "upstreamId": "350114"
+  },
+  {
+    "text": "Obwiązała ranę bandażem.",
+    "source": "tatoeba",
+    "upstreamId": "350115"
+  },
+  {
+    "text": "Nie byłem w stanie znieść jej bezczelności.",
+    "source": "tatoeba",
+    "upstreamId": "350117"
+  },
+  {
+    "text": "Mówi się często, że świat jest coraz mniejszy.",
+    "source": "tatoeba",
+    "upstreamId": "350118"
+  },
+  {
+    "text": "Właśnie ją odprowadziliśmy.",
+    "source": "tatoeba",
+    "upstreamId": "350119"
+  },
+  {
+    "text": "Ależ z niej gaduła.",
+    "source": "tatoeba",
+    "upstreamId": "350120"
+  },
+  {
+    "text": "Jak długo pan zostanie?",
+    "source": "tatoeba",
+    "upstreamId": "350121"
+  },
+  {
+    "text": "Ciekawe, dlaczego niektóre rośliny są roczne, a inne wieloletnie?",
+    "source": "tatoeba",
+    "upstreamId": "350122"
+  },
+  {
+    "text": "Stał tam mój wuj, z założonymi rękoma.",
+    "source": "tatoeba",
+    "upstreamId": "350123"
+  },
+  {
+    "text": "Myślisz, że nie mam nic do roboty? Przeciwnie, jestem bardzo zajęty.",
+    "source": "tatoeba",
+    "upstreamId": "350124"
+  },
+  {
+    "text": "Nie, nie sądzę.",
+    "source": "tatoeba",
+    "upstreamId": "350125"
+  },
+  {
+    "text": "W czasach Szekspira, a więc w XVI wieku, tenis był na dworze angielskim bardzo popularny.",
+    "source": "tatoeba",
+    "upstreamId": "350138"
+  },
+  {
+    "text": "To się nie zdarzy.",
+    "source": "tatoeba",
+    "upstreamId": "350140"
+  },
+  {
+    "text": "Chcemy się wspiąć na tamtą górę.",
+    "source": "tatoeba",
+    "upstreamId": "350143"
+  },
+  {
+    "text": "Jak idzie w nowej pracy?",
+    "source": "tatoeba",
+    "upstreamId": "350144"
+  },
+  {
+    "text": "Twoje postępowanie jest całkowicie legalne.",
+    "source": "tatoeba",
+    "upstreamId": "350145"
+  },
+  {
+    "text": "Dla dr. Masona praca była najważniejsza.",
+    "source": "tatoeba",
+    "upstreamId": "350146"
+  },
+  {
+    "text": "Nie mam pojęcia.",
+    "source": "tatoeba",
+    "upstreamId": "350147"
+  },
+  {
+    "text": "Szczerze mówiąc, czułem się samotnie.",
+    "source": "tatoeba",
+    "upstreamId": "350148"
+  },
+  {
+    "text": "Zdobywali Puchar Japonii przez trzy kolejne lata.",
+    "source": "tatoeba",
+    "upstreamId": "350149"
+  },
+  {
+    "text": "Jeśli nie będziesz jechać uważniej, będzie wypadek.",
+    "source": "tatoeba",
+    "upstreamId": "350150"
+  },
+  {
+    "text": "Moja starsza siostra umie świetnie pływać.",
+    "source": "tatoeba",
+    "upstreamId": "350153"
+  },
+  {
+    "text": "To dla mnie życiowa okazja.",
+    "source": "tatoeba",
+    "upstreamId": "350154"
+  },
+  {
+    "text": "Kowboje wjechali do nieznanego miasta.",
+    "source": "tatoeba",
+    "upstreamId": "350155"
+  },
+  {
+    "text": "Korzystaj z różnych okazji.",
+    "source": "tatoeba",
+    "upstreamId": "350157"
+  },
+  {
+    "text": "Chciała uciec od życia codziennego.",
+    "source": "tatoeba",
+    "upstreamId": "350158"
+  },
+  {
+    "text": "Proszę wskazać Portoryko na mapie.",
+    "source": "tatoeba",
+    "upstreamId": "350159"
+  },
+  {
+    "text": "Nie mógł się dłużej powstrzymywać.",
+    "source": "tatoeba",
+    "upstreamId": "350160"
+  },
+  {
+    "text": "Przed pójściem spać zgaś światło.",
+    "source": "tatoeba",
+    "upstreamId": "350161"
+  },
+  {
+    "text": "W ciągu ostatnich stu lat nie było chyba narodu, który przeszedłby tyle, co Żydzi.",
+    "source": "tatoeba",
+    "upstreamId": "350162"
+  },
+  {
+    "text": "Nigdy wcześniej go nie spotkałem, więc nie poznam go.",
+    "source": "tatoeba",
+    "upstreamId": "350163"
+  },
+  {
+    "text": "Jesteśmy umówieni przed jego domem.",
+    "source": "tatoeba",
+    "upstreamId": "350164"
+  },
+  {
+    "text": "Poprzedni najemca bardzo dbał o mieszkanie.",
+    "source": "tatoeba",
+    "upstreamId": "350165"
+  },
+  {
+    "text": "Radio jest za głośno. Proszę o ściszenie.",
+    "source": "tatoeba",
+    "upstreamId": "350166"
+  },
+  {
+    "text": "Możesz tu siedzieć.",
+    "source": "tatoeba",
+    "upstreamId": "350167"
+  },
+  {
+    "text": "Jestem studentem.",
+    "source": "tatoeba",
+    "upstreamId": "350168"
+  },
+  {
+    "text": "Grasz w tenisa?",
+    "source": "tatoeba",
+    "upstreamId": "350169"
+  },
+  {
+    "text": "Czym prędzej poszedłem do niego.",
+    "source": "tatoeba",
+    "upstreamId": "350170"
+  },
+  {
+    "text": "Samolot wystartował punktualnie o dziesiątej.",
+    "source": "tatoeba",
+    "upstreamId": "350171"
+  },
+  {
+    "text": "Ewolucja jako prawda naukowa jest na tyle niepodważalnie udowodniona, że jest praktycznie nie do obalenia.",
+    "source": "tatoeba",
+    "upstreamId": "350173"
+  },
+  {
+    "text": "Nie była w moim guście.",
+    "source": "tatoeba",
+    "upstreamId": "350174"
+  },
+  {
+    "text": "Nie jesteś zmęczony?",
+    "source": "tatoeba",
+    "upstreamId": "350175"
+  },
+  {
+    "text": "Został uznany przez sąd za winnego.",
+    "source": "tatoeba",
+    "upstreamId": "350176"
+  },
+  {
+    "text": "Mam już dosyć fast-foodów.",
+    "source": "tatoeba",
+    "upstreamId": "350177"
+  },
+  {
+    "text": "Nie rozpieszczaj swego dziecka.",
+    "source": "tatoeba",
+    "upstreamId": "350706"
+  },
+  {
+    "text": "Żona kazała mi wyrzucić tę starą czapkę.",
+    "source": "tatoeba",
+    "upstreamId": "350707"
+  },
+  {
+    "text": "Nie pytaj, co myślą, pytaj, co robią.",
+    "source": "tatoeba",
+    "upstreamId": "350708"
+  },
+  {
+    "text": "Ma twarz karawaniarza.",
+    "source": "tatoeba",
+    "upstreamId": "350709"
+  },
+  {
+    "text": "Wcale nie jest zaskoczona.",
+    "source": "tatoeba",
+    "upstreamId": "350710"
+  },
+  {
+    "text": "Skłoniłem go do posprzątania mi pokoju.",
+    "source": "tatoeba",
+    "upstreamId": "350712"
+  },
+  {
+    "text": "Pozwól mi wejść.",
+    "source": "tatoeba",
+    "upstreamId": "350713"
+  },
+  {
+    "text": "Mało udzielał się towarzysko.",
+    "source": "tatoeba",
+    "upstreamId": "350714"
+  },
+  {
+    "text": "Nie możesz robić dwóch rzeczy w tym samym czasie.",
+    "source": "tatoeba",
+    "upstreamId": "350715"
+  },
+  {
+    "text": "Zwróć się do mojego kolegi.",
+    "source": "tatoeba",
+    "upstreamId": "350716"
+  },
+  {
+    "text": "To czysta prawda.",
+    "source": "tatoeba",
+    "upstreamId": "350718"
+  },
+  {
+    "text": "Może mi pan wybrać numer? Telefon jest za wysoko.",
+    "source": "tatoeba",
+    "upstreamId": "350719"
+  },
+  {
+    "text": "Nie było tam żywej duszy.",
+    "source": "tatoeba",
+    "upstreamId": "350720"
+  },
+  {
+    "text": "John dobrze gra w szachy.",
+    "source": "tatoeba",
+    "upstreamId": "350721"
+  },
+  {
+    "text": "Szkoda, że nie byłem wtedy dla niej milszy.",
+    "source": "tatoeba",
+    "upstreamId": "350722"
+  },
+  {
+    "text": "Uważaj, bo będą kłopoty.",
+    "source": "tatoeba",
+    "upstreamId": "350723"
+  },
+  {
+    "text": "Proszę, powiedz mi, co mam robić w tej sytuacji.",
+    "source": "tatoeba",
+    "upstreamId": "350725"
+  },
+  {
+    "text": "Kim był ten zabity na wzgórzu?",
+    "source": "tatoeba",
+    "upstreamId": "350728"
+  },
+  {
+    "text": "Rzuciła mnie po prostu dlatego, że mało zarabiałem.",
+    "source": "tatoeba",
+    "upstreamId": "350729"
+  },
+  {
+    "text": "Wszyscy wstaliśmy natychmiast.",
+    "source": "tatoeba",
+    "upstreamId": "350730"
+  },
+  {
+    "text": "Nasza szkoła jest na wzgórzu.",
+    "source": "tatoeba",
+    "upstreamId": "350732"
+  },
+  {
+    "text": "Można zostać jeszcze chwilę?",
+    "source": "tatoeba",
+    "upstreamId": "350733"
+  },
+  {
+    "text": "Jest oskarżony o gwałt.",
+    "source": "tatoeba",
+    "upstreamId": "350734"
+  },
+  {
+    "text": "Chciałbym poprawić moją wymowę angielską.",
+    "source": "tatoeba",
+    "upstreamId": "350735"
+  }
+]

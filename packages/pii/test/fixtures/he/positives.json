@@ -1,0 +1,3315 @@
+{
+  "_meta": {
+    "locale": "he",
+    "generator": "@tale/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 300,
+      "negatives": 0
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "positives": [
+    {
+      "id": "email-he-00000",
+      "input": "נא לשלוח אל alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-he-00001",
+      "input": "כתובת: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-he-00002",
+      "input": "הלקוח גר ב marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-he-00003",
+      "input": "כתובת למשלוח דואר: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-he-00004",
+      "input": "יש לשלוח את החבילה ל alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-he-00005",
+      "input": "נא לשלוח אל johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-he-00006",
+      "input": "כתובת: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-he-00007",
+      "input": "הלקוח גר ב anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-he-00008",
+      "input": "כתובת למשלוח דואר: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-he-00009",
+      "input": "יש לשלוח את החבילה ל john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-he-00010",
+      "input": "נא לשלוח אל mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-he-00011",
+      "input": "כתובת: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-he-00012",
+      "input": "הלקוח גר ב alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-he-00013",
+      "input": "כתובת למשלוח דואר: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-he-00014",
+      "input": "יש לשלוח את החבילה ל marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-he-00015",
+      "input": "נא לשלוח אל anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-he-00016",
+      "input": "כתובת: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-he-00017",
+      "input": "הלקוח גר ב johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-he-00018",
+      "input": "כתובת למשלוח דואר: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-he-00019",
+      "input": "יש לשלוח את החבילה ל anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-he-00020",
+      "input": "נא לשלוח אל alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-he-00021",
+      "input": "כתובת: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-he-00022",
+      "input": "הלקוח גר ב mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-he-00023",
+      "input": "כתובת למשלוח דואר: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-he-00024",
+      "input": "יש לשלוח את החבילה ל alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-he-00025",
+      "input": "נא לשלוח אל john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-he-00026",
+      "input": "כתובת: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-he-00027",
+      "input": "הלקוח גר ב anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-he-00028",
+      "input": "כתובת למשלוח דואר: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-he-00029",
+      "input": "יש לשלוח את החבילה ל johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-he-00030",
+      "input": "נא לשלוח אל mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-he-00031",
+      "input": "כתובת: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-he-00032",
+      "input": "הלקוח גר ב alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-he-00033",
+      "input": "כתובת למשלוח דואר: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-he-00034",
+      "input": "יש לשלוח את החבילה ל mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-he-00035",
+      "input": "נא לשלוח אל annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-he-00036",
+      "input": "כתובת: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-he-00037",
+      "input": "הלקוח גר ב john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-he-00038",
+      "input": "כתובת למשלוח דואר: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-he-00039",
+      "input": "יש לשלוח את החבילה ל anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-he-00040",
+      "input": "נא לשלוח אל alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-he-00041",
+      "input": "כתובת: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-he-00042",
+      "input": "הלקוח גר ב mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-he-00043",
+      "input": "כתובת למשלוח דואר: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-he-00044",
+      "input": "יש לשלוח את החבילה ל alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-he-00045",
+      "input": "נא לשלוח אל john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-he-00046",
+      "input": "כתובת: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-he-00047",
+      "input": "הלקוח גר ב annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-he-00048",
+      "input": "כתובת למשלוח דואר: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-he-00049",
+      "input": "יש לשלוח את החבילה ל john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-he-00050",
+      "input": "נא לשלוח אל marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-he-00051",
+      "input": "כתובת: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-he-00052",
+      "input": "הלקוח גר ב alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-he-00053",
+      "input": "כתובת למשלוח דואר: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-he-00054",
+      "input": "יש לשלוח את החבילה ל mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-he-00055",
+      "input": "נא לשלוח אל anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-he-00056",
+      "input": "כתובת: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-he-00057",
+      "input": "הלקוח גר ב john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-he-00058",
+      "input": "כתובת למשלוח דואר: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-he-00059",
+      "input": "יש לשלוח את החבילה ל annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-he-00060",
+      "input": "נא לשלוח אל alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-he-00061",
+      "input": "כתובת: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-he-00062",
+      "input": "הלקוח גר ב marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-he-00063",
+      "input": "כתובת למשלוח דואר: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-he-00064",
+      "input": "יש לשלוח את החבילה ל alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-he-00065",
+      "input": "נא לשלוח אל johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-he-00066",
+      "input": "כתובת: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-he-00067",
+      "input": "הלקוח גר ב anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-he-00068",
+      "input": "כתובת למשלוח דואר: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-he-00069",
+      "input": "יש לשלוח את החבילה ל john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-he-00070",
+      "input": "נא לשלוח אל mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-he-00071",
+      "input": "כתובת: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-he-00072",
+      "input": "הלקוח גר ב alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-he-00073",
+      "input": "כתובת למשלוח דואר: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-he-00074",
+      "input": "יש לשלוח את החבילה ל marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-he-00075",
+      "input": "נא לשלוח אל anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-he-00076",
+      "input": "כתובת: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-he-00077",
+      "input": "הלקוח גר ב johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-he-00078",
+      "input": "כתובת למשלוח דואר: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-he-00079",
+      "input": "יש לשלוח את החבילה ל anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-he-00080",
+      "input": "נא לשלוח אל alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-he-00081",
+      "input": "כתובת: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-he-00082",
+      "input": "הלקוח גר ב mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-he-00083",
+      "input": "כתובת למשלוח דואר: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-he-00084",
+      "input": "יש לשלוח את החבילה ל alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-he-00085",
+      "input": "נא לשלוח אל john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-he-00086",
+      "input": "כתובת: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-he-00087",
+      "input": "הלקוח גר ב anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-he-00088",
+      "input": "כתובת למשלוח דואר: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-he-00089",
+      "input": "יש לשלוח את החבילה ל johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-he-00090",
+      "input": "נא לשלוח אל mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-he-00091",
+      "input": "כתובת: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-he-00092",
+      "input": "הלקוח גר ב alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-he-00093",
+      "input": "כתובת למשלוח דואר: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-he-00094",
+      "input": "יש לשלוח את החבילה ל mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-he-00095",
+      "input": "נא לשלוח אל annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-he-00096",
+      "input": "כתובת: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-he-00097",
+      "input": "הלקוח גר ב john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-he-00098",
+      "input": "כתובת למשלוח דואר: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-he-00099",
+      "input": "יש לשלוח את החבילה ל anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-he-00100",
+      "input": "נא לשלוח אל alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-he-00101",
+      "input": "כתובת: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-he-00102",
+      "input": "הלקוח גר ב mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-he-00103",
+      "input": "כתובת למשלוח דואר: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-he-00104",
+      "input": "יש לשלוח את החבילה ל alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-he-00105",
+      "input": "נא לשלוח אל john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-he-00106",
+      "input": "כתובת: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-he-00107",
+      "input": "הלקוח גר ב annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-he-00108",
+      "input": "כתובת למשלוח דואר: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-he-00109",
+      "input": "יש לשלוח את החבילה ל john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-he-00110",
+      "input": "נא לשלוח אל marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-he-00111",
+      "input": "כתובת: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-he-00112",
+      "input": "הלקוח גר ב alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-he-00113",
+      "input": "כתובת למשלוח דואר: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-he-00114",
+      "input": "יש לשלוח את החבילה ל mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-he-00115",
+      "input": "נא לשלוח אל anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-he-00116",
+      "input": "כתובת: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-he-00117",
+      "input": "הלקוח גר ב john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-he-00118",
+      "input": "כתובת למשלוח דואר: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-he-00119",
+      "input": "יש לשלוח את החבילה ל annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-he-00120",
+      "input": "נא לשלוח אל alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-he-00121",
+      "input": "כתובת: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-he-00122",
+      "input": "הלקוח גר ב marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-he-00123",
+      "input": "כתובת למשלוח דואר: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-he-00124",
+      "input": "יש לשלוח את החבילה ל alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-he-00125",
+      "input": "נא לשלוח אל johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-he-00126",
+      "input": "כתובת: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-he-00127",
+      "input": "הלקוח גר ב anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-he-00128",
+      "input": "כתובת למשלוח דואר: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-he-00129",
+      "input": "יש לשלוח את החבילה ל john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-he-00130",
+      "input": "נא לשלוח אל mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-he-00131",
+      "input": "כתובת: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-he-00132",
+      "input": "הלקוח גר ב alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-he-00133",
+      "input": "כתובת למשלוח דואר: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-he-00134",
+      "input": "יש לשלוח את החבילה ל marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-he-00135",
+      "input": "נא לשלוח אל anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-he-00136",
+      "input": "כתובת: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-he-00137",
+      "input": "הלקוח גר ב johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-he-00138",
+      "input": "כתובת למשלוח דואר: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-he-00139",
+      "input": "יש לשלוח את החבילה ל anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-he-00140",
+      "input": "נא לשלוח אל alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-he-00141",
+      "input": "כתובת: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-he-00142",
+      "input": "הלקוח גר ב mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-he-00143",
+      "input": "כתובת למשלוח דואר: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-he-00144",
+      "input": "יש לשלוח את החבילה ל alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-he-00145",
+      "input": "נא לשלוח אל john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-he-00146",
+      "input": "כתובת: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-he-00147",
+      "input": "הלקוח גר ב anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-he-00148",
+      "input": "כתובת למשלוח דואר: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-he-00149",
+      "input": "יש לשלוח את החבילה ל johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-he-00150",
+      "input": "נא לשלוח אל mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-he-00151",
+      "input": "כתובת: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-he-00152",
+      "input": "הלקוח גר ב alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-he-00153",
+      "input": "כתובת למשלוח דואר: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-he-00154",
+      "input": "יש לשלוח את החבילה ל mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-he-00155",
+      "input": "נא לשלוח אל annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-he-00156",
+      "input": "כתובת: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-he-00157",
+      "input": "הלקוח גר ב john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-he-00158",
+      "input": "כתובת למשלוח דואר: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-he-00159",
+      "input": "יש לשלוח את החבילה ל anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-he-00160",
+      "input": "נא לשלוח אל alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-he-00161",
+      "input": "כתובת: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-he-00162",
+      "input": "הלקוח גר ב mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-he-00163",
+      "input": "כתובת למשלוח דואר: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-he-00164",
+      "input": "יש לשלוח את החבילה ל alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-he-00165",
+      "input": "נא לשלוח אל john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-he-00166",
+      "input": "כתובת: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-he-00167",
+      "input": "הלקוח גר ב annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-he-00168",
+      "input": "כתובת למשלוח דואר: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-he-00169",
+      "input": "יש לשלוח את החבילה ל john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-he-00170",
+      "input": "נא לשלוח אל marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-he-00171",
+      "input": "כתובת: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-he-00172",
+      "input": "הלקוח גר ב alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-he-00173",
+      "input": "כתובת למשלוח דואר: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-he-00174",
+      "input": "יש לשלוח את החבילה ל mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-he-00175",
+      "input": "נא לשלוח אל anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-he-00176",
+      "input": "כתובת: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-he-00177",
+      "input": "הלקוח גר ב john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-he-00178",
+      "input": "כתובת למשלוח דואר: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-he-00179",
+      "input": "יש לשלוח את החבילה ל annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-he-00180",
+      "input": "נא לשלוח אל alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-he-00181",
+      "input": "כתובת: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-he-00182",
+      "input": "הלקוח גר ב marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-he-00183",
+      "input": "כתובת למשלוח דואר: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-he-00184",
+      "input": "יש לשלוח את החבילה ל alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-he-00185",
+      "input": "נא לשלוח אל johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-he-00186",
+      "input": "כתובת: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-he-00187",
+      "input": "הלקוח גר ב anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-he-00188",
+      "input": "כתובת למשלוח דואר: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-he-00189",
+      "input": "יש לשלוח את החבילה ל john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-he-00190",
+      "input": "נא לשלוח אל mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-he-00191",
+      "input": "כתובת: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-he-00192",
+      "input": "הלקוח גר ב alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-he-00193",
+      "input": "כתובת למשלוח דואר: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-he-00194",
+      "input": "יש לשלוח את החבילה ל marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-he-00195",
+      "input": "נא לשלוח אל anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-he-00196",
+      "input": "כתובת: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-he-00197",
+      "input": "הלקוח גר ב johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-he-00198",
+      "input": "כתובת למשלוח דואר: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-he-00199",
+      "input": "יש לשלוח את החבילה ל anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-he-00200",
+      "input": "נא לשלוח אל alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-he-00201",
+      "input": "כתובת: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-he-00202",
+      "input": "הלקוח גר ב mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-he-00203",
+      "input": "כתובת למשלוח דואר: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-he-00204",
+      "input": "יש לשלוח את החבילה ל alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-he-00205",
+      "input": "נא לשלוח אל john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-he-00206",
+      "input": "כתובת: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-he-00207",
+      "input": "הלקוח גר ב anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-he-00208",
+      "input": "כתובת למשלוח דואר: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-he-00209",
+      "input": "יש לשלוח את החבילה ל johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-he-00210",
+      "input": "נא לשלוח אל mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-he-00211",
+      "input": "כתובת: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-he-00212",
+      "input": "הלקוח גר ב alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-he-00213",
+      "input": "כתובת למשלוח דואר: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-he-00214",
+      "input": "יש לשלוח את החבילה ל mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-he-00215",
+      "input": "נא לשלוח אל annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-he-00216",
+      "input": "כתובת: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-he-00217",
+      "input": "הלקוח גר ב john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-he-00218",
+      "input": "כתובת למשלוח דואר: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-he-00219",
+      "input": "יש לשלוח את החבילה ל anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-he-00220",
+      "input": "נא לשלוח אל alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-he-00221",
+      "input": "כתובת: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-he-00222",
+      "input": "הלקוח גר ב mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-he-00223",
+      "input": "כתובת למשלוח דואר: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-he-00224",
+      "input": "יש לשלוח את החבילה ל alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-he-00225",
+      "input": "נא לשלוח אל john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-he-00226",
+      "input": "כתובת: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-he-00227",
+      "input": "הלקוח גר ב annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-he-00228",
+      "input": "כתובת למשלוח דואר: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-he-00229",
+      "input": "יש לשלוח את החבילה ל john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-he-00230",
+      "input": "נא לשלוח אל marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-he-00231",
+      "input": "כתובת: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-he-00232",
+      "input": "הלקוח גר ב alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-he-00233",
+      "input": "כתובת למשלוח דואר: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-he-00234",
+      "input": "יש לשלוח את החבילה ל mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-he-00235",
+      "input": "נא לשלוח אל anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-he-00236",
+      "input": "כתובת: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-he-00237",
+      "input": "הלקוח גר ב john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-he-00238",
+      "input": "כתובת למשלוח דואר: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-he-00239",
+      "input": "יש לשלוח את החבילה ל annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-he-00240",
+      "input": "נא לשלוח אל alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-he-00241",
+      "input": "כתובת: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-he-00242",
+      "input": "הלקוח גר ב marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-he-00243",
+      "input": "כתובת למשלוח דואר: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-he-00244",
+      "input": "יש לשלוח את החבילה ל alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-he-00245",
+      "input": "נא לשלוח אל johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-he-00246",
+      "input": "כתובת: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-he-00247",
+      "input": "הלקוח גר ב anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-he-00248",
+      "input": "כתובת למשלוח דואר: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-he-00249",
+      "input": "יש לשלוח את החבילה ל john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-he-00250",
+      "input": "נא לשלוח אל mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-he-00251",
+      "input": "כתובת: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-he-00252",
+      "input": "הלקוח גר ב alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-he-00253",
+      "input": "כתובת למשלוח דואר: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-he-00254",
+      "input": "יש לשלוח את החבילה ל marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-he-00255",
+      "input": "נא לשלוח אל anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-he-00256",
+      "input": "כתובת: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-he-00257",
+      "input": "הלקוח גר ב johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-he-00258",
+      "input": "כתובת למשלוח דואר: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-he-00259",
+      "input": "יש לשלוח את החבילה ל anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-he-00260",
+      "input": "נא לשלוח אל alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-he-00261",
+      "input": "כתובת: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-he-00262",
+      "input": "הלקוח גר ב mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-he-00263",
+      "input": "כתובת למשלוח דואר: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-he-00264",
+      "input": "יש לשלוח את החבילה ל alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-he-00265",
+      "input": "נא לשלוח אל john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-he-00266",
+      "input": "כתובת: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-he-00267",
+      "input": "הלקוח גר ב anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-he-00268",
+      "input": "כתובת למשלוח דואר: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-he-00269",
+      "input": "יש לשלוח את החבילה ל johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-he-00270",
+      "input": "נא לשלוח אל mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-he-00271",
+      "input": "כתובת: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-he-00272",
+      "input": "הלקוח גר ב alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-he-00273",
+      "input": "כתובת למשלוח דואר: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-he-00274",
+      "input": "יש לשלוח את החבילה ל mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-he-00275",
+      "input": "נא לשלוח אל annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-he-00276",
+      "input": "כתובת: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-he-00277",
+      "input": "הלקוח גר ב john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-he-00278",
+      "input": "כתובת למשלוח דואר: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-he-00279",
+      "input": "יש לשלוח את החבילה ל anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-he-00280",
+      "input": "נא לשלוח אל alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-he-00281",
+      "input": "כתובת: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-he-00282",
+      "input": "הלקוח גר ב mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-he-00283",
+      "input": "כתובת למשלוח דואר: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-he-00284",
+      "input": "יש לשלוח את החבילה ל alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-he-00285",
+      "input": "נא לשלוח אל john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-he-00286",
+      "input": "כתובת: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-he-00287",
+      "input": "הלקוח גר ב annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-he-00288",
+      "input": "כתובת למשלוח דואר: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-he-00289",
+      "input": "יש לשלוח את החבילה ל john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-he-00290",
+      "input": "נא לשלוח אל marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-he-00291",
+      "input": "כתובת: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-he-00292",
+      "input": "הלקוח גר ב alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-he-00293",
+      "input": "כתובת למשלוח דואר: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-he-00294",
+      "input": "יש לשלוח את החבילה ל mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-he-00295",
+      "input": "נא לשלוח אל anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-he-00296",
+      "input": "כתובת: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-he-00297",
+      "input": "הלקוח גר ב john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-he-00298",
+      "input": "כתובת למשלוח דואר: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-he-00299",
+      "input": "יש לשלוח את החבילה ל annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 45
+        }
+      ]
+    }
+  ]
+}

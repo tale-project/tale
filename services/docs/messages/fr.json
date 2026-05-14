@@ -65,20 +65,6 @@
     "notFoundBackHome": "Retour à l'accueil de la documentation",
     "backToTop": "Retour en haut"
   },
-  "languageSwitcher": {
-    "ariaLabel": "Changer de langue",
-    "locales": {
-      "en": "English",
-      "de": "Deutsch",
-      "fr": "Français"
-    }
-  },
-  "themeSwitcher": {
-    "ariaLabel": "Changer de thème",
-    "light": "Clair",
-    "dark": "Sombre",
-    "system": "Système"
-  },
   "footer": {
     "product": "Produit",
     "resources": "Ressources",

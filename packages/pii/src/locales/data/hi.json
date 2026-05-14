@@ -1,0 +1,92 @@
+{
+  "locale": "hi",
+  "name": "Hindi",
+  "scripts": ["deva", "latn"],
+  "countries": ["IN"],
+  "phoneContextKeywords": [
+    "फोन",
+    "मोबाइल",
+    "नंबर",
+    "phone",
+    "mobile",
+    "tel.",
+    "tel"
+  ],
+  "cvcContextKeywords": ["सुरक्षा कोड", "cvc", "cvv", "cv2"],
+  "address": {
+    "forms": ["standard", "po-box"],
+    "postcodeForm": "continental",
+    "postcodeRegex": "\\d{6}",
+    "streetKeywordsStandard": [
+      "Road",
+      "Rd.",
+      "Marg",
+      "Marga",
+      "Street",
+      "St.",
+      "Lane",
+      "Nagar"
+    ],
+    "streetKeywordsInverted": ["Road", "Rd.", "Marg", "Street", "St.", "Lane"],
+    "houseNumberMarkers": ["No.", "नं.", "Number"],
+    "poBoxKeywords": ["P.O. Box", "PO Box"],
+    "floorKeywords": ["Floor", "Flat", "Apartment", "Apt.", "Block", "मंजिल"],
+    "countryNames": ["भारत", "India", "IN"],
+    "countryPostcodePrefixes": [],
+    "requireUppercase": true
+  },
+  "nationalIds": [
+    {
+      "id": "in-aadhaar",
+      "name": "Indian Aadhaar",
+      "pattern": "\\b\\d{4}\\s?\\d{4}\\s?\\d{4}\\b",
+      "checksum": "verhoeff",
+      "replacement": "[AADHAAR]"
+    },
+    {
+      "id": "in-pan",
+      "name": "Indian PAN",
+      "pattern": "\\b[A-Z]{5}\\d{4}[A-Z]\\b",
+      "replacement": "[PAN]"
+    },
+    {
+      "id": "in-passport",
+      "name": "Indian Passport",
+      "pattern": "\\b[A-Z]\\d{7}\\b",
+      "replacement": "[PASSPORT]"
+    }
+  ],
+  "fixtureSeeds": {
+    "addresses": [
+      "राजपथ मार्ग 12, नई दिल्ली 110001",
+      "महात्मा गांधी रोड 45, मुंबई 400001",
+      "एमजी रोड 78, बेंगलुरु 560001",
+      "अन्ना सलाई 23, चेन्नई 600002",
+      "पार्क स्ट्रीट 9, कोलकाता 700016",
+      "हुसैन सागर रोड 56, हैदराबाद 500001",
+      "कैम्प रोड 34, पुणे 411001",
+      "आश्रम रोड 17, अहमदाबाद 380009",
+      "सिविल लाइन्स 5, लखनऊ 226001",
+      "गांधी मैदान रोड 22, पटना 800001"
+    ],
+    "wrappers": [
+      "कृपया {} पर भेजें।",
+      "पता: {}",
+      "ग्राहक का पता {} है।",
+      "पत्राचार का पता: {}",
+      "डिलीवरी पते पर: {}"
+    ],
+    "prose": [
+      "आज मौसम बहुत अच्छा है।",
+      "कल की बैठक दोपहर तीन बजे है।",
+      "कृपया मुझे एक कप कॉफी दीजिए।",
+      "मुझे किताबें पढ़ना पसंद है।",
+      "दिल्ली एक बड़ा शहर है।",
+      "मैंने एक नया प्रोजेक्ट शुरू किया।",
+      "चेरी के फूल बहुत सुंदर हैं।",
+      "सप्ताहांत में मैं पहाड़ों पर जाऊंगा।",
+      "एक नया रेस्तरां खुला है।",
+      "वह लगन से पियानो बजाने का अभ्यास करती है।"
+    ]
+  }
+}

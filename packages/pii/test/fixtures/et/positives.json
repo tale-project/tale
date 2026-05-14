@@ -1,0 +1,3315 @@
+{
+  "_meta": {
+    "locale": "et",
+    "generator": "@tale/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 300,
+      "negatives": 0
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "positives": [
+    {
+      "id": "email-et-00000",
+      "input": "Palun saatke pakk aadressile alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00001",
+      "input": "Postiaadress: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00002",
+      "input": "Klient elab aadressil marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00003",
+      "input": "Vastuvõtukoht — anna.mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00004",
+      "input": "Palun saatke pakk aadressile alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00005",
+      "input": "Postiaadress: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-et-00006",
+      "input": "Klient elab aadressil mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00007",
+      "input": "Vastuvõtukoht — anna_mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00008",
+      "input": "Palun saatke pakk aadressile alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-et-00009",
+      "input": "Postiaadress: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00010",
+      "input": "Klient elab aadressil mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00011",
+      "input": "Vastuvõtukoht — annamueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00012",
+      "input": "Palun saatke pakk aadressile alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00013",
+      "input": "Postiaadress: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00014",
+      "input": "Klient elab aadressil marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00015",
+      "input": "Vastuvõtukoht — anna.mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00016",
+      "input": "Palun saatke pakk aadressile alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00017",
+      "input": "Postiaadress: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-et-00018",
+      "input": "Klient elab aadressil mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00019",
+      "input": "Vastuvõtukoht — anna_mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00020",
+      "input": "Palun saatke pakk aadressile alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-et-00021",
+      "input": "Postiaadress: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00022",
+      "input": "Klient elab aadressil mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00023",
+      "input": "Vastuvõtukoht — annamueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00024",
+      "input": "Palun saatke pakk aadressile alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00025",
+      "input": "Postiaadress: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00026",
+      "input": "Klient elab aadressil marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00027",
+      "input": "Vastuvõtukoht — anna.mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00028",
+      "input": "Palun saatke pakk aadressile alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00029",
+      "input": "Postiaadress: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-et-00030",
+      "input": "Klient elab aadressil mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00031",
+      "input": "Vastuvõtukoht — anna_mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00032",
+      "input": "Palun saatke pakk aadressile alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-et-00033",
+      "input": "Postiaadress: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00034",
+      "input": "Klient elab aadressil mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00035",
+      "input": "Vastuvõtukoht — annamueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00036",
+      "input": "Palun saatke pakk aadressile alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00037",
+      "input": "Postiaadress: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00038",
+      "input": "Klient elab aadressil marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00039",
+      "input": "Vastuvõtukoht — anna.mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00040",
+      "input": "Palun saatke pakk aadressile alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00041",
+      "input": "Postiaadress: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-et-00042",
+      "input": "Klient elab aadressil mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00043",
+      "input": "Vastuvõtukoht — anna_mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00044",
+      "input": "Palun saatke pakk aadressile alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-et-00045",
+      "input": "Postiaadress: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00046",
+      "input": "Klient elab aadressil mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00047",
+      "input": "Vastuvõtukoht — annamueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00048",
+      "input": "Palun saatke pakk aadressile alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00049",
+      "input": "Postiaadress: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00050",
+      "input": "Klient elab aadressil marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00051",
+      "input": "Vastuvõtukoht — anna.mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00052",
+      "input": "Palun saatke pakk aadressile alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00053",
+      "input": "Postiaadress: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-et-00054",
+      "input": "Klient elab aadressil mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00055",
+      "input": "Vastuvõtukoht — anna_mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00056",
+      "input": "Palun saatke pakk aadressile alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-et-00057",
+      "input": "Postiaadress: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00058",
+      "input": "Klient elab aadressil mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00059",
+      "input": "Vastuvõtukoht — annamueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00060",
+      "input": "Palun saatke pakk aadressile alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00061",
+      "input": "Postiaadress: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00062",
+      "input": "Klient elab aadressil marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00063",
+      "input": "Vastuvõtukoht — anna.mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00064",
+      "input": "Palun saatke pakk aadressile alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00065",
+      "input": "Postiaadress: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-et-00066",
+      "input": "Klient elab aadressil mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00067",
+      "input": "Vastuvõtukoht — anna_mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00068",
+      "input": "Palun saatke pakk aadressile alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-et-00069",
+      "input": "Postiaadress: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00070",
+      "input": "Klient elab aadressil mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00071",
+      "input": "Vastuvõtukoht — annamueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00072",
+      "input": "Palun saatke pakk aadressile alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00073",
+      "input": "Postiaadress: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00074",
+      "input": "Klient elab aadressil marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00075",
+      "input": "Vastuvõtukoht — anna.mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00076",
+      "input": "Palun saatke pakk aadressile alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00077",
+      "input": "Postiaadress: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-et-00078",
+      "input": "Klient elab aadressil mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00079",
+      "input": "Vastuvõtukoht — anna_mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00080",
+      "input": "Palun saatke pakk aadressile alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-et-00081",
+      "input": "Postiaadress: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00082",
+      "input": "Klient elab aadressil mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00083",
+      "input": "Vastuvõtukoht — annamueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00084",
+      "input": "Palun saatke pakk aadressile alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00085",
+      "input": "Postiaadress: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00086",
+      "input": "Klient elab aadressil marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00087",
+      "input": "Vastuvõtukoht — anna.mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00088",
+      "input": "Palun saatke pakk aadressile alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00089",
+      "input": "Postiaadress: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-et-00090",
+      "input": "Klient elab aadressil mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00091",
+      "input": "Vastuvõtukoht — anna_mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00092",
+      "input": "Palun saatke pakk aadressile alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-et-00093",
+      "input": "Postiaadress: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00094",
+      "input": "Klient elab aadressil mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00095",
+      "input": "Vastuvõtukoht — annamueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00096",
+      "input": "Palun saatke pakk aadressile alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00097",
+      "input": "Postiaadress: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00098",
+      "input": "Klient elab aadressil marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00099",
+      "input": "Vastuvõtukoht — anna.mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00100",
+      "input": "Palun saatke pakk aadressile alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00101",
+      "input": "Postiaadress: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-et-00102",
+      "input": "Klient elab aadressil mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00103",
+      "input": "Vastuvõtukoht — anna_mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00104",
+      "input": "Palun saatke pakk aadressile alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-et-00105",
+      "input": "Postiaadress: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00106",
+      "input": "Klient elab aadressil mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00107",
+      "input": "Vastuvõtukoht — annamueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00108",
+      "input": "Palun saatke pakk aadressile alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00109",
+      "input": "Postiaadress: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00110",
+      "input": "Klient elab aadressil marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00111",
+      "input": "Vastuvõtukoht — anna.mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00112",
+      "input": "Palun saatke pakk aadressile alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00113",
+      "input": "Postiaadress: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-et-00114",
+      "input": "Klient elab aadressil mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00115",
+      "input": "Vastuvõtukoht — anna_mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00116",
+      "input": "Palun saatke pakk aadressile alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-et-00117",
+      "input": "Postiaadress: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00118",
+      "input": "Klient elab aadressil mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00119",
+      "input": "Vastuvõtukoht — annamueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00120",
+      "input": "Palun saatke pakk aadressile alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00121",
+      "input": "Postiaadress: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00122",
+      "input": "Klient elab aadressil marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00123",
+      "input": "Vastuvõtukoht — anna.mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00124",
+      "input": "Palun saatke pakk aadressile alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00125",
+      "input": "Postiaadress: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-et-00126",
+      "input": "Klient elab aadressil mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00127",
+      "input": "Vastuvõtukoht — anna_mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00128",
+      "input": "Palun saatke pakk aadressile alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-et-00129",
+      "input": "Postiaadress: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00130",
+      "input": "Klient elab aadressil mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00131",
+      "input": "Vastuvõtukoht — annamueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00132",
+      "input": "Palun saatke pakk aadressile alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00133",
+      "input": "Postiaadress: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00134",
+      "input": "Klient elab aadressil marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00135",
+      "input": "Vastuvõtukoht — anna.mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00136",
+      "input": "Palun saatke pakk aadressile alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00137",
+      "input": "Postiaadress: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-et-00138",
+      "input": "Klient elab aadressil mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00139",
+      "input": "Vastuvõtukoht — anna_mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00140",
+      "input": "Palun saatke pakk aadressile alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-et-00141",
+      "input": "Postiaadress: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00142",
+      "input": "Klient elab aadressil mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00143",
+      "input": "Vastuvõtukoht — annamueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00144",
+      "input": "Palun saatke pakk aadressile alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00145",
+      "input": "Postiaadress: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00146",
+      "input": "Klient elab aadressil marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00147",
+      "input": "Vastuvõtukoht — anna.mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00148",
+      "input": "Palun saatke pakk aadressile alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00149",
+      "input": "Postiaadress: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-et-00150",
+      "input": "Klient elab aadressil mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00151",
+      "input": "Vastuvõtukoht — anna_mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00152",
+      "input": "Palun saatke pakk aadressile alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-et-00153",
+      "input": "Postiaadress: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00154",
+      "input": "Klient elab aadressil mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00155",
+      "input": "Vastuvõtukoht — annamueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00156",
+      "input": "Palun saatke pakk aadressile alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00157",
+      "input": "Postiaadress: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00158",
+      "input": "Klient elab aadressil marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00159",
+      "input": "Vastuvõtukoht — anna.mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00160",
+      "input": "Palun saatke pakk aadressile alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00161",
+      "input": "Postiaadress: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-et-00162",
+      "input": "Klient elab aadressil mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00163",
+      "input": "Vastuvõtukoht — anna_mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00164",
+      "input": "Palun saatke pakk aadressile alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-et-00165",
+      "input": "Postiaadress: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00166",
+      "input": "Klient elab aadressil mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00167",
+      "input": "Vastuvõtukoht — annamueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00168",
+      "input": "Palun saatke pakk aadressile alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00169",
+      "input": "Postiaadress: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00170",
+      "input": "Klient elab aadressil marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00171",
+      "input": "Vastuvõtukoht — anna.mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00172",
+      "input": "Palun saatke pakk aadressile alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00173",
+      "input": "Postiaadress: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-et-00174",
+      "input": "Klient elab aadressil mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00175",
+      "input": "Vastuvõtukoht — anna_mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00176",
+      "input": "Palun saatke pakk aadressile alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-et-00177",
+      "input": "Postiaadress: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00178",
+      "input": "Klient elab aadressil mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00179",
+      "input": "Vastuvõtukoht — annamueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00180",
+      "input": "Palun saatke pakk aadressile alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00181",
+      "input": "Postiaadress: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00182",
+      "input": "Klient elab aadressil marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00183",
+      "input": "Vastuvõtukoht — anna.mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00184",
+      "input": "Palun saatke pakk aadressile alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00185",
+      "input": "Postiaadress: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-et-00186",
+      "input": "Klient elab aadressil mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00187",
+      "input": "Vastuvõtukoht — anna_mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00188",
+      "input": "Palun saatke pakk aadressile alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-et-00189",
+      "input": "Postiaadress: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00190",
+      "input": "Klient elab aadressil mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00191",
+      "input": "Vastuvõtukoht — annamueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00192",
+      "input": "Palun saatke pakk aadressile alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00193",
+      "input": "Postiaadress: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00194",
+      "input": "Klient elab aadressil marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00195",
+      "input": "Vastuvõtukoht — anna.mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00196",
+      "input": "Palun saatke pakk aadressile alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00197",
+      "input": "Postiaadress: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-et-00198",
+      "input": "Klient elab aadressil mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00199",
+      "input": "Vastuvõtukoht — anna_mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00200",
+      "input": "Palun saatke pakk aadressile alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-et-00201",
+      "input": "Postiaadress: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00202",
+      "input": "Klient elab aadressil mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00203",
+      "input": "Vastuvõtukoht — annamueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00204",
+      "input": "Palun saatke pakk aadressile alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00205",
+      "input": "Postiaadress: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00206",
+      "input": "Klient elab aadressil marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00207",
+      "input": "Vastuvõtukoht — anna.mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00208",
+      "input": "Palun saatke pakk aadressile alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00209",
+      "input": "Postiaadress: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-et-00210",
+      "input": "Klient elab aadressil mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00211",
+      "input": "Vastuvõtukoht — anna_mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00212",
+      "input": "Palun saatke pakk aadressile alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-et-00213",
+      "input": "Postiaadress: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00214",
+      "input": "Klient elab aadressil mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00215",
+      "input": "Vastuvõtukoht — annamueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00216",
+      "input": "Palun saatke pakk aadressile alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00217",
+      "input": "Postiaadress: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00218",
+      "input": "Klient elab aadressil marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00219",
+      "input": "Vastuvõtukoht — anna.mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00220",
+      "input": "Palun saatke pakk aadressile alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00221",
+      "input": "Postiaadress: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-et-00222",
+      "input": "Klient elab aadressil mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00223",
+      "input": "Vastuvõtukoht — anna_mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00224",
+      "input": "Palun saatke pakk aadressile alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-et-00225",
+      "input": "Postiaadress: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00226",
+      "input": "Klient elab aadressil mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00227",
+      "input": "Vastuvõtukoht — annamueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00228",
+      "input": "Palun saatke pakk aadressile alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00229",
+      "input": "Postiaadress: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00230",
+      "input": "Klient elab aadressil marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00231",
+      "input": "Vastuvõtukoht — anna.mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00232",
+      "input": "Palun saatke pakk aadressile alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00233",
+      "input": "Postiaadress: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-et-00234",
+      "input": "Klient elab aadressil mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00235",
+      "input": "Vastuvõtukoht — anna_mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00236",
+      "input": "Palun saatke pakk aadressile alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-et-00237",
+      "input": "Postiaadress: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00238",
+      "input": "Klient elab aadressil mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00239",
+      "input": "Vastuvõtukoht — annamueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00240",
+      "input": "Palun saatke pakk aadressile alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00241",
+      "input": "Postiaadress: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00242",
+      "input": "Klient elab aadressil marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00243",
+      "input": "Vastuvõtukoht — anna.mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00244",
+      "input": "Palun saatke pakk aadressile alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00245",
+      "input": "Postiaadress: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-et-00246",
+      "input": "Klient elab aadressil mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00247",
+      "input": "Vastuvõtukoht — anna_mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00248",
+      "input": "Palun saatke pakk aadressile alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-et-00249",
+      "input": "Postiaadress: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00250",
+      "input": "Klient elab aadressil mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00251",
+      "input": "Vastuvõtukoht — annamueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00252",
+      "input": "Palun saatke pakk aadressile alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00253",
+      "input": "Postiaadress: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00254",
+      "input": "Klient elab aadressil marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00255",
+      "input": "Vastuvõtukoht — anna.mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00256",
+      "input": "Palun saatke pakk aadressile alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00257",
+      "input": "Postiaadress: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-et-00258",
+      "input": "Klient elab aadressil mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00259",
+      "input": "Vastuvõtukoht — anna_mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00260",
+      "input": "Palun saatke pakk aadressile alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-et-00261",
+      "input": "Postiaadress: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00262",
+      "input": "Klient elab aadressil mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00263",
+      "input": "Vastuvõtukoht — annamueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00264",
+      "input": "Palun saatke pakk aadressile alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00265",
+      "input": "Postiaadress: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00266",
+      "input": "Klient elab aadressil marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00267",
+      "input": "Vastuvõtukoht — anna.mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00268",
+      "input": "Palun saatke pakk aadressile alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00269",
+      "input": "Postiaadress: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-et-00270",
+      "input": "Klient elab aadressil mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00271",
+      "input": "Vastuvõtukoht — anna_mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00272",
+      "input": "Palun saatke pakk aadressile alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-et-00273",
+      "input": "Postiaadress: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00274",
+      "input": "Klient elab aadressil mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00275",
+      "input": "Vastuvõtukoht — annamueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00276",
+      "input": "Palun saatke pakk aadressile alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00277",
+      "input": "Postiaadress: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00278",
+      "input": "Klient elab aadressil marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00279",
+      "input": "Vastuvõtukoht — anna.mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00280",
+      "input": "Palun saatke pakk aadressile alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00281",
+      "input": "Postiaadress: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-et-00282",
+      "input": "Klient elab aadressil mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00283",
+      "input": "Vastuvõtukoht — anna_mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00284",
+      "input": "Palun saatke pakk aadressile alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-et-00285",
+      "input": "Postiaadress: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00286",
+      "input": "Klient elab aadressil mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00287",
+      "input": "Vastuvõtukoht — annamueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00288",
+      "input": "Palun saatke pakk aadressile alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00289",
+      "input": "Postiaadress: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00290",
+      "input": "Klient elab aadressil marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-et-00291",
+      "input": "Vastuvõtukoht — anna.mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00292",
+      "input": "Palun saatke pakk aadressile alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-et-00293",
+      "input": "Postiaadress: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-et-00294",
+      "input": "Klient elab aadressil mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00295",
+      "input": "Vastuvõtukoht — anna_mueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00296",
+      "input": "Palun saatke pakk aadressile alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 29,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-et-00297",
+      "input": "Postiaadress: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-et-00298",
+      "input": "Klient elab aadressil mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-et-00299",
+      "input": "Vastuvõtukoht — annamueller@corp.example — kinnitatud.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    }
+  ]
+}

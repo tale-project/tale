@@ -51,11 +51,17 @@ export function registerReactPackage(plop: NodePlopAPI): void {
         'src/index.ts',
         'src/globals.css',
         'src/test/setup.ts',
+        'src/i18n/messages.ts.hbs',
+        'src/messages/en.json',
+        'src/messages/de.json',
+        'src/messages/fr.json',
+        'src/messages/global.json',
+        'src/messages/messages.test.ts',
         'tailwind-preset.ts',
       ];
       const storybookFiles = [
         '.storybook/main.ts.hbs',
-        '.storybook/preview.tsx',
+        '.storybook/preview.tsx.hbs',
         '.storybook/manager.ts',
       ];
       const files = answers.storybook

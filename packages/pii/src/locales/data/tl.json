@@ -1,0 +1,39 @@
+{
+  "locale": "tl",
+  "name": "Tagalog",
+  "scripts": ["latn"],
+  "countries": ["PH"],
+  "phoneContextKeywords": ["telepono", "mobile", "numero", "tel.", "tel"],
+  "cvcContextKeywords": ["security code", "cvc", "cvv", "cv2"],
+  "address": {
+    "forms": ["standard", "po-box"],
+    "postcodeForm": "continental",
+    "postcodeRegex": "\\d{4}",
+    "requireUppercase": true,
+    "streetKeywordsStandard": [
+      "Street",
+      "St.",
+      "Avenue",
+      "Ave.",
+      "Boulevard",
+      "Blvd.",
+      "Road",
+      "Rd.",
+      "Drive",
+      "Dr."
+    ],
+    "poBoxKeywords": ["P.O. Box", "PO Box"],
+    "floorKeywords": ["Floor", "Unit", "Apartment"],
+    "countryNames": ["Pilipinas", "Philippines", "PH"],
+    "countryPostcodePrefixes": []
+  },
+  "nationalIds": [],
+  "fixtureSeeds": {
+    "wrappers": [
+      "Mangyaring ipadala ang pakete sa {}.",
+      "Address sa koreo: {}",
+      "Ang customer ay nakatira sa {}.",
+      "Pickup point — {} — nakumpirma."
+    ]
+  }
+}

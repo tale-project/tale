@@ -1,0 +1,3315 @@
+{
+  "_meta": {
+    "locale": "id",
+    "generator": "@tale/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 300,
+      "negatives": 0
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "positives": [
+    {
+      "id": "email-id-00000",
+      "input": "Mohon kirim paket ke alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00001",
+      "input": "Alamat pos: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00002",
+      "input": "Pelanggan tinggal di marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-id-00003",
+      "input": "Titik pengambilan — anna.mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00004",
+      "input": "Mohon kirim paket ke alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00005",
+      "input": "Alamat pos: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-id-00006",
+      "input": "Pelanggan tinggal di mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00007",
+      "input": "Titik pengambilan — anna_mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00008",
+      "input": "Mohon kirim paket ke alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-id-00009",
+      "input": "Alamat pos: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00010",
+      "input": "Pelanggan tinggal di mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00011",
+      "input": "Titik pengambilan — annamueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-id-00012",
+      "input": "Mohon kirim paket ke alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00013",
+      "input": "Alamat pos: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00014",
+      "input": "Pelanggan tinggal di marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-id-00015",
+      "input": "Titik pengambilan — anna.mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00016",
+      "input": "Mohon kirim paket ke alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00017",
+      "input": "Alamat pos: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-id-00018",
+      "input": "Pelanggan tinggal di mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00019",
+      "input": "Titik pengambilan — anna_mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00020",
+      "input": "Mohon kirim paket ke alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-id-00021",
+      "input": "Alamat pos: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00022",
+      "input": "Pelanggan tinggal di mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00023",
+      "input": "Titik pengambilan — annamueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-id-00024",
+      "input": "Mohon kirim paket ke alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00025",
+      "input": "Alamat pos: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00026",
+      "input": "Pelanggan tinggal di marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-id-00027",
+      "input": "Titik pengambilan — anna.mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00028",
+      "input": "Mohon kirim paket ke alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00029",
+      "input": "Alamat pos: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-id-00030",
+      "input": "Pelanggan tinggal di mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00031",
+      "input": "Titik pengambilan — anna_mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00032",
+      "input": "Mohon kirim paket ke alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-id-00033",
+      "input": "Alamat pos: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00034",
+      "input": "Pelanggan tinggal di mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00035",
+      "input": "Titik pengambilan — annamueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-id-00036",
+      "input": "Mohon kirim paket ke alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00037",
+      "input": "Alamat pos: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00038",
+      "input": "Pelanggan tinggal di marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-id-00039",
+      "input": "Titik pengambilan — anna.mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00040",
+      "input": "Mohon kirim paket ke alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00041",
+      "input": "Alamat pos: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-id-00042",
+      "input": "Pelanggan tinggal di mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00043",
+      "input": "Titik pengambilan — anna_mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00044",
+      "input": "Mohon kirim paket ke alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-id-00045",
+      "input": "Alamat pos: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00046",
+      "input": "Pelanggan tinggal di mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00047",
+      "input": "Titik pengambilan — annamueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-id-00048",
+      "input": "Mohon kirim paket ke alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00049",
+      "input": "Alamat pos: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00050",
+      "input": "Pelanggan tinggal di marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-id-00051",
+      "input": "Titik pengambilan — anna.mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00052",
+      "input": "Mohon kirim paket ke alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00053",
+      "input": "Alamat pos: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-id-00054",
+      "input": "Pelanggan tinggal di mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00055",
+      "input": "Titik pengambilan — anna_mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00056",
+      "input": "Mohon kirim paket ke alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-id-00057",
+      "input": "Alamat pos: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00058",
+      "input": "Pelanggan tinggal di mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00059",
+      "input": "Titik pengambilan — annamueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-id-00060",
+      "input": "Mohon kirim paket ke alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00061",
+      "input": "Alamat pos: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00062",
+      "input": "Pelanggan tinggal di marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-id-00063",
+      "input": "Titik pengambilan — anna.mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00064",
+      "input": "Mohon kirim paket ke alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00065",
+      "input": "Alamat pos: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-id-00066",
+      "input": "Pelanggan tinggal di mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00067",
+      "input": "Titik pengambilan — anna_mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00068",
+      "input": "Mohon kirim paket ke alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-id-00069",
+      "input": "Alamat pos: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00070",
+      "input": "Pelanggan tinggal di mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00071",
+      "input": "Titik pengambilan — annamueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-id-00072",
+      "input": "Mohon kirim paket ke alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00073",
+      "input": "Alamat pos: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00074",
+      "input": "Pelanggan tinggal di marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-id-00075",
+      "input": "Titik pengambilan — anna.mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00076",
+      "input": "Mohon kirim paket ke alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00077",
+      "input": "Alamat pos: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-id-00078",
+      "input": "Pelanggan tinggal di mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00079",
+      "input": "Titik pengambilan — anna_mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00080",
+      "input": "Mohon kirim paket ke alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-id-00081",
+      "input": "Alamat pos: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00082",
+      "input": "Pelanggan tinggal di mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00083",
+      "input": "Titik pengambilan — annamueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-id-00084",
+      "input": "Mohon kirim paket ke alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00085",
+      "input": "Alamat pos: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00086",
+      "input": "Pelanggan tinggal di marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-id-00087",
+      "input": "Titik pengambilan — anna.mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00088",
+      "input": "Mohon kirim paket ke alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00089",
+      "input": "Alamat pos: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-id-00090",
+      "input": "Pelanggan tinggal di mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00091",
+      "input": "Titik pengambilan — anna_mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00092",
+      "input": "Mohon kirim paket ke alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-id-00093",
+      "input": "Alamat pos: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00094",
+      "input": "Pelanggan tinggal di mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00095",
+      "input": "Titik pengambilan — annamueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-id-00096",
+      "input": "Mohon kirim paket ke alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00097",
+      "input": "Alamat pos: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00098",
+      "input": "Pelanggan tinggal di marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-id-00099",
+      "input": "Titik pengambilan — anna.mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00100",
+      "input": "Mohon kirim paket ke alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00101",
+      "input": "Alamat pos: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-id-00102",
+      "input": "Pelanggan tinggal di mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00103",
+      "input": "Titik pengambilan — anna_mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00104",
+      "input": "Mohon kirim paket ke alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-id-00105",
+      "input": "Alamat pos: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00106",
+      "input": "Pelanggan tinggal di mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00107",
+      "input": "Titik pengambilan — annamueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-id-00108",
+      "input": "Mohon kirim paket ke alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00109",
+      "input": "Alamat pos: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00110",
+      "input": "Pelanggan tinggal di marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-id-00111",
+      "input": "Titik pengambilan — anna.mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00112",
+      "input": "Mohon kirim paket ke alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00113",
+      "input": "Alamat pos: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-id-00114",
+      "input": "Pelanggan tinggal di mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00115",
+      "input": "Titik pengambilan — anna_mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00116",
+      "input": "Mohon kirim paket ke alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-id-00117",
+      "input": "Alamat pos: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00118",
+      "input": "Pelanggan tinggal di mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00119",
+      "input": "Titik pengambilan — annamueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-id-00120",
+      "input": "Mohon kirim paket ke alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00121",
+      "input": "Alamat pos: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00122",
+      "input": "Pelanggan tinggal di marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-id-00123",
+      "input": "Titik pengambilan — anna.mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00124",
+      "input": "Mohon kirim paket ke alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00125",
+      "input": "Alamat pos: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-id-00126",
+      "input": "Pelanggan tinggal di mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00127",
+      "input": "Titik pengambilan — anna_mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00128",
+      "input": "Mohon kirim paket ke alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-id-00129",
+      "input": "Alamat pos: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00130",
+      "input": "Pelanggan tinggal di mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00131",
+      "input": "Titik pengambilan — annamueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-id-00132",
+      "input": "Mohon kirim paket ke alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00133",
+      "input": "Alamat pos: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00134",
+      "input": "Pelanggan tinggal di marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-id-00135",
+      "input": "Titik pengambilan — anna.mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00136",
+      "input": "Mohon kirim paket ke alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00137",
+      "input": "Alamat pos: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-id-00138",
+      "input": "Pelanggan tinggal di mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00139",
+      "input": "Titik pengambilan — anna_mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00140",
+      "input": "Mohon kirim paket ke alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-id-00141",
+      "input": "Alamat pos: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00142",
+      "input": "Pelanggan tinggal di mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00143",
+      "input": "Titik pengambilan — annamueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-id-00144",
+      "input": "Mohon kirim paket ke alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00145",
+      "input": "Alamat pos: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00146",
+      "input": "Pelanggan tinggal di marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-id-00147",
+      "input": "Titik pengambilan — anna.mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00148",
+      "input": "Mohon kirim paket ke alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00149",
+      "input": "Alamat pos: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-id-00150",
+      "input": "Pelanggan tinggal di mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00151",
+      "input": "Titik pengambilan — anna_mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00152",
+      "input": "Mohon kirim paket ke alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-id-00153",
+      "input": "Alamat pos: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00154",
+      "input": "Pelanggan tinggal di mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00155",
+      "input": "Titik pengambilan — annamueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-id-00156",
+      "input": "Mohon kirim paket ke alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00157",
+      "input": "Alamat pos: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00158",
+      "input": "Pelanggan tinggal di marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-id-00159",
+      "input": "Titik pengambilan — anna.mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00160",
+      "input": "Mohon kirim paket ke alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00161",
+      "input": "Alamat pos: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-id-00162",
+      "input": "Pelanggan tinggal di mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00163",
+      "input": "Titik pengambilan — anna_mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00164",
+      "input": "Mohon kirim paket ke alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-id-00165",
+      "input": "Alamat pos: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00166",
+      "input": "Pelanggan tinggal di mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00167",
+      "input": "Titik pengambilan — annamueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-id-00168",
+      "input": "Mohon kirim paket ke alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00169",
+      "input": "Alamat pos: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00170",
+      "input": "Pelanggan tinggal di marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-id-00171",
+      "input": "Titik pengambilan — anna.mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00172",
+      "input": "Mohon kirim paket ke alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00173",
+      "input": "Alamat pos: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-id-00174",
+      "input": "Pelanggan tinggal di mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00175",
+      "input": "Titik pengambilan — anna_mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00176",
+      "input": "Mohon kirim paket ke alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-id-00177",
+      "input": "Alamat pos: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00178",
+      "input": "Pelanggan tinggal di mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00179",
+      "input": "Titik pengambilan — annamueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-id-00180",
+      "input": "Mohon kirim paket ke alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00181",
+      "input": "Alamat pos: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00182",
+      "input": "Pelanggan tinggal di marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-id-00183",
+      "input": "Titik pengambilan — anna.mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00184",
+      "input": "Mohon kirim paket ke alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00185",
+      "input": "Alamat pos: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-id-00186",
+      "input": "Pelanggan tinggal di mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00187",
+      "input": "Titik pengambilan — anna_mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00188",
+      "input": "Mohon kirim paket ke alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-id-00189",
+      "input": "Alamat pos: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00190",
+      "input": "Pelanggan tinggal di mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00191",
+      "input": "Titik pengambilan — annamueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-id-00192",
+      "input": "Mohon kirim paket ke alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00193",
+      "input": "Alamat pos: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00194",
+      "input": "Pelanggan tinggal di marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-id-00195",
+      "input": "Titik pengambilan — anna.mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00196",
+      "input": "Mohon kirim paket ke alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00197",
+      "input": "Alamat pos: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-id-00198",
+      "input": "Pelanggan tinggal di mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00199",
+      "input": "Titik pengambilan — anna_mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00200",
+      "input": "Mohon kirim paket ke alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-id-00201",
+      "input": "Alamat pos: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00202",
+      "input": "Pelanggan tinggal di mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00203",
+      "input": "Titik pengambilan — annamueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-id-00204",
+      "input": "Mohon kirim paket ke alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00205",
+      "input": "Alamat pos: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00206",
+      "input": "Pelanggan tinggal di marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-id-00207",
+      "input": "Titik pengambilan — anna.mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00208",
+      "input": "Mohon kirim paket ke alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00209",
+      "input": "Alamat pos: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-id-00210",
+      "input": "Pelanggan tinggal di mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00211",
+      "input": "Titik pengambilan — anna_mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00212",
+      "input": "Mohon kirim paket ke alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-id-00213",
+      "input": "Alamat pos: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00214",
+      "input": "Pelanggan tinggal di mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00215",
+      "input": "Titik pengambilan — annamueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-id-00216",
+      "input": "Mohon kirim paket ke alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00217",
+      "input": "Alamat pos: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00218",
+      "input": "Pelanggan tinggal di marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-id-00219",
+      "input": "Titik pengambilan — anna.mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00220",
+      "input": "Mohon kirim paket ke alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00221",
+      "input": "Alamat pos: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-id-00222",
+      "input": "Pelanggan tinggal di mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00223",
+      "input": "Titik pengambilan — anna_mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00224",
+      "input": "Mohon kirim paket ke alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-id-00225",
+      "input": "Alamat pos: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00226",
+      "input": "Pelanggan tinggal di mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00227",
+      "input": "Titik pengambilan — annamueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-id-00228",
+      "input": "Mohon kirim paket ke alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00229",
+      "input": "Alamat pos: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00230",
+      "input": "Pelanggan tinggal di marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-id-00231",
+      "input": "Titik pengambilan — anna.mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00232",
+      "input": "Mohon kirim paket ke alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00233",
+      "input": "Alamat pos: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-id-00234",
+      "input": "Pelanggan tinggal di mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00235",
+      "input": "Titik pengambilan — anna_mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00236",
+      "input": "Mohon kirim paket ke alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-id-00237",
+      "input": "Alamat pos: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00238",
+      "input": "Pelanggan tinggal di mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00239",
+      "input": "Titik pengambilan — annamueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-id-00240",
+      "input": "Mohon kirim paket ke alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00241",
+      "input": "Alamat pos: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00242",
+      "input": "Pelanggan tinggal di marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-id-00243",
+      "input": "Titik pengambilan — anna.mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00244",
+      "input": "Mohon kirim paket ke alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00245",
+      "input": "Alamat pos: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-id-00246",
+      "input": "Pelanggan tinggal di mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00247",
+      "input": "Titik pengambilan — anna_mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00248",
+      "input": "Mohon kirim paket ke alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-id-00249",
+      "input": "Alamat pos: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00250",
+      "input": "Pelanggan tinggal di mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00251",
+      "input": "Titik pengambilan — annamueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-id-00252",
+      "input": "Mohon kirim paket ke alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00253",
+      "input": "Alamat pos: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00254",
+      "input": "Pelanggan tinggal di marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-id-00255",
+      "input": "Titik pengambilan — anna.mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00256",
+      "input": "Mohon kirim paket ke alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00257",
+      "input": "Alamat pos: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-id-00258",
+      "input": "Pelanggan tinggal di mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00259",
+      "input": "Titik pengambilan — anna_mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00260",
+      "input": "Mohon kirim paket ke alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-id-00261",
+      "input": "Alamat pos: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00262",
+      "input": "Pelanggan tinggal di mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00263",
+      "input": "Titik pengambilan — annamueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-id-00264",
+      "input": "Mohon kirim paket ke alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00265",
+      "input": "Alamat pos: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00266",
+      "input": "Pelanggan tinggal di marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-id-00267",
+      "input": "Titik pengambilan — anna.mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00268",
+      "input": "Mohon kirim paket ke alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00269",
+      "input": "Alamat pos: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-id-00270",
+      "input": "Pelanggan tinggal di mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00271",
+      "input": "Titik pengambilan — anna_mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00272",
+      "input": "Mohon kirim paket ke alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-id-00273",
+      "input": "Alamat pos: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00274",
+      "input": "Pelanggan tinggal di mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00275",
+      "input": "Titik pengambilan — annamueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-id-00276",
+      "input": "Mohon kirim paket ke alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00277",
+      "input": "Alamat pos: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00278",
+      "input": "Pelanggan tinggal di marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-id-00279",
+      "input": "Titik pengambilan — anna.mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00280",
+      "input": "Mohon kirim paket ke alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00281",
+      "input": "Alamat pos: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-id-00282",
+      "input": "Pelanggan tinggal di mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00283",
+      "input": "Titik pengambilan — anna_mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00284",
+      "input": "Mohon kirim paket ke alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-id-00285",
+      "input": "Alamat pos: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00286",
+      "input": "Pelanggan tinggal di mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00287",
+      "input": "Titik pengambilan — annamueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-id-00288",
+      "input": "Mohon kirim paket ke alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00289",
+      "input": "Alamat pos: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00290",
+      "input": "Pelanggan tinggal di marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-id-00291",
+      "input": "Titik pengambilan — anna.mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00292",
+      "input": "Mohon kirim paket ke alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-id-00293",
+      "input": "Alamat pos: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-id-00294",
+      "input": "Pelanggan tinggal di mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00295",
+      "input": "Titik pengambilan — anna_mueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-id-00296",
+      "input": "Mohon kirim paket ke alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-id-00297",
+      "input": "Alamat pos: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-id-00298",
+      "input": "Pelanggan tinggal di mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-id-00299",
+      "input": "Titik pengambilan — annamueller@corp.example — dikonfirmasi.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    }
+  ]
+}

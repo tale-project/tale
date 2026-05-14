@@ -1,0 +1,4065 @@
+{
+  "_meta": {
+    "locale": "ms",
+    "generator": "@tale/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 0,
+      "negatives": 810
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "negatives": [
+    {
+      "id": "neg-prose-ms-00000",
+      "input": "Dia dah datang!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00001",
+      "input": "\"Apa yang awak nak untuk makan tengahari?\" \"Takpalah, sesuka hati je.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00002",
+      "input": "Kami dah rehat sekejap lagi dah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00003",
+      "input": "Dah makan malam ke?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00004",
+      "input": "Saya dah siapkan buat kerja sebelum makan malam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00005",
+      "input": "Kelmarin salji turun dah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00006",
+      "input": "Beritahu saya apa lagi dah terjadi ni?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00007",
+      "input": "Saya rasa awak suka tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00008",
+      "input": "Memang serious saya ni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00009",
+      "input": "Takde siapa percaya apa yang aku cakap dah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00010",
+      "input": "Betulkan saya kalau silap dah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00011",
+      "input": "Itu je aku dah cakap dah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00012",
+      "input": "Dengarlah apa yang aku dah cakap.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00013",
+      "input": "Awak dah guna kamera saya ke?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00014",
+      "input": "Tom cuma bergurau je.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00015",
+      "input": "Dia cuma kebudakan je.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00016",
+      "input": "Tom cuma kebudakan je.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00017",
+      "input": "Saya ni cuma kebudakan je.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00018",
+      "input": "Kau cuma budak je.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00019",
+      "input": "Mung pernoh gi Parih dok?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00020",
+      "input": "Aku tak mboh nape-nape.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00021",
+      "input": "Ye paka macang ge ppuang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00022",
+      "input": "Buleh tamboh kopi dok?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00023",
+      "input": "Bukang saloh aku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00024",
+      "input": "Aku tahu memang mung kate dok nye.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00025",
+      "input": "Aku tahu memang mung kabo dok nye.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00026",
+      "input": "Aku tahu memang mung ghoyak dok nye.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00027",
+      "input": "Tom memang takuk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00028",
+      "input": "Kucing seko tubek daghi bowoh meje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00029",
+      "input": "Takdok mende hok nok takuknye.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00030",
+      "input": "Ni bukang pekataang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00031",
+      "input": "Name ambe Jack.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00032",
+      "input": "Name mung nape?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00033",
+      "input": "Name mung mende?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00034",
+      "input": "Cepat lari. Kalau tidak, tinggal ni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00035",
+      "input": "Siapa selanjutnya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00036",
+      "input": "Kunciku dah hilang!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00037",
+      "input": "Awak tau tak macamana nak gunakan kamera ni?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00038",
+      "input": "Takyah nak jawab cepat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00039",
+      "input": "Alamak, terlupa sudah mau tanya. Kan kata sebelum ni, kau belum nampak tu payung. Dah jumpakah ni?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00040",
+      "input": "Ada sebabnya kita kan dilahirkan di dunia ni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00041",
+      "input": "Dia merokok satu pek rokok sehari.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00042",
+      "input": "Tom berjanji kepada Mary yang dia ingin berjumpa selepas tamat persekolahan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00043",
+      "input": "Awak mesti belajar dari kesilapan awak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00044",
+      "input": "Aku mau pigi melancong di Poland",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00045",
+      "input": "Aku rasa si Tom minat dengan si Mary.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00046",
+      "input": "Kau nampak pekerja kau di persidangan kan?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00047",
+      "input": "Kalau la ada masalah ni kan, si Tom akan bagitau jugak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00048",
+      "input": "Si Tom akan rasa kesal tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00049",
+      "input": "Aku ingat aku tak tahu menjawab.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00050",
+      "input": "Aku tak pandang supaya aku tak nampak kau lagi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00051",
+      "input": "Ada yang tak kena ni mesin-mesin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00052",
+      "input": "Si Tom bawa beg besar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00053",
+      "input": "Si Tom kena tiga operasi sampai sekarang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00054",
+      "input": "Kau nampak semangat daripada dulu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00055",
+      "input": "Si Tom nak luahkan hati nya kepada kawan nya tapi nampak sengal.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00056",
+      "input": "Aku harap ia ringkas ja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00057",
+      "input": "\"Boleh aku minta kah?\" \"Ikut keadaan.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00058",
+      "input": "Kalau kau merokok disini, pi lah luar!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00059",
+      "input": "Takkanlah awak ada awek ke?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00060",
+      "input": "Kau mahukah bakon lagi?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00061",
+      "input": "Kau ada duit ke tak?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00062",
+      "input": "Sudahkah kasi duit kau?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00063",
+      "input": "Kau pun sesak jugakah?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00064",
+      "input": "Nampak gayanya dialah kejujuran untuk saya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00065",
+      "input": "Kau ada tak sesuatu nak memberitahu saya?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00066",
+      "input": "Saya tak sabar nak memdengar dari awak tak lama lagi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00067",
+      "input": "Takkan saja aku marah sangkakan semua pun saya marah juga.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00068",
+      "input": "Nak dengar sesuatu yang lucu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00069",
+      "input": "Kalau terjatuh, pecah nanti lampu tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00070",
+      "input": "Kalau kau tak mau pinjamkan sama aku, aku pecah tu gelas!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00071",
+      "input": "Kita nak makan malam ini kat mana?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00072",
+      "input": "Dia tertidur kat bawah pokok.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00073",
+      "input": "Takkanlah aku terlupa nama dia kut?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00074",
+      "input": "Kitorang semua nak rindu awak bila kau pergi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00075",
+      "input": "Kau pernah tak bakar kot kau ngan sebatang rokok?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00076",
+      "input": "Rasanya tergoncang tu rumahku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00077",
+      "input": "Boleh bah kalau kau!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00078",
+      "input": "Sami tengah nak tidur.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00079",
+      "input": "Bila aku sampai sana, tak ada dah kek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00080",
+      "input": "Tom tu marah sebab ape?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00081",
+      "input": "Aku tak tau apa yang aku buat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00082",
+      "input": "Kitaorang tengah tukar baju.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00083",
+      "input": "Kita orang tengah tengok peti surat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00084",
+      "input": "Tom, kau dalang disebalik semua ini!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00085",
+      "input": "Ada ke ayat yang langsung tak boleh diterjemahkan?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00086",
+      "input": "Apa yang aku tengok pasti akan terjadi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00087",
+      "input": "Soalan yang susah tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00088",
+      "input": "Kamek sudah bosan ngan matematik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00089",
+      "input": "Maaf, saya bilang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00090",
+      "input": "Diorang nak buat apa yang kita bagitahu kat diorang nak buat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00091",
+      "input": "Dia cemburu gila kat pompuan tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00092",
+      "input": "Aku rasa Tom dengan Mary dua-dua dah cakap yang diorang dah baca buku ni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00093",
+      "input": "Aku tengah cakap pasal diri sendiri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00094",
+      "input": "Dia tu cikgu kan?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00095",
+      "input": "Rasa macam nak sejuk kat sini.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00096",
+      "input": "Aku takkan bagitau kau apa yang kau kena buat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00097",
+      "input": "Tom tengah berjalan kat lorong tu dengan Mary kat tepi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00098",
+      "input": "Boleh tak aku pilih meja aku sendiri?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00099",
+      "input": "Kau tengah fikir apa tu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00100",
+      "input": "Cuba tanya dia bila dia nak datang balik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00101",
+      "input": "Tom cakap kat aku dia tak lapar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00102",
+      "input": "Degil betul kau ni!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00103",
+      "input": "Tom dengan Mary dua-dua rasa kelas tu bosan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00104",
+      "input": "Aku rasa kau tak faham apa aku cakap.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00105",
+      "input": "Tom cakap dia harap dia boleh buat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00106",
+      "input": "Tom cakap kat aku Mary tengah buat benda tu sekarang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00107",
+      "input": "Aku dapat buat Tom tunggu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00108",
+      "input": "Dia duduk kat England bila perang mula.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00109",
+      "input": "Semua tu penting.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00110",
+      "input": "Kau ada ramai musuh.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00111",
+      "input": "Orang Eropah selalu upah orang Indian untuk kerja dengan diorang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00112",
+      "input": "Kau nak jumpa aku ke?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00113",
+      "input": "Sami dah banyak melepak kat klinik dengan sorang jururawat nama Layla.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00114",
+      "input": "Tom cakap kat Mary dia rasa John tu baik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00115",
+      "input": "Mary yang mulakan tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00116",
+      "input": "Kau nak tau tak apa yang Tom dah buat?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00117",
+      "input": "Takde apa yang kelakar pasal lelaki tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00118",
+      "input": "Tolong bagitau aku bila kita dah sampai.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00119",
+      "input": "Aku lapar sangat sampai semua benda pun aku boleh makan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00120",
+      "input": "Dia nak mula berlatih.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00121",
+      "input": "Sami beli semua sekali.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00122",
+      "input": "Sami bagitau aku pasal ex dia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00123",
+      "input": "Aku rasa Tom akan setuju.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00124",
+      "input": "Aku tak rasa Tom ada banyak duit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00125",
+      "input": "Tu mungkin benda terakhir yang Tom akan buat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00126",
+      "input": "Aku tau Tom cepat marah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00127",
+      "input": "Bateri tu kena cas balik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00128",
+      "input": "Tom cakap kat aku dia boleh buat benda tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00129",
+      "input": "Mana ada Tom belajar Perancis kat sini.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00130",
+      "input": "Tom mesti gembira kalau kau buat camtu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00131",
+      "input": "Orang selalunya jarang berjaya kecuali kalau diorang seronok dengan apa yang diorang buat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00132",
+      "input": "Tom mesti terkejut punya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00133",
+      "input": "Aku tak rasa nak buat satu apa pun dalam keadaan panas camni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00134",
+      "input": "Tom tu tak pernah nampak macam dia nak habiskan apa yang dia buat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00135",
+      "input": "Banyak bunga cantik berbunga masa musim bunga.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00136",
+      "input": "Patut ke aku mintak Tom buat benda tu untuk kita?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00137",
+      "input": "Dia mintak nak masuk kelab tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00138",
+      "input": "Muzium ni ramai ke orang datang?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00139",
+      "input": "Anjing aku yang kat situ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00140",
+      "input": "Dia cakap dia semangat nak makan tengahari dengan dia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00141",
+      "input": "Kita takde masa nak buat benda tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00142",
+      "input": "Aku tau Tom tu budak pandai.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00143",
+      "input": "Sam tengah marah kat Layla.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00144",
+      "input": "Aku pun nak benda tu jadi macam kau jugak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00145",
+      "input": "Aku nak tau Tom betul-betul ke terlupa nak bagitau Mary jangan buat benda tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00146",
+      "input": "Kau ada ruang cukup ke?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00147",
+      "input": "Mana boleh camtu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00148",
+      "input": "Nampaknya Jim dah terlepas keretapi pukul tujuh.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00149",
+      "input": "Google tak kena block kat Algeria.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00150",
+      "input": "Mary akan buat apa yang aku cakap.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00151",
+      "input": "Dia ada basikal tak?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00152",
+      "input": "Semua jenis beri aku suka, yang paling aku suka strawberi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00153",
+      "input": "Lepas rehat sekejap, dia sambung balik kerja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00154",
+      "input": "Takkan aku nak suruh kau lepaskan benda tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00155",
+      "input": "Aku cuba nak mintak Tom tolong Mary.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00156",
+      "input": "Budak-budak ni datang dari keluarga yang cakap Berber.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00157",
+      "input": "Dia setuju nak jaga dia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00158",
+      "input": "Kau kenal tak pompuan-pompuan tu yang baru je turun dari keretapi?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00159",
+      "input": "Aku tak suka rasa macam kena tinggal.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00160",
+      "input": "Tom cakap dia ingat dia tak boleh menang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00161",
+      "input": "Tom dengan Mary mungkin akan pergi ke Boston dengan kau kalau kau tanya diorang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00162",
+      "input": "Maksud kau, kau tak sayang aku lagi?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00163",
+      "input": "Aku ingatkan Tom akan lambat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00164",
+      "input": "Mungkin kita takkan buat camtu lagi sampai Oktober depan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00165",
+      "input": "Tom letak cawan dia yang ada bir kat atas kaunter.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00166",
+      "input": "Aku pasti kalau ada masalah, mesti dia dah telefon.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00167",
+      "input": "Tom tu penjenayah yang polis tengah cari.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00168",
+      "input": "Tom tu pun tengah sembunyikan sesuatu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00169",
+      "input": "Aku dah dapat ramai kawan kat Australia ni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00170",
+      "input": "Aku kagum betul dengan kau punya kepandaian.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00171",
+      "input": "Aku dah hantar Tom balik ke Boston.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00172",
+      "input": "Aku ada mesyuarat nak kena pergi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00173",
+      "input": "Tom boleh mati sebab beku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00174",
+      "input": "Mary naik kuda dia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00175",
+      "input": "Tom dengan Mary jumpa tiga tahun lepas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00176",
+      "input": "Tom rasa Mary takkan bagi kerjasama.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00177",
+      "input": "Aku tolak tawaran dia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00178",
+      "input": "Takde sapa kat dalam kelas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00179",
+      "input": "Kita ada peraturan yang ketat pasal tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00180",
+      "input": "Kapal terbang tu tengah turun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00181",
+      "input": "Kita ada dua buah pinggang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00182",
+      "input": "Kalau kau tak hati-hati, kau cederakan diri sendiri nanti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00183",
+      "input": "Selalu berapa kali kau potong rambut?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00184",
+      "input": "Tom tak nak buat masalah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00185",
+      "input": "Dia ahli keluarga Muslim yang besar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00186",
+      "input": "Tom dengan Mary nampak macam diorang seronok kalau duduk sama-sama.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00187",
+      "input": "Mennad pegi belakang langsir.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00188",
+      "input": "Tom tarik balik apa yang dia cakap pasal Mary.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00189",
+      "input": "Tom dengan Mary bagitau aku diorang tak nak dah buat benda tu lagi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00190",
+      "input": "Tom tak pernah bagi aku buat benda tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00191",
+      "input": "Macam mana aku boleh tolong kau?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00192",
+      "input": "Tu bukan Tom lah. Tu John.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00193",
+      "input": "Dia rasa lagu tu lama sangat kalau nak nyanyi zaman sekarang ni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00194",
+      "input": "Aku ada dua bijik buah pear.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00195",
+      "input": "Sebab demam yang kau ada sekarang ni, kau tak boleh keluar rumah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00196",
+      "input": "Aku tak rasa dia ada kat rumah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00197",
+      "input": "Ada live band atau DJ tak kat kelab ni?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00198",
+      "input": "Diorang tak berjalan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00199",
+      "input": "Benda tu luar dari kawalan kita.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00200",
+      "input": "Dia tak ingat pun dia siapa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00201",
+      "input": "Mary kerja kat kedai buku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00202",
+      "input": "Diorang cakap diorang tersilap.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00203",
+      "input": "Diorang cakap diorang nak balas dendam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00204",
+      "input": "Sami suka kat aku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00205",
+      "input": "Nampak macam Tom tu suka Australia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00206",
+      "input": "Tom dengan Mary nampak kurus sikit kalau nak banding dengan dulu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00207",
+      "input": "Tom dengan Mary bagitau aku diorang kena beli komputer baru.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00208",
+      "input": "Mary pernah buat camtu kan?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00209",
+      "input": "Selalunya Mary dapat apa yang dia nak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00210",
+      "input": "Mary cakap dia menyesal bagitau Tom suruh ajar John camna nak buat benda tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00211",
+      "input": "Tom dah cakap kat aku yang dia boleh buat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00212",
+      "input": "Kita takkan guna kekerasan kecuali kalau perlu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00213",
+      "input": "Tom cakap kat Mary dia rasa tak selamat kalau dia pegi sana sorang-sorang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00214",
+      "input": "Aku ingat kau akan ada kat sini hari ini.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00215",
+      "input": "Masih nampak lagi yang Tom masih belum berubah fikiran.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00216",
+      "input": "Apa kau nak beli?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00217",
+      "input": "Kau cakap rumah kau berhantu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00218",
+      "input": "Aku tak dengar suara apa pun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00219",
+      "input": "Tak ramai orang datang syarahan tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00220",
+      "input": "Kau tengah sejuk kan?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00221",
+      "input": "Dia makin datang dekat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00222",
+      "input": "Anak perempuan dia baru je meninggal tahun lepas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00223",
+      "input": "Kenap kau tak bagitau kitorang apa yang kau tau?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00224",
+      "input": "Aku suka makan ubi kentang, buah ara dengan kopi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00225",
+      "input": "Aku dengar anjing aku tercungap-cungap.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00226",
+      "input": "Mungkin aku boleh jadi orang pertama yang buat benda tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00227",
+      "input": "Tom dengan Mary makan apa yang diorang nak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00228",
+      "input": "Tom cakap kat Mary dia takut nak buat benda tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00229",
+      "input": "Kau tau kan Tom takkan suruh Mary jangan buat benda tu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00230",
+      "input": "Jangan cakap kat Tom dengan Mary.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00231",
+      "input": "Semua nampak sangat seronok.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00232",
+      "input": "Tom tu kawan aku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00233",
+      "input": "Tom buat biskut untuk Mary.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00234",
+      "input": "Tempat tu sepelaung aje dari tempat aku lahir dulu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00235",
+      "input": "Bulan depan aku takkan ada kat sini.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00236",
+      "input": "Ni semua salah aku!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00237",
+      "input": "Aku tak ingat pun pegi Australia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00238",
+      "input": "Charles hidup penuh dosa masa dia muda.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00239",
+      "input": "Tu pertama kali benda tu jadi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00240",
+      "input": "Keluarga aku duduk kat Kabylie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00241",
+      "input": "Aku tak rasa Tom tu bodoh sangat nak buat benda tu sendiri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00242",
+      "input": "Kau boleh ambik banyak mana yang kau nak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00243",
+      "input": "Sami tak dibagi cakap.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00244",
+      "input": "Tom keluar minum dengan kawan dia malam semalam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00245",
+      "input": "Bila dia buat benda tu, Tom terus sakit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00246",
+      "input": "Kau kena bagitau Tom yang Mary akan buat benda tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00247",
+      "input": "Aku tak kisah apa Tom tengah pakai.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00248",
+      "input": "Tom eksiden basikal.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00249",
+      "input": "Kita ni cuma buang masa je.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00250",
+      "input": "Aku tak pernah pikir benda tu macam tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00251",
+      "input": "Terima kasih sebab bagi nasihat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00252",
+      "input": "Dia tak sabar nak pegi luar negara.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00253",
+      "input": "Kau betul pasti ke benda tu semalam?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00254",
+      "input": "Aku harap Tom tak terbeban dengan benda tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00255",
+      "input": "Sekarang Tom ada kerja yang gaji besar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00256",
+      "input": "Aku sanggup belikan benda tu untuk kau.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00257",
+      "input": "Mesej tu dari Layla.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00258",
+      "input": "Aku rasa aku tau siapa lelaki lain tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00259",
+      "input": "Ada pompuan memang jahat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00260",
+      "input": "Aku akan kilatkan kasut kau.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00261",
+      "input": "Dia tu jembalang yang kuat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00262",
+      "input": "Dia tak pernah pakai baju warna hijau.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00263",
+      "input": "Tom sumpah dia tak pernah buat benda tu lebih dari sekali.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00264",
+      "input": "Tom mungkin takde kat sini esok.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00265",
+      "input": "Kau curi telefon aku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00266",
+      "input": "Ada banyak lagi kerja yang aku kena buat sebelum aku boleh balik rumah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00267",
+      "input": "Tom suruh Mary siram bunga kat kebun dia masa dia takde.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00268",
+      "input": "Dia cakap dia takkan buat benda tu hari ni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00269",
+      "input": "Dia bagitau aku dia dah letih sangat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00270",
+      "input": "Aku tau Tom tak kenal aku siapa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00271",
+      "input": "Ada panggilan untuk kau dari Tom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00272",
+      "input": "Berapa tahun lagi kau rasa Tom kena buat macam tu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00273",
+      "input": "Aku nak tau itu ke yang dia nak cakap.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00274",
+      "input": "Tak payah. Ni tak kelakar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00275",
+      "input": "Takde siapa pun akan kisah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00276",
+      "input": "Pencuri tu sembunyi dalam laluan yang gelap.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00277",
+      "input": "Ambik duit ni sebelum polis datang!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00278",
+      "input": "Tom tu artis macam aku jugak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00279",
+      "input": "Aku rasa tiket aku dah hilang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00280",
+      "input": "Budak tu duduk kat riba mak dia dan dengar cerita.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00281",
+      "input": "Aku pun suka yang ni jugak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00282",
+      "input": "Sepatutnya Tom buat benda tu untuk kita.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00283",
+      "input": "Dia tau apa yang dia kena buat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00284",
+      "input": "Tom dengan Mary dah jaga ke belum?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00285",
+      "input": "Jom bawak dia sekali dengan kita.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00286",
+      "input": "Tom cuba nak ingat kat mana dia letak pasport dia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00287",
+      "input": "\"Sapa nama kau?\" \"Tom.\" \"Apa nama kau lagi?\" \"Nama aku Tom, Tom je.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00288",
+      "input": "Sabtu lepas, aku dengan keluarga aku pegi zoo sebab nak tengok panda.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00289",
+      "input": "Dah ramai orang komplen pasal perangai kau.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00290",
+      "input": "Peter dengan Eve nampak secocok.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00291",
+      "input": "Jom nyanyi dengan aku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00292",
+      "input": "Apa lagi yang diorang sembunyi?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00293",
+      "input": "Kitorang berdua suka main golf.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00294",
+      "input": "Dia sewa kereta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00295",
+      "input": "Team diorang kalah lagi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00296",
+      "input": "Sami ada beg baju warna biru.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00297",
+      "input": "Sami duduk kat satu ladang ni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00298",
+      "input": "Tom sepatutnya buat benda tu lagi awal.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00299",
+      "input": "Tom cakap dia menyesal main catur dengan Mary.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00300",
+      "input": "Dulu Tom bodoh, tapi sekarang tak lagi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00301",
+      "input": "Jiran bagitau aku ada orang cuba nak pecah masuk rumah aku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00302",
+      "input": "Apa doktor cakap?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00303",
+      "input": "Kita takkan jumpa dia punya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00304",
+      "input": "Tom belum balik lagi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00305",
+      "input": "Dia ambik balik gunting tu dari dia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00306",
+      "input": "Lepas eksiden tu, dia dah tak boleh bengkokkan lutut kanan dia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00307",
+      "input": "Aku tak rasa Tom tau yang dia sepatutnya tak boleh buat benda tu kat sini.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00308",
+      "input": "Aku ingatkan aku boleh buat sendiri dengan tak payah orang lain tolong.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00309",
+      "input": "Marie tuduh dia curi basikal tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00310",
+      "input": "Kita akan selesaikan masalah ni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00311",
+      "input": "Sapa baling batu sampai pecah tingkap ni?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00312",
+      "input": "Nampaknya kau menang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00313",
+      "input": "Tom cakap dia dah tak tahan dengan panas tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00314",
+      "input": "Kau tak tau ke Tom tu doktor gigi?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00315",
+      "input": "Mak bapak Tom dua-dua kerja kat kilang yang sama.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00316",
+      "input": "Masa tunggu bas, aku selalu baca suratkhabar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00317",
+      "input": "Tom pasti dia takkan jumpa Mary lagi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00318",
+      "input": "Tom nampak Mary tengah cium John.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00319",
+      "input": "Aku tau kita boleh buat benda tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00320",
+      "input": "Tom nak Mary cerita kat dia pasal masa dia budak-budak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00321",
+      "input": "Tarikh tutup nak hantar benda tu dah habis.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00322",
+      "input": "Tom nak tau kat mana Mary kerja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00323",
+      "input": "Ni lah sungai yang paling cantik sekali yang pernah aku nampak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00324",
+      "input": "Kitorang bergerak nak balik rumah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00325",
+      "input": "Kau pernah tak rasa roti kacang kurma?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00326",
+      "input": "Tom dengan Mary cakap diorang dah terdesak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00327",
+      "input": "Tom dengan Mary cakap diorang tak suka budak-budak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00328",
+      "input": "So bagitau la kat aku, apa yang kau dah belajar cakap dalam bahasa Rusia minggu ni?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00329",
+      "input": "Tom dengan Mary dua-dua janji yang diorang akan sempat sampai kat parti tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00330",
+      "input": "Tom dengan Mary tu betul-betul ke ada kat dalam tu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00331",
+      "input": "Kau pasti ke yang orang yang kau nampak tu Tom dengan Mary?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00332",
+      "input": "Baik Tom atau Mary pun dua-dua tak pernah buat benda tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00333",
+      "input": "Bagus kerja kau.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00334",
+      "input": "Tom banyak tolong.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00335",
+      "input": "Aku rasa kau ingat kau tu dah cukup hebat, kan?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00336",
+      "input": "Kau ni anak Tom, kan?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00337",
+      "input": "Aku kena berdepan dengan Tom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00338",
+      "input": "Tom terangkan rancangan dia kat Mary.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00339",
+      "input": "Satu hari nanti, aku akan cari sapa dalangnya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00340",
+      "input": "Kalau kau masih nak pegi berenang hari ni, kau kena bawak semua barang berenang kau.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00341",
+      "input": "Budak pompuan tu jahat betul.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00342",
+      "input": "Tom kena bicara sebagai orang dewasa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00343",
+      "input": "Tom rasa Mary tu hebat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00344",
+      "input": "Aku ingatkan benda tu mustahil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00345",
+      "input": "Tom keluar dari bilik air dan pakai baju.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00346",
+      "input": "Tom rasa Mary pandai cakap Perancis.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00347",
+      "input": "Kau nampak macam jeles je.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00348",
+      "input": "Nanti aku akan boleh buat benda tu sendiri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00349",
+      "input": "Aku tak sempat nak buat benda tu akhir-akhir ni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00350",
+      "input": "Tak pernah tak seronok masa Tom ada.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00351",
+      "input": "Apa yang diorang tengah periksa tu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00352",
+      "input": "Aku boleh dengar semua orang tengah bersorak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00353",
+      "input": "Apa niat Tom sebenarnya?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00354",
+      "input": "Aku harap sangat takde masalah akan jadi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00355",
+      "input": "Aku tak pernah bayangkan dia akan habis macam ni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00356",
+      "input": "Aku tak rasa Tom sengaja nak buat benda tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00357",
+      "input": "Bukan semua benda yang kau nak boleh beli dengan duit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00358",
+      "input": "Tom hantar Mary balik rumah dengan kereta sports dia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00359",
+      "input": "Nak kata aku kagum dengan balet, aku sebenarnya lagi kagum dengan cara badan manusia bergerak masa menari balet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00360",
+      "input": "Jauh dari api tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00361",
+      "input": "Mungkin Tom takde dalam bangunan tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00362",
+      "input": "Aku tak tau apa niat dia sebenarnya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00363",
+      "input": "Lepas dia masuk bilik tu, dia pun masuk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00364",
+      "input": "Ni pemahaman aku pasal kandungan surat ni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00365",
+      "input": "Aku rasa kita takkan sempat buat tu sebelum Isnin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00366",
+      "input": "Tom selamat kat rumah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00367",
+      "input": "Bukan senang nak cari orang nak sewa rumah ni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00368",
+      "input": "Semua yang diorang cakap suruh buat, Tom kena buat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00369",
+      "input": "Kau kena stadi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00370",
+      "input": "Aku suka seronok-seronok.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00371",
+      "input": "Aku cuba nak mengorat kakak dia, tapi dia tak nak pun kat aku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00372",
+      "input": "Tom tu hensem betul.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00373",
+      "input": "Aku selalu dengar cakap dia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00374",
+      "input": "Tom tak boleh nak lupakan Mary.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00375",
+      "input": "Sekarang Tom tau dia sepatutnya tak pinjam duit Mary.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00376",
+      "input": "Kapal terbang tu terbang kat atas gunung.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00377",
+      "input": "Aku dengar telefon bunyi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00378",
+      "input": "Kalau tak kerana peperiksaan, mesti hidup kita kat sekolah lagi gembira.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00379",
+      "input": "Aku rasa aku nak tumpang kau balik, kalau kau tak kisah la.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00380",
+      "input": "Kau sekarang buat pa ni?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00381",
+      "input": "Kalau Mary nak, dia boleh buat macam tu kat Tom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00382",
+      "input": "Aku tak suka orang lain pegang barang aku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00383",
+      "input": "Aku risau apa orang lain akan fikir nanti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00384",
+      "input": "Kitorang dah kepung dia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00385",
+      "input": "Tom dengan Mary dua-dua suka benda yang sama.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00386",
+      "input": "Doktor dengan jururawat dua-dua selamatkan nyawa orang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00387",
+      "input": "Apa game TV yang korang semua ada?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00388",
+      "input": "Kau langkah satu lagi, mampus la kau.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00389",
+      "input": "Mary akan duduk diam dan tenung laut tu sampai berjam-jam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00390",
+      "input": "Luka tu keluar nanah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00391",
+      "input": "Tom terlelap masa exam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00392",
+      "input": "Lecek labu yang dah potong dengan rebus tu pastu tambah garam dengan rempah sikit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00393",
+      "input": "Aku dah siap bersihkan apartment tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00394",
+      "input": "Hari ni mak aku nak datang rumah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00395",
+      "input": "Dia balik je rumah anak-anak pompuan dia terus serbu dia, siap tepuk tangan dengan tunjuk diorang tu gembira sangat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00396",
+      "input": "Aku takkan mati hari ni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00397",
+      "input": "Aku patutnya dah tau itu kau sebenarnya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00398",
+      "input": "Aku tak tau apa makna benda ni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00399",
+      "input": "Tom ambik keputusan nak masuk pertandingan tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00400",
+      "input": "Macam mana kita nak buat tu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00401",
+      "input": "Aku baru je selesaikan teka-teki tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00402",
+      "input": "Diorang dua-dua mengaku pukul sesama sendiri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00403",
+      "input": "Aku setuju dengan rancangan kau.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00404",
+      "input": "Selalunya aku bangun lambat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00405",
+      "input": "Ada banyak istana kat Castile.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00406",
+      "input": "Tom lagi banyak tangkap ikan dari aku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00407",
+      "input": "Camna kau rileks lepas sekolah?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00408",
+      "input": "Tom mungkin datang naik teksi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00409",
+      "input": "Agak susah sikit nak tentukan apa sebenarnya punca masalah tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00410",
+      "input": "Kau yang putus dengan Tom ke atau dia yang putus dengan kau?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00411",
+      "input": "Ni boleh jadi bahaya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00412",
+      "input": "Kita kena pujuk Tom suruh dia duduk sini.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00413",
+      "input": "Dia tengking budak tu: \"Diam la!\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00414",
+      "input": "Takut betul aku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00415",
+      "input": "Aku tak tahu apa yang aku akan buat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00416",
+      "input": "Ni mungkin untuk kau.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00417",
+      "input": "Aku selalu tengok TV dulu sebelum makan supper.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00418",
+      "input": "Tom bukan tengah makan epal. Dia tengah makan oren.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00419",
+      "input": "Bila Tom cakap Perancis, dia macam bertukar jadi orang lain.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00420",
+      "input": "Aku tau Tom buat benda tu banyak kali.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00421",
+      "input": "Tom dengan Mary tak dapat bukak sarung tangan diorang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00422",
+      "input": "Aku mintak Tom dengan Mary tolong kenalkan aku dengan John.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00423",
+      "input": "Tom nampak terkejut bila Mary buat macam tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00424",
+      "input": "Kau suka lobak merah tak?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00425",
+      "input": "Kenapa la kita tak buat macam tu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00426",
+      "input": "Aku tak kenal sapa-sapa kat sini kecuali Tom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00427",
+      "input": "Kenapa kau sembunyi dari Tom?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00428",
+      "input": "Kita takkan jumpa Tom lagi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00429",
+      "input": "Takde apa yang penting.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00430",
+      "input": "Aku tengah cuba nak belajar Perancis.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00431",
+      "input": "Tom suka air sejuk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00432",
+      "input": "Patutnya dia dah balik lepas makan tengahari.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00433",
+      "input": "Tom cepat perasan yang dia tak boleh nak buat apa yang dia nak buat pada mulanya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00434",
+      "input": "Dia bilas epal.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00435",
+      "input": "Tom tak nampak bosan pun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00436",
+      "input": "Aku tak pasti apa yang aku kena buat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00437",
+      "input": "Tom ada lagi banyak buku dari aku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00438",
+      "input": "Tom tak nak bagitau lebih-lebih.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00439",
+      "input": "Dia pasti dia dah jumpa cinta hati dia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00440",
+      "input": "Semua orang yang aku kenal ada satu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00441",
+      "input": "Tom dah turun bawah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00442",
+      "input": "Bumbung rumah tu tengah bocor.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00443",
+      "input": "Khamis minggu depan cuti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00444",
+      "input": "Aku rasa aku dah kena selesema.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00445",
+      "input": "Senang je nak baca buku ni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00446",
+      "input": "Kau nak beli benda tu ke tak nak?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00447",
+      "input": "Kenapa kau berdarah?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00448",
+      "input": "Biar apa pun yang jadi, kita mesti duduk sama-sama.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00449",
+      "input": "Awek aku suka cincin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00450",
+      "input": "Aku nak pandai cakap Berber.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00451",
+      "input": "Komputer aku belum ready lagi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00452",
+      "input": "Kau biar betul nak buat semua benda tu sorang-sorang?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00453",
+      "input": "Mary bengang pasal benda ni, kan?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00454",
+      "input": "Aku nak tau betul ke Tom dengan Mary boleh buat benda tu dengan sendiri betul-betul.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00455",
+      "input": "Tom cakap dia kena suruh buat benda tu lagi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00456",
+      "input": "Tom angguk tapi tak cakap apa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00457",
+      "input": "Apa jawapan dia yang betul?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00458",
+      "input": "Mana ada Latin susah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00459",
+      "input": "Dengan sapa pun dia tak boleh cakap pasal masalah tu selain dia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00460",
+      "input": "Tom tak tau kenapa dia kena buat macam tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00461",
+      "input": "Kalau kau tak mau buat benda tu, nanti aku tanya Tom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00462",
+      "input": "Tom buat benda tu ikut cara lama.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00463",
+      "input": "Lepas tiga hari, Tom pun mati sebab dia cedera.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00464",
+      "input": "Sebelum ni Tom tak pernah minum susu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00465",
+      "input": "Kalau Mary tau mesti dia marah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00466",
+      "input": "Proses ni rumit gila.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00467",
+      "input": "Mana pernah benda ni jadi kat aku dulu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00468",
+      "input": "Bukan Tom je yang kena belajar betul-betul, Aku pun kena buat camtu jugak",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00469",
+      "input": "Aku tak suka sangat muzik klasikal.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00470",
+      "input": "Semua ni bukan salah aku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00471",
+      "input": "Tom tengah berdiri kat tengah-tengah ruang tamu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00472",
+      "input": "Ada orang ingat negara ni kawasan yang paling bahaya dalam dunia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00473",
+      "input": "Anjing dia garang gila sampai tak bagi sapa pun masuk ke dalam rumah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00474",
+      "input": "Kami ingat kami nak pindah ke Algeria.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00475",
+      "input": "Lain kali mungkin kita boleh jumpa lagi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00476",
+      "input": "Tom ingat dia sorang je yang kena buat camtu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00477",
+      "input": "Aku lagi suka belajar cakap Perancis dengan orang Perancis betul.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00478",
+      "input": "Tom dengan Mary tak cakap pun apa yang diorang dah buat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00479",
+      "input": "Mary boleh dengar Tom, tapi Tom tak nampak dia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00480",
+      "input": "Tom tak tengok TV.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00481",
+      "input": "Kau tau tak Tom dengan Mary selalu buat benda tu sama-sama?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00482",
+      "input": "Tajamkan sikit hujung batang tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00483",
+      "input": "Kau tolong jaga tempat ni masa kitorang keluar, OK?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00484",
+      "input": "Aku tolong diorang semalam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00485",
+      "input": "Tom nak Mary jadi teman menari dia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00486",
+      "input": "Budak-budak ada sikit je gigi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00487",
+      "input": "Dia tahu semua benda pasal sejarah Jepun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00488",
+      "input": "Dia bagi aku selesema.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00489",
+      "input": "Tom cakap dia tak pernah cakap benda tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00490",
+      "input": "Tom jadi buta habis.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00491",
+      "input": "Tom nak sambung cakap pasal benda tu, tapi aku dah tak mau dengar dah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00492",
+      "input": "Bila Tom gelak, semua yang lain pun ikut gelak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00493",
+      "input": "Dah tiba masa kita masukkan balik binatang-binatang ni dalam kandang diorang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00494",
+      "input": "Ia tidaklah begitu sukar untuk dilakukan sepertimana yang didengari.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00495",
+      "input": "Dengar je macam susah, sebenarnya senang je nak buat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00496",
+      "input": "Aku bukannya betul-betul duduk kat Australia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00497",
+      "input": "Sami tau nama aku yang betul.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00498",
+      "input": "Tom dengan Mary dua-dua haus gila.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00499",
+      "input": "Mary cakap dengan Tom dia tak tau camna nak buat benda tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00500",
+      "input": "Tom pun dah pernah pegi Australia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00501",
+      "input": "Aku dah niat nak kawin dengan kau.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00502",
+      "input": "Kitorang semua suka dia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00503",
+      "input": "Tom bagi aku benda tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00504",
+      "input": "Tom tak jangka benda tu akan jadi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00505",
+      "input": "Aku ni asyik sibuk dengan kerja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00506",
+      "input": "Dia rasa macam tak sihat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00507",
+      "input": "Aku seronok sebab kau dengan aku dapat lepak sekejap sama-sama.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00508",
+      "input": "Semua orang yang aku kenal dah buat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00509",
+      "input": "سموا اورڠ يڠ اكو كنل ده بوات.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00510",
+      "input": "Tolong jangan sentuh dekat bahagian rekod.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00511",
+      "input": "Aku terbuka baju aku tanpa sedar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00512",
+      "input": "Si Mary sama si Tom macam bersuka tahu itu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00513",
+      "input": "كاو سكارڠ بوات ڤا ني؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00514",
+      "input": "Sami tak rasa Layla akan buat macam tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00515",
+      "input": "سامي تق راس لايلا اكن بوات ماچم تو.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00516",
+      "input": "Semua orang tunggu untuk tengok apa yang Tom nak buat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00517",
+      "input": "سموا اورڠ توڠڬو اونتوق تيڠوق اڤ يڠ توم نق بوات.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00518",
+      "input": "Pandemik tak seronok.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00519",
+      "input": "ڤندميک تق سرونوق.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00520",
+      "input": "Pandemik tu apa?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00521",
+      "input": "Tom takut pandemik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00522",
+      "input": "توم تاكوت ڤندميک.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00523",
+      "input": "Pandemik lepas ni mesti lagi teruk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00524",
+      "input": "ڤندميک لڤس ني مستي لاڬي تروق.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00525",
+      "input": "Masa depan Algeria cerah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00526",
+      "input": "ماس دڤن الڬيريا چره.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00527",
+      "input": "Aku rasa nak buat website baru.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00528",
+      "input": "اكو راس نق بوات ويبساءيت بارو.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00529",
+      "input": "Aku kena buang sampah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00530",
+      "input": "اکو کنا بواڠ سمڤه.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00531",
+      "input": "Kau buat apa je, pasti akan berjaya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00532",
+      "input": "کاو بوات اڤ جر⹁ ڤستي اکن برجاي.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00533",
+      "input": "Kau belajar Perancis dekat mana?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00534",
+      "input": "کاو بلاجر ڤرنچيس دکتت مان؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00535",
+      "input": "Kau sabar, kau berjaya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00536",
+      "input": "کاو صبر⹁ کاو برجاي.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00537",
+      "input": "Semalam aku dah dapat surat kau.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00538",
+      "input": "سمالم اکو ده داڤت سورت کاو.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00539",
+      "input": "Aku tak perlukan pertolongan kau.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00540",
+      "input": "اکو تق ڤرلوکن ڤرتولوڠن کاو.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00541",
+      "input": "Kau patut balik sekarang",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00542",
+      "input": "كاو ڤاتوت باليق سكارڠ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00543",
+      "input": "Ni kali pertama kau cuba makanan Jepun ke?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00544",
+      "input": "ني كالي ڤرتام كاو چوبا ماكنن جڤون ک؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00545",
+      "input": "Aku pasti hanya Tom dan Mary sahaja perlu buatnya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00546",
+      "input": "اکو ڤستي توم دان ماري سهاج ڤرلو بواتڽ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00547",
+      "input": "كيت اورڠ تڠه تيڠوق ڤتي سورت.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00548",
+      "input": "Tahu tak Tom duduk di mana?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00549",
+      "input": "تاهو تق توم دودوق دمان؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00550",
+      "input": "Sami tak tau Laila ni orang Islam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00551",
+      "input": "سامي تق تاهو لايلا ني اورڠ إسلام.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00552",
+      "input": "Aku tak tiru dalam periksa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00553",
+      "input": "اکو تق تيرو دالم ڤريقسا.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00554",
+      "input": "Duduk rumah lama-lama buat aku bosan la.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00555",
+      "input": "دودوق رومه لاما٢ بوات اکو بوسن لا.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00556",
+      "input": "Duk umah lama-lama pishang doh.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00557",
+      "input": "دوق اومه لاما٢ ڤيشڠ دوه.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00558",
+      "input": "اد ک ايات يڠ لڠسوڠ تق بوليه دترجمهکن؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00559",
+      "input": "Moh buat sesuatu!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00560",
+      "input": "موه بوات سسواتو!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00561",
+      "input": "Bagi balik duit aku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00562",
+      "input": "باݢي باليق دوءيت اکو.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00563",
+      "input": "Aku tak ingat nama dia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00564",
+      "input": "اکو تق ايڠت نام دي.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00565",
+      "input": "Tom kena belajar Perancis.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00566",
+      "input": "توم كنا بلاجر ڤرنچيس.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00567",
+      "input": "Aku tak leh pandu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00568",
+      "input": "اکو تق ليه ڤندو.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00569",
+      "input": "Anjing tu macam sakit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00570",
+      "input": "انجيڠ ايت ماچم ساکيت.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00571",
+      "input": "Tengok belakang kau. Ape tu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00572",
+      "input": "تيڠوق بلاكڠ كاو. اڤ تو؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00573",
+      "input": "Duit aku kena curi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00574",
+      "input": "دوءيت اكو كنا چوري.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00575",
+      "input": "Kita kena beli mesin basuh baru.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00576",
+      "input": "كيت كنا بلي ميسين باسوه بارو.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00577",
+      "input": "Dia dah tak duduk sini.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00578",
+      "input": "دي ده تق دودوق سيني.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00579",
+      "input": "Lepas sekolah buat apa?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00580",
+      "input": "لڤس سكوله بوات اڤ؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00581",
+      "input": "Semalam, aku gi mandi dekat sungai.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00582",
+      "input": "سمالم⹁ اکو ݢي مندي دکت سوڠاي.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00583",
+      "input": "Macam membazir je bunyinya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00584",
+      "input": "ماچم ممبذير ج بوڽيڽ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00585",
+      "input": "Laila dah kunci pintu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00586",
+      "input": "لايلا ده كونچي ڤينتو.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00587",
+      "input": "Nampak tak kuda tu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00588",
+      "input": "نمڤق تق كودا تو؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00589",
+      "input": "Aku rasa kita tak patut percaya Tom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00590",
+      "input": "اكو راس كيت تق ڤاتوت ڤرچاي توم.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00591",
+      "input": "Aku tak ambik cuti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00592",
+      "input": "اكو تق امبيق چوتي.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00593",
+      "input": "Korang rasa tak dia nak keluar dengan saya?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00594",
+      "input": "Kau tak payah buat pun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00595",
+      "input": "كاو تق ڤايه بوات ڤون.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00596",
+      "input": "Aku dah lupa nak cakap apa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00597",
+      "input": "اكو ده لوڤا نق چاكڤ اڤ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00598",
+      "input": "Ayat apa yang kau suka dari movie tu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00599",
+      "input": "ايات اڤ يڠ کاو سوک دري موۏي تو؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00600",
+      "input": "Aku ingatkan Tom ni dulunya cikgu Perancis.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00601",
+      "input": "اکو ايڠتکن توم ني دولوڽ چيقݢو ڤرنچيس.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00602",
+      "input": "Tak kuasa aku nak layan mamat tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00603",
+      "input": "تق كواس اكو نق لاين مامت تو.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00604",
+      "input": "Kenapa dengan kau ni, ada masalah ke? Cer cerita sikit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00605",
+      "input": "كنڤ دڠن كاو ني، اد مسئله ک؟ چر چريتا سيكيت.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00606",
+      "input": "Mana kau tau benda tu betul kalau kau sendiri pun tak pernah nampak?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00607",
+      "input": "مان كاو تاهو بندا تو بتول كالاو كاو سنديري ڤون تق ڤرنه نمڤق؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00608",
+      "input": "Takde sape dengar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00609",
+      "input": "Aku nak bunuh diri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00610",
+      "input": "اكو نق بونوه ديري.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00611",
+      "input": "Aku baru je tadi nampak Tom dan Mary.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00612",
+      "input": "اكو بارو ج تادي نمڤق توم دان ماري.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00613",
+      "input": "Kau tak yah cakap apa-apa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00614",
+      "input": "كاو تق يه چاكڤ اڤ٢.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00615",
+      "input": "Kau boleh baca tulisan ni tak?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00616",
+      "input": "كاو بوليه باچ توليسن ني تق؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00617",
+      "input": "دي تو چيقڬو كن؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00618",
+      "input": "Di Rusia ada tak anime haiwan?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00619",
+      "input": "دروسيا اد تق انيمي حيوان؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00620",
+      "input": "Watak anime mana yang kau paling minat?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00621",
+      "input": "واتق انيمي مان يڠ كاو ڤاليڠ مينت؟",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00622",
+      "input": "Jom balik, hari dah nak gelap.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00623",
+      "input": "Kipas tu buat bunyi pelik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00624",
+      "input": "Takde sapa pun lagi rajin dari korang semua.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00625",
+      "input": "Tom pun tak happy pasal benda tu jugak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00626",
+      "input": "Aku kena tengok benda tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00627",
+      "input": "Ada pinggan kotor dalam sinki tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00628",
+      "input": "Anak kita tengah belajar bercakap.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00629",
+      "input": "Dia tengah tengok gambar kawan dia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00630",
+      "input": "Mennad duduk kat satu apartmen kecik tak jauh dari sini.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00631",
+      "input": "Sami terdengar bunyi tu dari dalam almari.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00632",
+      "input": "Tom nak buat benda tu malam ni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00633",
+      "input": "Kalau dia tak datang, kami takkan pegi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00634",
+      "input": "Aku pejam mata pastu dengar bunyi laut.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00635",
+      "input": "Boleh tak kau tolong bawak keluar sampah ni?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00636",
+      "input": "Budak-budak ada masalah yang mak bapak tak faham.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00637",
+      "input": "Apa dah jadi dengan anak dia?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00638",
+      "input": "Nanti aku sampai kat stesen dalam pukul satu tiga puluh lima.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00639",
+      "input": "Aku dah dengar semuanya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00640",
+      "input": "Jangan kacau aku. Aku tengah sibuk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00641",
+      "input": "Hari ni aku pegi muzium.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00642",
+      "input": "Tom angkat siput tu dan tengok dia betul-betul.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00643",
+      "input": "Kita tak payah nak kelam-kabut.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00644",
+      "input": "Tom nak pegi Australia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00645",
+      "input": "Apa kata korang kenalkan diri kat kitorang?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00646",
+      "input": "Diorang ingat kita akan lindung diorang dari Tom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00647",
+      "input": "Mary cakap terima kasih kat Tom sebab bagi hadiah tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00648",
+      "input": "Diorang tak hisap rokok, kan?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00649",
+      "input": "Kau kena bagitau Tom ke?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00650",
+      "input": "Tom dengan Mary tak tau yang diorang tak payah buat benda tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00651",
+      "input": "Aku dah baca Quran.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00652",
+      "input": "Bila kau mula guna contact lens?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00653",
+      "input": "Kita sikit lagi nak berperang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00654",
+      "input": "Kenapa aku kena bagitau dia?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00655",
+      "input": "Aku tau kau nervous.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00656",
+      "input": "Tom tu pengadil yang dah pakar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00657",
+      "input": "Mak aku suruh aku teman dia hujung minggu ni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00658",
+      "input": "Tom tak datang kerja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00659",
+      "input": "Kau ingat tak kau pernah cakap dengan Tom?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00660",
+      "input": "Tom nampak Mary tengah makan daging, tapi dia bagitau Tom yang dia tu vegetarian.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00661",
+      "input": "Dia tak ingat kat dia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00662",
+      "input": "Aku takkan paksa kau buat benda tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00663",
+      "input": "Mesti kita dah buat silap.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00664",
+      "input": "Kau dah dapat semua yang kau nak?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00665",
+      "input": "Tom suka bergaduh.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00666",
+      "input": "Aku tak tau kau takde cukup duit nak beli tiket.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00667",
+      "input": "Tom cakap dia harap Mary nak pegi ke majlis tu dengan dia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00668",
+      "input": "Aku nak kahwin bulan sepuluh ni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00669",
+      "input": "Aku tak boleh nak capai tinggi macam tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00670",
+      "input": "Aku tak nak tolong kau dah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00671",
+      "input": "Kau kat mana, Tom?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00672",
+      "input": "Aku harap Tom dengan Mary nak makan lunch dengan kita.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00673",
+      "input": "Kadang-kadang penceramah tu tengok nota dia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00674",
+      "input": "Tom tau kita percaya kat dia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00675",
+      "input": "Tom cakap dia pun kaki botol.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00676",
+      "input": "Kita kena buat keputusan besar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00677",
+      "input": "Kita perlu membuat satu keputusan yang besar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00678",
+      "input": "Tom tu dah pernah kena tangkap ke?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00679",
+      "input": "Dia pandai main tenis.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00680",
+      "input": "Boleh tak kau bagitau aku kat mana library yang paling dekat?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00681",
+      "input": "Nanti aku suruh Tom call kau bila dia balik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00682",
+      "input": "Saya akan meminta Tom menelefon awak sebaik sahaja dia pulang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00683",
+      "input": "Kalau kau tak selamatkan aku, mungkin aku dah mati.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00684",
+      "input": "Aku seronok sebab Tom cakap benda yang betul.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00685",
+      "input": "Tom cakap kat aku bahasa Perancis ni bukan la susah sangat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00686",
+      "input": "Tom memberitahu saya bahawa bahasa Perancis ini tidaklah begitu sukar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00687",
+      "input": "Aku tak tau pulak Tom kena buat benda tu minggu depan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00688",
+      "input": "Aku tak berani nak cari pasal dengan Tom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00689",
+      "input": "Aku suka betul Tom boleh buat benda tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00690",
+      "input": "Ada susu sikit dalam botol tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00691",
+      "input": "Tom takkan bagitau kita satu apa pun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00692",
+      "input": "Nampak macam ada benda tak kena.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00693",
+      "input": "Aku tak suka berenang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00694",
+      "input": "Tom tinggalkan Mary dengan John.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00695",
+      "input": "Aku ingat kau cakap yang Tom tu patient kau.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00696",
+      "input": "Tom dengan Mary dua-dua nampak sedih.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00697",
+      "input": "Dia pura-pura tak dengar apa dia cakap.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00698",
+      "input": "Aku ingatkan kau suka semua orang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00699",
+      "input": "Aku paham kenapa kau minat sangat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00700",
+      "input": "Tom gantung kot dia kat penyangkut baju.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00701",
+      "input": "Aku tolong Tom berdiri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00702",
+      "input": "Aku rasa aku nak tengok-tengok lagi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00703",
+      "input": "Tolong bagi aku selai kertas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00704",
+      "input": "Aku takkan tinggalkan kau.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00705",
+      "input": "Kau ada raket sebijik macam aku punya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00706",
+      "input": "Aku rasa Tom nak kau buat benda tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00707",
+      "input": "Berbaloi ke benda ni?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00708",
+      "input": "Aku tak nak mintak tolong Tom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00709",
+      "input": "Aku harap kau dapat sokongan dia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00710",
+      "input": "Semua tengah mabuk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00711",
+      "input": "Kitorang tak tanya kat Tom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00712",
+      "input": "Tom ajak aku pegi Australia dengan Mary summer depan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00713",
+      "input": "Dia suka muzik yang pelan je.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00714",
+      "input": "Aku ingat nak pegi Europe minggu depan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00715",
+      "input": "Dah sampai masa nak tukar benda tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00716",
+      "input": "Aku belum sedia nak buat benda tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00717",
+      "input": "Kitorang berdua mabuk sikit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00718",
+      "input": "Tom kena buang sekolah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00719",
+      "input": "Patutnya aku study untuk ujian tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00720",
+      "input": "Dia takde musuh.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00721",
+      "input": "Dah lama kita tak jumpa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00722",
+      "input": "Patutnya Tom datang petang ni, tapi tak nampak langsung batang hidung dia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00723",
+      "input": "Budak-budak tu dah makin penat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00724",
+      "input": "Rumah aku sejuk gila.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00725",
+      "input": "Tom rasa benda tu merepek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00726",
+      "input": "Kau ni kerja kuat sangat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00727",
+      "input": "Berapa lama Tom nak kita tunggu ni?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00728",
+      "input": "Kita mungkin kena stay kat Boston sepanjang minggu ni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00729",
+      "input": "Aku tak tau pulak Tom akan curiga gila.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00730",
+      "input": "Budak-budak memang suka main kat pantai.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00731",
+      "input": "Susah nak belajar bahasa Inggeris ni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00732",
+      "input": "Call Tom pastu bagitau dia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00733",
+      "input": "Dia akan jadi doktor.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00734",
+      "input": "Takde sapa pun kisah pasal benda tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00735",
+      "input": "Kau suka naik bas ke naik tren?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00736",
+      "input": "Aku tak pernah tengok gajah betul.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00737",
+      "input": "Tom kena tangkap awal tahun ni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00738",
+      "input": "Tom cakap dia tak tau kenapa Mary tak suka kat dia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00739",
+      "input": "Tom jaga bapak dia yang sakit tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00740",
+      "input": "Bila kau pegi oversea, bawak la satu lagi cermin mata.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00741",
+      "input": "Tom cakap dia tak tau camna nak selesaikan masalah tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00742",
+      "input": "Dia baru je pegi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00743",
+      "input": "Duit dia bagi dia buat apa-apa je yang dia nak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00744",
+      "input": "Kenapa yang kau siap-siap ni?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00745",
+      "input": "Dia tak nak naik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00746",
+      "input": "Aku nak tau apa yang kau tengah cakap tadi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00747",
+      "input": "Aku tau Tom berani buat benda tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00748",
+      "input": "Kenapa la aku tak pikir benda ni sendiri?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00749",
+      "input": "Aku harap Tom suka menyanyi macam Mary jugak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00750",
+      "input": "Kenapa kau berenti?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00751",
+      "input": "Aku terus bercakap.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00752",
+      "input": "Aku rasa kita takkan sempat sampai.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00753",
+      "input": "Tom cakap itu dah memang kerja dia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00754",
+      "input": "Tom tu pelik betul orangnya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00755",
+      "input": "Benda tu jadi kat kau sebab kau tak careful.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00756",
+      "input": "Orang jenis apa sanggup keluar duit banyak untuk basikal sebuah?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00757",
+      "input": "Aku ingat Tom tengah marah dengan aku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00758",
+      "input": "Kau dah kena buang kerja ke?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00759",
+      "input": "Aku memang nak jadi macam bapak aku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00760",
+      "input": "Tom tu abang aku, bukan bapak aku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00761",
+      "input": "Diorang berborak sambil minum kopi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00762",
+      "input": "Aku tak tau betul ke Tom buat apa yang dia sepatutnya kena buat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00763",
+      "input": "Aku mungkin tak mengajar Bahasa Perancis tahun depan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00764",
+      "input": "Dia duduk kat rumah kuning tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00765",
+      "input": "Bila aku dah habis nanti aku call kau.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00766",
+      "input": "Ni semua lampu-lampu ni nak buat apa?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00767",
+      "input": "Tom dah balik ke Boston untuk Krismas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00768",
+      "input": "Semua daun kat pokok tu dah jadi kuning.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00769",
+      "input": "Mak aku baru meninggal.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00770",
+      "input": "Aku rasa jap lagi Tom sampai.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00771",
+      "input": "Kau yang mulakan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00772",
+      "input": "Kenapa kau tak cakap kau tak tau nak buat apa?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00773",
+      "input": "Aku rasa aku dah sesat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00774",
+      "input": "Bila agaknya kau boleh buat benda tu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00775",
+      "input": "Aku tak perasan wallet aku dah hilang sampailah aku kat rumah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00776",
+      "input": "Aku tak pernah sayang pompuan lain selain kau.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00777",
+      "input": "Masa aku masuk kat dapur, dia tengah masak kari ayam dengan nasi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00778",
+      "input": "Kau nampak elok pakai baju biru.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00779",
+      "input": "Tom tanya aku kat mana aku pergi bercuti musim panas lepas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00780",
+      "input": "Tom tu budak lelaki yang paling popular kat sekolah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00781",
+      "input": "Patutnya Tom bagitau Mary yang John nak sampai.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00782",
+      "input": "Tolong terangkan sikit undang-undang bola kat aku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00783",
+      "input": "Camna Tom nak halang kita?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00784",
+      "input": "Dia ada anjing ke?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00785",
+      "input": "Ada sikit yang Tom cakap tu betul.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00786",
+      "input": "Kita takkan tau benda yang betul.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00787",
+      "input": "Aku rasa Tom akan marah kalau kau buat benda tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00788",
+      "input": "Saya berpendapat Tom akan marah sekiranya awak berbuat sedemikian.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00789",
+      "input": "Tulislah tarikh tu sendiri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00790",
+      "input": "Kau masih lagi tak paham apa yang jadi sekarang ni?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00791",
+      "input": "Aku ada free time semalam, jadi aku bawak anak-anak aku pegi taman.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00792",
+      "input": "Kitorang nak tau esok cuaca baik ke tak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00793",
+      "input": "Tom lap muka dia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00794",
+      "input": "Aku bagitau kau sekali ni je.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00795",
+      "input": "Aku ada cucu perempuan sebaya kau.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00796",
+      "input": "Aku rasa bahaya kalau buat benda tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00797",
+      "input": "Kau tengah cari Tom ke?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00798",
+      "input": "Masalahnya kita tak cukup makanan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ms-00799",
+      "input": "Aku tau orang lain akan tengok benda tu pelik.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ms-00000",
+      "input": "Room 304 has the laptops we ordered.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ms-00001",
+      "input": "Bought 5 cookies on the avenue near my office.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ms-00002",
+      "input": "Track #12345 was delivered yesterday.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ms-00003",
+      "input": "I had 5 boxes in storage unit 12.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ms-00004",
+      "input": "Building number 7 was empty.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ms-00005",
+      "input": "Open from January 1990 onwards.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ms-00006",
+      "input": "Floor 3 has the printer.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ms-00007",
+      "input": "Order #98765 is being processed.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ms-00008",
+      "input": "The bus runs every 12 minutes.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ms-00009",
+      "input": "Found 5000 documents in the archive.",
+      "expected": []
+    }
+  ]
+}

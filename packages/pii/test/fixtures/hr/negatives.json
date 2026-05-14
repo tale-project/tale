@@ -1,0 +1,4065 @@
+{
+  "_meta": {
+    "locale": "hr",
+    "generator": "@tale/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 0,
+      "negatives": 810
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "negatives": [
+    {
+      "id": "neg-prose-hr-00000",
+      "input": "Ja sam student.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00001",
+      "input": "Kako se ti zoveš?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00002",
+      "input": "Zove se Tomojuki Ogura.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00003",
+      "input": "Moja je, nije njegova.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00004",
+      "input": "Moj je, nije njegov.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00005",
+      "input": "Moje je, nije njegovo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00006",
+      "input": "Bilježnica nije tvoja, njegova je.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00007",
+      "input": "Njezin je, zar ne?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00008",
+      "input": "Njezina je, zar ne?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00009",
+      "input": "Njezino je, zar ne?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00010",
+      "input": "To je njihova knjiga.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00011",
+      "input": "To je moja mačka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00012",
+      "input": "Njegov je, zar ne?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00013",
+      "input": "Njegovo je, zar ne?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00014",
+      "input": "Njegova je, zar ne?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00015",
+      "input": "Ovo je dobar udžbenik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00016",
+      "input": "To nije mačka, pas je.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00017",
+      "input": "Ovo je moje pitanje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00018",
+      "input": "Dobar dan, kako si?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00019",
+      "input": "Pas zove se Ken.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00020",
+      "input": "Kako se zovete?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00021",
+      "input": "Ovo je moja žena Edita.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00022",
+      "input": "Kako se kaže...?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00023",
+      "input": "Kako se kaže \"Hvala\" na japanskom?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00024",
+      "input": "Kako se kaže to na talijanskom?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00025",
+      "input": "Kako se kaže XXX na nizozemskom jeziku?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00026",
+      "input": "Kako se kaže \"mačka\" na španjolskom?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00027",
+      "input": "Kako se kaže \"doviđenja\" na nemačkom jeziku?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00028",
+      "input": "Jesi li ti student?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00029",
+      "input": "Jesi li ti studentica?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00030",
+      "input": "\"Jesi li ti nastavnik?\" \"Da, jesam.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00031",
+      "input": "Ja sam profesor.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00032",
+      "input": "Ja sam profesorica.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00033",
+      "input": "Mačka nije čovjek!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00034",
+      "input": "On nije znanstvenik, ali on jest naš prijatelj.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00035",
+      "input": "Jesu li oni prijatelji?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00036",
+      "input": "Je li on nastavnik?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00037",
+      "input": "Je li on doktor?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00038",
+      "input": "On je Amerikanac.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00039",
+      "input": "Mi smo Australci.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00040",
+      "input": "Kako se zove tvoj prijatelj?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00041",
+      "input": "Kako se zoveš na bosanskom?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00042",
+      "input": "Koje je tvoje bosansko ime?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00043",
+      "input": "On je znanstvenik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00044",
+      "input": "To je njegov auto.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00045",
+      "input": "Ta torba je moja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00046",
+      "input": "Oprosti, tko je ova žena?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00047",
+      "input": "Oprostite, tko je ova žena?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00048",
+      "input": "Ona se zove Lucifera.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00049",
+      "input": "Tko je ovaj čovjek?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00050",
+      "input": "Ona je moja profesorica.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00051",
+      "input": "On je moj prijatelj.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00052",
+      "input": "Ja sam prevoditelj.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00053",
+      "input": "Tko je taj čovjek?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00054",
+      "input": "Zadržite ostatak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00055",
+      "input": "Sva ljudska bića rađaju se slobodna i jednaka u dostojanstvu i pravima. Ona su obdarena razumom i sviješću, i trebaju jedni prema drugima postupati u duhu bratstva.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00056",
+      "input": "Jedan, dva, tri, četiri, pet, šest, sedam, osam, devet, deset.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00057",
+      "input": "Vrijeme je tako lijepo!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00058",
+      "input": "Vang Lao Dži nije pivo. Čaj je.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00059",
+      "input": "Triput meri, jednom seci.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00060",
+      "input": "Jesi li ti siguran?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00061",
+      "input": "Jesi li ti Ujgur?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00062",
+      "input": "Tvoji rezultati ispita su odlični.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00063",
+      "input": "Znaš li da joj se sviđaju životinje?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00064",
+      "input": "Kažu da zmije hipnotiziraju male životinje i ptice.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00065",
+      "input": "George me otpratio kući.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00066",
+      "input": "Najbogatiji čovjek na svijetu ne bi mogao kupiti njezinu ljubav.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00067",
+      "input": "Pušenje je štetno za zdravlje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00068",
+      "input": "Imate li slobodnih soba?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00069",
+      "input": "Jako me brine tvoje zdravlje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00070",
+      "input": "Oni kopaju rupu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00071",
+      "input": "Bliži se veliki tajfun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00072",
+      "input": "Izgubila je novac, obitelj, prijatelje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00073",
+      "input": "Moraš više raditi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00074",
+      "input": "Kakav je ovo film? Je li popularan?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00075",
+      "input": "Trgovina igračaka je zatvorena.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00076",
+      "input": "Otišao je na more da bi plivao.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00077",
+      "input": "Kažem li svojoj majci, brinut će se, zato mislim da joj neću reći.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00078",
+      "input": "Odlučila sam joj reći da ga volim.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00079",
+      "input": "Tatoeba: Gdje je pozornost za detalje sveta, a kazna brza.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00080",
+      "input": "Vi ste njezine kćeri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00081",
+      "input": "S takvom cijenom vaš proizvod neće preživjeti konkurenciju na japanskom tržištu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00082",
+      "input": "Ne postoji ništa vrijednije od ljubavi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00083",
+      "input": "Mogu li uzeti tvoj rječnik?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00084",
+      "input": "Hoćeš li otvoriti vrata?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00085",
+      "input": "To se mora promijeniti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00086",
+      "input": "Ne znam hoću li imati vremena.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00087",
+      "input": "Kada će se sagraditi ovaj hram?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00088",
+      "input": "Koja je tvoja omiljena TV zvijezda?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00089",
+      "input": "Hoćemo li stići na koncert?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00090",
+      "input": "Nitko me ne razumije.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00091",
+      "input": "Dojim svoje dijete.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00092",
+      "input": "Ne, nikada nisam tamo bio.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00093",
+      "input": "Tko je tvoj omiljeni skladatelj?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00094",
+      "input": "Ostavljam ti to.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00095",
+      "input": "To ne može biti istina.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00096",
+      "input": "Danas je više oblaka nego jučer.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00097",
+      "input": "Zašto ste sami?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00098",
+      "input": "Kakvo je vrijeme u New Yorku?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00099",
+      "input": "Savjest grize bez zuba.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00100",
+      "input": "To su umjetne suze.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00101",
+      "input": "I što ako sam homoseksualac? Zar je to zločin?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00102",
+      "input": "Zlato je skuplje od željeza.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00103",
+      "input": "Evo restorana u kojem često jedem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00104",
+      "input": "Ona uvijek marljivo radi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00105",
+      "input": "Djevojke su lagano plesale, kao mnoštvo leptira.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00106",
+      "input": "Ne mogu se s tobom dogovoriti po tom pitanju.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00107",
+      "input": "Dugo je govorila o svojim inozemnim iskustvima.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00108",
+      "input": "Kunići imaju duga uha.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00109",
+      "input": "Ne razumiju me kada govorim njemački.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00110",
+      "input": "Sviđa mu se talijanska kuhinja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00111",
+      "input": "Razbio je ovaj prozor.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00112",
+      "input": "On kaže da će doći.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00113",
+      "input": "Muškarac je ustao i zapjevao.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00114",
+      "input": "Možete li mi poslati brošuru?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00115",
+      "input": "On ima desetke knjiga.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00116",
+      "input": "Rodio se u Ohiu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00117",
+      "input": "On često citira Shakespeara.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00118",
+      "input": "To jelo je ukusnije od onoga.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00119",
+      "input": "Vaš prijedlog je suprotan našemu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00120",
+      "input": "On se ne boji opasnosti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00121",
+      "input": "Žena mu je otvorila vrata.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00122",
+      "input": "On nije znanstvenik, ali nam je prijatelj.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00123",
+      "input": "Ona je moja prva ljubav.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00124",
+      "input": "Bio je strašno ranjen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00125",
+      "input": "Uvijek govori o vladi s prijezirom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00126",
+      "input": "Želim da mi se san ostvari.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00127",
+      "input": "Pozdravio nas je i otišao.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00128",
+      "input": "Ukratko, neki pištolji imaju odlične sigurnosne sustave kako bi spriječili slučajna opaljivanja (npr. kod ispuštanja), a drugi nemaju.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00129",
+      "input": "Daj mu vremena.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00130",
+      "input": "Ljeto je gotovo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00131",
+      "input": "Ona govori i engleski i njemački.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00132",
+      "input": "Čovjek je racionalno biće.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00133",
+      "input": "Studiram američku dramu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00134",
+      "input": "Vatra se proširila na susjednu zgradu prije nego što su vatrogasci pristigli.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00135",
+      "input": "Zato sam ga otpustio.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00136",
+      "input": "Otac mi je kupio tu knjigu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00137",
+      "input": "On ima oči na potiljku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00138",
+      "input": "Isplati se posjetiti muzej.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00139",
+      "input": "Ukoliko pronađem tvoju putovnicu, smjesta ću te nazvati.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00140",
+      "input": "Radio sam na tome dan za danom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00141",
+      "input": "Ne volim učiti po ovakvoj vrućini.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00142",
+      "input": "Nema koristi da ga se pokuša nagovoriti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00143",
+      "input": "Ne može doći jer je bolestan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00144",
+      "input": "Nisam baš bio spreman.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00145",
+      "input": "Napustit ću školu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00146",
+      "input": "Iznosio sam svoje cipele.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00147",
+      "input": "Vani je poput ljeta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00148",
+      "input": "Čini se da Cathy voli glazbu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00149",
+      "input": "Učiteljica je, ne čuvši zvono, nastavila pričati.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00150",
+      "input": "Ona će stići u Tokio početkom sljedećeg mjeseca.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00151",
+      "input": "Dao sam svojoj majci devetnaest cvijetova za Majčin dan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00152",
+      "input": "Učiteljica mi je dodijelila najduže poglavlje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00153",
+      "input": "Vozio je auto ulicom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00154",
+      "input": "To ostavlja loš okus.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00155",
+      "input": "Govoriti engleski je zabavno.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00156",
+      "input": "Nadam se da sutra neće padati kiša.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00157",
+      "input": "Oni su zaista pobijedili.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00158",
+      "input": "Brinuo se za dijete.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00159",
+      "input": "Bol je malo popustila.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00160",
+      "input": "Svi učitelji su bili mladi i voljeli podučavati.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00161",
+      "input": "Organizirao je bojkot autobusnog prijevoza.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00162",
+      "input": "Njegova priča možda nije istinita.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00163",
+      "input": "Visoko je podignuo trofej.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00164",
+      "input": "Inzistirala je da on ode u bolnicu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00165",
+      "input": "Svi smo zurili u nju; toliko se promijenila.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00166",
+      "input": "Svi vole to mjesto.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00167",
+      "input": "Kažeš \"siromašan\", ali postoji puno stupnjeva siromaštva.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00168",
+      "input": "Tvar je dovoljno lagana da pluta na vodi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00169",
+      "input": "Čini se da je to prilično veliki muzej.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00170",
+      "input": "Dobro je građen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00171",
+      "input": "Popustili smo njihovim zahtjevima.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00172",
+      "input": "Njegovo mišljenje je razumno.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00173",
+      "input": "Umirem od gladi!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00174",
+      "input": "Možeš uvijek računati na mene.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00175",
+      "input": "To je bio zao kunić.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00176",
+      "input": "U toj knjizi autor uspoređuje Japan i Ameriku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00177",
+      "input": "Nikakve kiše tijekom protekla tri mjeseca nije bilo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00178",
+      "input": "Posudit ću ti svoju knjigu za zabilješke.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00179",
+      "input": "Zla je vještica bacila zle čini na muškarca i pretvorila ga u kukca.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00180",
+      "input": "Takav običaj je karakterističan za Britance.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00181",
+      "input": "Munja prethodi grom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00182",
+      "input": "Meni se sviđa pješačiti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00183",
+      "input": "Nimalo nisam zadovoljan stanjem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00184",
+      "input": "Neka ti Bog pomogne, brate, za to što si nama dvojici tako pomogao.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00185",
+      "input": "Zašto ne bismo dijelili sobu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00186",
+      "input": "Dakle, ja želim pojasniti tko su ti ljudi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00187",
+      "input": "Lako je učiti strani jezik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00188",
+      "input": "Ona je veoma lijepa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00189",
+      "input": "Molim vas, ne fotografirajte tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00190",
+      "input": "Mislimo da je Venecija prekrasan grad.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00191",
+      "input": "Tko je pronašao izgubljenog psa?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00192",
+      "input": "Japan ima diplomatske odnose s Kinom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00193",
+      "input": "Zanimljivo bi bilo znati, tko je pokopan u toj grobnici.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00194",
+      "input": "Nikada mi se nije sviđala biologija.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00195",
+      "input": "Tko pod drugim jamu kopa, sam u nju upada.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00196",
+      "input": "Tko rano rani, dvije sreće grabi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00197",
+      "input": "Ruka ruku mije.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00198",
+      "input": "Tko živ, tko mrtav.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00199",
+      "input": "Vuk dlaku mijenja, ali ćud nikad.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00200",
+      "input": "Pod vodom se može vidjeti cijeli niz stvorenja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00201",
+      "input": "Cijeli grad je bio pod vodom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00202",
+      "input": "Bilo, pa prošlo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00203",
+      "input": "Koji je glavni grad Sjedinjenih Država, Washington ili New York?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00204",
+      "input": "Tko se mača laća, od mača i pogiba.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00205",
+      "input": "Pero je jače od mača.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00206",
+      "input": "Planirate li dugo ostati?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00207",
+      "input": "To je Alina knjiga.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00208",
+      "input": "Jučer me usrećio.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00209",
+      "input": "On uopće ne zna francuski.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00210",
+      "input": "Bog je visoko, a kralj daleko.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00211",
+      "input": "Bez muke nema nauke.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00212",
+      "input": "Više nije mogao izdržati bol.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00213",
+      "input": "Bolje ikad nego nikad.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00214",
+      "input": "Bolje spriječiti nego liječiti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00215",
+      "input": "Bolje vrabac u ruci nego golub na grani.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00216",
+      "input": "Ptica je letjela nebom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00217",
+      "input": "Ptica je visoko letjela nebom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00218",
+      "input": "Čovjek je čovjeku vuk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00219",
+      "input": "Jedna lasta ne čini proljeće.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00220",
+      "input": "Kad mačke nema, miševi kolo vode.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00221",
+      "input": "Kako došlo, tako prošlo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00222",
+      "input": "Mi o vuku, a vuk na vrata.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00223",
+      "input": "Veoma mi se sviđa engleski jezik, ali mi je ponekad jako težak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00224",
+      "input": "Čim me vidio, pobjegao je.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00225",
+      "input": "Nancy se boji pasa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00226",
+      "input": "Ljudi ne postoje na ovome svijetu da postanu bogati, nego da postanu sretni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00227",
+      "input": "Htio sam još govoriti, ali mi je ona jednostavno spustila slušalicu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00228",
+      "input": "Na nebu nema oblaka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00229",
+      "input": "Nadali smo se da će kiša prestati do ručka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00230",
+      "input": "Neki lijekovi nam škode.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00231",
+      "input": "Koliko duboko je to jezero?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00232",
+      "input": "Tko je otkrio taj otok?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00233",
+      "input": "Tata je za mene kupio knjige.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00234",
+      "input": "Osjećam se dobro sada.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00235",
+      "input": "Ona sliči na majku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00236",
+      "input": "Živite li u gradu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00237",
+      "input": "Mama kupa psa, jer je prljav.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00238",
+      "input": "Prestala je pušiti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00239",
+      "input": "Ta gospođa, odjevena u bijelo, je poznata glumica.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00240",
+      "input": "Glumi da je bolestan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00241",
+      "input": "Svi su osim mene pjevali.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00242",
+      "input": "Koliko košta ta kravata?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00243",
+      "input": "Ponosan sam na tebe.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00244",
+      "input": "Je li ta crna torba ženska?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00245",
+      "input": "Koji si gledao film?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00246",
+      "input": "Je li to tvoj automobil?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00247",
+      "input": "On je usamljen čovjek, nema puno prijatelja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00248",
+      "input": "Gimnastika je njegova jaka strana.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00249",
+      "input": "Pij svoj čaj, jer će se ohladiti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00250",
+      "input": "Što se dogodilo da se tako smiješ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00251",
+      "input": "Molim, ispunite taj formular.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00252",
+      "input": "Jesi li vježbao danas?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00253",
+      "input": "On je liječnik, a osim toga i pisac.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00254",
+      "input": "Neću to nikome nikada reći.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00255",
+      "input": "Bez vode je nemoguće živjeti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00256",
+      "input": "On sliči na svog djeda.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00257",
+      "input": "Ja, osobno, nikada nisam vidio NLO.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00258",
+      "input": "Sviđa li ti se ta majica?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00259",
+      "input": "Tom i Frank su dobri prijatelji.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00260",
+      "input": "Zanimljivo, on će danas doći?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00261",
+      "input": "Kako mogu zaboraviti te dane?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00262",
+      "input": "Slažem se s vama.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00263",
+      "input": "Evo tvoje torbe.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00264",
+      "input": "Hoće li on stići na vlak?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00265",
+      "input": "Taj bicikl treba popraviti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00266",
+      "input": "Kako ste proveli odmor?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00267",
+      "input": "Najveća životinja na Zemlji je plavi kit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00268",
+      "input": "Možda ti znaš gdje ona živi?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00269",
+      "input": "Umorio sam se i hoću spavati.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00270",
+      "input": "Koliko imate olovaka?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00271",
+      "input": "Jedite što hoćete.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00272",
+      "input": "Sve što znam o moralu, znam zahvaljujući nogometu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00273",
+      "input": "Ne mogu pisati ispit, jer sam se razbolio.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00274",
+      "input": "On je znanstvenik i glazbenik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00275",
+      "input": "Pitala je o svojem prijatelju.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00276",
+      "input": "Oplakujem svoju izgubljeni mladost.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00277",
+      "input": "Mislim otići u inozemstvo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00278",
+      "input": "Gdje se nalazi muzej?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00279",
+      "input": "Isusova majka je bila tamo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00280",
+      "input": "Inteligentan je, ali svejedno mi se ne sviđa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00281",
+      "input": "Škrinja je napravljena od drva.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00282",
+      "input": "Možeš li mi dodati sol?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00283",
+      "input": "Na krovu je bijeli golub.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00284",
+      "input": "Žena mu je rodila dvije kćeri i sina.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00285",
+      "input": "Koliko mi je poznato, nema.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00286",
+      "input": "Bojim se padanja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00287",
+      "input": "Nemoj se bojati grešaka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00288",
+      "input": "Vrata su se automatski otvorila.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00289",
+      "input": "Nemoj zakasniti na vlak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00290",
+      "input": "Nismo u stanju ispuniti očekivanja gospode.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00291",
+      "input": "Lakše je reći nego napraviti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00292",
+      "input": "U ponedjeljak sam najviše zauzet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00293",
+      "input": "Ti si velika ljubav mog života.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00294",
+      "input": "Dijete je šutilo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00295",
+      "input": "Njen prijatelj je pjevač.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00296",
+      "input": "Koplimenti su laž.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00297",
+      "input": "Moj mač možda jest tupi, ali za nekoga takvoga kao ti je potpuno dovoljan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00298",
+      "input": "Dečko, kojeg volim, me ne voli.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00299",
+      "input": "On ima inozemni automobil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00300",
+      "input": "Hodao je na prstima, da ga ne čuju.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00301",
+      "input": "Akira je veoma dobra tenisačica.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00302",
+      "input": "Ona živi iz dana u dan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00303",
+      "input": "To je bilo godinama prije.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00304",
+      "input": "To je od mog brata.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00305",
+      "input": "Imala je dugu plavu kosu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00306",
+      "input": "Prekjučer smo stigli u Osaku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00307",
+      "input": "Otvoreno reci što misliš.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00308",
+      "input": "Bio sam u kupovini u subotu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00309",
+      "input": "Idealno je vrijeme za piknik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00310",
+      "input": "To je besplatno.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00311",
+      "input": "Prošle godine je puno padalo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00312",
+      "input": "To je njihova kuća.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00313",
+      "input": "Izgradnja mosta je završena na vrijeme.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00314",
+      "input": "Jesi li već napravio domaću zadaću?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00315",
+      "input": "Prešli su Atlantik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00316",
+      "input": "Ona se jako brine o njegovom zdravlju.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00317",
+      "input": "Imao je probleme, jer je izgubio putovnicu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00318",
+      "input": "Nogomet je popularniji od bejzbola.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00319",
+      "input": "Uzmi djecu sa sobom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00320",
+      "input": "Navijači su se potukli poslije nogometne utakmice.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00321",
+      "input": "Amerika je jako velika.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00322",
+      "input": "Ovo je moja sestra. Ona se zove Julia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00323",
+      "input": "Triput mjeri, jednom sijeci.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00324",
+      "input": "Bezbojne zelene ideje spavaju bijesno.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00325",
+      "input": "Izaberi jednu osobu, molim te.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00326",
+      "input": "Govori se da je njegova zgrada premala za zapadne standarde.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00327",
+      "input": "To je najbolji restoran s plodovima mora u ovoj četvrti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00328",
+      "input": "Semafor se promijenio u crveno.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00329",
+      "input": "Dajte, molim vas, čašu vode.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00330",
+      "input": "Ja ću radije umrijeti, nego se osramiti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00331",
+      "input": "Svi su se nasmijali.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00332",
+      "input": "Pronašao sam knjigu koju sam jučer zagubio.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00333",
+      "input": "Kako tvoja prehlada?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00334",
+      "input": "Znam da si bogat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00335",
+      "input": "Ne znam čime ju otvoriti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00336",
+      "input": "Ona je bogata, a on siromašan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00337",
+      "input": "Ona je opet takva, kakva je bila.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00338",
+      "input": "Reci što hoćeš, a ja ću napraviti po svojem!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00339",
+      "input": "Zauvijek sam otišao iz Afrike.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00340",
+      "input": "Ako ga pozoveš, sigurno će doći.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00341",
+      "input": "Kava mi se više sviđa, nego čaj.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00342",
+      "input": "Sjećam se da sam vas negdje sreo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00343",
+      "input": "Vino, koje tu rade, je poznato.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00344",
+      "input": "Njegov odgovor je daleko od ispravnosti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00345",
+      "input": "Nazvali su je Alice, u čast njezine tete.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00346",
+      "input": "Kako bi ti raspoznao Amerikanca od Engleza?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00347",
+      "input": "Vratio se iz Kanade.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00348",
+      "input": "Hoćete znati moju tajnu? Jako je jednostavna...",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00349",
+      "input": "Gledao sam kako skače.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00350",
+      "input": "Ne mogu sve ptice letjeti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00351",
+      "input": "Jezero se smrznulo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00352",
+      "input": "Sviđa mi se kako si uredio stan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00353",
+      "input": "Zauvijek ću te voljeti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00354",
+      "input": "Usporedi činjenice.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00355",
+      "input": "Ona nije visoka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00356",
+      "input": "Bez sunca nema života!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00357",
+      "input": "Pitala nas je želimo li kuhati.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00358",
+      "input": "Slučajno sam sreo starog prijatelja u Tokiu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00359",
+      "input": "Ovog ljeta ćemo putovati skupno.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00360",
+      "input": "Uskoro ću naučiti plivati.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00361",
+      "input": "Poznat je u cijelome svijetu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00362",
+      "input": "Imam časopis u svojoj sobi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00363",
+      "input": "Kada ćemo jesti?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00364",
+      "input": "Došao je u ponoć.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00365",
+      "input": "Znam da novac nije sve.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00366",
+      "input": "Svi putovi vode u Rim.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00367",
+      "input": "Ne možeš praviti omlete, a da ne razbiješ jaja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00368",
+      "input": "Vozač je održavao veliku brzinu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00369",
+      "input": "Nisam rekao to svojim roditeljima, trebam li to reći tebi?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00370",
+      "input": "Ona putuje cijelim svijetom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00371",
+      "input": "To nije slučaj u Japanu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00372",
+      "input": "Pjevala je prekrasnim glasom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00373",
+      "input": "Tko radi i želi, taj i dobiva, -- tko sam ne ustraje, ništa ne postiže.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00374",
+      "input": "Ovaj sustav ima očite nedostatke.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00375",
+      "input": "Kada otiđeš, nedostajat ćeš mi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00376",
+      "input": "Mogao bih plakati od sreće.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00377",
+      "input": "Bio je duže vremena u hotelu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00378",
+      "input": "Zaboravio sam ga pitati.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00379",
+      "input": "Zamolio sam Toma da otvori prozor.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00380",
+      "input": "Ne pitaj me toliko. Koristi svoju glavu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00381",
+      "input": "Sto je moj najomiljeniji broj.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00382",
+      "input": "Ja sam iz Nizozemske.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00383",
+      "input": "Jesi li ti iz SAD-a?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00384",
+      "input": "Sada sam neovisan o svome ocu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00385",
+      "input": "Osoba koja ne želi čitati nema nikakvu prednost nad onom osobom koja ne može čitati.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00386",
+      "input": "Kakvo je vrijeme tamo?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00387",
+      "input": "Ne, ja nisam iz SAD-a.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00388",
+      "input": "Manga \"One Piece\" je vrlo popularna u Maleziji.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00389",
+      "input": "Moj otac je umro prije pet godina.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00390",
+      "input": "Jesi li sretan?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00391",
+      "input": "Jesi li sretna?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00392",
+      "input": "Ne mogu natjerati svog sina da jede povrće.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00393",
+      "input": "Uvijek je obučena u crno.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00394",
+      "input": "Bilo je oblačno jučer.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00395",
+      "input": "Morate naporno raditi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00396",
+      "input": "Preko trnja do zvijezda!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00397",
+      "input": "Reci mi molim te, gdje je policijska stanica?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00398",
+      "input": "Tom je polupao prozor.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00399",
+      "input": "Ljubav osljepljuje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00400",
+      "input": "Ne mogu trpiti njezino ponašanje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00401",
+      "input": "Šećernica je prazna.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00402",
+      "input": "Kiriurg me je uvjerio da se podvrgem transplantaciji organa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00403",
+      "input": "Radio je naporno da podupre svoju obitelj.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00404",
+      "input": "Odakle je ta zastava?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00405",
+      "input": "Dijamanti su najbolji djevojčini prijatelji.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00406",
+      "input": "Kada bi imao milijun jena, što bi učinio s njima?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00407",
+      "input": "Nikada ga nismo čuli da pjeva.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00408",
+      "input": "Možeš li trčati brzo?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00409",
+      "input": "Mogu li se poslužiti tvojim telefonom?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00410",
+      "input": "Mogu li uzeti tvoj telefon?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00411",
+      "input": "Mogu li dobiti tvoj telefon?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00412",
+      "input": "Kada se može reći da čovjek ima problema s alkoholom?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00413",
+      "input": "Volim fiziku, a matematiku čak i više.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00414",
+      "input": "Idem pješke u školu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00415",
+      "input": "Zašto si me probudio/probudila da mi kažeš nešto tako važno? Sada se neću moći koncentrirati na svoj posao.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00416",
+      "input": "Ne znam engleski, još manje španjolski.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00417",
+      "input": "Moramo marljivo raditi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00418",
+      "input": "Naše ovce su žigosane da ih možemo prepoznati.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00419",
+      "input": "Vrlo je vješt ručni izrađivač.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00420",
+      "input": "Vrlo je vješt u ručnim poslovima.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00421",
+      "input": "Koale se mogu naći u Australiji.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00422",
+      "input": "Stablo je četiri stope promjera.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00423",
+      "input": "Jer je važno, brinuti ću se o tome.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00424",
+      "input": "Zanimljivo je promatrati bebe.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00425",
+      "input": "Gdje su tvoje kreditne kartice?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00426",
+      "input": "\"Je li istina?\" \"Da, istina je.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00427",
+      "input": "Moja sestra me je pitala da ju naučim skijati.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00428",
+      "input": "Imam dvije sestre koje su obje udane.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00429",
+      "input": "Većina ljudi misli da sam luda.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00430",
+      "input": "Ova ruža je lijepa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00431",
+      "input": "Nisam sudjelovao u razgovoru.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00432",
+      "input": "Biti će mi drago doći.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00433",
+      "input": "Molim te, primi ovaj mali dar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00434",
+      "input": "Koliko ja znam, nikada nije došao na vrijeme.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00435",
+      "input": "Ta činjenica ne smije biti zaboravljena.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00436",
+      "input": "Koje vino imaš?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00437",
+      "input": "Pobijedili smo bez problema, jer su ostali igrači bili slabi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00438",
+      "input": "Sudjelovanje muslimana u politici je od velike važnosti za društvo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00439",
+      "input": "Želiš li čaj ili kavu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00440",
+      "input": "Koju god igru igram s tobom, ti nikada ne pobijediš.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00441",
+      "input": "Nemam snage dalje pokušavati.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00442",
+      "input": "Ne možeš čitati tu novelu, a da ne plačeš.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00443",
+      "input": "Razočarana je u ljubavi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00444",
+      "input": "Korijeni stabla su se duboko ukorijenili u zemlju.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00445",
+      "input": "Ona je naša radodajka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00446",
+      "input": "Uskoro je ispit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00447",
+      "input": "Kao i u mnogim aspektima britanskog života, postoje dobri povijesni razlozi za to.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00448",
+      "input": "Dobar dan, kako vam mogu pomoći?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00449",
+      "input": "Ovo vino je vrlo ukusno.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00450",
+      "input": "Došao je kao gost.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00451",
+      "input": "Povjeriti ću ti jednu tajnu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00452",
+      "input": "Više volim gladovati, nego krasti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00453",
+      "input": "Prije bih bio gladan, nego nešto ukrao.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00454",
+      "input": "Išla je u Takasu-kliniku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00455",
+      "input": "Još je uvijek bolje odbaciti svoj profesionalni nego svoj privatni život.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00456",
+      "input": "Misliš li da je novac stvarno važan za mene?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00457",
+      "input": "Vidjet ćeš da je siromašan, kada budeš vidio/vidjela njegov dom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00458",
+      "input": "Vašu ulaznicu, molim.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00459",
+      "input": "Taj koncert je bio odličan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00460",
+      "input": "Očekujem da će doći.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00461",
+      "input": "Radnici su bili goli do pasa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00462",
+      "input": "Dokad ćeš ostati u Japanu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00463",
+      "input": "Dokad ćeš biti u Japanu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00464",
+      "input": "Nisi bio trebao doći tako rano.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00465",
+      "input": "Na mojim crnim cipelama pete trebaju bi popravljene.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00466",
+      "input": "Smijem li posuditi tvoj rječnik?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00467",
+      "input": "Moj učitelj je gospodin Haddad.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00468",
+      "input": "Kako se zove ova ulica?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00469",
+      "input": "On prisustvuje ovoj sjednici.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00470",
+      "input": "Doslovce sam shvatio njezine riječi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00471",
+      "input": "To ne smije raditi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00472",
+      "input": "Koja je njezina nacionalnost?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00473",
+      "input": "Je li blizu poštanski sandučić?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00474",
+      "input": "Hoćeš li mi dati euro?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00475",
+      "input": "Vozač je zahtijevao da izađe iz busa, jer nije imala kartu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00476",
+      "input": "Ne mogu je razlikovati od njezine sestre blizanke.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00477",
+      "input": "Njezin otac je Japanac.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00478",
+      "input": "Njegov otac je Japanac.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00479",
+      "input": "Otišli smo u rodilište i ostali tamo jedan tjedan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00480",
+      "input": "Dužnost je djece voljeti svoje roditelje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00481",
+      "input": "Želi kupiti neke knjige.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00482",
+      "input": "Ona sudjeluje u mnogim školskim aktivnostima.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00483",
+      "input": "Posve sam ozdravio.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00484",
+      "input": "Rajčice, bilo svježe ili kuhane, su uvijek ukusni dodatak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00485",
+      "input": "Besmisao djelovanja ga je uplašio.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00486",
+      "input": "On ima savršene načine, zato se nikad ne zna što zapravo misli.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00487",
+      "input": "Najprije perem svoje lice i ruke.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00488",
+      "input": "Ne mogu izdržati ovu bol.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00489",
+      "input": "On dobro govori japanski, ali ne znam govoriti njemački.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00490",
+      "input": "Ovaj cvijet prekrasno miriši.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00491",
+      "input": "Gdje je svjetlost, tu je i sjena.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00492",
+      "input": "Ovdje se govori španjolski.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00493",
+      "input": "Crna mačka je zadovoljno predila.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00494",
+      "input": "Crna mačka je predila, kada je bila zadovoljna.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00495",
+      "input": "Mi svi smo sretni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00496",
+      "input": "Svake subote igramo nogomet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00497",
+      "input": "Odlično, danas će pod biti očišćen do sjaja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00498",
+      "input": "Imaš li kemijsku olovku?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00499",
+      "input": "Čekao sam ju jako dugo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00500",
+      "input": "Izašao sam na pogrešnoj stanici.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00501",
+      "input": "Kada učim, slušam glazbu pomoću slušalica.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00502",
+      "input": "Ovaj gradić, kao i mnogi gradići u Engleskoj, ima prilično dugu povijest.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00503",
+      "input": "Ona mora posjetiti Englesku ovog ljeta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00504",
+      "input": "Sljedećeg tjedna ćemo se preseliti u naš novi dom, ako bude spreman dotada.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00505",
+      "input": "Jesi li kupio meso u trgovini?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00506",
+      "input": "Dr. Patterson: Da, bilo je užasno.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00507",
+      "input": "Kada se otvara klub?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00508",
+      "input": "Ne vrijedi žaliti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00509",
+      "input": "Stari učitelj je počeo nostalgično govoriti o dobrim, starim vremenima.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00510",
+      "input": "Išli smo u crkvu svake nedjelje, kada smo bili u Americi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00511",
+      "input": "Tip je nevjerojatan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00512",
+      "input": "Potresi često pogađaju Japan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00513",
+      "input": "Zatvorite sva vrata i prozore.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00514",
+      "input": "Ne mogu zapamtiti njezin broj telefona, unatoč velikom trudu da zapamtim.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00515",
+      "input": "Odbila je reći više o tome.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00516",
+      "input": "Molim te, popravi moju igračku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00517",
+      "input": "Takvo ponašanje može uzrokovati nesreću.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00518",
+      "input": "Ta knjiga je nova.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00519",
+      "input": "Želim umrijeti s Getter Jaani.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00520",
+      "input": "Magdalena i Ania su dobre prijateljice.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00521",
+      "input": "I Magdalena i Ania su iz Poljske.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00522",
+      "input": "Aniu zanimaju računala.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00523",
+      "input": "Magdalenu zanima zemljopis.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00524",
+      "input": "Također Piotr i Lech su dobri prijatelji.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00525",
+      "input": "I Piotr i Lech su iz Poljske.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00526",
+      "input": "Piotra zanima nogomet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00527",
+      "input": "Lecha zanima povijest.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00528",
+      "input": "On ne zna puno o Japanu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00529",
+      "input": "Piotr ima crnu, a Lech plavu kosu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00530",
+      "input": "Optički radari funkcioniraju koristeći svjetlo umjesto radiovalova kao kod običnih radara.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00531",
+      "input": "Ania ima crnu, a Magdalena plavu kosu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00532",
+      "input": "Ohrabrio me je da pokušam ponovno.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00533",
+      "input": "Ovaj roman je težak za razumjeti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00534",
+      "input": "Ania i Piotr su dvanaest.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00535",
+      "input": "Magdalena i Lech imaju trinaest.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00536",
+      "input": "Imam dvije ulaznice za Boston protiv Vancouver u subotu navečer. Želiš li ići sa mnom?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00537",
+      "input": "Oprostite. Kako se zovete?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00538",
+      "input": "Isitnabog, ne volim ga.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00539",
+      "input": "Dosadila mi je njegova priča.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00540",
+      "input": "Nije korektno kritizirati druge iza leđa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00541",
+      "input": "Oženio sam se Poljakinjom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00542",
+      "input": "Oženit ću lijepu Estonku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00543",
+      "input": "Ne sanjaj svoj život, nego živi svoj san.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00544",
+      "input": "Na taj vlak je Aomori trideset minuta kasnio, zato se bojim da nećemo stići u Tokijo prijepodne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00545",
+      "input": "Nazvali smo našeg psa \"White\".",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00546",
+      "input": "Popio je previše jučer.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00547",
+      "input": "Jesi li išao u London taj dan?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00548",
+      "input": "Zaluđen sam američkim nogometom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00549",
+      "input": "Sve što trebaš je dobar sir i pekmez od višanja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00550",
+      "input": "Imam malo temperature.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00551",
+      "input": "Moja žena se zove Lidia Zarębowa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00552",
+      "input": "Imamo dvije kćeri i dva sina.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00553",
+      "input": "Moja starija kći je Magdalena Zarębówna.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00554",
+      "input": "Ušao je kroz prozor.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00555",
+      "input": "Moja jakna nije ista tvojoj.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00556",
+      "input": "Moja majica još nije suha.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00557",
+      "input": "Molim te pripazi na moj kofer.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00558",
+      "input": "Ne mogu naći svoj kofer.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00559",
+      "input": "Moja suknja je predugačka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00560",
+      "input": "Odlučio je postati liječnik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00561",
+      "input": "Njegova teorija zaslužuje pozornost.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00562",
+      "input": "Izgledala je oduševljena glazbom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00563",
+      "input": "To je vrlo čudno pismo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00564",
+      "input": "Također i na Marsu su mačke.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00565",
+      "input": "Visoke cijene su postale zapreka međunarodnoj trgovini.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00566",
+      "input": "U svijetu je preko sedam tisuća jezika.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00567",
+      "input": "Vjerojatno je promašio vlak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00568",
+      "input": "Ta kuća pripada njemu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00569",
+      "input": "Koliko si dugo čekao/čekala?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00570",
+      "input": "Koliko Ste dugo čekali?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00571",
+      "input": "Prosječni prostor življenja u Americi je dva puta veći nego u Japanu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00572",
+      "input": "Zbog međunarodnog protivljenja, mnoge zemlje su prestale loviti kitove.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00573",
+      "input": "Njezin sastav je vrlo dobar, osim nekoliko grešaka u izgovoru.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00574",
+      "input": "Riješio je problem s lakoćom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00575",
+      "input": "\"Jesi li vidio moj mobitel?\" \"Na stolu je.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00576",
+      "input": "Dao joj je sve što je tražila.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00577",
+      "input": "Bill je ustao rano da ne propusti prvi vlak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00578",
+      "input": "Jedan moj prijatelj studira u inozemstvu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00579",
+      "input": "Neki moji prijatelji jako dobro govore engelski.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00580",
+      "input": "Vrlo je pametna, zar ne?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00581",
+      "input": "Umoran si, zar ne?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00582",
+      "input": "Živiš li ovdje?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00583",
+      "input": "Izgledaš vrlo blijedo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00584",
+      "input": "Moraš se kontrolirati.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00585",
+      "input": "Izgledaš sretno danas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00586",
+      "input": "Predpostavljam da si gladan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00587",
+      "input": "Što te je probudilo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00588",
+      "input": "Učiš li engleski?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00589",
+      "input": "Znaš plivati, zar ne?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00590",
+      "input": "Nikada nećeš biti sam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00591",
+      "input": "Trebao bi znati bolje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00592",
+      "input": "Govoriš li francuski?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00593",
+      "input": "Zašto ne možeš doći?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00594",
+      "input": "Vrlo si hrabar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00595",
+      "input": "Jesi li završio?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00596",
+      "input": "Možeš ići tamo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00597",
+      "input": "Možeš učiti ovdje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00598",
+      "input": "Uvijek se žališ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00599",
+      "input": "Volim tvoju hrabrost.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00600",
+      "input": "Znam tvoje ime.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00601",
+      "input": "Tvoj odgovor je točan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00602",
+      "input": "Tvoj odgovor je netočan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00603",
+      "input": "Gledaj svoje poslove!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00604",
+      "input": "Napiši svoju adresu ovdje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00605",
+      "input": "Jesu li ti ruke čiste?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00606",
+      "input": "Je li tvoj sat točan?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00607",
+      "input": "Gdje su tvoje stvari?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00608",
+      "input": "Jednostavno slijedi svoje srce.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00609",
+      "input": "Mislim da si u pravu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00610",
+      "input": "Mogao bi imati pravo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00611",
+      "input": "Želim tvoje mišljenje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00612",
+      "input": "Tvoje vrijeme je isteklo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00613",
+      "input": "Tvoj plan zvuči odlično.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00614",
+      "input": "Tvoja torta je ukusna.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00615",
+      "input": "Zaslužuješ nagradu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00616",
+      "input": "Nisam inteligentniji više nego on.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00617",
+      "input": "Mr Koizumi je pun sebe.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00618",
+      "input": "Požurili smo da ne zaksanimo na koncert.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00619",
+      "input": "Što Vam se dogodilo jučer navečer?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00620",
+      "input": "Trebaš li našu pomoć?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00621",
+      "input": "Vaš odgovor je netočan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00622",
+      "input": "Jesi li završila?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00623",
+      "input": "Titanik je potonuo na svojoj prvoj plovidbi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00624",
+      "input": "Kome pripada hrana ovdje?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00625",
+      "input": "Zašto je napustio svoj posao?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00626",
+      "input": "Nikada se ne ustručavaj reći istinu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00627",
+      "input": "Mislim otići u planine.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00628",
+      "input": "Ann je mala djevojčica.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00629",
+      "input": "Rijeka koja teče kroz Pariz se zove Seine.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00630",
+      "input": "Učiniti ću te sretnim.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00631",
+      "input": "Učiniti ću te sretnom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00632",
+      "input": "Granice moga jezika su granice moga svijeta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00633",
+      "input": "Želim proputovati cijeli svijet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00634",
+      "input": "Ima novca i više nego dovoljno.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00635",
+      "input": "Felicjina djeca misle da je njihov otac ljepši od Justina Biebera.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00636",
+      "input": "Ne može svaki čovjek biti umjetnik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00637",
+      "input": "Ti govoriš engleski tečno.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00638",
+      "input": "Ubrzo smo vidjeli kuću, čiji je krov bio crven.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00639",
+      "input": "Sada je najbolje vrijeme gledati cvjetanje trešanja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00640",
+      "input": "Kako dobro pričaš japanski!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00641",
+      "input": "Jesam li trudna?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00642",
+      "input": "Atraktivni ljudi me odbijaju.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00643",
+      "input": "U engleskom glagol prethodi objektu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00644",
+      "input": "Umrijeti nije ništa. Zato počni živjeti, manje je smiješno i traje duže.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00645",
+      "input": "U Kanadi se govori engleski i francuski.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00646",
+      "input": "Nikada nije kasno za učenje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00647",
+      "input": "Molim te pokaži mi drugu kameru.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00648",
+      "input": "Koliko često preko tjedna provodiš vrijeme igrajući se s djecom?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00649",
+      "input": "Molim te, govori sporije.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00650",
+      "input": "Molim Vas, govorite sporije.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00651",
+      "input": "Te cipele mi ne odgovoraju.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00652",
+      "input": "Trebao bi provoditi više vremena vani, a manje unutra.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00653",
+      "input": "Smrt ne razlikuje, sve jednako sustiže.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00654",
+      "input": "Nitko nema pravo oduzeti mi slobodu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00655",
+      "input": "Gdje je vatra, tu je i dim.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00656",
+      "input": "Podijelimo taj novac.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00657",
+      "input": "Kiša je upravo prestala. Možemo ići.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00658",
+      "input": "I feminizam? Što misliš o feminizmu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00659",
+      "input": "Nogomet je dobar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00660",
+      "input": "Njemačka je hladna zemlja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00661",
+      "input": "Tko je otkrio otok?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00662",
+      "input": "Sumatra je otok.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00663",
+      "input": "Ići ću u knjižnicu sutra da konačno počnem učiti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00664",
+      "input": "Nigdje ne možeš jesti tako dobru hranu kao ovdje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00665",
+      "input": "Njezine oči se smiju.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00666",
+      "input": "Svaki svemir dovoljno jednostavan za razumjeti je previše jednostavan da stvori biće sposobno razumjeti ga.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00667",
+      "input": "Zaželimo si dobar tek i neka se svi volimo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00668",
+      "input": "Sada mi je puno bolje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00669",
+      "input": "Kakav otac, takav sin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00670",
+      "input": "Koje oko te boli?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00671",
+      "input": "Svi poznaju njegovo ime u okolici.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00672",
+      "input": "Želim još jednu čašu piva.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00673",
+      "input": "Pisati ću o našim parkovima i planinama.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00674",
+      "input": "Počeli su snažnim napadom protiv neprijatelja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00675",
+      "input": "Život sliči putovanju.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00676",
+      "input": "Život je poput putovanja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00677",
+      "input": "Mogu li doći pješke?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00678",
+      "input": "Želim cijeli svijet proputovati.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00679",
+      "input": "Neki studenti su u knjižnici, dok su ostali u učionici.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00680",
+      "input": "Ovaj čovjek je pijan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00681",
+      "input": "Sinoć je vdio NLO na nebu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00682",
+      "input": "To je rekao mlađi od braće.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00683",
+      "input": "Tom nije loš glazbenik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00684",
+      "input": "Vratili su se zajedno iz kina.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00685",
+      "input": "Zadovoljan se smijao.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00686",
+      "input": "Nakon Cezarove smrti, komet je sjajio sedam dana.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00687",
+      "input": "Mađarska i Slovačka su susjedi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00688",
+      "input": "Kati Wolf je dobra pjevačica.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00689",
+      "input": "Tímea je Mađarka i živi u Poljskoj.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00690",
+      "input": "Lidia ima plavu ravnu kosu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00691",
+      "input": "Moj stariji sin je Lech Zaręba.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00692",
+      "input": "Želim ostati duže tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00693",
+      "input": "Moram li ići s tobom?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00694",
+      "input": "Zašto si došao u Japan?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00695",
+      "input": "Iznenađen sam što tvoja obitelj ima japanski auto.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00696",
+      "input": "Penis je jedan od muških spolnih organa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00697",
+      "input": "Bojim se oluje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00698",
+      "input": "Nema boga osim Boga i Muhamed je poslanik Božji.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00699",
+      "input": "Neću tako dugo čekati.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00700",
+      "input": "Pokaži nam pravi put.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00701",
+      "input": "Da mi je i dolinom smrti proći, zla se ja ne bojim, jer Ti si sa mnom Oče, tvoj štap i palica tvoja utjeha su meni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00702",
+      "input": "Ellen ne govori engleski.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00703",
+      "input": "Prekrasne li duge!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00704",
+      "input": "Tko je taj muškarac?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00705",
+      "input": "Jesu li svi isti?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00706",
+      "input": "Moj dom je blizu željezničke stanice.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00707",
+      "input": "Autobusna stanica je blizu naše škole.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00708",
+      "input": "Je li netko tamo?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00709",
+      "input": "Nekad sam htio biti astrofizičar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00710",
+      "input": "Život je lijep.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00711",
+      "input": "Mora se mnogo učiti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00712",
+      "input": "To je stvarno strašno.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00713",
+      "input": "Kupio sam torbu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00714",
+      "input": "Imaš li bojicu kod sebe?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00715",
+      "input": "Sigurno imaš gripu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00716",
+      "input": "Upravo jedem jabuku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00717",
+      "input": "Šećer se otapa u vrućoj vodi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00718",
+      "input": "Proglasili su ga krivim.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00719",
+      "input": "Trebamo smanjiti naše troškove.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00720",
+      "input": "Sada se moram posvetiti svome radu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00721",
+      "input": "Sudac je izgovorio petogodišnju kaznu teškog rada.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00722",
+      "input": "Supruzi i supruge bi trebali pomagati jedno drugome dokle god žive.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00723",
+      "input": "Osjećao sam se loše.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00724",
+      "input": "Oprostite, što je sati?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00725",
+      "input": "Hoćeš li me naučiti igrati šah?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00726",
+      "input": "Ta haljina je jeftinija od tvoje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00727",
+      "input": "Gledaš AnnoZero, eh?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00728",
+      "input": "\"Voliš li zmije'\" \"Naravno da ne.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00729",
+      "input": "Liječnik ju je temeljito pregledao.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00730",
+      "input": "Nada nije strategija.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00731",
+      "input": "Rastavili su se nakon godišnjice braka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00732",
+      "input": "Stijena visi nad morem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00733",
+      "input": "On zna francuski, a očito i engelski.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00734",
+      "input": "Pola četiri je.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00735",
+      "input": "Uspio sam postići da shvati to.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00736",
+      "input": "Prema Tomu Jane se udala prošli mjesec.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00737",
+      "input": "Mars je \"crveni planet.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00738",
+      "input": "Uzaludno je dalje navaljivati na njega.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00739",
+      "input": "Nisam mogao zadržati suze.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00740",
+      "input": "Ima više djevojčica nego dječaka u našoj školi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00741",
+      "input": "Pitam se što znači ova rečenica.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00742",
+      "input": "Tokijska burza je zabilježila neviđeni gubitak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00743",
+      "input": "Trebaš obogatiti svoj duh dok si mlad.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00744",
+      "input": "Oštrica moga noža je vrlo oštra.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00745",
+      "input": "Tajfun se bliži Japanu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00746",
+      "input": "Njegovo objašnjenje me je uvjerilo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00747",
+      "input": "Dobio sam toplu dobrodošlicu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00748",
+      "input": "Bez tvoje pomoći on ne bi uspio.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00749",
+      "input": "Danas nemamo školu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00750",
+      "input": "Koncentrirao se na to.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00751",
+      "input": "Jednostavno taj program troši bateriju.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00752",
+      "input": "Kiša prijeti iz tamnog neba.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00753",
+      "input": "Bila je ushićena prstenom kojeg joj je kupio.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00754",
+      "input": "Kao što znaš već.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00755",
+      "input": "Bilo koja djelatnost koju trebaš izvršiti će ti uzeti više vremena nego što imaš.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00756",
+      "input": "John se ispružio na naslonjaču.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00757",
+      "input": "Nikad nisam bio u Americi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00758",
+      "input": "On studira američku povijest.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00759",
+      "input": "Mogu li uzeti slobodan dan?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00760",
+      "input": "Ozbiljno je počeo raditi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00761",
+      "input": "Radi i ne pričaj.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00762",
+      "input": "Možemo čuti crkvena zvona svakoga jutra.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00763",
+      "input": "Vidio sam učenike kako čiste svoju učionicu poslije škole.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00764",
+      "input": "Njegov sin je izbačen iz škole.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00765",
+      "input": "Kucao je na vrata.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00766",
+      "input": "Gdje si slikao to?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00767",
+      "input": "Ne mijenjaj tako često svoja mišljenja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00768",
+      "input": "Na stolu je šalica čaja i jaje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00769",
+      "input": "Ti si sljedeći.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00770",
+      "input": "Protiv je rasne diskriminacije.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00771",
+      "input": "Sada imam malo novaca.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00772",
+      "input": "Kutija je prazna.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00773",
+      "input": "Živi u New Yorku tri godine i poznaje mnogo dobrih restorana tamo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00774",
+      "input": "Treba biti više autobusa tijekom sati najživljeg prometa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00775",
+      "input": "Onda smo posjetili Washington D.C., glavni grad Sjedinjenih Američkih Država.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00776",
+      "input": "Kojeg god je podrijetla, Valentinovo je uvijek imalo dugu i romantičnu povijest.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00777",
+      "input": "Katkada izgubi živce za ništa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00778",
+      "input": "Nadmašuje svoje protivnike u svemu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00779",
+      "input": "Odlično. Nitko mi ne daje bilo što.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00780",
+      "input": "Englezi nazivaju elevatore \"liftovima.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00781",
+      "input": "Pokaži mi kako se radi to.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00782",
+      "input": "Možete li doći sutra na sastanak?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00783",
+      "input": "Inzistirala je da mi pomogne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00784",
+      "input": "Učinjena je pogreška.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00785",
+      "input": "Puno je toga za napraviti, želiš li pomoć?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00786",
+      "input": "Jer je bio bolestan, nije mogao ići na zabavu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00787",
+      "input": "Odgovorio mi je smiješkom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00788",
+      "input": "On želi pokloniti knjigu učitelju.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00789",
+      "input": "Taj čovjek ne može bit pošten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00790",
+      "input": "On uvijek ima glavnu riječ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00791",
+      "input": "On održava svoju mladost trčanjem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00792",
+      "input": "Tom ne trči tako brzo kao Bill.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00793",
+      "input": "Uzeo si je truda da pomogne tome siromašnome čovjeku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00794",
+      "input": "Bila je to poprilično mala kuća, čvrsta i dobro građena.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00795",
+      "input": "Nitko ga ne može razumjeti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00796",
+      "input": "Ovo je pošta, a ovo banka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00797",
+      "input": "On je današnji Bach.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00798",
+      "input": "Dobro se razumije sa svojim suradnicima.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hr-00799",
+      "input": "Čak i ako bude padala kiša, početi ću sutra rano.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-hr-00000",
+      "input": "Room 304 has the laptops we ordered.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-hr-00001",
+      "input": "Bought 5 cookies on the avenue near my office.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-hr-00002",
+      "input": "Track #12345 was delivered yesterday.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-hr-00003",
+      "input": "I had 5 boxes in storage unit 12.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-hr-00004",
+      "input": "Building number 7 was empty.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-hr-00005",
+      "input": "Open from January 1990 onwards.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-hr-00006",
+      "input": "Floor 3 has the printer.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-hr-00007",
+      "input": "Order #98765 is being processed.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-hr-00008",
+      "input": "The bus runs every 12 minutes.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-hr-00009",
+      "input": "Found 5000 documents in the archive.",
+      "expected": []
+    }
+  ]
+}

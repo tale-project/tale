@@ -1,0 +1,3315 @@
+{
+  "_meta": {
+    "locale": "sk",
+    "generator": "@tale/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 300,
+      "negatives": 0
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "positives": [
+    {
+      "id": "email-sk-00000",
+      "input": "Prosím, pošlite balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00001",
+      "input": "Poštová adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00002",
+      "input": "Zákazník býva na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00003",
+      "input": "Miesto vyzdvihnutia — anna.mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00004",
+      "input": "Prosím, pošlite balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00005",
+      "input": "Poštová adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00006",
+      "input": "Zákazník býva na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00007",
+      "input": "Miesto vyzdvihnutia — anna_mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00008",
+      "input": "Prosím, pošlite balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00009",
+      "input": "Poštová adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00010",
+      "input": "Zákazník býva na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00011",
+      "input": "Miesto vyzdvihnutia — annamueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00012",
+      "input": "Prosím, pošlite balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00013",
+      "input": "Poštová adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00014",
+      "input": "Zákazník býva na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00015",
+      "input": "Miesto vyzdvihnutia — anna.mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00016",
+      "input": "Prosím, pošlite balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00017",
+      "input": "Poštová adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00018",
+      "input": "Zákazník býva na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00019",
+      "input": "Miesto vyzdvihnutia — anna_mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00020",
+      "input": "Prosím, pošlite balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00021",
+      "input": "Poštová adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00022",
+      "input": "Zákazník býva na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00023",
+      "input": "Miesto vyzdvihnutia — annamueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00024",
+      "input": "Prosím, pošlite balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00025",
+      "input": "Poštová adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00026",
+      "input": "Zákazník býva na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00027",
+      "input": "Miesto vyzdvihnutia — anna.mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00028",
+      "input": "Prosím, pošlite balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00029",
+      "input": "Poštová adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00030",
+      "input": "Zákazník býva na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00031",
+      "input": "Miesto vyzdvihnutia — anna_mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00032",
+      "input": "Prosím, pošlite balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00033",
+      "input": "Poštová adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00034",
+      "input": "Zákazník býva na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00035",
+      "input": "Miesto vyzdvihnutia — annamueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00036",
+      "input": "Prosím, pošlite balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00037",
+      "input": "Poštová adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00038",
+      "input": "Zákazník býva na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00039",
+      "input": "Miesto vyzdvihnutia — anna.mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00040",
+      "input": "Prosím, pošlite balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00041",
+      "input": "Poštová adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00042",
+      "input": "Zákazník býva na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00043",
+      "input": "Miesto vyzdvihnutia — anna_mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00044",
+      "input": "Prosím, pošlite balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00045",
+      "input": "Poštová adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00046",
+      "input": "Zákazník býva na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00047",
+      "input": "Miesto vyzdvihnutia — annamueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00048",
+      "input": "Prosím, pošlite balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00049",
+      "input": "Poštová adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00050",
+      "input": "Zákazník býva na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00051",
+      "input": "Miesto vyzdvihnutia — anna.mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00052",
+      "input": "Prosím, pošlite balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00053",
+      "input": "Poštová adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00054",
+      "input": "Zákazník býva na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00055",
+      "input": "Miesto vyzdvihnutia — anna_mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00056",
+      "input": "Prosím, pošlite balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00057",
+      "input": "Poštová adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00058",
+      "input": "Zákazník býva na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00059",
+      "input": "Miesto vyzdvihnutia — annamueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00060",
+      "input": "Prosím, pošlite balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00061",
+      "input": "Poštová adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00062",
+      "input": "Zákazník býva na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00063",
+      "input": "Miesto vyzdvihnutia — anna.mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00064",
+      "input": "Prosím, pošlite balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00065",
+      "input": "Poštová adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00066",
+      "input": "Zákazník býva na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00067",
+      "input": "Miesto vyzdvihnutia — anna_mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00068",
+      "input": "Prosím, pošlite balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00069",
+      "input": "Poštová adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00070",
+      "input": "Zákazník býva na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00071",
+      "input": "Miesto vyzdvihnutia — annamueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00072",
+      "input": "Prosím, pošlite balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00073",
+      "input": "Poštová adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00074",
+      "input": "Zákazník býva na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00075",
+      "input": "Miesto vyzdvihnutia — anna.mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00076",
+      "input": "Prosím, pošlite balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00077",
+      "input": "Poštová adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00078",
+      "input": "Zákazník býva na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00079",
+      "input": "Miesto vyzdvihnutia — anna_mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00080",
+      "input": "Prosím, pošlite balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00081",
+      "input": "Poštová adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00082",
+      "input": "Zákazník býva na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00083",
+      "input": "Miesto vyzdvihnutia — annamueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00084",
+      "input": "Prosím, pošlite balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00085",
+      "input": "Poštová adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00086",
+      "input": "Zákazník býva na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00087",
+      "input": "Miesto vyzdvihnutia — anna.mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00088",
+      "input": "Prosím, pošlite balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00089",
+      "input": "Poštová adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00090",
+      "input": "Zákazník býva na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00091",
+      "input": "Miesto vyzdvihnutia — anna_mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00092",
+      "input": "Prosím, pošlite balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00093",
+      "input": "Poštová adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00094",
+      "input": "Zákazník býva na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00095",
+      "input": "Miesto vyzdvihnutia — annamueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00096",
+      "input": "Prosím, pošlite balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00097",
+      "input": "Poštová adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00098",
+      "input": "Zákazník býva na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00099",
+      "input": "Miesto vyzdvihnutia — anna.mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00100",
+      "input": "Prosím, pošlite balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00101",
+      "input": "Poštová adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00102",
+      "input": "Zákazník býva na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00103",
+      "input": "Miesto vyzdvihnutia — anna_mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00104",
+      "input": "Prosím, pošlite balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00105",
+      "input": "Poštová adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00106",
+      "input": "Zákazník býva na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00107",
+      "input": "Miesto vyzdvihnutia — annamueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00108",
+      "input": "Prosím, pošlite balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00109",
+      "input": "Poštová adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00110",
+      "input": "Zákazník býva na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00111",
+      "input": "Miesto vyzdvihnutia — anna.mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00112",
+      "input": "Prosím, pošlite balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00113",
+      "input": "Poštová adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00114",
+      "input": "Zákazník býva na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00115",
+      "input": "Miesto vyzdvihnutia — anna_mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00116",
+      "input": "Prosím, pošlite balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00117",
+      "input": "Poštová adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00118",
+      "input": "Zákazník býva na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00119",
+      "input": "Miesto vyzdvihnutia — annamueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00120",
+      "input": "Prosím, pošlite balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00121",
+      "input": "Poštová adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00122",
+      "input": "Zákazník býva na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00123",
+      "input": "Miesto vyzdvihnutia — anna.mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00124",
+      "input": "Prosím, pošlite balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00125",
+      "input": "Poštová adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00126",
+      "input": "Zákazník býva na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00127",
+      "input": "Miesto vyzdvihnutia — anna_mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00128",
+      "input": "Prosím, pošlite balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00129",
+      "input": "Poštová adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00130",
+      "input": "Zákazník býva na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00131",
+      "input": "Miesto vyzdvihnutia — annamueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00132",
+      "input": "Prosím, pošlite balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00133",
+      "input": "Poštová adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00134",
+      "input": "Zákazník býva na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00135",
+      "input": "Miesto vyzdvihnutia — anna.mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00136",
+      "input": "Prosím, pošlite balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00137",
+      "input": "Poštová adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00138",
+      "input": "Zákazník býva na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00139",
+      "input": "Miesto vyzdvihnutia — anna_mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00140",
+      "input": "Prosím, pošlite balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00141",
+      "input": "Poštová adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00142",
+      "input": "Zákazník býva na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00143",
+      "input": "Miesto vyzdvihnutia — annamueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00144",
+      "input": "Prosím, pošlite balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00145",
+      "input": "Poštová adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00146",
+      "input": "Zákazník býva na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00147",
+      "input": "Miesto vyzdvihnutia — anna.mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00148",
+      "input": "Prosím, pošlite balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00149",
+      "input": "Poštová adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00150",
+      "input": "Zákazník býva na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00151",
+      "input": "Miesto vyzdvihnutia — anna_mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00152",
+      "input": "Prosím, pošlite balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00153",
+      "input": "Poštová adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00154",
+      "input": "Zákazník býva na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00155",
+      "input": "Miesto vyzdvihnutia — annamueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00156",
+      "input": "Prosím, pošlite balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00157",
+      "input": "Poštová adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00158",
+      "input": "Zákazník býva na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00159",
+      "input": "Miesto vyzdvihnutia — anna.mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00160",
+      "input": "Prosím, pošlite balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00161",
+      "input": "Poštová adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00162",
+      "input": "Zákazník býva na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00163",
+      "input": "Miesto vyzdvihnutia — anna_mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00164",
+      "input": "Prosím, pošlite balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00165",
+      "input": "Poštová adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00166",
+      "input": "Zákazník býva na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00167",
+      "input": "Miesto vyzdvihnutia — annamueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00168",
+      "input": "Prosím, pošlite balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00169",
+      "input": "Poštová adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00170",
+      "input": "Zákazník býva na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00171",
+      "input": "Miesto vyzdvihnutia — anna.mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00172",
+      "input": "Prosím, pošlite balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00173",
+      "input": "Poštová adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00174",
+      "input": "Zákazník býva na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00175",
+      "input": "Miesto vyzdvihnutia — anna_mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00176",
+      "input": "Prosím, pošlite balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00177",
+      "input": "Poštová adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00178",
+      "input": "Zákazník býva na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00179",
+      "input": "Miesto vyzdvihnutia — annamueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00180",
+      "input": "Prosím, pošlite balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00181",
+      "input": "Poštová adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00182",
+      "input": "Zákazník býva na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00183",
+      "input": "Miesto vyzdvihnutia — anna.mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00184",
+      "input": "Prosím, pošlite balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00185",
+      "input": "Poštová adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00186",
+      "input": "Zákazník býva na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00187",
+      "input": "Miesto vyzdvihnutia — anna_mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00188",
+      "input": "Prosím, pošlite balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00189",
+      "input": "Poštová adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00190",
+      "input": "Zákazník býva na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00191",
+      "input": "Miesto vyzdvihnutia — annamueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00192",
+      "input": "Prosím, pošlite balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00193",
+      "input": "Poštová adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00194",
+      "input": "Zákazník býva na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00195",
+      "input": "Miesto vyzdvihnutia — anna.mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00196",
+      "input": "Prosím, pošlite balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00197",
+      "input": "Poštová adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00198",
+      "input": "Zákazník býva na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00199",
+      "input": "Miesto vyzdvihnutia — anna_mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00200",
+      "input": "Prosím, pošlite balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00201",
+      "input": "Poštová adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00202",
+      "input": "Zákazník býva na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00203",
+      "input": "Miesto vyzdvihnutia — annamueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00204",
+      "input": "Prosím, pošlite balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00205",
+      "input": "Poštová adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00206",
+      "input": "Zákazník býva na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00207",
+      "input": "Miesto vyzdvihnutia — anna.mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00208",
+      "input": "Prosím, pošlite balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00209",
+      "input": "Poštová adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00210",
+      "input": "Zákazník býva na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00211",
+      "input": "Miesto vyzdvihnutia — anna_mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00212",
+      "input": "Prosím, pošlite balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00213",
+      "input": "Poštová adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00214",
+      "input": "Zákazník býva na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00215",
+      "input": "Miesto vyzdvihnutia — annamueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00216",
+      "input": "Prosím, pošlite balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00217",
+      "input": "Poštová adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00218",
+      "input": "Zákazník býva na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00219",
+      "input": "Miesto vyzdvihnutia — anna.mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00220",
+      "input": "Prosím, pošlite balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00221",
+      "input": "Poštová adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00222",
+      "input": "Zákazník býva na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00223",
+      "input": "Miesto vyzdvihnutia — anna_mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00224",
+      "input": "Prosím, pošlite balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00225",
+      "input": "Poštová adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00226",
+      "input": "Zákazník býva na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00227",
+      "input": "Miesto vyzdvihnutia — annamueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00228",
+      "input": "Prosím, pošlite balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00229",
+      "input": "Poštová adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00230",
+      "input": "Zákazník býva na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00231",
+      "input": "Miesto vyzdvihnutia — anna.mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00232",
+      "input": "Prosím, pošlite balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00233",
+      "input": "Poštová adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00234",
+      "input": "Zákazník býva na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00235",
+      "input": "Miesto vyzdvihnutia — anna_mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00236",
+      "input": "Prosím, pošlite balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00237",
+      "input": "Poštová adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00238",
+      "input": "Zákazník býva na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00239",
+      "input": "Miesto vyzdvihnutia — annamueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00240",
+      "input": "Prosím, pošlite balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00241",
+      "input": "Poštová adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00242",
+      "input": "Zákazník býva na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00243",
+      "input": "Miesto vyzdvihnutia — anna.mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00244",
+      "input": "Prosím, pošlite balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00245",
+      "input": "Poštová adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00246",
+      "input": "Zákazník býva na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00247",
+      "input": "Miesto vyzdvihnutia — anna_mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00248",
+      "input": "Prosím, pošlite balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00249",
+      "input": "Poštová adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00250",
+      "input": "Zákazník býva na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00251",
+      "input": "Miesto vyzdvihnutia — annamueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00252",
+      "input": "Prosím, pošlite balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00253",
+      "input": "Poštová adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00254",
+      "input": "Zákazník býva na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00255",
+      "input": "Miesto vyzdvihnutia — anna.mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00256",
+      "input": "Prosím, pošlite balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00257",
+      "input": "Poštová adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00258",
+      "input": "Zákazník býva na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00259",
+      "input": "Miesto vyzdvihnutia — anna_mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00260",
+      "input": "Prosím, pošlite balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00261",
+      "input": "Poštová adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00262",
+      "input": "Zákazník býva na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00263",
+      "input": "Miesto vyzdvihnutia — annamueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00264",
+      "input": "Prosím, pošlite balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00265",
+      "input": "Poštová adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00266",
+      "input": "Zákazník býva na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00267",
+      "input": "Miesto vyzdvihnutia — anna.mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00268",
+      "input": "Prosím, pošlite balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00269",
+      "input": "Poštová adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00270",
+      "input": "Zákazník býva na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00271",
+      "input": "Miesto vyzdvihnutia — anna_mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00272",
+      "input": "Prosím, pošlite balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00273",
+      "input": "Poštová adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00274",
+      "input": "Zákazník býva na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00275",
+      "input": "Miesto vyzdvihnutia — annamueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00276",
+      "input": "Prosím, pošlite balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00277",
+      "input": "Poštová adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00278",
+      "input": "Zákazník býva na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00279",
+      "input": "Miesto vyzdvihnutia — anna.mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00280",
+      "input": "Prosím, pošlite balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00281",
+      "input": "Poštová adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00282",
+      "input": "Zákazník býva na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00283",
+      "input": "Miesto vyzdvihnutia — anna_mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00284",
+      "input": "Prosím, pošlite balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00285",
+      "input": "Poštová adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00286",
+      "input": "Zákazník býva na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00287",
+      "input": "Miesto vyzdvihnutia — annamueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00288",
+      "input": "Prosím, pošlite balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00289",
+      "input": "Poštová adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00290",
+      "input": "Zákazník býva na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00291",
+      "input": "Miesto vyzdvihnutia — anna.mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00292",
+      "input": "Prosím, pošlite balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00293",
+      "input": "Poštová adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00294",
+      "input": "Zákazník býva na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00295",
+      "input": "Miesto vyzdvihnutia — anna_mueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00296",
+      "input": "Prosím, pošlite balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00297",
+      "input": "Poštová adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00298",
+      "input": "Zákazník býva na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sk-00299",
+      "input": "Miesto vyzdvihnutia — annamueller@corp.example — potvrdené.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 22,
+          "end": 46
+        }
+      ]
+    }
+  ]
+}

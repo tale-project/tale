@@ -1,0 +1,4069 @@
+{
+  "_meta": {
+    "locale": "pl",
+    "generator": "@tale/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {
+      "cities": "2026-04-13",
+      "postcodes": "2026-04-13",
+      "prose": "2026-05-14"
+    },
+    "counts": {
+      "positives": 0,
+      "negatives": 810
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "negatives": [
+    {
+      "id": "neg-prose-pl-00000",
+      "input": "Piękne są chmury płynące po niebie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00001",
+      "input": "Twój zegarek jest na biurku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00002",
+      "input": "Spójrz na dom z czerwonym dachem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00003",
+      "input": "Pogoda pogarszała się z upływem dnia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00004",
+      "input": "Po drodze do domu wpadnę na pocztę.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00005",
+      "input": "Mam w pokoju niezły burdel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00006",
+      "input": "Złapali nieprzyjaciela w zasadzkę.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00007",
+      "input": "Jestem w ciąży.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00008",
+      "input": "Nasz nauczyciel zawsze przychodzi punktualnie na zajęcia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00009",
+      "input": "Rozdziel te jabłka na trzy osoby.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00010",
+      "input": "Jutro mnie nie ma.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00011",
+      "input": "Przyjdź też jutro!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00012",
+      "input": "Idźcie prosto tą ulicą.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00013",
+      "input": "On wystąpił w dubbingu do „Avatara”.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00014",
+      "input": "Poprzysiągłem sobie nigdy już się do niej nie odzywać.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00015",
+      "input": "On jest Anglikiem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00016",
+      "input": "Ależ z ciebie kutwa!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00017",
+      "input": "Roger pracuje od świtu do zmroku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00018",
+      "input": "Ta skrzynka zawiera pięć jabłek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00019",
+      "input": "Tłukłeś się z Kenem?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00020",
+      "input": "Jego książka znana jest nie tylko w Anglii, ale i w Japonii.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00021",
+      "input": "To jest tego samego koloru co moje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00022",
+      "input": "Jak zamierza naprawić wyrządzoną stratę?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00023",
+      "input": "To, że jeszcze żyję, zawdzięczam tobie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00024",
+      "input": "„Jestem głodny!” – rzekł mały biały króliczek, więc zatrzymali się i zjedli dużego hiacynta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00025",
+      "input": "„Nickel” to moneta pięciocentowa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00026",
+      "input": "W końcu wpadł na to, jak to się robi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00027",
+      "input": "Zaśpiewajmy tę angielską piosenkę.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00028",
+      "input": "Z jakiegoś powodu mikrofon wcześniej nie działał.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00029",
+      "input": "Zwyczajnie nie wiem, co powiedzieć...",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00030",
+      "input": "To, co powiedziałeś, nie ma sensu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00031",
+      "input": "Nic nie powiedział, co ją wkurzyło.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00032",
+      "input": "Proszę pana, zostawił pan zapalniczkę na stole!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00033",
+      "input": "Mówią, że w tej okolicy jest zakopany skarb.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00034",
+      "input": "Proszę bardzo, nie ma za co.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00035",
+      "input": "Z całym szacunkiem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00036",
+      "input": "To dobry pomysł, żeby pograć w shogi po obiedzie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00037",
+      "input": "Umyj dobrze zęby.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00038",
+      "input": "Ładna dziś pogoda.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00039",
+      "input": "Dobranoc, Timmy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00040",
+      "input": "Wszystkie istoty ludzkie rodzą się wolne i równe w godności i prawach. Są one obdarzone rozumem i sumieniem oraz powinny postępować w stosunku do siebie wzajemnie w duchu braterstwa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00041",
+      "input": "Cały dzień grałem w tenisa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00042",
+      "input": "Czy mówi pan po angielsku?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00043",
+      "input": "Uważa się, ze to ważna sprawa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00044",
+      "input": "Nie jesteś winien tego wypadku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00045",
+      "input": "Wspomniano twoje nazwisko.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00046",
+      "input": "Doprawdy? A myślałem, że wyjdzie za mąż jako ostatnia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00047",
+      "input": "Pożycz mi coś do cięcia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00048",
+      "input": "Od dawna jest pan w Osace?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00049",
+      "input": "Nasz ogród był zachwaszczony.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00050",
+      "input": "Jak dla mnie, Australia jest jednym z najlepszych krajów na świecie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00051",
+      "input": "Jane ścięła włosy przed zawodami.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00052",
+      "input": "Jaki jest ostateczny cel nauczania?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00053",
+      "input": "Jest zależny finansowo od swej żony.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00054",
+      "input": "Mój ojciec jest nieco staromodny.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00055",
+      "input": "Mój wujek zmarł wczoraj na raka żołądka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00056",
+      "input": "Pan Wang jest z Chin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00057",
+      "input": "Niestety nie zdążyłem na jego wystąpienie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00058",
+      "input": "Ile kosztuje przejazd z Osaki do Akity?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00059",
+      "input": "Spójrz na ten dym.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00060",
+      "input": "Proszę, na przyszłość bardziej uważaj.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00061",
+      "input": "Często mówi się, że Japończycy są dobrymi pracownikami.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00062",
+      "input": "Udało mi się uzyskać zgodę rodziców na małżeństwo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00063",
+      "input": "Było już późno, więc wróciłem do domu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00064",
+      "input": "Astronomia zajmuje się gwiazdami i planetami.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00065",
+      "input": "Z daleka wygląda to na piłkę.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00066",
+      "input": "Nieważne, co czytasz, ale jak czytasz.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00067",
+      "input": "Nie muszę ci się tłumaczyć z mojego postępowania.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00068",
+      "input": "Eksport idzie marnie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00069",
+      "input": "Przez nierozważną jazdę napytał sobie biedy – zginął.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00070",
+      "input": "Proszę załączyć świadectwo jakości.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00071",
+      "input": "Bardzo nierozważnie jest pływać wśród takich prądów.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00072",
+      "input": "Popełniłem koszmarny błąd.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00073",
+      "input": "Sędzia skazał go na rok pozbawienia wolności.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00074",
+      "input": "Spociłem się pod pachami.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00075",
+      "input": "Co się zdarzyło na tym skrzyżowaniu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00076",
+      "input": "Pracowała wyłącznie dla pieniędzy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00077",
+      "input": "Ona nie znosi zielonego pieprzu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00078",
+      "input": "On nigdy nie traci nadziei.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00079",
+      "input": "Mam wrażenie, że kiedyś już tu byłem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00080",
+      "input": "Nasz pociąg zatrzymał się nagle.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00081",
+      "input": "Gdybyś był w kłopocie, pomógłbym ci.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00082",
+      "input": "Przyszedł około czternastej.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00083",
+      "input": "Uszczęśliwił rodziców.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00084",
+      "input": "Jeśli wieczorem będzie padać, nie wyjdę z domu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00085",
+      "input": "Musisz tylko posprzątać pokój.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00086",
+      "input": "Niewielu studentów umie czytać po łacinie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00087",
+      "input": "Na północy znajduje się Szkocja, na południu Anglia, na zachodzie Walia, a jeszcze dalej na zachód – Irlandia Północna.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00088",
+      "input": "Jego ojczyzną są Niemcy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00089",
+      "input": "Czasami śni mi się dom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00090",
+      "input": "U nas w styczniu pada śnieg.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00091",
+      "input": "Kura wysiadywała jaja przez tydzień.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00092",
+      "input": "Czekałem na niego do dziesiątej.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00093",
+      "input": "Powiedziałem sobie: to dobry pomysł.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00094",
+      "input": "To najnowsza książka p. Millera i mamy nadzieję, że nie ostatnia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00095",
+      "input": "Zaproszono mnie na wycieczkę zagraniczną, ale nie chcę jechać.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00096",
+      "input": "Co by nie robić, nie da się opanować angielskiego w kilka miesięcy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00097",
+      "input": "To najlepsza restauracja z owocami morza w całej dzielnicy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00098",
+      "input": "Nie wiń jej za to.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00099",
+      "input": "Czytaj codziennie gazetę, inaczej nie będziesz na bieżąco.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00100",
+      "input": "Pociąg spóźnia się pół godziny.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00101",
+      "input": "Jego życzliwość była tylko na pokaz.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00102",
+      "input": "Przyszła mi do głowy niezła myśl.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00103",
+      "input": "Mówi pan po angielsku?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00104",
+      "input": "Mój dom jest duży.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00105",
+      "input": "Jest niezwykle przystojny.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00106",
+      "input": "Nie lubię szkoły.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00107",
+      "input": "Nie mówię po japońsku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00108",
+      "input": "Rak to wielki wróg ludzkości.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00109",
+      "input": "Oto nasza szkoła.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00110",
+      "input": "Włochy to piękny kraj.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00111",
+      "input": "Przepraszam, zgubiłem się.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00112",
+      "input": "Ta suknia dobrze leży.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00113",
+      "input": "Wczoraj wieczorem musieliśmy wezwać policję.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00114",
+      "input": "Miłość jest ślepa z natury rzeczy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00115",
+      "input": "Mam dużo problemów do rozwiązania.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00116",
+      "input": "Zimą szybko zapada noc.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00117",
+      "input": "Bardzo lubi swoją szkołę.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00118",
+      "input": "Zostawiłem parasol w pociągu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00119",
+      "input": "Policja szybko rozprawiła się z zamieszkami.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00120",
+      "input": "Co rano czyta gazetę.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00121",
+      "input": "Do szkoły idę o siódmej.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00122",
+      "input": "Dziewczyny sprzeciwiły się naszemu planowi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00123",
+      "input": "O której taksówka odjeżdża na lotnisko?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00124",
+      "input": "Nie ma rzeczy ważniejszej niż przyjaźń.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00125",
+      "input": "Może być jakiekolwiek czasopismo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00126",
+      "input": "To zdjęcie zrobiono w Narze.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00127",
+      "input": "Tacie się to nie spodoba.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00128",
+      "input": "Sto lat, Muiriel!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00129",
+      "input": "Byłem w górach.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00130",
+      "input": "W moim poduszkowcu jest pełno węgorzy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00131",
+      "input": "Poznaj mnie z jakąś ładną dziewczyną.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00132",
+      "input": "Zwrócił uwagę synowi, że się leni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00133",
+      "input": "Czy to świeże zdjęcie?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00134",
+      "input": "Powiedziałeś, że nigdy nie wygram?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00135",
+      "input": "Czekam godzinami.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00136",
+      "input": "Dobry wieczór, jak leci?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00137",
+      "input": "Paco maluje widoki miast.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00138",
+      "input": "Przepraszam bardzo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00139",
+      "input": "Gdzie on się urodził?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00140",
+      "input": "Bardzo mi to pomogło.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00141",
+      "input": "Wróciłem! O! Mamy gości?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00142",
+      "input": "Spróbuję ponownie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00143",
+      "input": "Kiedy się urodziła?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00144",
+      "input": "Mówiłem ci już, że go już tu nie ma.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00145",
+      "input": "Zgubił się pan?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00146",
+      "input": "Idziemy do kina?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00147",
+      "input": "To nówka sztuka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00148",
+      "input": "Co robisz przed śniadaniem?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00149",
+      "input": "Nie lubię sposobu w jaki on mówi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00150",
+      "input": "Ja też chciałbym pojechać sobie na Hawaje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00151",
+      "input": "Jeszcze nie odzyskał przytomności.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00152",
+      "input": "Kiedy się ożeniłeś?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00153",
+      "input": "Mógłby pan wysłać mi ten list mailem?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00154",
+      "input": "Staruszek lubi przesadzać.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00155",
+      "input": "Japonia zużywa dużo papieru.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00156",
+      "input": "Ona ma trzech braci.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00157",
+      "input": "Możesz jechać, gdzie ci się podoba.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00158",
+      "input": "Nie przywykłem do publicznych wystąpień.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00159",
+      "input": "Moja praca polega na opiece nad dziećmi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00160",
+      "input": "Dostałem od dziadka prezent na urodziny.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00161",
+      "input": "Czy jest tu gdzieś centrum handlowe?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00162",
+      "input": "Trwa budowa nowej szkoły.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00163",
+      "input": "Jestem głodny jak wilk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00164",
+      "input": "Co znaczy to słowo?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00165",
+      "input": "W języku angielskim jest dużo wyrazów zapożyczonych z francuskiego.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00166",
+      "input": "Sen jest ważny, ale po co istnieje - to stanowi zagadkę.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00167",
+      "input": "Jest biedna, ale szczęśliwa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00168",
+      "input": "Czy jest jakieś zagraniczne piwo?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00169",
+      "input": "Byłem wtedy dzieckiem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00170",
+      "input": "Ona jest zdania, że wszystko jest kwestią pieniędzy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00171",
+      "input": "Muszę iść spać.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00172",
+      "input": "Nie chcieć oznacza mieć.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00173",
+      "input": "Niestety to prawda.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00174",
+      "input": "To dlatego, że nie chcesz być sam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00175",
+      "input": "Samotny człowiek jest sam, bo się obawia innych.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00176",
+      "input": "Wyglądasz na durnia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00177",
+      "input": "Hasło brzmi „Muiriel”.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00178",
+      "input": "Chciałbym móc pojechać do Japonii.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00179",
+      "input": "Znalazłem rozwiązanie, ale coś za szybko, więc nie może być poprawne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00180",
+      "input": "To się nigdy nie skończy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00181",
+      "input": "Jesteśmy szczęśliwi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00182",
+      "input": "Chociaż przeprosił, ja wciąż jestem wściekły.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00183",
+      "input": "Zrobiłem wielki błąd przy wyborze żony.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00184",
+      "input": "W naszych szacunkach założyliśmy margines błędu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00185",
+      "input": "Studiuję na uniwersytecie Hyōgo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00186",
+      "input": "Zdecyduj, czy idziemy, czy nie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00187",
+      "input": "Na pewno kiedyś pojadę do Francji, tylko nie wiem kiedy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00188",
+      "input": "Muszę iść po zakupy, będę za godzinę.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00189",
+      "input": "Nie należę do żadnego klubu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00190",
+      "input": "Za długo by objaśniać, dlaczego to nie zadziała.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00191",
+      "input": "Zgadza się. Jest dużo wilgoci w powietrzu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00192",
+      "input": "Czy są wolne miejsca?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00193",
+      "input": "Niebo jest błękitne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00194",
+      "input": "Gdzie są moje okulary?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00195",
+      "input": "Biały jacht płynął po falach.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00196",
+      "input": "To nasza sąsiadka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00197",
+      "input": "Matka była wykończona.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00198",
+      "input": "Powinna tu być około południa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00199",
+      "input": "Zapisała się na kurs hiszpańskiego.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00200",
+      "input": "Nie może chodzić, a cóż dopiero biegać.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00201",
+      "input": "Chyba mu na mnie nie zależy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00202",
+      "input": "Nie lubi upałów.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00203",
+      "input": "Miło się z nią rozmawiało.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00204",
+      "input": "Nie licz na jego pomoc.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00205",
+      "input": "Jako obywatel świata, umiem przekraczać bariery kulturowe.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00206",
+      "input": "Kłopot w tym, że mamy mało pieniędzy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00207",
+      "input": "Nie lubię takiej muzyki.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00208",
+      "input": "On zawsze się spóźnia do szkoły.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00209",
+      "input": "Zatrzymasz to dla siebie?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00210",
+      "input": "Dziewczyna, która rozmawia z Johnem, to Susan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00211",
+      "input": "Proszę wezwać ochronę hotelu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00212",
+      "input": "Wierzę w tę metodę nauczania.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00213",
+      "input": "Ma głowę do interesów.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00214",
+      "input": "Zaczęło świtać, długa noc się skończyła.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00215",
+      "input": "To był zły królik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00216",
+      "input": "Cześć, jestem Nancy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00217",
+      "input": "Halo, jesteś jeszcze?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00218",
+      "input": "Dzieci wyglądają na zmęczone pływaniem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00219",
+      "input": "Nie dane mu było spotkać się z nią ponownie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00220",
+      "input": "Seria wybuchów obróciła pracownię w ruinę.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00221",
+      "input": "Japonia ma wiele cech szczególnych.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00222",
+      "input": "Jak daleko jest do lotniska?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00223",
+      "input": "Cieszę się, że cię znów widzę.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00224",
+      "input": "Poproszę do hotelu Hilton.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00225",
+      "input": "Zwykle to ja myję naczynia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00226",
+      "input": "Nie zapominaj, że mamy zadanie domowe.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00227",
+      "input": "Chciałbym filiżankę kawy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00228",
+      "input": "Pamiętasz mnie?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00229",
+      "input": "To jest mojego brata.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00230",
+      "input": "Nie brakuje niczego.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00231",
+      "input": "Weź książkę i przeczytaj ją!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00232",
+      "input": "Powiedział mi, że pojedzie do Wenecji.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00233",
+      "input": "Odpowiedz na pytanie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00234",
+      "input": "Kiedy byłem mały, czytałem godzinami, sam w swoim pokoju.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00235",
+      "input": "Jaką masz grupę krwi?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00236",
+      "input": "Pamiętam pierwszy raz.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00237",
+      "input": "Był ubogi, ale nie pożyczał pieniędzy od innych.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00238",
+      "input": "Nie ma wątpliwości, że jest utalentowana.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00239",
+      "input": "Poczta przychodzi przed południem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00240",
+      "input": "Przestraszyłem się, mijając go.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00241",
+      "input": "Jak możemy się upewnić co do jego uczciwości?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00242",
+      "input": "Nie, to nie jest mój nowy chłopak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00243",
+      "input": "Nie wiem, jak to udowodnić, to zbyt oczywiste.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00244",
+      "input": "Zamówiłem dwa hamburgery.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00245",
+      "input": "Mogę się tylko domyślać, czy tak samo sądzą inni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00246",
+      "input": "Nie jestem wielkim podróżnikiem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00247",
+      "input": "Każdy ma swoje silne i słabe strony.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00248",
+      "input": "Jego smutna historia poruszyła mnie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00249",
+      "input": "Świeczka sama zgasła.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00250",
+      "input": "Ojciec zabronił mi czytać książki w łóżku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00251",
+      "input": "Zostajesz w domu dziś wieczorem?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00252",
+      "input": "Przyznanie się do winy to połowa drogi do jej wybaczenia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00253",
+      "input": "Jaka praca, taka płaca.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00254",
+      "input": "Boję się spadania.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00255",
+      "input": "Skąd pochodzisz?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00256",
+      "input": "Film trwał dwie godziny.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00257",
+      "input": "Chciałbym odebrać swoje kosztowności.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00258",
+      "input": "W Wenecji jest zawsze wielu turystów.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00259",
+      "input": "Wczoraj było trzęsienie ziemi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00260",
+      "input": "Wiesz może, gdzie położyłem moje klucze?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00261",
+      "input": "Mam dużo przygotowań na jutro.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00262",
+      "input": "Powiedziane ulatuje, napisane pozostaje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00263",
+      "input": "Jesteś przy mnie, a więc wszystko dobrze.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00264",
+      "input": "Państwo nie zdołało sprostać oczekiwaniom obywateli.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00265",
+      "input": "Ci, co go znają, lubią go.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00266",
+      "input": "Ściany mają uszy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00267",
+      "input": "Myślałem, że to prawda.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00268",
+      "input": "Zawołajcie policję!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00269",
+      "input": "Czy mówi pan po włosku?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00270",
+      "input": "Właśnie miałem wychodzić, kiedy zadzwonił telefon.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00271",
+      "input": "Bez wątpienia Wszechświat jest nieskończony.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00272",
+      "input": "Nie wiedziałem, że tyle wypił.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00273",
+      "input": "Jak się masz? Jak minęła podróż?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00274",
+      "input": "Ta dziewczyna zmieniła styl.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00275",
+      "input": "Dobrze mi służył ten nóż.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00276",
+      "input": "Jesteś w moim typie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00277",
+      "input": "Nie każ mi powtarzać.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00278",
+      "input": "A jednak znów prawdą jest coś przeciwnego.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00279",
+      "input": "Życie bez miłości nie ma żadnego sensu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00280",
+      "input": "Możesz zadzwonić później?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00281",
+      "input": "Wcale nie jestem przekonany.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00282",
+      "input": "Dziś idziemy tańczyć.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00283",
+      "input": "Czy to poważne?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00284",
+      "input": "Jesteś wielką miłością mego życia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00285",
+      "input": "Ostrzegłem go przed niebezpieczeństwem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00286",
+      "input": "– Kto to? – To twoja matka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00287",
+      "input": "Proszę poczekać w poczekalni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00288",
+      "input": "Czekają na was pod drzwiami.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00289",
+      "input": "Przyszłaś właśnie kiedy wychodziłem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00290",
+      "input": "Oni chcą emigrować do Ameryki.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00291",
+      "input": "Prowadził interesy przez wiele lat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00292",
+      "input": "Pogodę przewiduje się naukowo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00293",
+      "input": "Wlał do herbaty mleka i zamieszał.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00294",
+      "input": "On pozostawia po sobie niezatarte wrażenie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00295",
+      "input": "Jest niefotogeniczna.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00296",
+      "input": "Wyśmiali nasze wysiłki.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00297",
+      "input": "Pracuję jak szalony, żeby zdążyć w terminie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00298",
+      "input": "Ojciec i młodsza siostra są stolarzami.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00299",
+      "input": "W celu ochrony głowy należy nosić kask.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00300",
+      "input": "Nie otwierać przed zatrzymaniem pociągu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00301",
+      "input": "Dlaczego przywiązujesz wagę do tego zdarzenia?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00302",
+      "input": "Ile zostało kanapek?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00303",
+      "input": "Jeśli nawet to nie prawda, to dobrze wymyślone.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00304",
+      "input": "Języki obce uważam za nadzwyczaj interesujące.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00305",
+      "input": "To dobry człowiek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00306",
+      "input": "Muszę wam się przyznać, że chrapię...",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00307",
+      "input": "Są mocni tylko w gębie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00308",
+      "input": "Dziesięć tysięcy dodać pięć tysięcy pięćset daje piętnaście tysięcy pięćset.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00309",
+      "input": "Już przynoszę rachunek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00310",
+      "input": "Byłeś tam kiedyś?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00311",
+      "input": "Kto nie ryzykuje, ten nic nie ma.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00312",
+      "input": "Dzieci, wstawać!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00313",
+      "input": "Moje gratulacje!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00314",
+      "input": "Żeby to osiągnąć, musisz zaryzykować.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00315",
+      "input": "Dziękuję, to wszystko.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00316",
+      "input": "Idę po samochód.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00317",
+      "input": "Znikł bez śladu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00318",
+      "input": "Pić mi się chce.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00319",
+      "input": "Zrobiłeś to celowo!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00320",
+      "input": "Nic mu nie powiedziałeś?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00321",
+      "input": "Musisz więcej pracować.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00322",
+      "input": "Bardzo lubię swoją pracę.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00323",
+      "input": "Poznałem sympatycznych ludzi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00324",
+      "input": "Rozmawiałem z przyjaciółmi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00325",
+      "input": "Film zaczął się o drugiej.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00326",
+      "input": "Miło mi widzieć cię ponownie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00327",
+      "input": "Bardzoś się zmienił.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00328",
+      "input": "Powiedz mi, co się stało.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00329",
+      "input": "Pozostaje tylko płakać.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00330",
+      "input": "To poważne dziewczyny.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00331",
+      "input": "Ależ jesteś piękna!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00332",
+      "input": "Jest tyle kościołów, co muzeów.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00333",
+      "input": "Rozrywka jest łatwiejsza od pracy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00334",
+      "input": "To trudniejsze niż myślisz.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00335",
+      "input": "Nie można jechać na dwóch koniach jednocześnie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00336",
+      "input": "Mam męża i dwoje dzieci.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00337",
+      "input": "Rzadko go widuję.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00338",
+      "input": "Dowiedział się o tym z gazety.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00339",
+      "input": "Nie wiem, czy będę mieć na to czas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00340",
+      "input": "Zapytaj Tranga, czy dziś wieczór wychodzi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00341",
+      "input": "Kto to powiedział? To zupełna nieprawda!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00342",
+      "input": "Kiedy to usłyszałem, nie wierzyłem własnym uszom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00343",
+      "input": "Przejął interes.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00344",
+      "input": "Ona zagrała w tej sztuce.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00345",
+      "input": "Ile wynosi ludność Japonii?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00346",
+      "input": "Jeśli wybuchnie światowa wojna jądrowa, uważa się, że „atomowa zima” w skali całego globu może trwać kilka miesięcy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00347",
+      "input": "Pojechał do Paryża, gdzie spotkał się mną po raz pierwszy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00348",
+      "input": "Na suficie siedzi wielka mucha.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00349",
+      "input": "Szaleją za jazzem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00350",
+      "input": "Zwykle siedzi do późna w nocy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00351",
+      "input": "Jego starszy brat jest bardziej cierpliwy niż on.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00352",
+      "input": "Jej matka mieszka na wsi zupełnie sama.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00353",
+      "input": "Samolot wylądował dokładnie o szóstej.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00354",
+      "input": "Żyli ze sobą w zgodzie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00355",
+      "input": "Szedł brzegiem morza.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00356",
+      "input": "Pozdrów ją ode mnie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00357",
+      "input": "Daję spokój z matematyką.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00358",
+      "input": "Nie mogłem sobie przypomnieć ich nazwisk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00359",
+      "input": "Moja matka świetnie przyrządzała ziemniaki.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00360",
+      "input": "W końcu przyjdzie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00361",
+      "input": "On nie ma ani żony, ani dzieci, ani przyjaciół.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00362",
+      "input": "W jego ogrodzie zawsze kwitną rozmaite kwiaty.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00363",
+      "input": "Czy masz gorączkę?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00364",
+      "input": "Wczoraj tam poszedł.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00365",
+      "input": "Zachowywał się jak wariat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00366",
+      "input": "Wypogodziło się.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00367",
+      "input": "Ziewnął potężnie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00368",
+      "input": "Ona jest trudna w kontakcie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00369",
+      "input": "Jej ojciec podobno zginął w wypadku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00370",
+      "input": "Jak się pan nazywa?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00371",
+      "input": "Natsume Soseki żył w tych samych czasach co Mori Ogai.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00372",
+      "input": "Nie zmieniaj tematu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00373",
+      "input": "Czy mówi pan po japońsku?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00374",
+      "input": "Uchodźcy ściągali z całego kraju.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00375",
+      "input": "Płakał z radości.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00376",
+      "input": "Nazwali tę wioskę „Nowy Amsterdam”.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00377",
+      "input": "Po latach stała się równie piękna jak jej matka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00378",
+      "input": "Objaśni mi pan drogę na stację metra?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00379",
+      "input": "Biedował, mieszkał w małej chatce.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00380",
+      "input": "Pojechał do Anglii, by studiować literaturę angielską.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00381",
+      "input": "Samolot zniknął w mgnieniu oka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00382",
+      "input": "Miał nadzieję na fotel prezesa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00383",
+      "input": "To dobry pomysł, by poprosić go o pomoc.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00384",
+      "input": "Japonia to kraj przemysłowy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00385",
+      "input": "Ona świata nie widzi poza pracą.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00386",
+      "input": "Sam się obudził.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00387",
+      "input": "Aby uniknąć przenikliwego zimna, włożyła ciepły płaszcz.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00388",
+      "input": "Policja przypuszcza, że mógł napaść na bank.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00389",
+      "input": "Uważany był za japońską odpowiedź na Picassa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00390",
+      "input": "Mama leży w łóżku z przeziębieniem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00391",
+      "input": "Ona jest zbyt wstydliwa, żeby otwarcie wyrażać swe opinie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00392",
+      "input": "„Kim jest ta dziewczyna?” „To Keiko.”",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00393",
+      "input": "Jakimś cudem znalazłem jego dom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00394",
+      "input": "Wykuł stalowy miecz.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00395",
+      "input": "Dziecko niemal zadławiło się jedząc słodycze.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00396",
+      "input": "Czas iść do szkoły.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00397",
+      "input": "Czy twoja matka umie prowadzić samochód?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00398",
+      "input": "W tym hotelu panuje domowa atmosfera.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00399",
+      "input": "Czy przyjedziemy na czas?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00400",
+      "input": "Świeca sama zgasła.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00401",
+      "input": "Każda istota ma instynkt samozachowawczy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00402",
+      "input": "Do wakacji jeszcze tylko tydzień.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00403",
+      "input": "Miło cię widzieć.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00404",
+      "input": "Właśnie na to czekałem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00405",
+      "input": "Miała na sobie czerwoną spódniczkę.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00406",
+      "input": "Według mnie, jesteś w błędzie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00407",
+      "input": "Przyjaciel zawiódł jej zaufanie, teraz chce się na nim zemścić.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00408",
+      "input": "Dobrze, byś się z nim spotkał i posłuchał, co ma do powiedzenia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00409",
+      "input": "Ona nic tylko narzeka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00410",
+      "input": "W czasie orgii Megumi biegała nago po trawniku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00411",
+      "input": "Co, nie mogę ci mówić po imieniu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00412",
+      "input": "Sądził, zresztą słusznie, że to najlepsze, co można zrobić.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00413",
+      "input": "Nie miał nic wspólnego ze skandalem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00414",
+      "input": "Gdy usłyszała tę wiadomość, płakała wniebogłosy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00415",
+      "input": "Jeśli wcześnie wstaniesz, zobaczysz wschód słońca.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00416",
+      "input": "Po bójce miał pełno siniaków.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00417",
+      "input": "Ona mówi dość szybko.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00418",
+      "input": "Obiecał, że mi pomoże.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00419",
+      "input": "USA nazywają siebie „światowym żandarmem” i stosują siłę wojskową.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00420",
+      "input": "Wyraźnie powiedział, o co mu chodzi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00421",
+      "input": "Jestem zły, że nie dotrzymała obietnicy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00422",
+      "input": "Jego młodszy brat zabłądził w mieście.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00423",
+      "input": "Niezależnie, czy on przyjdzie, czy nie, ja idę.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00424",
+      "input": "Gdy dorósł, został po latach sławnym muzykiem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00425",
+      "input": "Jest otwartym człowiekiem, dobrze się z nim rozmawia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00426",
+      "input": "W zeszłym miesiącu pojechała do Europy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00427",
+      "input": "Nie był świadom swych słabych stron.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00428",
+      "input": "Podniosła kamyk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00429",
+      "input": "Przyszedł do mnie po prośbie i zapytał o pożyczkę.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00430",
+      "input": "Przypisywał swój sukces ciężkiej pracy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00431",
+      "input": "Dostał sporo pieniędzy jako rekompensatę za swój wypadek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00432",
+      "input": "Byli zaniepokojeni tą wiadomością.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00433",
+      "input": "Ojciec wróci pewnie około siódmej.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00434",
+      "input": "Działaj, nie gadaj.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00435",
+      "input": "Pojechała do Niemiec studiować medycynę.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00436",
+      "input": "Grał na fortepianie bez nut.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00437",
+      "input": "Często pisze listy do rodziców.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00438",
+      "input": "Wrak zidentyfikowano jako Titanica.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00439",
+      "input": "Mieszkańcy północnej Japonii korzystają z zimowej aury i szusują na nartach.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00440",
+      "input": "Karmię dziecko piersią.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00441",
+      "input": "Nie zamknęła drzwi wejściowych.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00442",
+      "input": "Nie został dopuszczony do studiów.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00443",
+      "input": "Jest wielkim artystą, wszyscy winniśmy mu podziw.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00444",
+      "input": "On pewnie czeka na ciebie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00445",
+      "input": "On przeprowadza doświadczenia w swojej pracowni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00446",
+      "input": "Oznaczyli parcelę pod dom układając kamienie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00447",
+      "input": "Niejednokrotnie musiała używać słownika.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00448",
+      "input": "Amazonka płynie zakosami przez północną Brazylię.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00449",
+      "input": "Jeszcze nie wrócił z gór.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00450",
+      "input": "Ma koszmarnego pecha.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00451",
+      "input": "Wysłali natychmiast chorego do szpitala.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00452",
+      "input": "Ona intensywnie przygotowuje się do egzaminów.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00453",
+      "input": "On żałuje tego, co zrobił.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00454",
+      "input": "Spróbujmy coś zrobić!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00455",
+      "input": "Jesteś w lepszym położeniu niż ja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00456",
+      "input": "Oprowadzę pana po mieście.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00457",
+      "input": "To trzecie co do wielkości miasto Serbii.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00458",
+      "input": "Poproszę rachunek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00459",
+      "input": "Wyznałem swoje grzechy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00460",
+      "input": "Możesz zostać ile chcesz.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00461",
+      "input": "Czas leczy rany.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00462",
+      "input": "Jutro o tej porze będę w Londynie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00463",
+      "input": "Był ranny na wojnie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00464",
+      "input": "Ojciec przetłumaczył list po niemiecku na japoński.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00465",
+      "input": "Oskarżył ją, że go okłamała.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00466",
+      "input": "Mają bliźniaczki.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00467",
+      "input": "Dla niego głód był zawsze pojęciem abstrakcyjnym – zawsze miał co jeść.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00468",
+      "input": "Postaram się nie przeszkadzać ci w nauce.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00469",
+      "input": "Jesteś bez serca.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00470",
+      "input": "Błyskawica poprzedza grom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00471",
+      "input": "Często chodzę do kina.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00472",
+      "input": "Chłopak bał się ciemności.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00473",
+      "input": "Prawie się przestraszyłem nie widząc cię przez cały dzień w sieci.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00474",
+      "input": "Nie mam usprawiedliwienia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00475",
+      "input": "Nie mogę sobie przypomnieć jego nazwiska.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00476",
+      "input": "Jesteś dla mnie wszystkim.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00477",
+      "input": "Przejrzał gazetę przed pójściem spać.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00478",
+      "input": "Kupił mi nowy słownik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00479",
+      "input": "Przepraszam, że kazałem ci czekać tak długo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00480",
+      "input": "Ilu godzin snu potrzebujesz?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00481",
+      "input": "Łatwo wkurza się o byle co.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00482",
+      "input": "Tokio jest większe niż inne miasta w Japonii.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00483",
+      "input": "Chciałbym pojechać za granicę.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00484",
+      "input": "Pomyliłem panią z panią Brown.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00485",
+      "input": "Moje życie jest nierealne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00486",
+      "input": "Chciałbym prowadzić samochód.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00487",
+      "input": "Dlaczego robi awanturę o takie drobnostki?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00488",
+      "input": "Ucz się dobrze, inaczej poniesiesz klęskę.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00489",
+      "input": "Tak właśnie myślałem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00490",
+      "input": "Pomyślała, że trzeba coś z tym zrobić.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00491",
+      "input": "To była nowa książka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00492",
+      "input": "Kiedy zobaczyła, jak się wystroił, wybuchnęła śmiechem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00493",
+      "input": "Nie wiem, czy mam czas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00494",
+      "input": "Cześć, jak się masz?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00495",
+      "input": "Cześć, to jest Mike.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00496",
+      "input": "Napoleon poprowadził swoje wojska na Rosję.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00497",
+      "input": "Bez problemu rozwiązał to zadanie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00498",
+      "input": "Ten lek przyspieszył proces wzrostu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00499",
+      "input": "Miałem straszny sen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00500",
+      "input": "Chiny są znacznie większe niż Japonia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00501",
+      "input": "Może padać śnieg.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00502",
+      "input": "Rozmawiałem z rodzicami na temat mojego studiowania za granicą.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00503",
+      "input": "Połowa jabłek zgniła.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00504",
+      "input": "W spisie powszechnym trasianka będzie utożsamiona z białoruskim.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00505",
+      "input": "Czy to produkt szwajcarski?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00506",
+      "input": "Siostra niedługo będzie z nami.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00507",
+      "input": "Nie zapominaj o nas!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00508",
+      "input": "Trzeba było nie podlewać kwiatów. Kiedy tylko skończyłem, zaczęło padać.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00509",
+      "input": "Chiny to największy kraj Azji.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00510",
+      "input": "Ten dom jest duży.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00511",
+      "input": "Na koncercie było miło, ale w sali panował chłód.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00512",
+      "input": "Policja bada przyczyny nieszczęśliwego wypadku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00513",
+      "input": "Świat to dom wariatów.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00514",
+      "input": "Akta odesłano do ministerstwa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00515",
+      "input": "Dlaczego pytasz?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00516",
+      "input": "Posprzątaj pokój.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00517",
+      "input": "Jest dwudziesty szósty.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00518",
+      "input": "Boli mnie głowa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00519",
+      "input": "Sztuka dla sztuki.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00520",
+      "input": "O gustach się nie dyskutuje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00521",
+      "input": "To mnie nie zaskakuje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00522",
+      "input": "Na stole stoi butelka wina.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00523",
+      "input": "Proszę zażądać nowej wersji oprogramowania.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00524",
+      "input": "Życie to nie tylko radość i beztroska.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00525",
+      "input": "Obaj chłopcy krzyknęli.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00526",
+      "input": "Wiesz, że jesteś pierwszą sekretarką, która tak otwarcie ze mną rozmawia?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00527",
+      "input": "Nie mam czucia w palcach.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00528",
+      "input": "Żenił się kilka razy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00529",
+      "input": "Graliśmy sobie w baseball.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00530",
+      "input": "W obie strony? Nie, tylko w jedną.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00531",
+      "input": "Nie mam zielonego pojęcia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00532",
+      "input": "Człowiek nie otrzymuje niczego, jak tylko z niebios.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00533",
+      "input": "Korzystaliśmy z zasobów energetycznych Ziemi tak, jakby były nieograniczone.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00534",
+      "input": "To nie może być prawda.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00535",
+      "input": "Mój dom jest wygodnie położony – blisko dworca.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00536",
+      "input": "Historia o rozdzieleniu dwóch tygrysiątek wydała mi się nieco banalna.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00537",
+      "input": "W tym muzeum jest podobno jeden obraz Picassa i dwa Renoira.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00538",
+      "input": "Bomba atomowa to straszliwa broń.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00539",
+      "input": "Jest pan bardzo miły.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00540",
+      "input": "Zmusiła mnie, bym z nią poszedł.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00541",
+      "input": "Założył czerwoną marynarkę.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00542",
+      "input": "Jak na swoją cenę, ta tkanina jest dobrej jakości.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00543",
+      "input": "Przed wyjściem zamykaj drzwi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00544",
+      "input": "To tylko twoja wyobraźnia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00545",
+      "input": "To jabłko jest intensywnie czerwone.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00546",
+      "input": "To niczego nie zmieni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00547",
+      "input": "Muszę oddzwonić do pana.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00548",
+      "input": "O, proszę mi to pokazać!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00549",
+      "input": "Wstyd mi za siebie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00550",
+      "input": "Masz prezerwatywę?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00551",
+      "input": "Zainspirowany religiami azjatyckmi, stworzył liczne wspaniałe rzeźby.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00552",
+      "input": "Henry James był rodowitym Amerykaninem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00553",
+      "input": "Wycisnął sok z kilku pomarańcz.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00554",
+      "input": "Spokojnie, przyspieszanie spraw przyniesie efekt odwrotny.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00555",
+      "input": "Nie chcę tak długo czekać.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00556",
+      "input": "Ten film nie osiągnął sukcesu w Japonii.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00557",
+      "input": "Ptaki mają dobry wzrok.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00558",
+      "input": "Była gęsta mgła, nie było widać nic na wyciągnięcie ręki.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00559",
+      "input": "Dziś mam wolne, chodźmy na plażę.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00560",
+      "input": "Do tego budynku nie ma wstępu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00561",
+      "input": "To się powinno spodobać każdemu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00562",
+      "input": "Posiadła znajomość angielskiego.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00563",
+      "input": "Wiał przyjemny wiatr od rzeki.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00564",
+      "input": "Poprosiłem ją o zrobienie czterech kopii tego listu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00565",
+      "input": "Pod względem wieku jest odpowiednia do tej pracy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00566",
+      "input": "Zadaniem żołnierzy było zniszczenie tego mostu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00567",
+      "input": "Wolę iść niż jechać samochodem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00568",
+      "input": "Starannie uporządkował pokój.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00569",
+      "input": "Pies rzadko gryzie nie atakowany.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00570",
+      "input": "Czy są kursy jednodniowe?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00571",
+      "input": "Wszyscy studenci wstali.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00572",
+      "input": "W czasie wakacji pracowałem na poczcie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00573",
+      "input": "Nie gap się na ludzi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00574",
+      "input": "Muzyk mocno walił w bębny.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00575",
+      "input": "Kupiłem czapkę w tym sklepie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00576",
+      "input": "Przedstawiła mi tę panią.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00577",
+      "input": "Oliwa sprawiedliwa zawsze na wierzch wypływa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00578",
+      "input": "Dziękuję za pański list z siódmego stycznia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00579",
+      "input": "Pracowała dłużej niż zwykle, odczuwała więc zmęczenie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00580",
+      "input": "Powodem spóźnienia była zła pogoda.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00581",
+      "input": "Wieczorem może padać.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00582",
+      "input": "Poradziłem mu, by zaraz wracał do domu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00583",
+      "input": "Czekam na pańską odpowiedź, jeszcze jej nie dostałem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00584",
+      "input": "Coś nagle taki wygadany?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00585",
+      "input": "Myślę, że ona jest po trzydziestce.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00586",
+      "input": "Nie przychodź w taki deszcz.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00587",
+      "input": "Tego robić absolutnie nie wolno.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00588",
+      "input": "Ona nie chce być zależna od rodziców.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00589",
+      "input": "Lody robimy w ten sposób.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00590",
+      "input": "Ten słoń nie ruszy nawet na krok.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00591",
+      "input": "Wydanie tej książki zbiegło się z urodzinami autora.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00592",
+      "input": "To przepiękna filiżanka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00593",
+      "input": "To człowiek żądny władzy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00594",
+      "input": "Jakież byłoby nasze życie bez elektryczności?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00595",
+      "input": "Każdemu uczniowi zadano jedno pytanie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00596",
+      "input": "Oglądasz reprodukcję obrazu Picassa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00597",
+      "input": "Umiesz pływać tak szybko jak on?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00598",
+      "input": "Zobaczyli go w tłumie ludzi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00599",
+      "input": "Szybko przywykł do chłodnego klimatu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00600",
+      "input": "Zjedz teraz kolację.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00601",
+      "input": "W tym domu mieszkałem jako dziecko.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00602",
+      "input": "Wreszcie skończyłem robotę.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00603",
+      "input": "Zmiany klimatu wytwarzają nowe gatunki.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00604",
+      "input": "Wrócił, ale nie z tęsknoty, a z braku pieniędzy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00605",
+      "input": "To będzie cenne doświadczenie dla moich metod nauki angielskiego.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00606",
+      "input": "Nie mogę się obejść bez kawy po posiłku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00607",
+      "input": "Myśli o zawodzie marynarza.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00608",
+      "input": "Pozwól mi ponieść twoją walizkę.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00609",
+      "input": "Nie umiesz jeździć na rowerze?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00610",
+      "input": "Byłem na wakacjach za granicą.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00611",
+      "input": "Urodziła się i wychowała w Osace.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00612",
+      "input": "Zrobiłem test na AIDS.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00613",
+      "input": "Niebo wygląda groźnie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00614",
+      "input": "Sawako chce jechać do Francji.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00615",
+      "input": "Wszystkie te książki są moje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00616",
+      "input": "W razie potrzeby zgłoś się do mnie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00617",
+      "input": "On jest na tym statku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00618",
+      "input": "Sędzia mimowolnie wybuchnął śmiechem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00619",
+      "input": "Odprowadzało mnie wielu przyjaciół.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00620",
+      "input": "Czy jest jakaś zniżka?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00621",
+      "input": "Nie przychodź, jeśli nie powiem, że masz.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00622",
+      "input": "Ten wypadek miał zapewne związek ze śnieżycami.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00623",
+      "input": "Jesteś młodym Amerykaninem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00624",
+      "input": "Wszystko poszło gładko.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00625",
+      "input": "Było jej przykro, że nikt jej nie zauważył.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00626",
+      "input": "Jest tu wiele zapożyczeń obcojęzycznych.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00627",
+      "input": "Ja również go nie znałem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00628",
+      "input": "A przecież było zadanie domowe do zrobienia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00629",
+      "input": "Sprzątanie tego pokoju trwało trzy dni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00630",
+      "input": "Nie mówię po angielsku, a tym bardziej po niemiecku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00631",
+      "input": "Nie mam pieniędzy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00632",
+      "input": "Zmarł przed moim przyjazdem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00633",
+      "input": "Przed moim domem jest księgarnia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00634",
+      "input": "Nie mieli jeszcze do czynienia z takim problemem, nie wiedzą więc, co z tym zrobić.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00635",
+      "input": "Jego żądania są rozsądne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00636",
+      "input": "Myjcie ręce przed jedzeniem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00637",
+      "input": "Ile by nie jadła, nie tyje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00638",
+      "input": "Nie ponoszę odpowiedzialności za ten błąd.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00639",
+      "input": "Ponoszę odpowiedzialność za ten błąd.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00640",
+      "input": "Jestem dziś naprawdę zmęczony.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00641",
+      "input": "Po wiośnie przychodzi lato.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00642",
+      "input": "Weź parę dni urlopu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00643",
+      "input": "Szczerze mówiąc, nie lubię go.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00644",
+      "input": "Dziś po południu będzie padać.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00645",
+      "input": "Mnóstwo ludzi jest w Sensoji.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00646",
+      "input": "Co się tyczy mojego dziecka, to kłopotom nie ma końca.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00647",
+      "input": "Bitelsi składali się z czterech muzyków.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00648",
+      "input": "Prawda nie potrzebuje wielu słów.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00649",
+      "input": "Dałem mu tę trochę pieniędzy, które miałem przy sobie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00650",
+      "input": "Nie zapomnij zadzwonić do nas, kiedy przyjedziesz do Kioto.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00651",
+      "input": "Bill przyniósł mi tę książkę.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00652",
+      "input": "Inwestycje w edukację pobudzają wzrost gospodarczy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00653",
+      "input": "Miała na sobie czarny kapelusz.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00654",
+      "input": "Czasem kłamiemy, żeby nie zranić czyichś uczuć.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00655",
+      "input": "Zrozumiałeś, co powiedział?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00656",
+      "input": "To dlatego, że jesteś dziewczyną.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00657",
+      "input": "Daj spokój! Przez ciebie jest jej przykro.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00658",
+      "input": "Daje jej wszystko, o co ona poprosi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00659",
+      "input": "Płakała z radości, kiedy usłyszała, że jej syn przeżył katastrofę samolotu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00660",
+      "input": "Musimy go natychmiast zabrać do szpitala! Jest ciężko ranny!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00661",
+      "input": "O, byłeś u fryzjera!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00662",
+      "input": "Telewizja niszczy życie rodzinne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00663",
+      "input": "Czy będzie padać jutro?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00664",
+      "input": "Oczy go zawiodły.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00665",
+      "input": "Zaraz będzie ciemno.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00666",
+      "input": "Nasz jachtklub ma dziesięciu członków.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00667",
+      "input": "Wygląda na to, że była szczęśliwa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00668",
+      "input": "On ma dobrą opinię.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00669",
+      "input": "Ten most powstał dwa lata temu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00670",
+      "input": "Wziąłem udział w tym spotkaniu w zamian za nią.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00671",
+      "input": "Przyjaznym zachowaniem maskował złe intencje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00672",
+      "input": "W zeszłym roku po raz pierwszy zetknęła się z kulturą japońską.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00673",
+      "input": "Dam ci wszystko, co tylko chcesz.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00674",
+      "input": "W tym biurze jest pełno zdolnych ludzi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00675",
+      "input": "Kot wyprężył grzbiet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00676",
+      "input": "Życie jest piękne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00677",
+      "input": "Jaki ojciec, taki syn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00678",
+      "input": "Może umówmy się nieco wcześniej?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00679",
+      "input": "To nic poważnego, nie mam do niego żalu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00680",
+      "input": "Wydaje mi się, że ten pociąg ma spóźnienie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00681",
+      "input": "Ile to kosztuje?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00682",
+      "input": "Wszelkie zadanie wymaga do ukończenia więcej czasu, niż mamy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00683",
+      "input": "Nie wiecie, kim jestem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00684",
+      "input": "Wyskoczył oknem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00685",
+      "input": "Skąd ci przyszedł do głowy tak głupi pomysł?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00686",
+      "input": "Ach, gdybym był bogaty, kupiłbym dom w Hiszpanii.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00687",
+      "input": "To zbyt piękne, by było prawdziwe.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00688",
+      "input": "Daj spokój, nie warto.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00689",
+      "input": "Gorąco dzisiaj.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00690",
+      "input": "Poszedłem na piwo z przyjaciółmi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00691",
+      "input": "To najlepsza szaszłykarnia w Osace.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00692",
+      "input": "Sytuacja jest gorsza niż myśleliśmy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00693",
+      "input": "Zastanawiamy się, dlaczego.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00694",
+      "input": "Nie czuję się dobrze.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00695",
+      "input": "Nie mogę powiedzieć czegoś przeciwnego.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00696",
+      "input": "Następnego lata chciałbym pojechać na Hawaje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00697",
+      "input": "Kibune znajduje się w Kioto.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00698",
+      "input": "Kto idzie ze mną?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00699",
+      "input": "Wyjechaliśmy pociągiem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00700",
+      "input": "To nie do wiary!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00701",
+      "input": "Chciałbym wiedzieć, kto idzie z nami.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00702",
+      "input": "Shitennoji jest najstarszą świątynią w Japonii.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00703",
+      "input": "To nie takie proste, z wyjątkiem tego tu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00704",
+      "input": "Nie rozumiem po niemiecku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00705",
+      "input": "Na Tokae w Narze było bardzo romantycznie!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00706",
+      "input": "I komu to mówisz!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00707",
+      "input": "Musiałem przepchać się do wyjścia z metra.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00708",
+      "input": "Ale on potrzebował pracy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00709",
+      "input": "Mężczyźni poszli polować na lwy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00710",
+      "input": "Moja matka nie zawsze jest w domu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00711",
+      "input": "Każdy ma swój gust.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00712",
+      "input": "Można płacić czekami podróżnymi?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00713",
+      "input": "Czuj się jak u siebie w domu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00714",
+      "input": "Nikt mnie nie rozumie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00715",
+      "input": "Tęskniłeś przez wszystkie te lata.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00716",
+      "input": "Jest niechlujnie ubrany.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00717",
+      "input": "Ten samochód jest z przyczepą.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00718",
+      "input": "Z narażeniem życia walczyli z ogniem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00719",
+      "input": "Nie widziałem go od zeszłej niedzieli.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00720",
+      "input": "Już nie wiem, co robić.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00721",
+      "input": "Matematyka to dziedzina wiedzy, którą można by się zajmować nawet wtedy, gdybyś się obudził i stwierdził, że świat zniknął.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00722",
+      "input": "Zaskoczenie i zachwyt - oto pierwszy krok ku zrozumieniu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00723",
+      "input": "Nie wiem, czy będę miał czas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00724",
+      "input": "Jestem ciągle zajęty.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00725",
+      "input": "Zwyczajnie nie wiem, co powiedzieć.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00726",
+      "input": "„Wygląda całkiem ciekawie” – rzekł Hiroshi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00727",
+      "input": "Wykształcenie na tym świecie jest dla mnie rozczarowaniem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00728",
+      "input": "Nie ma sensu mówić do mnie „Jak się masz?”, skoro nie masz nic więcej do powiedzenia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00729",
+      "input": "Widzimy rzeczy nie takimi, jakimi są, ale takimi, jakimi sami jesteśmy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00730",
+      "input": "Wszyscy chcą cię poznać, jesteś sławny!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00731",
+      "input": "On pisze zupełnie nieczytelnie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00732",
+      "input": "Czekamy na wydanie jego książki.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00733",
+      "input": "Obwiązała ranę bandażem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00734",
+      "input": "Nie byłem w stanie znieść jej bezczelności.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00735",
+      "input": "Mówi się często, że świat jest coraz mniejszy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00736",
+      "input": "Właśnie ją odprowadziliśmy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00737",
+      "input": "Ależ z niej gaduła.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00738",
+      "input": "Jak długo pan zostanie?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00739",
+      "input": "Ciekawe, dlaczego niektóre rośliny są roczne, a inne wieloletnie?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00740",
+      "input": "Stał tam mój wuj, z założonymi rękoma.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00741",
+      "input": "Myślisz, że nie mam nic do roboty? Przeciwnie, jestem bardzo zajęty.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00742",
+      "input": "Nie, nie sądzę.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00743",
+      "input": "W czasach Szekspira, a więc w XVI wieku, tenis był na dworze angielskim bardzo popularny.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00744",
+      "input": "To się nie zdarzy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00745",
+      "input": "Chcemy się wspiąć na tamtą górę.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00746",
+      "input": "Jak idzie w nowej pracy?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00747",
+      "input": "Twoje postępowanie jest całkowicie legalne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00748",
+      "input": "Dla dr. Masona praca była najważniejsza.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00749",
+      "input": "Nie mam pojęcia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00750",
+      "input": "Szczerze mówiąc, czułem się samotnie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00751",
+      "input": "Zdobywali Puchar Japonii przez trzy kolejne lata.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00752",
+      "input": "Jeśli nie będziesz jechać uważniej, będzie wypadek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00753",
+      "input": "Moja starsza siostra umie świetnie pływać.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00754",
+      "input": "To dla mnie życiowa okazja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00755",
+      "input": "Kowboje wjechali do nieznanego miasta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00756",
+      "input": "Korzystaj z różnych okazji.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00757",
+      "input": "Chciała uciec od życia codziennego.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00758",
+      "input": "Proszę wskazać Portoryko na mapie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00759",
+      "input": "Nie mógł się dłużej powstrzymywać.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00760",
+      "input": "Przed pójściem spać zgaś światło.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00761",
+      "input": "W ciągu ostatnich stu lat nie było chyba narodu, który przeszedłby tyle, co Żydzi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00762",
+      "input": "Nigdy wcześniej go nie spotkałem, więc nie poznam go.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00763",
+      "input": "Jesteśmy umówieni przed jego domem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00764",
+      "input": "Poprzedni najemca bardzo dbał o mieszkanie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00765",
+      "input": "Radio jest za głośno. Proszę o ściszenie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00766",
+      "input": "Możesz tu siedzieć.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00767",
+      "input": "Jestem studentem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00768",
+      "input": "Grasz w tenisa?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00769",
+      "input": "Czym prędzej poszedłem do niego.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00770",
+      "input": "Samolot wystartował punktualnie o dziesiątej.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00771",
+      "input": "Ewolucja jako prawda naukowa jest na tyle niepodważalnie udowodniona, że jest praktycznie nie do obalenia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00772",
+      "input": "Nie była w moim guście.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00773",
+      "input": "Nie jesteś zmęczony?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00774",
+      "input": "Został uznany przez sąd za winnego.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00775",
+      "input": "Mam już dosyć fast-foodów.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00776",
+      "input": "Nie rozpieszczaj swego dziecka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00777",
+      "input": "Żona kazała mi wyrzucić tę starą czapkę.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00778",
+      "input": "Nie pytaj, co myślą, pytaj, co robią.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00779",
+      "input": "Ma twarz karawaniarza.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00780",
+      "input": "Wcale nie jest zaskoczona.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00781",
+      "input": "Skłoniłem go do posprzątania mi pokoju.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00782",
+      "input": "Pozwól mi wejść.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00783",
+      "input": "Mało udzielał się towarzysko.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00784",
+      "input": "Nie możesz robić dwóch rzeczy w tym samym czasie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00785",
+      "input": "Zwróć się do mojego kolegi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00786",
+      "input": "To czysta prawda.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00787",
+      "input": "Może mi pan wybrać numer? Telefon jest za wysoko.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00788",
+      "input": "Nie było tam żywej duszy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00789",
+      "input": "John dobrze gra w szachy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00790",
+      "input": "Szkoda, że nie byłem wtedy dla niej milszy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00791",
+      "input": "Uważaj, bo będą kłopoty.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00792",
+      "input": "Proszę, powiedz mi, co mam robić w tej sytuacji.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00793",
+      "input": "Kim był ten zabity na wzgórzu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00794",
+      "input": "Rzuciła mnie po prostu dlatego, że mało zarabiałem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00795",
+      "input": "Wszyscy wstaliśmy natychmiast.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00796",
+      "input": "Nasza szkoła jest na wzgórzu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00797",
+      "input": "Można zostać jeszcze chwilę?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00798",
+      "input": "Jest oskarżony o gwałt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-pl-00799",
+      "input": "Chciałbym poprawić moją wymowę angielską.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-pl-00000",
+      "input": "Room 304 has the laptops we ordered.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-pl-00001",
+      "input": "Bought 5 cookies on the avenue near my office.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-pl-00002",
+      "input": "Track #12345 was delivered yesterday.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-pl-00003",
+      "input": "I had 5 boxes in storage unit 12.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-pl-00004",
+      "input": "Building number 7 was empty.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-pl-00005",
+      "input": "Open from January 1990 onwards.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-pl-00006",
+      "input": "Floor 3 has the printer.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-pl-00007",
+      "input": "Order #98765 is being processed.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-pl-00008",
+      "input": "The bus runs every 12 minutes.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-pl-00009",
+      "input": "Found 5000 documents in the archive.",
+      "expected": []
+    }
+  ]
+}

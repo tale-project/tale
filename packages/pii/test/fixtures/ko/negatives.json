@@ -1,0 +1,4065 @@
+{
+  "_meta": {
+    "locale": "ko",
+    "generator": "@tale/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 0,
+      "negatives": 810
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "negatives": [
+    {
+      "id": "neg-prose-ko-00000",
+      "input": "생일 축하해 Muiriel!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00001",
+      "input": "비밀번호는 \"Muiriel\" 입니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00002",
+      "input": "이건 절대 끝나지 않을거야.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00003",
+      "input": "뭐라고 말해야 할지 정말 모르겠어...",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00004",
+      "input": "시간 있는지 잘 모르겠어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00005",
+      "input": "이 세상의 교육이 나를 실망시켜요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00006",
+      "input": "왜냐하면 당신은 혼자가 되고 싶지 않기 때문이에요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00007",
+      "input": "혼자인 사람은 다른 사람들을 두려워하기 때문에 혼자다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00008",
+      "input": "일본에 갈 수 있었으면 좋겠어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00009",
+      "input": "오늘은 더 이상 물어보지 않겠어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00010",
+      "input": "그가 사과를 했음에도 불구하고, 난 아직 화가 나 있어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00011",
+      "input": "해결책을 찾았지만 너무 빨리 찾아서 맞는 답이 아닌거 같습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00012",
+      "input": "더이상 어떻게 해야할지 모르겠어.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00013",
+      "input": "나는 언젠가는 프랑스에 꼭 가야되는데, 그게 언제인지는 모르겠어.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00014",
+      "input": "아무나 할 수 있는 것이 아닙니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00015",
+      "input": "모두가 너를 만나고 싶어해, 너 유명하네!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00016",
+      "input": "왜 안되는지 설명할려면 시간 너무 많이 걸리겠다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00017",
+      "input": "작고 흰 토끼는 \"무슨 일 있니?\" 라고 물어봤습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00018",
+      "input": "히로시는 이것 재미 있을 것 같다고 말한다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00019",
+      "input": "우리가 가든지 안 가든지는 네가 결정해.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00020",
+      "input": "저는 남은 인생을 그것에 대해 후회하면서 지내고 싶지 않아요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00021",
+      "input": "놀라워 하고, 궁금해 하는 것이 이해의 시작이다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00022",
+      "input": "한가지만 빼면 그녀는 완벽해요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00023",
+      "input": "그러나, 그 반대도 또한 항상 진실이다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00024",
+      "input": "그 모습 그대로 사물을 보지 않고, 우리 자신의 모습으로 그것을 바라본다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00025",
+      "input": "이 세상은 미치광이들의 소굴이다",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00026",
+      "input": "난 쇼핑 가야되요, 한 시간 안에 돌아올게요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00027",
+      "input": "이탈리아는 아주 아름다운 나라입니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00028",
+      "input": "바라는 것이 없으면 부족함이 없다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00029",
+      "input": "당신이 내일 아침에 일어나서 우주가 사라졌다는 것을 알게 된다면 수학은 당신이 계속해서 연구할 수 있는 과학의 한 부분입니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00030",
+      "input": "과거는 되돌릴 수 없습니다. 미래는 알 수 없는 것이지만 바꿀 수 있는 것입니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00031",
+      "input": "다른 할 말이 없으면, 나한테 인사할 필요가 없어.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00032",
+      "input": "이러한 사전에는 냉장고에 대한 적어도 두가지의 예문이 있어야 한다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00033",
+      "input": "나를 그런면에서 몰랐다면 나를 완전히 모르는거야.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00034",
+      "input": "임창용, 뱀처럼 꿈틀대는 직구.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00035",
+      "input": "네, 그래요. 공기 중에 습기가 너무 많아요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00036",
+      "input": "저이 고기도 생선도 해산물도 살아있는 것으로 만든 수프도 안먹어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00037",
+      "input": "저는 최근에 그분한테서 연락이 업서요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00038",
+      "input": "최근 항상 비가 오고 있어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00039",
+      "input": "나는 팔월에 여자친구와 함께 일본으로 가갰어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00040",
+      "input": "다나카 씨는 시험에 합격한 것 같습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00041",
+      "input": "그는 문제 (를) 제기했다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00042",
+      "input": "외국어 습득에는 인내가 필요하다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00043",
+      "input": "나는 이번 겨울에 처음으로 스키를 타러 갔다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00044",
+      "input": "나는 지난 일요일에 외출하지 않았다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00045",
+      "input": "나는 이 단어의 뜻을 모르겠다. 사전을 찾아봐야 겠어.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00046",
+      "input": "나는 이 주제에 대해서 당신과 동의하지 않습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00047",
+      "input": "그는 이 강에서 수영하는 것을 좋아했었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00048",
+      "input": "너는 아침 내내 이 문제에 대해 생각했어, 좀 쉬고, 점심 먹으러 가.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00049",
+      "input": "만약 내가 지금 그 일을 하지 않으면, 영영 못 할것이다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00050",
+      "input": "아마도 너가 옳을지도 몰라, 내가 너무 이기적이었어.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00051",
+      "input": "모든 사람들이 두번째 기회를 받아 마땅하다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00052",
+      "input": "이 기술의 이점은 무엇인가요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00053",
+      "input": "만약 당신에게 이 프로그램이 없다면, 지금 다운로드 받으실 수 있습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00054",
+      "input": "당신을 너무 오래 기다리게 해서 죄송합니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00055",
+      "input": "너무 이른 아침에 전화를 해서 죄송합니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00056",
+      "input": "난 이렇게 비싼 식당에서 식사를 할 여유가 안되요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00057",
+      "input": "자신의 취미에 대해 이야기 할 때, 그는 항상 진지한 얼굴이 된다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00058",
+      "input": "그들은 희망을 버리지 않았다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00059",
+      "input": "나는 자주 버스에서 졸다가 내릴 정류장을 지나쳐간다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00060",
+      "input": "발음표시는 읽을 수 있으십니까?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00061",
+      "input": "비가 내려서 택시를 탔습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00062",
+      "input": "그는 아무일도 없었던듯이 보였다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00063",
+      "input": "내친구는 한국어를 공부해요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00064",
+      "input": "우리들은 노래방에서 소주를 마셨어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00065",
+      "input": "여기에 있는 동안 뭘 하고 싶으세요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00066",
+      "input": "그는 버스를 타고 학교에 가요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00067",
+      "input": "그녀는 즐거운 꿈을 꾸었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00068",
+      "input": "당신이 날 필요하면, 난 어딘가에있을거야.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00069",
+      "input": "그는 하루 종일 편지를 찾고 있었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00070",
+      "input": "런던행 열차를 시간표 확인하세요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00071",
+      "input": "그 수줍은 소년은 그녀의 앞에서 완전히 쑥스러웠다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00072",
+      "input": "저는 어제 영화를 보러 갔습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00073",
+      "input": "그는 일찍 출발하는 것을 조언했다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00074",
+      "input": "하지만 주인공은 자신의 실수를 인식하고 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00075",
+      "input": "우리에게 몹시 힘든 일이에요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00076",
+      "input": "그녀는 곧 질병에서 회복할 것입니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00077",
+      "input": "\"허리가 아퍼?\" \"아니, 별로.\" \"그래, 그게 불행 중 다행이야.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00078",
+      "input": "피카소 같은 화가는 드물다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00079",
+      "input": "시야가 미치는 범위에는 라벤더가 피어 있었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00080",
+      "input": "나는 새 차를 살 여유가 없다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00081",
+      "input": "그는 이모의 집에서 머물렀다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00082",
+      "input": "네가 어제 산 것을 내게 보여줄 수 있어?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00083",
+      "input": "내 생각엔 그의 제안을 고려해 볼 만하다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00084",
+      "input": "푸에르토리코의 위치를 지도 위에 보여주세요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00085",
+      "input": "재미 있는 제안이야. 그게 좀 고려야겠다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00086",
+      "input": "우리는 그 사슴의 발자국을 따라갔다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00087",
+      "input": "라자로 자멘호픈 폴란드인이에요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00088",
+      "input": "너 스타크래프트 진짜잘하더라.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00089",
+      "input": "모든 인간은 태어날 때부터 자유로우며 그 존엄과 권리에 있어 동등하다. 인간은 천부적으로 이성과 양심을 부여받았으며 서로 형제애의 정신으로 행동하여야 한다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00090",
+      "input": "산타 할아버지, 크리스마스 선물로 여자친구를 받고 싶어요",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00091",
+      "input": "목구멍 안에 손가락 찔러넣기!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00092",
+      "input": "색깔없는 녹색의 관념은 분노하며 잠잔다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00093",
+      "input": "내가 그를 꽉 안아서 울었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00094",
+      "input": "너에게 전화를 걸고 싶었는데, 너가 안 받을까봐 결국 전화 못했어.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00095",
+      "input": "오늘 밤 하늘에는 별들이 아주 밝게 빛나고 있어.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00096",
+      "input": "언어 목록에서 왜 몰타어가 빠졌는가?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00097",
+      "input": "아이 두 명이 담장에 앉아 있어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00098",
+      "input": "음악이 전시장 전경으로 남을 수 있어서 너무 다행이야. 정말 중요한데 나한텐",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00099",
+      "input": "네가 나를 사랑하는 것 보다 내가 너를 더 사랑해.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00100",
+      "input": "사랑이 사랑을 어떻게 사랑할 수 있니?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00101",
+      "input": "지난 주말에 산으로 소풍을 갔다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00102",
+      "input": "그 사람만큼 자격을 갖춘 직원은 대체하기가 어렵다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00103",
+      "input": "정부가 실업 퇴치를 위한 특별 조치를 취해야 한다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00104",
+      "input": "유감스럽게도 저는 당신의 초대를 거절해야 합니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00105",
+      "input": "겨울철 운행 시간이 변경되었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00106",
+      "input": "그들은 매월 한 번씩 연극을 보러 간다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00107",
+      "input": "수십 년간의 산림녹화사업 이후에 민둥산이 거의 없다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00108",
+      "input": "자연경관이 산이 많고 그림처럼 아주 아름답다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00109",
+      "input": "전체적으로 볼 때 운이 매우 좋았다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00110",
+      "input": "기름이나 석탄과 같은 원자재의 가격이 계속 상승하고 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00111",
+      "input": "우리는 아직 탄으로 난방을 했다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00112",
+      "input": "카드로도 지불할 수 있어요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00113",
+      "input": "배들은 등대의 불빛 신호로 방향을 찾을 수 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00114",
+      "input": "이 꽃들은 물이 필요하다. 잎들이 벌써 시들었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00115",
+      "input": "나는 생각한다, 고로 나는 존재한다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00116",
+      "input": "농부는 풀밭의 풀을 깎아서 꼴을 만든다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00117",
+      "input": "여자들은 후진 주차를 잘 못한다고 한다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00118",
+      "input": "시카고 왕복표 한 장 주세요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00119",
+      "input": "오스트리아에서는 고속도로 사용을 위해서 통행료를 지불해야 한다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00120",
+      "input": "공업 배기가스가 공기를 오염시킨다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00121",
+      "input": "아이들은 바닷가에서 모래로 성을 쌓고 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00122",
+      "input": "나는 건조한 피부를 가지고 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00123",
+      "input": "자동차를 차고에 놓어두었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00124",
+      "input": "손실을 입은 사람은 냉소를 받는다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00125",
+      "input": "늦게 온 것을 용서해 주세요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00126",
+      "input": "너의 마음을 상하게 하려고 한 것은 아니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00127",
+      "input": "주말에 나는 슈퍼에서 아르바이트한다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00128",
+      "input": "이 텍스트를 일본어에서 불어로 번역하시오.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00129",
+      "input": "실례지만 영어 할 줄 아세요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00130",
+      "input": "너 어떻게 그것을 알게 되었니?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00131",
+      "input": "그녀는 행복한 유년시절을 보냈다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00132",
+      "input": "나는 행복한 유년시절을 보냈다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00133",
+      "input": "그녀는 오른쪽 눈이 멀었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00134",
+      "input": "이 거리에서 글자를 알아볼 수 없다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00135",
+      "input": "실례합니다만, 우체국을 찾고 있습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00136",
+      "input": "뛰어라, 네가 할 수 있는 만큼 빨리.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00137",
+      "input": "그것은 너와는 상관이 없어.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00138",
+      "input": "너는 사실을 직시해야 한다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00139",
+      "input": "\"도와주셔서 고맙습니다!\" \"뭘요!\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00140",
+      "input": "너 손에 무엇을 가지고 있니?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00141",
+      "input": "제인은 아파서 자리에 누워있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00142",
+      "input": "너는 몇 개의 언어를 말할 수 있니?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00143",
+      "input": "말로 다 표현할 수가 없습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00144",
+      "input": "나는 기차를 거의 놓칠 뻔했다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00145",
+      "input": "그것은 완전히 터무니없는 짓이다!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00146",
+      "input": "나는 수학을 전공하고 싶다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00147",
+      "input": "나는 사학을 전공하고 싶다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00148",
+      "input": "그는 장난을 전혀 이해하지 못한다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00149",
+      "input": "나는 겟테르 야니랑 죽고 싶다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00150",
+      "input": "카드로 지불할 수 있습니까?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00151",
+      "input": "폭풍이 불 것이라고 생각한다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00152",
+      "input": "너는 언제 아침식사를 하니?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00153",
+      "input": "그는 아무도 배려하지 않는다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00154",
+      "input": "그들은 서로 몹시 사랑한다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00155",
+      "input": "나는 이 소음을 참을 수 없다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00156",
+      "input": "그녀는 당황해서 얼굴이 빨개졌다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00157",
+      "input": "그는 머리를 좌우로 흔들었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00158",
+      "input": "입에 음식을 가득 담고 말하지 않는다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00159",
+      "input": "원문에 충실하기 보다는 노어권 독자의 이해를 위해 가독성과 작품성을 고려하며 번역했다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00160",
+      "input": "조선왕조의 당쟁사가 문화적으로 외국 독자에게 이해되게 하기는 어려운 과제이다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00161",
+      "input": "이 지역의 자연은 아직 사람의 손이 닿지 않았다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00162",
+      "input": "염소가 우리에서 매 하고 울었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00163",
+      "input": "해는 동쪽에서 떠서 서쪽으로 진다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00164",
+      "input": "당신의 생각은 전적으로 옳습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00165",
+      "input": "그는 스페인어뿐만 아니라, 프랑스어도 말한다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00166",
+      "input": "어떻게 그런 일이 발생할 수 있었지?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00167",
+      "input": "그 연주회는 몇 시에 시작하니?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00168",
+      "input": "나는 무험을 하고 싶지 않다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00169",
+      "input": "그 환자는 이제 고비를 넘겼어.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00170",
+      "input": "동물을 학대해서는 안 된다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00171",
+      "input": "그것은 나의 의도가 아니었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00172",
+      "input": "네 입장이라면 나는 그 일을 하지 않겠다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00173",
+      "input": "아이티의 수도는 이름이 무엇입니까?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00174",
+      "input": "미국은 북쪽으로 캐나다와 경계를 짓고 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00175",
+      "input": "나는 미국문학에 관심이 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00176",
+      "input": "그 축구경기는 텔레비전에서 생중계되었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00177",
+      "input": "그는 노어를 완벽하게 구사한다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00178",
+      "input": "그 영화는 성인만을 위한 것이다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00179",
+      "input": "내가 금방 다시 전화해 줄게.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00180",
+      "input": "세계의 가장 긴 강의 이름이 뭐지?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00181",
+      "input": "콜럼버스가 아메리카 대륙을 발견했다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00182",
+      "input": "그 비행기가 방향을 변경했다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00183",
+      "input": "너는 일본에 얼마 동안 머무르니?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00184",
+      "input": "런던에 얼마 동안 머무르니?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00185",
+      "input": "너는 동경에 얼마 동안 머무르니?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00186",
+      "input": "나는 뉴욕에서 길을 잃었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00187",
+      "input": "그 이익에 대한 자기 몫을 포기했다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00188",
+      "input": "나는 소변을 잘 가리지 못하는 좀 바보스런 아이였다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00189",
+      "input": "어린 나는 그 이야기에 완전히 압도되어 버렸다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00190",
+      "input": "그 제안은 매우 좋게 들린다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00191",
+      "input": "다음 관광 여행이 언제예요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00192",
+      "input": "그렇게 구성없게 굴지 마라!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00193",
+      "input": "후손 되는 분들의 혜량을 바란다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00194",
+      "input": "번역에서는 분위기가 다르게 느껴진다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00195",
+      "input": "원문에 있던 것을 각주로 옮긴 것을 제외할 경우에만 이 말을 타당하다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00196",
+      "input": "이 범죄사건은 영원히 해결될 수 없었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00197",
+      "input": "그는 위자료 청구 소송을 제기했다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00198",
+      "input": "당신에게는 진술을 거부할 권리가 있습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00199",
+      "input": "뉴욕에는 얼마나 많은 주민이 살고 있습니까?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00200",
+      "input": "시간이 단지 조금밖에 없어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00201",
+      "input": "우리는 삼촌의 방문을 기쁜 마음으로 기다리고 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00202",
+      "input": "초대에 기꺼이 응하겠습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00203",
+      "input": "그는 단지 내가 아는 남자일 뿐, 친구는 아니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00204",
+      "input": "오늘 아침에 언제 일어났니?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00205",
+      "input": "까마귀가 큰 소리로 까악까악 울었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00206",
+      "input": "제비 한 마리가 여름을 만들지는 못한다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00207",
+      "input": "우리 아파트는 조용하고 깨끗해요",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00208",
+      "input": "카나다는 너무 크고 사람이 많아요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00209",
+      "input": "친구는 도서관에 공부하러 와요",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00210",
+      "input": "보통 몇 시에 아침에 드셔요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00211",
+      "input": "요즘에는 운동을 별로 안 해요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00212",
+      "input": "유미 씨는 갈수록 한국어를 잘 해요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00213",
+      "input": "주소하고 집 전화 번호를 쓰세요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00214",
+      "input": "앤드류가 학교에서 린다를 만나요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00215",
+      "input": "이 편지를 할아버지께 보냈습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00216",
+      "input": "나는 도서관에서만 공부해요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00217",
+      "input": "이번 주말에 뭐 먹고 싶어요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00218",
+      "input": "제니가 집에 가고 싶어해요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00219",
+      "input": "존이 한국 영화를 보고 싶어해요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00220",
+      "input": "저는 일본어 선생님이 되고 싶어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00221",
+      "input": "피터는 의사가 되고 싶어했어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00222",
+      "input": "토마스가 영화를 보고 있어요",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00223",
+      "input": "제시카가 노래를 부르고 있었어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00224",
+      "input": "교수님이 전화를 하고 계세요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00225",
+      "input": "어머니가 케이크를 만들고 계세요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00226",
+      "input": "테드가 어느 대학을 갈까요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00227",
+      "input": "내 눈에 흙이 들어가기 전까지는 그런 꼴 못 보오이다!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00228",
+      "input": "다음 학기에 한국어를 배울까 생각해요",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00229",
+      "input": "아마 오늘 밤에 도착할 거예요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00230",
+      "input": "도서관 책에 낙서를 하지 마십시오.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00231",
+      "input": "이 영화는 좋은 비평을 받았다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00232",
+      "input": "내게 온 전화가 있었습니까?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00233",
+      "input": "그는 전화를 기다리고 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00234",
+      "input": "주장을 증명할 수 있습니까?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00235",
+      "input": "전쟁은 우리 모두와 연관된다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00236",
+      "input": "택시 한 대만 불러 주시겠습니까?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00237",
+      "input": "전혀 위험을 감수하지 않으면, 아무 것도 얻을 수 없다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00238",
+      "input": "나는 신의 존재를 믿지 않는다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00239",
+      "input": "그들은 죽은 후의 삶이 있다고 믿는다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00240",
+      "input": "자기가 잘못했다고 생각한다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00241",
+      "input": "오류를 범하는 것은 인간의 속성이다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00242",
+      "input": "그것을 너는 후회할 것이다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00243",
+      "input": "아테네는 그리스의 지혜의 여신이다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00244",
+      "input": "이것은 고딕 양식의 교회이다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00245",
+      "input": "그의 목소리는 전화에서 매우 피곤하게 들렸다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00246",
+      "input": "그녀는 무서워서 더 이상 끽소리도 못했다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00247",
+      "input": "파란 장미는 아주 아름답습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00248",
+      "input": "안녕하세요, 저는 낸시예요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00249",
+      "input": "거침없이 방문을 열어제쳤다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00250",
+      "input": "둘 사이에 무거운 침묵이 흘렀다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00251",
+      "input": "그의 고뇌에 찬 변명은 거기서 끊어졌다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00252",
+      "input": "형님께선 어떻게 이 먼 길을 오셨습니까?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00253",
+      "input": "제가 어른이되면, 나는 영어 교사가되고 싶어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00254",
+      "input": "당신은 그녀의 아버지를 알고 있나요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00255",
+      "input": "난 영어를 공부 하고 싶어.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00256",
+      "input": "나는 외국에서 휴가를 보냈다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00257",
+      "input": "뉴욕에서부터 런던까지는 거리가 얼마나 됩니까?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00258",
+      "input": "공항에서부터 호텔까지는 거리가 얼마나 됩니까?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00259",
+      "input": "오사카에서부터 교토까지는 거리가 얼마나 됩니까?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00260",
+      "input": "슬론 스퀘어로 가는 다음 기차가 언제 있습니까?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00261",
+      "input": "영어 알파벳은 몇 개의 글자로 되어 있습니까?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00262",
+      "input": "러시아어 알파벳은 몇 개의 글자로 되어 있어요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00263",
+      "input": "알파벳은 몇 개의 글자로 되어 있습니까?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00264",
+      "input": "나는 그녀에게 긴 편지를 썼다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00265",
+      "input": "이 편지를 등기로 보내고 싶어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00266",
+      "input": "나는 로마의 역사에 관한 책을 찾고 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00267",
+      "input": "존은 일본 역사에 관한 책을 찾고 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00268",
+      "input": "나는 중세 스페인에 관한 책을 찾고 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00269",
+      "input": "이 카메라가 어떻게 작동하지?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00270",
+      "input": "그녀는 목소리가 아주 좋다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00271",
+      "input": "그녀를 오랫동안 쳐다보았다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00272",
+      "input": "외야수는 그 공을 받을 수 없었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00273",
+      "input": "빌리는 휼륭한 운동선수이다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00274",
+      "input": "그는 소프라노로 노래부른다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00275",
+      "input": "그녀의 눈에 눈물이 고였다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00276",
+      "input": "매리의 눈에 눈물이 고였다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00277",
+      "input": "우리가 역사에서 배울 수 있는 것은 무엇일까요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00278",
+      "input": "좀더 준비할 시간이 필요해.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00279",
+      "input": "우리의 요구 조건은 다음과 같다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00280",
+      "input": "덕으로 나라를 다스리면, 백성들이 편안히 잘살 수 있다고 했습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00281",
+      "input": "이대로는 도저히 못 살겠어!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00282",
+      "input": "우리가 잘못 들은 거 아닐까?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00283",
+      "input": "내가 사랑 오크어 언어입니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00284",
+      "input": "저는 Tom Hunter입니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00285",
+      "input": "그녀의 시선을 등 뒤에서 느꼈다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00286",
+      "input": "안녕하세요,예약을 했는데요, 제이름은 카오리 요시카와 입니다. 확인카드는 여기있습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00287",
+      "input": "이 협정은 무기한 존속한다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00288",
+      "input": "언어를 재료로 형성되는 시는 자유로운 표현력을 권장하지만 다양한 양식수단에 의거한다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00289",
+      "input": "인간은 이성이 있는 동물이에요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00290",
+      "input": "그는 이상하고, 나는 이상한 사람 싫어.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00291",
+      "input": "한국에서 무슨 언어를 말해요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00292",
+      "input": "그는 내 친구야. 넌 그를 알고 있어?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00293",
+      "input": "너를 들을 수 있지만, 볼 수 없어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00294",
+      "input": "그녀는 지금 안 만나는 것이 좋았어.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00295",
+      "input": "어제 너무 많이 먹어서 이제 난 병이 나요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00296",
+      "input": "이 현상은 스페인어와 아주 비슷하네요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00297",
+      "input": "그러한 기능을 가진 단어가 있어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00298",
+      "input": "바닷물에 잔잔한 파도가 일어난다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00299",
+      "input": "제가 문학을 공부하는 사람이기 때문에, 영화를 볼 때에 예슬적인 측면에서 보게 됩니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00300",
+      "input": "그 영화의 문제는 너무 빨리 폭력적인 장면과 재미있는 장면이 섞여 나온다는 것입니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00301",
+      "input": "그 영화가 좋다고 하는 이유는, 예슬적인 측면에서 내용뿐만 아니라, 음악도 좋기 때문이에요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00302",
+      "input": "음악과 영화의 구조가 조화를 이루고 있어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00303",
+      "input": "작은 시골마을이나 섬에는 전쟁 중에도 조용할 수도 있어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00304",
+      "input": "비싼 중국식당에 초대받았어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00305",
+      "input": "언제부터 에스페란토를 배웠어요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00306",
+      "input": "언제부터 라틴어를 배웠어요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00307",
+      "input": "한국어를 더 잘 하게 될 수록, 영어는 점점 잊게 된다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00308",
+      "input": "수원에서 인천까지 정류장이 없어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00309",
+      "input": "다음 주 후에 다시 볼 수 있을 지 아직 몰라요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00310",
+      "input": "그는 선불교에 대한 글을 번역하셨어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00311",
+      "input": "오늘도 조금 늦을 것 같아요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00312",
+      "input": "지하철을 갈아타는 중에 문자를 써서 실수한 것 같아요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00313",
+      "input": "저도 이제서야 거의 다 왔어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00314",
+      "input": "일정은 아래의 첨부파일을 확인해 주십시오.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00315",
+      "input": "많은 관심과 참가 바랍니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00316",
+      "input": "즐거운 추석 되시기 바랍니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00317",
+      "input": "성하의 나날이 지나가고 어느덧 낙엽이 불게 물드는 가을입니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00318",
+      "input": "여러 모로 바쁘신데도 흔쾌히 도와 주셔서 감사드립니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00319",
+      "input": "계좌 번호를 알려주시면 감사하겠습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00320",
+      "input": "시가 많아서 텍스트가 좀 길어졌습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00321",
+      "input": "선선하게 불어오는 가을바람에 계절이 변화함을 느낍니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00322",
+      "input": "혹시 불분명한 점이 있을 경우 연락 주십시오.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00323",
+      "input": "첨부파일을 확인해 주십시오.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00324",
+      "input": "차표는 자동판매기에서도 구할 수 있습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00325",
+      "input": "사용설명서 자세히 읽으시요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00326",
+      "input": "이것은 좋은 카메라 이에요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00327",
+      "input": "너가 모두는 이것을 읽어야 해요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00328",
+      "input": "황소바람이 들어오니 창문을 닫아라!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00329",
+      "input": "황소바람이 들어오니 문을 닫아로!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00330",
+      "input": "제비 한 마리를 보고 봄이 왔다고 말할 수 없다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00331",
+      "input": "도전하지 않으면 얻는 것도 없다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00332",
+      "input": "뜻이 있는 곳에 길이 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00333",
+      "input": "결과가 좋으면 모든 것이 좋다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00334",
+      "input": "추워지는 날씨와 함께 어느덧 소설의 절기를 맞이하고 있습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00335",
+      "input": "만약 당신에게 이 책이 없다면, 그것을 사면 됩니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00336",
+      "input": "비가 오니까 우산을 가지고 오세요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00337",
+      "input": "난 히브리어를 공부하기 원한다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00338",
+      "input": "그의 새로운 소설은 읽을만한 가치가 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00339",
+      "input": "김씨가 켄씨와 같이 살아요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00340",
+      "input": "김문서씨가 책에 싸인을 해줬으면 좋겠는데, 부탁하기가 부끄럽네요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00341",
+      "input": "간밤에 잘 잤으므로 오늘 아침 기분이 좋다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00342",
+      "input": "그날 밤 그는 무시무시한 꿈을 꾸었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00343",
+      "input": "프랑스는 서유럽에 있습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00344",
+      "input": "부르즈 할리파는 현재 세계에서 가장 높은 고층건물이다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00345",
+      "input": "뭐든 잘 이해안되는게 생기면 나한테 와.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00346",
+      "input": "네가 한 일은 기대에 못 미쳤어.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00347",
+      "input": "나는 질문을 좋아하지 않는 학생을 좋아하는 선생님을 좋아하지 않아.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00348",
+      "input": "\"감사합니다.\" \"천만에요.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00349",
+      "input": "이 투명한 액체는 독 성분을 포함하고 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00350",
+      "input": "이 투명한 액체는 독을 포함하고 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00351",
+      "input": "투명한 폴더 가지고 있나요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00352",
+      "input": "솔직하고 투명한 정보와 대화가 상호 신뢰의 기초이다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00353",
+      "input": "한 단어는 수정처럼 투명한 변하지 않는게 아니라 의미의 한 표현일 뿐이며 사용되는 상황과 시간에 따라서 매우 다양하게 변화 될수 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00354",
+      "input": "그 금발 소녀는 정말 멋진 가슴 골을 가지고 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00355",
+      "input": "나는 남과 다르게 멋있게 보이고 싶어서 하와이안 티셔츠와 녹색 반바지 입는 걸 좋아했지만, 빠르게 흰색 셔츠와 검정 바지에 익숙해졌다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00356",
+      "input": "우리는 오랜 시간을 열심히 일한 후에는 게을러 지려는 경향이 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00357",
+      "input": "그 사람의 바지는 많이 주름져 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00358",
+      "input": "그는 게으름 때문에 직장에서 짤렸다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00359",
+      "input": "중요한 건 누구도 맡겨진 일에서 게으름을 피울수 있게 허락되지 않았다는 것이다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00360",
+      "input": "그는 처음 헬스클럽에 갔을때는 정말 열심이었지만 몇 달이 지난후 게으름을 피우기 시작했고 결국 관두고 말았다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00361",
+      "input": "마지막으로 그를 봤을때 그는 파란 셔츠에 흰색 바지를 입고 있었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00362",
+      "input": "너무 다그치지말고 여유를 좀 줘봐, 오늘이 처음 일하는 날이잖아.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00363",
+      "input": "탐은 메리에게 아무런 기회도 주지 않았다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00364",
+      "input": "나의 사촌이 아직 어려서, 그들은 그에게 좀 더 기회를 줬다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00365",
+      "input": "그는 게으름 때문에 회사에서 짤렸다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00366",
+      "input": "보기보다 어렵지는 않을 거야.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00367",
+      "input": "내가 피곤한 건 더워서라기 보다 습해서야.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00368",
+      "input": "얼마나 자주 치과에 가야 되나요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00369",
+      "input": "하루에 몇 번이나 거울을 보나요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00370",
+      "input": "경기가 드디어 좋아지기 시작한다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00371",
+      "input": "아이들은 들어올 수 없습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00372",
+      "input": "켄이에요. 그는 정말 그의 개를 좋아해요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00373",
+      "input": "이 그림은 폭풍이 치는 바다를 나타내고 있습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00374",
+      "input": "천에 백을 더하면 천백이 된다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00375",
+      "input": "그 여자는 오빠가 다섯명 있어.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00376",
+      "input": "그들은 조각 흉내를 내고 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00377",
+      "input": "나는 세부 사항들까지 수정했다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00378",
+      "input": "검도와 거합도는 뭐가 다르죠?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00379",
+      "input": "이것 참 믿을수 없는 놈이네.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00380",
+      "input": "일본의 날씨는 영국보다 따듯하다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00381",
+      "input": "포르투갈은 이웃이 하나 있고 그건 스페인이다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00382",
+      "input": "영국은 브리즈 힐을 함락시켰다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00383",
+      "input": "나는 그녀를 기다리고 있어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00384",
+      "input": "나는 그 여자의 제안을 거절해야만 했어.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00385",
+      "input": "나는 너의 가장 친한 친구도 가장 나쁜 적도 될 수 있어.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00386",
+      "input": "그 여자는 자기 아들을 자랑스럽게 생각했다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00387",
+      "input": "그 여자는 자기의 불행을 만나는 사람 모두에게 말한다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00388",
+      "input": "너는 우리 가족에게 정말 큰 도움이 되고 있어.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00389",
+      "input": "탐을 메리를 위해서 설거지를 했다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00390",
+      "input": "저 남자 아이가 저기에 얼마나 오래 앉아 있었는지 얘기 좀 해줘.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00391",
+      "input": "게임 팩을 게임기에 꽂았을 때 게임 팩의 금속 단자가 더러우면 게임이 잘 시작되지 않을수도 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00392",
+      "input": "그 사람은 음악에 대한 재능이 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00393",
+      "input": "나는 다음주에 시카고로 갈거야.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00394",
+      "input": "나는 자전거와 하드 락 콘서트를 좋아해.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00395",
+      "input": "탐은 메리에게 줄 선물을 골랐다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00396",
+      "input": "탐은 우리에게 의견을 물어 보지 않았다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00397",
+      "input": "그 아이의 자유 시간이 제한된다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00398",
+      "input": "그에 관한 모든 것이 잿빛이었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00399",
+      "input": "그는 우리 앞에서 선물을 공개할꺼야.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00400",
+      "input": "메리는 탐과 콘치타가 손잡고 있는 걸 보았다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00401",
+      "input": "다른 사람을 귀찮게 할 수 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00402",
+      "input": "그는 모든 메시지를 외워야 했다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00403",
+      "input": "이래라 저래라 하지 마세요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00404",
+      "input": "저에게 해당되는 할인 티켓은 없나요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00405",
+      "input": "나는 우리팀이 우승했다는 소식을 들었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00406",
+      "input": "나는 릭을 그가 뉴질랜드로 돌아간 뒤에는 못 봤어.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00407",
+      "input": "탁자 위에 놓고 온 것 같아.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00408",
+      "input": "벽에 걸려있는 그림을 좀 봐.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00409",
+      "input": "그 사람은 거기서 휴가를 보냈다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00410",
+      "input": "그 남자에게 사실대로 말해.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00411",
+      "input": "내 생각에는 이게 가장 좋은 방법 같아.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00412",
+      "input": "많은 서양 작곡가들에게 유감스럽게도 스틸 드럼과 스틸 팬 드럼은 완벽한 반음계가 아니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00413",
+      "input": "그녀는 그녀의 수입으로는 생활을 꾸릴 수가 없었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00414",
+      "input": "탐은 메리가 어디에 있었는지 알고 싶었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00415",
+      "input": "그녀는 스무 살에 선생님이 되었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00416",
+      "input": "우리 중 아무도 그 사람의 의견에 반대하지 않는다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00417",
+      "input": "네가 오늘 가나 내일 가나 마찬가지야.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00418",
+      "input": "나는 가끔 한번씩 말 타는 걸 좋아합니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00419",
+      "input": "나는 역으로 들어오는 기차를 봤다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00420",
+      "input": "그 케이크는 레몬 맛이 조금 난다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00421",
+      "input": "나는 여기 온 뒤로 한 번도 바다에 들어가고 싶다는 생각을 안 했지만 지금 이 순간에 어쩐 일인지 옷을 벗어 버리고 싶었어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00422",
+      "input": "인간은 이성이 있지만 동물은 없다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00423",
+      "input": "너의 연구는 열매를 맺을 거야.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00424",
+      "input": "나는 일찍 자기 때문에 일출을 보려 일찍 일어날 수 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00425",
+      "input": "탐에게 돌아오자 마자 전화해 달라고 물어봐 주세요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00426",
+      "input": "불규칙 동사의 활용 - 영어를 배우는 사람들의 필수.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00427",
+      "input": "그녀는 무서워서 떨고 있었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00428",
+      "input": "이 약이 좀 편하게 해줄거에요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00429",
+      "input": "만약 그 일이 일어나면 너는 뭘 할꺼니?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00430",
+      "input": "여기서 뭘 좀 먹어도 될까요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00431",
+      "input": "문장은 단어들의 맥락을 제공한다. 문장은 개성을 가지고 있다. 재밌기도 하고 영리하기도 하며 바보 같음과 통찰력도 가지기도 하고 감동과 상처를 주기도 한다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00432",
+      "input": "그 비극은 내 마음속 깊이 아로새겨 졌다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00433",
+      "input": "존은 나의 가장 친한 친구야.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00434",
+      "input": "내가 모르는 의미를 가진 단어가 많이 있습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00435",
+      "input": "탐은 메리와 뽀뽀하고 싶었지만 시도할 용기가 없었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00436",
+      "input": "그녀가 돌아오면 나는 떠날거야.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00437",
+      "input": "그 사람 돈이 모두 사라졌어.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00438",
+      "input": "나는 건축을 얼어있는 음악이라고 부른다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00439",
+      "input": "많이 좋아져서 나는 더이상 병원에 갈 필요가 없다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00440",
+      "input": "그는 존이라는 세례명을 받았다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00441",
+      "input": "나는 한국에 가서 맛있는 것을 먹고 싶다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00442",
+      "input": "그 책상에는 먼지가 많이 쌓여 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00443",
+      "input": "나는 이전에 그를 만났던 걸 기억한다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00444",
+      "input": "나는 그녀가 안됀다고 말하는 걸 들어 본적이 없다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00445",
+      "input": "나는 새 직장에서 잘 할 수 있을지 걱정이다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00446",
+      "input": "나는 너의 계획에 맞춰줄 수 없어.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00447",
+      "input": "그 빨래 건조대는 항상 걸리적거린다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00448",
+      "input": "너 그 사람에게 아무말도 안했지?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00449",
+      "input": "우리가 전에 한 말은 그냥 잊어버려.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00450",
+      "input": "그는 예를 들어 문제를 설명했다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00451",
+      "input": "그 건물은 앞에서 보면 커 보이지만 옆에서 보면 그렇지 않다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00452",
+      "input": "그 여자는 정말 놀란 것 같았다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00453",
+      "input": "나는 생각한다. 고로 나는 존재한다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00454",
+      "input": "내 사촌은 아직 어렸기 때문에 용서 받았다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00455",
+      "input": "예술은 우리를 단조로운 일상에서 벗어나게 해준다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00456",
+      "input": "탐은 내 비디오 카메라를 쓰고 싶으면 쓸 수 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00457",
+      "input": "당신이 오면 만나기를 고대하고 있습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00458",
+      "input": "소고기를 조금 더 굽는건 어때?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00459",
+      "input": "나는 몇 시간 동안 집안 일을 미뤘다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00460",
+      "input": "그들은 나를 위해 큰 파티를 열어 줬어.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00461",
+      "input": "나는 사계절 중에 여름을 제일 좋아해.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00462",
+      "input": "그 축구팀은 일주일에 몇 시간이나 연습을 하나요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00463",
+      "input": "티켓을 잃어버렸어요. 어떻하면 좋죠?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00464",
+      "input": "그녀는 뱀을 두려워하지 않습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00465",
+      "input": "그는 그녀를 다시 만날 정도로 어리석다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00466",
+      "input": "나는 그녀를 미치도록 다시 보고 싶다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00467",
+      "input": "나는 그녀를 다시 보고 싶어 미치겠다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00468",
+      "input": "우리 마을에 도서관이 하나 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00469",
+      "input": "이제 나는 너무 늙어서 걸을 수 없다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00470",
+      "input": "이제 나는 너무 늙어서 걷기 어렵다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00471",
+      "input": "이제 나는 걷기 어려울 정도로 너무 늙었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00472",
+      "input": "나는 내년에 중국어를 배우고 싶다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00473",
+      "input": "당신을 도와줄 수 있는 괜찮은 변호사를 알고 있습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00474",
+      "input": "그는 작년에 유언장을 썼습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00475",
+      "input": "넌 너의 역할을 받아들일 필요가 있어.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00476",
+      "input": "누가 우릴 보러 버밍험에 와요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00477",
+      "input": "흥! 아무도 내가 만드는 문장을 번역 안하고 있어!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00478",
+      "input": "김씨는 그 사람보다 두살 더 나이가 많습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00479",
+      "input": "아보카도는 아보카도 나무의 열매입니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00480",
+      "input": "\"스웨덴 사람이세요?\" \"아니요, 스위스 사람이예요.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00481",
+      "input": "내가 어릴 때는 바다에 수영하러 가곤 했었지.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00482",
+      "input": "술 말고 내가 제일 좋아하는 음료수는 아보카도 쉐이크야. 흑, 너무 맛있어!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00483",
+      "input": "난 그저 최선을 다하고 있을 뿐이다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00484",
+      "input": "이 영어 책은 내가 읽기엔 너무 어렵다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00485",
+      "input": "아이와 술취한 사람은 거짓말 하지 않는다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00486",
+      "input": "정육면체의 부피를 어떻게 계산합니까?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00487",
+      "input": "먹으러 갈만한 괜찮은 식당을 골라주세요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00488",
+      "input": "우리 애들은 학교에 있어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00489",
+      "input": "나는 네 고양이가 좋은데, 네 고양이는 나를 싫어하네.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00490",
+      "input": "조심하십시오. 길 위에 소가 있습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00491",
+      "input": "우리의 새 차는 그렇게 크지는 않다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00492",
+      "input": "그의 용감한 행동은 메달을 받을 만한 가치가 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00493",
+      "input": "그는 사과를 훔치다가 잡혔다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00494",
+      "input": "이런... 아무도 내가 만든 문장을 번역 안 해.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00495",
+      "input": "압력이 낮으면, 끓는 점도 낮다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00496",
+      "input": "어디서 전화를 걸 수 있죠?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00497",
+      "input": "그는 불어로 말하고 쓸 수 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00498",
+      "input": "미루는 것은 일종의 예술이다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00499",
+      "input": "전 죽음이 두렵지 않습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00500",
+      "input": "올해는 발렌타인 데이가 일요일이다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00501",
+      "input": "그녀는 꽃을 좋아한다고 말했다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00502",
+      "input": "그가 여기에 오면 저한테 말해주세요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00503",
+      "input": "시도하지 않는 것이 실패하는 것이다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00504",
+      "input": "빗방울이 그녀의 볼 위로 떨어졌다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00505",
+      "input": "일을 안하니까, 돈을 못 모으겠어.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00506",
+      "input": "영어로 '회사'를 뭐라고 부릅니까?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00507",
+      "input": "걔 말 듣지마, 그냥 농담하는 거야.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00508",
+      "input": "그는 텍사스나 그쯤에서 왔다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00509",
+      "input": "그 영화는 그녀에게 엄청난 인기를 가져다 주었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00510",
+      "input": "우리는 그 식물을 몇 주 동안 자세하게 연구했다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00511",
+      "input": "너무너무 미안해서 구멍으로 들어가서 죽어버리고 싶어.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00512",
+      "input": "너무 창피해서 구멍으로 들어가서 죽어버리고 싶어.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00513",
+      "input": "톰은 이탈리아 식당에 가는 걸 특히나 좋아한다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00514",
+      "input": "이산화탄소는 석탄, 석유, 천연가스 같은 연료를 태울 때마다 나오는 기체이다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00515",
+      "input": "아뇨, 노래 안하고 있는데요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00516",
+      "input": "우린 이탈리아 피자집에 갔어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00517",
+      "input": "돈은 별로 없지만, 당신과 함께라서 행복해요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00518",
+      "input": "돈인 별로 없지만, 너와 함께라면 행복해.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00519",
+      "input": "왜 그의 성공을 그렇게 확신하고 있는 거지?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00520",
+      "input": "마음먹기에 따라 똑같은 세상이 지옥이 될 수도 있고, 천국이 될 수도 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00521",
+      "input": "그 사람이 가장 사랑하는 건 맏딸이에요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00522",
+      "input": "누가 당신의 개를 돌봅니까?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00523",
+      "input": "당신의 딸을 제게 주십시오.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00524",
+      "input": "그들은 아무것도 주지 않는다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00525",
+      "input": "그가 언제 돌아올지 확실하지 않다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00526",
+      "input": "그녀가 언제 돌아올지 모르겠다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00527",
+      "input": "저는 그녀가 춤을 잘 춘다고 생각합니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00528",
+      "input": "내가 지금 원하는 것은 돈이 아니고 시간이다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00529",
+      "input": "수잔은 그 때 피아노를 치고 있지 않았다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00530",
+      "input": "나는 수학에 있어서 최고다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00531",
+      "input": "그녀는 이틀전에 돌아가셨다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00532",
+      "input": "그가 올때 우리는 경기를 시작 할거에요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00533",
+      "input": "복권에 당첨되면 뜻밖에 백만장자가 될 수 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00534",
+      "input": "그녀가 어디에 있는지 묻고 싶어 죽겠다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00535",
+      "input": "항상 감사드리며 선생님의 노고에 깊은 감사를 표하며...",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00536",
+      "input": "아래의 도표에 적합한 날짜를 기입해 주시면 모든 분들이 다 참석할 수 있는 날을 정하겠습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00537",
+      "input": "시청 앞에는 큰 주차장이 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00538",
+      "input": "주말에는 시내에 항상 교통량이 많다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00539",
+      "input": "운전자들은 항상 보행인을 살펴야 한다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00540",
+      "input": "그 구간의 길이를 과소 평가했다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00541",
+      "input": "나는 마침내 일자리를 구했다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00542",
+      "input": "톰은 마침내 일자리를 구했다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00543",
+      "input": "우리는 전 세계의 우표를 모은다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00544",
+      "input": "소녀는 숲에서 버섯을 따 모았다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00545",
+      "input": "난민들은 여러 교회 기구로부터 지원을 받는다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00546",
+      "input": "피고는 판결에 대항하여 바로 항소하였다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00547",
+      "input": "살인자는 종신형을 선고받았다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00548",
+      "input": "제 남편은 신문을 읽으면서 아침식사를 한다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00549",
+      "input": "그 편지는 무엇에 관한 것입니까?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00550",
+      "input": "내 호버크라프트는 장어로 가득 차 있어요。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00551",
+      "input": "공기없이는 아무것도 살 수 없다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00552",
+      "input": "가장 가까운 지하철역이 어딥니까?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00553",
+      "input": "그 미스터리(불가사의)의 끝을 나에게 알려주지 말아줘.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00554",
+      "input": "이 제품은 이탈리아에서 말들어졌다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00555",
+      "input": "이 시끄러운 소리는 뭐예요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00556",
+      "input": "그 고양이는 무엇을 원해요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00557",
+      "input": "이런 일이 일어난다니 믿을 수가 없어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00558",
+      "input": "제꿈은 작가가 되는 것입니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00559",
+      "input": "그 여자애가 큰 소리로 울면서 어머니를 찾고 있었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00560",
+      "input": "수잔의 음식 솜씨가 훌륭하다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00561",
+      "input": "오늘은 학교에 가지 않는 날이다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00562",
+      "input": "키예프는 우크라이나의 수도입니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00563",
+      "input": "별은 하나도 보이지 않았다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00564",
+      "input": "나는 요코하마에 살고 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00565",
+      "input": "그의 방은 언제나 정돈이 잘 되어 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00566",
+      "input": "어째서 그는 미움을 받는 것인가?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00567",
+      "input": "둘 중에 하나를 선택하지 않으면 안됬다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00568",
+      "input": "어떻게 그의 아버지가 저 남자의 정체를 간파한 것인지 알 수 없어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00569",
+      "input": "그 생각은 아직도 내 머리속에 남아있어",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00570",
+      "input": "나쁜 습관을 버리는건 쉽지 않아요",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00571",
+      "input": "해적들은 항복할 수 밖에 없었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00572",
+      "input": "그의 이름을 아는 사람은 별로 없었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00573",
+      "input": "사람들이 흔히 말하기를 사랑을 하면 눈이 먼다고 한다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00574",
+      "input": "하느님이 천지를 창조하셨다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00575",
+      "input": "연필이 필요하면 제가 빌려줄게요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00576",
+      "input": "상품은 좋은 상태로 도착했다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00577",
+      "input": "의자는 문에서 멀리 떨어져있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00578",
+      "input": "그는 가지 않기로 결정했다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00579",
+      "input": "이 인류학자에 따르면 이 지역에서는 옛날 관습이 아직도 행해지고 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00580",
+      "input": "이 일을 하루만에 끝낸다는 것은 나로서는 불가능하다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00581",
+      "input": "실례합니다만, 그 사진을 한 번 더 봐주시겠습니까?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00582",
+      "input": "그리고 토니가 가장 나이가 많았다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00583",
+      "input": "닭을 못 먹는다고? 먹어보지도 않고 어떻게 알지?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00584",
+      "input": "의사는 그녀에게 집에 있으라고 조언했다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00585",
+      "input": "이 책을 읽는 것은 나에게 쉽다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00586",
+      "input": "급료와는 별도로, 그는 투자로도 돈을 받았다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00587",
+      "input": "이 두 나라가 연합할 가능성은 없다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00588",
+      "input": "메리는 가톨릭계 고등학교에 갔다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00589",
+      "input": "그는 회복될 가능성이 없습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00590",
+      "input": "이 나라에는 축구 경기장이 얼마나 있습니까?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00591",
+      "input": "누가 제 차를 훔처갔어요. 제가 주차한곳에 없어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00592",
+      "input": "인간은 언어로부터 문법을 배우지, 문법으로부터 언어를 배우지 않는다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00593",
+      "input": "우리는 요금을 올릴 것을 제안합니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00594",
+      "input": "편지에 우표 붙이는거 잊지마.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00595",
+      "input": "엄마와 나는 여러모로 다르다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00596",
+      "input": "그 남자는 살인으로 수배중이다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00597",
+      "input": "정말 궁금해서 그러는데, 두 사람 무슨 사이야?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00598",
+      "input": "이 작은 섬이 시야에 들어왔다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00599",
+      "input": "그는 한 가지 언어만 말할 수 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00600",
+      "input": "제가 올 때까지 기다려 주세요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00601",
+      "input": "친구는 항상 해결책을 찾으십시",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00602",
+      "input": "비에도 지지 않고, 바람에도 지지 않고, 눈에도 여름의 더위에도 지지 않는 튼튼한 몸을 가지고 결코 화내지 않으면서 언제나 조용히 웃고 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00603",
+      "input": "길은 몇 마일이나 이어진다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00604",
+      "input": "어젯밤에 난 라디오를 듣고 있었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00605",
+      "input": "그 일은 많은 힘이 필요하다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00606",
+      "input": "저는 코엔지에서 살았습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00607",
+      "input": "나중에 호텔로 연락 바랍니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00608",
+      "input": "그는 모든 실패를 극복했다고 주장한다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00609",
+      "input": "나는 이것이 어디에서 왔는지 모른다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00610",
+      "input": "그는 고기 없이는 살 수 없었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00611",
+      "input": "그는 결코 행복하지 않았다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00612",
+      "input": "나는 이러한 조건에서 일하고 싶지 않다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00613",
+      "input": "나는 생각한다. 그러므로 나는 존재한다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00614",
+      "input": "난 그 아이가 길을 잃까봐 걱정 하고 있어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00615",
+      "input": "생신 축하드려요, Muiriel!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00616",
+      "input": "생신 축하 드립니다, Muiriel!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00617",
+      "input": "생일 축하해요 Muiriel!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00618",
+      "input": "시간 있는지 잘 모르겠습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00619",
+      "input": "요세 어떻게 해야 하는지 모르겠다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00620",
+      "input": "요세 어떻게 해야 하는지 모르겠어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00621",
+      "input": "요세 어떻게 해야 하는지 모르겠습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00622",
+      "input": "작고 횐색 토끼는 '왠 일 있니?\" 물어봤어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00623",
+      "input": "Emily가 편지를 쓰고 있어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00624",
+      "input": "Emily가 편지를 쓰고 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00625",
+      "input": "작고 횐색 토끼는 '무슨 일 있니?\" 라고 물어봤다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00626",
+      "input": "엄마, 난 이걸 입고 싶지 않아.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00627",
+      "input": "엄마, 난 이걸 입고 싶지 않아요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00628",
+      "input": "오늘의 날씨가 어제보다 더 아름답다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00629",
+      "input": "오늘의 날씨가 어제보다 더 아름다워요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00630",
+      "input": "오늘의 날씨가 어제보다 더 아름다워.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00631",
+      "input": "그는 의사가 아니라, 박사다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00632",
+      "input": "그 아이는 보통 여자들과 행동이 달랐다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00633",
+      "input": "너는 분명히 재능이 있는데 더 많이 못 배워서 아쉽구나.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00634",
+      "input": "오늘 날씨가 어제보다 더 좋다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00635",
+      "input": "너 그 사람을 오빠-동생으로 생각하니? 아니면 애인으로 사랑하니?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00636",
+      "input": "내가 있었으니 망정이지 당신 혼자였으면 어쩔 뻔했어요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00637",
+      "input": "사랑과 우정 사이에 경계선을 긋는 것은 매우 어려운 일이다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00638",
+      "input": "아이에게 이치를 말해도 소용없다",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00639",
+      "input": "인수는 학교에 가려고 직장을 잡어치웠다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00640",
+      "input": "우리는 당초의 목표를 달성하지 못했다",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00641",
+      "input": "해를 거듭할수록 고향 생각이 간절하다",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00642",
+      "input": "부뚜막의 소금도 집어넣어야 짜다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00643",
+      "input": "꿈자리가 사나워 잠을 설쳤다",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00644",
+      "input": "그렇게 경우없는 사람은 그냥 무시해 버리세요",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00645",
+      "input": "그는 학교 공부가 좀 처진다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00646",
+      "input": "그런 일을 내가 알 리 만무하지 않나?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00647",
+      "input": "기쁨은 나누면 배가 되고 슬픔은 나누면 반이 된다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00648",
+      "input": "개같이 벌어서 정승같이 쓴다",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00649",
+      "input": "사공이 많으면 배가 산으로 간다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00650",
+      "input": "개는 잘 짖는 다고 좋은 개가 아니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00651",
+      "input": "바늘 도둑이 소 도둑 된다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00652",
+      "input": "우리 집에서 화장실 청소는 항상 내 차지다",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00653",
+      "input": "개도 닷새만 되면 주인을 안다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00654",
+      "input": "개미 구멍이 둑을 무너뜨릴 수도 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00655",
+      "input": "고슴도치에 놀란 호랑이 밤송이 보고 절한다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00656",
+      "input": "똥묻은개 가 겨묻은개를 나무란다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00657",
+      "input": "바보같이 굴지 말고 실속을 차려라.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00658",
+      "input": "하늘의 무지개를 볼 때 내 마음은 설렌다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00659",
+      "input": "그는 그 고아를 양자로 삼았다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00660",
+      "input": "누가 거기에 갈지 나보고 결정하게 하다니 너 참 잔인하구나.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00661",
+      "input": "그녀에 대한 제 사랑이 진실합니다",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00662",
+      "input": "이 노래는 반복이 너무 많다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00663",
+      "input": "그들은 테니스가 인연이 되어 친해졌다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00664",
+      "input": "할머니는 구수한 옛날 얘기를 들려주시곤 했다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00665",
+      "input": "야! 너 인물이 훤해졌구나.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00666",
+      "input": "어떤 여자는 남편을 쥐어흔든다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00667",
+      "input": "먹은 음식이 치밀어 올랐다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00668",
+      "input": "조용한 고양이가 쥐를 잡는다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00669",
+      "input": "감사하는 빛이 그의 얼굴에 역력하다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00670",
+      "input": "여자들은 대부분 화려한 결혼식을 꿈꿔.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00671",
+      "input": "그들이 그렇게 외설적인 언어를 쓰다니 정말 역겹다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00672",
+      "input": "일이 이렇게 많으니 밤새우게 생겼네요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00673",
+      "input": "기름과 물은 혼합되지 않는다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00674",
+      "input": "아무리 머리를 굴려 봐도 답이 안 나와.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00675",
+      "input": "무대에서 쓰러지는 한이 있더라도 공연을 취소할 수는 없습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00676",
+      "input": "어제 술을 너무 많이 마셔서 오늘 머리가 깨질 것처럼 아파요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00677",
+      "input": "혼자 노래방에 간 적도 있어요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00678",
+      "input": "인기 있는 남자, 매력적인 남자는 어떤 남자라고 생각해요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00679",
+      "input": "우리 아이들이 커서 진가를 발휘할때 이 성품이 그 든든한 바탕이 되지 않을까 그런 생각이 듭니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00680",
+      "input": "요즘은 인터넷만 뒤지면 모든 정보와 지식와 호수 그 바다에 풍덩 빠질 수 있을 수 정도로 그런 시대예요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00681",
+      "input": "엄마 내 말 경청 좀 해주세요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00682",
+      "input": "저는 떠들썩한 잔치를 안 좋아해요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00683",
+      "input": "나는 그 사건에 간접적으로 관계되어 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00684",
+      "input": "그는 경험이 있는 선생님이에요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00685",
+      "input": "컴퓨터가 다운되어 모든 자료가 날아갔다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00686",
+      "input": "그만하면 그에게 흡족하게 해 준 거다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00687",
+      "input": "때로는 침묵속에 있는것이 매우 소란 스럽게 여겨질 때가 있는거에요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00688",
+      "input": "이제는 일이 손에 어느 정도 익었어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00689",
+      "input": "서울의 거리는 대부분 깨끗합니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00690",
+      "input": "진수 씨가 저를 도와주신 것을 감사하는 뜻으로 저녁에 초대하려고 해요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00691",
+      "input": "수면 부족이 점차 건강에 영향을 미친다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00692",
+      "input": "수아 씨, 요즘 요가 하신다더니 정말 날씬해지셨네요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00693",
+      "input": "요즘 여행 준비하느라 아주 바쁘시지요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00694",
+      "input": "민주주의의 좋은 점은 바로 이렇다: 누구나 그들의 단편적인 생각을 말할 수 있지만 누구도 거기에 귀를 기울일 필요는 없다는 것이다",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00695",
+      "input": "멀거나 기억 속의 물건을 가르켜 이름.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00696",
+      "input": "다음을 발음이 다른 한 개는?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00697",
+      "input": "앉은 자리에 풀도 안 난다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00698",
+      "input": "우린 서로 첫눈에 반했어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00699",
+      "input": "이것은 그분의 비행기입니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00700",
+      "input": "그분은 학교에 버스로 갑니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00701",
+      "input": "너무 까다롭게 고르면 아무것도 못 받는다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00702",
+      "input": "크리스는 운전할 차가 없었어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00703",
+      "input": "너 언제 론돈에서 돌아 왔어죠?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00704",
+      "input": "할아버지가 팔십 구 세 돼셨어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00705",
+      "input": "늘 그 책을 읽고 싶었어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00706",
+      "input": "아랍어로 쓰는 것은 처음이에요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00707",
+      "input": "아랍어는 어려운 언어가 아니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00708",
+      "input": "경험적 삶이란, 많은 시련들을 겪는 여정이다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00709",
+      "input": "나이를 먹은 여자라면 인생경험으로 알 수가 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00710",
+      "input": "나는 그가 자신의 인생 경험에 대해 열변을 토하는 것을 참을 수가 없다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00711",
+      "input": "삶의 경험은 중요한 지식체계이다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00712",
+      "input": "한 과목 듣긴 했는데, 실전 경험이 훨씬 더 유용한 것 같더라구요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00713",
+      "input": "누군가를 너무도 많이 사랑하여 그것으로 울어 본 적이 있나요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00714",
+      "input": "곧 여기에서 사는 것에 적응될 거예요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00715",
+      "input": "당신이 원한다면 나는 돈을 어느정도 빌려줄 수 있어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00716",
+      "input": "아직도 당신은 인간관계에 대해 많이 배워야 해요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00717",
+      "input": "내 일을 어떻게 하면 되는지 나한테 말하고 있는거에요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00718",
+      "input": "여기 브라질에서 전시되기 위해서 이 예술 작품들이 바다를 건너 왔어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00719",
+      "input": "그는 꽤 젊었을 때부터 대머리가 되기 시작했다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00720",
+      "input": "그녀는 하나의 결점만 없었다면 완벽했을 것이다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00721",
+      "input": "톰은 메리 생각 하느라 시간을 다 보낸다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00722",
+      "input": "당신은 삼일전에 일을 끝냈다고 말했다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00723",
+      "input": "마유코는 내 사과를 한 입 베어물었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00724",
+      "input": "나는 아기를 깨우지 않으려고 문을 살며시 닫았다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00725",
+      "input": "돼지들은 악취가 나지만, 후각이 아주 좋다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00726",
+      "input": "그는 자기 아내에게 늘 진실했었다고 한다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00727",
+      "input": "그의 비위를 맞추기가 너무 힘들다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00728",
+      "input": "도쿄와 모스크바 간을 오가는 항공편이 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00729",
+      "input": "케이트는 잃어버렸던 손목시계를 찾았다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00730",
+      "input": "너무 엄격하게 굴지마라. 그냥 아이들일 뿐이다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00731",
+      "input": "어제 몇명이서 동물원에 갔어요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00732",
+      "input": "그는 방 한쪽에서 다른 쪽으로 갔었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00733",
+      "input": "그녀는 그에게 행복하냐고 물었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00734",
+      "input": "너는 나랑 여기 같이 있으니 안전하다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00735",
+      "input": "트위터의 슬로건은 '당신이 사는 세상에서 지금 무슨 일이 일어나고 있는지 알 수 있는 가장 좋은 방법'이다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00736",
+      "input": "그들이 말하는 남자는 죽은지 오래 됐는데.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00737",
+      "input": "저는 학교에서 나와틀어를 배워요. 멕시코 사람이에요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00738",
+      "input": "우린 그렇게 믿지 않습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00739",
+      "input": "우린 그렇게 생각 안 해요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00740",
+      "input": "봄에 피는 꽃은 여러 가지가 있습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00741",
+      "input": "상황은 우리가 생각했던 것보다 나쁘다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00742",
+      "input": "그는 사과를 가득 채운 봉지를 들고 있었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00743",
+      "input": "책은 어딘가 다른 곳에 있기를 원하는 사람들을 위한 것이다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00744",
+      "input": "나는 해야할 것을 할 것이다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00745",
+      "input": "그녀는 목표에 도달하기 위해 노력했다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00746",
+      "input": "수염 없는 키스는 소금 없는 국과 같다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00747",
+      "input": "난 돈이 다 떨어지고 말았다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00748",
+      "input": "좋은 생각을 가지고 있네요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00749",
+      "input": "일본어를 하는 직원들이 있나요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00750",
+      "input": "교토에서 오는 기차는 몇 시에 도착하나요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00751",
+      "input": "나는 모든 질문들에 대답할 수 있었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00752",
+      "input": "토미는 그 마지막 질문에 대답할 수 없었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00753",
+      "input": "홀은 일본 그림들로 장식되어 있었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00754",
+      "input": "거기에 한번 있었던 적이 있어.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00755",
+      "input": "다행히도 너무 심해지기 전에 불이 꺼졌다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00756",
+      "input": "그들은 톰 없이는 계속할 수 없다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00757",
+      "input": "어제 그는 아무 것도 안 먹었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00758",
+      "input": "하지만, 적절하지 못한 순간이었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00759",
+      "input": "나는 더이상 무시당하는 것을 참지 않겠다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00760",
+      "input": "그는 여기로 오는 중에 길을 잃었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00761",
+      "input": "어느날 빠블로는 과테말라의 정글 속에서 길을 잃었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00762",
+      "input": "새가 날아가 버리고 시야에서 사라졌다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00763",
+      "input": "저번에 잃어버린 시계는 새 거였다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00764",
+      "input": "겨울에 이 모자를 쓰고 다녀야 될 것 같아.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00765",
+      "input": "저는 프랑스어를 혼자서 배워요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00766",
+      "input": "프랑스어는 영어보다 더 어려워요?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00767",
+      "input": "탐이 프랑스어 좀 밖에 못 해요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00768",
+      "input": "저도 당신을 보고 싶었어요.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00769",
+      "input": "엘리자베스가 알리스터를 냉혹하게 죽였다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00770",
+      "input": "그녀가 케이크를 여섯 조각으로 잘라서 애들에게 한조각씩 줬다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00771",
+      "input": "아버지의 사망을 알리는 전화를 받았을 때 나는 완전히 당황했다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00772",
+      "input": "그들은 너무 피곤하여 산을 오를 수 없었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00773",
+      "input": "그녀가 마음을 바꿀 것 같다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00774",
+      "input": "내가 갖고 있는 게 어쩌면 네가 원하는 것일 수도 있어.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00775",
+      "input": "그것의 긍정적인 면을 보자.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00776",
+      "input": "그는 그림에 재능이 있었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00777",
+      "input": "슬퍼하는 여자가 친구들에게서 위안을 받았다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00778",
+      "input": "무료로 그것을 얻을 수 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00779",
+      "input": "무지개를 보고 싶다면 비를 견뎌야 한다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00780",
+      "input": "나에겐 경치 좋은 산이 보이는 방이 있었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00781",
+      "input": "나는 내가 몇살인지 모르겠다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00782",
+      "input": "그는 이웃주민의 행운을 부러워했다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00783",
+      "input": "더 이상 경제적이지 않아서 여객선 운항을 멈췄다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00784",
+      "input": "양치기로 사는 건 나에게 맞지 않는 일이다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00785",
+      "input": "톰이 이 일에는 성격이 잘 맞습니다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00786",
+      "input": "언젠가 아이들은 다 둥지를 떠난다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00787",
+      "input": "언젠가 아이들은 다 보금자리를 떠난다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00788",
+      "input": "그 남자는 많은 대출업자에게서 돈을 빌리는 사람이다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00789",
+      "input": "너는 걔처럼 빨리 수영할 수 있어?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00790",
+      "input": "너가 파티에서 입을 것을 사자.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00791",
+      "input": "이 기사를 읽는것만으로도 그 사고가 얼마나 심각했는지 알 수 있다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00792",
+      "input": "파티 막바지에 그는 아직도 병원에 대해서 뭔가 중얼거리고 있었는데 얼음 조각에 미끄러 넘어져 왼쪽다리를 부러졌다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00793",
+      "input": "나는 비타민C 섭취를 위해 신선한 레몬을 먹었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00794",
+      "input": "나는 네가 진실을 말하는걸 안다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00795",
+      "input": "답장을 아직도 못 받아서 혹시 내 우편물이 너한테 배달되지 않은 건지 궁금했다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00796",
+      "input": "그가 재능있는 예술가인 것은 확실하다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00797",
+      "input": "나는 호수에 스케이트를 타러 갔다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00798",
+      "input": "그 회사가 작년에 십억엔의 손실을 보았다.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ko-00799",
+      "input": "댐 밑에 물방앗간이 있었다.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ko-00000",
+      "input": "Room 304 has the laptops we ordered.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ko-00001",
+      "input": "Bought 5 cookies on the avenue near my office.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ko-00002",
+      "input": "Track #12345 was delivered yesterday.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ko-00003",
+      "input": "I had 5 boxes in storage unit 12.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ko-00004",
+      "input": "Building number 7 was empty.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ko-00005",
+      "input": "Open from January 1990 onwards.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ko-00006",
+      "input": "Floor 3 has the printer.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ko-00007",
+      "input": "Order #98765 is being processed.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ko-00008",
+      "input": "The bus runs every 12 minutes.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ko-00009",
+      "input": "Found 5000 documents in the archive.",
+      "expected": []
+    }
+  ]
+}

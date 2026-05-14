@@ -63,7 +63,15 @@ Ouvre **Paramètres > Gouvernance > Sécurité du contenu**. Définis des catég
 
 #### Détection DCP {#pii-detection}
 
-Active la détection automatique et le masquage (ou blocage) des données à caractère personnel dans les messages. Les patterns intégrés couvrent email, téléphone, numéros de carte et IBAN, adresses au format US et quelques identifiants nationaux ; des regex personnalisées ajoutent des formats internes (matricule, numéros de ticket, références produit). Chaque pattern a son propre mode d’application. Les DCP détectées dans les pièces jointes passent par la même pipeline que les messages saisis.
+Active la détection automatique des données à caractère personnel dans les messages. Les patterns intégrés couvrent **email, téléphone, carte bancaire, IBAN, adresse IP, SSN, cryptogramme, dates de naissance, adresses postales (43 langues), ainsi que pièces d'identité et passeports nationaux** (Personalausweis, NIR, DNI/NIE, Codice Fiscale, BSN, PESEL, NI Number britannique, NAS canadien, PPS irlandais, Aadhaar, 身份证 chinois, My Number japonais, RRN coréen, et 30+ autres). Chaque type d'identifiant utilise la somme de contrôle canonique (ICAO 9303, Luhn, mod-11, Verhoeff, mod-23) pour éviter les faux positifs sur des chaînes aléatoires. Des regex personnalisées ajoutent des formats internes (matricule, numéros de ticket, références produit). Les DCP détectées dans les pièces jointes passent par la même pipeline que les messages saisis.
+
+Trois modes d'application :
+
+- **Masquer** — remplacer chaque correspondance par un espace réservé fixe (`[EMAIL]`, `[PHONE]`, …). Recommandé pour les journaux d'audit et l'historique de chat conservé, où la valeur d'origine n'est plus nécessaire. Sens unique : l'original est perdu.
+- **Bloquer** — rejeter l'intégralité du message. Recommandé lorsque ta politique interdit toute DCP en amont des modèles.
+- **Tokeniser** — remplacer chaque correspondance par un jeton indexé stable (`[EMAIL_1]`, `[PHONE_1]`) et conserver une table de restauration par message en mémoire. Le modèle ne voit que les jetons ; la réponse restitue les détails d'origine. Recommandé pour la meilleure expérience utilisateur sans perte de protection. La table de correspondance reste en mémoire le temps du round-trip puis est détruite — jamais journalisée.
+
+Un **playground de test** intégré dans Paramètres → Gouvernance → DCP montre tout le round-trip en direct : tapez une phrase et observez détection → tokenisation → réponse IA simulée → restauration en temps réel. Survolez chaque surlignage pour voir le type de donnée détecté (traduit).
 
 #### Fournisseur de modération
 

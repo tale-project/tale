@@ -1,0 +1,4065 @@
+{
+  "_meta": {
+    "locale": "ro",
+    "generator": "@tale/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 0,
+      "negatives": 810
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "negatives": [
+    {
+      "id": "neg-prose-ro-00000",
+      "input": "Unu, doi, trei, patru, cinci, șase, șapte, opt, nouă, zece.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00001",
+      "input": "Toate ființele umane se nasc libere și egale în demnitate și în drepturi. Ele sunt înzestrate cu rațiune și conștiință și trebuie să se comporte unele față de altele în spiritul fraternității.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00002",
+      "input": "Bine ați venit!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00003",
+      "input": "„Mulțumesc.” — „Cu plăcere.”",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00004",
+      "input": "Vorbiți italiană?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00005",
+      "input": "Vorbești italiană?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00006",
+      "input": "Vorbiți japoneză?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00007",
+      "input": "Vorbești japoneză?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00008",
+      "input": "Vorbiți engleză?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00009",
+      "input": "Vorbești engleză?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00010",
+      "input": "Bună dimineața la toată lumea.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00011",
+      "input": "Bună dimineața.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00012",
+      "input": "Noapte bună, mamă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00013",
+      "input": "Mulțumesc foarte mult!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00014",
+      "input": "Bună seara, ce faci?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00015",
+      "input": "Bună seara, ce mai faceți?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00016",
+      "input": "Domnul Spencer lucrează la magazin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00017",
+      "input": "Zăpada a acoperit tot orașul peste noapte.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00018",
+      "input": "Biroul domnului Popescu este la etajul zece.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00019",
+      "input": "Nori negri treceau deasupra orașului.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00020",
+      "input": "Transmite-i, te rog, salutări doamnei Andreescu!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00021",
+      "input": "Sâmbătă am fost la film, apoi la restaurant.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00022",
+      "input": "Am trecut pe la librărie și mi-am cumpărat o carte interesantă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00023",
+      "input": "L-am văzut pe Ion la bibliotecă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00024",
+      "input": "Vino aici, fetițo, stai jos!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00025",
+      "input": "Poftiți, doamnă, serviți-vă!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00026",
+      "input": "Doamnă Ionescu, aș vrea să vă întreb ceva.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00027",
+      "input": "Domnule, vă rog completați acest formular.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00028",
+      "input": "Sora mea mai mică este profesoară, cea mai mare, doctoriță.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00029",
+      "input": "Clădirea ONU este foarte impunătoare.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00030",
+      "input": "Tatăl meu și-a oferit serviciile unei companii de comerț bine cunoscută.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00031",
+      "input": "În ultima vreme s-a discutat mult despre arhitectura noii școli.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00032",
+      "input": "Astăzi vremea e frumoasă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00033",
+      "input": "Copacii erau foarte rari.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00034",
+      "input": "O ploaie rece a căzut peste oraș.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00035",
+      "input": "Este frumos astăzi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00036",
+      "input": "Românii din Transilvania vorbesc foarte lent.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00037",
+      "input": "Domnul Anton le-a vorbit rece.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00038",
+      "input": "Îmi place baclavaua.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00039",
+      "input": "Îmi face plăcere să merg pe jos.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00040",
+      "input": "Îți plăcea să mergi la expoziții în România?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00041",
+      "input": "Îi voi da cartea mâine.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00042",
+      "input": "La început vă displăcuse ideea, dar acum păreți mulțumiți.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00043",
+      "input": "Daniela mi-a telefonat acasă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00044",
+      "input": "Ți-aș oferi o cafea dacă ai timp.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00045",
+      "input": "Ni s-a spus că, din cauza zăpezii, putem pleca acasă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00046",
+      "input": "O întâlnesc pe Mihaela în fiecare dimineață, la metrou.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00047",
+      "input": "Am întâlnit-o pe Mihaela la stația de metrou.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00048",
+      "input": "Când o întâlnisem în București, Anca era studentă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00049",
+      "input": "Dacă aș vedea-o pe Anca, probabil că nu aș recunoaște-o.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00050",
+      "input": "Cum te numești?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00051",
+      "input": "Mie îmi place foarte mult primăvara, nu mi-a plăcut niciodată vara.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00052",
+      "input": "Dacă ne aduceți câteva cărți, timpul ni se va părea mai scurt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00053",
+      "input": "Ar fi bine să ne telefonați sâmbătă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00054",
+      "input": "Ți-am spus să vii oricând îți convine.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00055",
+      "input": "V-am trimis o scrisoare săptămână trecută și vă trimit încă una azi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00056",
+      "input": "Dacă așa vi s-a spus, probabil că e corect.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00057",
+      "input": "Lui Dan i-am cumpărat o cravată, Elenei îi cumpăr un fular.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00058",
+      "input": "Când îi vedeți pe Popești, transmiteți-le, vă rog, salutări de la noi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00059",
+      "input": "Dacă le întâlniți pe surorile Orleanu, invitați-le la ziua Ruxandrei. Să nu-l uitați nici pe fratele lor.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00060",
+      "input": "Prima dată i-am văzut pe fotbaliștii români la Madrid.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00061",
+      "input": "Imediat ce îi contactați pe prietenii dumneavoastră, spuneți-le că se apropie o avalanșă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00062",
+      "input": "Mașina mea e Ford, ca și a dumneavoastră.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00063",
+      "input": "Numele meu este românesc, al lui e american.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00064",
+      "input": "Copiii noștri sunt la școală, unde sunt ai dumneavoastră?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00065",
+      "input": "Cărțile mele sunt în limba română, ale ei sunt în engleză.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00066",
+      "input": "Care este mai completă, prima ediție sau a doua?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00067",
+      "input": "Profesoara care a luat cuvântul este de la Universitatea București.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00068",
+      "input": "Colega al cărei soț este francez a plecat la Paris.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00069",
+      "input": "Au venit la petrecere toți prietenii cărora le-am trimis invitații.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00070",
+      "input": "Nu mă pot hotărî pe care rochie să o cumpăr.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00071",
+      "input": "Pentru cine bat clopotele?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00072",
+      "input": "Nu sunt sigură cui să-i dau acest cadou: fetei sau băiatului?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00073",
+      "input": "Am găsit un bilet pe birou, dar nu știu al cui este.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00074",
+      "input": "Ce crezi că are de gând Dana?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00075",
+      "input": "Nu știu ce să mai cred.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00076",
+      "input": "Ce s-a'ntâmplat?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00077",
+      "input": "Nu sunt sigur cât trebuie să așteptăm.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00078",
+      "input": "Câtă miere folosiți la prăjitura asta?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00079",
+      "input": "Câtor studenți le-ați dat nota maximă?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00080",
+      "input": "Să vedem care pe care!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00081",
+      "input": "Studentul acesta este american.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00082",
+      "input": "Acest student este american.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00083",
+      "input": "Am discutat deja cu acest student.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00084",
+      "input": "Am discutat deja cu studentul acesta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00085",
+      "input": "Cărțile studentului acestuia sunt noi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00086",
+      "input": "Cărțile acestui student sunt noi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00087",
+      "input": "I-am dat cărțile acestui student.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00088",
+      "input": "I-am dat cărțile studentului acestuia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00089",
+      "input": "Avem aceleași intenții, dar nu același mod de operare.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00090",
+      "input": "Anul acesta oferim același curs de limbă ca și anul trecut.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00091",
+      "input": "Vara aceasta nu s-au mai acordat burse acelorași studenți ca anul trecut.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00092",
+      "input": "Am cumpărat o singură carte pe care i-am dat-o unui student.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00093",
+      "input": "Cât despre studenți, unul a plecat deja la București și una e pe drum.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00094",
+      "input": "Am fost la masă cu doi americani și două nemțoaice.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00095",
+      "input": "În primul rând, vreau să vă mulțumesc pentru ospitalitate.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00096",
+      "input": "Aceasta a fost a cincea carte a Rodicăi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00097",
+      "input": "Prietenul nostru a terminat cursa al doilea.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00098",
+      "input": "I-ați invitat și pe prietenii dumneavoastră, nu-i așa?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00099",
+      "input": "Sunteți germani, nu-i așa?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00100",
+      "input": "Vreți să vedeți un film francez, nu-i așa?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00101",
+      "input": "Când lucram la o școală publică, aveam cincisprezece elevi în clasă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00102",
+      "input": "În Franța ați lucrat la ambasadă sau la consulat?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00103",
+      "input": "Când veți merge în România, o să vizitați Castelul lui Dracula.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00104",
+      "input": "Vreți să mergeți la film sau la teatru?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00105",
+      "input": "V-ar interesa un proiect la care ați lucra cu plăcere?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00106",
+      "input": "V-am văzut lucrând și nu v-am deranjat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00107",
+      "input": "Mâine duc cărțile la bibliotecă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00108",
+      "input": "Vara mă duc la piscină în fiecare zi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00109",
+      "input": "Îmi duc hainele la curățat de două ori pe lună.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00110",
+      "input": "Cunosc istoria Europei foarte bine.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00111",
+      "input": "Imediat ce mă scol, pregătesc cafeaua.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00112",
+      "input": "Îmi spăl mașina în fața casei fără probleme.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00113",
+      "input": "Am adus câteva cărți românești pentru studenți.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00114",
+      "input": "Mi-am adus câteva cărți de citit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00115",
+      "input": "În fiecare zi orele încep la nouă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00116",
+      "input": "Când era studentă, mergea des la discotecă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00117",
+      "input": "Când era studentă, a mers la discotecă numai o dată.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00118",
+      "input": "Când veți merge în România, o să vedeți mai multe.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00119",
+      "input": "Vă trimisesem deja scrisoarea când mi-ați dat telefon.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00120",
+      "input": "Răzvan tocmai plecă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00121",
+      "input": "Să vedem ce se va întâmpla.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00122",
+      "input": "Aș vrea să beau o cafea.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00123",
+      "input": "Mi-ar fi plăcut să fi văzut 'Casablanca' când s-a discutat acest film.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00124",
+      "input": "Aș merge la film dacă aș avea timp.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00125",
+      "input": "Merg la film dacă am timp.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00126",
+      "input": "Mergeam la film dacă aveam timp.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00127",
+      "input": "Aș fi mers la film dacă aș fi avut timp.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00128",
+      "input": "Dați-mi, vă rog, un bilet pentru spectacolul de la ora șapte.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00129",
+      "input": "Nu vă deranjați, mă descurc singur.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00130",
+      "input": "Nu pot înțelege ce s-a întâmplat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00131",
+      "input": "Când am văzut că plouă, mi-am luat umbrela.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00132",
+      "input": "În weekend am mult de spălat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00133",
+      "input": "Am dus hainele la curățat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00134",
+      "input": "Curând trebuie să merg la tuns.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00135",
+      "input": "Am văzut-o pe Andreea plecând de acasă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00136",
+      "input": "Plecam la munte dacă aveam bani.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00137",
+      "input": "Aș fi plecat la munte dacă aș fi avut bani.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00138",
+      "input": "Vara aceasta vom merge la munte și la mare.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00139",
+      "input": "Vara aceasta mergem la munte și la mare.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00140",
+      "input": "Bogdan a spus că va fi acolo mâine.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00141",
+      "input": "Merg la serviciu în fiecare zi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00142",
+      "input": "Am vizitat România acum câțiva ani.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00143",
+      "input": "L-am vizitat pe Dan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00144",
+      "input": "Îi văd pe Dan și Andrei.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00145",
+      "input": "Le văd pe Dana și Corina.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00146",
+      "input": "Am văzut-o pe Dana.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00147",
+      "input": "Nici măcar nu încerci să mă ajuți.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00148",
+      "input": "Nu sunt misogin; și dacă aș fi, pentru tine aș face o excepție.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00149",
+      "input": "Ai perfectă dreptate.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00150",
+      "input": "Mi-a dat niște cărți.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00151",
+      "input": "La dracu’ cu tine!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00152",
+      "input": "Respectul este temelia vieții.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00153",
+      "input": "Credeam că mi-amintesc de tine zicând asta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00154",
+      "input": "Ai grijă de tine.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00155",
+      "input": "Are părul scurt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00156",
+      "input": "Nu vorbesc japoneza.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00157",
+      "input": "Capitala Italiei este Roma.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00158",
+      "input": "Lipsește o furculiță.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00159",
+      "input": "Vă rog să nu vorbiți atât de repede.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00160",
+      "input": "Lipsește un cuțit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00161",
+      "input": "Cum este vremea acolo?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00162",
+      "input": "Scuzați, m-am rătăcit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00163",
+      "input": "Windows este sistemul de operare cel mai folosit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00164",
+      "input": "Te rugăm să fii politicos.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00165",
+      "input": "Mulțumesc mult!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00166",
+      "input": "Petrecerea s-a terminat la nouă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00167",
+      "input": "Eu am făcut duș înainte să iau micul dejun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00168",
+      "input": "Camera mea este foarte mică.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00169",
+      "input": "Să ne gândim la ce poate fi mai rău.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00170",
+      "input": "Eu mănânc tăiței.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00171",
+      "input": "Este un cuvânt pentru care aș vrea sa găsesc un înlocuitor.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00172",
+      "input": "Noi vom continua studiul acest cărții până la sfârșitul anului.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00173",
+      "input": "Noi am trăit în Osaka timp de zece ani înainte de a ne muta in Tokyo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00174",
+      "input": "El i-a pus o întrebare doamnei care stătea lângă el.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00175",
+      "input": "Am accentuat ideea.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00176",
+      "input": "Să decidem ce avem de decis, apoi să ne împărțim in două echipe, OK?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00177",
+      "input": "Să nu așteptați atât de mult de la el.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00178",
+      "input": "Ei îi place foarte mult școala sa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00179",
+      "input": "Acesta este un hotel de trei stele; trei sute de dolari pe noapte.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00180",
+      "input": "De ce a cumpărat o trambulină proprietarul de șaizeci de ani al locuinței unde stau?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00181",
+      "input": "Nimeni nu trăiește in această casă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00182",
+      "input": "Străzile noastre se inundă când plouă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00183",
+      "input": "Eu știu numele său.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00184",
+      "input": "Puțini studenți știu să citească în latină.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00185",
+      "input": "Înțelepciunea nu vine în mod automat cu vârsta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00186",
+      "input": "El a fost convins să fie mai rezonabil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00187",
+      "input": "Pisica este adorabilă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00188",
+      "input": "Nu îmi place genul acesta de casă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00189",
+      "input": "Eu sunt satisfăcut de acești pantofi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00190",
+      "input": "Eram în căutarea unei locuințe de închiriat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00191",
+      "input": "Ea va strânge vesela de pe masă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00192",
+      "input": "Noi adesea dăm peste turiștii japonezi în această zonă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00193",
+      "input": "Există librării puține în această zonă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00194",
+      "input": "Femeia mănâncă o portocală.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00195",
+      "input": "Ea a încremenit în picioare ca și cum ar fi văzut o fantomă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00196",
+      "input": "După cum scrie in Biblie, omul nu este întotdeauna perfect.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00197",
+      "input": "Voi veni și eu mai târziu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00198",
+      "input": "Nu se poate în ambele moduri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00199",
+      "input": "Către cei care vor să distrugă lumea: vă vom înfrânge.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00200",
+      "input": "Nu veți întâmpina probleme.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00201",
+      "input": "El mă tratează ca și cum aș fi un străin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00202",
+      "input": "Drumul este drept, dar panta este abruptă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00203",
+      "input": "Autorul a dedicat cartea surorii sale.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00204",
+      "input": "Vă rugam să așteptați treizeci de minute.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00205",
+      "input": "Această cameră nu este potrivită pentru dormit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00206",
+      "input": "Autobuzele vor ajunge în stație după cinsprezece minute.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00207",
+      "input": "Nu toate browserele de internet sunt sigure.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00208",
+      "input": "Bogdan Tanjevic demisionează din cauza unui cancer la colon.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00209",
+      "input": "Guus Hiddink este olandez.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00210",
+      "input": "Cred că limba germană este cea mai bună limbă din lume.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00211",
+      "input": "Yumi Ishiyama este cel mai vechi membru al Team Lyoko.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00212",
+      "input": "Prietena sa este japoneză.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00213",
+      "input": "Vă rugăm să fiți politicos.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00214",
+      "input": "Lisa Lillien este măritată cu Dan Schneider.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00215",
+      "input": "Matematica este o materie bună.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00216",
+      "input": "Cât este ceasul?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00217",
+      "input": "Sumatra este o insulă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00218",
+      "input": "Pakistan este o țară musulmană.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00219",
+      "input": "Să nu faceți zgomot.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00220",
+      "input": "Cel care, mai ieri, socotea că îndrumă, conduce — se pomenește dintr-o dată întins țeapăn într-o cutie de lemn, iar cei din jur, dându-și seama că nu mai e bun de nimic, îl ard într-un cuptor.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00221",
+      "input": "”Mulțumesc.” ”Cu plăcere.”",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00222",
+      "input": "Aș vrea un dicționar bun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00223",
+      "input": "Dacă pui un pisoi între două balene, o să-i fie cald.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00224",
+      "input": "Unde dai și unde crapă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00225",
+      "input": "Dacă cineva ridică din sprânceană, poate însemna \"Vreau să fac sex cu tine\", dar și \"Ceea ce tocmai ai spus mi se pare o mare prostie.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00226",
+      "input": "Există oameni atât de flămânzi în lume, încât Dumnezeu nu le poate apărea decât sub formă de pâine.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00227",
+      "input": "Vinul e poezie turnată într-o sticlă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00228",
+      "input": "Matematicienii sunt ca francezii: orice le-ați spune, ei îl traduc pe limba lor și îl transformă în cu totul altceva.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00229",
+      "input": "Tânăr e, dar trebuie să întrețină o familie numeroasă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00230",
+      "input": "Ea a reacționat spontan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00231",
+      "input": "Voiam să devin filozof.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00232",
+      "input": "Democrația este cea mai proastă formă de guvernământ, cu excepția tuturor celorlalte care au fost încercate.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00233",
+      "input": "E puțină apă în găleată.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00234",
+      "input": "Fiul tău a devenit bărbat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00235",
+      "input": "În fiecare duminică după-amiaza merg la târg.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00236",
+      "input": "Tom a ajuns ultimul.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00237",
+      "input": "Tom s-a căsătorit cu o femeie mai în vârsta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00238",
+      "input": "Nu-mi place nisipul. E aspru și zgrunțuros și iritant plus că se lipește peste tot.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00239",
+      "input": "Motivul principal pentru care prietenii își părăsesc prietenii pe Facebook e din cauza prea multor postări inutile.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00240",
+      "input": "A fost cât pe ce să-mi uit umbrela în tren.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00241",
+      "input": "Mă țin întotdeauna de promisiune.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00242",
+      "input": "Sunt un vegetarian care mănâncă tone de carne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00243",
+      "input": "Am o durere de cap teribilă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00244",
+      "input": "El e licențiat în drept.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00245",
+      "input": "Orice ai spune, răspunsul e \"nu\".",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00246",
+      "input": "Nici în ruptul capului!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00247",
+      "input": "Câți băieți sunt în clasa ta?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00248",
+      "input": "Expoziția este deschisă încă o lună.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00249",
+      "input": "Ea și prietenii ei sunt înnebuniți după muzica.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00250",
+      "input": "Mi-am pierdut codul pin!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00251",
+      "input": "Nu vreau să fiu văzut în compania lui.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00252",
+      "input": "O să-mi vizitez prietenul la spital o dată la două zile.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00253",
+      "input": "Să gândim ceea ce nu simțim înseamnă sa ne mințim pe noi înșine, în același mod în care ii mințim pe ceilalți când nu spunem ceea ce gândim.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00254",
+      "input": "Nu a fost deloc recunoscător fostului său profesor.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00255",
+      "input": "Ea nu are permis de conducere.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00256",
+      "input": "O traducere e ca o femeie. Dacă e frumoasă, nu e fidelă. Dacă e fidelă, nu este cu siguranţă frumoasă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00257",
+      "input": "Într-un articol recent despre activităţi care să-ţi antreneze mintea, se menţionează Esperanto precum şi Sudoku, ceea ce denotă ca Esperanto devine parte a culturii de masă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00258",
+      "input": "Dacă putem compara o limba maternă cu un copac, care s-a dezvoltat de-a lungul timpului, Esperanto poate fi comparată cu un copac artificial, care a fost creat artificial.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00259",
+      "input": "Acel tip e dus cu pluta!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00260",
+      "input": "Acest cuvânt e de origine greacă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00261",
+      "input": "Bună ziua, cum vă pot fi de folos?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00262",
+      "input": "Nu lăsa pe mâine ce poţi face poimâine.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00263",
+      "input": "Mi-e o foame de lup.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00264",
+      "input": "Ei sunt colegii mei.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00265",
+      "input": "Ea îşi dă aere cât de frumoasă e.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00266",
+      "input": "Se pare că am făcut o greșeală.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00267",
+      "input": "Ați putea da volumul mai încet?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00268",
+      "input": "Nu sunt o persoană matinală.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00269",
+      "input": "Mă doare în gât şi îmi curge nasul.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00270",
+      "input": "Sunt și pisici pe Marte.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00271",
+      "input": "Caii nu pasc flori galbene, acestea rămân pur şi simplu pe pajişte.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00272",
+      "input": "Așteaptă-mă. Ajung acolo în maxim zece minute.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00273",
+      "input": "Dacă te plictisești, poți să contribui pe Tatoeba.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00274",
+      "input": "Nu, nu poate fi adevărat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00275",
+      "input": "Seara el iese în oraș să bea ceva.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00276",
+      "input": "Avem o bibliotecă minunată în incinta școlii.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00277",
+      "input": "Mă dor picioarele.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00278",
+      "input": "Vorbiți mai rar, vă rog.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00279",
+      "input": "Fata își spălă părul.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00280",
+      "input": "Este cald astăzi, deci ai putea înota în mare.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00281",
+      "input": "A decis în cele din urmă să se căsătorească.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00282",
+      "input": "Vreau sa-ți povestesc ceva ciudat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00283",
+      "input": "El a picat din nou?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00284",
+      "input": "Am fost foarte fericit când am auzit acea veste.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00285",
+      "input": "Bineînțeles, el are dreptate.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00286",
+      "input": "Mobilierul din acest birou este foarte modern.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00287",
+      "input": "Când era tânără, era foarte renumită.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00288",
+      "input": "Când a fost tânăr, a muncit cu sârguinţă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00289",
+      "input": "Casa sa este foarte modernă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00290",
+      "input": "Nu sunt interesat de arta contemporană.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00291",
+      "input": "Nu mai am nimic important de spus.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00292",
+      "input": "Ce limba se vorbeşte în țara ta?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00293",
+      "input": "Greaca nu e o limbă uşoară.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00294",
+      "input": "Jorge vorbește patru limbi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00295",
+      "input": "Sadako voia să mai spună ceva, dar gura parcă îi înţepenise.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00296",
+      "input": "Sadako voia sa mai spună ceva, dar buzele îi înțepeniseră.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00297",
+      "input": "Majoritatea elvețienilor vorbesc două sau trei limbi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00298",
+      "input": "Nu locuim în ţări, locuim în limbile noastre. Aceea e casa ta, acolo şi nicăieri altundeva.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00299",
+      "input": "El munceşte pentru ea.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00300",
+      "input": "El lăsă totul la voia întâmplării.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00301",
+      "input": "Copiii îşi spală picioarele.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00302",
+      "input": "George e sărac dar fericit întotdeauna.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00303",
+      "input": "Asta e cheia pe care o cauţi?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00304",
+      "input": "Aceea e maşina ta?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00305",
+      "input": "Dorința e pentru cei care cred în îndeplinirea ei.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00306",
+      "input": "\"Înţeleg perfect italiana,\" se lăudă ea în timp ce alegea meniul, dar când i-a fost servită mâncarea, nu era nicidecum ce aşteptase.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00307",
+      "input": "Nu-ți fie teamă să vorbești în fața unui public.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00308",
+      "input": "M-am uitat împrejur şi am observat că maşina mea era singura pe sosea.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00309",
+      "input": "Preţul acestei cărţi a fost redus la jumătate.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00310",
+      "input": "Numele tău se află în capul listei.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00311",
+      "input": "Știi cine e blonda înaltă îmbrăcata în verde?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00312",
+      "input": "Datorită acestui accident s-au pierdut multe vieți.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00313",
+      "input": "Sunt împotriva oricărui fel de război.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00314",
+      "input": "Este pentru prima dată când el locuieşte în propria lui casă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00315",
+      "input": "Există conexiune la internet în acest sat?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00316",
+      "input": "După unii, gimnastica matinală poate fi dăunătoare.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00317",
+      "input": "Lucrezi acum cu jumătate de normă sau cu normă întreagă?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00318",
+      "input": "După nașterea copilului trebuie să lucrezi jumătate de normă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00319",
+      "input": "Fac întotdeauna exerciţii fizice după trezire şi înainte de culcare.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00320",
+      "input": "Mă surprinzi mereu cu sosirile tale neașteptate.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00321",
+      "input": "Muzica clasică mă linişteşte, pe când cea modernă îmi creează efectul opus.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00322",
+      "input": "Din când în când o meditaţie de câteva minute peste zi îmi dă o stare de bine.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00323",
+      "input": "La începutul fiecărui sfârşit de săptămână sunt în acelaşi timp obosit şi bucuros.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00324",
+      "input": "El continuă să citească din carte.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00325",
+      "input": "Vorbiți puțin mai tare vă rog.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00326",
+      "input": "Acest suc are gust acru.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00327",
+      "input": "Ea lucrează zi și noapte.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00328",
+      "input": "Ea a cumpărat două perechi de şosete.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00329",
+      "input": "Tatăl meu nu este acasă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00330",
+      "input": "Dacă plouă diseară, nu plec de acasă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00331",
+      "input": "Îmi face plăcere să vă cunosc!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00332",
+      "input": "Această brânza este făcută din lapte de oaie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00333",
+      "input": "Lui Tom nu-i place brânza.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00334",
+      "input": "Brânza nu se digeră repede.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00335",
+      "input": "Mama ne-a pregătit sandvișuri cu brânză pentru prânz.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00336",
+      "input": "Îmi dai brânza cremă te rog?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00337",
+      "input": "Se afla o moară de apă sub baraj.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00338",
+      "input": "Micul dejun este gata.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00339",
+      "input": "Am sărit peste micul dejun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00340",
+      "input": "Ai luat deja prânzul?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00341",
+      "input": "După prânz ne-am uitat la televizor.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00342",
+      "input": "Mama e ocupată cu gătitul cinei.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00343",
+      "input": "Cine nu vrea să lucreze, nici să nu mănânce.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00344",
+      "input": "Toți cei ce scot sabia, de sabie vor pieri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00345",
+      "input": "Ce se va întâmpla cu ea?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00346",
+      "input": "Vederea slabă este un handicap pentru un atlet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00347",
+      "input": "Pe ce linie pentru Boston?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00348",
+      "input": "Daca nu m-ar fi ajutat ea, nu aş mai fi viu acum.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00349",
+      "input": "A renunţat la visul de a fi pilot.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00350",
+      "input": "A abandonat visul de a fi pilot.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00351",
+      "input": "Probabil, dar el vrea ca să renunţ dintr-odată.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00352",
+      "input": "Dragostea e cea care conduce lumea.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00353",
+      "input": "Iubirea este cea care conduce lumea.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00354",
+      "input": "La hotelul Hilton, vă rog!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00355",
+      "input": "Nu pot să ţin pasul cu schimbările astea în modă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00356",
+      "input": "Naivul bărbat era extrem de stânjenit în prezenţa ei.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00357",
+      "input": "Studenţilor care sosesc târziu nu le va fi permisă intrarea în cămin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00358",
+      "input": "Studenţilor întârziaţi nu le va fi permisă intrarea în cămin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00359",
+      "input": "Cel mult patruzeci la sută dintre studenţi continuă universitatea.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00360",
+      "input": "Când aduni trei cu patru, obţii şapte.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00361",
+      "input": "Numele şi numărul zborului dumneavoastră, vă rog!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00362",
+      "input": "Poţi să-l alegi pe care îl vrei.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00363",
+      "input": "Poţi s-o alegi pe care o vrei.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00364",
+      "input": "El a decis o nouă politică.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00365",
+      "input": "Ți-aș da orice însă nu și ăsta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00366",
+      "input": "Nu îşi ascultă întotdeauna părinţii.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00367",
+      "input": "Poți alege orice carte vrei.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00368",
+      "input": "Poţi alege orice.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00369",
+      "input": "E ieftin, nu-i aşa?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00370",
+      "input": "Nu bea decât la ocazii speciale.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00371",
+      "input": "Nu am văzut niciodată un apus de soare atât de frumos.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00372",
+      "input": "Crăciun fericit!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00373",
+      "input": "Cred că acest pește este un pește de apă dulce.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00374",
+      "input": "Nu îmi place peștele făcut pe grătar, cu atât mai puțin peștele crud.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00375",
+      "input": "Aerul este pentru oameni ceea ce apa este pentru pești.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00376",
+      "input": "Ei îi place să pescuiască.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00377",
+      "input": "Lui îi place să pescuiască.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00378",
+      "input": "Nu are nimic a face cu mine.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00379",
+      "input": "Îți place floarea aceasta?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00380",
+      "input": "Acest fapt îi dovedește nevinovăția.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00381",
+      "input": "La ce oră te-ai obișnuit să te duci la culcare?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00382",
+      "input": "Cu ce vă pot fi de folos astăzi, domnule?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00383",
+      "input": "A fost cu adevărat interesant.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00384",
+      "input": "Acest roman mă plictisește.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00385",
+      "input": "Cum se numește acest râu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00386",
+      "input": "Deschide-ți cartea la pagina zece.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00387",
+      "input": "Ea a promovat examenul de engleză.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00388",
+      "input": "De ce mă iubești?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00389",
+      "input": "Unde locuiești?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00390",
+      "input": "Acela este tatăl nostru.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00391",
+      "input": "Aceasta este mama mea.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00392",
+      "input": "Am vrut să cumpăr cartea.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00393",
+      "input": "Dacă un triunghi are două unghiuri drepte, atunci este un pătrat căruia îi lipsește o latură.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00394",
+      "input": "Acesta este cuvântul pe care l-am găsit in dicționar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00395",
+      "input": "Cine este autorul acestei cărți?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00396",
+      "input": "Fusese in Kyoto de două ori.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00397",
+      "input": "Lui Einstein îi plăcea sa cânte la vioară.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00398",
+      "input": "Tu crezi că așa ceva este posibil?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00399",
+      "input": "Mâine mă duc la Paris.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00400",
+      "input": "Ea este Li Ying.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00401",
+      "input": "Viața este scurtă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00402",
+      "input": "Cartea este mare.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00403",
+      "input": "Cartea este albă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00404",
+      "input": "Ea nu are foarte multe cărți.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00405",
+      "input": "Am văzut câinele.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00406",
+      "input": "Nu suntem niciodată atât de fericiţi sau de nefericiţi pe cât credem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00407",
+      "input": "Ieri am mâncat un măr.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00408",
+      "input": "Voi rămâne acasă astăzi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00409",
+      "input": "Nu se poate respira aici.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00410",
+      "input": "Poţi rezolva această problemă?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00411",
+      "input": "Nu sunt atât de idiot încât sa te cred.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00412",
+      "input": "Îţi place floarea aceasta?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00413",
+      "input": "Drapelul roșu indică prezența unui pericol.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00414",
+      "input": "Mi-e dor de tine.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00415",
+      "input": "Toţi străinii care vizitează Japonia spun că preţurile aici sunt prea mari.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00416",
+      "input": "El a ţinut un jurnal în timpul călătoriei.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00417",
+      "input": "Călătoria lor a fost amânată din cauza ploii.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00418",
+      "input": "În lipsa partenerului meu de călătorie, am fost singur în câteva excursii.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00419",
+      "input": "Agenţia de voiaj ne-a furnizat toate detaliile turului.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00420",
+      "input": "A călători cu vaporul durează mai mult decât a călători cu maşina.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00421",
+      "input": "Îmi place să călătoresc.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00422",
+      "input": "Lucrez la o agenție de voiaj.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00423",
+      "input": "Agentul de voiaj ne-a sugerat să luăm cu noi câteva cecuri de călătorie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00424",
+      "input": "Studiul făcut de ei arată că americanii nu sunt interesați de Japonia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00425",
+      "input": "A fost uimit de prostia sa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00426",
+      "input": "Vreau să mă fac reporter sportiv.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00427",
+      "input": "L-am pierdut pe fiul meu acum aproape un deceniu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00428",
+      "input": "Acest peşte miroase urât.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00429",
+      "input": "Copiii încep să ne scape de sub control.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00430",
+      "input": "Acum că sunt adult, gândesc altfel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00431",
+      "input": "Am mâncat până mi s-a făcut rău.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00432",
+      "input": "Betty nu poate deosebi binele de rău.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00433",
+      "input": "Primul Ministru a semnat un acord comercial între cele două ţări.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00434",
+      "input": "N-am puteam să tolerez lipsa lui de politeţe.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00435",
+      "input": "Nu sunt obişnuit să mă scol atât de devreme.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00436",
+      "input": "Este o fotografie recentă?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00437",
+      "input": "Modestul lor venit nu le permite multe luxuri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00438",
+      "input": "Bogăţia lui nu l-a făcut fericit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00439",
+      "input": "Ieri Betty a fost la mare.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00440",
+      "input": "Se va despărţi de prietenul ei.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00441",
+      "input": "Pot citi cu uşurinţă în spaniolă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00442",
+      "input": "În zilele de azi nu este neobișnuit pentru o femeie sa călătorească singură.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00443",
+      "input": "Toată lumea admiră picturile sale.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00444",
+      "input": "Înveţi ceva nou in fiecare zi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00445",
+      "input": "Urmăreşti dezbaterile parlamentare?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00446",
+      "input": "Am cerut să li se permită sa plece.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00447",
+      "input": "Domnul Suzuki nu este dentist, ci medic.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00448",
+      "input": "Din curiozitate, am deschis cutia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00449",
+      "input": "Acest subiect ar trebui discutat in detaliu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00450",
+      "input": "L-am pus pe fiul meu să ude peluza.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00451",
+      "input": "Te las pe tine să cumperi biletele.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00452",
+      "input": "Mă doare braţul rău.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00453",
+      "input": "Nu sunt ocupat acum.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00454",
+      "input": "El mănâncă mult.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00455",
+      "input": "Din câte știu, el nu a făcut niciodată aşa o greşeală.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00456",
+      "input": "Mary s-a ataşat foarte tare de fetiţa aceea.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00457",
+      "input": "El a jucat un rol foarte important în afacere.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00458",
+      "input": "Am fost foarte impresionat de discursul său.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00459",
+      "input": "Mama mea a plecat ieri la cumpărături în centru.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00460",
+      "input": "Înțeleg că el este mulțumit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00461",
+      "input": "Ai vrea să mergi cu mine la cumpărături?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00462",
+      "input": "Elefanții sunt cele mai mari animale terestre care trăiesc în ziua de astăzi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00463",
+      "input": "Ea nu știe cum să conducă o mașină.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00464",
+      "input": "Toţi oamenii sunt egali în drepturi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00465",
+      "input": "Ai avut un weekend plăcut?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00466",
+      "input": "Ai avut un sfârşit de săptămână plăcut?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00467",
+      "input": "Ascultându-l pe Mahler, Lyusya se gândea mereu la moarte şi la viaţa eternă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00468",
+      "input": "Dacă este adevărat că grecii le interziceau femeilor să meargă la teatru, atunci procedau corect; pentru că așa cu siguranța ar fi putut să audă ceva.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00469",
+      "input": "Formează câte o propoziție cu fiecare dintre aceste cuvinte.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00470",
+      "input": "Tu nu-ți amintești; eu nu voi uita niciodata.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00471",
+      "input": "Pune-te în locul ei.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00472",
+      "input": "Închipuie-ţi că eşti in locul ei.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00473",
+      "input": "Preţurile sunt mari.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00474",
+      "input": "El și-a terminat treaba, nu-i așa?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00475",
+      "input": "Credeam că era drăguţă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00476",
+      "input": "Mama încercă să se înțeleagă cu fiul său.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00477",
+      "input": "Dacă înveţi din greu, vei deveni un student bun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00478",
+      "input": "Nu-l pedepsi pentru că a spart geamul. Nu este vina lui.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00479",
+      "input": "Nu există niciun motiv pentru care să nu o fac.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00480",
+      "input": "Tu ești prietenul meu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00481",
+      "input": "Mama îşi trezeşte fiica.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00482",
+      "input": "Mătuşa lui are grijă de câinele lui în timpul zilei.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00483",
+      "input": "A nins timp de două zile.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00484",
+      "input": "Acest roman este destul de interesant.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00485",
+      "input": "Jane are multe haine de spălat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00486",
+      "input": "Care echipă a câştigat meciul?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00487",
+      "input": "Când ar trebui să aduc maşina înapoi?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00488",
+      "input": "În ziua în care s-a pensionat, compania i-a dăruit un ceas de aur.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00489",
+      "input": "Mi-am lăsat cheia in cameră.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00490",
+      "input": "Este încă în curs de testare.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00491",
+      "input": "Este încă în faza de testare.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00492",
+      "input": "Pune-le pe toate în coşul meu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00493",
+      "input": "Au trecut cinci ani de când te-am văzut ultima dată.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00494",
+      "input": "I-am notat adresa ca să nu o uit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00495",
+      "input": "Nu avea nicio intenţie să aştepte trei ore.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00496",
+      "input": "Acest obicei datează din era Edo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00497",
+      "input": "El scrie cărţi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00498",
+      "input": "Lui Robert i se spune \"Bob\".",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00499",
+      "input": "Uneori el lipseşte de la şcoală.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00500",
+      "input": "Te voi contacta imediat după ce mă întorc din America.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00501",
+      "input": "A traversat frontiera.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00502",
+      "input": "A trecut frontiera.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00503",
+      "input": "Am găsit camera goală.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00504",
+      "input": "O răţuşcă urâtă a devenit o lebădă graţioasă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00505",
+      "input": "Tocmai a plecat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00506",
+      "input": "În această carte se întâmplă multe coincidenţe.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00507",
+      "input": "Ea este obişnuită cu şezutul.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00508",
+      "input": "Nu vreau să merg dacă nu mergi cu mine.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00509",
+      "input": "Nu vreau să mă duc daca nu vii cu mine.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00510",
+      "input": "Este foarte cald, nu-i aşa?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00511",
+      "input": "Mă voi duce la film.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00512",
+      "input": "Kumi este fata al cărei tată îi plac căinii.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00513",
+      "input": "După furtună, marea era calmă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00514",
+      "input": "Vacanţa de vară începe în iulie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00515",
+      "input": "Ei nu îi plac şerpii şi matematica.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00516",
+      "input": "Leagă-ţi şireturile.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00517",
+      "input": "Poate o să ningă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00518",
+      "input": "Ea zace bolnavă în pat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00519",
+      "input": "De-ar fi să-ţi spun tot ce știu, te-ai minuna.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00520",
+      "input": "Doamna Green ne predă muzica.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00521",
+      "input": "Ne-am ascuns după un tufiş pentru ca nimeni să nu ne vadă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00522",
+      "input": "Cred că el are doi fii.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00523",
+      "input": "Juan se îmbracă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00524",
+      "input": "Biroul lui este foarte aproape de al meu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00525",
+      "input": "Cred că am o carie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00526",
+      "input": "Pentru a înţelege, nu trebuie decât să citeşti această carte.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00527",
+      "input": "Nu aud foarte bine.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00528",
+      "input": "Acea casă este a mea.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00529",
+      "input": "Casa aceea este a mea.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00530",
+      "input": "Preţurile vor fi din ce în ce mai mari.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00531",
+      "input": "Preţurile vor creşte din ce în ce mai mult.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00532",
+      "input": "Vino mai aproape de mine.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00533",
+      "input": "Lucrez acolo de trei luni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00534",
+      "input": "El exersa în fiecare zi acasă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00535",
+      "input": "El a venit ca martor să depună mărturie asupra acelei lumini.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00536",
+      "input": "Nimănui nu-i pasă de ceea ce crezi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00537",
+      "input": "Păstrează banii la loc sigur.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00538",
+      "input": "Acel copil are prieteni puțini.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00539",
+      "input": "Ce sporturi îţi plac?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00540",
+      "input": "Este adevărat ceea ce spune.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00541",
+      "input": "Căţărătorii se treziră înaintea zorilor.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00542",
+      "input": "El are un foarte bun simţ al umorului.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00543",
+      "input": "Am vorbit despre testul de ieri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00544",
+      "input": "În cartierul meu a fost un mare incendiu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00545",
+      "input": "Acum era în afara oricărui pericol.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00546",
+      "input": "Am reuşit să găsesc strada, dar nu am putut să-i găsesc casa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00547",
+      "input": "Mi-a fost ușor să găsesc clădirea.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00548",
+      "input": "Lasă-mă să tai morcovii.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00549",
+      "input": "A cuprins-o teama.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00550",
+      "input": "Presupun că va întârzia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00551",
+      "input": "Cât de leneşi sunt acei băieţi!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00552",
+      "input": "Amestecă în supă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00553",
+      "input": "El m-a ajutat să duc scaunul.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00554",
+      "input": "Noaptea a fost atât de rece încât, atunci când m-am întors, eram aproape îngheţat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00555",
+      "input": "El nu a mâncat toate prăjiturelele de orez.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00556",
+      "input": "Când călătoreşti, este uşor să te rătăceşti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00557",
+      "input": "Unde să mâncăm în seara asta?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00558",
+      "input": "Avionul a decolat la ora nouă fix.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00559",
+      "input": "El a fost bătut cu o bară metalică în timpul unui violent meci de fotbal.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00560",
+      "input": "Una dintre pisici este neagră, cealaltă este maro.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00561",
+      "input": "Încă nu mi-am terminat temele.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00562",
+      "input": "Doriţi un loc la fereastră?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00563",
+      "input": "Câte mere vrei?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00564",
+      "input": "Trenul a intrat în gară.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00565",
+      "input": "Ea este devotată soţului ei.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00566",
+      "input": "De ce îţi sunt urechile atât de mari?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00567",
+      "input": "Ea şi-a însoţit prietenul la concert.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00568",
+      "input": "În afară de mine, toată lumea este ocupată.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00569",
+      "input": "A ţintit pasărea.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00570",
+      "input": "Du-i înapoi cartea asta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00571",
+      "input": "Cu excepţia câtorva greşeli, compunerea ta este perfectă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00572",
+      "input": "Voiam să mă mai uit o ultimă dată peste notiţe, dar nu am mai avut timp.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00573",
+      "input": "Aveţi vreo cameră mai ieftină?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00574",
+      "input": "Am fost fascinat de frumuseţea ei.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00575",
+      "input": "De-abia plecasem de acasă când a început ploaia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00576",
+      "input": "M-am întâlnit cu ea seara târziu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00577",
+      "input": "Engleza este o limbă internaţională.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00578",
+      "input": "Persoanele care nu se grăbesc stau pe partea dreaptă a scărilor rulante.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00579",
+      "input": "Am dori sa ne confirmăm rezervările.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00580",
+      "input": "Și-a ținut respirația.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00581",
+      "input": "Dă-mi te rog o mână de ajutor cu aceste pachete.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00582",
+      "input": "Am uitat să opresc televizorul înainte de a ma duce la culcare.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00583",
+      "input": "Astfel de incidente sunt destul de obişnuite.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00584",
+      "input": "Unde se joacă Toni?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00585",
+      "input": "Nu eşti tu cel care a murit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00586",
+      "input": "Trebuie să te întorci până la ora zece.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00587",
+      "input": "Termenul acestei facturi este azi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00588",
+      "input": "Gabriel este doar unul dintre îngerii Domnului.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00589",
+      "input": "John a depus mărturie în ceea ce îl priveşte.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00590",
+      "input": "M-am împiedicat de o piatră scrântindu-mi glezna.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00591",
+      "input": "Noi luăm micul dejun înăuntru.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00592",
+      "input": "Am cumpărat cartea de care au nevoie copiii.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00593",
+      "input": "Dacă vrea câtuși de puțin să reușească, trebuie sa muncească mai mult.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00594",
+      "input": "Pot să fac o fotografie?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00595",
+      "input": "El a iubit-o foarte mult.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00596",
+      "input": "Îmi place cravata aia a ta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00597",
+      "input": "Această maşină a fost făcută in Japonia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00598",
+      "input": "Ce n-aş face ca să vă scot pe amândoi din încurcătură?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00599",
+      "input": "Aș dori să-mi văd fiul.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00600",
+      "input": "Mi-a luat trei ore să-mi fac temele.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00601",
+      "input": "Nimeni nu a încurajat-o.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00602",
+      "input": "Sărăcia este o povară, dar nu o ruşine.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00603",
+      "input": "Maşina aceea este a mea.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00604",
+      "input": "Socialism sau barbarism.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00605",
+      "input": "Mi se face rău de fiecare dată când văd sânge.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00606",
+      "input": "Ea e în depresie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00607",
+      "input": "Am vizitat Fukuoka acum zece ani.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00608",
+      "input": "Trebuie să vii cu mine.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00609",
+      "input": "Zăpada acoperea autobuzul.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00610",
+      "input": "Mai devreme sau mai târziu va trece peste şoc.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00611",
+      "input": "Tom s-a ascuns sub masă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00612",
+      "input": "Va trebui să facem ceva.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00613",
+      "input": "De cât timp stă Ken în Kobe?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00614",
+      "input": "E cel mai bun jucător din echipa noastră.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00615",
+      "input": "Radioul este stricat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00616",
+      "input": "De ce ești atât de nervos?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00617",
+      "input": "Mi-am ciulit urechile când am auzit de apartamentul disponibil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00618",
+      "input": "Julio se leagănă in hamacul pe care l-am atârnat sub bătrânul stejar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00619",
+      "input": "Acuzatul încercă să-și justifice faptele.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00620",
+      "input": "Romeo este bărbatul pe care Julieta îl iubeşte.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00621",
+      "input": "Idei verzi incolore dorm razant.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00622",
+      "input": "Ți-aș da orice însă nu și asta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00623",
+      "input": "Tango-ul este o exprimare verticală a unei dorinţe orizontale.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00624",
+      "input": "Doar șaisprezece la sută din profesorii acestei școli sunt femei.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00625",
+      "input": "John a avut o ceartă violentă cu soția sa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00626",
+      "input": "În general, bărbaţii sunt mai înalţi decât femeile.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00627",
+      "input": "Sora mea a fost o femeie foarte frumoasă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00628",
+      "input": "Care este populaţia acestui oraş?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00629",
+      "input": "Din cauză că lumina călătoreşte mai repede decât sunetul, unii oameni par geniali înainte de a suna stupizi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00630",
+      "input": "Soția mea a născut un copil săptămâna trecută.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00631",
+      "input": "Soţia sa este franţuzoaică.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00632",
+      "input": "Am amânat evenimentul.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00633",
+      "input": "Prima noastră lecţie este matematica.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00634",
+      "input": "După aceea, nu am vorbit cu ei.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00635",
+      "input": "Fierul este un metal foarte util.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00636",
+      "input": "Vaca noastră nu ne dă lapte.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00637",
+      "input": "Fericirea nu se cumpără.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00638",
+      "input": "Mie îmi place Nara, mai ales toamna.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00639",
+      "input": "Ea mă cunoaşte.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00640",
+      "input": "Trebuie să iau două pastile la fiecare şase ore.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00641",
+      "input": "Sandvişul meu are carne, brânză şi roşii.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00642",
+      "input": "In fiecare zi mă simt mai bine.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00643",
+      "input": "Aș vrea o carte despre obiceiurile din Japonia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00644",
+      "input": "Acest tren opreşte în fiecare staţie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00645",
+      "input": "Unde este familia lui?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00646",
+      "input": "Prefer să fac un duş dimineaţa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00647",
+      "input": "Bunicului meu ii place sa meargă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00648",
+      "input": "Poți să îmi coși acești nasturi?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00649",
+      "input": "Stratul de zăpadă măsura cîţiva metrii.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00650",
+      "input": "Nu pot să o fac.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00651",
+      "input": "Mary l-a îndemnat pe fiul ei să ia umbrela.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00652",
+      "input": "Mai bine mor de foame decât să fur.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00653",
+      "input": "Încă mai aștept să-mi spună ce s-a întîmplat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00654",
+      "input": "Optimismul este doar o lipsă de informaţie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00655",
+      "input": "Este suficient de caldă apa pentru a face un ceai?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00656",
+      "input": "La ce liceu mergi?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00657",
+      "input": "Trebuie sa mă gîndesc.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00658",
+      "input": "Vă rog să aşteptaţi până termin de scris această scrisoare.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00659",
+      "input": "Lui îi place genul ăsta de muzică.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00660",
+      "input": "Vreau să merg în America într-o zi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00661",
+      "input": "Nu mai face pe prostul.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00662",
+      "input": "Aceasta este cea mai frumoasă poză din tot albumul meu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00663",
+      "input": "Nouă milioane de oameni au votat la alegeri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00664",
+      "input": "O mică avertizare sau o explicație este de ajuns pentru o persoană inteligentă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00665",
+      "input": "Mă pregătesc pentru ce este mai rău.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00666",
+      "input": "Aeroportul a fost închis din cauza ceţei.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00667",
+      "input": "Copii nu trebuie sa ştie fiecare detaliu despre bugetul familiei.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00668",
+      "input": "Vei trăi mai mult dacă nu fumezi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00669",
+      "input": "Ar trebui să iei măsurile potrivite la timpul potrivit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00670",
+      "input": "Este deja ora nouă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00671",
+      "input": "Ei nu se cunosc prea bine.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00672",
+      "input": "Trebuie să îmi fac o asigurare de sănătate.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00673",
+      "input": "Urăsc aceste cuvinte.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00674",
+      "input": "Unde crezi că se duc toți banii?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00675",
+      "input": "Cât la sută dintre persoane vorbesc trei limbi străine?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00676",
+      "input": "Pentru Dumnezeu!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00677",
+      "input": "Este timpul să fim serioși.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00678",
+      "input": "Este alegerea ta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00679",
+      "input": "Cheltuiește bani și bucură-te de viață!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00680",
+      "input": "Această cutie este făcută din hârtie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00681",
+      "input": "Orașul a fost distrus în timpul războiului.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00682",
+      "input": "Pe câinele nostru l-am numit White.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00683",
+      "input": "Ceilalți nu pot fi deranjați.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00684",
+      "input": "El a fost ales președinte.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00685",
+      "input": "Noi îi spunem Goro-san.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00686",
+      "input": "Echipa noastră a pierdut toate meciurile.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00687",
+      "input": "Sunt sigur că el este fericit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00688",
+      "input": "Fiecare este o lună, și are o parte întunecată pe care nu o arată nimănui niciodată.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00689",
+      "input": "Deja am ales cd-ul pe care îl voi cumpăra data viitoare.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00690",
+      "input": "O limbă proprie pentru fiecare nație și o a doua împărțită de către toți.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00691",
+      "input": "Ea știa să citească când avea patru ani.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00692",
+      "input": "El ține legătura cu tot felul de oameni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00693",
+      "input": "Fiicei mele îi plac gălbenușurile de ou.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00694",
+      "input": "Când am sunat, el deja plecase.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00695",
+      "input": "În general lupii nu atacă oamenii.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00696",
+      "input": "O să facem un grătar pe plajă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00697",
+      "input": "Orașul era plin de soldați înfometați.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00698",
+      "input": "Tu ar trebui să fii soțul fiicei mele.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00699",
+      "input": "Ar trebui să stai în pat cu soțul tău.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00700",
+      "input": "Lipsa banilor este rădăcina tuturor relelor.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00701",
+      "input": "Fii întotdeauna mai deștept decât cei care te angajează.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00702",
+      "input": "Credința este moartea inteligenței.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00703",
+      "input": "Trebuie să găsesc o ieşire din acestă problemă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00704",
+      "input": "Doarme ca un bebeluș.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00705",
+      "input": "Oamenii de la Madrid sunt nebuni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00706",
+      "input": "A început să ningă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00707",
+      "input": "Acesta e sfârșitul.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00708",
+      "input": "Lumina călătorește mai repede decât sunetul.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00709",
+      "input": "Ești o fată drăguță.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00710",
+      "input": "Cred că am înţeles.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00711",
+      "input": "Eu plec cu autobus.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00712",
+      "input": "Dar cafeaua nu este bună.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00713",
+      "input": "Rămâne un pic de vin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00714",
+      "input": "Deşteaptă-te, române, din somnul cel de moarte, În care te-adînciră barbarii de tirani, barbarii de tirani!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00715",
+      "input": "Acum ori niciodată croiește-ți altă soartă, La care să se-nchine și cruzii tăi dușmani, și cruzii tăi dușmani!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00716",
+      "input": "Conversația fetelor era interminabilă.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00717",
+      "input": "Azi-noapte a venit la petrecere cu Jane.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00718",
+      "input": "Am vorbit cu ea acum o oră.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00719",
+      "input": "El a întrebat-o pe soția lui dacă merge cu el.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00720",
+      "input": "Prietenia noastră nu a durat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00721",
+      "input": "Nu știi să înoți, nu-i așa?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00722",
+      "input": "Toată lumea caută fericirea.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00723",
+      "input": "Se spune că o să fie foarte cald.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00724",
+      "input": "El este un tip de încredere.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00725",
+      "input": "Sunt de acord cu tine.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00726",
+      "input": "Nu lăsa fereastra deschisă la dormitor.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00727",
+      "input": "Anumite plante cresc bine cu puțină îngrijire.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00728",
+      "input": "Am venit să-ți spun că plec.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00729",
+      "input": "Cred că ceasul meu ar putea fi defect.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00730",
+      "input": "M-am născut în anul în care a murit bunicul.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00731",
+      "input": "Nu mă compara cu un star de cinema.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00732",
+      "input": "Acela nu este cuțitul tău.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00733",
+      "input": "Este cea mai veche clădire din lemn care există.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00734",
+      "input": "Casa asta a ars toată într-un incendiu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00735",
+      "input": "Astăzi profesorul a ales ca subiect \"cultura chinezească\".",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00736",
+      "input": "Era ultima persoană pe care mă așteptam să o văd într-un loc ca acela.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00737",
+      "input": "Mi-a pus mâna pe umăr.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00738",
+      "input": "Ce făceai ieri la ora asta?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00739",
+      "input": "Ea purta cu costum de baie roșu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00740",
+      "input": "Probabil ești alergică la polen sau la praf.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00741",
+      "input": "Ea se ridică pentru a răspunde la telefon.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00742",
+      "input": "Duceți-vă toți la dracu!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00743",
+      "input": "O să fiu ucenic.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00744",
+      "input": "Anna este o fetiță.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00745",
+      "input": "Vreau să mor cu Getter Jaani.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00746",
+      "input": "Magdalena și Ania sunt prietene bune.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00747",
+      "input": "Ania este pasionată de calculatoare.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00748",
+      "input": "Magdalena este pasionată de geografie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00749",
+      "input": "Magdalena și Ania sunt din Polonia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00750",
+      "input": "Cea mai bună prietenă a mea Felicja este aici.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00751",
+      "input": "Magdalena și Lech au treisprezece ani.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00752",
+      "input": "Ania și Piotr au doisprezece ani.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00753",
+      "input": "M-am căsătorit cu o poloneză.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00754",
+      "input": "Avem două fete și doi băieți.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00755",
+      "input": "Cred că nu ești genul meu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00756",
+      "input": "Ce culoare asociezi cu copilăria ta?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00757",
+      "input": "Am petrecut toată seara dansând împreună.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00758",
+      "input": "Camera arată diferit, acum îmi place mai mult.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00759",
+      "input": "Ce planuri ai pentru sfârşitul acesta de săptămâna?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00760",
+      "input": "Trebuie să găsesc un apartament de închiriat în Barcelona.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00761",
+      "input": "Trebuie să încurajăm lumea să se alăture campaniei şi să lucreze cu noi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00762",
+      "input": "Nu trebuie să iei o decizie acum.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00763",
+      "input": "Ce fel de lucruri te întristează?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00764",
+      "input": "Animalele sălbatice sunt în pericol de dispariție.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00765",
+      "input": "Ce a făcut cu toţi banii?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00766",
+      "input": "Luna este o persoană de încredere.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00767",
+      "input": "Nu încerca să îţi aminteşti fiecare propoziție din text, este aproape imposibil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00768",
+      "input": "În seara asta o voi cunoaște pe prietena fratelui meu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00769",
+      "input": "Am câteva idei bune dar am nevoie de bani.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00770",
+      "input": "Ne înţelegem destul de bine dar nu suntem cei mai buni prieteni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00771",
+      "input": "El nu este un scriitor aşa bun şi cred ca o ştie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00772",
+      "input": "E atât de prost, îţi jur că nu îl suport.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00773",
+      "input": "Sună-mă dacă ai nevoie de ajutor.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00774",
+      "input": "Ea vrea să închidă mica sa afacere.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00775",
+      "input": "Se face foarte târziu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00776",
+      "input": "Nu știam că ai avut o săptămână liberă luna trecută.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00777",
+      "input": "Plouă dar pentru cât plouă, plouă puţin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00778",
+      "input": "Cu o limbă nu este niciodată de ajuns.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00779",
+      "input": "Ce veste proastă!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00780",
+      "input": "Desenele lui Lyod reprezintă persoane din secolul al paisprezecelea.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00781",
+      "input": "Oamenii deștepți știu cum să facă bani din orice.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00782",
+      "input": "M-am simţit rău.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00783",
+      "input": "Scuză-mă, ce e ceasul?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00784",
+      "input": "Maja Keuc este o cântăreață bună.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00785",
+      "input": "Pe frontul de vest nimic nou.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00786",
+      "input": "Marilyn Monroe a murit acum treizeci și trei de ani.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00787",
+      "input": "Soțul său o face să râdă în fiecare zi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00788",
+      "input": "Uneori are un comportament foarte ciudat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00789",
+      "input": "Pisica este cafenie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00790",
+      "input": "Astăzi este ziua mea.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00791",
+      "input": "Contextul este important.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00792",
+      "input": "Îl știi pe tatăl dumneaei?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00793",
+      "input": "Dar nu am bani.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00794",
+      "input": "Încerci să mă înțelegi?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00795",
+      "input": "Te iubesc foarte mult.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00796",
+      "input": "Eu cumpăr surorii mele o nouă pălărie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00797",
+      "input": "Puteți folosi dicționarul meu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00798",
+      "input": "Îmi place limba occitană.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ro-00799",
+      "input": "La început a făcut Dumnezeu cerul și pământul.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ro-00000",
+      "input": "Room 304 has the laptops we ordered.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ro-00001",
+      "input": "Bought 5 cookies on the avenue near my office.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ro-00002",
+      "input": "Track #12345 was delivered yesterday.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ro-00003",
+      "input": "I had 5 boxes in storage unit 12.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ro-00004",
+      "input": "Building number 7 was empty.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ro-00005",
+      "input": "Open from January 1990 onwards.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ro-00006",
+      "input": "Floor 3 has the printer.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ro-00007",
+      "input": "Order #98765 is being processed.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ro-00008",
+      "input": "The bus runs every 12 minutes.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ro-00009",
+      "input": "Found 5000 documents in the archive.",
+      "expected": []
+    }
+  ]
+}

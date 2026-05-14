@@ -1,0 +1,34 @@
+{
+  "locale": "sl",
+  "name": "Slovenian",
+  "scripts": ["latn"],
+  "countries": ["SI"],
+  "phoneContextKeywords": [
+    "telefon",
+    "mobilni telefon",
+    "številka",
+    "tel.",
+    "tel"
+  ],
+  "cvcContextKeywords": ["varnostna koda", "cvc", "cvv", "cv2"],
+  "address": {
+    "forms": ["inverted", "po-box"],
+    "postcodeForm": "continental",
+    "postcodeRegex": "\\d{4}",
+    "requireUppercase": true,
+    "streetKeywordsInverted": ["Ulica", "Cesta", "Trg", "Pot"],
+    "poBoxKeywords": ["P.P.", "Poštni predal"],
+    "floorKeywords": ["nadstropje", "stanovanje"],
+    "countryNames": ["Slovenija", "Slovenia", "SI"],
+    "countryPostcodePrefixes": []
+  },
+  "nationalIds": [],
+  "fixtureSeeds": {
+    "wrappers": [
+      "Prosimo, pošljite paket na {}.",
+      "Poštni naslov: {}",
+      "Stranka stanuje na {}.",
+      "Prevzemno mesto — {} — potrjeno."
+    ]
+  }
+}
