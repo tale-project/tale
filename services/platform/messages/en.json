@@ -193,7 +193,9 @@
       "default": "default",
       "untranslated": "untranslated",
       "autoTranslate": "Auto-translate"
-    }
+    },
+    "retry": "Retry",
+    "discardChangesConfirm": "Discard unsaved changes?"
   },
   "navigation": {
     "chatWithAI": "Chat with AI",
@@ -3312,7 +3314,7 @@
       },
       "promptTemplates": {
         "title": "Prompt templates",
-        "description": "Saved prompts (org-scoped). Global-scope templates are operator content and are not retention-managed."
+        "description": "Saved prompts across all visibility scopes (personal, team, global)."
       },
       "messageFeedback": {
         "title": "Message feedback",
@@ -4321,17 +4323,24 @@
     "tabs": {
       "all": "All",
       "team": "Team",
-      "personal": "Personal"
+      "personal": "Personal",
+      "global": "Global"
     },
     "library": {
       "title": "Prompt library",
       "description": "Browse, save, and share prompt templates.",
       "searchPlaceholder": "Search prompts...",
-      "loading": "Loading prompts..."
+      "loading": "Loading prompts...",
+      "loadMore": "Load more",
+      "loadingMore": "Loading..."
     },
     "emptyState": {
       "title": "No prompts yet",
-      "description": "Create your first prompt to save and reuse it across conversations"
+      "description": "Create your first prompt to save and reuse it across conversations",
+      "filteredTitle": "No matching prompts",
+      "filteredDescription": "Try clearing your search or filters.",
+      "filteredCanLoadMore": "No matches on this page. Load more to keep searching, or clear filters.",
+      "clearFilters": "Clear filters"
     },
     "actions": {
       "create": "Create prompt",
@@ -4339,7 +4348,10 @@
       "delete": "Delete",
       "more": "More actions",
       "copy": "Copy",
-      "copied": "Copied!"
+      "copied": "Copied!",
+      "viewHistory": "Version history",
+      "viewHistoryDisabled": "No previous versions",
+      "copyFailed": "Could not copy to clipboard"
     },
     "deleteConfirm": {
       "title": "Delete prompt",
@@ -4369,18 +4381,81 @@
       "tagsLabel": "Tags",
       "tagsPlaceholder": "Comma-separated tags...",
       "save": "Save",
-      "create": "Create"
+      "create": "Create",
+      "bytesUsed": "{used} / {max}",
+      "versionConflictTitle": "Newer version available",
+      "versionConflictDescription": "Someone saved v{version} while you were editing. Load the latest to re-anchor before saving.",
+      "versionConflictDirtyWarning": "Your unsaved edits will be discarded.",
+      "versionConflictDiscardConfirm": "Load the latest version and discard your unsaved edits?",
+      "loadLatest": "Load latest",
+      "bytesOverLimitAlert": "Content exceeds the size limit. Shorten the prompt to enable Save."
     },
     "saveAs": {
       "title": "Save prompt",
-      "saveTo": "Save to",
-      "cancel": "Cancel"
+      "saveTo": "Save to"
     },
     "toast": {
-      "savedTo": "Saved to {scope}"
+      "savedTo": "Saved to {scope}",
+      "saved": "Saved as v{version}",
+      "savedNoChanges": "Saved (no changes)",
+      "created": "Prompt created",
+      "saveFailed": "Could not save prompt",
+      "deleteFailed": "Could not delete prompt",
+      "versionConflict": "Newer version detected — load the latest before saving",
+      "restored": "Restored as v{version}",
+      "restoreFailed": "Could not restore version",
+      "restoreStale": "Version history changed — refresh to retry",
+      "rateLimited": "Saving too quickly — wait a moment before trying again",
+      "forbidden": "You don't have permission for this prompt",
+      "notFound": "This prompt no longer exists",
+      "tooLarge": "A field exceeds the allowed length",
+      "emptyContent": "Prompt content cannot be empty",
+      "legalHold": "Delete is blocked by an active legal hold"
+    },
+    "version": {
+      "badge": "v{version}"
+    },
+    "history": {
+      "dialogTitle": "Version history — {name}",
+      "dialogDescription": "Compare and restore past versions of this prompt.",
+      "loading": "Loading history...",
+      "current": "Current",
+      "compare": "Compare with current",
+      "compareTitle": "Compare current with v{version}",
+      "compareDescription": "Published {date}",
+      "noDifferences": "No differences between these versions.",
+      "backToList": "Back to history",
+      "restore": "Restore",
+      "restoreConfirmTitleVersioned": "Restore v{version}?",
+      "restoreConfirmDescription": "Restore content from v{source} as v{target}. Existing versions are preserved.",
+      "compareVersionAria": "Compare v{version} with current",
+      "restoreVersionAria": "Restore v{version}",
+      "diffAriaLabel": "Content difference",
+      "empty": "No previous versions",
+      "loadFailed": "Could not load version history",
+      "publishedByOn": "By {name} · {date}",
+      "versionsLabel": "Version history",
+      "metadataChanged": "Metadata changed",
+      "metadataDiffLabel": "Metadata changes",
+      "keyboardHint": "Enter compares · R or Shift+Enter restores",
+      "diffLegend": "Diff against v{snapshot} — − current (v{current}) would be replaced, + v{snapshot} would be restored",
+      "lineAdded": "Added line:",
+      "lineRemoved": "Removed line:",
+      "metadataField": {
+        "title": "Title",
+        "description": "Description",
+        "category": "Category",
+        "tags": "Tags",
+        "scope": "Scope"
+      }
     },
     "categoryFilter": {
-      "title": "By category"
+      "title": "By category",
+      "titleWithCount": "By category ({count} active)"
+    },
+    "tagFilter": {
+      "title": "By tag",
+      "titleWithCount": "By tag ({count} active)"
     },
     "addCategory": {
       "inputPlaceholder": "Category name",
@@ -4389,6 +4464,12 @@
     },
     "sidebar": {
       "sectionTitle": "Prompt library"
+    },
+    "tagsInput": {
+      "tooLong": "Tag must be {max} characters or fewer",
+      "atCap": "You’ve reached the {max}-tag limit",
+      "removeAria": "Remove tag {tag}",
+      "counter": "{count} / {max} tags"
     }
   },
   "mcpServers": {

@@ -1,44 +1,42 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { Filter } from 'lucide-react';
+import { Tag } from 'lucide-react';
 import { useState } from 'react';
 
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Popover } from '@/app/components/ui/overlays/popover';
 import { useT } from '@/lib/i18n/client';
 
-interface CategoryFilterPopoverProps {
-  categories: string[];
-  selectedCategories: string[];
-  onSelectedCategoriesChange: (categories: string[]) => void;
+interface TagFilterPopoverProps {
+  tags: string[];
+  selectedTags: string[];
+  onSelectedTagsChange: (tags: string[]) => void;
 }
 
-export function CategoryFilterPopover({
-  categories,
-  selectedCategories,
-  onSelectedCategoriesChange,
-}: CategoryFilterPopoverProps) {
+export function TagFilterPopover({
+  tags,
+  selectedTags,
+  onSelectedTagsChange,
+}: TagFilterPopoverProps) {
   const { t } = useT('prompts');
   const [open, setOpen] = useState(false);
 
-  if (categories.length === 0) return null;
+  if (tags.length === 0) return null;
 
-  const toggleCategory = (category: string) => {
-    if (selectedCategories.includes(category)) {
-      onSelectedCategoriesChange(
-        selectedCategories.filter((c) => c !== category),
-      );
+  const toggleTag = (tag: string) => {
+    if (selectedTags.includes(tag)) {
+      onSelectedTagsChange(selectedTags.filter((c) => c !== tag));
     } else {
-      onSelectedCategoriesChange([...selectedCategories, category]);
+      onSelectedTagsChange([...selectedTags, tag]);
     }
   };
 
-  const activeCount = selectedCategories.length;
+  const activeCount = selectedTags.length;
   const triggerLabel =
     activeCount > 0
-      ? t('categoryFilter.titleWithCount', { count: String(activeCount) })
-      : t('categoryFilter.title');
+      ? t('tagFilter.titleWithCount', { count: String(activeCount) })
+      : t('tagFilter.title');
 
   return (
     <Popover
@@ -48,7 +46,7 @@ export function CategoryFilterPopover({
           aria-label={triggerLabel}
           className="relative shrink-0 px-3"
         >
-          <Filter className="size-4" />
+          <Tag className="size-4" />
           {activeCount > 0 && (
             <span
               aria-hidden="true"
@@ -66,27 +64,27 @@ export function CategoryFilterPopover({
       onOpenChange={setOpen}
     >
       <p className="text-muted-foreground px-3 py-1.5 text-[11px] font-medium">
-        {t('categoryFilter.title')}
+        {t('tagFilter.title')}
       </p>
       <div className="flex flex-col">
-        {categories.map((category) => (
+        {tags.map((tag) => (
           <label
-            key={category}
+            key={tag}
             className="hover:bg-accent flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-[13px] transition-colors"
           >
             <Checkbox
-              checked={selectedCategories.includes(category)}
-              onCheckedChange={() => toggleCategory(category)}
+              checked={selectedTags.includes(tag)}
+              onCheckedChange={() => toggleTag(tag)}
               className="size-4"
             />
             <span
               className={
-                selectedCategories.includes(category)
+                selectedTags.includes(tag)
                   ? 'text-foreground'
                   : 'text-muted-foreground'
               }
             >
-              {category}
+              {tag}
             </span>
           </label>
         ))}

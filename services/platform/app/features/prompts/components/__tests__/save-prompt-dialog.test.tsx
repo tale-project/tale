@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { checkAccessibility } from '@/test/utils/a11y';
-import { render, screen } from '@/test/utils/render';
+import { fireEvent, render, screen, waitFor } from '@/test/utils/render';
 
 vi.mock('@/lib/i18n/client', () => ({
   useT: (ns: string) => ({
@@ -27,13 +27,16 @@ vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useTeams: () => ({ teams: [], isLoading: false }),
 }));
 
+// Mutable mocks so per-test we can swap success/error behaviour.
+const mockToast = vi.fn();
+let mockMutateAsync: ReturnType<typeof vi.fn> = vi.fn();
+
 vi.mock('@/app/hooks/use-toast', () => ({
-  useToast: () => ({ toast: vi.fn() }),
+  useToast: () => ({ toast: mockToast }),
 }));
 
 vi.mock('../../hooks/mutations', () => ({
-  useCreatePrompt: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useSavePrompt: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useSavePrompt: () => ({ mutateAsync: mockMutateAsync, isPending: false }),
 }));
 
 vi.mock('../../hooks/queries', () => ({
@@ -41,6 +44,11 @@ vi.mock('../../hooks/queries', () => ({
 }));
 
 import { SavePromptDialog } from '../save-prompt-dialog';
+
+beforeEach(() => {
+  mockToast.mockReset();
+  mockMutateAsync = vi.fn().mockResolvedValue({ _id: 'prompt-1' });
+});
 
 describe('SavePromptDialog', () => {
   describe('accessibility', () => {
@@ -76,5 +84,119 @@ describe('SavePromptDialog', () => {
       />,
     );
     expect(container.innerHTML).toBe('');
+  });
+
+  describe('save flow', () => {
+    it('enables Save with no field changes (primary chat-message-verbatim flow)', () => {
+      render(
+        <SavePromptDialog
+          open={true}
+          onOpenChange={vi.fn()}
+          initialContent="Save this message verbatim"
+          sourceMessageId="msg-42"
+        />,
+      );
+      // Save button should be enabled despite no edits — this was the
+      // primary B2 blocker before the isDirty rework.
+      const saveBtn = screen.getByRole('button', { name: 'prompts.form.save' });
+      expect(saveBtn).not.toBeDisabled();
+    });
+
+    it('forwards content + sourceMessageId to the mutation and closes on success', async () => {
+      const onOpenChange = vi.fn();
+      render(
+        <SavePromptDialog
+          open={true}
+          onOpenChange={onOpenChange}
+          initialContent="Hello world"
+          sourceMessageId="msg-42"
+        />,
+      );
+      fireEvent.click(
+        screen.getByRole('button', { name: 'prompts.form.save' }),
+      );
+      await waitFor(() => expect(mockMutateAsync).toHaveBeenCalledTimes(1));
+      const payload = mockMutateAsync.mock.calls[0][0];
+      expect(payload.content).toBe('Hello world');
+      expect(payload.sourceMessageId).toBe('msg-42');
+      expect(payload.scope).toBe('personal');
+      // Success toast fires and dialog closes.
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({ variant: 'success' }),
+      );
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+
+    it('coerces empty-string sourceMessageId to undefined', async () => {
+      render(
+        <SavePromptDialog
+          open={true}
+          onOpenChange={vi.fn()}
+          initialContent="Hello world"
+          sourceMessageId=""
+        />,
+      );
+      fireEvent.click(
+        screen.getByRole('button', { name: 'prompts.form.save' }),
+      );
+      await waitFor(() => expect(mockMutateAsync).toHaveBeenCalledTimes(1));
+      expect(mockMutateAsync.mock.calls[0][0].sourceMessageId).toBeUndefined();
+    });
+
+    it('maps rate-limit wire-format error to the rateLimited toast', async () => {
+      mockMutateAsync = vi
+        .fn()
+        .mockRejectedValue(
+          new Error(
+            '[Request ID: abc] Server Error\nUncaught Error: Rate limit exceeded for ai:prompts-save. Try again in 30 seconds.',
+          ),
+        );
+      const onOpenChange = vi.fn();
+      render(
+        <SavePromptDialog
+          open={true}
+          onOpenChange={onOpenChange}
+          initialContent="Hello world"
+        />,
+      );
+      fireEvent.click(
+        screen.getByRole('button', { name: 'prompts.form.save' }),
+      );
+      await waitFor(() => expect(mockMutateAsync).toHaveBeenCalledTimes(1));
+      await waitFor(() =>
+        expect(mockToast).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: 'prompts.toast.rateLimited',
+            variant: 'destructive',
+          }),
+        ),
+      );
+      // Dialog stays open on error.
+      expect(onOpenChange).not.toHaveBeenCalled();
+    });
+
+    it('maps too_large ConvexError to the tooLarge toast', async () => {
+      mockMutateAsync = vi.fn().mockRejectedValue({
+        data: { code: 'too_large', field: 'content' },
+      });
+      render(
+        <SavePromptDialog
+          open={true}
+          onOpenChange={vi.fn()}
+          initialContent="Hello world"
+        />,
+      );
+      fireEvent.click(
+        screen.getByRole('button', { name: 'prompts.form.save' }),
+      );
+      await waitFor(() =>
+        expect(mockToast).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: 'prompts.toast.tooLarge',
+            variant: 'destructive',
+          }),
+        ),
+      );
+    });
   });
 });

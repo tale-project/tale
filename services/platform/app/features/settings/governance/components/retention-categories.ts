@@ -60,12 +60,6 @@ export const WIRE_MAPPING: readonly CategoryWireMapping[] = [
     i18nKey: 'agentTemp',
   },
   {
-    id: 'promptTemplates',
-    configKey: 'promptTemplatesRetentionDays',
-    enabledKey: 'promptTemplatesEnabled',
-    i18nKey: 'promptTemplates',
-  },
-  {
     id: 'messageFeedback',
     configKey: 'messageFeedbackRetentionDays',
     enabledKey: 'messageFeedbackEnabled',
@@ -124,6 +118,12 @@ export const WIRE_MAPPING: readonly CategoryWireMapping[] = [
     configKey: 'chatFilterEventsRetentionDays',
     enabledKey: 'chatFilterEventsEnabled',
     i18nKey: 'chatFilterEvents',
+  },
+  {
+    id: 'promptTemplates',
+    configKey: 'promptTemplatesRetentionDays',
+    enabledKey: 'promptTemplatesEnabled',
+    i18nKey: 'promptTemplates',
   },
   {
     id: 'memoryAudit',

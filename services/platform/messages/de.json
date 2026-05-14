@@ -193,7 +193,9 @@
       "default": "Standard",
       "untranslated": "nicht übersetzt",
       "autoTranslate": "Automatisch übersetzen"
-    }
+    },
+    "retry": "Erneut versuchen",
+    "discardChangesConfirm": "Ungespeicherte Änderungen verwerfen?"
   },
   "navigation": {
     "chatWithAI": "Chat mit KI",
@@ -3312,7 +3314,7 @@
       },
       "promptTemplates": {
         "title": "Prompt-Vorlagen",
-        "description": "Gespeicherte Prompts (org-scoped). Globale Vorlagen sind Operator-Inhalte und werden nicht aufbewahrungsverwaltet."
+        "description": "Gespeicherte Prompts über alle Sichtbarkeitsebenen hinweg (persönlich, Team, global)."
       },
       "messageFeedback": {
         "title": "Nachrichten-Feedback",
@@ -4321,17 +4323,24 @@
     "tabs": {
       "all": "Alle",
       "team": "Team",
-      "personal": "Persönlich"
+      "personal": "Persönlich",
+      "global": "Global"
     },
     "library": {
       "title": "Prompt-Bibliothek",
       "description": "Prompt-Vorlagen durchsuchen, speichern und teilen.",
       "searchPlaceholder": "Prompts suchen...",
-      "loading": "Prompts werden geladen..."
+      "loading": "Prompts werden geladen...",
+      "loadMore": "Mehr laden",
+      "loadingMore": "Wird geladen..."
     },
     "emptyState": {
       "title": "Noch keine Prompts",
-      "description": "Erstelle deinen ersten Prompt, um ihn in Unterhaltungen wiederzuverwenden"
+      "description": "Erstelle deinen ersten Prompt, um ihn in Unterhaltungen wiederzuverwenden",
+      "filteredTitle": "Keine passenden Prompts",
+      "filteredDescription": "Lösche deine Suche oder Filter.",
+      "filteredCanLoadMore": "Auf dieser Seite keine Treffer. Lade mehr, um weiterzusuchen, oder lösche die Filter.",
+      "clearFilters": "Filter zurücksetzen"
     },
     "actions": {
       "create": "Prompt erstellen",
@@ -4339,7 +4348,10 @@
       "delete": "Löschen",
       "more": "Weitere Aktionen",
       "copy": "Kopieren",
-      "copied": "Kopiert!"
+      "copied": "Kopiert!",
+      "viewHistory": "Versionsverlauf",
+      "viewHistoryDisabled": "Keine früheren Versionen",
+      "copyFailed": "Konnte nicht in die Zwischenablage kopieren"
     },
     "deleteConfirm": {
       "title": "Prompt löschen",
@@ -4369,18 +4381,81 @@
       "tagsLabel": "Tags",
       "tagsPlaceholder": "Kommagetrennte Tags...",
       "save": "Speichern",
-      "create": "Erstellen"
+      "create": "Erstellen",
+      "bytesUsed": "{used} / {max}",
+      "versionConflictTitle": "Neuere Version verfügbar",
+      "versionConflictDescription": "Während deiner Bearbeitung wurde v{version} gespeichert. Lade die neueste Version, bevor du speicherst.",
+      "versionConflictDirtyWarning": "Deine nicht gespeicherten Änderungen gehen verloren.",
+      "versionConflictDiscardConfirm": "Neueste Version laden und nicht gespeicherte Änderungen verwerfen?",
+      "loadLatest": "Neueste laden",
+      "bytesOverLimitAlert": "Inhalt überschreitet das Größenlimit. Kürze den Prompt, um zu speichern."
     },
     "saveAs": {
       "title": "Prompt speichern",
-      "saveTo": "Speichern unter",
-      "cancel": "Abbrechen"
+      "saveTo": "Speichern unter"
     },
     "toast": {
-      "savedTo": "Gespeichert unter {scope}"
+      "savedTo": "Gespeichert unter {scope}",
+      "saved": "Gespeichert als v{version}",
+      "savedNoChanges": "Gespeichert (keine Änderungen)",
+      "created": "Prompt erstellt",
+      "saveFailed": "Prompt konnte nicht gespeichert werden",
+      "deleteFailed": "Prompt konnte nicht gelöscht werden",
+      "versionConflict": "Neuere Version erkannt — lade die neueste, bevor du speicherst",
+      "restored": "Als v{version} wiederhergestellt",
+      "restoreFailed": "Version konnte nicht wiederhergestellt werden",
+      "restoreStale": "Versionsverlauf hat sich geändert — aktualisiere und versuche es erneut",
+      "rateLimited": "Zu schnelles Speichern — bitte warte einen Moment",
+      "forbidden": "Du hast keine Berechtigung für diesen Prompt",
+      "notFound": "Dieser Prompt existiert nicht mehr",
+      "tooLarge": "Ein Feld überschreitet die zulässige Länge",
+      "emptyContent": "Prompt-Inhalt darf nicht leer sein",
+      "legalHold": "Löschen ist durch einen aktiven Legal Hold gesperrt"
+    },
+    "version": {
+      "badge": "v{version}"
+    },
+    "history": {
+      "dialogTitle": "Versionsverlauf — {name}",
+      "dialogDescription": "Frühere Versionen dieses Prompts vergleichen und wiederherstellen.",
+      "loading": "Verlauf wird geladen...",
+      "current": "Aktuell",
+      "compare": "Mit aktueller vergleichen",
+      "compareTitle": "Aktuelle mit v{version} vergleichen",
+      "compareDescription": "Veröffentlicht {date}",
+      "noDifferences": "Keine Unterschiede zwischen diesen Versionen.",
+      "backToList": "Zurück zum Verlauf",
+      "restore": "Wiederherstellen",
+      "restoreConfirmTitleVersioned": "v{version} wiederherstellen?",
+      "restoreConfirmDescription": "Inhalt von v{source} als v{target} wiederherstellen. Bestehende Versionen bleiben erhalten.",
+      "compareVersionAria": "v{version} mit aktueller vergleichen",
+      "restoreVersionAria": "v{version} wiederherstellen",
+      "diffAriaLabel": "Inhaltsdifferenz",
+      "empty": "Keine früheren Versionen",
+      "loadFailed": "Versionsverlauf konnte nicht geladen werden",
+      "publishedByOn": "Von {name} · {date}",
+      "versionsLabel": "Versionsverlauf",
+      "metadataChanged": "Metadaten geändert",
+      "metadataDiffLabel": "Metadaten-Änderungen",
+      "keyboardHint": "Enter vergleicht · R oder Umschalt+Enter stellt wieder her",
+      "diffLegend": "Vergleich mit v{snapshot} — − aktuell (v{current}) würde ersetzt, + v{snapshot} würde wiederhergestellt",
+      "lineAdded": "Hinzugefügte Zeile:",
+      "lineRemoved": "Entfernte Zeile:",
+      "metadataField": {
+        "title": "Titel",
+        "description": "Beschreibung",
+        "category": "Kategorie",
+        "tags": "Tags",
+        "scope": "Geltungsbereich"
+      }
     },
     "categoryFilter": {
-      "title": "Nach Kategorie"
+      "title": "Nach Kategorie",
+      "titleWithCount": "Nach Kategorie ({count} aktiv)"
+    },
+    "tagFilter": {
+      "title": "Nach Tag",
+      "titleWithCount": "Nach Tag ({count} aktiv)"
     },
     "addCategory": {
       "inputPlaceholder": "Kategoriename",
@@ -4389,6 +4464,12 @@
     },
     "sidebar": {
       "sectionTitle": "Prompt-Bibliothek"
+    },
+    "tagsInput": {
+      "tooLong": "Tag muss höchstens {max} Zeichen lang sein",
+      "atCap": "Du hast die Grenze von {max} Tags erreicht",
+      "removeAria": "Tag {tag} entfernen",
+      "counter": "{count} / {max} Tags"
     }
   },
   "mcpServers": {

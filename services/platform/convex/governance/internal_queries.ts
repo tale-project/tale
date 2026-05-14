@@ -528,9 +528,6 @@ export const listExpiredPromptTemplates = internalQuery({
       .withIndex('by_organizationId', (q) =>
         q.eq('organizationId', args.organizationId),
       )) {
-      // Skip global-scope templates — they're operator content, not
-      // org content, so per-org retention shouldn't reach them.
-      if (row.scope === 'global') continue;
       const status = row.lifecycleStatus ?? 'active';
       if (status !== 'active') continue;
       if (row._creationTime >= args.cutoffMs) continue;
@@ -555,7 +552,6 @@ export const listGraceExpiredPromptTemplates = internalQuery({
       .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
         q.eq('organizationId', args.organizationId),
       )) {
-      if (row.scope === 'global') continue;
       const status = row.lifecycleStatus ?? 'active';
       if (status !== 'trashed' && status !== 'expired') continue;
       const ts = row.statusChangedAt ?? Date.now();

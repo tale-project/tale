@@ -1,7 +1,8 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
-import { Copy, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import { Copy, History, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { HStack } from '@/app/components/ui/layout/layout';
@@ -21,6 +22,7 @@ interface PromptListRowProps {
   onUse: (prompt: PromptTemplate) => void;
   onEdit?: (prompt: PromptTemplate) => void;
   onDelete?: (prompt: PromptTemplate) => void;
+  onViewHistory?: (prompt: PromptTemplate) => void;
   canModify: boolean;
   isLast: boolean;
 }
@@ -30,6 +32,7 @@ export function PromptListRow({
   onUse,
   onEdit,
   onDelete,
+  onViewHistory,
   canModify,
   isLast,
 }: PromptListRowProps) {
@@ -41,9 +44,14 @@ export function PromptListRow({
     onUse(prompt);
   }, [onUse, prompt]);
 
-  const handleCopy = useCallback(() => {
-    void navigator.clipboard.writeText(prompt.content);
-    toast({ title: t('actions.copied'), variant: 'success' });
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(prompt.content);
+      toast({ title: t('actions.copied'), variant: 'success' });
+    } catch (err) {
+      console.warn('[prompt-list-row] clipboard write failed', err);
+      toast({ title: t('actions.copyFailed'), variant: 'destructive' });
+    }
   }, [prompt.content, toast, t]);
 
   const menuItems: DropdownMenuGroup[] = useMemo(() => {
@@ -52,7 +60,9 @@ export function PromptListRow({
         type: 'item',
         label: t('actions.copy'),
         icon: Copy,
-        onClick: handleCopy,
+        onClick: () => {
+          void handleCopy();
+        },
       },
     ];
     if (onEdit) {
@@ -61,6 +71,18 @@ export function PromptListRow({
         label: t('actions.edit'),
         icon: Pencil,
         onClick: () => onEdit(prompt),
+      });
+    }
+    if (onViewHistory) {
+      const hasHistory = (prompt.version ?? 0) > 1;
+      group.push({
+        type: 'item',
+        label: hasHistory
+          ? t('actions.viewHistory')
+          : t('actions.viewHistoryDisabled'),
+        icon: History,
+        onClick: hasHistory ? () => onViewHistory(prompt) : undefined,
+        disabled: !hasHistory,
       });
     }
     if (onDelete) {
@@ -73,24 +95,44 @@ export function PromptListRow({
       });
     }
     return [group];
-  }, [handleCopy, onEdit, onDelete, prompt, t]);
+  }, [handleCopy, onEdit, onDelete, onViewHistory, prompt, t]);
 
   return (
     <div
+      role="listitem"
       className={cn(
-        'group flex w-full items-center gap-3 p-3 transition-colors hover:bg-accent/50',
+        'group hover:bg-accent/50 flex w-full items-center gap-3 p-3 transition-colors',
         !isLast && 'border-border border-b',
       )}
     >
       <button
         type="button"
         onClick={handleUse}
-        className="min-w-0 flex-1 cursor-pointer text-left"
+        className="focus-visible:ring-ring min-w-0 flex-1 cursor-pointer rounded-sm text-left focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
       >
-        <Text as="div" variant="label" className="truncate text-sm font-medium">
-          {prompt.title}
-        </Text>
-        <Text as="div" variant="muted" className="mt-0.5 line-clamp-1 text-xs">
+        {/* HTML5: <button> permits phrasing content only, so this is a <span>
+            (not HStack/<div>). Layout-equivalent via flex utilities. */}
+        <span className="flex min-w-0 items-center gap-2">
+          <Text as="span" className="truncate text-sm font-medium">
+            {prompt.title}
+          </Text>
+          {prompt.version !== undefined && prompt.version > 1 && (
+            <Badge
+              variant="outline"
+              className="shrink-0 px-1.5 py-0 text-[10px] font-normal"
+              aria-label={t('version.badge', {
+                version: String(prompt.version),
+              })}
+            >
+              v{prompt.version}
+            </Badge>
+          )}
+        </span>
+        <Text
+          as="span"
+          variant="muted"
+          className="mt-0.5 line-clamp-1 block text-xs"
+        >
           {prompt.content}
         </Text>
       </button>
@@ -99,7 +141,12 @@ export function PromptListRow({
         gap={1}
         className={cn(
           'shrink-0 transition-opacity',
-          menuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+          // Hover-reveal for mouse users; always-visible for touch (coarse
+          // pointers) and keyboard-focus-within so the menu isn't reachable
+          // only by hover.
+          menuOpen
+            ? 'opacity-100'
+            : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100',
         )}
       >
         {canModify && (
@@ -108,9 +155,8 @@ export function PromptListRow({
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-7"
+                className="size-11"
                 aria-label={t('actions.more')}
-                onClick={(e) => e.stopPropagation()}
               >
                 <MoreHorizontal className="size-4" />
               </Button>

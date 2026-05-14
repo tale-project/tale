@@ -43,6 +43,9 @@ export const SOFT_DELETE_RESOURCE_TYPES = [
   'thread',
   'document',
   'fileMetadata',
+  // User-initiated `deletePrompt` is hard-delete (no recovery). Retention-
+  // driven cleanup goes through the soft-delete + Trash flow so admins
+  // can recover before the grace-period purge.
   'promptTemplate',
   'messageFeedback',
   'customer',

@@ -123,6 +123,56 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   },
 
   // ============================================
+  // TIER 3.5: Prompt Library (Token Bucket)
+  // Bounds storage churn from scripted prompt mutations
+  // ============================================
+  // Prevents an authenticated org member from looping createPrompt to bloat
+  // the org. Each prompt row can be ~218 KiB at the configured caps, so the
+  // bound matters. Token bucket gives a 20-burst headroom for legitimate
+  // batch imports, refilling at 10/min.
+  'prompt:create': {
+    kind: 'token bucket',
+    rate: 10,
+    period: MINUTE,
+    capacity: 20,
+    shards: 4,
+  },
+  // Same shape as prompt:create — bounds storage churn from scripted edits
+  // that could FIFO-evict the version history (12 versions) within seconds.
+  'prompt:update': {
+    kind: 'token bucket',
+    rate: 10,
+    period: MINUTE,
+    capacity: 20,
+    shards: 4,
+  },
+  'prompt:restore': {
+    kind: 'token bucket',
+    rate: 10,
+    period: MINUTE,
+    capacity: 20,
+    shards: 4,
+  },
+  // Bounds destructive churn from scripted delete loops; also caps audit-log
+  // spam from a malicious member walking the org's prompts.
+  'prompt:delete': {
+    kind: 'token bucket',
+    rate: 10,
+    period: MINUTE,
+    capacity: 20,
+    shards: 4,
+  },
+  // Caps counter-spam on a popular global/team prompt; not security-critical
+  // but prevents trivial leaderboard manipulation.
+  'prompt:incrementUsage': {
+    kind: 'token bucket',
+    rate: 60,
+    period: MINUTE,
+    capacity: 120,
+    shards: 4,
+  },
+
+  // ============================================
   // TIER 4: Security (Fixed Window - strict)
   // Prevent brute-force and abuse
   // ============================================

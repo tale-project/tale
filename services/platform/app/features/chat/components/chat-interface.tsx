@@ -22,13 +22,14 @@ import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
+import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 
 import { stripModelRefQualifier } from '../../../../lib/shared/utils/model-ref';
 import { useDeletePrompt } from '../../prompts/hooks/mutations';
-import { usePrompts } from '../../prompts/hooks/queries';
+import { useSavedSourceMessageIds } from '../../prompts/hooks/queries';
 import { useMyFeatureFlags } from '../../settings/governance/hooks/queries';
 import { useListProviders } from '../../settings/providers/hooks/queries';
 import { useBranchContext } from '../context/branch-context';
@@ -217,28 +218,7 @@ export function ChatInterface({
   } | null>(null);
   const [promptLibraryOpen, setPromptLibraryOpen] = useState(false);
 
-  // Build a lookup of messageId → promptId for saved prompts
-  const { prompts } = usePrompts(organizationId);
   const deletePrompt = useDeletePrompt();
-
-  const savedMessageMap = useMemo(() => {
-    const map = new Map<string, (typeof prompts)[number]['_id']>();
-    for (const prompt of prompts) {
-      if (prompt.sourceMessageId) {
-        map.set(prompt.sourceMessageId, prompt._id);
-      }
-    }
-    return map;
-  }, [prompts]);
-
-  const handleUnsavePrompt = useCallback(
-    async (messageId: string) => {
-      const promptId = savedMessageMap.get(messageId);
-      if (!promptId) return;
-      await deletePrompt.mutateAsync({ promptId });
-    },
-    [savedMessageMap, deletePrompt],
-  );
 
   // Consume prompt content inserted from sidebar
   useEffect(() => {
@@ -294,6 +274,36 @@ export function ChatInterface({
     realMessages: rawMessages,
   });
   const messages = isArenaMode ? rawMessages : pendingMergedMessages;
+
+  // Build a lookup of messageId → promptId for saved prompts. Scoped to the
+  // currently-rendered message ids so the server query payload is O(visible
+  // messages), not O(save-history). Defined after `messages` so we can derive
+  // the id list.
+  const visibleMessageIds = useMemo(
+    () => messages.map((msg) => msg.id),
+    [messages],
+  );
+  const { data: savedPairs } = useSavedSourceMessageIds(
+    organizationId,
+    visibleMessageIds,
+  );
+
+  const savedMessageMap = useMemo(() => {
+    const map = new Map<string, Id<'promptTemplates'>>();
+    for (const pair of savedPairs ?? []) {
+      map.set(pair.sourceMessageId, pair.promptId);
+    }
+    return map;
+  }, [savedPairs]);
+
+  const handleUnsavePrompt = useCallback(
+    async (messageId: string) => {
+      const promptId = savedMessageMap.get(messageId);
+      if (!promptId) return;
+      await deletePrompt.mutateAsync({ promptId });
+    },
+    [savedMessageMap, deletePrompt],
+  );
 
   // Agent availability — disable input when no agents exist
   const { agents } = useChatAgents(organizationId);

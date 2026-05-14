@@ -281,6 +281,11 @@ describe('retention_cleanup action-layer pre-filters via custodian cascade (sour
     const body = bodyOf('cleanupWorkflowLogs');
     expect(body).toMatch(/holds\.userMembershipIds\.has\(execution\.userId\)/);
   });
+
+  it('cleanupPromptTemplates pre-filters by holds.userMembershipIds via createdBy', () => {
+    const body = bodyOf('cleanupPromptTemplates');
+    expect(body).toMatch(/holds\.userMembershipIds\.has\(row\.createdBy\)/);
+  });
 });
 
 describe('hold simplification regression — per-row Sets are gone', () => {

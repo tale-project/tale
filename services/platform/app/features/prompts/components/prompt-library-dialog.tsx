@@ -1,8 +1,8 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { BookOpen, Plus, Search } from 'lucide-react';
-import { useState, useCallback, useMemo } from 'react';
+import { BookOpen, History, Plus, Search } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
@@ -12,25 +12,38 @@ import { Tabs } from '@/app/components/ui/navigation/tabs';
 import { Text } from '@/app/components/ui/typography/text';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useCurrentUser } from '@/app/hooks/use-current-user';
+import { useDebounce } from '@/app/hooks/use-debounce';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
+import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import {
-  useUpdatePrompt,
+  useCreatePrompt,
   useDeletePrompt,
   useIncrementPromptUsage,
+  useUpdatePrompt,
 } from '../hooks/mutations';
 import type { PromptTemplate } from '../hooks/queries';
-import { usePrompts } from '../hooks/queries';
+import { usePromptFacets, usePrompts } from '../hooks/queries';
+import { extractErrorCode } from '../lib/extract-error-code';
 import { CategoryFilterPopover } from './category-filter-popover';
 import { PromptFormDialog, type PromptFormData } from './prompt-form-dialog';
+import { PromptHistoryDialog } from './prompt-history-dialog';
 import { PromptListRow } from './prompt-list-row';
-import { SavePromptDialog } from './save-prompt-dialog';
+import { TagFilterPopover } from './tag-filter-popover';
 
 export interface PromptLibraryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelectPrompt: (content: string) => void;
+}
+
+type TabValue = 'all' | 'global' | 'team' | 'personal';
+
+const TAB_VALUES: readonly TabValue[] = ['all', 'global', 'team', 'personal'];
+
+function isTabValue(value: string): value is TabValue {
+  return (TAB_VALUES as readonly string[]).includes(value);
 }
 
 function PromptLibraryDialogContent({
@@ -39,71 +52,91 @@ function PromptLibraryDialogContent({
   onSelectPrompt,
 }: PromptLibraryDialogProps) {
   const { t } = useT('prompts');
+  const { toast } = useToast();
   const organizationId = useOrganizationId();
   const { data: currentUser } = useCurrentUser();
   const { data: memberContext } = useCurrentMemberContext(organizationId);
 
-  const { prompts, isLoading } = usePrompts(organizationId ?? '');
-
-  const updatePrompt = useUpdatePrompt();
-  const deletePrompt = useDeletePrompt();
-  const incrementUsage = useIncrementPromptUsage();
-
-  const [activeTab, setActiveTab] = useState('all');
+  const [activeTab, setActiveTab] = useState<TabValue>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [formOpen, setFormOpen] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState<PromptTemplate | null>(
+    null,
+  );
+  const [historyPrompt, setHistoryPrompt] = useState<PromptTemplate | null>(
     null,
   );
   const [deletingPrompt, setDeletingPrompt] = useState<PromptTemplate | null>(
     null,
   );
 
+  const debouncedSearch = useDebounce(searchQuery.trim(), 200);
+  const scopeArg: 'global' | 'team' | 'personal' | undefined =
+    activeTab === 'all' ? undefined : activeTab;
+
+  const { prompts, isLoading, canLoadMore, isLoadingMore, loadMore } =
+    usePrompts(organizationId ?? '', {
+      scope: scopeArg,
+      search: debouncedSearch || undefined,
+      categories: selectedCategories,
+      tags: selectedTags,
+    });
+
+  // Auto-advance on empty filtered pages: when the server post-filters a page
+  // down to zero rows but more pages exist, fetch the next without making the
+  // user click Load More. Bounded by `canLoadMore` so this can't loop past the
+  // end. Runs on every change to those signals — Convex args are stable so
+  // there's no resubscribe thrash.
+  useEffect(() => {
+    if (canLoadMore && !isLoadingMore && prompts.length === 0) {
+      loadMore();
+    }
+  }, [canLoadMore, isLoadingMore, prompts.length, loadMore]);
+
+  // Facets are loaded via a dedicated indexed scan so the popover lists
+  // categories/tags from the whole org, not just the currently-loaded page.
+  const { data: facets } = usePromptFacets(organizationId);
+  const availableCategories = useMemo(() => facets?.categories ?? [], [facets]);
+  const availableTags = useMemo(() => facets?.tags ?? [], [facets]);
+
+  const createPrompt = useCreatePrompt();
+  const updatePrompt = useUpdatePrompt();
+  const deletePrompt = useDeletePrompt();
+  const incrementUsage = useIncrementPromptUsage();
+
   const isAdmin =
     memberContext?.role === 'admin' || memberContext?.role === 'owner';
 
-  const availableCategories = useMemo(() => {
-    const cats = prompts.map((p) => p.category).filter((c): c is string => !!c);
-    return [...new Set(cats)].sort((a, b) => a.localeCompare(b));
-  }, [prompts]);
-
-  const filteredPrompts = useMemo(() => {
-    let filtered = prompts;
-
-    if (activeTab === 'team') {
-      filtered = filtered.filter((p) => p.scope === 'team');
-    } else if (activeTab === 'personal') {
-      filtered = filtered.filter((p) => p.scope === 'personal');
+  // If the user lost admin rights mid-session (or the dialog was opened in a
+  // stale 'global' state) snap back to 'all' so the disabled tab can't stay
+  // "selected" and keep firing a scope-global query.
+  useEffect(() => {
+    if (activeTab === 'global' && !isAdmin) {
+      setActiveTab('all');
     }
+  }, [activeTab, isAdmin]);
 
-    if (selectedCategories.length > 0) {
-      filtered = filtered.filter(
-        (p) => p.category && selectedCategories.includes(p.category),
-      );
-    }
+  // The server now applies category/tag filtering, so the page rows ARE the
+  // visible rows. Kept as an alias for the existing JSX usage.
+  const visiblePrompts = prompts;
 
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (p) =>
-          p.title.toLowerCase().includes(query) ||
-          p.description?.toLowerCase().includes(query) ||
-          p.content.toLowerCase().includes(query) ||
-          p.category?.toLowerCase().includes(query) ||
-          p.tags?.some((tag) => tag.toLowerCase().includes(query)),
-      );
-    }
-
-    return filtered;
-  }, [prompts, activeTab, searchQuery, selectedCategories]);
+  const filtersActive =
+    debouncedSearch.length > 0 ||
+    selectedCategories.length > 0 ||
+    selectedTags.length > 0;
 
   const handleUsePrompt = useCallback(
     (prompt: PromptTemplate) => {
       onSelectPrompt(prompt.content);
-      void incrementUsage.mutateAsync({
-        promptId: prompt._id,
-      });
+      // Fire-and-forget telemetry — log on failure rather than letting it
+      // reject as an unhandled promise.
+      incrementUsage
+        .mutateAsync({ promptId: prompt._id })
+        .catch((err) =>
+          console.warn('[prompt-library] incrementUsage failed', err),
+        );
       onOpenChange(false);
     },
     [onSelectPrompt, incrementUsage, onOpenChange],
@@ -118,34 +151,141 @@ function PromptLibraryDialogContent({
     [currentUser, isAdmin],
   );
 
+  const handleCreateSubmit = useCallback(
+    async (data: PromptFormData) => {
+      if (!organizationId) return;
+      try {
+        await createPrompt.mutateAsync({
+          organizationId,
+          title: data.title,
+          content: data.content,
+          description: data.description || undefined,
+          scope: data.scope,
+          teamId: data.teamId,
+          category: data.category || undefined,
+          tags: data.tags.length > 0 ? data.tags : undefined,
+        });
+        toast({ title: t('toast.created'), variant: 'success' });
+        setFormOpen(false);
+      } catch (err) {
+        const code = extractErrorCode(err);
+        const toastKey =
+          code === 'forbidden'
+            ? 'toast.forbidden'
+            : code === 'rate_limited'
+              ? 'toast.rateLimited'
+              : code === 'too_large'
+                ? 'toast.tooLarge'
+                : code === 'empty_content'
+                  ? 'toast.emptyContent'
+                  : 'toast.saveFailed';
+        if (toastKey === 'toast.saveFailed') {
+          console.error('[prompt-library] create failed', err);
+        }
+        toast({ title: t(toastKey), variant: 'destructive' });
+      }
+    },
+    [organizationId, createPrompt, toast, t],
+  );
+
   const handleEditSubmit = useCallback(
     async (data: PromptFormData) => {
       if (!editingPrompt) return;
-      await updatePrompt.mutateAsync({
-        promptId: editingPrompt._id,
-        title: data.title,
-        content: data.content,
-        description: data.description || undefined,
-        scope: data.scope,
-        teamId: data.teamId,
-        category: data.category || undefined,
-        tags: data.tags.length > 0 ? data.tags : undefined,
-      });
-      setEditingPrompt(null);
+      try {
+        const result = await updatePrompt.mutateAsync({
+          promptId: editingPrompt._id,
+          title: data.title,
+          content: data.content,
+          description: data.description || undefined,
+          scope: data.scope,
+          teamId: data.teamId,
+          category: data.category || undefined,
+          tags: data.tags.length > 0 ? data.tags : undefined,
+          expectedVersion: data.expectedVersion,
+        });
+        // Server returns null when the row was deleted out from under us or
+        // when the personal-scope owner gate rejected the caller. Treat as
+        // not-found so the user's draft isn't silently dropped.
+        if (result === null) {
+          toast({ title: t('toast.notFound'), variant: 'destructive' });
+          return;
+        }
+        // Always toast on a non-null result so the user gets feedback even
+        // when the save was a metadata-only / no-op edit (server returns the
+        // unchanged row in those cases). Use the saved-with-version copy
+        // when the version actually bumped; otherwise generic "saved".
+        if (
+          result.version !== undefined &&
+          result.version !== editingPrompt.version
+        ) {
+          toast({
+            title: t('toast.saved', { version: String(result.version) }),
+            variant: 'success',
+          });
+        } else {
+          toast({ title: t('toast.savedNoChanges'), variant: 'success' });
+        }
+        setEditingPrompt(null);
+      } catch (err) {
+        const code = extractErrorCode(err);
+        const toastKey =
+          code === 'version_conflict' || code === 'missing_expected_version'
+            ? 'toast.versionConflict'
+            : code === 'forbidden'
+              ? 'toast.forbidden'
+              : code === 'not_found'
+                ? 'toast.notFound'
+                : code === 'rate_limited'
+                  ? 'toast.rateLimited'
+                  : code === 'too_large'
+                    ? 'toast.tooLarge'
+                    : code === 'empty_content'
+                      ? 'toast.emptyContent'
+                      : 'toast.saveFailed';
+        if (toastKey === 'toast.saveFailed') {
+          console.error('[prompt-library] update failed', err);
+        }
+        toast({ title: t(toastKey), variant: 'destructive' });
+      }
     },
-    [editingPrompt, updatePrompt],
+    [editingPrompt, updatePrompt, toast, t],
   );
 
   const handleDeleteConfirm = useCallback(async () => {
     if (!deletingPrompt) return;
-    await deletePrompt.mutateAsync({
-      promptId: deletingPrompt._id,
-    });
-    setDeletingPrompt(null);
-  }, [deletingPrompt, deletePrompt]);
+    try {
+      await deletePrompt.mutateAsync({
+        promptId: deletingPrompt._id,
+      });
+      setDeletingPrompt(null);
+    } catch (err) {
+      const code = extractErrorCode(err);
+      const toastKey =
+        code === 'legal_hold'
+          ? 'toast.legalHold'
+          : code === 'forbidden'
+            ? 'toast.forbidden'
+            : code === 'not_found'
+              ? 'toast.notFound'
+              : code === 'rate_limited'
+                ? 'toast.rateLimited'
+                : 'toast.deleteFailed';
+      if (toastKey === 'toast.deleteFailed') {
+        console.error('[prompt-library] delete failed', err);
+      }
+      toast({ title: t(toastKey), variant: 'destructive' });
+    }
+  }, [deletingPrompt, deletePrompt, toast, t]);
+
+  const clearFilters = useCallback(() => {
+    setSearchQuery('');
+    setSelectedCategories([]);
+    setSelectedTags([]);
+  }, []);
 
   const tabItems = [
     { value: 'all', label: t('tabs.all') },
+    { value: 'global', label: t('tabs.global'), disabled: !isAdmin },
     { value: 'team', label: t('tabs.team') },
     { value: 'personal', label: t('tabs.personal') },
   ];
@@ -163,7 +303,9 @@ function PromptLibraryDialogContent({
           <Tabs
             items={tabItems}
             value={activeTab}
-            onValueChange={setActiveTab}
+            onValueChange={(v) => {
+              if (isTabValue(v)) setActiveTab(v);
+            }}
             actions={
               <Button
                 onClick={() => setFormOpen(true)}
@@ -191,69 +333,156 @@ function PromptLibraryDialogContent({
               selectedCategories={selectedCategories}
               onSelectedCategoriesChange={setSelectedCategories}
             />
+            <TagFilterPopover
+              tags={availableTags}
+              selectedTags={selectedTags}
+              onSelectedTagsChange={setSelectedTags}
+            />
           </HStack>
 
-          <div className="max-h-[340px] min-h-[300px] overflow-y-auto">
-            {isLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Text variant="muted">{t('library.loading')}</Text>
+          <div
+            className="max-h-[340px] min-h-[300px] overflow-y-auto"
+            aria-busy={isLoading || undefined}
+          >
+            {isLoading && prompts.length === 0 ? (
+              <div className="flex flex-col gap-2 py-2">
+                {[0, 1, 2].map((i) => (
+                  <div
+                    key={i}
+                    className="bg-muted h-14 animate-pulse rounded-md"
+                    aria-hidden="true"
+                  />
+                ))}
+                <span className="sr-only">{t('library.loading')}</span>
               </div>
-            ) : filteredPrompts.length === 0 ? (
+            ) : visiblePrompts.length === 0 ? (
               <div className="flex h-[300px] flex-col items-center justify-center gap-4">
                 <div className="bg-muted flex size-12 items-center justify-center rounded-full">
                   <BookOpen className="text-muted-foreground size-6" />
                 </div>
                 <div className="flex flex-col items-center gap-2 text-center">
                   <Text as="h3" variant="label" className="font-medium">
-                    {t('emptyState.title')}
+                    {filtersActive
+                      ? t('emptyState.filteredTitle')
+                      : t('emptyState.title')}
                   </Text>
                   <Text variant="muted" className="max-w-[280px] text-sm">
-                    {t('emptyState.description')}
+                    {filtersActive && canLoadMore
+                      ? t('emptyState.filteredCanLoadMore')
+                      : filtersActive
+                        ? t('emptyState.filteredDescription')
+                        : t('emptyState.description')}
                   </Text>
+                  {filtersActive && (
+                    <HStack gap={2} justify="center">
+                      {canLoadMore && (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={loadMore}
+                          disabled={isLoadingMore}
+                        >
+                          {isLoadingMore
+                            ? t('library.loadingMore')
+                            : t('library.loadMore')}
+                        </Button>
+                      )}
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={clearFilters}
+                      >
+                        {t('emptyState.clearFilters')}
+                      </Button>
+                    </HStack>
+                  )}
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col">
-                {filteredPrompts.map((prompt, index) => (
-                  <PromptListRow
-                    key={prompt._id}
-                    prompt={prompt}
-                    onUse={handleUsePrompt}
-                    onEdit={
-                      canModifyPrompt(prompt) && !prompt.sourceMessageId
-                        ? (p) => setEditingPrompt(p)
-                        : undefined
-                    }
-                    onDelete={
-                      canModifyPrompt(prompt)
-                        ? (p) => setDeletingPrompt(p)
-                        : undefined
-                    }
-                    canModify={canModifyPrompt(prompt)}
-                    isLast={index === filteredPrompts.length - 1}
-                  />
-                ))}
+              <div className="flex flex-col" role="list">
+                {visiblePrompts.map((prompt, index) => {
+                  const canModify = canModifyPrompt(prompt);
+                  return (
+                    <PromptListRow
+                      key={prompt._id}
+                      prompt={prompt}
+                      onUse={handleUsePrompt}
+                      onEdit={
+                        canModify && !prompt.sourceMessageId
+                          ? (p) => setEditingPrompt(p)
+                          : undefined
+                      }
+                      onDelete={
+                        canModify ? (p) => setDeletingPrompt(p) : undefined
+                      }
+                      onViewHistory={
+                        canModify ? (p) => setHistoryPrompt(p) : undefined
+                      }
+                      canModify={canModify}
+                      isLast={index === visiblePrompts.length - 1}
+                    />
+                  );
+                })}
+                {canLoadMore && (
+                  <div className="flex justify-center py-3">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={loadMore}
+                      disabled={isLoadingMore}
+                    >
+                      {isLoadingMore
+                        ? t('library.loadingMore')
+                        : t('library.loadMore')}
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </div>
         </div>
       </Dialog>
 
-      <SavePromptDialog
-        open={formOpen}
-        onOpenChange={setFormOpen}
-        initialContent=""
+      <PromptFormDialog
+        open={formOpen || !!editingPrompt}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setFormOpen(false);
+            setEditingPrompt(null);
+          }
+        }}
+        onSubmit={editingPrompt ? handleEditSubmit : handleCreateSubmit}
+        isSubmitting={
+          editingPrompt ? updatePrompt.isPending : createPrompt.isPending
+        }
+        initialData={editingPrompt ?? undefined}
+        isOrgAdmin={isAdmin}
+        headerActions={
+          editingPrompt && (editingPrompt.version ?? 0) > 1 ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setHistoryPrompt(editingPrompt)}
+            >
+              <History className="mr-1 size-3" />
+              {t('actions.viewHistory')}
+            </Button>
+          ) : undefined
+        }
       />
 
-      <PromptFormDialog
-        open={!!editingPrompt}
-        onOpenChange={(isOpen) => {
-          if (!isOpen) setEditingPrompt(null);
-        }}
-        onSubmit={handleEditSubmit}
-        isSubmitting={updatePrompt.isPending}
-        initialData={editingPrompt ?? undefined}
-      />
+      {historyPrompt && (
+        <PromptHistoryDialog
+          open={!!historyPrompt}
+          onOpenChange={(o) => {
+            if (!o) setHistoryPrompt(null);
+          }}
+          prompt={historyPrompt}
+        />
+      )}
 
       <ConfirmDialog
         open={!!deletingPrompt}

@@ -1,22 +1,34 @@
 'use client';
 
-import { Button } from '@tale/ui/button';
-import { useState, useCallback, useMemo } from 'react';
+import { useCallback, useId, useMemo, useState } from 'react';
 
-import { Dialog, DialogClose } from '@/app/components/ui/dialog/dialog';
+import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
+import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { Text } from '@/app/components/ui/typography/text';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useToast } from '@/app/hooks/use-toast';
+import { MAX_PROMPT_CONTENT_BYTES } from '@/convex/prompts/constants';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import { useSavePrompt } from '../hooks/mutations';
 import { usePrompts } from '../hooks/queries';
+import { extractErrorCode } from '../lib/extract-error-code';
 import { AddCategoryPopover } from './add-category-popover';
 
 type PromptScope = 'personal' | 'team' | 'global';
+
+function isPromptScope(value: string): value is PromptScope {
+  return value === 'personal' || value === 'team' || value === 'global';
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  return `${(n / 1024).toFixed(1)} KB`;
+}
 
 export interface SavePromptDialogProps {
   open: boolean;
@@ -24,48 +36,6 @@ export interface SavePromptDialogProps {
   initialContent: string;
   /** The message ID this prompt is being saved from. */
   sourceMessageId?: string;
-}
-
-function ScopeRadio({
-  checked,
-  label,
-  onClick,
-}: {
-  checked: boolean;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={checked}
-      onClick={onClick}
-      className="flex items-center gap-1.5"
-    >
-      <span
-        className={cn(
-          'flex size-4 items-center justify-center rounded-full',
-          checked ? 'bg-primary' : 'bg-border',
-        )}
-      >
-        <span
-          className={cn(
-            'rounded-full bg-background',
-            checked ? 'size-2.5' : 'size-3.5 shadow-sm',
-          )}
-        />
-      </span>
-      <span
-        className={cn(
-          'text-sm',
-          checked ? 'text-foreground font-medium' : 'text-muted-foreground',
-        )}
-      >
-        {label}
-      </span>
-    </button>
-  );
 }
 
 function SavePromptDialogContent({
@@ -87,6 +57,11 @@ function SavePromptDialogContent({
   const [category, setCategory] = useState('');
   const [localCategories, setLocalCategories] = useState<string[]>([]);
 
+  const bytesId = useId();
+  const categoryLabelId = useId();
+  const bytesErrorId = `${bytesId}-error`;
+  const isPending = savePrompt.isPending;
+
   const existingCategories = useMemo(() => {
     const fromPrompts = prompts
       .map((p) => p.category)
@@ -100,7 +75,36 @@ function SavePromptDialogContent({
     [teams],
   );
 
-  const isValid = content.trim().length > 0 && (scope !== 'team' || !!teamId);
+  const scopeOptions = useMemo(
+    () => [
+      { value: 'personal', label: t('scope.personal') },
+      { value: 'team', label: t('scope.team') },
+      { value: 'global', label: t('scope.global') },
+    ],
+    [t],
+  );
+
+  const contentBytes = useMemo(
+    () => new TextEncoder().encode(content).byteLength,
+    [content],
+  );
+  const overByteLimit = contentBytes > MAX_PROMPT_CONTENT_BYTES;
+  const approachingLimit =
+    !overByteLimit && contentBytes >= MAX_PROMPT_CONTENT_BYTES * 0.9;
+
+  const isValid =
+    content.trim().length > 0 &&
+    !overByteLimit &&
+    (scope !== 'team' || !!teamId);
+
+  // Whether the user has touched anything since the dialog opened. Used only to
+  // gate the discard-confirm prompt — NOT to gate submit. The dialog's purpose
+  // is to create a new prompt, so "submittable" is `isValid`, not "modified".
+  const hasUserEdits =
+    content !== initialContent ||
+    scope !== 'personal' ||
+    !!teamId ||
+    category !== '';
 
   const scopeLabel =
     scope === 'personal'
@@ -110,29 +114,49 @@ function SavePromptDialogContent({
         : t('scope.global');
 
   const handleSubmit = useCallback(
-    async (e?: React.FormEvent) => {
-      e?.preventDefault();
-      if (!isValid || !organizationId) return;
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!isValid || isPending || !organizationId) return;
 
-      await savePrompt.mutateAsync({
-        organizationId,
-        content: content.trim(),
-        scope,
-        teamId: scope === 'team' ? teamId : undefined,
-        category: category || undefined,
-        isPublished: true,
-        sourceMessageId,
-      });
+      try {
+        await savePrompt.mutateAsync({
+          organizationId,
+          content: content.trim(),
+          scope,
+          teamId: scope === 'team' ? teamId : undefined,
+          category: category || undefined,
+          // Compose flow passes an empty string when there's no source
+          // message; coerce so we never persist `''` as a meaningless id.
+          sourceMessageId: sourceMessageId || undefined,
+        });
 
-      toast({
-        title: t('toast.savedTo', { scope: scopeLabel }),
-        variant: 'success',
-      });
+        toast({
+          title: t('toast.savedTo', { scope: scopeLabel }),
+          variant: 'success',
+        });
 
-      onOpenChange(false);
+        onOpenChange(false);
+      } catch (err) {
+        const code = extractErrorCode(err);
+        const toastKey =
+          code === 'rate_limited'
+            ? 'toast.rateLimited'
+            : code === 'forbidden'
+              ? 'toast.forbidden'
+              : code === 'too_large'
+                ? 'toast.tooLarge'
+                : code === 'empty_content'
+                  ? 'toast.emptyContent'
+                  : 'toast.saveFailed';
+        if (toastKey === 'toast.saveFailed') {
+          console.error('[save-prompt-dialog] save failed', err);
+        }
+        toast({ title: t(toastKey), variant: 'destructive' });
+      }
     },
     [
       isValid,
+      isPending,
       organizationId,
       content,
       scope,
@@ -153,25 +177,18 @@ function SavePromptDialogContent({
   }, []);
 
   return (
-    <Dialog
+    <FormDialog
       open={open}
       onOpenChange={onOpenChange}
       title={t('saveAs.title')}
-      footer={
-        <>
-          <DialogClose asChild>
-            <Button variant="secondary">{t('saveAs.cancel')}</Button>
-          </DialogClose>
-          <Button
-            onClick={handleSubmit}
-            disabled={!isValid || savePrompt.isPending}
-          >
-            {t('form.save')}
-          </Button>
-        </>
-      }
+      onSubmit={handleSubmit}
+      isSubmitting={isPending}
+      isDirty
+      isValid={isValid}
+      confirmDiscardOnDirty={hasUserEdits}
+      submitText={t('form.save')}
     >
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1">
         <Textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
@@ -179,70 +196,93 @@ function SavePromptDialogContent({
           required
           aria-required
           aria-label={t('form.contentLabel')}
+          aria-describedby={`${bytesId}${overByteLimit ? ` ${bytesErrorId}` : ''}`}
+          aria-invalid={overByteLimit || undefined}
         />
-
-        <div className="flex flex-col gap-2">
-          <label className="text-muted-foreground text-sm font-medium">
-            {t('saveAs.saveTo')}
-          </label>
-          <div className="flex flex-col gap-2 py-0.5" role="radiogroup">
-            <ScopeRadio
-              checked={scope === 'personal'}
-              label={t('scope.personal')}
-              onClick={() => setScope('personal')}
-            />
-            <ScopeRadio
-              checked={scope === 'team'}
-              label={t('scope.team')}
-              onClick={() => setScope('team')}
-            />
-            <ScopeRadio
-              checked={scope === 'global'}
-              label={t('scope.global')}
-              onClick={() => setScope('global')}
-            />
-          </div>
-        </div>
-
-        {scope === 'team' && teamOptions.length > 0 && (
-          <Select
-            label={t('form.teamLabel')}
-            options={teamOptions}
-            value={teamId ?? ''}
-            onValueChange={(v) => setTeamId(v || undefined)}
-            placeholder={t('form.teamPlaceholder')}
-            required
-          />
+        <Text
+          id={bytesId}
+          variant="muted"
+          className={cn(
+            'text-right text-xs',
+            overByteLimit && 'text-destructive',
+            approachingLimit && 'text-warning-foreground',
+          )}
+          aria-live="polite"
+        >
+          {t('form.bytesUsed', {
+            used: formatBytes(contentBytes),
+            max: formatBytes(MAX_PROMPT_CONTENT_BYTES),
+          })}
+        </Text>
+        {overByteLimit && (
+          <Text
+            id={bytesErrorId}
+            role="alert"
+            className="text-destructive text-right text-xs"
+          >
+            {t('form.bytesOverLimitAlert')}
+          </Text>
         )}
+      </div>
 
-        <div className="flex flex-col gap-2">
-          <label className="text-muted-foreground text-sm font-medium">
-            {t('form.categoryLabel')}
-          </label>
-          <div className="flex flex-wrap items-center gap-2">
-            {existingCategories.map((cat) => (
+      <RadioGroup
+        label={t('saveAs.saveTo')}
+        value={scope}
+        onValueChange={(v) => {
+          if (isPromptScope(v)) setScope(v);
+        }}
+        options={scopeOptions}
+      />
+
+      {scope === 'team' && teamOptions.length > 0 && (
+        <Select
+          label={t('form.teamLabel')}
+          options={teamOptions}
+          value={teamId ?? ''}
+          onValueChange={(v) => setTeamId(v || undefined)}
+          placeholder={t('form.teamPlaceholder')}
+          required
+        />
+      )}
+
+      <div className="flex flex-col gap-2">
+        <label
+          id={categoryLabelId}
+          className="text-muted-foreground text-sm font-medium"
+        >
+          {t('form.categoryLabel')}
+        </label>
+        <div
+          role="group"
+          aria-labelledby={categoryLabelId}
+          className="flex flex-wrap items-center gap-2"
+        >
+          {existingCategories.map((cat) => {
+            const selected = category === cat;
+            return (
               <button
                 key={cat}
                 type="button"
+                aria-pressed={selected}
                 onClick={() => setCategory((prev) => (prev === cat ? '' : cat))}
                 className={cn(
                   'rounded-full px-2.5 py-1.5 text-[13px] font-medium transition-colors',
-                  category === cat
+                  selected
                     ? 'bg-primary text-primary-foreground'
                     : 'bg-muted text-muted-foreground hover:bg-accent',
                 )}
               >
                 {cat}
               </button>
-            ))}
-            <AddCategoryPopover
-              existingCategories={existingCategories}
-              onAddCategory={handleAddCategory}
-            />
-          </div>
+            );
+          })}
+          <AddCategoryPopover
+            existingCategories={existingCategories}
+            onAddCategory={handleAddCategory}
+          />
         </div>
-      </form>
-    </Dialog>
+      </div>
+    </FormDialog>
   );
 }
 

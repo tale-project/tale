@@ -36,6 +36,12 @@ export interface FormDialogProps {
   isDirty?: boolean;
   /** Whether the form passes validation (e.g. from react-hook-form formState.isValid) */
   isValid?: boolean;
+  /**
+   * If true, closing while `isDirty` shows a native discard-confirm prompt.
+   * Default false — only opt in from forms that capture meaningful user input
+   * (otherwise read-only dialogs spuriously confirm on every close).
+   */
+  confirmDiscardOnDirty?: boolean;
   /** Form submit handler (optional when customFooter is provided) */
   onSubmit?: (e: React.FormEvent) => void;
   /** Additional className for DialogContent */
@@ -70,6 +76,7 @@ export function FormDialog({
   isSubmitting = false,
   isDirty = true,
   isValid = true,
+  confirmDiscardOnDirty = false,
   onSubmit,
   className,
   customHeader,
@@ -82,17 +89,43 @@ export function FormDialog({
   const { t: tCommon } = useT('common');
   const orgId = useOrganizationId();
 
-  // Use refs to track values so handleClose has a stable reference
+  // Pre-resolve the localized prompt so the i18n scanner sees the literal
+  // key. The handleClose callback below reads it from a ref to keep its
+  // identity stable across re-renders.
+  const discardConfirmMessage = tCommon('discardChangesConfirm');
+
   const isSubmittingRef = useRef(isSubmitting);
   isSubmittingRef.current = isSubmitting;
+  const isDirtyRef = useRef(isDirty);
+  isDirtyRef.current = isDirty;
+  const confirmDiscardOnDirtyRef = useRef(confirmDiscardOnDirty);
+  confirmDiscardOnDirtyRef.current = confirmDiscardOnDirty;
   const onOpenChangeRef = useRef(onOpenChange);
   onOpenChangeRef.current = onOpenChange;
+  const discardConfirmMessageRef = useRef(discardConfirmMessage);
+  discardConfirmMessageRef.current = discardConfirmMessage;
 
   const handleClose = useCallback((isOpen: boolean) => {
-    // Block closing while submitting, but always allow opening
-    if (isOpen || !isSubmittingRef.current) {
-      onOpenChangeRef.current?.(isOpen);
+    if (isOpen) {
+      onOpenChangeRef.current?.(true);
+      return;
     }
+    // Block closing while submitting — user can still cancel via the Cancel
+    // button which gates on `disabled={isSubmitting}` independently.
+    if (isSubmittingRef.current) return;
+    // Confirm before discarding unsaved edits. Opt-in via
+    // `confirmDiscardOnDirty` so read-only dialogs (e.g. secret reveal) and
+    // dialogs that don't wire `isDirty` don't spuriously prompt on close.
+    // Native confirm avoids a nested-dialog focus-trap dance; swap for an
+    // inline AlertDialog later if a richer UX is needed.
+    if (
+      confirmDiscardOnDirtyRef.current &&
+      isDirtyRef.current &&
+      !globalThis.confirm(discardConfirmMessageRef.current)
+    ) {
+      return;
+    }
+    onOpenChangeRef.current?.(false);
   }, []);
 
   // Memoize the error handler to prevent inline function recreation

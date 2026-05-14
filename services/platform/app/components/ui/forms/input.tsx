@@ -68,6 +68,7 @@ export const Input = forwardRef<HTMLInputElement, BaseProps>(
       wrapperClassName,
       id: providedId,
       style,
+      'aria-describedby': callerDescribedBy,
       ...props
     },
     ref,
@@ -85,8 +86,11 @@ export const Input = forwardRef<HTMLInputElement, BaseProps>(
       autoComplete ?? (isPassword ? 'off' : undefined);
     const hasError = !!errorMessage;
     const showInvalid = hasError || !!isInvalid;
+    // Merge caller-supplied `aria-describedby` with the internal ids so a
+    // parent passing e.g. a counter id doesn't clobber the internal error /
+    // description associations the Input owns.
     const describedBy =
-      [description && descriptionId, hasError && errorId]
+      [description && descriptionId, hasError && errorId, callerDescribedBy]
         .filter(Boolean)
         .join(' ') || undefined;
 
