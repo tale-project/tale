@@ -14,11 +14,12 @@
   ],
   "cvcContextKeywords": ["セキュリティコード", "cvc", "cvv", "cv2"],
   "address": {
-    "forms": ["postcode-anchored"],
+    "forms": ["postcode-anchored", "po-box"],
     "postcodeForm": "jp",
     "postcodeRegex": "\\d{3}-\\d{4}",
     "countryNames": ["日本", "Japan", "JP"],
     "countryPostcodePrefixes": [],
+    "poBoxKeywords": ["私書箱"],
     "requireUppercase": false
   },
   "nationalIds": [

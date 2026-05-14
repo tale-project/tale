@@ -48,6 +48,16 @@ const PHONE_LIBPHONE_BUDGET_MS = 40;
 const PHONE_CLUSTER_RE = /[\d][\d\s\-().]{8,}/g;
 const PHONE_DIGIT_RE = /\d/g;
 
+function countMatches(re: RegExp, s: string): number {
+  re.lastIndex = 0;
+  let n = 0;
+  while (re.exec(s) !== null) {
+    n++;
+    if (re.lastIndex === 0) break;
+  }
+  return n;
+}
+
 /**
  * Convert leading `00` international-prefix groups to `+` so
  * libphonenumber-js (which only recognizes the `+` form) catches the
@@ -62,6 +72,9 @@ function buildPhonePosMap(orig: string): {
   converted: string;
   mapToOrig: (pos: number) => number;
 } {
+  if (orig.indexOf('00') === -1) {
+    return { converted: orig, mapToOrig: (p: number) => p };
+  }
   let converted = '';
   const map: number[] = [];
   let i = 0;
@@ -85,8 +98,14 @@ function buildPhonePosMap(orig: string): {
   map.push(orig.length);
   return {
     converted,
-    mapToOrig: (pos: number) =>
-      map[Math.min(pos, map.length - 1)] ?? orig.length,
+    mapToOrig: (pos: number) => {
+      if (pos < 0 || pos > map.length) {
+        console.debug(
+          `[pii] phone pos-map offset out of range pos=${pos} mapLen=${map.length}`,
+        );
+      }
+      return map[Math.min(pos, map.length - 1)] ?? orig.length;
+    },
   };
 }
 
@@ -98,19 +117,23 @@ function buildPhonePosMap(orig: string): {
  * group (the group is what gets masked; the keyword stays). Unicode-aware
  * boundary lookarounds so NFD-decomposed `é` doesn't slip past.
  *
- * Cached by sorted-locale-code key. Repeated `createScrubber` calls with
- * the same locale set share one compiled regex.
+ * Cached by a JSON-stringified `{locale, keywords}` digest sorted by
+ * locale code so the cache stays correct when an embedder overrides
+ * `phoneContextKeywords` for the same locale code via `PatternRegistry`.
  */
 const PHONE_REGEX_CACHE = new Map<string, RegExp>();
 
 function composePhoneContextRegex(
   locales: ReadonlyArray<LocaleConfig>,
 ): RegExp {
-  const cacheKey = locales
-    .map((l) => l.locale)
-    .slice()
-    .sort()
-    .join(',');
+  const cacheKey = JSON.stringify(
+    locales
+      .map((l) => ({
+        locale: l.locale,
+        keywords: l.phoneContextKeywords.slice(),
+      }))
+      .sort((a, b) => (a.locale < b.locale ? -1 : a.locale > b.locale ? 1 : 0)),
+  );
   const cached = PHONE_REGEX_CACHE.get(cacheKey);
   if (cached) return cached;
 
@@ -133,7 +156,7 @@ export const phoneFactory: PiiPatternFactory = (locales) => {
 
     // libphone path — gated on input size and cluster count.
     const tooLarge = text.length > PHONE_LIBPHONE_MAX_LEN;
-    const clusterCount = text.match(PHONE_CLUSTER_RE)?.length ?? 0;
+    const clusterCount = countMatches(PHONE_CLUSTER_RE, text);
     const tooMany = clusterCount > PHONE_LIBPHONE_MAX_CLUSTERS;
 
     if (!tooLarge && !tooMany) {
@@ -168,13 +191,14 @@ export const phoneFactory: PiiPatternFactory = (locales) => {
     while ((m = contextRegex.exec(text)) !== null) {
       const numberStr = m[1];
       if (!numberStr) continue;
-      // Trim trailing whitespace inside the captured group so the masker
-      // doesn't swallow the inter-word space. Mirrors the #1618 fix
-      // applied to creditCard.
-      const trimmed = numberStr.replace(/\s+$/, '');
+      // Trim trailing whitespace and `.,;:` punctuation inside the
+      // captured group so the masker doesn't swallow inter-word spacing
+      // or sentence-ending punctuation. Do NOT trim `)` — phones like
+      // `(030) 12345` legitimately end in `)`.
+      const trimmed = numberStr.replace(/[\s.,;:]+$/, '');
       if (trimmed.length === 0) continue;
       const numberStart = m.index + m[0].lastIndexOf(numberStr);
-      const digits = trimmed.match(PHONE_DIGIT_RE)?.length ?? 0;
+      const digits = countMatches(PHONE_DIGIT_RE, trimmed);
       if (digits >= 7) {
         out.push({
           start: numberStart,

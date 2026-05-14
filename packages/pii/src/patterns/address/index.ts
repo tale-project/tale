@@ -29,10 +29,29 @@
 import type { PiiPattern, PiiPatternFactory } from '../../core/types';
 import { composeAddressRegex } from './compose';
 
+/**
+ * Compiled-regex cache keyed by the sorted locale-code set.
+ *
+ * `composeAddressRegex` keeps its own inner cache, but every call still
+ * allocates the cache key. Hoisting the lookup here lets `addressFactory`
+ * short-circuit on the very first instruction when the same locale set is
+ * reused — mirrors `PHONE_REGEX_CACHE` in `patterns/phone.ts:104-126`.
+ */
+const ADDRESS_REGEX_CACHE = new Map<string, RegExp>();
+
 export const addressFactory: PiiPatternFactory = (locales) => {
   if (locales.length === 0) return [];
 
-  const regex = composeAddressRegex([...locales]);
+  const cacheKey = locales
+    .map((l) => l.locale)
+    .slice()
+    .sort()
+    .join(',');
+  let regex = ADDRESS_REGEX_CACHE.get(cacheKey);
+  if (!regex) {
+    regex = composeAddressRegex(locales);
+    ADDRESS_REGEX_CACHE.set(cacheKey, regex);
+  }
 
   // Title-Case gate is enabled if ANY locale in the set requires it.
   // For mixed sets (e.g. de + ja), the gate only filters Latin-script

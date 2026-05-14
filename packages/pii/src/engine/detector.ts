@@ -17,11 +17,21 @@
  * eating the replacement token of the second.
  */
 
-import { execWithBudget } from '../core/regex-safety';
+import { REGEX_EXEC_BUDGET_MS, execWithBudget } from '../core/regex-safety';
 import type { PiiMatch, PiiMatchSpan, PiiPattern } from '../core/types';
 
-/** Run one pattern against the text and return its raw spans (pre-dedup). */
-function resolveMatches(text: string, pattern: PiiPattern): PiiMatchSpan[] {
+/**
+ * Run one pattern against the text and return its raw spans (pre-dedup).
+ *
+ * `budgetMs` is threaded from `ScrubberOptions.perPatternBudgetMs` all the
+ * way down to the `execWithBudget` call so admin-tunable per-pattern
+ * budgets actually take effect (the scrubber used to discard the option).
+ */
+function resolveMatches(
+  text: string,
+  pattern: PiiPattern,
+  budgetMs: number = REGEX_EXEC_BUDGET_MS,
+): PiiMatchSpan[] {
   if (pattern.detect) {
     try {
       return pattern.detect(text);
@@ -35,16 +45,18 @@ function resolveMatches(text: string, pattern: PiiPattern): PiiMatchSpan[] {
     }
   }
 
-  if (!pattern.regex) {
-    console.debug(
-      `[pii] pattern ${pattern.name} has neither regex nor detect; skipping`,
-    );
-    return [];
-  }
+  // After the `pattern.detect` branch returns, the union narrows to
+  // `PiiPatternRegex` where `regex` is required. TypeScript can't see
+  // that on its own (both variants make `detect` optional via `?: never`),
+  // so we capture into a local and add a runtime guard for defense in
+  // depth against a malformed object that snuck past the schema.
+  const regex = pattern.regex;
+  if (!regex) return [];
 
-  const regex = new RegExp(pattern.regex.source, pattern.regex.flags);
+  // `execWithBudget` clones the regex internally for `lastIndex` isolation,
+  // so we pass `pattern.regex` directly — no redundant allocation here.
   const out: PiiMatchSpan[] = [];
-  for (const m of execWithBudget(regex, text)) {
+  for (const m of execWithBudget(regex, text, budgetMs)) {
     if (pattern.validate) {
       let ok = false;
       try {
@@ -108,14 +120,19 @@ export function dedupOverlaps(matches: PiiMatch[]): PiiMatch[] {
  * (`core/normalize.ts`) and it does not validate the config — both are
  * the caller's responsibility. `scrubber.scrub()` and `scrubPii()`
  * orchestrate normalization and pattern selection on top of this.
+ *
+ * `budgetMs` is forwarded to every regex `execWithBudget` call. Function-
+ * shaped patterns (`pattern.detect`) own their own performance contract
+ * and ignore this knob.
  */
 export function detectPii(
   text: string,
   patterns: ReadonlyArray<PiiPattern>,
+  budgetMs: number = REGEX_EXEC_BUDGET_MS,
 ): PiiMatch[] {
   const matches: PiiMatch[] = [];
   for (const pattern of patterns) {
-    for (const span of resolveMatches(text, pattern)) {
+    for (const span of resolveMatches(text, pattern, budgetMs)) {
       matches.push({
         patternName: pattern.name,
         start: span.start,

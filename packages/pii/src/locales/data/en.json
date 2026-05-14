@@ -26,7 +26,7 @@
   "address": {
     "forms": ["standard"],
     "postcodeForm": "us",
-    "postcodeRegex": "\\d{5}(?:-\\d{4})?",
+    "postcodeRegex": "\\d{5}(?:-\\d{4})?|[A-Z]{1,2}\\d[A-Z\\d]?\\s?\\d[A-Z]{2}",
     "requireUppercase": true,
     "streetKeywordsStandard": [
       "Street",

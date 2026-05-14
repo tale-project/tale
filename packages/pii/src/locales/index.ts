@@ -20,12 +20,14 @@
  *   - `composeCountryNamesAlternation` does the same for country names.
  */
 
+import safe from 'safe-regex2';
 import { z } from 'zod';
 
 import { escapeRegExp } from '../core/regex-safety';
 import type { LocaleCode } from '../core/types';
 import type {
   AddressFormShape,
+  DateOfBirthConfig,
   LocaleAddressConfig,
   LocaleConfig,
   NationalIdSpec,
@@ -81,30 +83,43 @@ const nationalIdSpecSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   pattern: z.string().min(1),
+  // Sorted alphabetically — keep in sync with `NationalIdSpec.checksum` in
+  // `./types.ts` and the dispatch switch in `national-ids/index.ts`.
   checksum: z
     .enum([
-      'icao9303',
-      'luhn',
-      'mod11-bsn',
-      'mod11-cpf',
-      'mod11-2-cn',
-      'verhoeff',
-      'pesel-mod10',
-      'ie-mod23',
+      'ar-cuil',
+      'au-tfn',
+      'be-nrn',
+      'br-cnpj',
+      'cz-rc',
+      'de-steuer-id',
+      'dk-cpr',
       'ean13',
       'es-dni',
       'es-nie',
-      'be-nrn',
-      'au-tfn',
-      'nz-ird',
-      'ar-cuil',
+      'fr-nir',
       'hk-hkid',
-      'mx-curp',
-      'de-steuer-id',
-      'ro-cnp',
-      'tr-tckn',
-      'se-personnummer',
+      'icao9303',
+      'ie-mod23',
       'il-teudat-zehut',
+      'it-codice-fiscale',
+      'jp-mynumber',
+      'kr-rrn',
+      'luhn',
+      'mod11-2-cn',
+      'mod11-bsn',
+      'mod11-cpf',
+      'mx-curp',
+      'my-mykad',
+      'nz-ird',
+      'pesel-mod10',
+      'pt-nif',
+      'ro-cnp',
+      'ru-inn-12',
+      'se-personnummer',
+      'sg-nric',
+      'tr-tckn',
+      'verhoeff',
     ])
     .optional(),
   checksumLength: z.number().int().positive().optional(),
@@ -135,6 +150,15 @@ const addressConfigSchema = z.object({
   requireUppercase: z.boolean(),
 });
 
+const dateOfBirthConfigSchema = z.object({
+  monthsLong: z.array(z.string().min(1)).optional(),
+  monthsShort: z.array(z.string().min(1)).optional(),
+  contextKeywords: z.array(z.string().min(1)).optional(),
+  yearMarker: z.string().min(1).optional(),
+  monthMarker: z.string().min(1).optional(),
+  dayMarker: z.string().min(1).optional(),
+}) satisfies z.ZodType<DateOfBirthConfig>;
+
 const localeConfigSchema = z.object({
   locale: z.string().min(2),
   name: z.string().min(1),
@@ -144,6 +168,7 @@ const localeConfigSchema = z.object({
   cvcContextKeywords: z.array(z.string().min(1)),
   address: addressConfigSchema,
   nationalIds: z.array(nationalIdSpecSchema),
+  dateOfBirth: dateOfBirthConfigSchema.optional(),
   fixtureSeeds: z
     .object({
       addresses: z.array(z.string().min(1)).optional(),
@@ -262,6 +287,39 @@ for (const raw of RAW_LOCALES) {
   // contributor breaks parity (renames an enum value, drops a field),
   // TypeScript catches it here, not at first detection-time call.
   const parsed: LocaleConfig = localeConfigSchema.parse(raw);
+
+  // National-ID regex sources arrive from JSON — treat each as untrusted
+  // and gate every pattern before it is ever compiled at runtime. Two
+  // checks per spec: (1) the source must compile (`new RegExp`), (2) it
+  // must pass `safe-regex2` AST analysis (catches nested quantifiers
+  // and ambiguous alternation — the shapes that exhaust
+  // `execWithBudget`'s wall-clock budget).
+  //
+  // Fail-open: drop the offending spec rather than throw, so a single
+  // bad entry can't take down module load for every consumer of every
+  // locale. The warning names only `locale` + `id`; the pattern source
+  // itself can leak ID-template structure and must never reach the log.
+  parsed.nationalIds = parsed.nationalIds.filter((spec) => {
+    try {
+      // Compile only to validate syntax; the pattern is recompiled with
+      // the `g` flag at use time in `national-ids/index.ts`.
+      // eslint-disable-next-line no-new
+      new RegExp(spec.pattern);
+    } catch {
+      console.warn(
+        `[pii] dropping invalid nationalId regex in locale "${parsed.locale}": ${spec.id}`,
+      );
+      return false;
+    }
+    if (!safe(spec.pattern)) {
+      console.warn(
+        `[pii] dropping unsafe nationalId regex in locale "${parsed.locale}": ${spec.id}`,
+      );
+      return false;
+    }
+    return true;
+  });
+
   LOCALES.set(parsed.locale, parsed);
 }
 
@@ -283,6 +341,17 @@ export function loadLocale(code: LocaleCode): LocaleConfig {
 /** List every locale code the library has data for. */
 export function listLocales(): LocaleCode[] {
   return [...LOCALES.keys()];
+}
+
+/**
+ * Return true when `code` is a locale the registry has data for.
+ *
+ * Cheap O(1) lookup against the loaded `LOCALES` map. Useful for config
+ * validators and admin-UI input checks that want to gate on "is this a
+ * known locale" without throwing.
+ */
+export function isValidLocaleCode(code: string): boolean {
+  return LOCALES.has(code);
 }
 
 /**
@@ -334,6 +403,7 @@ export function composeKeywordAlternation(
 /** Re-export types for consumers. */
 export type {
   AddressFormShape,
+  DateOfBirthConfig,
   LocaleAddressConfig,
   LocaleConfig,
   NationalIdSpec,

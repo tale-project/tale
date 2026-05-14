@@ -13,15 +13,126 @@ import type { LocaleConfig } from '../locales/types';
 
 /**
  * BCP 47 locale code for opt-in address / national-ID detection. The
- * library ships 50 locales; users may pass any subset. `'*'` means "every
+ * library ships 43 locales; users may pass any subset. `'*'` means "every
  * locale the library knows about".
  *
  * The string is intentionally typed loosely as `string` rather than a
- * closed union — adding the 51st locale should not be a breaking change
+ * closed union — adding the 44th locale should not be a breaking change
  * for downstream consumers' type checks. Runtime validation rejects
- * unknown codes via `loadLocale`.
+ * unknown codes via `loadLocale`. Strict-mode callers can opt in to the
+ * closed `SupportedLocaleCode` union instead.
  */
 export type LocaleCode = string;
+
+/**
+ * Closed union over the locale codes the library currently ships JSON
+ * data for. Use this in strict-mode call sites where the caller wants
+ * IDE / Zod autocomplete on the locale code; use `LocaleCode` (loose
+ * `string`) when the call site must stay forward-compatible with new
+ * locales added in a minor version.
+ *
+ * Kept in sync with `src/locales/data/*.json` — adding a JSON file
+ * means adding its code here too.
+ */
+export type SupportedLocaleCode =
+  | 'en'
+  | 'de'
+  | 'fr'
+  | 'it'
+  | 'nl'
+  | 'es'
+  | 'pt'
+  | 'sv'
+  | 'pl'
+  | 'ru'
+  | 'uk'
+  | 'ja'
+  | 'zh-Hans'
+  | 'zh-Hant'
+  | 'ko'
+  | 'ar'
+  | 'he'
+  | 'tr'
+  | 'el'
+  | 'hi'
+  | 'id'
+  | 'vi'
+  | 'th'
+  | 'cs'
+  | 'fi'
+  | 'da'
+  | 'nb'
+  | 'hu'
+  | 'ro'
+  | 'sk'
+  | 'ca'
+  | 'fa'
+  | 'ur'
+  | 'bn'
+  | 'ms'
+  | 'tl'
+  | 'bg'
+  | 'sr'
+  | 'hr'
+  | 'sl'
+  | 'lt'
+  | 'lv'
+  | 'et';
+
+/**
+ * Runtime mirror of `SupportedLocaleCode`. Useful for iteration, Zod
+ * `.enum(...)` definitions, and runtime membership checks against the
+ * set of locales the library currently ships data for.
+ *
+ * Kept in lockstep with `SupportedLocaleCode` — adding a locale JSON
+ * under `src/locales/data/` means adding its code to both this array
+ * and the type union above.
+ */
+export const SUPPORTED_LOCALE_CODES: readonly SupportedLocaleCode[] = [
+  'en',
+  'de',
+  'fr',
+  'it',
+  'nl',
+  'es',
+  'pt',
+  'sv',
+  'pl',
+  'ru',
+  'uk',
+  'ja',
+  'zh-Hans',
+  'zh-Hant',
+  'ko',
+  'ar',
+  'he',
+  'tr',
+  'el',
+  'hi',
+  'id',
+  'vi',
+  'th',
+  'cs',
+  'fi',
+  'da',
+  'nb',
+  'hu',
+  'ro',
+  'sk',
+  'ca',
+  'fa',
+  'ur',
+  'bn',
+  'ms',
+  'tl',
+  'bg',
+  'sr',
+  'hr',
+  'sl',
+  'lt',
+  'lv',
+  'et',
+];
 
 /**
  * One span of detected PII inside the input text.
@@ -50,28 +161,47 @@ export interface PiiMatch {
 }
 
 /**
- * A pattern definition. Exactly one of `regex` or `detect` must be set:
+ * A pattern definition modelled as a discriminated union so consumers
+ * cannot construct a pattern carrying both `regex` and `detect`. The
+ * `?: never` markers make the discriminator structural — detector.ts
+ * can keep its truthiness narrowing (`if (pattern.detect)` then
+ * `if (!pattern.regex)`) without changing the algorithm.
  *
- *   - `regex` only: classical pattern, runs under `execWithBudget`.
- *   - `regex` + `validate`: regex finds candidates, post-filter accepts
- *     or rejects each one (used for IBAN mod-97, credit-card Luhn,
- *     national-ID check digits — eliminates whole classes of false
- *     positive that pure regex cannot).
- *   - `detect`: function form for libraries with their own scanner
- *     (`libphonenumber-js`). Skips `execWithBudget` because the library
- *     owns its own performance contract.
+ *   - `PiiPatternRegex` (+ optional `validate`): classical pattern, runs
+ *     under `execWithBudget`. The optional post-filter accepts or rejects
+ *     each candidate (used for IBAN mod-97, credit-card Luhn, national-ID
+ *     check digits — eliminates whole classes of false positive that
+ *     pure regex cannot).
+ *   - `PiiPatternDetect`: function form for libraries with their own
+ *     scanner (`libphonenumber-js`). Skips `execWithBudget` because the
+ *     library owns its own performance contract.
+ *
+ * `regex` on `PiiPatternRegex` is intentionally typed as optional so
+ * detector.ts's defensive `if (!pattern.regex)` log-and-skip branch
+ * still narrows cleanly. Construct sites should always populate it; the
+ * shape discriminator is `detect?: never`, not `regex` presence.
  *
  * `validate` is wrapped in try/catch inside the detector: a thrown
  * exception never propagates matched text into the log line (GDPR — only
  * pattern name and `err.name` are logged).
  */
-export interface PiiPattern {
-  name: string;
-  replacement: string;
-  regex?: RegExp;
-  validate?: (matchedText: string) => boolean;
-  detect?: (text: string) => PiiMatchSpan[];
+export interface PiiPatternRegex {
+  readonly name: string;
+  readonly regex?: RegExp;
+  readonly validate?: (matchedText: string) => boolean;
+  readonly replacement: string;
+  readonly detect?: never;
 }
+
+export interface PiiPatternDetect {
+  readonly name: string;
+  readonly detect: (text: string) => PiiMatchSpan[];
+  readonly replacement: string;
+  readonly regex?: never;
+  readonly validate?: never;
+}
+
+export type PiiPattern = PiiPatternRegex | PiiPatternDetect;
 
 /**
  * Pattern factory.

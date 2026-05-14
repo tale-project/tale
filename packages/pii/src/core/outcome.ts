@@ -53,17 +53,17 @@ export interface FilterBlockedOutcome {
 
 export interface FilterStepErrorOutcome {
   kind: 'step_error';
-  errorClass:
-    | 'timeout'
-    | 'network'
-    | 'parse'
-    | 'http_4xx'
-    | 'http_5xx'
-    | 'config'
-    | 'unknown';
-  httpStatus?: number;
-  durationMs?: number;
-  attempt?: number;
+  /**
+   * Which filter raised the error — lets the orchestrator log a single
+   * line per step without consulting external context.
+   */
+  filterName: FilterName;
+  /**
+   * Short, log-safe description of why the step failed (e.g. `"timeout"`,
+   * `"network"`, `"config: missing api key"`). Never include matched text
+   * — the reason ends up in logs (GDPR).
+   */
+  reason: string;
 }
 
 export type FilterOutcome =
@@ -100,4 +100,11 @@ export function blocked(
   truncated?: boolean,
 ): FilterBlockedOutcome {
   return { kind: 'blocked', categoryIds, matchCount, truncated };
+}
+
+export function stepError(
+  filterName: FilterName,
+  reason: string,
+): FilterStepErrorOutcome {
+  return { kind: 'step_error', filterName, reason };
 }

@@ -13,11 +13,12 @@
   ],
   "cvcContextKeywords": ["보안코드", "cvc", "cvv", "cv2"],
   "address": {
-    "forms": ["postcode-anchored"],
+    "forms": ["postcode-anchored", "po-box"],
     "postcodeForm": "kr",
     "postcodeRegex": "\\d{5}",
     "countryNames": ["대한민국", "Korea", "South Korea", "KR"],
     "countryPostcodePrefixes": [],
+    "poBoxKeywords": ["사서함"],
     "requireUppercase": false
   },
   "nationalIds": [

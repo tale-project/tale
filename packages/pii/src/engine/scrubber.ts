@@ -24,16 +24,12 @@ import {
   REGEX_EXEC_BUDGET_MS,
   clampMessage,
 } from '../core/regex-safety';
-import type {
-  LocaleCode,
-  PiiMatch,
-  PiiPattern,
-  PiiPatternFactory,
-} from '../core/types';
+import type { LocaleCode, PiiPattern, PiiPatternFactory } from '../core/types';
 import { resolveLocales, type LocaleConfig } from '../locales';
 import { detectPii } from './detector';
 import { maskPii } from './masker';
 import { PatternRegistry } from './registry';
+import { applyTokenization } from './tokenizer';
 
 /**
  * Per-pattern toggle in the scrubber options. Locale-aware patterns
@@ -238,11 +234,12 @@ export function createScrubber(options: ScrubberOptions): Scrubber {
   const patterns = [...factoryPatterns, ...customPatterns];
 
   const maxBytes = options.maxBytes ?? MAX_MESSAGE_BYTES;
-  // `perPatternBudgetMs` is the contract knob but actual enforcement
-  // happens inside `execWithBudget` via the regex's source — passing it
-  // through here would require threading per-pattern budgets, which is
-  // overkill for the default. Reserved for future use.
-  void (options.perPatternBudgetMs ?? REGEX_EXEC_BUDGET_MS);
+  // Resolve the per-pattern regex budget once and forward it to every
+  // `detectPii` call below. The old code dropped this option on the
+  // floor (`void (...)`); admins tuning the budget got no effect.
+  // `execWithBudget` clamps misconfigured values inside the safety
+  // layer, so we can pass it through unchecked.
+  const budgetMs = options.perPatternBudgetMs ?? REGEX_EXEC_BUDGET_MS;
 
   const mode = options.mode ?? 'tokenize';
 
@@ -251,7 +248,7 @@ export function createScrubber(options: ScrubberOptions): Scrubber {
     const normalized = normalizeForDetection(text);
     const { text: clamped, truncated } = clampMessage(normalized, maxBytes);
 
-    const matches = detectPii(clamped, patterns);
+    const matches = detectPii(clamped, patterns, budgetMs);
     if (matches.length === 0) return pass();
 
     const categoryIds = [...new Set(matches.map((m) => m.patternName))];
@@ -259,9 +256,14 @@ export function createScrubber(options: ScrubberOptions): Scrubber {
     if (mode === 'block') {
       return blocked(categoryIds, matches.length, truncated || undefined);
     }
+    // `mode: 'tokenize'` reuses the same shared core that backs
+    // `createTokenizer().tokenize()` — single source of truth for the
+    // `[TYPE_N]` format. The restore mapping is discarded here because
+    // the scrubber path doesn't expose round-trip recovery (callers
+    // that need it should use `createTokenizer` directly).
     const rewritten =
       mode === 'tokenize'
-        ? tokenizeMatches(clamped, matches)
+        ? applyTokenization(clamped, matches).text
         : maskPii(clamped, matches);
     return modified(
       rewritten,
@@ -272,30 +274,4 @@ export function createScrubber(options: ScrubberOptions): Scrubber {
   }
 
   return { scrub, patterns, locales };
-}
-
-/**
- * In-scrubber tokenization helper — produces indexed `[TYPE_N]` tokens
- * for `mode: 'tokenize'`. We keep the restore mapping local to the call;
- * callers that need round-trip recovery should use `createTokenizer`
- * directly which returns the mapping alongside the rewritten text.
- */
-function tokenizeMatches(text: string, matches: PiiMatch[]): string {
-  const byKey = new Map<string, string>();
-  const counters = new Map<string, number>();
-  for (const m of matches) {
-    const key = `${m.patternName} ${m.matchedText}`;
-    if (byKey.has(key)) continue;
-    const next = (counters.get(m.patternName) ?? 0) + 1;
-    counters.set(m.patternName, next);
-    byKey.set(key, `[${m.patternName.toUpperCase()}_${next}]`);
-  }
-  const sorted = [...matches].sort((a, b) => b.start - a.start);
-  let out = text;
-  for (const m of sorted) {
-    const token = byKey.get(`${m.patternName} ${m.matchedText}`);
-    if (!token) continue;
-    out = out.slice(0, m.start) + token + out.slice(m.end);
-  }
-  return out;
 }

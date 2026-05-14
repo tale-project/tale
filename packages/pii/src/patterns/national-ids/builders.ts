@@ -507,3 +507,306 @@ export function ilTeudatZehutCheck(digits: string): boolean {
   }
   return total % 10 === 0;
 }
+
+// -----------------------------------------------------------------------------
+// Wave-1 additions — checksums consumed by Wave-4 locale JSONs.
+// -----------------------------------------------------------------------------
+
+/**
+ * Brazilian CNPJ — 14 digits, two cascading mod-11 check digits.
+ *
+ * Body = first 12 digits. d13 weights [5,4,3,2,9,8,7,6,5,4,3,2]; d14
+ * weights [6,5,4,3,2,9,8,7,6,5,4,3,2] (over body + d13). For each:
+ * remainder = sum mod 11 -> check = remainder < 2 ? 0 : 11 - remainder.
+ * Repeated-digit CNPJs (`11111111111111`) are rejected up front.
+ */
+export function brCnpjCheck(digits: string): boolean {
+  if (!/^\d{14}$/.test(digits)) return false;
+  if (/^(\d)\1{13}$/.test(digits)) return false;
+  const d13Weights = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  const d14Weights = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  let sum = 0;
+  for (let i = 0; i < 12; i++) {
+    sum += (digits.charCodeAt(i) - 48) * (d13Weights[i] ?? 0);
+  }
+  let rem = sum % 11;
+  const d13 = rem < 2 ? 0 : 11 - rem;
+  if (d13 !== Number(digits[12])) return false;
+  sum = 0;
+  for (let i = 0; i < 13; i++) {
+    sum += (digits.charCodeAt(i) - 48) * (d14Weights[i] ?? 0);
+  }
+  rem = sum % 11;
+  const d14 = rem < 2 ? 0 : 11 - rem;
+  return d14 === Number(digits[13]);
+}
+
+/**
+ * French NIR (Sécu) — 15 digits = 13 body + 2 check.
+ *
+ * `(97 - (body mod 97)) === check`. Corsican departments encode the
+ * department code as `2A` or `2B` at positions 6-7 (1-indexed):
+ * substitute `2A`->`19`, `2B`->`18` before the mod-97 step. The pattern is
+ * normally digits-only but we defensively accept the lettered form.
+ */
+export function frNirCheck(input: string): boolean {
+  let normalized = input.replace(/\s/g, '').toUpperCase();
+  if (normalized.length === 15) {
+    if (normalized.slice(5, 7) === '2A') {
+      normalized = normalized.slice(0, 5) + '19' + normalized.slice(7);
+    } else if (normalized.slice(5, 7) === '2B') {
+      normalized = normalized.slice(0, 5) + '18' + normalized.slice(7);
+    }
+  }
+  if (!/^\d{15}$/.test(normalized)) return false;
+  const body = normalized.slice(0, 13);
+  const check = Number(normalized.slice(13, 15));
+  // JS Number stays exact for integers up to 2^53; a 13-digit body fits.
+  const expected = 97 - (Number(body) % 97);
+  return expected === check;
+}
+
+/**
+ * Italian Codice Fiscale — 16 chars (15 body + 1 letter check).
+ *
+ * Odd positions (1-indexed: 1,3,5,...,15) use CF_ODD; even positions use
+ * CF_EVEN. Sum the values, mod 26, map to a letter A..Z.
+ */
+const CF_ODD: Record<string, number> = {
+  '0': 1,
+  '1': 0,
+  '2': 5,
+  '3': 7,
+  '4': 9,
+  '5': 13,
+  '6': 15,
+  '7': 17,
+  '8': 19,
+  '9': 21,
+  A: 1,
+  B: 0,
+  C: 5,
+  D: 7,
+  E: 9,
+  F: 13,
+  G: 15,
+  H: 17,
+  I: 19,
+  J: 21,
+  K: 2,
+  L: 4,
+  M: 18,
+  N: 20,
+  O: 11,
+  P: 3,
+  Q: 6,
+  R: 8,
+  S: 12,
+  T: 14,
+  U: 16,
+  V: 10,
+  W: 22,
+  X: 25,
+  Y: 24,
+  Z: 23,
+};
+const CF_EVEN: Record<string, number> = {
+  '0': 0,
+  '1': 1,
+  '2': 2,
+  '3': 3,
+  '4': 4,
+  '5': 5,
+  '6': 6,
+  '7': 7,
+  '8': 8,
+  '9': 9,
+  A: 0,
+  B: 1,
+  C: 2,
+  D: 3,
+  E: 4,
+  F: 5,
+  G: 6,
+  H: 7,
+  I: 8,
+  J: 9,
+  K: 10,
+  L: 11,
+  M: 12,
+  N: 13,
+  O: 14,
+  P: 15,
+  Q: 16,
+  R: 17,
+  S: 18,
+  T: 19,
+  U: 20,
+  V: 21,
+  W: 22,
+  X: 23,
+  Y: 24,
+  Z: 25,
+};
+
+export function itCodiceFiscaleCheck(input: string): boolean {
+  if (!/^[0-9A-Z]{16}$/.test(input)) return false;
+  let sum = 0;
+  for (let i = 0; i < 15; i++) {
+    const c = input[i] ?? '';
+    // 1-indexed position: i+1. Odd positions use CF_ODD; even use CF_EVEN.
+    const v = (i + 1) % 2 === 1 ? CF_ODD[c] : CF_EVEN[c];
+    if (v === undefined) return false;
+    sum += v;
+  }
+  const expected = String.fromCharCode(65 + (sum % 26));
+  return expected === input[15];
+}
+
+/**
+ * Japanese My Number (個人番号) — 12 digits.
+ *
+ * Body = first 11 digits. For position n counted from the RIGHT of the
+ * body (n=1 -> body[10], i.e. least significant), the weight q_n is
+ * `n + 1` for 1<=n<=6 else `n - 5`. Sum, mod 11; check = 0 if rem <= 1 else
+ * `11 - rem`. Must equal digits[11].
+ */
+export function jpMyNumberCheck(digits: string): boolean {
+  if (!/^\d{12}$/.test(digits)) return false;
+  let sum = 0;
+  for (let n = 1; n <= 11; n++) {
+    const q = n <= 6 ? n + 1 : n - 5;
+    const d = digits.charCodeAt(11 - n) - 48;
+    sum += d * q;
+  }
+  const rem = sum % 11;
+  const check = rem <= 1 ? 0 : 11 - rem;
+  return check === Number(digits[11]);
+}
+
+/**
+ * Korean Resident Registration Number (주민등록번호) — 13 digits.
+ *
+ * Weights [2,3,4,5,6,7,8,9,2,3,4,5] over first 12 digits; check digit
+ * = `(11 - (sum mod 11)) mod 10`.
+ */
+export function krRrnCheck(digits: string): boolean {
+  if (!/^\d{13}$/.test(digits)) return false;
+  const weights = [2, 3, 4, 5, 6, 7, 8, 9, 2, 3, 4, 5];
+  let sum = 0;
+  for (let i = 0; i < 12; i++) {
+    sum += (digits.charCodeAt(i) - 48) * (weights[i] ?? 0);
+  }
+  const check = (11 - (sum % 11)) % 10;
+  return check === Number(digits[12]);
+}
+
+/**
+ * Russian INN-12 — 12 digits with two check digits.
+ *
+ * d11 = (Sigma first10 * [7,2,4,10,3,5,9,4,6,8]) mod 11 mod 10.
+ * d12 = (Sigma first11 * [3,7,2,4,10,3,5,9,4,6,8]) mod 11 mod 10.
+ */
+export function ruInn12Check(digits: string): boolean {
+  if (!/^\d{12}$/.test(digits)) return false;
+  const w11 = [7, 2, 4, 10, 3, 5, 9, 4, 6, 8];
+  const w12 = [3, 7, 2, 4, 10, 3, 5, 9, 4, 6, 8];
+  let sum = 0;
+  for (let i = 0; i < 10; i++) {
+    sum += (digits.charCodeAt(i) - 48) * (w11[i] ?? 0);
+  }
+  const d11 = (sum % 11) % 10;
+  if (d11 !== Number(digits[10])) return false;
+  sum = 0;
+  for (let i = 0; i < 11; i++) {
+    sum += (digits.charCodeAt(i) - 48) * (w12[i] ?? 0);
+  }
+  const d12 = (sum % 11) % 10;
+  return d12 === Number(digits[11]);
+}
+
+/**
+ * Portuguese NIF — 9 digits. Weights [9,8,7,6,5,4,3,2] over first 8 mod
+ * 11; if remainder < 2 -> check 0 else `11 - remainder`.
+ */
+export function ptNifCheck(digits: string): boolean {
+  if (!/^\d{9}$/.test(digits)) return false;
+  const weights = [9, 8, 7, 6, 5, 4, 3, 2];
+  const sum = weightedDigitSum(digits, weights);
+  const rem = sum % 11;
+  const check = rem < 2 ? 0 : 11 - rem;
+  return check === Number(digits[8]);
+}
+
+/**
+ * Czech Rodné Číslo — 9 or 10 digits.
+ *
+ * - 9-digit (pre-1954): no check digit; accept on length.
+ * - 10-digit: whole number mod 11 must equal 0. Historical exception:
+ *   when the body-mod-11 was 10, the check digit was emitted as 0;
+ *   accept that too.
+ */
+export function czRcCheck(digits: string): boolean {
+  if (!/^\d{9,10}$/.test(digits)) return false;
+  if (digits.length === 9) return true;
+  // Use BigInt to avoid precision risk on a 10-digit integer.
+  const bn = BigInt(digits);
+  if (bn % 11n === 0n) return true;
+  const body = bn / 10n;
+  const check = Number(bn % 10n);
+  const bodyMod = Number(body % 11n);
+  return bodyMod === 10 && check === 0;
+}
+
+/**
+ * Danish CPR — 10 digits. Strict mod-11 with weights [4,3,2,7,6,5,4,3,2,1].
+ * Sum mod 11 must be 0. Post-2007 CPRs may fail this; callers that need
+ * format-only matching should omit the checksum in their locale JSON.
+ */
+export function dkCprCheck(digits: string): boolean {
+  if (!/^\d{10}$/.test(digits)) return false;
+  const weights = [4, 3, 2, 7, 6, 5, 4, 3, 2, 1];
+  let sum = 0;
+  for (let i = 0; i < 10; i++) {
+    sum += (digits.charCodeAt(i) - 48) * (weights[i] ?? 0);
+  }
+  return sum % 11 === 0;
+}
+
+/**
+ * Malaysian MyKad — 12 digits (YYMMDD-PB-NNNG). No formal checksum;
+ * validate that the leading 6 digits form a plausible date (month 01-12,
+ * day 01-31).
+ */
+export function myMykadCheck(digits: string): boolean {
+  if (!/^\d{12}$/.test(digits)) return false;
+  const month = Number(digits.slice(2, 4));
+  const day = Number(digits.slice(4, 6));
+  if (month < 1 || month > 12) return false;
+  if (day < 1 || day > 31) return false;
+  return true;
+}
+
+/**
+ * Singapore NRIC / FIN — 9 chars: `[STFG]\d{7}[A-Z]`.
+ *
+ * Weights [2,7,6,5,4,3,2] over the 7 digits; for prefixes T or G, add 4
+ * to the weighted sum (post-2000 correction). Take mod 11 and look up
+ * the letter in the appropriate table.
+ */
+const SG_NRIC_STAY = ['J', 'Z', 'I', 'H', 'G', 'F', 'E', 'D', 'C', 'B', 'A'];
+const SG_NRIC_FIN = ['X', 'W', 'U', 'T', 'R', 'Q', 'P', 'N', 'M', 'L', 'K'];
+
+export function sgNricCheck(input: string): boolean {
+  if (!/^[STFG]\d{7}[A-Z]$/.test(input)) return false;
+  const prefix = input[0] ?? '';
+  const weights = [2, 7, 6, 5, 4, 3, 2];
+  let sum = 0;
+  for (let i = 0; i < 7; i++) {
+    sum += (input.charCodeAt(1 + i) - 48) * (weights[i] ?? 0);
+  }
+  if (prefix === 'T' || prefix === 'G') sum += 4;
+  const rem = sum % 11;
+  const table = prefix === 'S' || prefix === 'T' ? SG_NRIC_STAY : SG_NRIC_FIN;
+  return table[rem] === input[8];
+}

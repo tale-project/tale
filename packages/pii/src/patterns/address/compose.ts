@@ -1,4 +1,13 @@
 /**
+ * `requireUppercase` aggregation note (consumer in `addressFactory`):
+ *   The Title-Case validator is enabled if ANY enabled locale sets
+ *   `address.requireUppercase: true` (aggregated via `.some()`). In a
+ *   mixed-script set (e.g. `de + ja`) this gate is benign for non-Latin
+ *   matches — the validator passes any match that contains zero Latin
+ *   letters, so CJK / Arabic / Thai spans still flow through.
+ */
+
+/**
  * Per-locale address-form composer.
  *
  * Each `AddressFormShape` maps to a function that takes a locale's
@@ -304,7 +313,9 @@ export function composeAddressFormsForLocale(locale: LocaleConfig): string[] {
  * appear standalone without postcode or country, but if it does carry
  * them, they're correctly bounded.
  */
-export function composeAddressTail(locales: LocaleConfig[]): string {
+export function composeAddressTail(
+  locales: ReadonlyArray<LocaleConfig>,
+): string {
   // Floor token alternation — union across locales.
   const floorAlt = composeKeywordAlternation(
     locales.map((l) => l.address.floorKeywords),
@@ -376,36 +387,18 @@ function composeZipCityForLocale(locale: LocaleConfig): string {
   }
 }
 
-/**
- * Compiled-regex cache.
- *
- * Building the address regex for every `createScrubber` call would allocate
- * 30+ KB of intermediate strings and compile a complex regex on every
- * scrubber construction. Most callers reuse the same locale set across
- * many scrubbers (e.g. one scrubber per worker, but every worker uses the
- * same locale union). Cache by locale-code-set + their config identity so
- * repeated construction is free.
- *
- * The cache holds at most one entry per distinct locale combination —
- * because there are only ~50 locales total and combinations of `'*'` /
- * explicit subsets are bounded in practice, the cache stays small (no
- * `WeakRef` / LRU needed). Each cached `RegExp` is ~5 KB.
- */
-const REGEX_CACHE = new Map<string, RegExp>();
+// Keyed by sorted locale codes joined with commas — distinct locale sets compile once.
+const ADDRESS_REGEX_CACHE = new Map<string, RegExp>();
 
-/**
- * Final composition: per-locale forms joined with `|`, shared tail
- * appended, compiled with `giu`.
- *
- * Caches by sorted-locale-code key. Two `createScrubber` calls with the
- * same effective locale set share one compiled `RegExp`.
- */
-export function composeAddressRegex(locales: LocaleConfig[]): RegExp {
+export function composeAddressRegex(
+  locales: ReadonlyArray<LocaleConfig>,
+): RegExp {
   const cacheKey = locales
     .map((l) => l.locale)
+    .slice()
     .sort()
     .join(',');
-  const cached = REGEX_CACHE.get(cacheKey);
+  const cached = ADDRESS_REGEX_CACHE.get(cacheKey);
   if (cached) return cached;
 
   const forms: string[] = [];
@@ -414,14 +407,12 @@ export function composeAddressRegex(locales: LocaleConfig[]): RegExp {
   }
   let regex: RegExp;
   if (forms.length === 0) {
-    // No enabled locales contribute an address form. Use the never-match
-    // regex so the detector returns no spans rather than crashing.
     regex = /(?!)/giu;
   } else {
     const tail = composeAddressTail(locales);
     regex = new RegExp(`(?:${forms.join('|')})${tail}`, 'giu');
   }
 
-  REGEX_CACHE.set(cacheKey, regex);
+  ADDRESS_REGEX_CACHE.set(cacheKey, regex);
   return regex;
 }

@@ -66,7 +66,7 @@ export {
 export { normalizeForDetection } from './core/normalize';
 
 // Plugin / extension points.
-export { PatternRegistry } from './engine/registry';
+export { PatternRegistry, type PatternMeta } from './engine/registry';
 export {
   BUILT_IN_PATTERNS,
   BUILT_IN_PATTERN_NAMES,
@@ -77,10 +77,13 @@ export {
 // Public types.
 export type {
   PiiPattern,
+  PiiPatternRegex,
+  PiiPatternDetect,
   PiiPatternFactory,
   PiiMatch,
   PiiMatchSpan,
   LocaleCode,
+  SupportedLocaleCode,
 } from './core/types';
 
 // Outcome helpers — mirror the FilterOutcome contract so consumers can
@@ -90,6 +93,7 @@ export {
   blocked,
   flagged,
   modified,
+  stepError,
   type FilterOutcome,
   type FilterName,
   type GuardrailsDirection,

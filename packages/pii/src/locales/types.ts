@@ -83,30 +83,46 @@ export interface NationalIdSpec {
    * `patterns/national-ids/builders.ts`. If absent, the regex match is
    * accepted as-is — only safe for ID forms with extremely low
    * regex-only false-positive risk.
+   *
+   * Sorted alphabetically. When extending, keep the enum in
+   * `localeConfigSchema` (and the dispatch switch in
+   * `national-ids/index.ts`) in sync — TypeScript exhaustiveness checks
+   * will surface any drift.
    */
   checksum?:
-    | 'icao9303'
-    | 'luhn'
-    | 'mod11-bsn'
-    | 'mod11-cpf'
-    | 'mod11-2-cn'
-    | 'verhoeff'
-    | 'pesel-mod10'
-    | 'ie-mod23'
+    | 'ar-cuil'
+    | 'au-tfn'
+    | 'be-nrn'
+    | 'br-cnpj'
+    | 'cz-rc'
+    | 'de-steuer-id'
+    | 'dk-cpr'
     | 'ean13'
     | 'es-dni'
     | 'es-nie'
-    | 'be-nrn'
-    | 'au-tfn'
-    | 'nz-ird'
-    | 'ar-cuil'
+    | 'fr-nir'
     | 'hk-hkid'
+    | 'icao9303'
+    | 'ie-mod23'
+    | 'il-teudat-zehut'
+    | 'it-codice-fiscale'
+    | 'jp-mynumber'
+    | 'kr-rrn'
+    | 'luhn'
+    | 'mod11-2-cn'
+    | 'mod11-bsn'
+    | 'mod11-cpf'
     | 'mx-curp'
-    | 'de-steuer-id'
+    | 'my-mykad'
+    | 'nz-ird'
+    | 'pesel-mod10'
+    | 'pt-nif'
     | 'ro-cnp'
-    | 'tr-tckn'
+    | 'ru-inn-12'
     | 'se-personnummer'
-    | 'il-teudat-zehut';
+    | 'sg-nric'
+    | 'tr-tckn'
+    | 'verhoeff';
   /** Required by `icao9303` checksum (e.g. 9 for DE Personalausweis). */
   checksumLength?: number;
   /** Replacement token in mask mode. */
@@ -181,6 +197,36 @@ export interface LocaleAddressConfig {
   requireUppercase: boolean;
 }
 
+/**
+ * Date-of-birth detection vocabulary for the locale.
+ *
+ * Used by the textual-DOB composer (Wave 3) to recognize natural-language
+ * dates of birth such as `geboren am 12. März 1980` or `1980年3月12日生`. The
+ * detector composes the locale's month names, abbreviations, and contextual
+ * keywords (`born on`, `geboren am`, `né le`) into a single regex per
+ * locale; CJK locales add literal year/month/day characters via the
+ * `*Marker` fields so the composer can anchor on `年`/`月`/`日`.
+ *
+ * Every field is optional. A locale that opts out (or simply has no DOB
+ * configuration yet) contributes no DOB pattern. This keeps existing
+ * locale JSON files valid without modification — only locales explicitly
+ * declaring `dateOfBirth` participate in textual-DOB detection.
+ */
+export interface DateOfBirthConfig {
+  /** Full month names in the locale's script (e.g. `März`, `mars`, `3月`). */
+  monthsLong?: ReadonlyArray<string>;
+  /** Common abbreviations, if idiomatic (e.g. `Jan.`, `Feb.`, `mär.`). */
+  monthsShort?: ReadonlyArray<string>;
+  /** Context keywords that precede a DOB (`born on`, `geboren am`, `né le`). */
+  contextKeywords?: ReadonlyArray<string>;
+  /** CJK literal year char if applicable (e.g. `年`). */
+  yearMarker?: string;
+  /** CJK literal month char (e.g. `月`). */
+  monthMarker?: string;
+  /** CJK literal day char (e.g. `日`). */
+  dayMarker?: string;
+}
+
 /** Top-level locale configuration. */
 export interface LocaleConfig {
   /** ISO 639-1 or BCP 47 code (`en`, `de`, `zh-Hans`). */
@@ -214,6 +260,11 @@ export interface LocaleConfig {
   address: LocaleAddressConfig;
   /** National-ID specs for the locale. Empty array if none. */
   nationalIds: NationalIdSpec[];
+  /**
+   * Optional date-of-birth detection vocabulary. Locales without this
+   * field do not contribute to textual-DOB detection.
+   */
+  dateOfBirth?: DateOfBirthConfig;
   /**
    * Hand-curated test-data seeds in the locale's native script.
    *

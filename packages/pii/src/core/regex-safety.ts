@@ -32,18 +32,45 @@ export interface ClampResult {
   truncated: boolean;
 }
 
+// Shared encoder/decoder — TextEncoder/TextDecoder are available in V8
+// runtimes (Node, Bun) and all modern browsers. `fatal: false` lets the
+// decoder degrade a split multi-byte tail to U+FFFD instead of throwing;
+// the boundary walk below ensures we never actually decode a partial
+// sequence on the happy path, but the non-fatal mode is the safety net.
+const utf8Encoder = new TextEncoder();
+const utf8Decoder = new TextDecoder('utf-8', { fatal: false });
+
 /**
- * Cap input length before scanning. Cheap byte-count clamp — JavaScript
- * `string.length` is UTF-16 code units, which is close enough to bytes for
- * the typical ASCII-heavy chat payload and avoids the cost of a real
- * `TextEncoder` round-trip.
+ * Cap input length before scanning, measured in real UTF-8 bytes. Truncates
+ * at a code-point boundary so a multibyte sequence is never split in half.
+ *
+ * Fast path: a single JS string code unit encodes to at most 4 UTF-8 bytes
+ * (surrogate pairs cost 4 bytes for 2 code units = 2 bytes/unit; the worst
+ * single-unit case is a BMP character at 3 bytes — 4 is a safe upper bound).
+ * If `text.length * 4 <= maxBytes` the encoding cannot possibly exceed the
+ * cap and we skip the encoder entirely. For ASCII-dominated chat payloads
+ * this is the common case.
  */
 export function clampMessage(
   text: string,
   maxBytes: number = MAX_MESSAGE_BYTES,
 ): ClampResult {
-  if (text.length <= maxBytes) return { text, truncated: false };
-  return { text: text.slice(0, maxBytes), truncated: true };
+  if (text.length * 4 <= maxBytes) return { text, truncated: false };
+
+  const encoded = utf8Encoder.encode(text);
+  if (encoded.length <= maxBytes) return { text, truncated: false };
+
+  // Walk back to the start of the last complete UTF-8 code point that fits.
+  // UTF-8 continuation bytes match `10xxxxxx`; back up until we land on a
+  // leading byte (`0xxxxxxx` for ASCII or `11xxxxxx` for multi-byte start)
+  // so we never decode a half-encoded sequence.
+  let end = maxBytes;
+  while (end > 0 && (encoded[end] & 0b1100_0000) === 0b1000_0000) {
+    end -= 1;
+  }
+
+  const truncated = utf8Decoder.decode(encoded.subarray(0, end));
+  return { text: truncated, truncated: true };
 }
 
 export interface BudgetedMatch {
@@ -62,7 +89,11 @@ export interface BudgetedMatch {
  *   - `regex` must have the `g` flag so `lastIndex` advances. Without `g`,
  *     `exec` always re-matches the same span and this loops forever.
  *   - A local copy of the regex is created so concurrent callers do not
- *     race on `lastIndex`.
+ *     race on `lastIndex` (see below).
+ *
+ * `budgetMs` is clamped to a positive finite number; misconfigured values
+ * (NaN, Infinity, negative, zero) fall back to `REGEX_EXEC_BUDGET_MS` so a
+ * bad config cannot silently disable the defense.
  *
  * Zero-length matches (e.g. `^`, `\b`, `(?=…)`) advance `lastIndex` by one
  * to avoid an infinite loop on a successful match that consumed nothing.
@@ -76,8 +107,19 @@ export function execWithBudget(
     throw new Error('execWithBudget requires a regex with the g flag');
   }
 
+  const effectiveBudget =
+    Number.isFinite(budgetMs) && budgetMs > 0 ? budgetMs : REGEX_EXEC_BUDGET_MS;
+
   const matches: BudgetedMatch[] = [];
   const start = Date.now();
+  // Clone the regex into a local instance before iterating. A `g`-flagged
+  // RegExp keeps mutable `lastIndex` state on the object itself, so two
+  // concurrent callers sharing the same compiled pattern (the registry
+  // hands the same instance to every scrub) would race on it: one call
+  // advancing `lastIndex` mid-loop can cause the other to skip ranges or
+  // re-scan from the wrong offset, producing missed PII or infinite
+  // loops. The clone is cheap (regex compilation is cached by V8 on the
+  // source/flags pair) and isolates `lastIndex` to this invocation.
   const local = new RegExp(regex.source, regex.flags);
 
   let match: RegExpExecArray | null;
@@ -87,9 +129,9 @@ export function execWithBudget(
       length: match[0].length,
       matchedText: match[0],
     });
-    if (Date.now() - start > budgetMs) {
+    if (Date.now() - start > effectiveBudget) {
       console.warn(
-        `[regex-safety] exec budget ${budgetMs}ms exceeded for pattern ${regex.source.slice(0, 60)}`,
+        `[regex-safety] exec budget ${effectiveBudget}ms exceeded for pattern ${regex.source.slice(0, 60)}`,
       );
       break;
     }

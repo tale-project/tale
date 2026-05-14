@@ -6,11 +6,12 @@
   "phoneContextKeywords": ["電話", "手機", "聯絡電話", "tel.", "tel"],
   "cvcContextKeywords": ["安全碼", "cvc", "cvv", "cv2"],
   "address": {
-    "forms": ["postcode-anchored"],
+    "forms": ["postcode-anchored", "po-box"],
     "postcodeForm": "cn",
-    "postcodeRegex": "\\d{3,5}",
+    "postcodeRegex": "\\d{3}(?:\\d{2})?",
     "countryNames": ["台灣", "Taiwan", "香港", "Hong Kong", "澳門", "Macau"],
     "countryPostcodePrefixes": [],
+    "poBoxKeywords": ["郵政信箱", "郵箱"],
     "requireUppercase": false
   },
   "nationalIds": [

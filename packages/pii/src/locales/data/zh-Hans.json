@@ -6,11 +6,12 @@
   "phoneContextKeywords": ["电话", "手机", "联系电话", "tel.", "tel"],
   "cvcContextKeywords": ["安全码", "cvc", "cvv", "cv2"],
   "address": {
-    "forms": ["postcode-anchored"],
+    "forms": ["postcode-anchored", "po-box"],
     "postcodeForm": "cn",
     "postcodeRegex": "\\d{6}",
     "countryNames": ["中国", "China", "CN"],
     "countryPostcodePrefixes": [],
+    "poBoxKeywords": ["邮政信箱", "邮箱"],
     "requireUppercase": false
   },
   "nationalIds": [

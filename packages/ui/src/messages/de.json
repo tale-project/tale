@@ -82,7 +82,7 @@
     "co-cc": "Cédula",
     "_unknown": "Vertraulich"
   },
-  "piiPlayground": {
+  "piiConfigPanel": {
     "modeLabel": "Modus",
     "modeTokenize": "Tokenisieren",
     "modeMask": "Maskieren",
@@ -90,6 +90,23 @@
     "modeTokenizeDesc": "Personendaten vor dem Senden durch indizierte Token ersetzen und die Originale in der Antwort wiederherstellen.",
     "modeMaskDesc": "Personendaten durch generische Platzhalter ersetzen. Einweg — die Originale lassen sich nicht mehr wiederherstellen.",
     "modeBlockDesc": "Die Nachricht direkt ablehnen, sobald Personendaten erkannt werden. Der Nutzer sieht eine Sperrmeldung statt einer Antwort.",
+    "patternsTitle": "Erkennungsmuster",
+    "patternsDescription": "Lege fest, welche Arten von personenbezogenen Daten die Erkennung suchen soll.",
+    "customPatternsTitle": "Eigene Regex-Regeln",
+    "customPatternsDescription": "Ergänze Muster, die die eingebauten nicht abdecken. Jede Regel braucht einen Namen, einen regulären Ausdruck und den Ersatztext für den Maskiermodus.",
+    "customPatternNameLabel": "Name",
+    "customPatternNamePlaceholder": "z. B. Mitarbeiternummer",
+    "customPatternRegexLabel": "Muster",
+    "customPatternRegexPlaceholder": "z. B. EMP-\\d{6}",
+    "customPatternReplacementLabel": "Ersatztext",
+    "customPatternReplacementPlaceholder": "z. B. [MITARBEITER_ID]",
+    "customPatternInvalidRegex": "Dieser reguläre Ausdruck ist ungültig.",
+    "addCustomPattern": "Eigenes Muster hinzufügen",
+    "removeCustomPattern": "Entfernen",
+    "saveCustomPattern": "Muster speichern",
+    "cancelCustomPattern": "Abbrechen",
+    "previewTitle": "Live-Vorschau",
+    "previewDescription": "Probiere die aktuelle Konfiguration an echtem Text aus. Die Erkennung läuft bei jedem Tastendruck.",
     "inputTitle": "Dein Text",
     "inputHint": "Tippe oder füge einen Satz ein — Personendaten werden live erkannt.",
     "detectedTitle": "Erkannt",
@@ -108,6 +125,7 @@
     "blockPassTitle": "Keine Personendaten erkannt",
     "blockPassBody": "Der Text würde unverändert weitergeleitet.",
     "detectionCount": "Erkennungen",
-    "noPii": "Keine Personendaten erkannt — der Text würde unverändert weitergeleitet."
+    "noPii": "Keine Personendaten erkannt — der Text würde unverändert weitergeleitet.",
+    "noPatternsEnabled": "Keine Erkennungsmuster aktiv. Aktiviere mindestens eines oben, damit Erkennungen erscheinen."
   }
 }

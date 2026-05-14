@@ -15,6 +15,13 @@
  * Locale awareness
  *   - Fully data-driven. Adding a new national ID = adding a JSON entry
  *     and (if a new algorithm is needed) a new function in `builders.ts`.
+ *
+ * Pattern safety
+ *   - Each locale's `pattern` string was already vetted for syntax and
+ *     ReDoS safety by `locales/index.ts` at module load (compile check
+ *     + `safe-regex2` AST analysis). By the time this factory runs, the
+ *     string is known-safe to feed to `new RegExp(...)`; we recompile
+ *     only to add the `g` flag the engine needs for `execWithBudget`.
  */
 
 import type { PiiPattern, PiiPatternFactory } from '../../core/types';
@@ -23,22 +30,33 @@ import {
   arCuilCheck,
   auTfnCheck,
   beNrnCheck,
+  brCnpjCheck,
   brCpfCheck,
+  czRcCheck,
   deSteuerIdCheck,
+  dkCprCheck,
   ean13Check,
   esDniCheck,
   esNieCheck,
+  frNirCheck,
   hkHkidCheck,
   icao9303Check,
   ieMod23Check,
   ilTeudatZehutCheck,
+  itCodiceFiscaleCheck,
+  jpMyNumberCheck,
+  krRrnCheck,
   luhnCheck,
   mxCurpCheck,
+  myMykadCheck,
   nlBsnCheck,
   nzIrdCheck,
   peselMod10Check,
+  ptNifCheck,
   roCnpCheck,
+  ruInn12Check,
   sePersonnummerCheck,
+  sgNricCheck,
   trTcknCheck,
   verhoeffCheck,
   zhResidentIdCheck,
@@ -103,6 +121,29 @@ function resolveValidator(
       return (m) => sePersonnummerCheck(m.replace(/\D/g, ''));
     case 'il-teudat-zehut':
       return (m) => ilTeudatZehutCheck(m.replace(/\D/g, ''));
+    case 'br-cnpj':
+      return (m) => brCnpjCheck(m.replace(/\D/g, ''));
+    case 'fr-nir':
+      return (m) => frNirCheck(m.replace(/[^\dA-Z]/gi, '').toUpperCase());
+    case 'it-codice-fiscale':
+      return (m) =>
+        itCodiceFiscaleCheck(m.replace(/[^\dA-Z]/gi, '').toUpperCase());
+    case 'jp-mynumber':
+      return (m) => jpMyNumberCheck(m.replace(/\D/g, ''));
+    case 'kr-rrn':
+      return (m) => krRrnCheck(m.replace(/\D/g, ''));
+    case 'ru-inn-12':
+      return (m) => ruInn12Check(m.replace(/\D/g, ''));
+    case 'pt-nif':
+      return (m) => ptNifCheck(m.replace(/\D/g, ''));
+    case 'cz-rc':
+      return (m) => czRcCheck(m.replace(/\D/g, ''));
+    case 'dk-cpr':
+      return (m) => dkCprCheck(m.replace(/\D/g, ''));
+    case 'my-mykad':
+      return (m) => myMykadCheck(m.replace(/\D/g, ''));
+    case 'sg-nric':
+      return (m) => sgNricCheck(m.replace(/[^A-Z\d]/gi, '').toUpperCase());
     default: {
       // Exhaustive-check sentinel — if a new checksum is added to the
       // Zod enum without a handler here, the compiler error catches it.

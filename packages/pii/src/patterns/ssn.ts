@@ -8,8 +8,11 @@
  *     for blanket masking to be safe.
  *
  * Filtered false positives
- *   - The leading `\b` boundary prevents matches inside longer digit runs
- *     (`X-123-45-6789` inside an order ID, for example).
+ *   - Unicode-aware negative lookarounds on both sides reject the
+ *     SSN-shaped digit run when it sits inside a longer alphanumeric
+ *     identifier (`Order-123-45-6789`, `Müller-123-45-6789`). `\b`
+ *     alone is not enough because the word-boundary still fires on
+ *     `r|-`, letting the SSN through.
  *
  * Accepted false negatives
  *   - Bare 9-digit SSNs — see note above.
@@ -25,9 +28,14 @@
 
 import type { PiiPattern, PiiPatternFactory } from '../core/types';
 
+// Tightened from `\b` to Unicode-property negative lookarounds. `\p{L}`
+// requires the `u` flag. Rejects matches abutting a hyphen, digit, or
+// any-script letter on either side, so `A-123-45-6789` and
+// `Order-123-45-6789` no longer false-positive while well-formed
+// `NNN-NN-NNNN` SSNs still match.
 const PATTERN: PiiPattern = {
   name: 'ssn',
-  regex: /\b\d{3}-\d{2}-\d{4}\b/g,
+  regex: /(?<![\d\p{L}-])\d{3}-\d{2}-\d{4}(?![\d\p{L}-])/gu,
   replacement: '[SSN]',
 };
 

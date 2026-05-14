@@ -22,6 +22,8 @@ import { dateOfBirthFactory } from './date-of-birth';
 import { emailFactory } from './email';
 import { ibanFactory } from './iban';
 import { ipAddressFactory } from './ip-address';
+import { jwtFactory } from './jwt';
+import { macAddressFactory } from './mac-address';
 import { nationalIdFactory } from './national-ids';
 import { phoneFactory } from './phone';
 import { ssnFactory } from './ssn';
@@ -39,6 +41,8 @@ export type BuiltInPatternName =
   | 'cvc'
   | 'iban'
   | 'ipAddress'
+  | 'macAddress'
+  | 'jwt'
   | 'ssn'
   | 'dateOfBirth'
   | 'address'
@@ -52,6 +56,8 @@ export const BUILT_IN_PATTERN_NAMES: readonly BuiltInPatternName[] = [
   'cvc',
   'iban',
   'ipAddress',
+  'macAddress',
+  'jwt',
   'ssn',
   'dateOfBirth',
   'address',
@@ -72,6 +78,8 @@ export const BUILT_IN_PATTERNS: Readonly<
   cvc: cvcFactory,
   iban: ibanFactory,
   ipAddress: ipAddressFactory,
+  macAddress: macAddressFactory,
+  jwt: jwtFactory,
   ssn: ssnFactory,
   dateOfBirth: dateOfBirthFactory,
   address: addressFactory,

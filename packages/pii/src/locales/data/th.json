@@ -6,11 +6,12 @@
   "phoneContextKeywords": ["โทรศัพท์", "มือถือ", "เบอร์", "tel.", "tel"],
   "cvcContextKeywords": ["รหัสความปลอดภัย", "cvc", "cvv", "cv2"],
   "address": {
-    "forms": ["postcode-anchored"],
+    "forms": ["postcode-anchored", "po-box"],
     "postcodeForm": "continental",
     "postcodeRegex": "\\d{5}",
     "countryNames": ["ประเทศไทย", "Thailand", "TH"],
     "countryPostcodePrefixes": [],
+    "poBoxKeywords": ["ตู้ ปณ.", "ตู้ ปณ", "ตู้ปณ."],
     "requireUppercase": false
   },
   "nationalIds": [

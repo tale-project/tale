@@ -82,7 +82,7 @@
     "co-cc": "Cédula",
     "_unknown": "Sensitive"
   },
-  "piiPlayground": {
+  "piiConfigPanel": {
     "modeLabel": "Mode",
     "modeTokenize": "Tokenize",
     "modeMask": "Mask",
@@ -90,8 +90,25 @@
     "modeTokenizeDesc": "Replace PII with indexed tokens before sending; restore the original details in the response.",
     "modeMaskDesc": "Replace PII with generic placeholders. One-way — the original details are not recoverable.",
     "modeBlockDesc": "Reject the message outright when PII is detected. The user sees a block notice instead of a reply.",
+    "patternsTitle": "Detection patterns",
+    "patternsDescription": "Pick which types of personal data the detector should look for.",
+    "customPatternsTitle": "Custom regex rules",
+    "customPatternsDescription": "Define additional patterns the built-ins do not cover. Each rule needs a name, a regular expression and the replacement text used in mask mode.",
+    "customPatternNameLabel": "Name",
+    "customPatternNamePlaceholder": "e.g. Employee ID",
+    "customPatternRegexLabel": "Pattern",
+    "customPatternRegexPlaceholder": "e.g. EMP-\\d{6}",
+    "customPatternReplacementLabel": "Replacement",
+    "customPatternReplacementPlaceholder": "e.g. [EMPLOYEE_ID]",
+    "customPatternInvalidRegex": "This regular expression is not valid.",
+    "addCustomPattern": "Add custom pattern",
+    "removeCustomPattern": "Remove",
+    "saveCustomPattern": "Save pattern",
+    "cancelCustomPattern": "Cancel",
+    "previewTitle": "Live preview",
+    "previewDescription": "Try the active configuration against real text. Detection runs on every keystroke.",
     "inputTitle": "Your text",
-    "inputHint": "Type or paste any sentence — PII will be detected live.",
+    "inputHint": "Type or paste any sentence — PII is detected live.",
     "detectedTitle": "Detected",
     "detectedHint": "Hover each highlight to see what type of data the detector identified.",
     "tokenizedTitle": "Sent to the AI",
@@ -108,6 +125,7 @@
     "blockPassTitle": "No PII detected",
     "blockPassBody": "The text would be sent through unchanged.",
     "detectionCount": "detections",
-    "noPii": "No PII detected — the text would be sent through unchanged."
+    "noPii": "No PII detected — the text would be sent through unchanged.",
+    "noPatternsEnabled": "No detection patterns are enabled. Turn at least one on above to see detections."
   }
 }
