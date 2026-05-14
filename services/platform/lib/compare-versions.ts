@@ -1,6 +1,6 @@
 const SEMVER_RE = /(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?)$/;
 
-export function extractVersion(tag: string): string | null {
+function extractVersion(tag: string): string | null {
   const m = SEMVER_RE.exec(tag);
   return m ? m[1] : null;
 }
