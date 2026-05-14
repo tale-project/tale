@@ -1147,6 +1147,7 @@
       "description": "Description",
       "tagImageEdit": "Édition d'images",
       "tagImageGeneration": "Génération d'images",
+      "tagTextToSpeech": "Synthèse vocale",
       "tagTranscription": "Transcription"
     },
     "form": {
@@ -2052,9 +2053,17 @@
         "embedding": "Embedding",
         "imageEdit": "Édition d'images",
         "imageGeneration": "Génération d'images",
+        "textToSpeech": "Synthèse vocale",
         "transcription": "Transcription",
         "vision": "Vision"
       }
+    },
+    "voice": {
+      "voiceOutputOn": "Sortie vocale activée",
+      "voiceOutputOff": "Sortie vocale désactivée",
+      "voiceOutputInheritGlobal": "Suivre la valeur par défaut",
+      "voiceOutputSpeaking": "Lecture en cours",
+      "voiceOutputStopped": "Arrêté"
     },
     "searchChat": "Rechercher dans le chat",
     "hideSearch": "Masquer la recherche",
@@ -4771,6 +4780,11 @@
         "placeholder": "p. ex. Réponds de manière concise. Utilise TypeScript par défaut pour le code.",
         "save": "Enregistrer",
         "counter": "{count} / 4000"
+      },
+      "voiceOutput": {
+        "label": "Sortie vocale (par défaut)",
+        "description": "Une fois activée, les nouvelles conversations lisent à voix haute les réponses de l'assistant dans la langue de l'interface. Chaque conversation peut activer ou désactiver la voix séparément depuis son en-tête.",
+        "providerUnavailable": "Aucun fournisseur de synthèse vocale configuré. Le mode vocal utilisera la synthèse intégrée au navigateur."
       },
       "memories": {
         "title": "Souvenirs enregistrés",

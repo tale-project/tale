@@ -1,0 +1,37 @@
+{
+  "displayName": "OpenAI TTS",
+  "description": "OpenAI text-to-speech (gpt-4o-mini-tts). Generates MP3 audio for assistant voice-mode playback.",
+  "baseUrl": "https://api.openai.com/v1",
+  "defaults": {
+    "text-to-speech": "gpt-4o-mini-tts"
+  },
+  "models": [
+    {
+      "id": "gpt-4o-mini-tts",
+      "displayName": "GPT-4o mini TTS",
+      "description": "Low-cost speech synthesis. Six built-in voices, locale-mapped.",
+      "tags": ["text-to-speech"],
+      "audioFormat": "mp3",
+      "defaultVoice": "alloy",
+      "voicesByLocale": {
+        "en": "alloy",
+        "de": "nova",
+        "fr": "shimmer",
+        "de-CH": "nova"
+      },
+      "cost": {
+        "centsPerMillionCharacters": 1500
+      }
+    }
+  ],
+  "i18n": {
+    "de": {
+      "displayName": "OpenAI TTS",
+      "description": "OpenAI Text-to-Speech (gpt-4o-mini-tts). Erzeugt MP3-Audio für die Sprachausgabe von Assistant-Antworten."
+    },
+    "fr": {
+      "displayName": "OpenAI TTS",
+      "description": "Synthèse vocale OpenAI (gpt-4o-mini-tts). Génère du MP3 pour la lecture vocale des réponses."
+    }
+  }
+}

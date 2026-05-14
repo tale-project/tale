@@ -1147,6 +1147,7 @@
       "description": "Beschreibung",
       "tagImageEdit": "Bildbearbeitung",
       "tagImageGeneration": "Bildgenerierung",
+      "tagTextToSpeech": "Text-zu-Sprache",
       "tagTranscription": "Transkription"
     },
     "form": {
@@ -2052,9 +2053,17 @@
         "embedding": "Embedding",
         "imageEdit": "Bildbearbeitung",
         "imageGeneration": "Bildgenerierung",
+        "textToSpeech": "Text-zu-Sprache",
         "transcription": "Transkription",
         "vision": "Vision"
       }
+    },
+    "voice": {
+      "voiceOutputOn": "Sprachausgabe an",
+      "voiceOutputOff": "Sprachausgabe aus",
+      "voiceOutputInheritGlobal": "Standard übernehmen",
+      "voiceOutputSpeaking": "Spricht",
+      "voiceOutputStopped": "Gestoppt"
     },
     "searchChat": "Chat durchsuchen",
     "hideSearch": "Suche ausblenden",
@@ -4771,6 +4780,11 @@
         "placeholder": "z. B. Antworte knapp. Verwende standardmäßig TypeScript bei Code-Themen.",
         "save": "Speichern",
         "counter": "{count} / 4000"
+      },
+      "voiceOutput": {
+        "label": "Sprachausgabe (Standard)",
+        "description": "Wenn aktiviert, werden Antworten in neuen Chats in deiner Oberflächensprache vorgelesen. In jedem Chat kannst du die Sprachausgabe weiterhin separat ein- oder ausschalten.",
+        "providerUnavailable": "Kein Text-to-Speech-Anbieter konfiguriert. Der Sprachmodus nutzt die im Browser eingebaute Sprachausgabe."
       },
       "memories": {
         "title": "Gespeicherte Erinnerungen",

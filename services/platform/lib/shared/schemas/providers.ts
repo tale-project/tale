@@ -7,6 +7,7 @@ export const modelTagLiterals = [
   'image-generation',
   'image-edit',
   'transcription',
+  'text-to-speech',
 ] as const;
 const modelTagSchema = z.enum(modelTagLiterals);
 export type ModelTag = z.infer<typeof modelTagSchema>;
@@ -226,8 +227,31 @@ const modelDefinitionSchema = z.object({
        * `estimateTranscriptionCostCents` to compute ledger entries.
        */
       centsPerAudioMinute: z.number().optional(),
+      /**
+       * For text-to-speech models billed per character of input text
+       * (e.g. OpenAI gpt-4o-mini-tts at $0.015 / 1M chars = 1500).
+       */
+      centsPerMillionCharacters: z.number().optional(),
     })
     .optional(),
+  /**
+   * Default voice for TTS models when no locale-specific voice matches.
+   */
+  defaultVoice: z.string().min(1).max(100).optional(),
+  /**
+   * Locale → voice mapping for TTS models. Keys are BCP-47 codes or base
+   * language codes; resolver tries the full locale first, then the base.
+   */
+  voicesByLocale: z
+    .record(
+      z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/),
+      z.string().min(1).max(100),
+    )
+    .optional(),
+  /**
+   * Output audio format for TTS models. Defaults to mp3 when omitted.
+   */
+  audioFormat: z.enum(['mp3', 'opus', 'aac', 'flac', 'wav']).optional(),
   providerOptions: providerOptionsSchema,
 });
 
@@ -239,6 +263,7 @@ const providerDefaultsSchema = z.object({
   embedding: z.string().min(1).max(200).optional(),
   'image-generation': z.string().min(1).max(200).optional(),
   transcription: z.string().min(1).max(200).optional(),
+  'text-to-speech': z.string().min(1).max(200).optional(),
   fallbackProviderName: z.string().min(1).max(200).optional(),
   fallbackModelId: z.string().min(1).max(200).optional(),
 });

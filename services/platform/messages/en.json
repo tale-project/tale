@@ -1147,6 +1147,7 @@
       "description": "Description",
       "tagImageEdit": "Image edit",
       "tagImageGeneration": "Image generation",
+      "tagTextToSpeech": "Text-to-speech",
       "tagTranscription": "Transcription"
     },
     "form": {
@@ -2052,9 +2053,17 @@
         "embedding": "Embedding",
         "imageEdit": "Image editing",
         "imageGeneration": "Image generation",
+        "textToSpeech": "Text-to-speech",
         "transcription": "Transcription",
         "vision": "Vision"
       }
+    },
+    "voice": {
+      "voiceOutputOn": "Voice output on",
+      "voiceOutputOff": "Voice output off",
+      "voiceOutputInheritGlobal": "Follow default",
+      "voiceOutputSpeaking": "Speaking",
+      "voiceOutputStopped": "Stopped"
     },
     "searchChat": "Search chat",
     "hideSearch": "Hide search",
@@ -4771,6 +4780,11 @@
         "placeholder": "e.g. Reply concisely. Default to TypeScript when discussing code.",
         "save": "Save",
         "counter": "{count} / 4000"
+      },
+      "voiceOutput": {
+        "label": "Voice output (default)",
+        "description": "When on, new conversations speak assistant replies aloud in your interface language. Each conversation can still toggle voice on or off in the chat header.",
+        "providerUnavailable": "No text-to-speech provider configured. Voice mode will use your browser's built-in speech synthesis."
       },
       "memories": {
         "title": "Saved memories",

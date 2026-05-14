@@ -47,6 +47,10 @@ import {
 } from '../hooks/queries';
 import { useCitations } from '../hooks/use-citations';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
+import {
+  useVoiceModeEffective,
+  useVoiceOutputChunker,
+} from '../hooks/use-voice-output';
 import { injectCitationTags } from '../utils/inject-citation-tags';
 import { sanitizeChatError } from '../utils/sanitize-chat-error';
 import { BlockedNotice } from './blocked-notice';
@@ -64,6 +68,7 @@ import { MessageFeedback } from './message-feedback';
 import { MessageInfoDialog } from './message-info-dialog';
 import { SourceCards } from './source-cards';
 import { StructuredMessage } from './structured-message/structured-message';
+import { VoiceOutputIndicator } from './voice-output-indicator';
 
 export { ImagePreviewDialog } from './message-bubble/image-preview-dialog';
 
@@ -226,6 +231,15 @@ function MessageBubbleComponent({
   const isUser = message.role === 'user';
   const isAssistantStreaming =
     message.role === 'assistant' && message.isStreaming;
+  const voiceMode = useVoiceModeEffective(message.threadId);
+  useVoiceOutputChunker({
+    enabled: voiceMode.enabled && !isUser,
+    messageId: message.id,
+    threadId: message.threadId,
+    organizationId,
+    text: message.content ?? '',
+    isStreaming: !!isAssistantStreaming,
+  });
 
   const handleEditClick = useCallback(() => {
     if (onEdit) onEdit(message.id, message.content);
@@ -616,6 +630,14 @@ function MessageBubbleComponent({
                       <Info className="size-4" />
                     </Button>
                   </Tooltip>
+                  <VoiceOutputIndicator
+                    enabled={voiceMode.enabled && !isUser}
+                    messageId={message.id}
+                    threadId={message.threadId}
+                    organizationId={organizationId}
+                    text={displayContent}
+                    isStreaming={!!isAssistantStreaming}
+                  />
                 </>
               }
               after={
@@ -662,6 +684,14 @@ function MessageBubbleComponent({
                   <Info className="size-4" />
                 </Button>
               </Tooltip>
+              <VoiceOutputIndicator
+                enabled={voiceMode.enabled && !isUser}
+                messageId={message.id}
+                threadId={message.threadId}
+                organizationId={organizationId}
+                text={displayContent}
+                isStreaming={!!isAssistantStreaming}
+              />
               {onFork && (
                 <Tooltip content={tChat('forkChat')} side="bottom">
                   <Button

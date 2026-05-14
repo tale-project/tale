@@ -65,6 +65,57 @@ describe('providerJsonSchema', () => {
     });
   });
 
+  describe('text-to-speech tag', () => {
+    it('accepts a TTS model with voicesByLocale and defaults', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        defaults: { 'text-to-speech': 'tts/v1' },
+        models: [
+          {
+            id: 'tts/v1',
+            displayName: 'TTS v1',
+            tags: ['text-to-speech'],
+            audioFormat: 'mp3',
+            defaultVoice: 'alloy',
+            voicesByLocale: { en: 'alloy', de: 'nova', 'de-CH': 'nova' },
+            cost: { centsPerMillionCharacters: 1500 },
+          },
+        ],
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        const model = result.data.models[0];
+        expect(model.tags).toContain('text-to-speech');
+        expect(model.voicesByLocale?.de).toBe('nova');
+        expect(model.audioFormat).toBe('mp3');
+        expect(result.data.defaults?.['text-to-speech']).toBe('tts/v1');
+      }
+    });
+
+    it('rejects defaults.text-to-speech referencing a non-TTS model', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        defaults: { 'text-to-speech': 'test/model-1' },
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects voicesByLocale with an invalid locale key', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        models: [
+          {
+            id: 'tts/v1',
+            displayName: 'TTS v1',
+            tags: ['text-to-speech'],
+            voicesByLocale: { english: 'alloy' },
+          },
+        ],
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
   describe('defaults validation', () => {
     it('rejects defaults referencing unknown model IDs', () => {
       const result = providerJsonSchema.safeParse({

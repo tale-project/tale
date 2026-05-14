@@ -54,6 +54,13 @@ export const threadMetadataTable = defineTable({
   // writes (the propose_memory tool is stripped from the agent). Used by
   // future "Temporary chat" UI; v1 only the schema field is in.
   disablePersonalization: v.optional(v.boolean()),
+  /**
+   * Per-thread override for voice-mode TTS output. `undefined` (or row
+   * missing) means "inherit from `userPreferences.voiceOutput`". Set to
+   * `true`/`false` from the thread voice-output toggle to override the
+   * user default for this conversation only.
+   */
+  voiceOutputOverride: v.optional(v.boolean()),
 })
   .index('by_threadId', ['threadId'])
   .index('by_userId_chatType_status', [

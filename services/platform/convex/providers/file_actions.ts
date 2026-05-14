@@ -575,6 +575,18 @@ export const resolveModelData = internalAction({
     outputCentsPerMillion: v.optional(v.number()),
     imageCentsPerImage: v.optional(v.number()),
     centsPerAudioMinute: v.optional(v.number()),
+    centsPerMillionCharacters: v.optional(v.number()),
+    defaultVoice: v.optional(v.string()),
+    voicesByLocale: v.optional(v.record(v.string(), v.string())),
+    audioFormat: v.optional(
+      v.union(
+        v.literal('mp3'),
+        v.literal('opus'),
+        v.literal('aac'),
+        v.literal('flac'),
+        v.literal('wav'),
+      ),
+    ),
     providerOptions: v.optional(v.record(v.string(), v.any())),
   }),
   handler: async (_ctx, args) => {
@@ -676,6 +688,10 @@ export const resolveModelData = internalAction({
         outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
         imageCentsPerImage: definition.cost?.imageCentsPerImage,
         centsPerAudioMinute: definition.cost?.centsPerAudioMinute,
+        centsPerMillionCharacters: definition.cost?.centsPerMillionCharacters,
+        defaultVoice: definition.defaultVoice,
+        voicesByLocale: definition.voicesByLocale,
+        audioFormat: definition.audioFormat,
         providerOptions,
       };
     }
@@ -715,6 +731,18 @@ export const resolveModelByTag = internalAction({
     outputCentsPerMillion: v.optional(v.number()),
     imageCentsPerImage: v.optional(v.number()),
     centsPerAudioMinute: v.optional(v.number()),
+    centsPerMillionCharacters: v.optional(v.number()),
+    defaultVoice: v.optional(v.string()),
+    voicesByLocale: v.optional(v.record(v.string(), v.string())),
+    audioFormat: v.optional(
+      v.union(
+        v.literal('mp3'),
+        v.literal('opus'),
+        v.literal('aac'),
+        v.literal('flac'),
+        v.literal('wav'),
+      ),
+    ),
     providerOptions: v.optional(v.record(v.string(), v.any())),
   }),
   handler: async (_ctx, args) => {
@@ -763,6 +791,11 @@ export const resolveModelByTag = internalAction({
             outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
             imageCentsPerImage: definition.cost?.imageCentsPerImage,
             centsPerAudioMinute: definition.cost?.centsPerAudioMinute,
+            centsPerMillionCharacters:
+              definition.cost?.centsPerMillionCharacters,
+            defaultVoice: definition.defaultVoice,
+            voicesByLocale: definition.voicesByLocale,
+            audioFormat: definition.audioFormat,
             providerOptions: mergeModelLevel(
               provider.config.providerOptions,
               definition.providerOptions,
@@ -797,6 +830,10 @@ export const resolveModelByTag = internalAction({
           outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
           imageCentsPerImage: definition.cost?.imageCentsPerImage,
           centsPerAudioMinute: definition.cost?.centsPerAudioMinute,
+          centsPerMillionCharacters: definition.cost?.centsPerMillionCharacters,
+          defaultVoice: definition.defaultVoice,
+          voicesByLocale: definition.voicesByLocale,
+          audioFormat: definition.audioFormat,
           providerOptions: mergeModelLevel(
             provider.config.providerOptions,
             definition.providerOptions,
@@ -1083,7 +1120,12 @@ export const fetchProviderModels = action({
 // Connection test
 // ---------------------------------------------------------------------------
 
-type ProbeTag = 'chat' | 'embedding' | 'transcription' | 'image-generation';
+type ProbeTag =
+  | 'chat'
+  | 'embedding'
+  | 'transcription'
+  | 'image-generation'
+  | 'text-to-speech';
 
 interface ProbeResult {
   modelId: string;
@@ -1180,6 +1222,62 @@ async function runTranscriptionProbe(
     return {
       modelId,
       tag: 'transcription',
+      ok: false,
+      latencyMs,
+      error: message,
+    };
+  }
+}
+
+/**
+ * TTS probe: POST a 4-character input to `/v1/audio/speech` and verify the
+ * response is binary audio (any `audio/*` content type). Cost is well under
+ * a tenth of a cent on OpenAI's gpt-4o-mini-tts. The voice defaults to the
+ * provider's `defaultVoice`; if neither default nor any locale entry is set,
+ * we fall back to OpenAI's `'alloy'` to keep the probe self-contained.
+ */
+async function runTtsProbe(
+  baseUrl: string,
+  apiKey: string,
+  modelId: string,
+  voice: string,
+  audioFormat: string,
+): Promise<ProbeResult> {
+  const url = buildProbeUrl(baseUrl, 'audio/speech');
+  const start = Date.now();
+  try {
+    const response = await safeFetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: modelId,
+        input: 'test',
+        voice,
+        response_format: audioFormat,
+      }),
+      timeoutMs: 15_000,
+    });
+    const latencyMs = Date.now() - start;
+    if (response.status >= 200 && response.status < 300) {
+      return { modelId, tag: 'text-to-speech', ok: true, latencyMs };
+    }
+    return {
+      modelId,
+      tag: 'text-to-speech',
+      ok: false,
+      latencyMs,
+      status: response.status,
+      error: extractErrorMessage(response.body) || response.statusText,
+    };
+  } catch (err) {
+    const latencyMs = Date.now() - start;
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      modelId,
+      tag: 'text-to-speech',
       ok: false,
       latencyMs,
       error: message,
@@ -1467,6 +1565,7 @@ export const testProviderConnection = action({
       const isEmbedding = model.tags.includes('embedding');
       const isTranscription = model.tags.includes('transcription');
       const isImageGeneration = model.tags.includes('image-generation');
+      const isTextToSpeech = model.tags.includes('text-to-speech');
 
       // Merge provider+model providerOptions into the probe body so a typo
       // in the editor (e.g. `provider.quanitzations`) surfaces as the same
@@ -1504,6 +1603,22 @@ export const testProviderConnection = action({
         );
       } else if (isTranscription) {
         probes.push(runTranscriptionProbe(config.baseUrl, apiKey, model.id));
+      } else if (isTextToSpeech) {
+        const probeVoice =
+          model.defaultVoice ??
+          (model.voicesByLocale
+            ? Object.values(model.voicesByLocale)[0]
+            : undefined) ??
+          'alloy';
+        probes.push(
+          runTtsProbe(
+            config.baseUrl,
+            apiKey,
+            model.id,
+            probeVoice,
+            model.audioFormat ?? 'mp3',
+          ),
+        );
       } else if (isImageGeneration) {
         // All image-generation modes use a /v1/models membership check.
         // Direct invocation isn't safe to probe: `images-api` bills per image

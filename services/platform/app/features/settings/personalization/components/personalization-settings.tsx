@@ -2,7 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
-import { useQuery } from 'convex/react';
+import { useAction, useMutation, useQuery } from 'convex/react';
 import { ConvexError } from 'convex/values';
 import { Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -81,6 +81,10 @@ function PersonalizationSettingsInner({
       <OrgDefaultSection organizationId={organizationId} />
       <EnableSection prefs={prefs ?? null} organizationId={organizationId} />
       <CustomInstructionsSection
+        prefs={prefs ?? null}
+        organizationId={organizationId}
+      />
+      <VoiceOutputSection
         prefs={prefs ?? null}
         organizationId={organizationId}
       />
@@ -240,6 +244,63 @@ function CustomInstructionsSection({
           {t('page.customInstructions.save')}
         </Button>
       </div>
+    </PageSection>
+  );
+}
+
+function VoiceOutputSection({
+  prefs,
+  organizationId,
+}: {
+  prefs: Doc<'userPreferences'> | null;
+  organizationId: string;
+}) {
+  const { t } = useT('personalization');
+  const { toast } = useToast();
+  const setVoiceOutput = useMutation(api.tts.mutations.setUserVoiceOutput);
+  const getCapability = useAction(api.tts.synthesize.getCapability);
+  const enabled = prefs?.voiceOutput === true;
+  const [providerAvailable, setProviderAvailable] = useState<boolean | null>(
+    null,
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    void getCapability({ organizationId })
+      .then((r) => {
+        if (!cancelled) setProviderAvailable(r.available);
+      })
+      .catch((err) => {
+        console.warn('[tts] capability lookup failed', err);
+        if (!cancelled) setProviderAvailable(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [getCapability, organizationId]);
+
+  return (
+    <PageSection title={t('page.voiceOutput.label')} titleSize="base">
+      <Switch
+        checked={enabled}
+        description={t('page.voiceOutput.description')}
+        onCheckedChange={async (next) => {
+          try {
+            await setVoiceOutput({ organizationId, enabled: next });
+            toast({ title: t('toasts.preferencesUpdated') });
+          } catch (err) {
+            toast({
+              title: errorMessage(err, t('errors.saveFailed')),
+              variant: 'destructive',
+            });
+          }
+        }}
+      />
+      {providerAvailable === false && (
+        <Text variant="muted" className="mt-2 text-xs">
+          {t('page.voiceOutput.providerUnavailable')}
+        </Text>
+      )}
     </PageSection>
   );
 }

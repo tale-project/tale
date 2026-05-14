@@ -24,6 +24,12 @@ export const userPreferencesTable = defineTable({
   organizationId: v.string(),
   customInstructions: v.string(),
   enabled: v.optional(v.boolean()),
+  /**
+   * Global default for voice-mode TTS output on new conversations.
+   * `undefined` (or row missing) → off. Per-thread override lives on
+   * `threadMetadata.voiceOutputOverride`.
+   */
+  voiceOutput: v.optional(v.boolean()),
   updatedAt: v.number(),
 })
   .index('by_userId_organizationId', ['userId', 'organizationId'])

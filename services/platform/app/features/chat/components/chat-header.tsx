@@ -28,6 +28,7 @@ import { ChatHistorySidebar } from './chat-history-sidebar';
 import { ChatSearchDialog } from './chat-search-dialog';
 import { ExportChatDialog } from './export-chat-dialog';
 import { ShareChatDialog } from './share-chat-dialog';
+import { VoiceOutputToggle } from './voice-output-toggle';
 interface ChatHeaderProps {
   organizationId: string;
   threadId?: string;
@@ -219,6 +220,7 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
         {threadId && (
           <>
             <div className="flex-1" />
+            <VoiceOutputToggle threadId={threadId} />
             <Button
               variant="ghost"
               size="sm"
@@ -273,6 +275,7 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
           </Button>
           {threadId && (
             <>
+              <VoiceOutputToggle threadId={threadId} />
               <Button
                 size="icon"
                 variant="ghost"
