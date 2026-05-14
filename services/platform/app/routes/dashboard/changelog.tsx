@@ -1,6 +1,5 @@
 'use client';
 
-import { Markdown } from '@tale/ui/markdown';
 import { Accordion } from '@tale/ui/markdown/components/accordion';
 import { Spinner } from '@tale/ui/spinner';
 import { createFileRoute } from '@tanstack/react-router';
@@ -13,7 +12,7 @@ import { Text } from '@/app/components/ui/typography/text';
 import { useChangelogNotification } from '@/app/hooks/use-changelog-notification';
 import { useLocale } from '@/app/hooks/use-locale';
 import { api } from '@/convex/_generated/api';
-import { filterReleasesInRange } from '@/lib/compare-versions';
+import { compareVersions, filterReleasesInRange } from '@/lib/compare-versions';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
@@ -85,6 +84,30 @@ function ChangelogPage() {
     return filterReleasesInRange(releases, effectiveFrom, effectiveTo);
   }, [releases, effectiveFrom, effectiveTo]);
 
+  // The atom feed caps at the 10 most recent releases. Compare the feed's
+  // OLDEST entry (not the filtered subset's) against `from` — if even the
+  // oldest in the feed is newer than `from`, there are missing versions
+  // older than the feed window. Filtering can shave the result down to
+  // `from+1..to`, so checking the filtered min would false-positive.
+  const isTruncated = useMemo(() => {
+    if (!effectiveFrom || !releases || releases.length === 0) return false;
+    let oldestInFeed = releases[0].version;
+    for (const r of releases) {
+      try {
+        if (compareVersions(r.version, oldestInFeed) < 0) {
+          oldestInFeed = r.version;
+        }
+      } catch {
+        // skip unparseable
+      }
+    }
+    try {
+      return compareVersions(oldestInFeed, effectiveFrom) > 0;
+    } catch {
+      return false;
+    }
+  }, [releases, effectiveFrom]);
+
   const dateFormatter = useMemo(
     () =>
       new Intl.DateTimeFormat(locale, {
@@ -126,55 +149,79 @@ function ChangelogPage() {
 
   const count = visibleReleases.length;
   const showRange = effectiveFrom && count > 0;
+  const subheading = isTruncated
+    ? t('viewer.subheadingTruncated', { count, from: effectiveFrom })
+    : showRange
+      ? t('viewer.subheading', { count, from: effectiveFrom })
+      : effectiveTo
+        ? t('viewer.subheadingNew', { to: effectiveTo })
+        : null;
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-10">
-      <VStack gap={2} className="mb-6">
-        <h1 className="text-fg-base text-2xl font-semibold">
-          {t('viewer.heading')}
-        </h1>
-        <Text variant="muted">
-          {showRange
-            ? t('viewer.subheading', { count, from: effectiveFrom })
-            : effectiveTo
-              ? t('viewer.subheadingNew', { to: effectiveTo })
-              : null}
-        </Text>
-      </VStack>
+    <div className="h-full overflow-y-auto">
+      <div className="mx-auto max-w-3xl px-4 py-10">
+        <VStack gap={2} className="mb-6">
+          <h1 className="text-fg-base text-2xl font-semibold">
+            {t('viewer.heading')}
+          </h1>
+          <Text variant="muted">{subheading}</Text>
+        </VStack>
 
-      {count === 0 ? (
-        <Text variant="muted">{t('viewer.upToDate')}</Text>
-      ) : (
-        <div className="flex flex-col gap-2">
-          {visibleReleases.map((release, i) => {
-            const formattedDate = release.publishedAt
-              ? dateFormatter.format(new Date(release.publishedAt))
-              : '';
-            const title = formattedDate
-              ? `${release.tag} — ${formattedDate}`
-              : release.tag;
-            return (
-              <Accordion key={release.tag} title={title} defaultOpen={i === 0}>
-                <VStack gap={3}>
-                  {release.body ? (
-                    <Markdown>{release.body}</Markdown>
-                  ) : (
-                    <Text variant="muted">{t('viewer.empty')}</Text>
-                  )}
-                  <a
-                    href={release.htmlUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-fg-base hover:text-fg-muted text-xs underline underline-offset-2"
-                  >
-                    {t('viewer.viewOnGitHub')}
-                  </a>
-                </VStack>
-              </Accordion>
-            );
-          })}
+        {count === 0 ? (
+          <Text variant="muted">{t('viewer.upToDate')}</Text>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {visibleReleases.map((release, i) => {
+              const formattedDate = release.publishedAt
+                ? dateFormatter.format(new Date(release.publishedAt))
+                : '';
+              const title = formattedDate
+                ? `${release.tag} — ${formattedDate}`
+                : release.tag;
+              return (
+                <Accordion
+                  key={release.tag}
+                  title={title}
+                  defaultOpen={i === 0}
+                >
+                  <VStack gap={3}>
+                    {release.body ? (
+                      <div
+                        className="prose prose-sm dark:prose-invert max-w-none"
+                        // Atom `<content type="html">` is pre-rendered & sanitized
+                        // by GitHub. Trust their output for release notes.
+                        // eslint-disable-next-line react/no-danger
+                        dangerouslySetInnerHTML={{ __html: release.body }}
+                      />
+                    ) : (
+                      <Text variant="muted">{t('viewer.empty')}</Text>
+                    )}
+                    <a
+                      href={release.htmlUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-fg-base hover:text-fg-muted text-xs underline underline-offset-2"
+                    >
+                      {t('viewer.viewOnGitHub')}
+                    </a>
+                  </VStack>
+                </Accordion>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="border-border-base mt-8 border-t pt-4">
+          <a
+            href={GITHUB_RELEASES_LIST_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-fg-muted hover:text-fg-base text-sm underline underline-offset-2"
+          >
+            {t('viewer.viewAllOnGitHub')}
+          </a>
         </div>
-      )}
+      </div>
     </div>
   );
 }

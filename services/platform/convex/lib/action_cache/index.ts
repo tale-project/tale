@@ -54,6 +54,8 @@ export const githubReleasesCache: ActionCache<
   FunctionReference<'action', 'internal'>
 > = new ActionCache(components.actionCache, {
   action: internal.changelog.internal_actions.fetchReleasesUncached,
-  name: `github_releases_${CACHE_VERSION}`,
+  // `atom_v1` because the source moved from api.github.com (JSON) to the
+  // releases.atom feed; bumping invalidates any older cached payloads.
+  name: `github_releases_atom_${CACHE_VERSION}`,
   ttl: TTL.ONE_HOUR,
 });

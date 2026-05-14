@@ -4490,10 +4490,12 @@
       "heading": "Nouveautés",
       "subheading": "{count} mises à jour depuis v{from}",
       "subheadingNew": "Notes de version pour v{to}",
+      "subheadingTruncated": "Affichage des {count} dernières mises à jour. Les changements antérieurs depuis v{from} sont sur GitHub.",
       "empty": "Aucune note de version fournie.",
       "upToDate": "Tu es à jour.",
       "error": "Impossible de charger les notes de version. Consulte-les sur GitHub.",
       "viewOnGitHub": "Voir sur GitHub ↗",
+      "viewAllOnGitHub": "Voir les versions plus anciennes sur GitHub ↗",
       "githubLink": "Ouvrir les versions sur GitHub"
     }
   },

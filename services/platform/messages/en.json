@@ -4765,10 +4765,12 @@
       "heading": "What's new",
       "subheading": "{count} updates since v{from}",
       "subheadingNew": "Release notes for v{to}",
+      "subheadingTruncated": "Showing the {count} most recent updates. Earlier changes since v{from} are on GitHub.",
       "empty": "No release notes provided.",
       "upToDate": "You're up to date.",
       "error": "We couldn't load release notes. View them on GitHub.",
       "viewOnGitHub": "View on GitHub ↗",
+      "viewAllOnGitHub": "View older releases on GitHub ↗",
       "githubLink": "Open releases on GitHub"
     }
   },
