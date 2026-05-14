@@ -58,6 +58,7 @@ vi.mock('../../hooks/queries', () => ({
 }));
 
 vi.mock('../../hooks/mutations', () => ({
+  useCreatePrompt: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useUpdatePrompt: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useDeletePrompt: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useIncrementPromptUsage: () => ({ mutateAsync: vi.fn(), isPending: false }),
