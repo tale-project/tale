@@ -50,12 +50,15 @@ export const imageAnalysisCache: ActionCache<
  * Cache for the GitHub releases feed.
  * No args → single global cache key shared across all users.
  */
+// One global cache entry shared across all users — args are empty so the
+// cache key is constant. 1h TTL keeps GitHub API hits to ≤1/hour per
+// deployment, comfortably under the 60/hr unauthenticated rate limit.
+// Cache name bumped after several iterations switching between the atom
+// feed and the JSON API.
 export const githubReleasesCache: ActionCache<
   FunctionReference<'action', 'internal'>
 > = new ActionCache(components.actionCache, {
   action: internal.changelog.internal_actions.fetchReleasesUncached,
-  // `atom_v1` because the source moved from api.github.com (JSON) to the
-  // releases.atom feed; bumping invalidates any older cached payloads.
-  name: `github_releases_atom_${CACHE_VERSION}`,
+  name: `github_releases_api_${CACHE_VERSION}`,
   ttl: TTL.ONE_HOUR,
 });

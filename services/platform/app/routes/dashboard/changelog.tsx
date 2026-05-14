@@ -1,5 +1,6 @@
 'use client';
 
+import { Markdown } from '@tale/ui/markdown';
 import { Accordion } from '@tale/ui/markdown/components/accordion';
 import { Spinner } from '@tale/ui/spinner';
 import { createFileRoute } from '@tanstack/react-router';
@@ -84,11 +85,10 @@ function ChangelogPage() {
     return filterReleasesInRange(releases, effectiveFrom, effectiveTo);
   }, [releases, effectiveFrom, effectiveTo]);
 
-  // The atom feed caps at the 10 most recent releases. Compare the feed's
-  // OLDEST entry (not the filtered subset's) against `from` — if even the
-  // oldest in the feed is newer than `from`, there are missing versions
-  // older than the feed window. Filtering can shave the result down to
-  // `from+1..to`, so checking the filtered min would false-positive.
+  // The GitHub API caps at 100 most recent releases per page (we ask for
+  // the max). Compare the feed's OLDEST entry against `from` — if even the
+  // oldest is newer than `from`, the user is more than 100 releases behind
+  // and we can't fully cover the range. Falls back to "see on GitHub".
   const isTruncated = useMemo(() => {
     if (!effectiveFrom || !releases || releases.length === 0) return false;
     let oldestInFeed = releases[0].version;
@@ -149,13 +149,21 @@ function ChangelogPage() {
 
   const count = visibleReleases.length;
   const showRange = effectiveFrom && count > 0;
-  const subheading = isTruncated
-    ? t('viewer.subheadingTruncated', { count, from: effectiveFrom })
-    : showRange
-      ? t('viewer.subheading', { count, from: effectiveFrom })
-      : effectiveTo
-        ? t('viewer.subheadingNew', { to: effectiveTo })
-        : null;
+  // tooOld = the entire requested range falls before our 100-release window.
+  // Almost never hits in production but possible for very stale deployments.
+  const tooOld = isTruncated && count === 0;
+  const subheading = tooOld
+    ? t('viewer.subheadingTooOld', {
+        from: effectiveFrom ?? '',
+        to: effectiveTo ?? '',
+      })
+    : isTruncated
+      ? t('viewer.subheadingTruncated', { count, from: effectiveFrom })
+      : showRange
+        ? t('viewer.subheading', { count, from: effectiveFrom })
+        : effectiveTo
+          ? t('viewer.subheadingNew', { to: effectiveTo })
+          : null;
 
   return (
     <div className="h-full overflow-y-auto">
@@ -167,7 +175,23 @@ function ChangelogPage() {
           <Text variant="muted">{subheading}</Text>
         </VStack>
 
-        {count === 0 ? (
+        {tooOld ? (
+          <div className="border-border-base bg-bg-elevated/40 rounded-lg border p-6">
+            <VStack gap={3} align="start">
+              <Text variant="muted" className="text-sm">
+                {t('viewer.tooOldExplain')}
+              </Text>
+              <a
+                href={GITHUB_RELEASES_LIST_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-foreground text-background inline-flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors hover:opacity-90"
+              >
+                {t('viewer.openOnGitHub')}
+              </a>
+            </VStack>
+          </div>
+        ) : count === 0 ? (
           <Text variant="muted">{t('viewer.upToDate')}</Text>
         ) : (
           <div className="flex flex-col gap-2">
@@ -186,13 +210,7 @@ function ChangelogPage() {
                 >
                   <VStack gap={3}>
                     {release.body ? (
-                      <div
-                        className="prose prose-sm dark:prose-invert max-w-none"
-                        // Atom `<content type="html">` is pre-rendered & sanitized
-                        // by GitHub. Trust their output for release notes.
-                        // eslint-disable-next-line react/no-danger
-                        dangerouslySetInnerHTML={{ __html: release.body }}
-                      />
+                      <Markdown>{release.body}</Markdown>
                     ) : (
                       <Text variant="muted">{t('viewer.empty')}</Text>
                     )}
