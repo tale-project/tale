@@ -32,6 +32,49 @@ export type VersionHistoryEntry = {
 };
 
 /**
+ * Find the versionHistory entry the user is asking to restore. For pre-
+ * versioning rows (`versionHistory` empty), `targetVersion === 1` is the
+ * synthesized legacy v1 — the same shape `getPromptHistory` displays —
+ * so the dialog and the mutation stay in lockstep.
+ */
+export function resolveRestoreTarget(
+  existing: Doc<'promptTemplates'>,
+  targetVersion: number,
+): VersionHistoryEntry | undefined {
+  const entries = existing.versionHistory ?? [];
+  const direct = entries.find((h) => h.version === targetVersion);
+  if (direct) return direct;
+  if (entries.length === 0 && targetVersion === 1) {
+    return synthesizeLegacyV1Entry(existing);
+  }
+  return undefined;
+}
+
+/**
+ * Build a v1 entry from a prompt's current row state. Used in two places:
+ * `getPromptHistory` (display-only, when versionHistory is empty) and
+ * `resolveRestoreTarget` (the actual restore target when a user rolls back
+ * a pre-versioning row to v1). Both paths must read the same shape or the
+ * dialog and the mutation drift apart.
+ */
+export function synthesizeLegacyV1Entry(
+  prompt: Doc<'promptTemplates'>,
+): VersionHistoryEntry {
+  return {
+    version: 1,
+    content: prompt.content,
+    publishedAt: prompt._creationTime,
+    publishedBy: prompt.createdBy,
+    title: prompt.title,
+    description: prompt.description,
+    category: prompt.category,
+    tags: prompt.tags,
+    scope: prompt.scope,
+    teamId: prompt.teamId,
+  };
+}
+
+/**
  * Prepend `entry` to `prevHistory`, capping the result at
  * MAX_PROMPT_VERSION_HISTORY (FIFO drop of the oldest). Pure function — no
  * I/O, safe to unit test. `versionHistory[0]` is always the current version
@@ -96,20 +139,7 @@ export function buildNextVersionEntry({
 } {
   const isLegacy = existing.version === undefined;
   const baseHistory: VersionHistoryEntry[] = isLegacy
-    ? [
-        {
-          version: 1,
-          content: existing.content,
-          publishedAt: existing._creationTime,
-          publishedBy: existing.createdBy,
-          title: existing.title,
-          description: existing.description,
-          category: existing.category,
-          tags: existing.tags,
-          scope: existing.scope,
-          teamId: existing.teamId,
-        },
-      ]
+    ? [synthesizeLegacyV1Entry(existing)]
     : (existing.versionHistory ?? []);
   const baseVersion = isLegacy ? 1 : (existing.version ?? 0);
   const newVersion = baseVersion + 1;

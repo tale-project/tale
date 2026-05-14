@@ -13,6 +13,7 @@ import { promptScopeValidator, promptTemplateValidator } from './validators';
 import {
   buildNextVersionEntry,
   metadataDiffers,
+  resolveRestoreTarget,
   type PromptVersionMetadata,
 } from './version_history';
 
@@ -504,9 +505,7 @@ export const restoreFromVersion = mutationWithRLS({
 
     await checkUserRateLimit(ctx, 'prompt:restore', user.userId);
 
-    const target = existing.versionHistory?.find(
-      (h) => h.version === args.targetVersion,
-    );
+    const target = resolveRestoreTarget(existing, args.targetVersion);
     if (!target) {
       throw new ConvexError({
         code: 'version_not_found',

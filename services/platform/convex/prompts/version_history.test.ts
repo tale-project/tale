@@ -6,6 +6,8 @@ import {
   buildNextVersionEntry,
   metadataDiffers,
   prependVersionEntry,
+  resolveRestoreTarget,
+  synthesizeLegacyV1Entry,
   type PromptVersionMetadata,
   type VersionHistoryEntry,
 } from './version_history';
@@ -218,6 +220,85 @@ describe('buildNextVersionEntry', () => {
     expect(built.newVersion).toBe(6);
     expect(built.nextHistory).toHaveLength(1);
     expect(built.nextHistory[0].version).toBe(6);
+  });
+});
+
+describe('resolveRestoreTarget', () => {
+  it('returns the matching versionHistory entry for a versioned row', () => {
+    const existing = makePromptDoc({
+      version: 3,
+      versionHistory: [
+        makeEntry(3, 'three'),
+        makeEntry(2, 'two'),
+        makeEntry(1, 'one'),
+      ],
+    });
+    expect(resolveRestoreTarget(existing, 2)?.content).toBe('two');
+  });
+
+  it('synthesizes v1 from current row state for a legacy row', () => {
+    const existing = makePromptDoc({
+      version: undefined,
+      versionHistory: undefined,
+      content: 'legacy content',
+      title: 'Legacy title',
+      _creationTime: 1_234,
+      createdBy: 'user_legacy',
+    });
+    const target = resolveRestoreTarget(existing, 1);
+    expect(target).toMatchObject({
+      version: 1,
+      content: 'legacy content',
+      title: 'Legacy title',
+      publishedAt: 1_234,
+      publishedBy: 'user_legacy',
+    });
+  });
+
+  it('returns undefined for a non-existent version on a versioned row', () => {
+    const existing = makePromptDoc({
+      version: 3,
+      versionHistory: [makeEntry(3), makeEntry(2), makeEntry(1)],
+    });
+    expect(resolveRestoreTarget(existing, 99)).toBeUndefined();
+  });
+
+  it('returns undefined for v2+ on a legacy row (only v1 can be synthesized)', () => {
+    const existing = makePromptDoc({
+      version: undefined,
+      versionHistory: undefined,
+    });
+    expect(resolveRestoreTarget(existing, 2)).toBeUndefined();
+  });
+});
+
+describe('synthesizeLegacyV1Entry', () => {
+  it('captures the row’s current state as a v1 entry', () => {
+    const existing = makePromptDoc({
+      version: undefined,
+      versionHistory: undefined,
+      content: 'baseline',
+      title: 'Legacy title',
+      description: 'desc',
+      category: 'general',
+      tags: ['a', 'b'],
+      scope: 'team',
+      teamId: 'team_42',
+      _creationTime: 7_777,
+      createdBy: 'user_legacy',
+    });
+    expect(synthesizeLegacyV1Entry(existing)).toEqual({
+      version: 1,
+      content: 'baseline',
+      publishedAt: 7_777,
+      publishedBy: 'user_legacy',
+      title: 'Legacy title',
+      description: 'desc',
+      category: 'general',
+      tags: ['a', 'b'],
+      scope: 'team',
+      teamId: 'team_42',
+    });
   });
 });
 
