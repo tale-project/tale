@@ -466,6 +466,7 @@ const TRASH_VISIBLE_RESOURCE_TYPES: ReadonlyArray<SoftDeleteResourceType> = [
   'thread',
   'document',
   'fileMetadata',
+  'promptTemplate',
   'messageFeedback',
   'customer',
   'vendor',
@@ -694,6 +695,31 @@ async function fetchTrashSubpage(
         .take(take);
       const expired = await ctx.db
         .query('fileMetadata')
+        .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
+          q
+            .eq('organizationId', organizationId)
+            .eq('lifecycleStatus', 'expired'),
+        )
+        .take(take);
+      return projectSubpage(rt, config, [...trashed, ...expired], (r) => ({
+        status: r.lifecycleStatus,
+        statusChangedAt: r.statusChangedAt ?? null,
+        createdAt: r._creationTime,
+      })).filter((row) =>
+        passesCursor(row.statusChangedAt ?? row.createdAt, row.id, cursor),
+      );
+    }
+    case 'promptTemplate': {
+      const trashed = await ctx.db
+        .query('promptTemplates')
+        .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
+          q
+            .eq('organizationId', organizationId)
+            .eq('lifecycleStatus', 'trashed'),
+        )
+        .take(take);
+      const expired = await ctx.db
+        .query('promptTemplates')
         .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
           q
             .eq('organizationId', organizationId)
