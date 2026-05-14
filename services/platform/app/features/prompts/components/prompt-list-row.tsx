@@ -153,7 +153,7 @@ export function PromptListRow({
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-9"
+                className="size-11"
                 aria-label={t('actions.more')}
                 onClick={(e) => e.stopPropagation()}
               >
