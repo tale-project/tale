@@ -180,6 +180,8 @@ import type * as branding_file_actions from "../branding/file_actions.js";
 import type * as branding_file_utils from "../branding/file_utils.js";
 import type * as branding_internal_queries from "../branding/internal_queries.js";
 import type * as branding_mutations from "../branding/mutations.js";
+import type * as changelog_actions from "../changelog/actions.js";
+import type * as changelog_internal_actions from "../changelog/internal_actions.js";
 import type * as chat_filter_events_internal_mutations from "../chat_filter_events/internal_mutations.js";
 import type * as chat_filter_events_queries from "../chat_filter_events/queries.js";
 import type * as constants from "../constants.js";
@@ -1236,6 +1238,8 @@ declare const fullApi: ApiFromModules<{
   "branding/file_utils": typeof branding_file_utils;
   "branding/internal_queries": typeof branding_internal_queries;
   "branding/mutations": typeof branding_mutations;
+  "changelog/actions": typeof changelog_actions;
+  "changelog/internal_actions": typeof changelog_internal_actions;
   "chat_filter_events/internal_mutations": typeof chat_filter_events_internal_mutations;
   "chat_filter_events/queries": typeof chat_filter_events_queries;
   constants: typeof constants;

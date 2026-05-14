@@ -41,3 +41,23 @@ export const imageAnalysisCache: ActionCache<
   name: `image_analysis_${CACHE_VERSION}`,
   ttl: TTL.INDEFINITE,
 });
+
+// ============================================
+// Changelog Cache
+// ============================================
+
+/**
+ * Cache for the GitHub releases feed.
+ * No args → single global cache key shared across all users.
+ */
+// Cached per-page so page 1 is shared across every user, and only users
+// genuinely lagging behind cause a page-2/3 fetch. Reads the public web
+// HTML at github.com/.../releases — no API rate limit, paginated via
+// `?page=N`. 1h TTL keeps fetches infrequent.
+export const githubReleasesPageCache: ActionCache<
+  FunctionReference<'action', 'internal'>
+> = new ActionCache(components.actionCache, {
+  action: internal.changelog.internal_actions.fetchReleasesPageUncached,
+  name: `github_releases_html_${CACHE_VERSION}`,
+  ttl: TTL.ONE_HOUR,
+});

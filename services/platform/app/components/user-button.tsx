@@ -2,7 +2,7 @@
 
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { Skeleton } from '@tale/ui/skeleton';
-import { useNavigate, useParams } from '@tanstack/react-router';
+import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import {
   LogOut,
   HelpCircle,
@@ -63,8 +63,8 @@ export function UserButton({
 
   const {
     currentVersion,
+    lastSeenVersion,
     hasUnseenVersion,
-    releaseUrl,
     markSeen: markChangelogSeen,
   } = useChangelogNotification();
 
@@ -126,27 +126,34 @@ export function UserButton({
                   {displayName !== user.email && (
                     <Text variant="muted">{user.email}</Text>
                   )}
-                  {currentVersion && releaseUrl && (
+                  {currentVersion && (
                     <Text variant="muted" className="text-xs">
                       {t('userButton.currentVersion', {
                         version: currentVersion,
                       })}
                       {' · '}
-                      <a
-                        href={releaseUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <Link
+                        to="/dashboard/changelog"
+                        search={{
+                          from: lastSeenVersion,
+                          to: currentVersion,
+                        }}
                         onClick={markChangelogSeen}
                         className="text-foreground relative inline-flex cursor-pointer items-center underline underline-offset-2 hover:opacity-80"
                       >
                         {t('userButton.whatsNew')}
                         {hasUnseenVersion && (
-                          <span
-                            className="ml-1.5 size-1.5 rounded-full bg-red-500"
-                            aria-hidden="true"
-                          />
+                          <>
+                            <span className="sr-only">
+                              {t('userButton.updateAvailable')}
+                            </span>
+                            <span
+                              className="ml-1.5 size-1.5 rounded-full bg-red-500"
+                              aria-hidden="true"
+                            />
+                          </>
                         )}
-                      </a>
+                      </Link>
                     </Text>
                   )}
                 </>
@@ -307,7 +314,7 @@ export function UserButton({
     setSelectedTeamId,
     handleSignOutClick,
     currentVersion,
-    releaseUrl,
+    lastSeenVersion,
     markChangelogSeen,
     hasUnseenVersion,
   ]);
@@ -322,10 +329,13 @@ export function UserButton({
       <div className="relative">
         <UserCircle className="text-muted-foreground size-5 shrink-0" />
         {hasUnseenVersion && (
-          <span
-            className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-red-500"
-            aria-hidden="true"
-          />
+          <>
+            <span className="sr-only">{t('userButton.updateAvailable')}</span>
+            <span
+              className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-red-500"
+              aria-hidden="true"
+            />
+          </>
         )}
       </div>
       {label && (

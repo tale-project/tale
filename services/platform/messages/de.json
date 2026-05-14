@@ -411,6 +411,7 @@
       "helpFeedback": "Hilfe & Feedback",
       "currentVersion": "Aktuelle Version: v{version}",
       "whatsNew": "Neuigkeiten",
+      "updateAvailable": "Update verfügbar",
       "themeSystem": "Systemdesign",
       "themeLight": "Helles Design",
       "themeDark": "Dunkles Design",
@@ -3060,6 +3061,10 @@
       "title": "Organisation erstellen",
       "description": "Eine neue Organisation erstellen."
     },
+    "changelog": {
+      "title": "Was ist neu",
+      "description": "Release Notes für aktuelle Tale-Updates."
+    },
     "login": {
       "title": "Anmelden",
       "description": "Bei deinem Tale-Konto anmelden."
@@ -4756,6 +4761,23 @@
       "title": "Aktualisiert auf v{version}",
       "description": "Sieh dir die Änderungen in dieser Version an.",
       "action": "Anzeigen"
+    },
+    "viewer": {
+      "heading": "Was ist neu",
+      "subheading": "{count, plural, one {# Update} other {# Updates}} seit v{from}",
+      "subheadingNew": "Release Notes für v{to}",
+      "subheadingTruncated": "{count, plural, one {Das # neueste Update wird} other {Die # neuesten Updates werden}} angezeigt. Frühere Änderungen seit v{from} findest du auf GitHub.",
+      "subheadingTooOld": "Release Notes für v{from} – v{to} werden hier nicht angezeigt — sie sind älter als die hier hinterlegten Releases.",
+      "subheadingToUnpublished": "Release Notes für v{to} sind noch nicht veröffentlicht.",
+      "tooOldExplain": "Hier zeigen wir nur die neuesten Releases. Öffne die vollständige Release-Historie auf GitHub, um diese Release Notes zu lesen.",
+      "toUnpublishedExplain": "Für diese Version haben wir noch keine Release Notes auf GitHub. Schau später wieder vorbei oder browse alle Releases auf GitHub.",
+      "openOnGitHub": "Releases auf GitHub öffnen ↗",
+      "empty": "Keine Release Notes vorhanden.",
+      "upToDate": "Du bist auf dem neuesten Stand.",
+      "error": "Release Notes konnten nicht geladen werden. Sieh sie auf GitHub an.",
+      "viewOnGitHub": "Auf GitHub ansehen ↗",
+      "viewAllOnGitHub": "Ältere Releases auf GitHub ansehen ↗",
+      "githubLink": "Releases auf GitHub öffnen"
     }
   },
   "personalization": {

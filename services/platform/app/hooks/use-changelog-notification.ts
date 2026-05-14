@@ -3,37 +3,39 @@
 import { useMutation, useQuery } from 'convex/react';
 
 import { api } from '@/convex/_generated/api';
+import { compareVersions } from '@/lib/compare-versions';
 import { getEnv } from '@/lib/env';
 
-const GITHUB_RELEASES_BASE =
-  'https://github.com/tale-project/tale/releases/tag';
-
-// True when `candidate` is strictly newer than `baseline` using
-// dot-separated integer comparison (e.g. "1.10.0" > "1.9.9"). Missing
-// baseline means "never acknowledged" → treat anything as newer.
-export function isNewer(
+// `candidate` strictly newer than `baseline`. Missing baseline means
+// "never acknowledged" → treat anything as newer. Parse failures fall
+// back to "newer" so a malformed stored value doesn't lock the dot off.
+function isNewer(
   candidate: string,
   baseline: string | undefined | null,
 ): boolean {
   if (!baseline) return true;
-  const parse = (v: string) =>
-    v.split('.').map((n) => Number.parseInt(n, 10) || 0);
-  const a = parse(candidate);
-  const b = parse(baseline);
-  const len = Math.max(a.length, b.length);
-  for (let i = 0; i < len; i++) {
-    const ai = a[i] ?? 0;
-    const bi = b[i] ?? 0;
-    if (ai !== bi) return ai > bi;
+  try {
+    return compareVersions(candidate, baseline) > 0;
+  } catch (err) {
+    console.warn(
+      `useChangelogNotification: compare failed (${candidate} vs ${baseline})`,
+      err,
+    );
+    return true;
   }
-  return false;
 }
 
 interface ChangelogNotification {
   currentVersion: string | undefined;
+  lastSeenVersion: string | undefined;
+  /**
+   * False while the notification-state Convex query is still resolving.
+   * Use this to distinguish `lastSeenVersion === undefined` meaning
+   * "no row yet" from "still loading".
+   */
+  stateLoaded: boolean;
   hasUnseenVersion: boolean;
   shouldShowToast: boolean;
-  releaseUrl: string | null;
   markSeen: () => void;
   markToasted: () => void;
 }
@@ -66,22 +68,23 @@ export function useChangelogNotification(): ChangelogNotification {
     stateLoaded &&
     isNewer(currentVersion, state?.lastToastedVersion ?? null);
 
-  const releaseUrl = currentVersion
-    ? `${GITHUB_RELEASES_BASE}/v${currentVersion}`
-    : null;
-
   return {
     currentVersion,
+    lastSeenVersion: state?.lastSeenChangelogVersion ?? undefined,
+    stateLoaded,
     hasUnseenVersion,
     shouldShowToast,
-    releaseUrl,
     markSeen: () => {
       if (!currentVersion) return;
-      void markSeenMutation({ version: currentVersion });
+      markSeenMutation({ version: currentVersion }).catch((err) => {
+        console.warn('markChangelogSeen failed', err);
+      });
     },
     markToasted: () => {
       if (!currentVersion) return;
-      void markToastedMutation({ version: currentVersion });
+      markToastedMutation({ version: currentVersion }).catch((err) => {
+        console.warn('markToastShown failed', err);
+      });
     },
   };
 }

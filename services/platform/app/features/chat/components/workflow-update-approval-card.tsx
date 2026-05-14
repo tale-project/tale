@@ -211,7 +211,19 @@ function WorkflowUpdateApprovalCardComponent({
 
       {/* Update Summary */}
       <div className="bg-muted/50 mb-3 rounded-md px-3 py-2">
-        <div className="prose prose-sm dark:prose-invert prose-p:my-0.5 prose-ul:my-0.5 prose-li:my-0 max-w-none text-sm">
+        <div
+          className={cn(
+            'max-w-none text-sm',
+            '[&_p]:my-0.5 [&_p]:leading-relaxed',
+            '[&_ul]:my-0.5 [&_ul]:list-disc [&_ul]:space-y-0 [&_ul]:pl-5',
+            '[&_ol]:my-0.5 [&_ol]:list-decimal [&_ol]:space-y-0 [&_ol]:pl-5',
+            '[&_li]:my-0 [&_li]:leading-relaxed',
+            '[&_strong]:font-semibold',
+            '[&_em]:italic',
+            '[&_code]:bg-muted [&_code]:rounded [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.85em]',
+            '[&_a]:underline [&_a]:underline-offset-2 hover:[&_a]:no-underline',
+          )}
+        >
           <ReactMarkdown remarkPlugins={[remarkGfm]}>
             {metadata.updateSummary}
           </ReactMarkdown>

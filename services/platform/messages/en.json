@@ -411,6 +411,7 @@
       "helpFeedback": "Help & feedback",
       "currentVersion": "Current version: v{version}",
       "whatsNew": "What's new",
+      "updateAvailable": "Update available",
       "themeSystem": "System theme",
       "themeLight": "Light theme",
       "themeDark": "Dark theme",
@@ -3060,6 +3061,10 @@
       "title": "Create organization",
       "description": "Create a new organization."
     },
+    "changelog": {
+      "title": "What's new",
+      "description": "Release notes for recent Tale updates."
+    },
     "login": {
       "title": "Log in",
       "description": "Log in to your Tale account."
@@ -4756,6 +4761,23 @@
       "title": "Upgraded to v{version}",
       "description": "See what changed in this release.",
       "action": "View"
+    },
+    "viewer": {
+      "heading": "What's new",
+      "subheading": "{count, plural, one {# update} other {# updates}} since v{from}",
+      "subheadingNew": "Release notes for v{to}",
+      "subheadingTruncated": "Showing the {count, plural, one {# most recent update} other {# most recent updates}}. Earlier changes since v{from} are on GitHub.",
+      "subheadingTooOld": "Release notes for v{from} – v{to} aren't shown in-app — they're older than the recent releases we keep here.",
+      "subheadingToUnpublished": "Release notes for v{to} aren't published yet.",
+      "tooOldExplain": "Only the most recent releases are surfaced here. Open the full release history on GitHub to read these notes.",
+      "toUnpublishedExplain": "We don't have notes for this version on GitHub yet. Check back later, or browse all releases on GitHub.",
+      "openOnGitHub": "Open releases on GitHub ↗",
+      "empty": "No release notes provided.",
+      "upToDate": "You're up to date.",
+      "error": "We couldn't load release notes. View them on GitHub.",
+      "viewOnGitHub": "View on GitHub ↗",
+      "viewAllOnGitHub": "View older releases on GitHub ↗",
+      "githubLink": "Open releases on GitHub"
     }
   },
   "personalization": {
