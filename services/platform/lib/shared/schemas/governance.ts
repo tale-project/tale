@@ -220,12 +220,7 @@ export type FeatureFlagsConfig = z.infer<typeof featureFlagsConfigSchema>;
 // dispatcher (governance/sanitize.ts), the admin UI, and the mutation
 // validator all import them from there. This file used to redeclare them;
 // removed when PII detection moved into the dedicated `@tale/pii` workspace.
-export {
-  piiConfigSchema,
-  piiCustomPatternSchema,
-  type PiiConfig,
-  type PiiCustomPattern,
-} from '@tale/pii';
+export { piiConfigSchema } from '@tale/pii';
 
 export const modelAccessRuleSchema = z.object({
   scope: z.enum(['user', 'team', 'role', 'default']),

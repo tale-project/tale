@@ -560,7 +560,7 @@ function buildPseudoAddressNegatives(
 // Top-level orchestrator
 // -----------------------------------------------------------------------------
 
-export interface BuildResult {
+interface BuildResult {
   positives: FixtureCase[];
   negatives: FixtureCase[];
 }

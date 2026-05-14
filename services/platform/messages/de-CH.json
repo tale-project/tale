@@ -98,11 +98,6 @@
     "passwordPolicy": {
       "requireUpper": "Grossbuchstabe erforderlich"
     },
-    "pii": {
-      "patterns": {
-        "address": "Strassenadressen"
-      }
-    },
     "guardrailsOverview": {
       "eventDetails": {
         "close": "Schliessen"

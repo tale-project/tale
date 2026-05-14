@@ -56,38 +56,36 @@ function loadOptionalJson<T>(
   return schema.parse(JSON.parse(raw));
 }
 
-export function readStreets(locale: string): StreetEntry[] {
+function readStreets(locale: string): StreetEntry[] {
   return (
     loadOptionalJson(locale, 'streets.json', z.array(streetEntrySchema)) ?? []
   );
 }
 
-export function readCities(locale: string): CityEntry[] {
+function readCities(locale: string): CityEntry[] {
   return (
     loadOptionalJson(locale, 'cities.json', z.array(cityEntrySchema)) ?? []
   );
 }
 
-export function readAddresses(locale: string): AddressEntry[] {
+function readAddresses(locale: string): AddressEntry[] {
   return (
     loadOptionalJson(locale, 'addresses.json', z.array(addressEntrySchema)) ??
     []
   );
 }
 
-export function readProse(locale: string): ProseEntry[] {
+function readProse(locale: string): ProseEntry[] {
   return (
     loadOptionalJson(locale, 'prose.json', z.array(proseEntrySchema)) ?? []
   );
 }
 
-export function readNames(locale: string): NameEntry[] {
+function readNames(locale: string): NameEntry[] {
   return loadOptionalJson(locale, 'names.json', z.array(nameEntrySchema)) ?? [];
 }
 
-export function readNationalIdVectors(
-  locale: string,
-): NationalIdTestVectors | null {
+function readNationalIdVectors(locale: string): NationalIdTestVectors | null {
   return loadOptionalJson(
     locale,
     'national-ids.json',
@@ -95,11 +93,11 @@ export function readNationalIdVectors(
   );
 }
 
-export function readLocaleMeta(locale: string): LocaleMeta | null {
+function readLocaleMeta(locale: string): LocaleMeta | null {
   return loadOptionalJson(locale, '_meta.json', localeMetaSchema);
 }
 
-export interface LocaleDataset {
+interface LocaleDataset {
   locale: string;
   streets: StreetEntry[];
   cities: CityEntry[];

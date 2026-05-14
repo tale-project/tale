@@ -42,26 +42,11 @@ export const NAME_TOKEN = String.raw`${W}+(?:-${W}+){0,4}`;
 export const NAME_PHRASE = String.raw`${NAME_TOKEN}(?:\s+${NAME_TOKEN}){0,5}`;
 
 /**
- * Unicode-aware lookahead boundaries. JavaScript `\b` is ASCII-only even
+ * Unicode-aware lookahead boundary. JavaScript `\b` is ASCII-only even
  * under the `/u` flag — `\bétage\b` fails because `é` isn't an ASCII word
- * char. These lookarounds correctly bound on Unicode letter categories.
+ * char. This lookaround correctly bounds on Unicode letter categories.
  */
-export const UB = String.raw`(?<![\p{L}\p{M}])`;
 export const UA = String.raw`(?![\p{L}\p{M}])`;
-
-/**
- * Explicit Title-Case character class for Latin-script locales. ECMA-262
- * §22.2.2 specifies `\p{Lu}` is canonicalized under `/i` (case-folded), so
- * `\p{Lu}` matches lowercase too inside a regex compiled with `/giu`. This
- * explicit class — Latin-1 uppercase plus the most common Western European
- * accented uppercase — is the FP gate wherever Title-Case actually
- * matters.
- *
- * For Cyrillic / Greek locales, the equivalent classes are computed by the
- * composer from the locale's `scripts` array. This constant is the
- * default for `latn`.
- */
-export const EU_UPPER = String.raw`[A-ZÀ-ÖØ-Þ]`;
 
 /**
  * Building number with optional range/slash form (`12-14`, `12/14`) and a

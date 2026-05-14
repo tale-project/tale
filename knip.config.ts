@@ -4,6 +4,7 @@ export default {
   workspaces: {
     'services/platform': {
       vite: { config: ['vite.config.ts'] },
+      ignore: ['convex/_generated/**'],
       entry: [
         'app/routes/**/*.tsx',
         'scripts/**/*.ts',
@@ -80,6 +81,10 @@ export default {
       },
       entry: ['src/components/**/*.{ts,tsx}', 'src/**/*.stories.{ts,tsx}'],
       project: ['**/*.{ts,tsx}'],
+    },
+    'packages/pii': {
+      entry: ['scripts/**/*.ts'],
+      project: ['**/*.ts'],
     },
     'tools/cli': {
       project: ['**/*.ts'],

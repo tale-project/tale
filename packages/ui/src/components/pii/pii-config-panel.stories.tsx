@@ -34,7 +34,7 @@ function StatefulPanel({
 }: Omit<PiiConfigPanelProps, 'value' | 'onChange'> & {
   initialValue: PiiConfigPanelValue;
 }) {
-  const [value, setValue] = useState<PiiConfigPanelValue>(initialValue);
+  const [value, setValue] = useState(initialValue);
   return <PiiConfigPanel value={value} onChange={setValue} {...rest} />;
 }
 

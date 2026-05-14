@@ -156,7 +156,7 @@ function latinTextualLooksPlausible(matchedText: string): boolean {
 const NUMERIC_PATTERN: PiiPatternRegex = {
   name: 'dateOfBirth',
   regex:
-    /(?<!\w)(?:\d{1,2}[.\/—–-]\d{1,2}[.\/—–-]\d{2,4}|\d{4}[.\/—–-]\d{1,2}[.\/—–-]\d{1,2})(?=[T\s,;.)\]]|$|[^\w])/g,
+    /(?<!\w)(?:\d{1,2}[./—–-]\d{1,2}[./—–-]\d{2,4}|\d{4}[./—–-]\d{1,2}[./—–-]\d{1,2})(?=[T\s,;.)\]]|$|[^\w])/g,
   replacement: '[DATE_OF_BIRTH]',
   validate: numericDateLooksPlausible,
 };

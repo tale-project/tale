@@ -38,7 +38,7 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
   const upsertMutation = useUpsertGovernancePolicy();
 
   const [enabled, setEnabled] = useState(false);
-  const [value, setValue] = useState<PiiConfigPanelValue>(DEFAULT_VALUE);
+  const [value, setValue] = useState(DEFAULT_VALUE);
 
   const cannotManage = ability.cannot('write', 'orgSettings');
   const initializedRef = useRef(false);

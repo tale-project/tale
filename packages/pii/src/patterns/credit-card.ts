@@ -77,7 +77,7 @@ import type { PiiPattern, PiiPatternFactory } from '../core/types';
 // Dot separators cover European print formats (e.g. `4111.1111.1111.1111`).
 // IP addresses (max 12 digits) fall below the 13-digit floor, and any
 // dot-separated digit run that reaches 13+ digits still needs to pass Luhn.
-const CREDIT_CARD_REGEX = /(?<!\d)\d(?:[ .\-]?\d){12,18}(?!\d)/g;
+const CREDIT_CARD_REGEX = /(?<!\d)\d(?:[ .-]?\d){12,18}(?!\d)/g;
 
 const CHAR_CODE_ZERO = 48;
 const CHAR_CODE_NINE = 57;

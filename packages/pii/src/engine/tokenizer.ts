@@ -137,7 +137,7 @@ function makeToken(type: string, index: number): string {
  * per-match segments (in original coordinate space) for UI overlay
  * rendering. Callers that only need the text discard the rest.
  */
-export interface ApplyTokenizationResult {
+interface ApplyTokenizationResult {
   text: string;
   mapping: Record<string, TokenEntry>;
   segments: TokenSegment[];

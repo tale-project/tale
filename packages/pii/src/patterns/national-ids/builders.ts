@@ -69,10 +69,7 @@ export function luhnCheck(digits: string): boolean {
  * scheme — each per-country function below calls this with its own
  * weights list.
  */
-export function weightedDigitSum(
-  digits: string,
-  weights: readonly number[],
-): number {
+function weightedDigitSum(digits: string, weights: readonly number[]): number {
   let sum = 0;
   for (let i = 0; i < weights.length; i++) {
     sum += (digits.charCodeAt(i) - 48) * (weights[i] ?? 0);
@@ -750,11 +747,14 @@ export function czRcCheck(digits: string): boolean {
   if (!/^\d{9,10}$/.test(digits)) return false;
   if (digits.length === 9) return true;
   // Use BigInt to avoid precision risk on a 10-digit integer.
+  const BIG_11 = BigInt(11);
+  const BIG_10 = BigInt(10);
+  const BIG_0 = BigInt(0);
   const bn = BigInt(digits);
-  if (bn % 11n === 0n) return true;
-  const body = bn / 10n;
-  const check = Number(bn % 10n);
-  const bodyMod = Number(body % 11n);
+  if (bn % BIG_11 === BIG_0) return true;
+  const body = bn / BIG_10;
+  const check = Number(bn % BIG_10);
+  const bodyMod = Number(body % BIG_11);
   return bodyMod === 10 && check === 0;
 }
 

@@ -303,7 +303,7 @@ const COMPOSERS: Record<AddressFormShape, (l: LocaleConfig) => string[]> = {
  * `forms` is declared. Longest-first ordering within each composer
  * preserves match-evaluation fairness across the union.
  */
-export function composeAddressFormsForLocale(locale: LocaleConfig): string[] {
+function composeAddressFormsForLocale(locale: LocaleConfig): string[] {
   const out: string[] = [];
   for (const shape of locale.address.forms) {
     const composer = COMPOSERS[shape];
@@ -322,9 +322,7 @@ export function composeAddressFormsForLocale(locale: LocaleConfig): string[] {
  * appear standalone without postcode or country, but if it does carry
  * them, they're correctly bounded.
  */
-export function composeAddressTail(
-  locales: ReadonlyArray<LocaleConfig>,
-): string {
+function composeAddressTail(locales: ReadonlyArray<LocaleConfig>): string {
   // Floor token alternation — union across locales.
   const floorAlt = composeKeywordAlternation(
     locales.map((l) => l.address.floorKeywords),

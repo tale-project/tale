@@ -33,7 +33,6 @@
     "test": "bunx vitest run",
     "test:watch": "bunx vitest",
     "fixtures:gen": "bun scripts/gen/index.ts",
-    "fixtures:refresh": "bun scripts/refresh/index.ts",
     "fixtures:verify": "bun scripts/gen/index.ts verify"
   },
   "dependencies": {
