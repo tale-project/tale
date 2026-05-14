@@ -51,7 +51,6 @@ export function TagChipInput({
   const [draft, setDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
   const counterId = useId();
-  const errorId = useId();
 
   const atCap = value.length >= maxTags;
 
@@ -156,7 +155,10 @@ export function TagChipInput({
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         errorMessage={error ?? undefined}
-        aria-describedby={`${counterId}${error ? ` ${errorId}` : ''}`}
+        // Counter ID is linked here; the Input owns its own error
+        // association via `aria-errormessage` + role="alert" on the rendered
+        // error message, so we don't need to repeat the error id.
+        aria-describedby={counterId}
         disabled={atCap}
       />
       <Text
