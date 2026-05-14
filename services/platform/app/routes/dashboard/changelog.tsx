@@ -1,6 +1,5 @@
 'use client';
 
-import { Markdown } from '@tale/ui/markdown';
 import { Accordion } from '@tale/ui/markdown/components/accordion';
 import { Spinner } from '@tale/ui/spinner';
 import { createFileRoute } from '@tanstack/react-router';
@@ -10,6 +9,7 @@ import { z } from 'zod';
 
 import { VStack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
+import { ReleaseBody } from '@/app/features/changelog/components/release-body';
 import { useChangelogNotification } from '@/app/hooks/use-changelog-notification';
 import { useLocale } from '@/app/hooks/use-locale';
 import { api } from '@/convex/_generated/api';
@@ -59,8 +59,13 @@ function ChangelogPage() {
     if (ranRef.current) return;
     // Wait until the notification-state query has resolved so we know
     // whether there's a real `lastSeenVersion` to chase before paging the
-    // feed. If the route was visited with `?from=` we can fetch right away.
-    if (from === undefined && !stateLoaded) return;
+    // feed. Skip the wait when `currentVersion` is undefined (env unset)
+    // since the hook's query is `skip`-ed and `stateLoaded` will never
+    // flip — without this guard the page would spin forever in dev. If
+    // the route was visited with `?from=` we can fetch right away.
+    if (currentVersion !== undefined && from === undefined && !stateLoaded) {
+      return;
+    }
     ranRef.current = true;
     void (async () => {
       try {
@@ -73,7 +78,7 @@ function ChangelogPage() {
         setError(err);
       }
     })();
-  }, [listReleases, fromForFetch, from, stateLoaded]);
+  }, [listReleases, fromForFetch, from, stateLoaded, currentVersion]);
 
   // markSeen as soon as we know the load resolved (success or failure) and
   // currentVersion is known — reaching this page is acknowledgement.
@@ -105,16 +110,40 @@ function ChangelogPage() {
         if (compareVersions(r.version, oldestInFeed) < 0) {
           oldestInFeed = r.version;
         }
-      } catch {
-        // skip unparseable
+      } catch (err) {
+        console.warn(`changelog: unparseable version ${r.version}`, err);
       }
     }
     try {
       return compareVersions(oldestInFeed, effectiveFrom) > 0;
-    } catch {
+    } catch (err) {
+      console.warn(
+        `changelog: isTruncated compare failed (oldest=${oldestInFeed}, from=${effectiveFrom})`,
+        err,
+      );
       return false;
     }
   }, [releases, effectiveFrom]);
+
+  // The viewer was opened with a `to` (either explicit `?to=` or the
+  // deployment's `currentVersion`) that does not appear in the fetched
+  // feed. Typical cause: tag for the just-deployed version hasn't been
+  // pushed to GitHub yet, or the URL has a typo. We render a dedicated
+  // card instead of the misleading "up to date" message.
+  const toMissing = useMemo(() => {
+    if (!effectiveTo || !releases || releases.length === 0) return false;
+    try {
+      return !releases.some(
+        (r) => compareVersions(r.version, effectiveTo) === 0,
+      );
+    } catch (err) {
+      console.warn(
+        `changelog: toMissing check failed (to=${effectiveTo})`,
+        err,
+      );
+      return false;
+    }
+  }, [releases, effectiveTo]);
 
   const dateFormatter = useMemo(
     () =>
@@ -160,18 +189,23 @@ function ChangelogPage() {
   // tooOld = the entire requested range falls before our 30-release window.
   // Almost never hits in production but possible for very stale deployments.
   const tooOld = isTruncated && count === 0;
+  // toUnpublished = the requested `to` version isn't in the feed and we
+  // rendered nothing — distinct UX from "up to date".
+  const toUnpublished = toMissing && count === 0 && !tooOld;
   const subheading = tooOld
     ? t('viewer.subheadingTooOld', {
         from: effectiveFrom ?? '',
         to: effectiveTo ?? '',
       })
-    : isTruncated
-      ? t('viewer.subheadingTruncated', { count, from: effectiveFrom })
-      : showRange
-        ? t('viewer.subheading', { count, from: effectiveFrom })
-        : effectiveTo
-          ? t('viewer.subheadingNew', { to: effectiveTo })
-          : null;
+    : toUnpublished
+      ? t('viewer.subheadingToUnpublished', { to: effectiveTo ?? '' })
+      : isTruncated
+        ? t('viewer.subheadingTruncated', { count, from: effectiveFrom })
+        : showRange
+          ? t('viewer.subheading', { count, from: effectiveFrom })
+          : effectiveTo
+            ? t('viewer.subheadingNew', { to: effectiveTo })
+            : null;
 
   return (
     <div className="h-full overflow-y-auto">
@@ -188,6 +222,22 @@ function ChangelogPage() {
             <VStack gap={3} align="start">
               <Text variant="muted" className="text-sm">
                 {t('viewer.tooOldExplain')}
+              </Text>
+              <a
+                href={GITHUB_RELEASES_LIST_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-foreground text-background inline-flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors hover:opacity-90"
+              >
+                {t('viewer.openOnGitHub')}
+              </a>
+            </VStack>
+          </div>
+        ) : toUnpublished ? (
+          <div className="border-border-base bg-bg-elevated/40 rounded-lg border p-6">
+            <VStack gap={3} align="start">
+              <Text variant="muted" className="text-sm">
+                {t('viewer.toUnpublishedExplain')}
               </Text>
               <a
                 href={GITHUB_RELEASES_LIST_URL}
@@ -218,7 +268,7 @@ function ChangelogPage() {
                 >
                   <VStack gap={3}>
                     {release.body ? (
-                      <Markdown>{release.body}</Markdown>
+                      <ReleaseBody html={release.body} />
                     ) : (
                       <Text variant="muted">{t('viewer.empty')}</Text>
                     )}

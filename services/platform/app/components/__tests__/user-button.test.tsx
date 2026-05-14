@@ -31,9 +31,10 @@ vi.mock('@/app/hooks/use-toast', () => ({
 vi.mock('@/app/hooks/use-changelog-notification', () => ({
   useChangelogNotification: () => ({
     currentVersion: undefined,
+    lastSeenVersion: undefined,
+    stateLoaded: true,
     hasUnseenVersion: false,
     shouldShowToast: false,
-    releaseUrl: null,
     markSeen: vi.fn(),
     markToasted: vi.fn(),
   }),

@@ -50,7 +50,7 @@ export function compareVersions(a: string, b: string): number {
   return aVer.localeCompare(bVer);
 }
 
-export interface ReleaseLike {
+interface ReleaseLike {
   version: string;
 }
 
@@ -66,7 +66,11 @@ export function filterReleasesInRange<T extends ReleaseLike>(
   const exactMatch = (r: T) => {
     try {
       return compareVersions(r.version, to) === 0;
-    } catch {
+    } catch (err) {
+      console.warn(
+        `filterReleasesInRange: unparseable version (${r.version} vs ${to})`,
+        err,
+      );
       return false;
     }
   };
@@ -78,7 +82,11 @@ export function filterReleasesInRange<T extends ReleaseLike>(
   let cmpFromTo: number;
   try {
     cmpFromTo = compareVersions(from, to);
-  } catch {
+  } catch (err) {
+    console.warn(
+      `filterReleasesInRange: unparseable from/to (${from} vs ${to})`,
+      err,
+    );
     return releases.filter(exactMatch);
   }
   if (cmpFromTo >= 0) {
@@ -91,7 +99,11 @@ export function filterReleasesInRange<T extends ReleaseLike>(
         compareVersions(r.version, from) > 0 &&
         compareVersions(r.version, to) <= 0
       );
-    } catch {
+    } catch (err) {
+      console.warn(
+        `filterReleasesInRange: unparseable version in range filter (${r.version})`,
+        err,
+      );
       return false;
     }
   });

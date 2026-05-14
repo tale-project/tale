@@ -411,6 +411,7 @@
       "helpFeedback": "Aide et retours",
       "currentVersion": "Version actuelle : v{version}",
       "whatsNew": "Nouveautés",
+      "updateAvailable": "Mise à jour disponible",
       "themeSystem": "Thème système",
       "themeLight": "Thème clair",
       "themeDark": "Thème sombre",
@@ -4488,18 +4489,20 @@
     },
     "viewer": {
       "heading": "Nouveautés",
-      "subheading": "{count} mises à jour depuis v{from}",
+      "subheading": "{count, plural, one {# mise à jour} other {# mises à jour}} depuis v{from}",
       "subheadingNew": "Notes de version pour v{to}",
-      "subheadingTruncated": "Affichage des {count} dernières mises à jour. Les changements antérieurs depuis v{from} sont sur GitHub.",
-      "subheadingTooOld": "Les notes pour v{from} – v{to} ne sont pas affichées ici — elles sont antérieures aux versions récentes conservées.",
-      "tooOldExplain": "Nous n'affichons ici que les versions les plus récentes. Ouvre l'historique complet sur GitHub pour lire ces notes.",
-      "openOnGitHub": "Ouvrir les versions sur GitHub ↗",
+      "subheadingTruncated": "Affichage {count, plural, one {de la # mise à jour la plus récente} other {des # mises à jour les plus récentes}}. Les changements antérieurs depuis v{from} sont sur GitHub.",
+      "subheadingTooOld": "Les notes de version pour v{from} – v{to} ne sont pas affichées ici — elles sont antérieures aux versions récentes conservées.",
+      "subheadingToUnpublished": "Les notes de version pour v{to} ne sont pas encore publiées.",
+      "tooOldExplain": "Nous n'affichons ici que les versions les plus récentes. Ouvre l'historique complet sur GitHub pour lire ces notes de version.",
+      "toUnpublishedExplain": "Nous n'avons pas encore les notes de version pour cette version sur GitHub. Reviens plus tard ou parcours toutes les versions sur GitHub.",
+      "openOnGitHub": "Ouvrir les notes de version sur GitHub ↗",
       "empty": "Aucune note de version fournie.",
       "upToDate": "Tu es à jour.",
       "error": "Impossible de charger les notes de version. Consulte-les sur GitHub.",
       "viewOnGitHub": "Voir sur GitHub ↗",
       "viewAllOnGitHub": "Voir les versions plus anciennes sur GitHub ↗",
-      "githubLink": "Ouvrir les versions sur GitHub"
+      "githubLink": "Ouvrir les notes de version sur GitHub"
     }
   },
   "twoFactor": {

@@ -41,9 +41,21 @@ export const listReleases = action({
     const seen = new Set<string>();
 
     for (let page = 1; page <= MAX_PAGES; page++) {
-      const releases: Release[] = await githubReleasesPageCache.fetch(ctx, {
-        page,
-      });
+      // Page-1 failures bubble (nothing to show anyway). Page>1 failures
+      // degrade gracefully: log + break with whatever we collected from
+      // earlier pages, so a transient github.com hiccup doesn't blank the
+      // entire viewer for users only needing the latest releases.
+      let releases: Release[];
+      try {
+        releases = await githubReleasesPageCache.fetch(ctx, { page });
+      } catch (err) {
+        if (page === 1) throw err;
+        console.warn(
+          `changelog: page ${page} fetch failed, returning partial`,
+          err,
+        );
+        break;
+      }
       if (releases.length === 0) break;
 
       for (const r of releases) {
@@ -60,7 +72,11 @@ export const listReleases = action({
       const oldest = releases[releases.length - 1].version;
       try {
         if (compareVersions(oldest, from) <= 0) break;
-      } catch {
+      } catch (err) {
+        console.warn(
+          `changelog: unparseable version while paging (oldest=${oldest}, from=${from})`,
+          err,
+        );
         break;
       }
     }

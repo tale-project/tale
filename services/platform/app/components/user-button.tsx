@@ -143,10 +143,15 @@ export function UserButton({
                       >
                         {t('userButton.whatsNew')}
                         {hasUnseenVersion && (
-                          <span
-                            className="ml-1.5 size-1.5 rounded-full bg-red-500"
-                            aria-hidden="true"
-                          />
+                          <>
+                            <span className="sr-only">
+                              {t('userButton.updateAvailable')}
+                            </span>
+                            <span
+                              className="ml-1.5 size-1.5 rounded-full bg-red-500"
+                              aria-hidden="true"
+                            />
+                          </>
                         )}
                       </Link>
                     </Text>
@@ -324,10 +329,13 @@ export function UserButton({
       <div className="relative">
         <UserCircle className="text-muted-foreground size-5 shrink-0" />
         {hasUnseenVersion && (
-          <span
-            className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-red-500"
-            aria-hidden="true"
-          />
+          <>
+            <span className="sr-only">{t('userButton.updateAvailable')}</span>
+            <span
+              className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-red-500"
+              aria-hidden="true"
+            />
+          </>
         )}
       </div>
       {label && (

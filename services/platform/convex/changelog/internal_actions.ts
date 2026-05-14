@@ -39,7 +39,11 @@ interface ParsedRelease {
 // "body-content" class="markdown-body ...">` holding the release notes.
 const BODY_OPEN_RE = /<div\b[^>]*data-test-selector="body-content"[^>]*>/g;
 const TAG_LINK_RE = /<a\b[^>]*href="\/[^"]+\/releases\/tag\/([^"?#]+)"/g;
-const DATE_RE = /<relative-time\b[^>]*datetime="([^"]+)"/g;
+// Anchor on the ISO `Z` suffix so we only match the release header's
+// `<relative-time datetime="2026-05-12T03:20:47Z">`, not the GPG-verified-
+// commit timestamp inside the signed-commit dropdown (which uses
+// `datetime="2026-05-12 03:00:31 UTC"` — note the space-separated UTC form).
+const DATE_RE = /<relative-time\b[^>]*datetime="([^"]+Z)"/g;
 const VERSION_HEAD_RE =
   /^(v?\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?)(?:\s*[—–-]\s*(.*))?$/;
 const H1_BLOCK_RE = /^\s*<h1\b[^>]*>([\s\S]*?)<\/h1>\s*/;
