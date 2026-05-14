@@ -70,6 +70,7 @@ function detectRetentionShortening(
     ['usageLedgerRetentionDays', 'usage ledger'],
     ['loginAttemptRetentionDays', 'login attempts'],
     ['chatFilterEventsRetentionDays', 'chat filter events'],
+    ['promptTemplatesRetentionDays', 'prompt templates'],
     ['messageFeedbackRetentionDays', 'message feedback'],
     ['memoryAuditRetentionDays', 'memory audit'],
     ['customersRetentionDays', 'customers'],
