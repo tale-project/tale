@@ -173,6 +173,11 @@ export const listPrompts = queryWithRLS({
       })
       .map(toListItem);
 
+    // Client contract: `page` may be empty while `isDone` is false when every
+    // row in the underlying paginate slice was post-filtered out (team access,
+    // search prefix, lifecycle status). Callers must keep paging on
+    // `continueCursor` until `isDone === true`. `useCachedPaginatedQuery`
+    // already handles this — it requests the next page automatically.
     return {
       page: visiblePage,
       isDone: result.isDone,
@@ -342,20 +347,21 @@ export const getSavedSourceMessageIds = queryWithRLS({
     );
     if (!membership) return [];
 
-    const rows = await ctx.db
+    const out: Array<{
+      promptId: Doc<'promptTemplates'>['_id'];
+      sourceMessageId: string;
+    }> = [];
+    for await (const row of ctx.db
       .query('promptTemplates')
       .withIndex('by_org_createdBy', (q) =>
         q
           .eq('organizationId', args.organizationId)
           .eq('createdBy', user.userId),
-      )
-      .collect();
-
-    return rows
-      .filter(isActivePrompt)
-      .filter((p): p is typeof p & { sourceMessageId: string } =>
-        Boolean(p.sourceMessageId),
-      )
-      .map((p) => ({ promptId: p._id, sourceMessageId: p.sourceMessageId }));
+      )) {
+      if (!isActivePrompt(row)) continue;
+      if (!row.sourceMessageId) continue;
+      out.push({ promptId: row._id, sourceMessageId: row.sourceMessageId });
+    }
+    return out;
   },
 });
