@@ -1,7 +1,7 @@
 import type { Doc } from '../_generated/dataModel';
 import { MAX_PROMPT_VERSION_HISTORY } from './constants';
 
-export type PromptScope = 'global' | 'team' | 'personal';
+type PromptScope = 'global' | 'team' | 'personal';
 
 export type PromptVersionMetadata = {
   title: string;
@@ -137,11 +137,11 @@ export function buildNextVersionEntry({
   nextHistory: VersionHistoryEntry[];
   droppedVersions: number[];
 } {
-  const isLegacy = existing.version === undefined;
-  const baseHistory: VersionHistoryEntry[] = isLegacy
-    ? [synthesizeLegacyV1Entry(existing)]
-    : (existing.versionHistory ?? []);
-  const baseVersion = isLegacy ? 1 : (existing.version ?? 0);
+  const baseHistory: VersionHistoryEntry[] =
+    existing.version === undefined
+      ? [synthesizeLegacyV1Entry(existing)]
+      : (existing.versionHistory ?? []);
+  const baseVersion = existing.version ?? 1;
   const newVersion = baseVersion + 1;
   const entry: VersionHistoryEntry = {
     version: newVersion,

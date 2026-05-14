@@ -183,6 +183,13 @@ export function PromptCompareView({
                   row.type === 'context' && 'border-l-transparent',
                 )}
               >
+                {row.type !== 'context' && (
+                  <span className="sr-only">
+                    {row.type === 'added'
+                      ? t('history.lineAdded')
+                      : t('history.lineRemoved')}
+                  </span>
+                )}
                 <span
                   aria-hidden="true"
                   className={cn(

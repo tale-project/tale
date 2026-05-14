@@ -175,6 +175,42 @@ export const PristineForm: Story = {
   },
 };
 
+export const DirtyDiscardConfirm: Story = {
+  render: function DirtyDiscardConfirmStory() {
+    const [open, setOpen] = useState(false);
+
+    return (
+      <>
+        <Button onClick={() => setOpen(true)}>
+          Open dialog (dirty + confirm on discard)
+        </Button>
+        <FormDialog
+          open={open}
+          onOpenChange={setOpen}
+          title="Edit item"
+          description="Try closing via Esc or the overlay — a native confirm fires because the form is dirty."
+          isDirty={true}
+          confirmDiscardOnDirty
+          onSubmit={(e) => {
+            e.preventDefault();
+            setOpen(false);
+          }}
+        >
+          <Input label="Name" defaultValue="Edited value" />
+        </FormDialog>
+      </>
+    );
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'When `confirmDiscardOnDirty` is on and `isDirty` is true, closing the dialog (Esc, overlay click, X) prompts for confirmation. Without `confirmDiscardOnDirty` the dialog closes silently — keeping read-only / pristine dialogs friction-free.',
+      },
+    },
+  },
+};
+
 export const LargeDialog: Story = {
   render: function LargeDialogStory() {
     const [open, setOpen] = useState(false);

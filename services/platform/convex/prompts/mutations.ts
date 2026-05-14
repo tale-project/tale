@@ -8,6 +8,7 @@ import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_
 import { mutationWithRLS } from '../lib/rls/helpers/mutation_with_rls';
 import { validateOrganizationAccess } from '../lib/rls/organization/validate_organization_access';
 import type { RLSContext } from '../lib/rls/types';
+import { isActivePrompt } from './queries';
 import { assertPromptSizes, normalizePromptFields } from './size_guards';
 import { promptScopeValidator, promptTemplateValidator } from './validators';
 import {
@@ -221,6 +222,7 @@ export const updatePrompt = mutationWithRLS({
     const user = await requireAuthenticatedUser(ctx);
     const existing = await ctx.db.get(args.promptId);
     if (!existing) return null;
+    if (!isActivePrompt(existing)) return null;
 
     // Personal-scope creator gate runs first — a non-creator should see
     // the row as "not found" rather than learning anything about it.
@@ -374,6 +376,7 @@ export const deletePrompt = mutationWithRLS({
     const user = await requireAuthenticatedUser(ctx);
     const existing = await ctx.db.get(args.promptId);
     if (!existing) return null;
+    if (!isActivePrompt(existing)) return null;
 
     if (existing.scope === 'personal' && existing.createdBy !== user.userId) {
       return null;
@@ -459,7 +462,7 @@ export const restoreFromVersion = mutationWithRLS({
   handler: async (ctx, args) => {
     const user = await requireAuthenticatedUser(ctx);
     const existing = await ctx.db.get(args.promptId);
-    if (!existing) {
+    if (!existing || !isActivePrompt(existing)) {
       throw new ConvexError({
         code: 'not_found',
         message: 'Prompt not found',

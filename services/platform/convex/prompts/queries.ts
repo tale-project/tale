@@ -52,7 +52,7 @@ function stripVersionHistory(prompt: PromptDoc): PromptDoc {
  * the retention pipeline (trashed / expired) are surfaced only through the
  * admin Trash UI — not through listPrompts / getPrompt. Rows missing the
  * field (legacy or freshly created) are treated as active. */
-function isActivePrompt(p: PromptDoc): boolean {
+export function isActivePrompt(p: PromptDoc): boolean {
   const status = p.lifecycleStatus ?? 'active';
   return status === 'active';
 }

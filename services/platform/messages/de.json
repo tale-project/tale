@@ -4339,6 +4339,7 @@
       "description": "Erstelle deinen ersten Prompt, um ihn in Unterhaltungen wiederzuverwenden",
       "filteredTitle": "Keine passenden Prompts",
       "filteredDescription": "Lösche deine Suche oder Filter.",
+      "filteredCanLoadMore": "Auf dieser Seite keine Treffer. Lade mehr, um weiterzusuchen, oder lösche die Filter.",
       "clearFilters": "Filter zurücksetzen"
     },
     "actions": {
@@ -4435,6 +4436,8 @@
       "metadataDiffLabel": "Metadaten-Änderungen",
       "keyboardHint": "Enter vergleicht · R oder Umschalt+Enter stellt wieder her",
       "diffLegend": "Vergleich mit v{snapshot} — − aktuell (v{current}), + Snapshot",
+      "lineAdded": "Hinzugefügte Zeile:",
+      "lineRemoved": "Entfernte Zeile:",
       "metadataField": {
         "title": "Titel",
         "description": "Beschreibung",

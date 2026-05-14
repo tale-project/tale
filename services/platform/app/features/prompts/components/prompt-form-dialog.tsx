@@ -150,7 +150,7 @@ function PromptFormDialogContent({
     [teams],
   );
 
-  // M15: lock the "global" scope tab for non-admins. Existing globally-scoped
+  // Lock the "global" scope tab for non-admins. Existing globally-scoped
   // prompts stay editable but no one can promote a personal/team prompt to
   // global without admin rights.
   const scopeTabItems = [
@@ -163,8 +163,11 @@ function PromptFormDialogContent({
     },
   ];
 
+  // Server measures the trimmed content (size_guards.assertPromptSizes) — mirror
+  // that here so trailing whitespace doesn't block submit on a value the server
+  // would accept.
   const contentBytes = useMemo(
-    () => new TextEncoder().encode(content).byteLength,
+    () => new TextEncoder().encode(content.trim()).byteLength,
     [content],
   );
   const overByteLimit = contentBytes > MAX_PROMPT_CONTENT_BYTES;
@@ -185,7 +188,7 @@ function PromptFormDialogContent({
     category !== (initialData?.category ?? '') ||
     !tagsEqual(tags, initialTags);
 
-  // M5: block submit while OCC banner is showing — the user must Load latest
+  // Block submit while OCC banner is showing — the user must Load latest
   // first (which re-anchors startVersionRef so hasNewerVersion flips false).
   const isValid =
     title.trim().length > 0 &&
@@ -241,6 +244,7 @@ function PromptFormDialogContent({
       isSubmitting={isSubmitting}
       isDirty={isDirty}
       isValid={isValid}
+      confirmDiscardOnDirty
       submitText={isEditing ? t('form.save') : t('form.create')}
       large
     >

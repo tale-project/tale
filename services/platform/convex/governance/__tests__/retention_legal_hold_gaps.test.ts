@@ -233,9 +233,10 @@ describe('retention mutations thread the right authorUserId (source-grep regress
     expect(body).toMatch(/authorUserId:\s*row\.userId/);
   });
 
-  // `deleteExpiredPromptTemplate` was removed when promptTemplate left the
-  // soft-delete + retention pipeline (prompts are now hard-deleted on user
-  // action). No cascade test needed since there's no retention mutation.
+  it('deleteExpiredPromptTemplate cascades through row.createdBy', () => {
+    const body = bodyOf('deleteExpiredPromptTemplate');
+    expect(body).toMatch(/authorUserId:\s*row\.createdBy/);
+  });
 });
 
 describe('retention_cleanup action-layer pre-filters via custodian cascade (source-grep regression)', () => {
@@ -279,6 +280,11 @@ describe('retention_cleanup action-layer pre-filters via custodian cascade (sour
   it('cleanupWorkflowLogs pre-filters via execution.userId', () => {
     const body = bodyOf('cleanupWorkflowLogs');
     expect(body).toMatch(/holds\.userMembershipIds\.has\(execution\.userId\)/);
+  });
+
+  it('cleanupPromptTemplates pre-filters by holds.userMembershipIds via createdBy', () => {
+    const body = bodyOf('cleanupPromptTemplates');
+    expect(body).toMatch(/holds\.userMembershipIds\.has\(row\.createdBy\)/);
   });
 });
 

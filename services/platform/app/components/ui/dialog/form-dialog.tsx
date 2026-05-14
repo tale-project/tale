@@ -36,6 +36,12 @@ export interface FormDialogProps {
   isDirty?: boolean;
   /** Whether the form passes validation (e.g. from react-hook-form formState.isValid) */
   isValid?: boolean;
+  /**
+   * If true, closing while `isDirty` shows a native discard-confirm prompt.
+   * Default false — only opt in from forms that capture meaningful user input
+   * (otherwise read-only dialogs spuriously confirm on every close).
+   */
+  confirmDiscardOnDirty?: boolean;
   /** Form submit handler (optional when customFooter is provided) */
   onSubmit?: (e: React.FormEvent) => void;
   /** Additional className for DialogContent */
@@ -70,6 +76,7 @@ export function FormDialog({
   isSubmitting = false,
   isDirty = true,
   isValid = true,
+  confirmDiscardOnDirty = false,
   onSubmit,
   className,
   customHeader,
@@ -91,6 +98,8 @@ export function FormDialog({
   isSubmittingRef.current = isSubmitting;
   const isDirtyRef = useRef(isDirty);
   isDirtyRef.current = isDirty;
+  const confirmDiscardOnDirtyRef = useRef(confirmDiscardOnDirty);
+  confirmDiscardOnDirtyRef.current = confirmDiscardOnDirty;
   const onOpenChangeRef = useRef(onOpenChange);
   onOpenChangeRef.current = onOpenChange;
   const discardConfirmMessageRef = useRef(discardConfirmMessage);
@@ -104,10 +113,13 @@ export function FormDialog({
     // Block closing while submitting — user can still cancel via the Cancel
     // button which gates on `disabled={isSubmitting}` independently.
     if (isSubmittingRef.current) return;
-    // Confirm before discarding unsaved edits. Native confirm avoids a
-    // nested-dialog focus-trap dance; swap for an inline AlertDialog later
-    // if a richer UX is needed.
+    // Confirm before discarding unsaved edits. Opt-in via
+    // `confirmDiscardOnDirty` so read-only dialogs (e.g. secret reveal) and
+    // dialogs that don't wire `isDirty` don't spuriously prompt on close.
+    // Native confirm avoids a nested-dialog focus-trap dance; swap for an
+    // inline AlertDialog later if a richer UX is needed.
     if (
+      confirmDiscardOnDirtyRef.current &&
       isDirtyRef.current &&
       !globalThis.confirm(discardConfirmMessageRef.current)
     ) {

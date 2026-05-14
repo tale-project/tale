@@ -180,6 +180,7 @@ function SavePromptDialogContent({
       isSubmitting={isPending}
       isDirty={isDirty}
       isValid={isValid}
+      confirmDiscardOnDirty
       submitText={t('form.save')}
     >
       <div className="flex flex-col gap-1">

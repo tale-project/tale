@@ -62,12 +62,10 @@ export function TagChipInput({
         setError(t('tagsInput.tooLong', { max: String(maxTagLength) }));
         return;
       }
-      if (atCap) {
-        setError(t('tagsInput.atCap', { max: String(maxTags) }));
-        return;
-      }
-      if (value.includes(tag)) {
-        // Silent dedupe — clear the draft, no error.
+      // Case-insensitive dedupe — `Foo` and `foo` collapse to whichever was
+      // entered first. Stored casing is preserved.
+      const normalized = tag.toLowerCase();
+      if (value.some((existing) => existing.toLowerCase() === normalized)) {
         setDraft('');
         setError(null);
         return;
@@ -76,7 +74,7 @@ export function TagChipInput({
       setDraft('');
       setError(null);
     },
-    [atCap, maxTagLength, maxTags, onChange, t, value],
+    [maxTagLength, onChange, t, value],
   );
 
   const handleKeyDown = useCallback(
@@ -166,10 +164,12 @@ export function TagChipInput({
         variant="muted"
         className={cn('text-xs', atCap && 'text-destructive')}
       >
-        {t('tagsInput.counter', {
-          count: String(value.length),
-          max: String(maxTags),
-        })}
+        {atCap
+          ? t('tagsInput.atCap', { max: String(maxTags) })
+          : t('tagsInput.counter', {
+              count: String(value.length),
+              max: String(maxTags),
+            })}
         {description ? ` · ${description}` : ''}
       </Text>
     </div>

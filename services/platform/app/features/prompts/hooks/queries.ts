@@ -10,7 +10,7 @@ const PROMPTS_PAGE_SIZE = 30;
  * snapshots the row's full state at that version so restore re-applies
  * content AND metadata, not just content.
  */
-export interface PromptVersionStoredEntry {
+interface PromptVersionStoredEntry {
   version: number;
   content: string;
   publishedAt: number;
@@ -52,7 +52,7 @@ export interface PromptTemplate {
   versionHistory?: PromptVersionStoredEntry[];
 }
 
-export interface UsePromptsOptions {
+interface UsePromptsOptions {
   scope?: 'global' | 'team' | 'personal';
   searchPrefix?: string;
 }

@@ -4264,6 +4264,7 @@
       "description": "Crée ton premier prompt pour le sauvegarder et le réutiliser dans tes conversations",
       "filteredTitle": "Aucun prompt correspondant",
       "filteredDescription": "Efface ta recherche ou tes filtres.",
+      "filteredCanLoadMore": "Aucun résultat sur cette page. Charge plus pour continuer la recherche, ou efface les filtres.",
       "clearFilters": "Effacer les filtres"
     },
     "actions": {
@@ -4360,11 +4361,13 @@
       "metadataDiffLabel": "Modifications de métadonnées",
       "keyboardHint": "Entrée compare · R ou Maj+Entrée restaure",
       "diffLegend": "Différences avec v{snapshot} — − actuelle (v{current}), + instantané",
+      "lineAdded": "Ligne ajoutée :",
+      "lineRemoved": "Ligne retirée :",
       "metadataField": {
         "title": "Titre",
         "description": "Description",
         "category": "Catégorie",
-        "tags": "Tags",
+        "tags": "Étiquettes",
         "scope": "Portée"
       }
     },
@@ -4372,7 +4375,7 @@
       "title": "Par catégorie"
     },
     "tagFilter": {
-      "title": "Par tag"
+      "title": "Par étiquette"
     },
     "addCategory": {
       "inputPlaceholder": "Nom de la catégorie",
@@ -4383,10 +4386,10 @@
       "sectionTitle": "Bibliothèque de prompts"
     },
     "tagsInput": {
-      "tooLong": "Le tag ne doit pas dépasser {max} caractères",
-      "atCap": "Tu as atteint la limite de {max} tags",
-      "removeAria": "Retirer le tag {tag}",
-      "counter": "{count} / {max} tags"
+      "tooLong": "L'étiquette ne doit pas dépasser {max} caractères",
+      "atCap": "Tu as atteint la limite de {max} étiquettes",
+      "removeAria": "Retirer l'étiquette {tag}",
+      "counter": "{count} / {max} étiquettes"
     }
   },
   "mcpServers": {

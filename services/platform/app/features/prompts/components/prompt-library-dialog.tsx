@@ -96,14 +96,22 @@ function PromptLibraryDialogContent({
   }, [prompts]);
 
   const availableTags = useMemo(() => {
-    const tags = prompts.flatMap((p) => p.tags ?? []);
-    return [...new Set(tags)].sort((a, b) => a.localeCompare(b));
+    // Case-insensitive dedupe, preserve first-seen casing. Mirrors
+    // tag-chip-input's commit-time dedupe so the facet list stays stable
+    // across existing drifted data (e.g. legacy rows with `Foo` and `foo`).
+    const seen = new Map<string, string>();
+    for (const tag of prompts.flatMap((p) => p.tags ?? [])) {
+      const key = tag.toLowerCase();
+      if (!seen.has(key)) seen.set(key, tag);
+    }
+    return [...seen.values()].sort((a, b) => a.localeCompare(b));
   }, [prompts]);
 
   // Category + tag filtering is client-side: server pushes scope + search,
   // these remain derived facets of the loaded page. Acceptable since most
   // orgs have a small set of categories/tags and search already narrows.
   const visiblePrompts = useMemo(() => {
+    const selectedTagsLower = selectedTags.map((tag) => tag.toLowerCase());
     return prompts.filter((p) => {
       if (
         selectedCategories.length > 0 &&
@@ -112,8 +120,10 @@ function PromptLibraryDialogContent({
         return false;
       }
       if (
-        selectedTags.length > 0 &&
-        !(p.tags ?? []).some((tag) => selectedTags.includes(tag))
+        selectedTagsLower.length > 0 &&
+        !(p.tags ?? []).some((tag) =>
+          selectedTagsLower.includes(tag.toLowerCase()),
+        )
       ) {
         return false;
       }
@@ -258,7 +268,9 @@ function PromptLibraryDialogContent({
           ? 'toast.forbidden'
           : code === 'not_found'
             ? 'toast.notFound'
-            : 'toast.deleteFailed';
+            : code === 'rate_limited'
+              ? 'toast.rateLimited'
+              : 'toast.deleteFailed';
       if (toastKey === 'toast.deleteFailed') {
         console.error('[prompt-library] delete failed', err);
       }
@@ -356,19 +368,36 @@ function PromptLibraryDialogContent({
                       : t('emptyState.title')}
                   </Text>
                   <Text variant="muted" className="max-w-[280px] text-sm">
-                    {filtersActive
-                      ? t('emptyState.filteredDescription')
-                      : t('emptyState.description')}
+                    {filtersActive && canLoadMore
+                      ? t('emptyState.filteredCanLoadMore')
+                      : filtersActive
+                        ? t('emptyState.filteredDescription')
+                        : t('emptyState.description')}
                   </Text>
                   {filtersActive && (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      onClick={clearFilters}
-                    >
-                      {t('emptyState.clearFilters')}
-                    </Button>
+                    <HStack gap={2} justify="center">
+                      {canLoadMore && (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={loadMore}
+                          disabled={isLoadingMore}
+                        >
+                          {isLoadingMore
+                            ? t('library.loadingMore')
+                            : t('library.loadMore')}
+                        </Button>
+                      )}
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={clearFilters}
+                      >
+                        {t('emptyState.clearFilters')}
+                      </Button>
+                    </HStack>
                   )}
                 </div>
               </div>

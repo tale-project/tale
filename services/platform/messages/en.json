@@ -4339,6 +4339,7 @@
       "description": "Create your first prompt to save and reuse it across conversations",
       "filteredTitle": "No matching prompts",
       "filteredDescription": "Try clearing your search or filters.",
+      "filteredCanLoadMore": "No matches on this page. Load more to keep searching, or clear filters.",
       "clearFilters": "Clear filters"
     },
     "actions": {
@@ -4435,6 +4436,8 @@
       "metadataDiffLabel": "Metadata changes",
       "keyboardHint": "Enter compares · R or Shift+Enter restores",
       "diffLegend": "Diff against v{snapshot} — − current (v{current}), + snapshot",
+      "lineAdded": "Added line:",
+      "lineRemoved": "Removed line:",
       "metadataField": {
         "title": "Title",
         "description": "Description",
