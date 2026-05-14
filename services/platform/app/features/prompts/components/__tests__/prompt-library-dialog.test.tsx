@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 
 import { checkAccessibility } from '@/test/utils/a11y';
-import { render, screen } from '@/test/utils/render';
+import { fireEvent, render, screen } from '@/test/utils/render';
 
 vi.mock('@/lib/i18n/client', () => ({
   useT: (ns: string) => ({
@@ -31,30 +31,49 @@ vi.mock('@/app/hooks/use-current-member-context', () => ({
   useCurrentMemberContext: () => ({ data: { role: 'admin' } }),
 }));
 
+// Mutable mock so individual tests can override the usePrompts result.
+const defaultPrompt = {
+  _id: 'prompt-1',
+  _creationTime: 1700000000000,
+  organizationId: 'test-org-id',
+  createdBy: 'user-1',
+  title: 'Test Prompt',
+  content: 'Hello {{name}}, how can I help?',
+  description: 'A test prompt',
+  scope: 'personal',
+  category: 'testing',
+  tags: ['test'],
+  usageCount: 5,
+};
+
+const mockLoadMore = vi.fn();
+let mockUsePromptsResult: {
+  prompts: unknown[];
+  isLoading: boolean;
+  canLoadMore: boolean;
+  isLoadingMore: boolean;
+  loadMore: typeof mockLoadMore;
+} = {
+  prompts: [defaultPrompt],
+  isLoading: false,
+  canLoadMore: false,
+  isLoadingMore: false,
+  loadMore: mockLoadMore,
+};
+
 vi.mock('../../hooks/queries', () => ({
-  usePrompts: () => ({
-    prompts: [
-      {
-        _id: 'prompt-1',
-        _creationTime: 1700000000000,
-        organizationId: 'test-org-id',
-        createdBy: 'user-1',
-        title: 'Test Prompt',
-        content: 'Hello {{name}}, how can I help?',
-        description: 'A test prompt',
-        scope: 'personal',
-        category: 'testing',
-        tags: ['test'],
-        usageCount: 5,
-      },
-    ],
-    isLoading: false,
-    canLoadMore: false,
-    isLoadingMore: false,
-    loadMore: vi.fn(),
-  }),
+  usePrompts: () => mockUsePromptsResult,
   usePrompt: () => ({ data: null, isLoading: false }),
   usePromptHistory: () => ({ data: null, isLoading: false }),
+  usePromptFacets: () => ({
+    data: {
+      categories: ['testing'],
+      tags: ['test'],
+      scanned: 1,
+      scanCapped: false,
+    },
+    isLoading: false,
+  }),
 }));
 
 vi.mock('../../hooks/mutations', () => ({
@@ -105,4 +124,87 @@ describe('PromptLibraryDialog', () => {
     );
     expect(container.innerHTML).toBe('');
   });
+
+  describe('pagination + empty + loading states', () => {
+    it('Load more button click calls loadMore', () => {
+      mockUsePromptsResult = {
+        prompts: [defaultPrompt],
+        isLoading: false,
+        canLoadMore: true,
+        isLoadingMore: false,
+        loadMore: mockLoadMore,
+      };
+      render(
+        <PromptLibraryDialog
+          open={true}
+          onOpenChange={vi.fn()}
+          onSelectPrompt={vi.fn()}
+        />,
+      );
+      const loadMoreBtn = screen.getByRole('button', {
+        name: 'prompts.library.loadMore',
+      });
+      fireEvent.click(loadMoreBtn);
+      expect(mockLoadMore).toHaveBeenCalled();
+    });
+
+    it('renders the empty state when no prompts and no filters', () => {
+      mockUsePromptsResult = {
+        prompts: [],
+        isLoading: false,
+        canLoadMore: false,
+        isLoadingMore: false,
+        loadMore: mockLoadMore,
+      };
+      render(
+        <PromptLibraryDialog
+          open={true}
+          onOpenChange={vi.fn()}
+          onSelectPrompt={vi.fn()}
+        />,
+      );
+      expect(screen.getByText('prompts.emptyState.title')).toBeInTheDocument();
+    });
+
+    it('renders the loading skeleton when isLoading and no prompts', () => {
+      mockUsePromptsResult = {
+        prompts: [],
+        isLoading: true,
+        canLoadMore: false,
+        isLoadingMore: false,
+        loadMore: mockLoadMore,
+      };
+      render(
+        <PromptLibraryDialog
+          open={true}
+          onOpenChange={vi.fn()}
+          onSelectPrompt={vi.fn()}
+        />,
+      );
+      // Skeleton rows use `animate-pulse`; Radix portals into document.body,
+      // so query there rather than the render container.
+      expect(document.body.querySelector('.animate-pulse')).not.toBeNull();
+    });
+  });
+});
+
+beforeEach(() => {
+  mockLoadMore.mockReset();
+  mockUsePromptsResult = {
+    prompts: [defaultPrompt],
+    isLoading: false,
+    canLoadMore: false,
+    isLoadingMore: false,
+    loadMore: mockLoadMore,
+  };
+});
+
+afterEach(() => {
+  mockUsePromptsResult = {
+    prompts: [defaultPrompt],
+    isLoading: false,
+    canLoadMore: false,
+    isLoadingMore: false,
+    loadMore: mockLoadMore,
+  };
 });

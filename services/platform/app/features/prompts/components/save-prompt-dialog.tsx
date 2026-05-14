@@ -58,6 +58,7 @@ function SavePromptDialogContent({
   const [localCategories, setLocalCategories] = useState<string[]>([]);
 
   const bytesId = useId();
+  const categoryLabelId = useId();
   const bytesErrorId = `${bytesId}-error`;
   const isPending = savePrompt.isPending;
 
@@ -96,8 +97,10 @@ function SavePromptDialogContent({
     !overByteLimit &&
     (scope !== 'team' || !!teamId);
 
-  // Used by FormDialog to decide whether to prompt before discarding edits.
-  const isDirty =
+  // Whether the user has touched anything since the dialog opened. Used only to
+  // gate the discard-confirm prompt — NOT to gate submit. The dialog's purpose
+  // is to create a new prompt, so "submittable" is `isValid`, not "modified".
+  const hasUserEdits =
     content !== initialContent ||
     scope !== 'personal' ||
     !!teamId ||
@@ -122,7 +125,9 @@ function SavePromptDialogContent({
           scope,
           teamId: scope === 'team' ? teamId : undefined,
           category: category || undefined,
-          sourceMessageId,
+          // Compose flow passes an empty string when there's no source
+          // message; coerce so we never persist `''` as a meaningless id.
+          sourceMessageId: sourceMessageId || undefined,
         });
 
         toast({
@@ -178,9 +183,9 @@ function SavePromptDialogContent({
       title={t('saveAs.title')}
       onSubmit={handleSubmit}
       isSubmitting={isPending}
-      isDirty={isDirty}
+      isDirty
       isValid={isValid}
-      confirmDiscardOnDirty
+      confirmDiscardOnDirty={hasUserEdits}
       submitText={t('form.save')}
     >
       <div className="flex flex-col gap-1">
@@ -241,25 +246,36 @@ function SavePromptDialogContent({
       )}
 
       <div className="flex flex-col gap-2">
-        <label className="text-muted-foreground text-sm font-medium">
+        <label
+          id={categoryLabelId}
+          className="text-muted-foreground text-sm font-medium"
+        >
           {t('form.categoryLabel')}
         </label>
-        <div className="flex flex-wrap items-center gap-2">
-          {existingCategories.map((cat) => (
-            <button
-              key={cat}
-              type="button"
-              onClick={() => setCategory((prev) => (prev === cat ? '' : cat))}
-              className={cn(
-                'rounded-full px-2.5 py-1.5 text-[13px] font-medium transition-colors',
-                category === cat
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-accent',
-              )}
-            >
-              {cat}
-            </button>
-          ))}
+        <div
+          role="group"
+          aria-labelledby={categoryLabelId}
+          className="flex flex-wrap items-center gap-2"
+        >
+          {existingCategories.map((cat) => {
+            const selected = category === cat;
+            return (
+              <button
+                key={cat}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => setCategory((prev) => (prev === cat ? '' : cat))}
+                className={cn(
+                  'rounded-full px-2.5 py-1.5 text-[13px] font-medium transition-colors',
+                  selected
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-muted-foreground hover:bg-accent',
+                )}
+              >
+                {cat}
+              </button>
+            );
+          })}
           <AddCategoryPopover
             existingCategories={existingCategories}
             onAddCategory={handleAddCategory}

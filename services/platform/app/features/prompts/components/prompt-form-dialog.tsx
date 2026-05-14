@@ -32,6 +32,14 @@ import { TagChipInput } from './tag-chip-input';
 
 type PromptScope = 'global' | 'team' | 'personal';
 
+// Positional tag equality. Mirrors `metadataDiffers` on the server so a
+// reorder counts as an edit. Module-scope so it's a stable reference across
+// renders and doesn't need to live in any callback's dep array.
+function tagsEqual(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((tag, i) => tag === b[i]);
+}
+
 interface PromptFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -96,6 +104,8 @@ function PromptFormDialogContent({
   const contentId = useId();
   const bytesId = `${contentId}-bytes`;
   const bytesErrorId = `${contentId}-bytes-error`;
+  const scopeLabelId = useId();
+  const categoryLabelId = useId();
 
   const isEditing = !!initialData;
 
@@ -118,6 +128,24 @@ function PromptFormDialogContent({
 
   const handleLoadLatest = useCallback(() => {
     if (!live) return;
+    // Confirm before clobbering in-progress edits. `isDirty` is computed
+    // below this callback (closure-captured at call time via the latest
+    // `current` snapshots of state), so we re-check the relevant fields here
+    // against the same baselines used by `isDirty` to avoid stale closure.
+    const draftHasEdits =
+      title !== (initialData?.title ?? '') ||
+      content !== (initialData?.content ?? '') ||
+      description !== (initialData?.description ?? '') ||
+      scope !== (initialData?.scope ?? 'personal') ||
+      teamId !== initialData?.teamId ||
+      category !== (initialData?.category ?? '') ||
+      !tagsEqual(tags, initialTags);
+    if (
+      draftHasEdits &&
+      !globalThis.confirm(t('form.versionConflictDiscardConfirm'))
+    ) {
+      return;
+    }
     setTitle(live.title);
     setContent(live.content);
     setDescription(live.description ?? '');
@@ -126,7 +154,19 @@ function PromptFormDialogContent({
     setCategory(live.category ?? '');
     setTags(live.tags ?? []);
     startVersionRef.current = live.version;
-  }, [live]);
+  }, [
+    live,
+    title,
+    content,
+    description,
+    scope,
+    teamId,
+    category,
+    tags,
+    initialData,
+    initialTags,
+    t,
+  ]);
 
   const existingCategories = useMemo(() => {
     const fromPrompts = prompts
@@ -173,11 +213,6 @@ function PromptFormDialogContent({
   const overByteLimit = contentBytes > MAX_PROMPT_CONTENT_BYTES;
   const approachingLimit =
     !overByteLimit && contentBytes >= MAX_PROMPT_CONTENT_BYTES * 0.9;
-
-  const tagsEqual = (a: string[], b: string[]): boolean => {
-    if (a.length !== b.length) return false;
-    return a.every((tag, i) => tag === b[i]);
-  };
 
   const isDirty =
     title !== (initialData?.title ?? '') ||
@@ -248,20 +283,20 @@ function PromptFormDialogContent({
       submitText={isEditing ? t('form.save') : t('form.create')}
       large
     >
-      {isEditing && (
+      {isEditing && (initialData?.version !== undefined || headerActions) && (
         <HStack gap={2} align="center" justify="between">
-          <HStack gap={2} align="center">
-            {initialData?.version !== undefined && (
-              <Badge
-                variant="outline"
-                aria-label={t('version.badge', {
-                  version: String(initialData.version),
-                })}
-              >
-                {t('version.badge', { version: initialData.version })}
-              </Badge>
-            )}
-          </HStack>
+          {initialData?.version !== undefined ? (
+            <Badge
+              variant="outline"
+              aria-label={t('version.badge', {
+                version: String(initialData.version),
+              })}
+            >
+              {t('version.badge', { version: initialData.version })}
+            </Badge>
+          ) : (
+            <span />
+          )}
           {headerActions}
         </HStack>
       )}
@@ -353,14 +388,19 @@ function PromptFormDialogContent({
         maxLength={MAX_PROMPT_DESCRIPTION_LEN}
       />
       <div className="flex flex-col gap-2">
-        <label className="text-sm font-medium">{t('form.scopeLabel')}</label>
-        <Tabs
-          items={scopeTabItems}
-          value={scope}
-          onValueChange={(v) => {
-            if (v === 'global' || v === 'team' || v === 'personal') setScope(v);
-          }}
-        />
+        <label id={scopeLabelId} className="text-sm font-medium">
+          {t('form.scopeLabel')}
+        </label>
+        <div role="group" aria-labelledby={scopeLabelId}>
+          <Tabs
+            items={scopeTabItems}
+            value={scope}
+            onValueChange={(v) => {
+              if (v === 'global' || v === 'team' || v === 'personal')
+                setScope(v);
+            }}
+          />
+        </div>
       </div>
       {scope === 'team' && teamOptions.length > 0 && (
         <Select
@@ -374,7 +414,7 @@ function PromptFormDialogContent({
       )}
       <div className="flex flex-col gap-2">
         <HStack justify="between" align="center">
-          <label className="text-sm font-medium">
+          <label id={categoryLabelId} className="text-sm font-medium">
             {t('form.categoryLabel')}
           </label>
           <AddCategoryPopover
@@ -388,6 +428,7 @@ function PromptFormDialogContent({
             value={category}
             onValueChange={setCategory}
             placeholder={t('form.categoryPlaceholder')}
+            aria-labelledby={categoryLabelId}
           />
         ) : (
           <Input
@@ -395,6 +436,7 @@ function PromptFormDialogContent({
             onChange={(e) => setCategory(e.target.value)}
             placeholder={t('form.categoryPlaceholder')}
             maxLength={MAX_PROMPT_CATEGORY_LEN}
+            aria-labelledby={categoryLabelId}
           />
         )}
       </div>

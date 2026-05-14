@@ -67,7 +67,7 @@ Löschen ist endgültig und kann nicht rückgängig gemacht werden.
 
 ## Versionsverlauf
 
-Jedes Speichern legt eine neue Version an. Öffne das Kontextmenü auf einer Zeile und wähle **Versionsverlauf**, um alle früheren Versionen dieses Prompts zu sehen. Der Dialog listet jede Version mit Veröffentlichungsdatum und Autor. Prompts ohne Verlauf (vor der Versionierung erstellt) zeigen ein synthetisiertes **v1** für den ursprünglichen Inhalt.
+Jedes Speichern legt eine neue Version an. Öffne das Kontextmenü auf einer Zeile und wähle **Versionsverlauf**, um alle früheren Versionen dieses Prompts zu sehen. Der Dialog listet jede Version mit Veröffentlichungsdatum und Autor. Prompts, die seit dem Versionierungs-Release noch nicht bearbeitet wurden, haben noch keinen History-Dialog — bei der ersten Bearbeitung entsteht v2, das Menü wird verfügbar und v1 bleibt als vorheriger Zustand erhalten.
 
 ### Versionen vergleichen
 

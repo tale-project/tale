@@ -13,7 +13,6 @@ import { v } from 'convex/values';
 import { api, internal } from '../_generated/api';
 import type { Doc } from '../_generated/dataModel';
 import { action } from '../_generated/server';
-import { checkUserRateLimit } from '../lib/rate_limiter/helpers';
 import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
 import { promptScopeValidator, promptTemplateValidator } from './validators';
 
@@ -39,13 +38,23 @@ export const savePrompt = action({
   },
   returns: promptTemplateValidator,
   handler: async (ctx, args): Promise<Doc<'promptTemplates'>> => {
-    // Gate the LLM call (provider tokens, ~10s budget) behind auth + per-user
-    // rate-limit so unauthenticated callers can't drain quota. The downstream
-    // `createPrompt` mutation re-checks org membership and re-consumes
-    // `prompt:create` only on the real create path, so this consume is the
-    // only cost-bounded gate the action itself enforces.
-    const user = await requireAuthenticatedUser(ctx);
-    await checkUserRateLimit(ctx, 'prompt:create', user.userId);
+    // Cheap auth gate first — anything more expensive lives behind it.
+    await requireAuthenticatedUser(ctx);
+
+    // Fail-fast pre-flight: validate org/team membership and size caps
+    // BEFORE the LLM call so a wrong organizationId / oversize content
+    // doesn't burn provider tokens. The downstream mutation re-validates
+    // everything and is the sole consumer of the `prompt:create` rate-limit
+    // token — keep this side cheap and non-consuming.
+    await ctx.runQuery(internal.prompts.queries.validateSaveArgs, {
+      organizationId: args.organizationId,
+      content: args.content,
+      description: args.description,
+      scope: args.scope,
+      teamId: args.teamId,
+      category: args.category,
+      tags: args.tags,
+    });
 
     // Try AI-generated title first (10s timeout enforced in the action)
     const aiTitle = await ctx.runAction(

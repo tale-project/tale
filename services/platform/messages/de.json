@@ -4386,6 +4386,7 @@
       "versionConflictTitle": "Neuere Version verfügbar",
       "versionConflictDescription": "Während deiner Bearbeitung wurde v{version} gespeichert. Lade die neueste Version, bevor du speicherst.",
       "versionConflictDirtyWarning": "Deine nicht gespeicherten Änderungen gehen verloren.",
+      "versionConflictDiscardConfirm": "Neueste Version laden und nicht gespeicherte Änderungen verwerfen?",
       "loadLatest": "Neueste laden",
       "bytesOverLimitAlert": "Inhalt überschreitet das Größenlimit. Kürze den Prompt, um zu speichern."
     },
@@ -4396,6 +4397,7 @@
     "toast": {
       "savedTo": "Gespeichert unter {scope}",
       "saved": "Gespeichert als v{version}",
+      "savedNoChanges": "Gespeichert (keine Änderungen)",
       "created": "Prompt erstellt",
       "saveFailed": "Prompt konnte nicht gespeichert werden",
       "deleteFailed": "Prompt konnte nicht gelöscht werden",
@@ -4407,7 +4409,8 @@
       "forbidden": "Du hast keine Berechtigung für diesen Prompt",
       "notFound": "Dieser Prompt existiert nicht mehr",
       "tooLarge": "Ein Feld überschreitet die zulässige Länge",
-      "emptyContent": "Prompt-Inhalt darf nicht leer sein"
+      "emptyContent": "Prompt-Inhalt darf nicht leer sein",
+      "legalHold": "Löschen ist durch einen aktiven Legal Hold gesperrt"
     },
     "version": {
       "badge": "v{version}"
@@ -4435,7 +4438,7 @@
       "metadataChanged": "Metadaten geändert",
       "metadataDiffLabel": "Metadaten-Änderungen",
       "keyboardHint": "Enter vergleicht · R oder Umschalt+Enter stellt wieder her",
-      "diffLegend": "Vergleich mit v{snapshot} — − aktuell (v{current}), + Snapshot",
+      "diffLegend": "Vergleich mit v{snapshot} — − aktuell (v{current}) würde ersetzt, + v{snapshot} würde wiederhergestellt",
       "lineAdded": "Hinzugefügte Zeile:",
       "lineRemoved": "Entfernte Zeile:",
       "metadataField": {
@@ -4447,10 +4450,12 @@
       }
     },
     "categoryFilter": {
-      "title": "Nach Kategorie"
+      "title": "Nach Kategorie",
+      "titleWithCount": "Nach Kategorie ({count} aktiv)"
     },
     "tagFilter": {
-      "title": "Nach Tag"
+      "title": "Nach Tag",
+      "titleWithCount": "Nach Tag ({count} aktiv)"
     },
     "addCategory": {
       "inputPlaceholder": "Kategoriename",

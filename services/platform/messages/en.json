@@ -4386,6 +4386,7 @@
       "versionConflictTitle": "Newer version available",
       "versionConflictDescription": "Someone saved v{version} while you were editing. Load the latest to re-anchor before saving.",
       "versionConflictDirtyWarning": "Your unsaved edits will be discarded.",
+      "versionConflictDiscardConfirm": "Load the latest version and discard your unsaved edits?",
       "loadLatest": "Load latest",
       "bytesOverLimitAlert": "Content exceeds the size limit. Shorten the prompt to enable Save."
     },
@@ -4396,6 +4397,7 @@
     "toast": {
       "savedTo": "Saved to {scope}",
       "saved": "Saved as v{version}",
+      "savedNoChanges": "Saved (no changes)",
       "created": "Prompt created",
       "saveFailed": "Could not save prompt",
       "deleteFailed": "Could not delete prompt",
@@ -4407,7 +4409,8 @@
       "forbidden": "You don't have permission for this prompt",
       "notFound": "This prompt no longer exists",
       "tooLarge": "A field exceeds the allowed length",
-      "emptyContent": "Prompt content cannot be empty"
+      "emptyContent": "Prompt content cannot be empty",
+      "legalHold": "Delete is blocked by an active legal hold"
     },
     "version": {
       "badge": "v{version}"
@@ -4435,7 +4438,7 @@
       "metadataChanged": "Metadata changed",
       "metadataDiffLabel": "Metadata changes",
       "keyboardHint": "Enter compares · R or Shift+Enter restores",
-      "diffLegend": "Diff against v{snapshot} — − current (v{current}), + snapshot",
+      "diffLegend": "Diff against v{snapshot} — − current (v{current}) would be replaced, + v{snapshot} would be restored",
       "lineAdded": "Added line:",
       "lineRemoved": "Removed line:",
       "metadataField": {
@@ -4447,10 +4450,12 @@
       }
     },
     "categoryFilter": {
-      "title": "By category"
+      "title": "By category",
+      "titleWithCount": "By category ({count} active)"
     },
     "tagFilter": {
-      "title": "By tag"
+      "title": "By tag",
+      "titleWithCount": "By tag ({count} active)"
     },
     "addCategory": {
       "inputPlaceholder": "Category name",

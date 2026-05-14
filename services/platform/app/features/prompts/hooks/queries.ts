@@ -1,3 +1,5 @@
+import { useCallback } from 'react';
+
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
@@ -54,21 +56,33 @@ export interface PromptTemplate {
 
 interface UsePromptsOptions {
   scope?: 'global' | 'team' | 'personal';
-  searchPrefix?: string;
+  search?: string;
+  categories?: string[];
+  tags?: string[];
 }
 
 export function usePrompts(
   organizationId: string,
   options: UsePromptsOptions = {},
 ) {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- paginationOpts is optional to handle Convex reconnection replays; usePaginatedQuery always provides it at runtime
+  // Cast bridges Convex's auto-inferred `FunctionReference` for a paginated
+  // query to `useCachedPaginatedQuery`'s `PaginatedQueryReference` parameter
+  // slot — they're structurally compatible but the generated type doesn't
+  // assign cleanly. Not related to runtime arg shapes.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   const listPromptsQuery = api.prompts.queries
     .listPrompts as unknown as Parameters<typeof useCachedPaginatedQuery>[0];
   const queryArgs = organizationId
     ? {
         organizationId,
         scope: options.scope,
-        searchPrefix: options.searchPrefix,
+        search: options.search,
+        categories:
+          options.categories && options.categories.length > 0
+            ? options.categories
+            : undefined,
+        tags:
+          options.tags && options.tags.length > 0 ? options.tags : undefined,
       }
     : ('skip' as const);
   const { results, status, loadMore, isLoading } = useCachedPaginatedQuery(
@@ -79,13 +93,28 @@ export function usePrompts(
 
   const prompts: PromptTemplate[] = results ?? [];
 
+  // Memoize so consumers can place this in `useEffect` deps without
+  // triggering infinite re-runs.
+  const stableLoadMore = useCallback(
+    () => loadMore(PROMPTS_PAGE_SIZE),
+    [loadMore],
+  );
+
   return {
     prompts,
     isLoading,
     canLoadMore: status === 'CanLoadMore',
     isLoadingMore: status === 'LoadingMore',
-    loadMore: () => loadMore(PROMPTS_PAGE_SIZE),
+    loadMore: stableLoadMore,
   };
+}
+
+export function usePromptFacets(organizationId: string | undefined) {
+  return useConvexQuery(
+    api.prompts.queries.listPromptFacets,
+    organizationId ? { organizationId } : 'skip',
+    { enabled: !!organizationId },
+  );
 }
 
 export function usePrompt(promptId: Id<'promptTemplates'> | undefined) {
@@ -105,15 +134,25 @@ export function usePromptHistory(promptId: Id<'promptTemplates'> | undefined) {
 }
 
 /**
- * Lookup of {promptId, sourceMessageId} pairs for the caller's saved prompts.
- * Lightweight (no content/metadata), bounded by the user's save history —
- * safe to fetch all in one shot. Used by the chat to render "saved" badges
- * on messages without missing rows past page 1 of usePrompts.
+ * Lookup of {promptId, sourceMessageId} pairs for the caller's saved prompts
+ * matching the currently-rendered chat messages. Pass the visible message ids
+ * so the wire payload is O(visible messages), not O(save-history).
+ *
+ * Skipped when no organizationId or when there are no message ids to look up.
  */
-export function useSavedSourceMessageIds(organizationId: string | undefined) {
+export function useSavedSourceMessageIds(
+  organizationId: string | undefined,
+  sourceMessageIds: readonly string[],
+) {
+  const enabled = organizationId !== undefined && sourceMessageIds.length > 0;
   return useConvexQuery(
     api.prompts.queries.getSavedSourceMessageIds,
-    organizationId ? { organizationId } : 'skip',
-    { enabled: !!organizationId },
+    enabled
+      ? {
+          organizationId,
+          sourceMessageIds: [...sourceMessageIds],
+        }
+      : 'skip',
+    { enabled },
   );
 }

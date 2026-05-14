@@ -87,17 +87,15 @@ export function synthesizeLegacyV1Entry(
 export function prependVersionEntry(
   prevHistory: VersionHistoryEntry[] | undefined,
   entry: VersionHistoryEntry,
-  promptId?: string,
+  // Kept in the signature for call-site compatibility; the `console.warn`
+  // that previously consumed it was redundant with the
+  // `prompt_template.history_truncated` audit row the caller already emits.
+  _promptId?: string,
 ): { history: VersionHistoryEntry[]; droppedVersions: number[] } {
   const next = [entry, ...(prevHistory ?? [])];
   if (next.length > MAX_PROMPT_VERSION_HISTORY) {
     const dropped = next.slice(MAX_PROMPT_VERSION_HISTORY);
     const droppedVersions = dropped.map((e) => e.version);
-    console.warn(
-      `[prompts] versionHistory truncated for ${promptId ?? 'prompt'}: dropping ${
-        droppedVersions.length
-      } oldest entries (v${droppedVersions.join(', v')})`,
-    );
     return {
       history: next.slice(0, MAX_PROMPT_VERSION_HISTORY),
       droppedVersions,
@@ -137,10 +135,16 @@ export function buildNextVersionEntry({
   nextHistory: VersionHistoryEntry[];
   droppedVersions: number[];
 } {
+  // Prefer any existing history (handles partial-migration rows where
+  // `version` is undefined but `versionHistory` already has entries — the
+  // earlier `version === undefined` gate would have silently overwritten
+  // them).
   const baseHistory: VersionHistoryEntry[] =
-    existing.version === undefined
-      ? [synthesizeLegacyV1Entry(existing)]
-      : (existing.versionHistory ?? []);
+    existing.versionHistory && existing.versionHistory.length > 0
+      ? existing.versionHistory
+      : existing.version === undefined
+        ? [synthesizeLegacyV1Entry(existing)]
+        : [];
   const baseVersion = existing.version ?? 1;
   const newVersion = baseVersion + 1;
   const entry: VersionHistoryEntry = {
@@ -161,6 +165,32 @@ export function buildNextVersionEntry({
     existing._id,
   );
   return { newVersion, nextHistory, droppedVersions };
+}
+
+/**
+ * Compose the v1 entry written at create time. Pairs with
+ * `buildNextVersionEntry` so the v1 / v2+ entry shape stays in lockstep — a
+ * new `VersionHistoryEntry` field added in only one place would otherwise
+ * make v1 rows fail the validator on subsequent reads.
+ */
+export function buildInitialVersionEntry(args: {
+  content: string;
+  publishedBy: string;
+  publishedAt: number;
+  metadata: PromptVersionMetadata;
+}): VersionHistoryEntry {
+  return {
+    version: 1,
+    content: args.content,
+    publishedAt: args.publishedAt,
+    publishedBy: args.publishedBy,
+    title: args.metadata.title,
+    description: args.metadata.description,
+    category: args.metadata.category,
+    tags: args.metadata.tags,
+    scope: args.metadata.scope,
+    teamId: args.metadata.teamId,
+  };
 }
 
 /**

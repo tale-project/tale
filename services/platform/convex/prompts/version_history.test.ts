@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import type { Doc } from '../_generated/dataModel';
 import { MAX_PROMPT_VERSION_HISTORY } from './constants';
@@ -86,7 +86,6 @@ describe('prependVersionEntry', () => {
   });
 
   it('caps the array at MAX_PROMPT_VERSION_HISTORY and drops the oldest', () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const existing = Array.from(
       { length: MAX_PROMPT_VERSION_HISTORY },
       (_, i) => makeEntry(MAX_PROMPT_VERSION_HISTORY - i),
@@ -101,8 +100,6 @@ describe('prependVersionEntry', () => {
     expect(history[0].version).toBe(MAX_PROMPT_VERSION_HISTORY + 1);
     expect(history.find((e) => e.version === 1)).toBeUndefined();
     expect(droppedVersions).toEqual([1]);
-    expect(warn).toHaveBeenCalledTimes(1);
-    warn.mockRestore();
   });
 });
 
@@ -141,7 +138,6 @@ describe('buildNextVersionEntry', () => {
   });
 
   it('propagates droppedVersions when prepending past the FIFO cap', () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const fullHistory = Array.from(
       { length: MAX_PROMPT_VERSION_HISTORY },
       (_, i) => makeEntry(MAX_PROMPT_VERSION_HISTORY - i),
@@ -162,7 +158,6 @@ describe('buildNextVersionEntry', () => {
     expect(built.newVersion).toBe(MAX_PROMPT_VERSION_HISTORY + 1);
     expect(built.nextHistory).toHaveLength(MAX_PROMPT_VERSION_HISTORY);
     expect(built.droppedVersions).toEqual([1]);
-    warn.mockRestore();
   });
 
   it('JIT-seeds a legacy prompt with both content AND metadata', () => {

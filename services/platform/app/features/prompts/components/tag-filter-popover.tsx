@@ -32,15 +32,29 @@ export function TagFilterPopover({
     }
   };
 
+  const activeCount = selectedTags.length;
+  const triggerLabel =
+    activeCount > 0
+      ? t('tagFilter.titleWithCount', { count: String(activeCount) })
+      : t('tagFilter.title');
+
   return (
     <Popover
       trigger={
         <Button
           variant="secondary"
-          aria-label={t('tagFilter.title')}
-          className="shrink-0 px-3"
+          aria-label={triggerLabel}
+          className="relative shrink-0 px-3"
         >
           <Tag className="size-4" />
+          {activeCount > 0 && (
+            <span
+              aria-hidden="true"
+              className="bg-primary text-primary-foreground absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium"
+            >
+              {activeCount}
+            </span>
+          )}
         </Button>
       }
       align="end"

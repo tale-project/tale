@@ -67,7 +67,7 @@ La suppression est définitive et irréversible.
 
 ## Historique des versions
 
-Chaque enregistrement crée une nouvelle version. Ouvre le menu contextuel sur une ligne et choisis **Historique des versions** pour voir toutes les versions passées de ce prompt. Le dialogue liste chaque version avec sa date de publication et son auteur. Les prompts sans historique (antérieurs à la versionnalisation) affichent une **v1** synthétisée pour le contenu d’origine.
+Chaque enregistrement crée une nouvelle version. Ouvre le menu contextuel sur une ligne et choisis **Historique des versions** pour voir toutes les versions passées de ce prompt. Le dialogue liste chaque version avec sa date de publication et son auteur. Les prompts qui n'ont pas été modifiés depuis la mise en place de la versionnalisation n'ont pas encore de dialogue Historique — fais une première modification pour créer v2, l'élément de menu devient alors disponible et v1 est conservé comme état précédent.
 
 ### Comparer les versions
 

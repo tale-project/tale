@@ -2,7 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { BookOpen, History, Plus, Search } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
@@ -24,7 +24,7 @@ import {
   useUpdatePrompt,
 } from '../hooks/mutations';
 import type { PromptTemplate } from '../hooks/queries';
-import { usePrompts } from '../hooks/queries';
+import { usePromptFacets, usePrompts } from '../hooks/queries';
 import { extractErrorCode } from '../lib/extract-error-code';
 import { CategoryFilterPopover } from './category-filter-popover';
 import { PromptFormDialog, type PromptFormData } from './prompt-form-dialog';
@@ -79,8 +79,27 @@ function PromptLibraryDialogContent({
   const { prompts, isLoading, canLoadMore, isLoadingMore, loadMore } =
     usePrompts(organizationId ?? '', {
       scope: scopeArg,
-      searchPrefix: debouncedSearch || undefined,
+      search: debouncedSearch || undefined,
+      categories: selectedCategories,
+      tags: selectedTags,
     });
+
+  // Auto-advance on empty filtered pages: when the server post-filters a page
+  // down to zero rows but more pages exist, fetch the next without making the
+  // user click Load More. Bounded by `canLoadMore` so this can't loop past the
+  // end. Runs on every change to those signals — Convex args are stable so
+  // there's no resubscribe thrash.
+  useEffect(() => {
+    if (canLoadMore && !isLoadingMore && prompts.length === 0) {
+      loadMore();
+    }
+  }, [canLoadMore, isLoadingMore, prompts.length, loadMore]);
+
+  // Facets are loaded via a dedicated indexed scan so the popover lists
+  // categories/tags from the whole org, not just the currently-loaded page.
+  const { data: facets } = usePromptFacets(organizationId);
+  const availableCategories = useMemo(() => facets?.categories ?? [], [facets]);
+  const availableTags = useMemo(() => facets?.tags ?? [], [facets]);
 
   const createPrompt = useCreatePrompt();
   const updatePrompt = useUpdatePrompt();
@@ -90,46 +109,18 @@ function PromptLibraryDialogContent({
   const isAdmin =
     memberContext?.role === 'admin' || memberContext?.role === 'owner';
 
-  const availableCategories = useMemo(() => {
-    const cats = prompts.map((p) => p.category).filter((c): c is string => !!c);
-    return [...new Set(cats)].sort((a, b) => a.localeCompare(b));
-  }, [prompts]);
-
-  const availableTags = useMemo(() => {
-    // Case-insensitive dedupe, preserve first-seen casing. Mirrors
-    // tag-chip-input's commit-time dedupe so the facet list stays stable
-    // across existing drifted data (e.g. legacy rows with `Foo` and `foo`).
-    const seen = new Map<string, string>();
-    for (const tag of prompts.flatMap((p) => p.tags ?? [])) {
-      const key = tag.toLowerCase();
-      if (!seen.has(key)) seen.set(key, tag);
+  // If the user lost admin rights mid-session (or the dialog was opened in a
+  // stale 'global' state) snap back to 'all' so the disabled tab can't stay
+  // "selected" and keep firing a scope-global query.
+  useEffect(() => {
+    if (activeTab === 'global' && !isAdmin) {
+      setActiveTab('all');
     }
-    return [...seen.values()].sort((a, b) => a.localeCompare(b));
-  }, [prompts]);
+  }, [activeTab, isAdmin]);
 
-  // Category + tag filtering is client-side: server pushes scope + search,
-  // these remain derived facets of the loaded page. Acceptable since most
-  // orgs have a small set of categories/tags and search already narrows.
-  const visiblePrompts = useMemo(() => {
-    const selectedTagsLower = selectedTags.map((tag) => tag.toLowerCase());
-    return prompts.filter((p) => {
-      if (
-        selectedCategories.length > 0 &&
-        (!p.category || !selectedCategories.includes(p.category))
-      ) {
-        return false;
-      }
-      if (
-        selectedTagsLower.length > 0 &&
-        !(p.tags ?? []).some((tag) =>
-          selectedTagsLower.includes(tag.toLowerCase()),
-        )
-      ) {
-        return false;
-      }
-      return true;
-    });
-  }, [prompts, selectedCategories, selectedTags]);
+  // The server now applies category/tag filtering, so the page rows ARE the
+  // visible rows. Kept as an alias for the existing JSX usage.
+  const visiblePrompts = prompts;
 
   const filtersActive =
     debouncedSearch.length > 0 ||
@@ -219,6 +210,10 @@ function PromptLibraryDialogContent({
           toast({ title: t('toast.notFound'), variant: 'destructive' });
           return;
         }
+        // Always toast on a non-null result so the user gets feedback even
+        // when the save was a metadata-only / no-op edit (server returns the
+        // unchanged row in those cases). Use the saved-with-version copy
+        // when the version actually bumped; otherwise generic "saved".
         if (
           result.version !== undefined &&
           result.version !== editingPrompt.version
@@ -227,12 +222,14 @@ function PromptLibraryDialogContent({
             title: t('toast.saved', { version: String(result.version) }),
             variant: 'success',
           });
+        } else {
+          toast({ title: t('toast.savedNoChanges'), variant: 'success' });
         }
         setEditingPrompt(null);
       } catch (err) {
         const code = extractErrorCode(err);
         const toastKey =
-          code === 'version_conflict'
+          code === 'version_conflict' || code === 'missing_expected_version'
             ? 'toast.versionConflict'
             : code === 'forbidden'
               ? 'toast.forbidden'
@@ -264,13 +261,15 @@ function PromptLibraryDialogContent({
     } catch (err) {
       const code = extractErrorCode(err);
       const toastKey =
-        code === 'forbidden'
-          ? 'toast.forbidden'
-          : code === 'not_found'
-            ? 'toast.notFound'
-            : code === 'rate_limited'
-              ? 'toast.rateLimited'
-              : 'toast.deleteFailed';
+        code === 'legal_hold'
+          ? 'toast.legalHold'
+          : code === 'forbidden'
+            ? 'toast.forbidden'
+            : code === 'not_found'
+              ? 'toast.notFound'
+              : code === 'rate_limited'
+                ? 'toast.rateLimited'
+                : 'toast.deleteFailed';
       if (toastKey === 'toast.deleteFailed') {
         console.error('[prompt-library] delete failed', err);
       }

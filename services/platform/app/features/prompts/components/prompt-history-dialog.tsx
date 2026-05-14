@@ -7,7 +7,6 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type KeyboardEvent,
 } from 'react';
@@ -85,7 +84,19 @@ export function PromptHistoryDialog({
     expectedVersion: number | undefined;
   } | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
-  const listboxRef = useRef<HTMLUListElement | null>(null);
+
+  // Reset transient state when the dialog closes so reopening doesn't pop a
+  // stale Restore-confirm with an outdated `expectedVersion`. The query is
+  // already skipped when `open=false`, but local state (`restoring`,
+  // `comparingVersion`, `activeIndex`) survives unmounts because the parent
+  // keeps this component mounted.
+  useEffect(() => {
+    if (!open) {
+      setRestoring(null);
+      setComparingVersion(null);
+      setActiveIndex(0);
+    }
+  }, [open]);
 
   const startRestore = useCallback(
     (entry: PromptVersionEntry) => {
@@ -124,18 +135,19 @@ export function PromptHistoryDialog({
       setComparingVersion(null);
     } catch (err) {
       const code = extractErrorCode(err);
-      const toastKey =
-        code === 'version_conflict'
-          ? 'toast.restoreStale'
-          : code === 'forbidden'
-            ? 'toast.forbidden'
-            : code === 'not_found' || code === 'version_not_found'
-              ? 'toast.notFound'
-              : code === 'rate_limited'
-                ? 'toast.rateLimited'
-                : code === 'too_large'
-                  ? 'toast.tooLarge'
-                  : 'toast.restoreFailed';
+      const isStale =
+        code === 'version_conflict' || code === 'missing_expected_version';
+      const toastKey = isStale
+        ? 'toast.restoreStale'
+        : code === 'forbidden'
+          ? 'toast.forbidden'
+          : code === 'not_found' || code === 'version_not_found'
+            ? 'toast.notFound'
+            : code === 'rate_limited'
+              ? 'toast.rateLimited'
+              : code === 'too_large'
+                ? 'toast.tooLarge'
+                : 'toast.restoreFailed';
       if (toastKey === 'toast.restoreFailed') {
         console.error('[prompt-history] restore failed', err);
       }
@@ -143,7 +155,7 @@ export function PromptHistoryDialog({
       setRestoring(null);
       // If the snapshot we were comparing is now stale, close that view too
       // so the user lands back on the refreshed list.
-      if (code === 'version_conflict') setComparingVersion(null);
+      if (isStale) setComparingVersion(null);
     }
   }, [restoring, restore, prompt._id, toast, t]);
 
@@ -260,7 +272,6 @@ export function PromptHistoryDialog({
         ) : (
           <>
             <ul
-              ref={listboxRef}
               role="listbox"
               aria-label={t('history.versionsLabel')}
               aria-activedescendant={optionId(activeIndex)}
@@ -329,7 +340,6 @@ export function PromptHistoryDialog({
                             type="button"
                             variant="ghost"
                             size="sm"
-                            tabIndex={-1}
                             onClick={() => setComparingVersion(entry)}
                             aria-label={t('history.compareVersionAria', {
                               version: String(entry.version),
@@ -341,7 +351,6 @@ export function PromptHistoryDialog({
                             type="button"
                             variant="ghost"
                             size="sm"
-                            tabIndex={-1}
                             onClick={() => startRestore(entry)}
                             aria-label={t('history.restoreVersionAria', {
                               version: String(entry.version),
@@ -357,11 +366,7 @@ export function PromptHistoryDialog({
                 );
               })}
             </ul>
-            <Text
-              variant="muted"
-              className="mt-2 text-center text-[11px]"
-              aria-hidden="true"
-            >
+            <Text variant="muted" className="mt-2 text-center text-[11px]">
               {t('history.keyboardHint')}
             </Text>
           </>

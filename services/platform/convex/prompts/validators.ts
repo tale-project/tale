@@ -1,5 +1,7 @@
 import { v } from 'convex/values';
 
+import { lifecycleStatusValidator } from '../governance/soft_delete_validators';
+
 export const promptScopeValidator = v.union(
   v.literal('global'),
   v.literal('team'),
@@ -71,6 +73,13 @@ const promptTemplateBaseFields = {
   usageCount: v.number(),
   sourceMessageId: v.optional(v.string()),
   version: v.optional(v.number()),
+  // Schema fields that round-trip through `ctx.db.get(...)`. Convex's return
+  // validator rejects extra keys, so we must list them here even though the
+  // UI doesn't read them — listPrompts uses `toListItem` which strips them,
+  // but createPrompt/updatePrompt/restoreFromVersion/getPrompt return the
+  // raw row.
+  lifecycleStatus: v.optional(lifecycleStatusValidator),
+  statusChangedAt: v.optional(v.number()),
 } as const;
 
 export const promptTemplateValidator = v.object({

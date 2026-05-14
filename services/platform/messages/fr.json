@@ -4311,6 +4311,7 @@
       "versionConflictTitle": "Nouvelle version disponible",
       "versionConflictDescription": "Quelqu'un a enregistré v{version} pendant ton édition. Charge la dernière version avant d'enregistrer.",
       "versionConflictDirtyWarning": "Tes modifications non enregistrées seront perdues.",
+      "versionConflictDiscardConfirm": "Charger la dernière version et abandonner tes modifications non enregistrées ?",
       "loadLatest": "Charger la dernière",
       "bytesOverLimitAlert": "Le contenu dépasse la limite. Raccourcis le prompt pour pouvoir enregistrer."
     },
@@ -4321,6 +4322,7 @@
     "toast": {
       "savedTo": "Enregistré sous {scope}",
       "saved": "Enregistré en tant que v{version}",
+      "savedNoChanges": "Enregistré (aucun changement)",
       "created": "Prompt créé",
       "saveFailed": "Impossible d'enregistrer le prompt",
       "deleteFailed": "Impossible de supprimer le prompt",
@@ -4332,7 +4334,8 @@
       "forbidden": "Tu n'as pas la permission pour ce prompt",
       "notFound": "Ce prompt n'existe plus",
       "tooLarge": "Un champ dépasse la longueur autorisée",
-      "emptyContent": "Le contenu du prompt ne peut pas être vide"
+      "emptyContent": "Le contenu du prompt ne peut pas être vide",
+      "legalHold": "La suppression est bloquée par un legal hold actif"
     },
     "version": {
       "badge": "v{version}"
@@ -4360,7 +4363,7 @@
       "metadataChanged": "Métadonnées modifiées",
       "metadataDiffLabel": "Modifications de métadonnées",
       "keyboardHint": "Entrée compare · R ou Maj+Entrée restaure",
-      "diffLegend": "Différences avec v{snapshot} — − actuelle (v{current}), + instantané",
+      "diffLegend": "Différences avec v{snapshot} — − actuelle (v{current}) serait remplacée, + v{snapshot} serait restaurée",
       "lineAdded": "Ligne ajoutée :",
       "lineRemoved": "Ligne retirée :",
       "metadataField": {
@@ -4372,10 +4375,12 @@
       }
     },
     "categoryFilter": {
-      "title": "Par catégorie"
+      "title": "Par catégorie",
+      "titleWithCount": "Par catégorie ({count} actives)"
     },
     "tagFilter": {
-      "title": "Par étiquette"
+      "title": "Par étiquette",
+      "titleWithCount": "Par étiquette ({count} actives)"
     },
     "addCategory": {
       "inputPlaceholder": "Nom de la catégorie",

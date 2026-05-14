@@ -67,7 +67,7 @@ Deleting a prompt is permanent and cannot be undone.
 
 ## Version history
 
-Every save creates a new version. Open the kebab menu on a row and choose **Version history** to see all past versions of that prompt. The dialog lists each version with its publish date and author. Inactive prompts (never edited since pre-versioning) show a synthesized **v1** for the original content.
+Every save creates a new version. Open the kebab menu on a row and choose **Version history** to see all past versions of that prompt. The dialog lists each version with its publish date and author. Prompts that haven't been edited since versioning shipped don't have a History dialog yet — make your first edit to create v2, and the menu item becomes available with v1 preserved as the prior state.
 
 ### Comparing versions
 

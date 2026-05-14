@@ -138,9 +138,15 @@ export function PromptCompareView({
                   {t(`history.metadataField.${row.field}`)}
                 </Text>
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-destructive">− {row.before}</span>
+                  <span className="text-destructive">
+                    <span className="sr-only">{t('history.lineRemoved')} </span>
+                    <span aria-hidden="true">− </span>
+                    {row.before}
+                  </span>
                   <span className="text-emerald-600 dark:text-emerald-400">
-                    + {row.after}
+                    <span className="sr-only">{t('history.lineAdded')} </span>
+                    <span aria-hidden="true">+ </span>
+                    {row.after}
                   </span>
                 </div>
               </li>

@@ -218,29 +218,7 @@ export function ChatInterface({
   } | null>(null);
   const [promptLibraryOpen, setPromptLibraryOpen] = useState(false);
 
-  // Build a lookup of messageId → promptId for saved prompts. Uses a
-  // dedicated lightweight query (no content/metadata payload, no pagination)
-  // so that saves past the listPrompts page-1 boundary still register as
-  // "saved" in the chat.
-  const { data: savedPairs } = useSavedSourceMessageIds(organizationId);
   const deletePrompt = useDeletePrompt();
-
-  const savedMessageMap = useMemo(() => {
-    const map = new Map<string, Id<'promptTemplates'>>();
-    for (const pair of savedPairs ?? []) {
-      map.set(pair.sourceMessageId, pair.promptId);
-    }
-    return map;
-  }, [savedPairs]);
-
-  const handleUnsavePrompt = useCallback(
-    async (messageId: string) => {
-      const promptId = savedMessageMap.get(messageId);
-      if (!promptId) return;
-      await deletePrompt.mutateAsync({ promptId });
-    },
-    [savedMessageMap, deletePrompt],
-  );
 
   // Consume prompt content inserted from sidebar
   useEffect(() => {
@@ -296,6 +274,36 @@ export function ChatInterface({
     realMessages: rawMessages,
   });
   const messages = isArenaMode ? rawMessages : pendingMergedMessages;
+
+  // Build a lookup of messageId → promptId for saved prompts. Scoped to the
+  // currently-rendered message ids so the server query payload is O(visible
+  // messages), not O(save-history). Defined after `messages` so we can derive
+  // the id list.
+  const visibleMessageIds = useMemo(
+    () => messages.map((msg) => msg.id),
+    [messages],
+  );
+  const { data: savedPairs } = useSavedSourceMessageIds(
+    organizationId,
+    visibleMessageIds,
+  );
+
+  const savedMessageMap = useMemo(() => {
+    const map = new Map<string, Id<'promptTemplates'>>();
+    for (const pair of savedPairs ?? []) {
+      map.set(pair.sourceMessageId, pair.promptId);
+    }
+    return map;
+  }, [savedPairs]);
+
+  const handleUnsavePrompt = useCallback(
+    async (messageId: string) => {
+      const promptId = savedMessageMap.get(messageId);
+      if (!promptId) return;
+      await deletePrompt.mutateAsync({ promptId });
+    },
+    [savedMessageMap, deletePrompt],
+  );
 
   // Agent availability — disable input when no agents exist
   const { agents } = useChatAgents(organizationId);

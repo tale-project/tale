@@ -25,9 +25,18 @@ describe('extractErrorCode', () => {
     );
   });
 
-  it('normalizes RateLimitExceededError into rate_limited', () => {
-    const err = new Error('Rate limit exceeded for org_1');
-    expect(extractErrorCode(err)).toBe('rate_limited');
+  it('normalizes RateLimitExceededError into rate_limited (Convex-wrapped wire format)', () => {
+    // Convex wraps non-ConvexError server throws with "[Request ID: xxx] Server
+    // Error\nUncaught Error: ..." — the matcher must substring-match.
+    const wireFormat = new Error(
+      '[Request ID: abc123] Server Error\n' +
+        'Uncaught Error: Rate limit exceeded for ai:prompts-save. Try again in 30 seconds.',
+    );
+    expect(extractErrorCode(wireFormat)).toBe('rate_limited');
+
+    // Bare message (e.g. internal mutation throw before Convex wrapping) also matches.
+    const bare = new Error('Rate limit exceeded for org_1');
+    expect(extractErrorCode(bare)).toBe('rate_limited');
   });
 
   it('returns null when code is non-string', () => {

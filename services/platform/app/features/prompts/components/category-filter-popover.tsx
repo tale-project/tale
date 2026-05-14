@@ -34,15 +34,29 @@ export function CategoryFilterPopover({
     }
   };
 
+  const activeCount = selectedCategories.length;
+  const triggerLabel =
+    activeCount > 0
+      ? t('categoryFilter.titleWithCount', { count: String(activeCount) })
+      : t('categoryFilter.title');
+
   return (
     <Popover
       trigger={
         <Button
           variant="secondary"
-          aria-label={t('categoryFilter.title')}
-          className="shrink-0 px-3"
+          aria-label={triggerLabel}
+          className="relative shrink-0 px-3"
         >
           <Filter className="size-4" />
+          {activeCount > 0 && (
+            <span
+              aria-hidden="true"
+              className="bg-primary text-primary-foreground absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium"
+            >
+              {activeCount}
+            </span>
+          )}
         </Button>
       }
       align="end"

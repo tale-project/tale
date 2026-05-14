@@ -110,7 +110,9 @@ export function PromptListRow({
         onClick={handleUse}
         className="focus-visible:ring-ring min-w-0 flex-1 cursor-pointer rounded-sm text-left focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
       >
-        <HStack gap={2} align="center" className="min-w-0">
+        {/* HTML5: <button> permits phrasing content only, so this is a <span>
+            (not HStack/<div>). Layout-equivalent via flex utilities. */}
+        <span className="flex min-w-0 items-center gap-2">
           <Text as="span" className="truncate text-sm font-medium">
             {prompt.title}
           </Text>
@@ -125,7 +127,7 @@ export function PromptListRow({
               v{prompt.version}
             </Badge>
           )}
-        </HStack>
+        </span>
         <Text
           as="span"
           variant="muted"
@@ -155,7 +157,6 @@ export function PromptListRow({
                 size="icon"
                 className="size-11"
                 aria-label={t('actions.more')}
-                onClick={(e) => e.stopPropagation()}
               >
                 <MoreHorizontal className="size-4" />
               </Button>

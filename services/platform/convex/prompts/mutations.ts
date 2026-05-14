@@ -1,7 +1,8 @@
 import { ConvexError, v } from 'convex/values';
 
 import { internal } from '../_generated/api';
-import type { MutationCtx } from '../_generated/server';
+import type { MutationCtx, QueryCtx } from '../_generated/server';
+import { loadActiveHolds } from '../governance/legal_hold';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { checkUserRateLimit } from '../lib/rate_limiter/helpers';
 import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
@@ -12,6 +13,7 @@ import { isActivePrompt } from './queries';
 import { assertPromptSizes, normalizePromptFields } from './size_guards';
 import { promptScopeValidator, promptTemplateValidator } from './validators';
 import {
+  buildInitialVersionEntry,
   buildNextVersionEntry,
   metadataDiffers,
   resolveRestoreTarget,
@@ -51,10 +53,11 @@ async function emitPromptAudit(
 /**
  * Asserts the actor is a member of `teamId`. Throws `forbidden` otherwise.
  * Used by createPrompt/updatePrompt to prevent planting a team-scoped prompt
- * onto a team the actor doesn't belong to.
+ * onto a team the actor doesn't belong to. Widened to `QueryCtx | MutationCtx`
+ * so the action's pre-flight internalQuery can reuse it before the LLM call.
  */
 async function assertTeamMembership(
-  ctx: MutationCtx,
+  ctx: QueryCtx | MutationCtx,
   userId: string,
   teamId: string,
 ): Promise<void> {
@@ -81,6 +84,17 @@ export const createPrompt = mutationWithRLS({
   },
   returns: promptTemplateValidator,
   handler: async (ctx, args) => {
+    // Auth first, then size validation. Earlier ordering let unauthenticated
+    // callers probe the size-cap constants by reading `ConvexError.data` and
+    // wasted a TextEncoder pass on rejected requests.
+    const user = await requireAuthenticatedUser(ctx);
+    const rlsContext = await validateOrganizationAccess(
+      ctx,
+      args.organizationId,
+      undefined,
+      user,
+    );
+
     // Trim every field before measuring AND before persisting. Whitespace
     // padding cannot bypass the caps. `assertPromptSizes` also rejects
     // whitespace-only content as `empty_content`.
@@ -95,14 +109,6 @@ export const createPrompt = mutationWithRLS({
 
     // assertPromptSizes guarantees content non-empty when provided.
     const content = normalized.content ?? '';
-
-    const user = await requireAuthenticatedUser(ctx);
-    const rlsContext = await validateOrganizationAccess(
-      ctx,
-      args.organizationId,
-      undefined,
-      user,
-    );
 
     await checkUserRateLimit(ctx, 'prompt:create', user.userId);
 
@@ -127,6 +133,14 @@ export const createPrompt = mutationWithRLS({
         : `PROMPT-${randomId}`;
     const teamId = args.scope === 'team' ? args.teamId : undefined;
     const now = Date.now();
+    const metadata: PromptVersionMetadata = {
+      title,
+      description: normalized.description,
+      category: normalized.category,
+      tags: normalized.tags,
+      scope: args.scope,
+      teamId,
+    };
 
     const id = await ctx.db.insert('promptTemplates', {
       organizationId: args.organizationId,
@@ -141,21 +155,17 @@ export const createPrompt = mutationWithRLS({
       usageCount: 0,
       sourceMessageId: args.sourceMessageId,
       lifecycleStatus: 'active',
-      statusChangedAt: now,
+      // statusChangedAt is set only on lifecycle transitions (e.g.,
+      // soft-delete). Stamping it at creation pollutes any "time since
+      // status changed" calculation that doesn't pre-check `lifecycleStatus`.
       version: 1,
       versionHistory: [
-        {
-          version: 1,
+        buildInitialVersionEntry({
           content,
-          publishedAt: now,
           publishedBy: user.userId,
-          title,
-          description: normalized.description,
-          category: normalized.category,
-          tags: normalized.tags,
-          scope: args.scope,
-          teamId,
-        },
+          publishedAt: now,
+          metadata,
+        }),
       ],
     });
 
@@ -248,6 +258,17 @@ export const updatePrompt = mutationWithRLS({
       });
     }
 
+    // OCC is required for any versioned row. Without this gate, a client that
+    // omits `expectedVersion` reduces to last-write-wins with no signal.
+    // Legacy rows (`version` undefined) are exempt — they predate versioning.
+    if (existing.version !== undefined && args.expectedVersion === undefined) {
+      throw new ConvexError({
+        code: 'missing_expected_version',
+        message:
+          'expectedVersion is required when updating a versioned prompt.',
+        data: { currentVersion: existing.version },
+      });
+    }
     if (
       args.expectedVersion !== undefined &&
       (existing.version ?? 1) !== args.expectedVersion
@@ -397,6 +418,22 @@ export const deletePrompt = mutationWithRLS({
       });
     }
 
+    // Legal-hold gate. Hard-delete is final, so soft-delete of a held prompt
+    // would still spoliate evidence — same contract as `deleteChatThread`.
+    const holds = await loadActiveHolds(ctx, existing.organizationId);
+    const ownerHeld = holds.userMembershipIds.has(existing.createdBy);
+    if (holds.orgHeld || ownerHeld) {
+      throw new ConvexError({
+        code: 'legal_hold',
+        message: holds.orgHeld
+          ? 'Org is under an active legal hold — delete is blocked.'
+          : 'Prompt creator is on a custodian legal hold — delete is blocked.',
+        promptId: args.promptId,
+        orgHeld: holds.orgHeld,
+        userCustodianHeld: ownerHeld,
+      });
+    }
+
     await checkUserRateLimit(ctx, 'prompt:delete', user.userId);
 
     await ctx.db.delete(args.promptId);
@@ -492,6 +529,16 @@ export const restoreFromVersion = mutationWithRLS({
       });
     }
 
+    // OCC is required for any versioned row. Legacy rows (`version` undefined)
+    // are exempt — they predate versioning.
+    if (existing.version !== undefined && args.expectedVersion === undefined) {
+      throw new ConvexError({
+        code: 'missing_expected_version',
+        message:
+          'expectedVersion is required when restoring a versioned prompt.',
+        data: { currentVersion: existing.version },
+      });
+    }
     if (
       args.expectedVersion !== undefined &&
       (existing.version ?? 1) !== args.expectedVersion

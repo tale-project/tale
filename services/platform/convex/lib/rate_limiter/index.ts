@@ -121,6 +121,11 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 20,
     period: MINUTE,
   },
+
+  // ============================================
+  // TIER 3.5: Prompt Library (Token Bucket)
+  // Bounds storage churn from scripted prompt mutations
+  // ============================================
   // Prevents an authenticated org member from looping createPrompt to bloat
   // the org. Each prompt row can be ~218 KiB at the configured caps, so the
   // bound matters. Token bucket gives a 20-burst headroom for legitimate

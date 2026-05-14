@@ -58,6 +58,10 @@ export function TagChipInput({
     (raw: string) => {
       const tag = raw.trim();
       if (tag === '') return;
+      if (value.length >= maxTags) {
+        setError(t('tagsInput.atCap', { max: String(maxTags) }));
+        return;
+      }
       if (tag.length > maxTagLength) {
         setError(t('tagsInput.tooLong', { max: String(maxTagLength) }));
         return;
@@ -74,7 +78,43 @@ export function TagChipInput({
       setDraft('');
       setError(null);
     },
-    [maxTagLength, onChange, t, value],
+    [maxTagLength, maxTags, onChange, t, value],
+  );
+
+  /**
+   * Multi-segment paste / drag-drop entry point. The single-`commit` loop
+   * would close over the stale `value` snapshot and overwrite each prior
+   * addition, so we accumulate locally and call `onChange` once with the
+   * final array.
+   */
+  const commitMany = useCallback(
+    (segments: string[]) => {
+      const additions: string[] = [];
+      let inlineError: string | null = null;
+      for (const segment of segments) {
+        const tag = segment.trim();
+        if (tag === '') continue;
+        if (value.length + additions.length >= maxTags) {
+          inlineError = t('tagsInput.atCap', { max: String(maxTags) });
+          break;
+        }
+        if (tag.length > maxTagLength) {
+          inlineError = t('tagsInput.tooLong', { max: String(maxTagLength) });
+          continue;
+        }
+        const normalized = tag.toLowerCase();
+        const alreadyHave = [...value, ...additions].some(
+          (existing) => existing.toLowerCase() === normalized,
+        );
+        if (alreadyHave) continue;
+        additions.push(tag);
+      }
+      if (additions.length > 0) {
+        onChange([...value, ...additions]);
+      }
+      setError(inlineError);
+    },
+    [maxTagLength, maxTags, onChange, t, value],
   );
 
   const handleKeyDown = useCallback(
@@ -112,11 +152,7 @@ export function TagChipInput({
       {value.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {value.map((tag, idx) => (
-            <Badge
-              key={`${tag}-${idx}`}
-              variant="outline"
-              className="gap-1 pr-1 pl-2"
-            >
+            <Badge key={tag} variant="outline" className="gap-1 pr-1 pl-2">
               <span>{tag}</span>
               <button
                 type="button"
@@ -143,12 +179,12 @@ export function TagChipInput({
           if (raw.includes(',')) {
             const parts = raw.split(',');
             const tail = parts.pop() ?? '';
-            for (const segment of parts) commit(segment);
+            commitMany(parts);
             setDraft(tail);
           } else {
             setDraft(raw);
+            if (error) setError(null);
           }
-          if (error) setError(null);
         }}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
@@ -157,7 +193,10 @@ export function TagChipInput({
         // association via `aria-errormessage` + role="alert" on the rendered
         // error message, so we don't need to repeat the error id.
         aria-describedby={counterId}
-        disabled={atCap}
+        // Keep the input enabled at cap so the documented "Backspace removes
+        // last chip" affordance still works. `commit` rejects with an
+        // inline error when the user tries to add past the cap.
+        aria-invalid={atCap || undefined}
       />
       <Text
         id={counterId}

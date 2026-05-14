@@ -89,9 +89,33 @@ describe('TagChipInput', () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it('disables input at the cap', () => {
-    const { input } = setup(['a', 'b', 'c']);
-    expect(input).toBeDisabled();
+  it('marks input invalid at cap and rejects further adds with an inline error', () => {
+    const { input, onChange } = setup(['a', 'b', 'c']);
+    // Input stays enabled so Backspace-removes-last-chip still works.
+    expect(input).not.toBeDisabled();
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    fireEvent.change(input, { target: { value: 'd' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onChange).not.toHaveBeenCalled();
+    // Counter shows the at-cap message AND the inline error reuses the same
+    // i18n key, so we expect two matches.
+    expect(screen.getAllByText(/prompts\.tagsInput\.atCap/)).toHaveLength(2);
+  });
+
+  it('keeps Backspace-removes-last-chip working at the cap', () => {
+    const onChange = vi.fn();
+    render(
+      <TagChipInput
+        value={['a', 'b', 'c']}
+        onChange={onChange}
+        maxTags={3}
+        maxTagLength={20}
+        label="tags"
+      />,
+    );
+    const input = screen.getByLabelText('tags');
+    fireEvent.keyDown(input, { key: 'Backspace' });
+    expect(onChange).toHaveBeenCalledWith(['a', 'b']);
   });
 
   it('removes a tag via per-chip remove button', () => {

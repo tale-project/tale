@@ -1,19 +1,25 @@
 import { paginationOptsValidator } from 'convex/server';
+import { ConvexError } from 'convex/values';
 import { v } from 'convex/values';
 
 import type { Doc } from '../_generated/dataModel';
+import { internalQuery } from '../_generated/server';
 import { getUserNamesBatch } from '../documents/get_user_names_batch';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
 import { queryWithRLS } from '../lib/rls/helpers/query_with_rls';
 import { getUserOrganizations } from '../lib/rls/organization/get_user_organizations';
+import { validateOrganizationAccess } from '../lib/rls/organization/validate_organization_access';
 import { hasTeamAccess } from '../lib/team_access';
+import { assertPromptSizes, normalizePromptFields } from './size_guards';
 import {
   promptHistoryResultValidator,
   promptListItemValidator,
   promptScopeValidator,
   promptTemplateValidator,
 } from './validators';
+import { synthesizeLegacyV1Entry } from './version_history';
 
 type PromptDoc = Doc<'promptTemplates'>;
 
@@ -69,15 +75,19 @@ const paginatedListResultValidator = v.object({
  * Paginated org-scoped list. The optional `scope` arg picks a dedicated
  * index so personal-scope filtering is pushed into the scan (no more
  * shrink-to-zero pages after post-paginate filtering). The optional
- * `searchPrefix` filters by case-insensitive title substring on the
- * paginated page — fine at MAX_LIST_PAGE_SIZE granularity; future search
- * indexes can replace this.
+ * `search` runs case-insensitive substring matching on title, description,
+ * category, and any tag of the paginated page — content is intentionally
+ * excluded (too large for in-memory scan). `categories` and `tags` further
+ * narrow the page to rows that match at least one selected facet. Future
+ * Convex `searchIndex` work can replace the substring filter.
  */
 export const listPrompts = queryWithRLS({
   args: {
     organizationId: v.string(),
     scope: v.optional(promptScopeValidator),
-    searchPrefix: v.optional(v.string()),
+    search: v.optional(v.string()),
+    categories: v.optional(v.array(v.string())),
+    tags: v.optional(v.array(v.string())),
     paginationOpts: v.optional(paginationOptsValidator),
   },
   returns: paginatedListResultValidator,
@@ -162,26 +172,115 @@ export const listPrompts = queryWithRLS({
       };
     }
 
-    const search = args.searchPrefix?.trim().toLowerCase();
+    const search = args.search?.trim().toLowerCase();
+    const wantedCategories =
+      args.categories && args.categories.length > 0
+        ? new Set(args.categories)
+        : null;
+    const wantedTags =
+      args.tags && args.tags.length > 0 ? new Set(args.tags) : null;
+
+    const matchesSearch = (p: PromptDoc): boolean => {
+      if (!search) return true;
+      if (p.title.toLowerCase().includes(search)) return true;
+      if (p.description?.toLowerCase().includes(search)) return true;
+      if (p.category?.toLowerCase().includes(search)) return true;
+      if (p.tags?.some((t) => t.toLowerCase().includes(search))) return true;
+      return false;
+    };
+    const matchesCategory = (p: PromptDoc): boolean =>
+      !wantedCategories ||
+      (p.category !== undefined && wantedCategories.has(p.category));
+    const matchesTag = (p: PromptDoc): boolean =>
+      !wantedTags || (p.tags?.some((t) => wantedTags.has(t)) ?? false);
+
     const visiblePage = result.page
       .filter(postFilter)
-      .filter((p) => {
-        if (!search) return true;
-        if (p.title.toLowerCase().includes(search)) return true;
-        if (p.description?.toLowerCase().includes(search)) return true;
-        return false;
-      })
+      .filter(matchesSearch)
+      .filter(matchesCategory)
+      .filter(matchesTag)
       .map(toListItem);
 
     // Client contract: `page` may be empty while `isDone` is false when every
-    // row in the underlying paginate slice was post-filtered out (team access,
-    // search prefix, lifecycle status). Callers must keep paging on
-    // `continueCursor` until `isDone === true`. `useCachedPaginatedQuery`
-    // already handles this — it requests the next page automatically.
+    // row in the underlying paginate slice was post-filtered out (team
+    // access, search, lifecycle, category/tag). Callers must keep paging on
+    // `continueCursor` until `isDone === true`; the library dialog wires a
+    // small `useEffect` that auto-advances on empty pages so users don't get
+    // stranded on apparently-empty filtered results.
     return {
       page: visiblePage,
       isDone: result.isDone,
       continueCursor: result.continueCursor,
+    };
+  },
+});
+
+/**
+ * Distinct categories + tags visible to the caller across the org. Used by
+ * the library dialog to populate filter popovers without depending on how
+ * far the user has paginated. Caps the scan at `FACET_SCAN_LIMIT` rows so a
+ * pathological org can't make this expensive — if a real deployment hits
+ * the cap, swap for an aggregate-table-backed lookup later.
+ */
+const FACET_SCAN_LIMIT = 500;
+
+export const listPromptFacets = queryWithRLS({
+  args: {
+    organizationId: v.string(),
+  },
+  returns: v.object({
+    categories: v.array(v.string()),
+    tags: v.array(v.string()),
+    scanned: v.number(),
+    scanCapped: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const user = await getAuthUserIdentity(ctx);
+    const empty = {
+      categories: [] as string[],
+      tags: [] as string[],
+      scanned: 0,
+      scanCapped: false,
+    };
+    if (!user) return empty;
+
+    const userOrganizations = await getUserOrganizations(ctx, user);
+    const membership = userOrganizations.find(
+      (m) => m.organizationId === args.organizationId,
+    );
+    if (!membership) return empty;
+
+    const userTeamIds = await getUserTeamIds(ctx, user.userId);
+    const categories = new Set<string>();
+    const tags = new Set<string>();
+    let scanned = 0;
+
+    for await (const row of ctx.db
+      .query('promptTemplates')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )
+      .order('desc')) {
+      scanned++;
+      if (scanned > FACET_SCAN_LIMIT) {
+        return {
+          categories: [...categories].sort(),
+          tags: [...tags].sort(),
+          scanned: FACET_SCAN_LIMIT,
+          scanCapped: true,
+        };
+      }
+      if (!isActivePrompt(row)) continue;
+      if (row.scope === 'personal' && row.createdBy !== user.userId) continue;
+      if (row.scope === 'team' && !hasTeamAccess(row, userTeamIds)) continue;
+      if (row.category) categories.add(row.category);
+      if (row.tags) for (const t of row.tags) tags.add(t);
+    }
+    return {
+      categories: [...categories].sort(),
+      tags: [...tags].sort(),
+      scanned,
+      scanCapped: false,
     };
   },
 });
@@ -268,22 +367,15 @@ export const getPromptHistory = queryWithRLS({
 
     if (all.length === 0) {
       // Legacy or freshly-seeded row with no inline history yet. Synthesize
-      // a v1 from the row's current state so the dialog shows the baseline
-      // instead of an empty-state. The JIT seed in `buildNextVersionEntry`
-      // promotes this same shape into the persisted array on first edit.
+      // a v1 from the row's current state via the shared helper so the dialog
+      // and `resolveRestoreTarget` always read the same shape. The JIT seed
+      // in `buildNextVersionEntry` later promotes this into the persisted
+      // array on first edit.
+      const v1 = synthesizeLegacyV1Entry(prompt);
       return {
         current: {
-          version: prompt.version ?? 1,
-          content: prompt.content,
-          publishedAt: prompt._creationTime,
-          publishedBy: prompt.createdBy,
-          publishedByName: resolveName(prompt.createdBy),
-          title: prompt.title,
-          description: prompt.description,
-          category: prompt.category,
-          tags: prompt.tags,
-          scope: prompt.scope,
-          teamId: prompt.teamId,
+          ...v1,
+          publishedByName: resolveName(v1.publishedBy),
         },
         history: [],
         totalCount: 1,
@@ -321,15 +413,18 @@ export const getPromptHistory = queryWithRLS({
 
 /**
  * Lightweight lookup used by the chat to mark which of the user's own
- * messages have been saved as a prompt. Returns only the `(promptId,
- * sourceMessageId)` pairs the caller authored — bounded by the user's own
- * save history, so it doesn't need pagination. Used instead of iterating the
- * paginated `listPrompts` results which would miss saved prompts past the
- * first page.
+ * messages have been saved as a prompt. Caller passes the `sourceMessageIds`
+ * currently rendered in the chat; we return only the `(promptId,
+ * sourceMessageId)` pairs that match. Bounding the output by the visible
+ * message set keeps wire size constant regardless of save-history length.
+ *
+ * Returns `[]` when `sourceMessageIds` is empty so the chat can short-circuit
+ * before paying any iteration cost.
  */
 export const getSavedSourceMessageIds = queryWithRLS({
   args: {
     organizationId: v.string(),
+    sourceMessageIds: v.array(v.string()),
   },
   returns: v.array(
     v.object({
@@ -338,6 +433,8 @@ export const getSavedSourceMessageIds = queryWithRLS({
     }),
   ),
   handler: async (ctx, args) => {
+    if (args.sourceMessageIds.length === 0) return [];
+
     const user = await getAuthUserIdentity(ctx);
     if (!user) return [];
 
@@ -346,6 +443,8 @@ export const getSavedSourceMessageIds = queryWithRLS({
       (m) => m.organizationId === args.organizationId,
     );
     if (!membership) return [];
+
+    const wanted = new Set(args.sourceMessageIds);
 
     const out: Array<{
       promptId: Doc<'promptTemplates'>['_id'];
@@ -360,8 +459,56 @@ export const getSavedSourceMessageIds = queryWithRLS({
       )) {
       if (!isActivePrompt(row)) continue;
       if (!row.sourceMessageId) continue;
+      if (!wanted.has(row.sourceMessageId)) continue;
       out.push({ promptId: row._id, sourceMessageId: row.sourceMessageId });
     }
     return out;
+  },
+});
+
+/**
+ * Pre-flight validation for the `savePrompt` action. Runs before the LLM
+ * title-generation call so a caller supplying a wrong `organizationId` /
+ * `teamId` / oversize content doesn't burn provider tokens before the
+ * downstream mutation rejects. The mutation re-validates everything — this
+ * is a fast-fail, not a security gate.
+ */
+export const validateSaveArgs = internalQuery({
+  args: {
+    organizationId: v.string(),
+    content: v.string(),
+    description: v.optional(v.string()),
+    scope: promptScopeValidator,
+    teamId: v.optional(v.string()),
+    category: v.optional(v.string()),
+    tags: v.optional(v.array(v.string())),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const user = await requireAuthenticatedUser(ctx);
+    await validateOrganizationAccess(ctx, args.organizationId, undefined, user);
+    if (args.scope === 'team') {
+      if (!args.teamId) {
+        throw new ConvexError({
+          code: 'forbidden',
+          message: 'Team-scoped prompts must specify a team',
+        });
+      }
+      const teamIds = await getUserTeamIds(ctx, user.userId);
+      if (!teamIds.includes(args.teamId)) {
+        throw new ConvexError({
+          code: 'forbidden',
+          message: 'You are not a member of this team',
+        });
+      }
+    }
+    const normalized = normalizePromptFields({
+      content: args.content,
+      description: args.description,
+      category: args.category,
+      tags: args.tags,
+    });
+    assertPromptSizes(normalized);
+    return null;
   },
 });

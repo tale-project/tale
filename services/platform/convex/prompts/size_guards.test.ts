@@ -171,3 +171,84 @@ describe('normalizePromptFields', () => {
     expect(Object.prototype.hasOwnProperty.call(out, 'tags')).toBe(false);
   });
 });
+
+describe('assertPromptSizes — boundary + unicode coverage', () => {
+  it('content: exact-cap byte count passes; cap+1 byte throws', () => {
+    // Build an ASCII string whose UTF-8 byte length === the cap.
+    const atCap = 'a'.repeat(MAX_PROMPT_CONTENT_BYTES);
+    expect(() => assertPromptSizes({ content: atCap })).not.toThrow();
+    const overCap = atCap + 'a';
+    expect(expectThrows(() => assertPromptSizes({ content: overCap }))).toEqual(
+      { code: 'too_large', field: 'content' },
+    );
+  });
+
+  it('content: 4-byte emoji at the byte cap passes; one more emoji throws', () => {
+    // 😀 (U+1F600) encodes as 4 bytes in UTF-8. Pick a count that hits the cap exactly.
+    const emoji = '\u{1F600}';
+    const count = Math.floor(MAX_PROMPT_CONTENT_BYTES / 4);
+    const atCap = emoji.repeat(count);
+    // Sanity: confirm we're measuring bytes, not JS string length.
+    expect(new TextEncoder().encode(atCap).byteLength).toBeLessThanOrEqual(
+      MAX_PROMPT_CONTENT_BYTES,
+    );
+    expect(() => assertPromptSizes({ content: atCap })).not.toThrow();
+
+    // Add enough emoji to push past the cap.
+    const overCap = atCap + emoji.repeat(2);
+    expect(expectThrows(() => assertPromptSizes({ content: overCap }))).toEqual(
+      { code: 'too_large', field: 'content' },
+    );
+  });
+
+  it('title: exact-cap char count passes; cap+1 throws', () => {
+    const atCap = 'a'.repeat(MAX_PROMPT_TITLE_LEN);
+    expect(() => assertPromptSizes({ title: atCap })).not.toThrow();
+    const overCap = 'a'.repeat(MAX_PROMPT_TITLE_LEN + 1);
+    expect(expectThrows(() => assertPromptSizes({ title: overCap }))).toEqual({
+      code: 'too_large',
+      field: 'title',
+    });
+  });
+
+  it('description: exact-cap char count passes; cap+1 throws', () => {
+    const atCap = 'a'.repeat(MAX_PROMPT_DESCRIPTION_LEN);
+    expect(() => assertPromptSizes({ description: atCap })).not.toThrow();
+    const overCap = 'a'.repeat(MAX_PROMPT_DESCRIPTION_LEN + 1);
+    expect(
+      expectThrows(() => assertPromptSizes({ description: overCap })),
+    ).toEqual({ code: 'too_large', field: 'description' });
+  });
+
+  it('category: exact-cap char count passes; cap+1 throws', () => {
+    const atCap = 'a'.repeat(MAX_PROMPT_CATEGORY_LEN);
+    expect(() => assertPromptSizes({ category: atCap })).not.toThrow();
+    const overCap = 'a'.repeat(MAX_PROMPT_CATEGORY_LEN + 1);
+    expect(
+      expectThrows(() => assertPromptSizes({ category: overCap })),
+    ).toEqual({ code: 'too_large', field: 'category' });
+  });
+
+  it('tag length: exact-cap char count passes; cap+1 throws', () => {
+    const atCap = 'a'.repeat(MAX_PROMPT_TAG_LEN);
+    expect(() => assertPromptSizes({ tags: [atCap] })).not.toThrow();
+    const overCap = 'a'.repeat(MAX_PROMPT_TAG_LEN + 1);
+    expect(expectThrows(() => assertPromptSizes({ tags: [overCap] }))).toEqual({
+      code: 'too_large',
+      field: 'tags',
+    });
+  });
+
+  it('tag count: exact-cap passes; cap+1 throws', () => {
+    const atCap = Array.from(
+      { length: MAX_PROMPT_TAGS_COUNT },
+      (_, i) => `t${i}`,
+    );
+    expect(() => assertPromptSizes({ tags: atCap })).not.toThrow();
+    const overCap = [...atCap, 'extra'];
+    expect(expectThrows(() => assertPromptSizes({ tags: overCap }))).toEqual({
+      code: 'too_large',
+      field: 'tags',
+    });
+  });
+});
