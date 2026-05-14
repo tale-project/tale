@@ -49,15 +49,7 @@ export function CategoryFilterPopover({
       contentClassName="w-[180px] p-1.5"
       modal
       open={open}
-      onOpenChange={(next) => {
-        console.log(
-          '[DEBUG] CategoryFilter onOpenChange:',
-          next,
-          'current:',
-          open,
-        );
-        setOpen(next);
-      }}
+      onOpenChange={setOpen}
     >
       <p className="text-muted-foreground px-3 py-1.5 text-[11px] font-medium">
         {t('categoryFilter.title')}
