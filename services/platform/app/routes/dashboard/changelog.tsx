@@ -43,7 +43,7 @@ interface Release {
 function ChangelogPage() {
   const { t } = useT('changelog');
   const { from, to } = Route.useSearch();
-  const { currentVersion, lastSeenVersion, markSeen } =
+  const { currentVersion, lastSeenVersion, stateLoaded, markSeen } =
     useChangelogNotification();
   const { locale } = useLocale();
   const listReleases = useAction(api.changelog.actions.listReleases);
@@ -53,19 +53,27 @@ function ChangelogPage() {
   const ranRef = useRef(false);
   const markSeenRef = useRef(false);
 
+  const fromForFetch = from ?? lastSeenVersion;
+
   useEffect(() => {
     if (ranRef.current) return;
+    // Wait until the notification-state query has resolved so we know
+    // whether there's a real `lastSeenVersion` to chase before paging the
+    // feed. If the route was visited with `?from=` we can fetch right away.
+    if (from === undefined && !stateLoaded) return;
     ranRef.current = true;
     void (async () => {
       try {
-        const data = await listReleases({});
+        const data = await listReleases(
+          fromForFetch ? { from: fromForFetch } : {},
+        );
         setReleases(data);
       } catch (err) {
         console.error('Failed to load releases:', err);
         setError(err);
       }
     })();
-  }, [listReleases]);
+  }, [listReleases, fromForFetch, from, stateLoaded]);
 
   // markSeen as soon as we know the load resolved (success or failure) and
   // currentVersion is known — reaching this page is acknowledgement.
@@ -85,9 +93,9 @@ function ChangelogPage() {
     return filterReleasesInRange(releases, effectiveFrom, effectiveTo);
   }, [releases, effectiveFrom, effectiveTo]);
 
-  // The GitHub API caps at 100 most recent releases per page (we ask for
-  // the max). Compare the feed's OLDEST entry against `from` — if even the
-  // oldest is newer than `from`, the user is more than 100 releases behind
+  // The HTML feed is paginated 10 per page and we cap at 3 pages (30 most
+  // recent). Compare the feed's OLDEST entry against `from` — if even the
+  // oldest is newer than `from`, the user is more than 30 releases behind
   // and we can't fully cover the range. Falls back to "see on GitHub".
   const isTruncated = useMemo(() => {
     if (!effectiveFrom || !releases || releases.length === 0) return false;
@@ -149,7 +157,7 @@ function ChangelogPage() {
 
   const count = visibleReleases.length;
   const showRange = effectiveFrom && count > 0;
-  // tooOld = the entire requested range falls before our 100-release window.
+  // tooOld = the entire requested range falls before our 30-release window.
   // Almost never hits in production but possible for very stale deployments.
   const tooOld = isTruncated && count === 0;
   const subheading = tooOld

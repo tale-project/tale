@@ -32,6 +32,12 @@ export function isNewer(
 interface ChangelogNotification {
   currentVersion: string | undefined;
   lastSeenVersion: string | undefined;
+  /**
+   * False while the notification-state Convex query is still resolving.
+   * Use this to distinguish `lastSeenVersion === undefined` meaning
+   * "no row yet" from "still loading".
+   */
+  stateLoaded: boolean;
   hasUnseenVersion: boolean;
   shouldShowToast: boolean;
   releaseUrl: string | null;
@@ -74,6 +80,7 @@ export function useChangelogNotification(): ChangelogNotification {
   return {
     currentVersion,
     lastSeenVersion: state?.lastSeenChangelogVersion ?? undefined,
+    stateLoaded,
     hasUnseenVersion,
     shouldShowToast,
     releaseUrl,
