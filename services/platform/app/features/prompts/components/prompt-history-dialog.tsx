@@ -175,13 +175,28 @@ export function PromptHistoryDialog({
           const entry = allVersions[activeIndex];
           if (entry && activeIndex !== 0) {
             e.preventDefault();
-            setComparingVersion(entry);
+            // Shift+Enter restores, plain Enter compares. Mirrors the buttons
+            // on the row — both actions are equally reachable by keyboard.
+            if (e.shiftKey) {
+              startRestore(entry);
+            } else {
+              setComparingVersion(entry);
+            }
+          }
+          break;
+        }
+        case 'r':
+        case 'R': {
+          const entry = allVersions[activeIndex];
+          if (entry && activeIndex !== 0) {
+            e.preventDefault();
+            startRestore(entry);
           }
           break;
         }
       }
     },
-    [activeIndex, allVersions],
+    [activeIndex, allVersions, startRestore],
   );
 
   // Stay reactive to fresh server state so the confirm copy doesn't drift if
@@ -249,6 +264,7 @@ export function PromptHistoryDialog({
               role="listbox"
               aria-label={t('history.versionsLabel')}
               aria-activedescendant={optionId(activeIndex)}
+              aria-keyshortcuts="Enter Shift+Enter R"
               tabIndex={0}
               onKeyDown={handleListKeyDown}
               className="divide-border focus-visible:ring-ring max-h-[60vh] divide-y overflow-y-auto rounded-sm focus-visible:ring-2 focus-visible:outline-none"
@@ -341,6 +357,13 @@ export function PromptHistoryDialog({
                 );
               })}
             </ul>
+            <Text
+              variant="muted"
+              className="mt-2 text-center text-[11px]"
+              aria-hidden="true"
+            >
+              {t('history.keyboardHint')}
+            </Text>
           </>
         )}
       </Dialog>

@@ -4433,6 +4433,7 @@
       "versionsLabel": "Versionsverlauf",
       "metadataChanged": "Metadaten geändert",
       "metadataDiffLabel": "Metadaten-Änderungen",
+      "keyboardHint": "Enter vergleicht · R oder Umschalt+Enter stellt wieder her",
       "diffLegend": "Vergleich mit v{snapshot} — − aktuell (v{current}), + Snapshot",
       "metadataField": {
         "title": "Titel",

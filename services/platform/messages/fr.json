@@ -4358,6 +4358,7 @@
       "versionsLabel": "Historique des versions",
       "metadataChanged": "Métadonnées modifiées",
       "metadataDiffLabel": "Modifications de métadonnées",
+      "keyboardHint": "Entrée compare · R ou Maj+Entrée restaure",
       "diffLegend": "Différences avec v{snapshot} — − actuelle (v{current}), + instantané",
       "metadataField": {
         "title": "Titre",
