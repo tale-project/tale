@@ -41,3 +41,19 @@ export const imageAnalysisCache: ActionCache<
   name: `image_analysis_${CACHE_VERSION}`,
   ttl: TTL.INDEFINITE,
 });
+
+// ============================================
+// Changelog Cache
+// ============================================
+
+/**
+ * Cache for the GitHub releases feed.
+ * No args → single global cache key shared across all users.
+ */
+export const githubReleasesCache: ActionCache<
+  FunctionReference<'action', 'internal'>
+> = new ActionCache(components.actionCache, {
+  action: internal.changelog.internal_actions.fetchReleasesUncached,
+  name: `github_releases_${CACHE_VERSION}`,
+  ttl: TTL.ONE_HOUR,
+});

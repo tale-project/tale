@@ -31,6 +31,7 @@ export function isNewer(
 
 interface ChangelogNotification {
   currentVersion: string | undefined;
+  lastSeenVersion: string | undefined;
   hasUnseenVersion: boolean;
   shouldShowToast: boolean;
   releaseUrl: string | null;
@@ -72,6 +73,7 @@ export function useChangelogNotification(): ChangelogNotification {
 
   return {
     currentVersion,
+    lastSeenVersion: state?.lastSeenChangelogVersion ?? undefined,
     hasUnseenVersion,
     shouldShowToast,
     releaseUrl,

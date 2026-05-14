@@ -2985,6 +2985,10 @@
       "title": "Créer une organisation",
       "description": "Crée une nouvelle organisation."
     },
+    "changelog": {
+      "title": "Nouveautés",
+      "description": "Notes de version pour les récentes mises à jour de Tale."
+    },
     "login": {
       "title": "Connexion",
       "description": "Connecte-toi à ton compte Tale."
@@ -4481,6 +4485,16 @@
       "title": "Mis à jour vers v{version}",
       "description": "Découvre les changements de cette version.",
       "action": "Voir"
+    },
+    "viewer": {
+      "heading": "Nouveautés",
+      "subheading": "{count} mises à jour depuis v{from}",
+      "subheadingNew": "Notes de version pour v{to}",
+      "empty": "Aucune note de version fournie.",
+      "upToDate": "Tu es à jour.",
+      "error": "Impossible de charger les notes de version. Consulte-les sur GitHub.",
+      "viewOnGitHub": "Voir sur GitHub ↗",
+      "githubLink": "Ouvrir les versions sur GitHub"
     }
   },
   "twoFactor": {

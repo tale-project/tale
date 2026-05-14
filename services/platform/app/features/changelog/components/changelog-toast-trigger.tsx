@@ -1,6 +1,7 @@
 'use client';
 
 import * as ToastPrimitives from '@radix-ui/react-toast';
+import { Link } from '@tanstack/react-router';
 import { useEffect, useRef } from 'react';
 
 import { useChangelogNotification } from '@/app/hooks/use-changelog-notification';
@@ -17,12 +18,17 @@ import { useT } from '@/lib/i18n/client';
  */
 export function ChangelogToastTrigger() {
   const { t } = useT('changelog');
-  const { shouldShowToast, currentVersion, releaseUrl, markSeen, markToasted } =
-    useChangelogNotification();
+  const {
+    shouldShowToast,
+    currentVersion,
+    lastSeenVersion,
+    markSeen,
+    markToasted,
+  } = useChangelogNotification();
   const firedRef = useRef(false);
 
   useEffect(() => {
-    if (!shouldShowToast || !currentVersion || !releaseUrl) return;
+    if (!shouldShowToast || !currentVersion) return;
     if (firedRef.current) return;
     firedRef.current = true;
 
@@ -32,22 +38,28 @@ export function ChangelogToastTrigger() {
       description: t('toast.description'),
       action: (
         <ToastPrimitives.Action altText={t('toast.action')} asChild>
-          <a
-            href={releaseUrl}
-            target="_blank"
-            rel="noopener noreferrer"
+          <Link
+            to="/dashboard/changelog"
+            search={{ from: lastSeenVersion, to: currentVersion }}
             onClick={() => {
               markSeen();
             }}
             className="bg-foreground text-background inline-flex h-8 shrink-0 items-center rounded-md px-3 text-xs font-medium transition-colors hover:opacity-90"
           >
             {t('toast.action')}
-          </a>
+          </Link>
         </ToastPrimitives.Action>
       ),
     });
     markToasted();
-  }, [shouldShowToast, currentVersion, releaseUrl, markSeen, markToasted, t]);
+  }, [
+    shouldShowToast,
+    currentVersion,
+    lastSeenVersion,
+    markSeen,
+    markToasted,
+    t,
+  ]);
 
   return null;
 }

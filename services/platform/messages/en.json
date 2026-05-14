@@ -3060,6 +3060,10 @@
       "title": "Create organization",
       "description": "Create a new organization."
     },
+    "changelog": {
+      "title": "What's new",
+      "description": "Release notes for recent Tale updates."
+    },
     "login": {
       "title": "Log in",
       "description": "Log in to your Tale account."
@@ -4756,6 +4760,16 @@
       "title": "Upgraded to v{version}",
       "description": "See what changed in this release.",
       "action": "View"
+    },
+    "viewer": {
+      "heading": "What's new",
+      "subheading": "{count} updates since v{from}",
+      "subheadingNew": "Release notes for v{to}",
+      "empty": "No release notes provided.",
+      "upToDate": "You're up to date.",
+      "error": "We couldn't load release notes. View them on GitHub.",
+      "viewOnGitHub": "View on GitHub ↗",
+      "githubLink": "Open releases on GitHub"
     }
   },
   "personalization": {
