@@ -16,10 +16,11 @@
  *
  * Accepted false negatives
  *   - Bare 9-digit SSNs — see note above.
- *   - SSA-invalid groups (`000-…`, `666-…`, `9NN-…`) are still masked.
- *     We treat any well-formed SSN-shaped string as PII risk; the SSA's
- *     validity rules exist to catch fraud, not to certify a string
- *     ISN'T a real SSN.
+ *   - SSA-invalid groups (`000-…`, `666-…`, `9NN-…`) are rejected by
+ *     the `validate` function. Area 000, 666, and 900-999 are never
+ *     assigned; group 00 and serial 0000 are likewise invalid. Filtering
+ *     these out reduces false positives from sequences like `000-12-3456`
+ *     or `999-99-9999` which cannot be real SSNs.
  *
  * Locale awareness
  *   - Format is US-specific but the pattern is purely numeric, so it is
@@ -36,6 +37,15 @@ import type { PiiPattern, PiiPatternFactory } from '../core/types';
 const PATTERN: PiiPattern = {
   name: 'ssn',
   regex: /(?<![\d\p{L}-])\d{3}-\d{2}-\d{4}(?![\d\p{L}-])/gu,
+  validate: (m: string) => {
+    const area = parseInt(m.slice(0, 3), 10);
+    const group = parseInt(m.slice(4, 6), 10);
+    const serial = parseInt(m.slice(7, 11), 10);
+    if (area === 0 || area === 666 || area >= 900) return false;
+    if (group === 0) return false;
+    if (serial === 0) return false;
+    return true;
+  },
   replacement: '[SSN]',
 };
 

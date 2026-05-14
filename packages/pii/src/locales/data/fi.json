@@ -42,6 +42,49 @@
       "replacement": "[HETU]"
     }
   ],
+  "dateOfBirth": {
+    "monthsLong": [
+      "tammikuu",
+      "helmikuu",
+      "maaliskuu",
+      "huhtikuu",
+      "toukokuu",
+      "kesäkuu",
+      "heinäkuu",
+      "elokuu",
+      "syyskuu",
+      "lokakuu",
+      "marraskuu",
+      "joulukuu",
+      "tammikuuta",
+      "helmikuuta",
+      "maaliskuuta",
+      "huhtikuuta",
+      "toukokuuta",
+      "kesäkuuta",
+      "heinäkuuta",
+      "elokuuta",
+      "syyskuuta",
+      "lokakuuta",
+      "marraskuuta",
+      "joulukuuta"
+    ],
+    "monthsShort": [
+      "tammi",
+      "helmi",
+      "maalis",
+      "huhti",
+      "touko",
+      "kesä",
+      "heinä",
+      "elo",
+      "syys",
+      "loka",
+      "marras",
+      "joulu"
+    ],
+    "contextKeywords": ["syntynyt", "syntymäaika", "syntymäpäivä", "s."]
+  },
   "fixtureSeeds": {
     "wrappers": [
       "Lähetä paketti osoitteeseen {}.",

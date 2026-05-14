@@ -5,7 +5,7 @@
     "seed": 42,
     "datasets": {},
     "counts": {
-      "positives": 310,
+      "positives": 314,
       "negatives": 0
     },
     "generatedAt": "2026-05-14T00:00:00Z"
@@ -3418,6 +3418,50 @@
           "pattern": "email",
           "start": 6,
           "end": 30
+        }
+      ]
+    },
+    {
+      "id": "manual-zh-Hans-dob-001",
+      "input": "出生于1998年9月28日",
+      "expected": [
+        {
+          "pattern": "dateOfBirth",
+          "start": 3,
+          "end": 13
+        }
+      ]
+    },
+    {
+      "id": "manual-zh-Hans-dob-002",
+      "input": "出生日期: 1987年3月15日",
+      "expected": [
+        {
+          "pattern": "dateOfBirth",
+          "start": 6,
+          "end": 16
+        }
+      ]
+    },
+    {
+      "id": "manual-zh-Hans-email-001",
+      "input": "邮箱: wang@example.cn",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 19
+        }
+      ]
+    },
+    {
+      "id": "manual-zh-Hans-phone-001",
+      "input": "电话: 010-12345678",
+      "expected": [
+        {
+          "pattern": "phone",
+          "start": 4,
+          "end": 16
         }
       ]
     }

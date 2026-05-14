@@ -61,6 +61,8 @@ for (const locale of LOCALES) {
         cvc: true,
         iban: true,
         ipAddress: true,
+        macAddress: true,
+        jwt: true,
         ssn: true,
         dateOfBirth: true,
         address: { locales: [locale] },

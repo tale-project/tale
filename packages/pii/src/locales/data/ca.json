@@ -28,6 +28,42 @@
     "countryPostcodePrefixes": []
   },
   "nationalIds": [],
+  "dateOfBirth": {
+    "monthsLong": [
+      "gener",
+      "febrer",
+      "març",
+      "abril",
+      "maig",
+      "juny",
+      "juliol",
+      "agost",
+      "setembre",
+      "octubre",
+      "novembre",
+      "desembre"
+    ],
+    "monthsShort": [
+      "gen.",
+      "febr.",
+      "març",
+      "abr.",
+      "maig",
+      "juny",
+      "jul.",
+      "ag.",
+      "set.",
+      "oct.",
+      "nov.",
+      "des."
+    ],
+    "contextKeywords": [
+      "nascut el",
+      "nascuda el",
+      "data de naixement",
+      "naixement"
+    ]
+  },
   "fixtureSeeds": {
     "wrappers": [
       "Si us plau, envieu el paquet a {}.",

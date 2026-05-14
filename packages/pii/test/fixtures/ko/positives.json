@@ -5,7 +5,7 @@
     "seed": 42,
     "datasets": {},
     "counts": {
-      "positives": 300,
+      "positives": 304,
       "negatives": 0
     },
     "generatedAt": "2026-05-14T00:00:00Z"
@@ -3308,6 +3308,50 @@
           "pattern": "email",
           "start": 8,
           "end": 32
+        }
+      ]
+    },
+    {
+      "id": "manual-ko-dob-001",
+      "input": "생년월일: 1998년9월28일",
+      "expected": [
+        {
+          "pattern": "dateOfBirth",
+          "start": 6,
+          "end": 16
+        }
+      ]
+    },
+    {
+      "id": "manual-ko-dob-002",
+      "input": "1987년3월15일 출생",
+      "expected": [
+        {
+          "pattern": "dateOfBirth",
+          "start": 0,
+          "end": 10
+        }
+      ]
+    },
+    {
+      "id": "manual-ko-email-001",
+      "input": "이메일: kim@example.kr",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 19
+        }
+      ]
+    },
+    {
+      "id": "manual-ko-phone-001",
+      "input": "전화: 02-1234-5678",
+      "expected": [
+        {
+          "pattern": "phone",
+          "start": 4,
+          "end": 16
         }
       ]
     }

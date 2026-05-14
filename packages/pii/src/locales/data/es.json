@@ -186,6 +186,43 @@
       "replacement": "[CO_CC]"
     }
   ],
+  "dateOfBirth": {
+    "monthsLong": [
+      "enero",
+      "febrero",
+      "marzo",
+      "abril",
+      "mayo",
+      "junio",
+      "julio",
+      "agosto",
+      "septiembre",
+      "octubre",
+      "noviembre",
+      "diciembre"
+    ],
+    "monthsShort": [
+      "ene.",
+      "feb.",
+      "mar.",
+      "abr.",
+      "may.",
+      "jun.",
+      "jul.",
+      "ago.",
+      "sep.",
+      "oct.",
+      "nov.",
+      "dic."
+    ],
+    "contextKeywords": [
+      "nacido el",
+      "nacida el",
+      "fecha de nacimiento",
+      "nacimiento",
+      "f. de nac."
+    ]
+  },
   "fixtureSeeds": {
     "wrappers": [
       "Por favor, envíe el paquete a {}.",

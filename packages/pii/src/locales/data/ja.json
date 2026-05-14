@@ -36,6 +36,12 @@
       "replacement": "[PASSPORT]"
     }
   ],
+  "dateOfBirth": {
+    "yearMarker": "年",
+    "monthMarker": "月",
+    "dayMarker": "日",
+    "contextKeywords": ["生まれ", "誕生日", "生年月日"]
+  },
   "fixtureSeeds": {
     "addresses": [
       "〒100-0001 東京都千代田区千代田1-1",

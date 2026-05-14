@@ -5,7 +5,7 @@
     "seed": 42,
     "datasets": {},
     "counts": {
-      "positives": 310,
+      "positives": 314,
       "negatives": 0
     },
     "generatedAt": "2026-05-14T00:00:00Z"
@@ -3418,6 +3418,50 @@
           "pattern": "email",
           "start": 4,
           "end": 28
+        }
+      ]
+    },
+    {
+      "id": "manual-ja-dob-001",
+      "input": "1998年9月28日生まれです",
+      "expected": [
+        {
+          "pattern": "dateOfBirth",
+          "start": 0,
+          "end": 10
+        }
+      ]
+    },
+    {
+      "id": "manual-ja-dob-002",
+      "input": "生年月日: 1987年3月15日",
+      "expected": [
+        {
+          "pattern": "dateOfBirth",
+          "start": 6,
+          "end": 16
+        }
+      ]
+    },
+    {
+      "id": "manual-ja-email-001",
+      "input": "メール: tanaka@example.jp",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "manual-ja-phone-001",
+      "input": "電話: 03-1234-5678",
+      "expected": [
+        {
+          "pattern": "phone",
+          "start": 4,
+          "end": 16
         }
       ]
     }

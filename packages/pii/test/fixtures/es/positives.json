@@ -9,7 +9,7 @@
       "prose": "2026-05-14"
     },
     "counts": {
-      "positives": 2300,
+      "positives": 2305,
       "negatives": 0
     },
     "generatedAt": "2026-05-14T00:00:00Z"
@@ -25312,6 +25312,61 @@
           "pattern": "email",
           "start": 27,
           "end": 52
+        }
+      ]
+    },
+    {
+      "id": "manual-es-dob-001",
+      "input": "nacido el 15 de septiembre de 1987",
+      "expected": [
+        {
+          "pattern": "dateOfBirth",
+          "start": 10,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "manual-es-dob-002",
+      "input": "fecha de nacimiento: 28 de marzo de 1998",
+      "expected": [
+        {
+          "pattern": "dateOfBirth",
+          "start": 21,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "manual-es-email-001",
+      "input": "email: garcia@ejemplo.es",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "manual-es-phone-001",
+      "input": "teléfono: +34 91 123 4567",
+      "expected": [
+        {
+          "pattern": "phone",
+          "start": 10,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "manual-es-iban-001",
+      "input": "IBAN: ES9121000418450200051332",
+      "expected": [
+        {
+          "pattern": "iban",
+          "start": 6,
+          "end": 30
         }
       ]
     }

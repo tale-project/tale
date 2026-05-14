@@ -29,6 +29,12 @@
       "replacement": "[HK_HKID]"
     }
   ],
+  "dateOfBirth": {
+    "yearMarker": "年",
+    "monthMarker": "月",
+    "dayMarker": "日",
+    "contextKeywords": ["出生於", "出生日期", "生日", "生於"]
+  },
   "fixtureSeeds": {
     "addresses": [
       "台北市信義區市府路 1 號 110",

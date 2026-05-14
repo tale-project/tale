@@ -183,17 +183,21 @@ export function applyTokenization(
     });
   }
 
-  // Splice end-to-start so earlier indices remain valid. `detectPii`
-  // returns ascending-start order, so we walk the array in reverse
-  // without a sort.
-  let out = text;
-  for (let i = matches.length - 1; i >= 0; i -= 1) {
-    const m = matches[i];
-    if (!m) continue;
+  // Single-pass O(n) forward build — same approach as `maskPii`. Walk
+  // matches ascending (the order `detectPii` guarantees after dedup),
+  // push interleaved text slices and tokens into `parts`, then join once.
+  // The previous end-to-start splice loop allocated a new string per
+  // match — O(matches * text_length).
+  const parts: string[] = [];
+  let cursor = 0;
+  for (const m of matches) {
     const token = byType.get(m.patternName)?.get(m.matchedText);
     if (!token) continue;
-    out = out.slice(0, m.start) + token + out.slice(m.end);
+    parts.push(text.slice(cursor, m.start), token);
+    cursor = m.end;
   }
+  parts.push(text.slice(cursor));
+  const out = parts.join('');
 
   return { text: out, mapping, segments };
 }
@@ -232,8 +236,14 @@ function buildPatterns(options: ScrubberOptions): {
 
 /**
  * Resolve the locale selector by unioning every locale-aware pattern's
- * `{ locales }` setting. Copied from `scrubber.ts` so the tokenizer
- * doesn't take a dependency on that module's internals.
+ * `{ locales }` setting.
+ *
+ * INTENTIONAL DUPLICATION: This is a copy of the identically-named
+ * function in `scrubber.ts`. The tokenizer is a peer of the scrubber,
+ * not a wrapper. Sharing the helper would force an import from
+ * `scrubber.ts` that couples the two modules and risks a circular
+ * dependency once the scrubber imports `applyTokenization` from here.
+ * If the logic changes, update both copies.
  */
 function collectLocaleSelector(options: ScrubberOptions): LocaleCode[] | '*' {
   const seen = new Set<string>();
@@ -285,7 +295,13 @@ export function createTokenizer(options: ScrubberOptions): Tokenizer {
     text: string,
     mapping: Record<string, TokenEntry>,
   ): string {
-    if (Object.keys(mapping).length === 0) return text;
+    // Fast empty check without allocating a keys array.
+    let hasKeys = false;
+    for (const _ in mapping) {
+      hasKeys = true;
+      break;
+    }
+    if (!hasKeys) return text;
     // Replace each token globally. The AI may have moved tokens around,
     // duplicated them, or wrapped them in markup; that all survives a
     // pure literal-string replace.
@@ -324,7 +340,13 @@ export function detokenizePii(
 ): string {
   // Inline body so this doesn't allocate a Tokenizer just to call
   // `detokenize` (memory-conscious).
-  if (Object.keys(mapping).length === 0) return text;
+  // Fast empty check without allocating a keys array.
+  let hasKeys = false;
+  for (const _ in mapping) {
+    hasKeys = true;
+    break;
+  }
+  if (!hasKeys) return text;
   let out = text;
   for (const [token, entry] of Object.entries(mapping)) {
     out = out.split(token).join(entry.value);

@@ -179,6 +179,55 @@
       "replacement": "[SG_NRIC]"
     }
   ],
+  "dateOfBirth": {
+    "monthsLong": [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December"
+    ],
+    "monthsShort": [
+      "Jan",
+      "Jan.",
+      "Feb",
+      "Feb.",
+      "Mar",
+      "Mar.",
+      "Apr",
+      "Apr.",
+      "May",
+      "Jun",
+      "Jun.",
+      "Jul",
+      "Jul.",
+      "Aug",
+      "Aug.",
+      "Sep",
+      "Sep.",
+      "Oct",
+      "Oct.",
+      "Nov",
+      "Nov.",
+      "Dec",
+      "Dec."
+    ],
+    "contextKeywords": [
+      "born on",
+      "date of birth",
+      "birthday",
+      "birthdate",
+      "DOB",
+      "d.o.b."
+    ]
+  },
   "fixtureSeeds": {
     "wrappers": [
       "Please ship the package to {}.",

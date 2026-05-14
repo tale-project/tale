@@ -23,6 +23,37 @@
     "countryPostcodePrefixes": []
   },
   "nationalIds": [],
+  "dateOfBirth": {
+    "monthsLong": [
+      "januarja",
+      "februarja",
+      "marca",
+      "aprila",
+      "maja",
+      "junija",
+      "julija",
+      "avgusta",
+      "septembra",
+      "oktobra",
+      "novembra",
+      "decembra"
+    ],
+    "monthsShort": [
+      "jan.",
+      "feb.",
+      "mar.",
+      "apr.",
+      "maj",
+      "jun.",
+      "jul.",
+      "avg.",
+      "sep.",
+      "okt.",
+      "nov.",
+      "dec."
+    ],
+    "contextKeywords": ["rojen", "rojena", "datum rojstva", "roj."]
+  },
   "fixtureSeeds": {
     "wrappers": [
       "Prosimo, pošljite paket na {}.",

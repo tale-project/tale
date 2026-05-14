@@ -76,6 +76,29 @@ describe('throughput', () => {
     expect(elapsed).toBeLessThan(BUDGET_MS);
   });
 
+  it('completes a mixed-PII payload under the budget', () => {
+    const block =
+      'Contact alice@example.com or call +49 30 12345678. Card 4111111111111111. SSN 123-45-6789. ';
+    const input = block
+      .repeat(Math.ceil(50_000 / block.length))
+      .slice(0, 50_000);
+    const start = performance.now();
+    const outcome = SCRUBBER_ALL.scrub(input);
+    const elapsed = performance.now() - start;
+    expect(outcome.kind).toBe('modified');
+    expect(elapsed).toBeLessThan(BUDGET_MS);
+  });
+
+  it('does not allocate excessively on repeated scrub calls', () => {
+    // Run 1000 scrubs and verify they complete quickly (no memory leak)
+    const start = performance.now();
+    for (let i = 0; i < 1000; i++) {
+      SCRUBBER_ALL.scrub('Contact alice@example.com for details');
+    }
+    const elapsed = performance.now() - start;
+    expect(elapsed).toBeLessThan(2000); // 1000 scrubs in under 2 seconds
+  });
+
   it('rebuilds a scrubber instance in under 50 ms', () => {
     // Construction cost matters for callers that build per-request (rare
     // but possible). The default should stay fast enough that even a

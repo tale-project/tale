@@ -5,7 +5,7 @@
     "seed": 42,
     "datasets": {},
     "counts": {
-      "positives": 300,
+      "positives": 304,
       "negatives": 0
     },
     "generatedAt": "2026-05-14T00:00:00Z"
@@ -3308,6 +3308,50 @@
           "pattern": "email",
           "start": 18,
           "end": 42
+        }
+      ]
+    },
+    {
+      "id": "manual-da-dob-001",
+      "input": "født den 15. september 1987",
+      "expected": [
+        {
+          "pattern": "dateOfBirth",
+          "start": 9,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "manual-da-dob-002",
+      "input": "fødselsdato: 28. marts 1998",
+      "expected": [
+        {
+          "pattern": "dateOfBirth",
+          "start": 13,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "manual-da-email-001",
+      "input": "email: jensen@eksempel.dk",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "manual-da-phone-001",
+      "input": "telefon: 12 34 56 78",
+      "expected": [
+        {
+          "pattern": "phone",
+          "start": 9,
+          "end": 20
         }
       ]
     }

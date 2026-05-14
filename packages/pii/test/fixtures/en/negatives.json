@@ -11,7 +11,7 @@
     },
     "counts": {
       "positives": 0,
-      "negatives": 810
+      "negatives": 825
     },
     "generatedAt": "2026-05-14T00:00:00Z"
   },
@@ -4064,6 +4064,81 @@
     {
       "id": "neg-pseudo-en-00009",
       "input": "Found 5000 documents in the archive.",
+      "expected": []
+    },
+    {
+      "id": "manual-neg-en-001",
+      "input": "The meeting is on March 15 at 3 PM",
+      "expected": []
+    },
+    {
+      "id": "manual-neg-en-002",
+      "input": "The meeting is scheduled for March 15 at the conference room",
+      "expected": []
+    },
+    {
+      "id": "manual-neg-en-003",
+      "input": "The software version is 2.71.828.1829",
+      "expected": []
+    },
+    {
+      "id": "manual-neg-en-004",
+      "input": "Our office is on the 5th floor",
+      "expected": []
+    },
+    {
+      "id": "manual-neg-en-005",
+      "input": "The temperature reached 28.03 degrees today",
+      "expected": []
+    },
+    {
+      "id": "manual-neg-en-006",
+      "input": "He scored 123 points in the game",
+      "expected": []
+    },
+    {
+      "id": "manual-neg-en-007",
+      "input": "The password must be at least 8 characters long",
+      "expected": []
+    },
+    {
+      "id": "manual-neg-en-008",
+      "input": "Building C12345671 maintenance report",
+      "expected": []
+    },
+    {
+      "id": "manual-neg-en-009",
+      "input": "The ISBN is 978-3-16-148410-0",
+      "expected": []
+    },
+    {
+      "id": "manual-neg-en-010",
+      "input": "Reference: AB 12 34 56 78",
+      "expected": []
+    },
+    {
+      "id": "manual-neg-en-011",
+      "input": "Protocol version 3.14.159.265",
+      "expected": []
+    },
+    {
+      "id": "manual-neg-en-012",
+      "input": "Account balance: 1,234.56 EUR",
+      "expected": []
+    },
+    {
+      "id": "manual-neg-en-013",
+      "input": "Temperature sensor reading: 98.6 F at 14:30",
+      "expected": []
+    },
+    {
+      "id": "manual-neg-en-014",
+      "input": "The recipe calls for 2.5 cups of flour",
+      "expected": []
+    },
+    {
+      "id": "manual-neg-en-015",
+      "input": "Serial number: SN-2024-001234",
       "expected": []
     }
   ]

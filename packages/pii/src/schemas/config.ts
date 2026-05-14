@@ -44,14 +44,20 @@ export const piiCustomPatternSchema = z
         try {
           // Construct just to validate syntax; result is unused.
           return Boolean(new RegExp(v));
-        } catch {
+        } catch (err) {
+          console.warn(
+            `[pii] custom pattern regex compilation failed: ${err instanceof Error ? err.name : 'unknown'}`,
+          );
           return false;
         }
       }, 'Invalid regex pattern')
       .refine((v) => {
         try {
           return safe(v);
-        } catch {
+        } catch (err) {
+          console.warn(
+            `[pii] safe-regex2 check threw: ${err instanceof Error ? err.name : 'unknown'}`,
+          );
           return false;
         }
       }, 'Pattern is unsafe — likely catastrophic backtracking'),

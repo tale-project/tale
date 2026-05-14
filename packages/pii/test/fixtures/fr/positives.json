@@ -9,7 +9,7 @@
       "prose": "2026-01-01"
     },
     "counts": {
-      "positives": 2700,
+      "positives": 2707,
       "negatives": 0
     },
     "generatedAt": "2026-05-14T00:00:00Z"
@@ -29712,6 +29712,83 @@
           "pattern": "email",
           "start": 23,
           "end": 52
+        }
+      ]
+    },
+    {
+      "id": "manual-fr-dob-001",
+      "input": "née le 15 mars 1987 à Paris",
+      "expected": [
+        {
+          "pattern": "dateOfBirth",
+          "start": 7,
+          "end": 19
+        }
+      ]
+    },
+    {
+      "id": "manual-fr-dob-002",
+      "input": "date de naissance: 28 septembre 1998",
+      "expected": [
+        {
+          "pattern": "dateOfBirth",
+          "start": 19,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "manual-fr-phone-001",
+      "input": "Téléphone: 01 23 45 67 89",
+      "expected": [
+        {
+          "pattern": "phone",
+          "start": 11,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "manual-fr-nir-001",
+      "input": "Son numéro de sécurité sociale est 1 85 12 75 108 012 12",
+      "expected": [
+        {
+          "pattern": "fr-nir",
+          "start": 35,
+          "end": 56
+        }
+      ]
+    },
+    {
+      "id": "manual-fr-cvc-001",
+      "input": "CVC: 456 sur la carte",
+      "expected": [
+        {
+          "pattern": "cvc",
+          "start": 0,
+          "end": 8
+        }
+      ]
+    },
+    {
+      "id": "manual-fr-iban-001",
+      "input": "Envoyez à FR7630006000011234567890189",
+      "expected": [
+        {
+          "pattern": "iban",
+          "start": 10,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "manual-fr-email-001",
+      "input": "email: jean.dupont@exemple.fr",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
         }
       ]
     }

@@ -9,7 +9,7 @@
       "prose": "2026-01-01"
     },
     "counts": {
-      "positives": 2700,
+      "positives": 2706,
       "negatives": 0
     },
     "generatedAt": "2026-05-14T00:00:00Z"
@@ -29712,6 +29712,72 @@
           "pattern": "email",
           "start": 28,
           "end": 57
+        }
+      ]
+    },
+    {
+      "id": "manual-it-dob-001",
+      "input": "nato il 15 marzo 1987",
+      "expected": [
+        {
+          "pattern": "dateOfBirth",
+          "start": 8,
+          "end": 21
+        }
+      ]
+    },
+    {
+      "id": "manual-it-dob-002",
+      "input": "data di nascita: 28 settembre 1998",
+      "expected": [
+        {
+          "pattern": "dateOfBirth",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "manual-it-phone-001",
+      "input": "Telefono: 02 1234 5678",
+      "expected": [
+        {
+          "pattern": "phone",
+          "start": 10,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "manual-it-cf-001",
+      "input": "Il codice fiscale è RSSMRA85M01H501Q",
+      "expected": [
+        {
+          "pattern": "it-codice-fiscale",
+          "start": 20,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "manual-it-cvc-001",
+      "input": "CVC: 789",
+      "expected": [
+        {
+          "pattern": "cvc",
+          "start": 0,
+          "end": 8
+        }
+      ]
+    },
+    {
+      "id": "manual-it-email-001",
+      "input": "email: mario.rossi@esempio.it",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
         }
       ]
     }

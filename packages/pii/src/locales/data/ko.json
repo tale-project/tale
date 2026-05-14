@@ -35,6 +35,12 @@
       "replacement": "[PASSPORT]"
     }
   ],
+  "dateOfBirth": {
+    "yearMarker": "년",
+    "monthMarker": "월",
+    "dayMarker": "일",
+    "contextKeywords": ["생년월일", "출생", "생일", "태어난"]
+  },
   "fixtureSeeds": {
     "addresses": [
       "서울특별시 종로구 사직로 161 03045",

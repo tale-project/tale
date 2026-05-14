@@ -9,7 +9,7 @@
       "prose": "2026-05-14"
     },
     "counts": {
-      "positives": 2700,
+      "positives": 2706,
       "negatives": 0
     },
     "generatedAt": "2026-05-14T00:00:00Z"
@@ -29712,6 +29712,72 @@
           "pattern": "email",
           "start": 30,
           "end": 53
+        }
+      ]
+    },
+    {
+      "id": "manual-nl-dob-001",
+      "input": "geboren op 15 maart 1987",
+      "expected": [
+        {
+          "pattern": "dateOfBirth",
+          "start": 11,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "manual-nl-dob-002",
+      "input": "geboortedatum: 28 september 1998",
+      "expected": [
+        {
+          "pattern": "dateOfBirth",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "manual-nl-phone-001",
+      "input": "Telefoon: 020 123 4567",
+      "expected": [
+        {
+          "pattern": "phone",
+          "start": 10,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "manual-nl-cvc-001",
+      "input": "CVC: 321",
+      "expected": [
+        {
+          "pattern": "cvc",
+          "start": 0,
+          "end": 8
+        }
+      ]
+    },
+    {
+      "id": "manual-nl-email-001",
+      "input": "email: jan.jansen@voorbeeld.nl",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "manual-nl-iban-001",
+      "input": "IBAN: NL91ABNA0417164300",
+      "expected": [
+        {
+          "pattern": "iban",
+          "start": 6,
+          "end": 24
         }
       ]
     }

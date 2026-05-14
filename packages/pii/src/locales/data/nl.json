@@ -66,6 +66,37 @@
       "replacement": "[PASSPORT]"
     }
   ],
+  "dateOfBirth": {
+    "monthsLong": [
+      "januari",
+      "februari",
+      "maart",
+      "april",
+      "mei",
+      "juni",
+      "juli",
+      "augustus",
+      "september",
+      "oktober",
+      "november",
+      "december"
+    ],
+    "monthsShort": [
+      "jan.",
+      "feb.",
+      "mrt.",
+      "apr.",
+      "mei",
+      "jun.",
+      "jul.",
+      "aug.",
+      "sep.",
+      "okt.",
+      "nov.",
+      "dec."
+    ],
+    "contextKeywords": ["geboren op", "geboortedatum", "geb."]
+  },
   "fixtureSeeds": {
     "wrappers": [
       "Stuur het pakket alstublieft naar {}.",

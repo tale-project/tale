@@ -367,6 +367,20 @@ export function resolveLocales(selector: LocaleCode[] | '*'): LocaleConfig[] {
 
 // -----------------------------------------------------------------------------
 // Composition helpers — used by pattern composers to build runtime regex
+//
+// Cache-key strategy (for callers, not this module):
+//   Address and CVC composers use a cheap locale-code-only cache key
+//   (`locales.map(l => l.locale).sort().join(',')`) because their keyword
+//   sets are fixed at module load and never mutated — the locale code
+//   uniquely identifies the data.
+//
+//   Phone and DOB composers use a full `JSON.stringify` key that includes
+//   the actual keyword arrays / DOB config. This is necessary because
+//   those composers read per-locale fields that an embedder _could_
+//   override at runtime via `PatternRegistry` without changing the locale
+//   code. The JSON key ensures a cache miss when the underlying data
+//   changes, at the cost of one extra allocation per `createScrubber`
+//   call (amortised to zero on cache hit).
 // -----------------------------------------------------------------------------
 
 /**

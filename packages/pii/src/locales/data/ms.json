@@ -24,6 +24,37 @@
     "countryPostcodePrefixes": []
   },
   "nationalIds": [],
+  "dateOfBirth": {
+    "monthsLong": [
+      "Januari",
+      "Februari",
+      "Mac",
+      "April",
+      "Mei",
+      "Jun",
+      "Julai",
+      "Ogos",
+      "September",
+      "Oktober",
+      "November",
+      "Disember"
+    ],
+    "contextKeywords": ["tarikh lahir", "lahir", "dilahirkan"],
+    "monthsShort": [
+      "Jan.",
+      "Feb.",
+      "Mac",
+      "Apr.",
+      "Mei",
+      "Jun.",
+      "Jul.",
+      "Ogos",
+      "Sep.",
+      "Okt.",
+      "Nov.",
+      "Dis."
+    ]
+  },
   "fixtureSeeds": {
     "wrappers": [
       "Sila hantar bungkusan ke {}.",

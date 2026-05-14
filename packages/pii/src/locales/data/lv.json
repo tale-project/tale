@@ -17,6 +17,35 @@
     "countryPostcodePrefixes": []
   },
   "nationalIds": [],
+  "dateOfBirth": {
+    "monthsLong": [
+      "janvāris",
+      "februāris",
+      "marts",
+      "aprīlis",
+      "maijs",
+      "jūnijs",
+      "jūlijs",
+      "augusts",
+      "septembris",
+      "oktobris",
+      "novembris",
+      "decembris",
+      "janvāra",
+      "februāra",
+      "marta",
+      "aprīļa",
+      "maija",
+      "jūnija",
+      "jūlija",
+      "augusta",
+      "septembra",
+      "oktobra",
+      "novembra",
+      "decembra"
+    ],
+    "contextKeywords": ["dzimšanas datums", "dzimis", "dzimusi"]
+  },
   "fixtureSeeds": {
     "wrappers": [
       "Lūdzu, sūtiet sūtījumu uz {}.",

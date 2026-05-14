@@ -10,7 +10,7 @@
     },
     "counts": {
       "positives": 0,
-      "negatives": 810
+      "negatives": 821
     },
     "generatedAt": "2026-05-14T00:00:00Z"
   },
@@ -4063,6 +4063,61 @@
     {
       "id": "neg-pseudo-de-00009",
       "input": "Found 5000 documents in the archive.",
+      "expected": []
+    },
+    {
+      "id": "manual-neg-de-001",
+      "input": "Die Besprechung ist am 15. März um 15 Uhr",
+      "expected": []
+    },
+    {
+      "id": "manual-neg-de-002",
+      "input": "Die Besprechung ist am 15. März um 14 Uhr",
+      "expected": []
+    },
+    {
+      "id": "manual-neg-de-003",
+      "input": "Softwareversion 2.71.828.1829",
+      "expected": []
+    },
+    {
+      "id": "manual-neg-de-004",
+      "input": "Die Temperatur beträgt 28,03 Grad",
+      "expected": []
+    },
+    {
+      "id": "manual-neg-de-005",
+      "input": "Er hat 123 Punkte erzielt",
+      "expected": []
+    },
+    {
+      "id": "manual-neg-de-006",
+      "input": "Gebäude C12345671 Wartungsbericht",
+      "expected": []
+    },
+    {
+      "id": "manual-neg-de-007",
+      "input": "Kontostand: 1.234,56 EUR",
+      "expected": []
+    },
+    {
+      "id": "manual-neg-de-008",
+      "input": "Das Passwort muss mindestens 8 Zeichen lang sein",
+      "expected": []
+    },
+    {
+      "id": "manual-neg-de-009",
+      "input": "Bestellnummer: DE-2024-001234",
+      "expected": []
+    },
+    {
+      "id": "manual-neg-de-010",
+      "input": "Die Seriennummer lautet SN-2024-001234",
+      "expected": []
+    },
+    {
+      "id": "manual-neg-de-011",
+      "input": "Im Jahr 1990 wurde das Gebäude renoviert",
       "expected": []
     }
   ]

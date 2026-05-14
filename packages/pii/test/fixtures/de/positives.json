@@ -9,7 +9,7 @@
       "prose": "2026-01-01"
     },
     "counts": {
-      "positives": 2700,
+      "positives": 2707,
       "negatives": 0
     },
     "generatedAt": "2026-05-14T00:00:00Z"
@@ -29712,6 +29712,83 @@
           "pattern": "email",
           "start": 39,
           "end": 62
+        }
+      ]
+    },
+    {
+      "id": "manual-de-dob-001",
+      "input": "Ich bin geboren am 28. September 1998",
+      "expected": [
+        {
+          "pattern": "dateOfBirth",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "manual-de-dob-002",
+      "input": "Geburtsdatum: 15. März 1987",
+      "expected": [
+        {
+          "pattern": "dateOfBirth",
+          "start": 14,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "manual-de-dob-003",
+      "input": "geb. am 1. Januar 1990",
+      "expected": [
+        {
+          "pattern": "dateOfBirth",
+          "start": 8,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "manual-de-phone-001",
+      "input": "Telefon: 030 12345678",
+      "expected": [
+        {
+          "pattern": "phone",
+          "start": 9,
+          "end": 21
+        }
+      ]
+    },
+    {
+      "id": "manual-de-phone-002",
+      "input": "Handy: 0170 1234567",
+      "expected": [
+        {
+          "pattern": "phone",
+          "start": 7,
+          "end": 19
+        }
+      ]
+    },
+    {
+      "id": "manual-de-cvc-001",
+      "input": "Kartenprüfnummer: 456",
+      "expected": [
+        {
+          "pattern": "cvc",
+          "start": 18,
+          "end": 21
+        }
+      ]
+    },
+    {
+      "id": "manual-de-iban-001",
+      "input": "Überweisung an DE89370400440532013000",
+      "expected": [
+        {
+          "pattern": "iban",
+          "start": 15,
+          "end": 37
         }
       ]
     }

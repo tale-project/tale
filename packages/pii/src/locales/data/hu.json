@@ -24,5 +24,41 @@
       "Az ügyfél a {} címen lakik.",
       "Átvételi pont — {} — megerősítve."
     ]
+  },
+  "dateOfBirth": {
+    "monthsLong": [
+      "január",
+      "február",
+      "március",
+      "április",
+      "május",
+      "június",
+      "július",
+      "augusztus",
+      "szeptember",
+      "október",
+      "november",
+      "december"
+    ],
+    "monthsShort": [
+      "jan.",
+      "feb.",
+      "márc.",
+      "ápr.",
+      "máj.",
+      "jún.",
+      "júl.",
+      "aug.",
+      "szept.",
+      "okt.",
+      "nov.",
+      "dec."
+    ],
+    "contextKeywords": [
+      "született",
+      "születési dátum",
+      "születési idő",
+      "szül."
+    ]
   }
 }

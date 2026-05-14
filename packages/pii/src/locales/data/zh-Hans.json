@@ -29,6 +29,12 @@
       "replacement": "[PASSPORT]"
     }
   ],
+  "dateOfBirth": {
+    "yearMarker": "年",
+    "monthMarker": "月",
+    "dayMarker": "日",
+    "contextKeywords": ["出生于", "出生日期", "生日", "生于"]
+  },
   "fixtureSeeds": {
     "addresses": [
       "北京市朝阳区建国路100号 100025",

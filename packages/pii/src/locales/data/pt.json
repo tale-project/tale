@@ -107,6 +107,43 @@
       "replacement": "[PASSPORT]"
     }
   ],
+  "dateOfBirth": {
+    "monthsLong": [
+      "janeiro",
+      "fevereiro",
+      "março",
+      "abril",
+      "maio",
+      "junho",
+      "julho",
+      "agosto",
+      "setembro",
+      "outubro",
+      "novembro",
+      "dezembro"
+    ],
+    "monthsShort": [
+      "jan.",
+      "fev.",
+      "mar.",
+      "abr.",
+      "mai.",
+      "jun.",
+      "jul.",
+      "ago.",
+      "set.",
+      "out.",
+      "nov.",
+      "dez."
+    ],
+    "contextKeywords": [
+      "nascido em",
+      "nascida em",
+      "data de nascimento",
+      "nascimento",
+      "dt. nasc."
+    ]
+  },
   "fixtureSeeds": {
     "wrappers": [
       "Por favor, envie o pacote para {}.",

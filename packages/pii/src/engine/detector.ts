@@ -97,6 +97,9 @@ function resolveMatches(
  * matches benefit from a single canonical dedup.
  */
 export function dedupOverlaps(matches: PiiMatch[]): PiiMatch[] {
+  // Primary: ascending start offset. Secondary: descending length so the
+  // longest match starting at the same offset wins. The expression
+  // `(b.end - b.start) - (a.end - a.start)` computes `lengthB - lengthA`.
   const sorted = [...matches].sort(
     (a, b) => a.start - b.start || b.end - b.start - (a.end - a.start),
   );
@@ -130,6 +133,8 @@ export function detectPii(
   patterns: ReadonlyArray<PiiPattern>,
   budgetMs: number = REGEX_EXEC_BUDGET_MS,
 ): PiiMatch[] {
+  if (text.length === 0) return [];
+
   const matches: PiiMatch[] = [];
   for (const pattern of patterns) {
     for (const span of resolveMatches(text, pattern, budgetMs)) {

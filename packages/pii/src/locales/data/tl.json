@@ -28,6 +28,23 @@
     "countryPostcodePrefixes": []
   },
   "nationalIds": [],
+  "dateOfBirth": {
+    "monthsLong": [
+      "Enero",
+      "Pebrero",
+      "Marso",
+      "Abril",
+      "Mayo",
+      "Hunyo",
+      "Hulyo",
+      "Agosto",
+      "Setyembre",
+      "Oktubre",
+      "Nobyembre",
+      "Disyembre"
+    ],
+    "contextKeywords": ["petsa ng kapanganakan", "kapanganakan", "ipinanganak"]
+  },
   "fixtureSeeds": {
     "wrappers": [
       "Mangyaring ipadala ang pakete sa {}.",

@@ -17,6 +17,23 @@
     "countryPostcodePrefixes": []
   },
   "nationalIds": [],
+  "dateOfBirth": {
+    "monthsLong": [
+      "jaanuar",
+      "veebruar",
+      "märts",
+      "aprill",
+      "mai",
+      "juuni",
+      "juuli",
+      "august",
+      "september",
+      "oktoober",
+      "november",
+      "detsember"
+    ],
+    "contextKeywords": ["sünnikuupäev", "sünniaeg", "sündinud"]
+  },
   "fixtureSeeds": {
     "wrappers": [
       "Palun saatke pakk aadressile {}.",

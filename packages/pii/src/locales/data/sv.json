@@ -56,6 +56,37 @@
       "replacement": "[PASSPORT]"
     }
   ],
+  "dateOfBirth": {
+    "monthsLong": [
+      "januari",
+      "februari",
+      "mars",
+      "april",
+      "maj",
+      "juni",
+      "juli",
+      "augusti",
+      "september",
+      "oktober",
+      "november",
+      "december"
+    ],
+    "monthsShort": [
+      "jan.",
+      "feb.",
+      "mars",
+      "apr.",
+      "maj",
+      "juni",
+      "juli",
+      "aug.",
+      "sep.",
+      "okt.",
+      "nov.",
+      "dec."
+    ],
+    "contextKeywords": ["född den", "född", "födelsedag", "födelsedatum"]
+  },
   "fixtureSeeds": {
     "wrappers": [
       "Skicka paketet till {}.",

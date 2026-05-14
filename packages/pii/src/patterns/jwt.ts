@@ -12,7 +12,10 @@ function decodeBase64Url(segment: string): string | null {
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
     return utf8Decoder.decode(bytes);
-  } catch {
+  } catch (err) {
+    console.warn(
+      `[pii] Base64URL decode error: ${err instanceof Error ? err.name : 'unknown'}`,
+    );
     return null;
   }
 }
@@ -25,7 +28,10 @@ function isJsonObjectSegment(segment: string): boolean {
     return (
       typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
     );
-  } catch {
+  } catch (err) {
+    console.warn(
+      `[pii] JSON parse error in JWT segment: ${err instanceof Error ? err.name : 'unknown'}`,
+    );
     return false;
   }
 }

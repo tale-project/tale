@@ -788,24 +788,25 @@ export function myMykadCheck(digits: string): boolean {
 }
 
 /**
- * Singapore NRIC / FIN — 9 chars: `[STFG]\d{7}[A-Z]`.
+ * Singapore NRIC / FIN — 9 chars: `[STFGM]\d{7}[A-Z]`.
  *
- * Weights [2,7,6,5,4,3,2] over the 7 digits; for prefixes T or G, add 4
- * to the weighted sum (post-2000 correction). Take mod 11 and look up
- * the letter in the appropriate table.
+ * Weights [2,7,6,5,4,3,2] over the 7 digits; for prefixes T, G, or M,
+ * add 4 to the weighted sum (post-2000 correction). Take mod 11 and look
+ * up the letter in the appropriate table. The 'M' prefix (foreign workers,
+ * introduced 2022) uses the same weights and FIN lookup table as F/G.
  */
 const SG_NRIC_STAY = ['J', 'Z', 'I', 'H', 'G', 'F', 'E', 'D', 'C', 'B', 'A'];
 const SG_NRIC_FIN = ['X', 'W', 'U', 'T', 'R', 'Q', 'P', 'N', 'M', 'L', 'K'];
 
 export function sgNricCheck(input: string): boolean {
-  if (!/^[STFG]\d{7}[A-Z]$/.test(input)) return false;
+  if (!/^[STFGM]\d{7}[A-Z]$/.test(input)) return false;
   const prefix = input[0] ?? '';
   const weights = [2, 7, 6, 5, 4, 3, 2];
   let sum = 0;
   for (let i = 0; i < 7; i++) {
     sum += (input.charCodeAt(1 + i) - 48) * (weights[i] ?? 0);
   }
-  if (prefix === 'T' || prefix === 'G') sum += 4;
+  if (prefix === 'T' || prefix === 'G' || prefix === 'M') sum += 4;
   const rem = sum % 11;
   const table = prefix === 'S' || prefix === 'T' ? SG_NRIC_STAY : SG_NRIC_FIN;
   return table[rem] === input[8];

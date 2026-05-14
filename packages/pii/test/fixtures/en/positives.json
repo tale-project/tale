@@ -10,7 +10,7 @@
       "names": "2024"
     },
     "counts": {
-      "positives": 2700,
+      "positives": 2709,
       "negatives": 0
     },
     "generatedAt": "2026-05-14T00:00:00Z"
@@ -29713,6 +29713,110 @@
           "pattern": "email",
           "start": 26,
           "end": 50
+        }
+      ]
+    },
+    {
+      "id": "manual-en-dob-001",
+      "input": "She was born on March 15, 1987 in New York",
+      "expected": [
+        {
+          "pattern": "dateOfBirth",
+          "start": 16,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "manual-en-dob-002",
+      "input": "DOB: January 1, 1990",
+      "expected": [
+        {
+          "pattern": "dateOfBirth",
+          "start": 5,
+          "end": 20
+        }
+      ]
+    },
+    {
+      "id": "manual-en-dob-003",
+      "input": "born on the 3rd of September 1995",
+      "expected": [
+        {
+          "pattern": "dateOfBirth",
+          "start": 12,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "manual-en-mac-001",
+      "input": "Device MAC: AA:BB:CC:DD:EE:FF",
+      "expected": [
+        {
+          "pattern": "macAddress",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "manual-en-jwt-001",
+      "input": "Authorization: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
+      "expected": [
+        {
+          "pattern": "jwt",
+          "start": 15,
+          "end": 172
+        }
+      ]
+    },
+    {
+      "id": "manual-en-multi-001",
+      "input": "Contact John at john@example.com or call +1 415 555 0199",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 32
+        },
+        {
+          "pattern": "phone",
+          "start": 41,
+          "end": 56
+        }
+      ]
+    },
+    {
+      "id": "manual-en-ssn-001",
+      "input": "His social security number is 123-45-6789",
+      "expected": [
+        {
+          "pattern": "ssn",
+          "start": 30,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "manual-en-ip-001",
+      "input": "Server IP: 192.168.1.100",
+      "expected": [
+        {
+          "pattern": "ipAddress",
+          "start": 11,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "manual-en-ip-002",
+      "input": "IPv6: 2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+      "expected": [
+        {
+          "pattern": "ipAddress",
+          "start": 6,
+          "end": 45
         }
       ]
     }

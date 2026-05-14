@@ -62,6 +62,8 @@ export interface ScrubberOptions {
     cvc?: PatternToggle;
     iban?: PatternToggle;
     ipAddress?: PatternToggle;
+    macAddress?: PatternToggle;
+    jwt?: PatternToggle;
     ssn?: PatternToggle;
     dateOfBirth?: PatternToggle;
     address?: PatternToggle;
@@ -245,6 +247,7 @@ export function createScrubber(options: ScrubberOptions): Scrubber {
 
   function scrub(text: string): FilterOutcome {
     if (patterns.length === 0) return pass();
+    if (text.length === 0) return pass();
     const normalized = normalizeForDetection(text);
     const { text: clamped, truncated } = clampMessage(normalized, maxBytes);
 

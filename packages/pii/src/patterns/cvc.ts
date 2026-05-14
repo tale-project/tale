@@ -21,6 +21,13 @@
  *     ALSO has a CVC keyword left of it and a 3-4 digit number right of
  *     it is by overwhelming odds an actual filler).
  *
+ * CVC variant keywords (CVC2, CVV2)
+ *   - Some card networks use "CVC2" / "CVV2" as official names. These must
+ *     be present in locale `cvcContextKeywords` to be detected — the bare
+ *     "cvc"/"cvv" keyword will NOT match "CVC2: 123" because the digit
+ *     `2` consumes the position the separator/value part of the regex
+ *     expects. Locale data additions are handled by locale agents.
+ *
  * Accepted false negatives
  *   - Anonymous "the security code is 123" without an explicit keyword
  *     from any enabled locale. This mirrors the design choice of

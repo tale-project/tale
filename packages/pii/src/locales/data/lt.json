@@ -31,6 +31,37 @@
       "replacement": "[LT_ID]"
     }
   ],
+  "dateOfBirth": {
+    "monthsLong": [
+      "sausio",
+      "vasario",
+      "kovo",
+      "balandžio",
+      "gegužės",
+      "birželio",
+      "liepos",
+      "rugpjūčio",
+      "rugsėjo",
+      "spalio",
+      "lapkričio",
+      "gruodžio"
+    ],
+    "contextKeywords": ["gimimo data", "gimęs", "gimusi", "gimtadienis"],
+    "monthsShort": [
+      "saus.",
+      "vas.",
+      "kov.",
+      "bal.",
+      "geg.",
+      "birž.",
+      "liep.",
+      "rugp.",
+      "rugs.",
+      "spal.",
+      "lapkr.",
+      "gruod."
+    ]
+  },
   "fixtureSeeds": {
     "wrappers": [
       "Prašome išsiųsti siuntinį adresu {}.",

@@ -29,6 +29,12 @@ import type { PiiPattern, PiiPatternFactory } from '../core/types';
 const PATTERN: PiiPattern = {
   name: 'email',
   regex: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g,
+  validate: (m) => {
+    const atIdx = m.indexOf('@');
+    if (atIdx > 64) return false; // Local part too long (RFC 5321)
+    if (m.length - atIdx > 255) return false; // Domain too long
+    return true;
+  },
   replacement: '[EMAIL]',
 };
 

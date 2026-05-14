@@ -36,6 +36,37 @@
       "replacement": "[CNP]"
     }
   ],
+  "dateOfBirth": {
+    "monthsLong": [
+      "ianuarie",
+      "februarie",
+      "martie",
+      "aprilie",
+      "mai",
+      "iunie",
+      "iulie",
+      "august",
+      "septembrie",
+      "octombrie",
+      "noiembrie",
+      "decembrie"
+    ],
+    "monthsShort": [
+      "ian.",
+      "feb.",
+      "mar.",
+      "apr.",
+      "mai",
+      "iun.",
+      "iul.",
+      "aug.",
+      "sep.",
+      "oct.",
+      "nov.",
+      "dec."
+    ],
+    "contextKeywords": ["născut pe", "născută pe", "data nașterii", "naștere"]
+  },
   "fixtureSeeds": {
     "wrappers": [
       "Vă rugăm să expediați coletul la {}.",

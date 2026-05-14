@@ -31,7 +31,14 @@ export const W = String.raw`[\p{L}\p{M}\p{N}_'’]`;
 /** A single name token, optionally followed by 1–4 hyphenated continuations. */
 export const NAME_TOKEN = String.raw`${W}+(?:-${W}+){0,4}`;
 
-/** A multi-word name phrase: 1–6 name tokens separated by whitespace. */
+/**
+ * A multi-word name phrase: 1–6 name tokens separated by whitespace.
+ *
+ * The `{0,5}` bound (up to 6 total words) covers the longest common
+ * street names: "Avenue du Général de Gaulle" is 5 words,
+ * "Martin Luther King Jr Boulevard" is 5 words. Going beyond 6 would
+ * increase false-positive surface area with negligible recall gain.
+ */
 export const NAME_PHRASE = String.raw`${NAME_TOKEN}(?:\s+${NAME_TOKEN}){0,5}`;
 
 /**
@@ -62,5 +69,10 @@ export const EU_UPPER = String.raw`[A-ZÀ-ÖØ-Þ]`;
  * house number so range notations don't truncate to just the first half —
  * which would leave the postcode + city tail exposed downstream and create
  * a re-identification risk.
+ *
+ * Note: FR-specific ordinal suffixes after the number (`bis`, `ter`,
+ * `quater`) are NOT handled here — they are composed in `compose.ts`
+ * within `composeStandard` and `composeInverted`, where they appear as an
+ * explicit alternation gated by the locale's `ordinalAfterNumber` config.
  */
 export const HOUSE_NUM = String.raw`\d{1,5}(?:\s*[-/]\s*\d{1,5})?[A-Za-z]?`;

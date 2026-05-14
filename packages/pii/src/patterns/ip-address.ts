@@ -15,6 +15,10 @@ import isIP from 'validator/lib/isIP';
 
 import type { PiiPattern, PiiPatternFactory } from '../core/types';
 
+// NOTE: Private/reserved IPv4 ranges (10.x, 172.16-31.x, 192.168.x) are
+// intentionally detected and masked. Private IPs are PII when they reveal
+// internal network topology, host identity, or user device information.
+//
 // IPv4 dotted-quad OR IPv6: 2-7 leading "hex:" runs (hex may be empty to
 // encode the `::` zero-compression form), then either a final dotted-quad
 // IPv4 tail (`::ffff:192.0.2.1`) or one final hex group, then an optional
@@ -35,7 +39,10 @@ const PATTERN: PiiPattern = {
     try {
       const stripped = m.includes('%') ? m.slice(0, m.indexOf('%')) : m;
       return isIP(stripped);
-    } catch {
+    } catch (err) {
+      console.warn(
+        `[pii] IP address validation error: ${err instanceof Error ? err.name : 'unknown'}`,
+      );
       return false;
     }
   },

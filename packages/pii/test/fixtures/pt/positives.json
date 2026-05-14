@@ -9,7 +9,7 @@
       "prose": "2026-05-14"
     },
     "counts": {
-      "positives": 2300,
+      "positives": 2304,
       "negatives": 0
     },
     "generatedAt": "2026-05-14T00:00:00Z"
@@ -25312,6 +25312,50 @@
           "pattern": "email",
           "start": 29,
           "end": 52
+        }
+      ]
+    },
+    {
+      "id": "manual-pt-dob-001",
+      "input": "nascido em 15 de setembro de 1987",
+      "expected": [
+        {
+          "pattern": "dateOfBirth",
+          "start": 11,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "manual-pt-dob-002",
+      "input": "data de nascimento: 28 de março de 1998",
+      "expected": [
+        {
+          "pattern": "dateOfBirth",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "manual-pt-email-001",
+      "input": "email: silva@exemplo.pt",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "manual-pt-phone-001",
+      "input": "telefone: +351 21 123 4567",
+      "expected": [
+        {
+          "pattern": "phone",
+          "start": 10,
+          "end": 26
         }
       ]
     }

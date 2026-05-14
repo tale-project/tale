@@ -29,7 +29,10 @@ const PATTERN: PiiPattern = {
   validate: (m) => {
     try {
       return isIBAN(m);
-    } catch {
+    } catch (err) {
+      console.warn(
+        `[pii] IBAN validation error: ${err instanceof Error ? err.name : 'unknown'}`,
+      );
       return false;
     }
   },

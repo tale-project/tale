@@ -9,7 +9,7 @@
       "prose": "2026-05-14"
     },
     "counts": {
-      "positives": 2300,
+      "positives": 2304,
       "negatives": 0
     },
     "generatedAt": "2026-05-14T00:00:00Z"
@@ -25312,6 +25312,50 @@
           "pattern": "email",
           "start": 28,
           "end": 59
+        }
+      ]
+    },
+    {
+      "id": "manual-sv-dob-001",
+      "input": "född den 15 september 1987",
+      "expected": [
+        {
+          "pattern": "dateOfBirth",
+          "start": 9,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "manual-sv-dob-002",
+      "input": "födelsedatum: 28 mars 1998",
+      "expected": [
+        {
+          "pattern": "dateOfBirth",
+          "start": 14,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "manual-sv-email-001",
+      "input": "email: svensson@exempel.se",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "manual-sv-phone-001",
+      "input": "telefon: 08-123 456 78",
+      "expected": [
+        {
+          "pattern": "phone",
+          "start": 9,
+          "end": 22
         }
       ]
     }

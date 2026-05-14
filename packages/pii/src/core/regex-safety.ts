@@ -50,6 +50,10 @@ const utf8Decoder = new TextDecoder('utf-8', { fatal: false });
  * If `text.length * 4 <= maxBytes` the encoding cannot possibly exceed the
  * cap and we skip the encoder entirely. For ASCII-dominated chat payloads
  * this is the common case.
+ *
+ * Overflow note: JS string length is capped at 2^28 - 16 (~268M chars),
+ * so `length * 4` maxes at ~1.07 billion — well within Number.MAX_SAFE_INTEGER.
+ * No BigInt or overflow guard is needed here.
  */
 export function clampMessage(
   text: string,
@@ -123,13 +127,21 @@ export function execWithBudget(
   const local = new RegExp(regex.source, regex.flags);
 
   let match: RegExpExecArray | null;
+  // Check the wall-clock budget every 16 iterations instead of every single
+  // one. `Date.now()` is cheap but not free; batching reduces overhead by
+  // ~16x while still catching runaway patterns quickly. 16 is a deliberate
+  // compromise: high enough to matter for tight-loop patterns, low enough
+  // that a single non-catastrophic match step (microseconds) times 16 stays
+  // well under 1 ms — so we won't overshoot the budget by a meaningful amount.
+  let iterCount = 0;
   while ((match = local.exec(text)) !== null) {
     matches.push({
       index: match.index,
       length: match[0].length,
       matchedText: match[0],
     });
-    if (Date.now() - start > effectiveBudget) {
+    iterCount++;
+    if ((iterCount & 15) === 0 && Date.now() - start > effectiveBudget) {
       console.warn(
         `[regex-safety] exec budget ${effectiveBudget}ms exceeded for pattern ${regex.source.slice(0, 60)}`,
       );

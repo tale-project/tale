@@ -191,11 +191,11 @@ export const phoneFactory: PiiPatternFactory = (locales) => {
     while ((m = contextRegex.exec(text)) !== null) {
       const numberStr = m[1];
       if (!numberStr) continue;
-      // Trim trailing whitespace and `.,;:` punctuation inside the
-      // captured group so the masker doesn't swallow inter-word spacing
-      // or sentence-ending punctuation. Do NOT trim `)` — phones like
-      // `(030) 12345` legitimately end in `)`.
-      const trimmed = numberStr.replace(/[\s.,;:]+$/, '');
+      // Trim trailing whitespace, punctuation (`.,;:`), and decorative
+      // dashes (`–`, `—`) inside the captured group so the masker doesn't
+      // swallow inter-word spacing or sentence-ending punctuation. Do NOT
+      // trim `)` — phones like `(030) 12345` legitimately end in `)`.
+      const trimmed = numberStr.replace(/[\s.,;:\u2013\u2014]+$/, '');
       if (trimmed.length === 0) continue;
       const numberStart = m.index + m[0].lastIndexOf(numberStr);
       const digits = countMatches(PHONE_DIGIT_RE, trimmed);

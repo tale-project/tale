@@ -32,6 +32,11 @@ import { HOUSE_NUM, NAME_PHRASE, NAME_TOKEN, UA, W } from './builders';
  * Compose a regex alternation of literal keywords. Each input is escaped
  * (literals, not regex), longest-first ordered for leftmost-first match
  * fairness.
+ *
+ * This allocates a new Set and sorted array on each call, which is fine:
+ * the outer `ADDRESS_REGEX_CACHE` (keyed by sorted locale codes) ensures
+ * that form composition — and therefore this function — runs at most once
+ * per distinct locale set.
  */
 function alternation(keywords: readonly string[] | undefined): string {
   if (!keywords || keywords.length === 0) return '(?!)';
@@ -131,8 +136,12 @@ function composeInvertedWithArticle(locale: LocaleConfig): string[] {
  *
  * For FR specifically, the building-number tail forbids single-letter unit
  * suffix `h` and disallows distance/time units immediately after (`km`,
- * `m`, `minutes`) — those are prose, not addresses. Other inverted-form
- * locales don't need that gate.
+ * `m`, `minutes`) — those are prose, not addresses. The guard triggers
+ * when the locale declares `ordinalAfterNumber` (currently only FR).
+ * IT also uses the inverted form but does NOT declare `ordinalAfterNumber`,
+ * so it takes the plain `HOUSE_NUM` path — IT's inverted addresses
+ * (e.g. "Via Nassa 5") don't suffer the same FR time/distance FP because
+ * Italian prose rarely follows an inverted-form match with unit suffixes.
  */
 function composeInverted(locale: LocaleConfig): string[] {
   const kws = locale.address.streetKeywordsInverted;
@@ -339,6 +348,13 @@ export function composeAddressTail(
   // Floor component — one keyword with optional ordinal prefix and value
   // suffix. The pattern preserves the contract that JP/CN/KR postcode-
   // anchored forms ignore (they bake their own floor handling in Phase 6).
+  //
+  // The `(?<![\p{L}\p{M}])` / `(?![\p{L}\p{M}])` pair around the keyword
+  // alternation creates Unicode-aware word boundaries — necessary because
+  // JS `\b` is ASCII-only even under `/u`. These lookbehind/lookahead
+  // assertions use `\p{L}` (Unicode letter) and `\p{M}` (combining mark),
+  // which are correctly interpreted under the `/giu` flags the final regex
+  // is compiled with.
   const floorComponent = String.raw`(?:\d+(?:\s*\.|er|ère|e|ème|eme|nd|nde)?\s*)?(?<![\p{L}\p{M}])(?:${floorAlt})(?![\p{L}\p{M}])(?:\s+\d+[A-Za-z]?|\s+[A-Z][a-z]{0,2}\b)?`;
   const floorTail = String.raw`(?:[,\s]+${floorComponent}){0,5}`;
 
@@ -357,7 +373,12 @@ function composeZipCityForLocale(locale: LocaleConfig): string {
   // City tail — Title-Case for Latin-script locales. CJK/Arabic/Hebrew
   // locales bypass this entirely (their postcode-anchored forms are added
   // in Phase 6).
-  const cityTail = String.raw`[A-ZÀ-ÖØ-Þ][\p{L}\p{M}'’]+(?:-[\p{L}\p{M}'’]+){0,4}`;
+  //
+  // The leading character class `[A-ZÀ-ÖØ-Þ]` covers all Western
+  // European uppercase letters including German umlauts:
+  //   À (U+00C0) – Ö (U+00D6) includes Ä (U+00C4) and Ö (U+00D6)
+  //   Ø (U+00D8) – Þ (U+00DE) includes Ü (U+00DC)
+  const cityTail = String.raw`[A-ZÀ-ÖØ-Þ][\p{L}\p{M}’’]+(?:-[\p{L}\p{M}’’]+){0,4}`;
   switch (locale.address.postcodeForm) {
     case 'continental': {
       const prefixes = locale.address.countryPostcodePrefixes;

@@ -44,6 +44,37 @@
       "replacement": "[TC_KIMLIK]"
     }
   ],
+  "dateOfBirth": {
+    "monthsLong": [
+      "Ocak",
+      "Şubat",
+      "Mart",
+      "Nisan",
+      "Mayıs",
+      "Haziran",
+      "Temmuz",
+      "Ağustos",
+      "Eylül",
+      "Ekim",
+      "Kasım",
+      "Aralık"
+    ],
+    "contextKeywords": ["doğum tarihi", "doğum", "doğumlu"],
+    "monthsShort": [
+      "Oca.",
+      "Şub.",
+      "Mar.",
+      "Nis.",
+      "May.",
+      "Haz.",
+      "Tem.",
+      "Ağu.",
+      "Eyl.",
+      "Eki.",
+      "Kas.",
+      "Ara."
+    ]
+  },
   "fixtureSeeds": {
     "wrappers": [
       "Lütfen paketi {} adresine gönderin.",

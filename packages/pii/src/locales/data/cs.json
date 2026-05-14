@@ -45,5 +45,48 @@
       "Zákazník bydlí na {}.",
       "Místo vyzvednutí — {} — potvrzeno."
     ]
+  },
+  "dateOfBirth": {
+    "monthsLong": [
+      "ledna",
+      "února",
+      "března",
+      "dubna",
+      "května",
+      "června",
+      "července",
+      "srpna",
+      "září",
+      "října",
+      "listopadu",
+      "prosince",
+      "leden",
+      "únor",
+      "březen",
+      "duben",
+      "květen",
+      "červen",
+      "červenec",
+      "srpen",
+      "září",
+      "říjen",
+      "listopad",
+      "prosinec"
+    ],
+    "monthsShort": [
+      "led.",
+      "úno.",
+      "bře.",
+      "dub.",
+      "kvě.",
+      "čvn.",
+      "čvc.",
+      "srp.",
+      "zář.",
+      "říj.",
+      "lis.",
+      "pro."
+    ],
+    "contextKeywords": ["narozen", "narozena", "datum narození", "nar."]
   }
 }

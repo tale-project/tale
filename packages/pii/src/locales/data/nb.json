@@ -33,6 +33,37 @@
       "replacement": "[NO_ID]"
     }
   ],
+  "dateOfBirth": {
+    "monthsLong": [
+      "januar",
+      "februar",
+      "mars",
+      "april",
+      "mai",
+      "juni",
+      "juli",
+      "august",
+      "september",
+      "oktober",
+      "november",
+      "desember"
+    ],
+    "monthsShort": [
+      "jan.",
+      "feb.",
+      "mars",
+      "apr.",
+      "mai",
+      "jun.",
+      "jul.",
+      "aug.",
+      "sep.",
+      "okt.",
+      "nov.",
+      "des."
+    ],
+    "contextKeywords": ["født den", "født", "fødselsdag", "fødselsdato"]
+  },
   "fixtureSeeds": {
     "wrappers": [
       "Vennligst send pakken til {}.",

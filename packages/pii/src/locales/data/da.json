@@ -41,6 +41,37 @@
       "replacement": "[CPR]"
     }
   ],
+  "dateOfBirth": {
+    "monthsLong": [
+      "januar",
+      "februar",
+      "marts",
+      "april",
+      "maj",
+      "juni",
+      "juli",
+      "august",
+      "september",
+      "oktober",
+      "november",
+      "december"
+    ],
+    "monthsShort": [
+      "jan.",
+      "feb.",
+      "mar.",
+      "apr.",
+      "maj",
+      "jun.",
+      "jul.",
+      "aug.",
+      "sep.",
+      "okt.",
+      "nov.",
+      "dec."
+    ],
+    "contextKeywords": ["født den", "født", "fødselsdag", "fødselsdato"]
+  },
   "fixtureSeeds": {
     "wrappers": [
       "Send venligst pakken til {}.",
