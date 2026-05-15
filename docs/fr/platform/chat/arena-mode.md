@@ -79,4 +79,8 @@ sequenceDiagram
     Plateforme->>Toi: Affiche les deux réponses côte à côte
 ```
 
-Cela garantit une comparaison équitable — aucun modèle n’est influencé par la réponse de l’autre.
+Cela garde la comparaison équitable — aucun modèle n'est influencé par la réponse de l'autre, et le verdict reflète la réponse que chaque modèle a produite indépendamment.
+
+## Où ça s'inscrit
+
+Le Mode Arène est la surface d'évaluation dans le chat. Utilise les verdicts qu'il enregistre pour décider quel modèle devient le préréglage **Standard** sous [Fournisseurs IA](/fr/platform/admin/providers), et quels modèles tu câbles à des agents spécifiques dans [Créer un agent](/fr/platform/agents/create). Le journal des verdicts s'accumule comme retour sous la conversation — ton tableau de bord d'analyse d'usage fait surface les données de préférence agrégées par agent et dans le temps.

@@ -3,7 +3,9 @@ title: Chat attachments
 description: Attach files to chat messages so the AI can read images, documents, and code.
 ---
 
-You can attach files to any chat message so the AI agent can analyse them alongside your question. Attachments are processed before the message is sent and their content is included in the conversation.
+Attach files to any chat message so the AI can analyse them alongside the question. Tale processes the upload before the message goes to the model — images and documents are extracted to text or vision tokens, audio and video are transcribed server-side, and the result is appended to the message body so the agent sees one coherent input. The page is for any role in the product: Members attach reference material, Editors curate scanned documents, Developers test integrations with sample payloads.
+
+Attachments live with the conversation, not with the shared knowledge base. The deeper rules — exact pipeline, size limits, retention behaviour, security scanning — are below.
 
 ## How to attach
 
@@ -48,4 +50,8 @@ Deleting a conversation also deletes its attachments unless your organisation's 
 
 ## Security
 
-Uploads are scanned for viruses and blocked mime-types before they reach the model. If your admin has enabled [PII detection](/platform/admin/governance), text extracted from attachments is run through the same rules as typed messages.
+Uploads are scanned for viruses and blocked mime types before they reach the model. If the organisation's admin has enabled [PII detection](/platform/admin/governance), text extracted from attachments is run through the same rules as typed messages — flagged entities are redacted before the agent sees the input.
+
+## Where this fits
+
+Attachments are the one-off path: a file you want the AI to see for this conversation, then forget. For files the AI should be able to pull up across conversations, use the [knowledge base](/platform/workspace/knowledge-base) instead — it indexes the content once and every agent in the organisation can search it. The two paths use the same parsing pipeline; the difference is the lifespan and the audience.

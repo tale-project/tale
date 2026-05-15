@@ -79,4 +79,8 @@ sequenceDiagram
     Plattform->>Du: Beide Antworten nebeneinander anzeigen
 ```
 
-So ist ein fairer Vergleich sichergestellt — kein Modell wird von der Antwort des anderen beeinflusst.
+So bleibt der Vergleich fair — kein Modell wird von der Antwort des anderen beeinflusst, und das Verdikt spiegelt die Antwort wider, die jedes Modell unabhängig erzeugt hat.
+
+## Wo das einsetzt
+
+Der Arena-Modus ist die Evaluations-Oberfläche im Chat. Nutze die aufgezeichneten Verdikte, um zu entscheiden, welches Modell die **Standard**-Voreinstellung unter [KI-Anbieter](/de/platform/admin/providers) wird und welche Modelle du bestimmten Agents in [Agent erstellen](/de/platform/agents/create) zuweist. Das Verdikt-Log häuft sich als Feedback unter der Konversation an — dein Nutzungsanalytik-Dashboard zeigt aggregierte Präferenzdaten über Agents und Zeit hinweg.

@@ -48,4 +48,8 @@ Supprimer une conversation supprime aussi ses pièces jointes, sauf si la [polit
 
 ## Sécurité
 
-Les téléversements sont scannés pour virus et types MIME bloqués avant d’atteindre le modèle. Si ton Admin a activé la [détection DCP](/fr/platform/admin/governance), les textes extraits des pièces jointes passent par les mêmes règles que les messages saisis.
+Les téléversements sont scannés pour virus et types MIME bloqués avant d'atteindre le modèle. Si l'Admin de l'organisation a activé la [détection DCP](/fr/platform/admin/governance), les textes extraits des pièces jointes passent par les mêmes règles que les messages saisis — les entités signalées sont expurgées avant que l'agent ne voie l'entrée.
+
+## Où ça s'inscrit
+
+Les pièces jointes sont le chemin ponctuel : un fichier que tu veux montrer à l'IA pour cette conversation, puis oublier. Pour des fichiers que l'IA doit pouvoir retrouver entre conversations, utilise la [base de connaissances](/fr/platform/workspace/knowledge-base) — elle indexe le contenu une fois et chaque agent de l'organisation peut le rechercher. Les deux chemins utilisent la même pipeline de parsing ; la différence porte sur la durée de vie et le public.

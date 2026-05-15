@@ -1,9 +1,11 @@
 ---
-title: Arena mode
-description: Compare two AI models side by side on the same prompt.
+title: Arena Mode
+description: Send the same prompt to two AI models in parallel and compare their responses side by side, with a verdict you can record as preference data.
 ---
 
-Arena Mode lets you send the same message to two different AI models at once and compare their responses in a split view. Use it to evaluate model quality, test new models against your current default, or gather preference data across your team.
+Arena Mode sends the same message to two AI models at the same time and renders the responses in a split view. Use it to evaluate a new model against your current default, to gather preference data across the team before a model rollout, or to demo why one model handles a particular prompt class better than another. Every Member with access to chat can run Arena Mode; the model dropdowns are filtered to what the organisation has configured under [AI providers](/platform/admin/providers) and what the active agent supports.
+
+This page covers the runtime: enabling the mode, the split view, recording a verdict, and the parallel-inference sequence under the hood.
 
 ## Enabling arena mode
 
@@ -79,4 +81,8 @@ sequenceDiagram
     Platform->>You: Render both responses side by side
 ```
 
-This ensures a fair comparison — neither model is influenced by the other's response.
+This keeps the comparison fair — neither model is influenced by the other's response, and the verdict reflects the response each model produced independently.
+
+## Where this fits
+
+Arena Mode is the evaluation surface inside chat. Use the verdicts it records to inform which model becomes the **Standard** preset on [AI providers](/platform/admin/providers), and which models you wire to specific agents at [Create an agent](/platform/agents/create). The verdict log accumulates as feedback under the conversation — your usage-analytics dashboard surfaces aggregate preference data across agents and time.

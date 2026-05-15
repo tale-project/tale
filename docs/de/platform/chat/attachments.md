@@ -48,4 +48,8 @@ Das Löschen einer Konversation löscht auch ihre Anhänge, sofern deine Organis
 
 ## Sicherheit
 
-Uploads werden vor dem Eintreffen beim Modell auf Viren und blockierte MIME-Typen geprüft. Wenn dein Admin [PII-Erkennung](/de/platform/admin/governance) aktiviert hat, werden aus Anhängen extrahierte Texte denselben Regeln unterworfen wie getippte Nachrichten.
+Uploads werden vor dem Eintreffen beim Modell auf Viren und blockierte MIME-Typen geprüft. Wenn der Admin der Organisation [PII-Erkennung](/de/platform/admin/governance) aktiviert hat, werden aus Anhängen extrahierte Texte denselben Regeln unterworfen wie getippte Nachrichten — markierte Entitäten werden redigiert, bevor der Agent die Eingabe sieht.
+
+## Wo das einsetzt
+
+Anhänge sind der Einmal-Pfad: eine Datei, die die KI in dieser Konversation sehen soll und danach vergessen darf. Für Dateien, die die KI über Konversationen hinweg abrufen können soll, nimm stattdessen die [Wissensdatenbank](/de/platform/workspace/knowledge-base) — sie indiziert den Inhalt einmal, und jeder Agent in der Organisation kann ihn durchsuchen. Beide Pfade nutzen dieselbe Parsing-Pipeline; der Unterschied ist die Lebensdauer und das Publikum.
