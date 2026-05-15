@@ -380,7 +380,8 @@
         "cpu": "Chip (CPU)",
         "ram": "AI RAM",
         "ssd": "SSD",
-        "hdd": "HDD"
+        "hdd": "HDD",
+        "cables": "Cables & network equipment"
       },
       "values": {
         "qualityModel": "Kimi K2 Thinking",
@@ -400,6 +401,9 @@
         "speedRam": "288GB",
         "ssd": "18TB",
         "hdd": "36TB"
+      },
+      "cellLabels": {
+        "yes": "Included"
       }
     },
     "extras": {

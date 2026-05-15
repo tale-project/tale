@@ -1,5 +1,6 @@
 import { Button } from '@tale/ui/button';
 import { motion, useReducedMotion } from 'framer-motion';
+import { Check } from 'lucide-react';
 
 import {
   CompareTable,
@@ -46,6 +47,15 @@ export function HardwareCompare() {
     ),
   }));
 
+  const checkIcon = (
+    <Check
+      className="mx-auto h-5 w-5 text-emerald-600"
+      strokeWidth={2}
+      role="img"
+      aria-label={t('compare.cellLabels.yes')}
+    />
+  );
+
   const rows: CompareRow<TierKey>[] = [
     ...SPEC_AXES.map(
       (axis) =>
@@ -59,6 +69,16 @@ export function HardwareCompare() {
           },
         }) satisfies CompareRow<TierKey>,
     ),
+    {
+      kind: 'data',
+      rowKey: 'cables',
+      label: t('compare.categories.cables'),
+      cells: {
+        quality: checkIcon,
+        hybrid: checkIcon,
+        speed: checkIcon,
+      },
+    },
     {
       kind: 'span',
       label: t('extras.software.title'),
