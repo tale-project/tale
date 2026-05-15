@@ -3,7 +3,7 @@ title: Lokaler Schnellstart
 description: Tale lokal mit Docker Desktop in etwa zehn Minuten starten — für Evaluierung, Demos und Beiträge.
 ---
 
-Das hier ist der schnellste Weg, eine lokale Tale-Instanz auf deinem Laptop laufen zu lassen. Nutze diesen Schnellstart, um das Produkt zu evaluieren, eine Demo zu zeigen oder gegen die Plattform zu entwickeln. Für eine öffentlich erreichbare Instanz mit TLS und unterbrechungsfreien Upgrades folge stattdessen dem [Produktions-Deployment](/de/self-hosted/install/linux-server).
+Das hier ist der schnellste Weg, eine lokale Tale-Instanz auf deinem Laptop laufen zu lassen. Nutze diesen Schnellstart, um das Produkt zu evaluieren, eine Demo zu zeigen oder gegen die Plattform zu entwickeln. Für eine öffentlich erreichbare Instanz mit TLS und unterbrechungsfreien Upgrades folge stattdessen dem [Produktions-Deployment](/de-CH/self-hosted/install/linux-server).
 
 ## Voraussetzungen
 
@@ -55,7 +55,7 @@ cd my-project
 
 Die CLI fragt nach deiner Domain, dem API-Schlüssel und dem TLS-Modus. Sicherheits-Secrets (`BETTER_AUTH_SECRET`, `ENCRYPTION_SECRET_HEX`) werden automatisch erzeugt.
 
-> **Tipp:** `tale init` legt zusätzlich Konfigurationsdateien für KI-Editoren (Claude Code, Cursor, GitHub Copilot, Windsurf) ab und extrahiert den Plattform-Quellcode nach `.tale/reference/`. Öffne dein Projekt in einem dieser Editoren, um Agents, Workflows und Integrationen in natürlicher Sprache zu erstellen und zu bearbeiten. Siehe [AI-assisted development](/de/develop/ai-assisted-development).
+> **Tipp:** `tale init` legt zusätzlich Konfigurationsdateien für KI-Editoren (Claude Code, Cursor, GitHub Copilot, Windsurf) ab und extrahiert den Plattform-Quellcode nach `.tale/reference/`. Öffne dein Projekt in einem dieser Editoren, um Agents, Workflows und Integrationen in natürlicher Sprache zu erstellen und zu bearbeiten. Siehe [AI-assisted development](/de-CH/develop/ai-assisted-development).
 
 ### Schritt 3: Tale starten
 
@@ -69,7 +69,7 @@ Warte auf `Tale Dev v0.x.x  Ready.` Health-Check-Meldungen während des Starts s
 
 Gehe in deinem Browser auf https://localhost (oder deine konfigurierte Domain). Beim ersten Aufruf landest du auf einer Sign-up-Seite, um dein Admin-Konto zu erstellen.
 
-> **Warnung wegen selbstsigniertem Zertifikat.** Der TLS-Modus `selfsigned` erzeugt ein lokales Zertifikat, daher zeigt der Browser beim ersten Aufruf eine „Ihre Verbindung ist nicht privat“-Warnung. Klick dich durch (Chrome: **Erweitert → Weiter**, Firefox: **Erweitert → Risiko akzeptieren**). Für ein öffentliches Deployment wähle bei `tale init` `letsencrypt` oder folge dem [Produktions-Deployment](/de/self-hosted/install/linux-server)-Leitfaden.
+> **Warnung wegen selbstsigniertem Zertifikat.** Der TLS-Modus `selfsigned` erzeugt ein lokales Zertifikat, daher zeigt der Browser beim ersten Aufruf eine „Ihre Verbindung ist nicht privat“-Warnung. Klick dich durch (Chrome: **Erweitert → Weiter**, Firefox: **Erweitert → Risiko akzeptieren**). Für ein öffentliches Deployment wähle bei `tale init` `letsencrypt` oder folge dem [Produktions-Deployment](/de-CH/self-hosted/install/linux-server)-Leitfaden.
 
 ## Täglicher Ablauf
 
@@ -140,10 +140,10 @@ Für einen schnelleren Edit-Reload-Zyklus nutze den Development-Override, der de
 docker compose -f compose.yml -f compose.dev.yml up --build
 ```
 
-Nach Änderungen an Dockerfiles oder Abhängigkeiten kannst du mit `bun run docker:test` einen Smoke-Test fahren. Der [Contributing-Docker-Guide](/de/develop/contributing-docker) beschreibt Image-Validierung und Vulnerability-Scan-Skripte.
+Nach Änderungen an Dockerfiles oder Abhängigkeiten kannst du mit `bun run docker:test` einen Smoke-Test fahren. Der [Contributing-Docker-Guide](/de-CH/develop/contributing-docker) beschreibt Image-Validierung und Vulnerability-Scan-Skripte.
 
 ## Wo das eingesetzt wird
 
 Was du jetzt hast, ist eine Tale-Instanz, die unter `localhost` erreichbar ist, mit Beispiel-Agents, Beispiel-Wissen und einem funktionierenden KI-Anbieter. Das reicht, um das Produkt zu evaluieren, eine Demo zu fahren oder gegen die Plattform zu entwickeln — aber nicht, um es dem restlichen Team verfügbar zu machen, denn der Quickstart richtet selbstsigniertes TLS ein und betreibt alles in einem Container pro Dienst.
 
-Wenn du bereit bist, Tale vor Nutzer zu stellen, führt [Produktions-Deployment](/de/self-hosted/install/linux-server) durch denselben Aufbau mit echter Domain, echtem TLS-Zertifikat und der Blue-Green-Topologie, die Upgrades ohne Wartungsfenster übersteht. Für die restliche Betriebsfläche — Observability, Backups, Aufbewahrung, Advisories — ist [Operations](/de/self-hosted/operate/observability/operations) der Einstieg.
+Wenn du bereit bist, Tale vor Nutzer zu stellen, führt [Produktions-Deployment](/de-CH/self-hosted/install/linux-server) durch denselben Aufbau mit echter Domain, echtem TLS-Zertifikat und der Blue-Green-Topologie, die Upgrades ohne Wartungsfenster übersteht. Für die restliche Betriebsfläche — Observability, Backups, Aufbewahrung, Advisories — ist [Operations](/de-CH/self-hosted/operate/observability/operations) der Einstieg.

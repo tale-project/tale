@@ -21,7 +21,7 @@ Each page lives at the level of one operator decision. The shape: title in bold,
 - **[Container architecture](/self-hosted/operate/container-architecture)** — how the five services connect on the internal Docker network, where ports are exposed, and what the blue-green roll looks like.
 - **[Observability: Operations](/self-hosted/operate/observability/operations)** — Prometheus metrics, log streams, health probes, and what to wire into your monitoring stack.
 - **[Observability: Troubleshooting](/self-hosted/operate/observability/troubleshooting)** — the three or four issues operators actually hit and how to diagnose them on a live instance.
-- **[Security advisories](/self-hosted/operate/security/advisories)** — how Ruler GmbH publishes CVEs, how to subscribe, and the patch-responsibility split between us and you.
+- **[Security advisories](/self-hosted/operate/security/advisories)** — how Ruler GmbH publishes CVEs, how operators subscribe, and the patch-responsibility split between the project and the operator.
 - **[Release notes format](/self-hosted/operate/release-notes/format)** — the canonical format for GitHub release notes; what's in scope, what's out, how to read them before an upgrade.
 
 ## Install your instance

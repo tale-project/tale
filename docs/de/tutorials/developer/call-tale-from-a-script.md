@@ -1,61 +1,81 @@
 ---
 title: Tale aus einem Skript aufrufen
-description: Eine Chat-Anfrage an einen Agent aus cURL und Python über Tales OpenAI-kompatible API senden.
+description: Eine Chat-Anfrage aus cURL und Python über Tales OpenAI-kompatible API senden.
 ---
 
-Tales öffentliche API ist OpenAI-kompatibel — jedes SDK, das mit `chat/completions` spricht, kann mit Tale sprechen, indem du zwei Werte änderst: Base-URL und API-Schlüssel. Dieses Tutorial zeigt einen minimalen cURL-Call, denselben Call in Python mit dem offiziellen `openai`-Client und den Wechsel auf Streaming-Antworten. Die vollständige Referenz steht in der [API-Referenz](/de/develop/api-reference).
+Tales öffentliche API ist OpenAI-kompatibel — jedes SDK, das mit `/chat/completions` spricht, spricht mit Tale, indem du zwei Werte änderst: die Basis-URL und den API-Schlüssel. Dieses Tutorial läuft einen minimalen cURL-Aufruf durch, denselben Aufruf in Python mit dem offiziellen `openai`-Client und den Wechsel auf Streaming. Die volle Oberfläche — jeder Header, jeder Parameter, jeder Fehlercode — liegt in der [API-Referenz](/de/develop/api-reference).
 
-Du brauchst Entwickler-Zugriff, um API-Schlüssel zu erstellen. Außerdem brauchst du einen Agent, den du per Slug ansprechen kannst — nutze den aus [Den ersten Agent end-to-end bauen](/de/tutorials/editor/first-agent-end-to-end) oder einen der Standard-Agents.
+Das Ergebnis am Ende ist ein lauffähiges Skript, das deine Tale-Instanz von deinem Laptop oder einem CI-Job aus trifft.
 
-## Schritt 1 — Einen API-Schlüssel anlegen
+## Bevor du beginnst
 
-Navigiere zu **Einstellungen > API-Schlüssel** und klicke **Erstellen**. Gib dem Schlüssel einen sprechenden Namen (`cli-dev-laptop`), kopiere das Token — es beginnt mit `tale_` und wird nur einmal angezeigt — und leg es in deinem Passwort-Manager oder deinen Shell-Env ab.
+Du brauchst ein Konto mit Berechtigung, API-Schlüssel zu erstellen — Inhaber-, Admin- oder Entwickler-Rollen qualifizieren sich. Du brauchst außerdem eine Tale-Instanz, die per HTTPS erreichbar ist von dort, wo dein Skript läuft (Laptop, CI-Runner, Server). Für Python ist die `openai`-Bibliothek die einzige Abhängigkeit; `pip install openai` deckt das ab. Für cURL reicht jede aktuelle `curl`-Version.
+
+Agent-seitig ist keine Konfiguration nötig — der API-Schlüssel routet über deine Organisation und nutzt das Modell, das du per ID adressierst.
+
+## Schritt 1 — Einen API-Schlüssel erstellen
+
+Öffne **Einstellungen > API-Schlüssel** und klicke **Erstellen**. Gib dem Schlüssel einen beschreibenden Namen (`cli-dev-laptop`, `ci-runner`), damit du ihn widerrufen kannst, ohne andere Anrufer zu treffen, und kopiere dann das Token. Das Token beginnt mit `tale_` und wird genau einmal angezeigt — speichere es in deinem Passwort-Manager oder einer Shell-Env-Variablen. Schließt du den Dialog ohne zu kopieren, musst du neu generieren.
 
 ```bash
 export TALE_API_KEY="tale_..."
 export TALE_BASE_URL="https://<deine-tale-instanz>/api/v1"
 ```
 
-## Schritt 2 — Verfügbare Agents auflisten
+Der Schritt hat funktioniert, wenn die API-Schlüssel-Liste den neuen Schlüssel mit dem Namen zeigt, den du vergeben hast, und einen Letzte-Nutzung-Zeitstempel von „Nie".
 
-Jede Anfrage braucht ein `model`-Feld; die gültigen Werte sind die Agent-Slugs aus `GET /api/v1/models`.
+## Schritt 2 — Verfügbare Modelle auflisten
+
+Jede Anfrage braucht ein `model`-Feld; die gültigen Werte kommen aus `GET /api/v1/models`, das jedes Modell auflistet, das die Anbieter deiner Organisation exponieren. Die Form passt zu OpenAIs `/v1/models`, also lesen OpenAI-SDKs sie ohne Änderung.
 
 ```bash
 curl -s "$TALE_BASE_URL/models" \
   -H "Authorization: Bearer $TALE_API_KEY"
 ```
 
-Form der Antwort:
+Die Antwort ist eine JSON-Liste:
 
 ```json
 {
   "object": "list",
   "data": [
-    { "id": "chat-agent", "object": "model", "owned_by": "default" },
-    { "id": "product-support", "object": "model", "owned_by": "default" }
+    {
+      "id": "openai/gpt-4o",
+      "object": "model",
+      "created": 1747325000,
+      "owned_by": "openai-main"
+    },
+    {
+      "id": "anthropic/claude-3-5-sonnet",
+      "object": "model",
+      "created": 1747325000,
+      "owned_by": "anthropic-main"
+    }
   ]
 }
 ```
 
-Wähle einen Slug — für den Rest des Tutorials nehmen wir `product-support`.
+Wähle eine Modell-ID — der Rest des Tutorials geht von `openai/gpt-4o` aus.
+
+Der Schritt hat funktioniert, wenn die Antwort mindestens ein Modell listet und das ID-Format zu dem passt, was du in **Einstellungen > KI-Anbieter** siehst.
 
 ## Schritt 3 — Eine Chat-Anfrage ohne Streaming senden
 
-Ohne Streaming ist es am einfachsten: eine Anfrage, eine Antwort. Nutze das, wenn du nur den finalen Text willst.
+Eine Anfrage ohne Streaming liefert die ganze Completion in einer Antwort. Nutze sie, wenn das Skript keine Tokens während des Eintreffens darstellt und du nur den finalen Text brauchst.
 
 ```bash
 curl -s "$TALE_BASE_URL/chat/completions" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "product-support",
+    "model": "openai/gpt-4o",
     "messages": [
-      { "role": "user", "content": "Fasse unsere Rückgabe-Richtlinie in 3 Stichpunkten zusammen." }
+      { "role": "user", "content": "Fasse unsere Rückgaberichtlinie in 3 Punkten zusammen." }
     ]
   }' | jq -r '.choices[0].message.content'
 ```
 
-Dieselbe Anfrage in Python mit dem offiziellen SDK:
+Dieselbe Anfrage aus Python mit dem OpenAI-SDK:
 
 ```python
 from openai import OpenAI
@@ -67,23 +87,25 @@ client = OpenAI(
 )
 
 response = client.chat.completions.create(
-    model="product-support",
+    model="openai/gpt-4o",
     messages=[
-        {"role": "user", "content": "Fasse unsere Rückgabe-Richtlinie in 3 Stichpunkten zusammen."},
+        {"role": "user", "content": "Fasse unsere Rückgaberichtlinie in 3 Punkten zusammen."},
     ],
 )
 print(response.choices[0].message.content)
 ```
 
-## Schritt 4 — Auf Streaming umstellen
+Der Schritt hat funktioniert, wenn das Skript eine zusammenhängende Antwort ausgibt und deine **Nutzungs-Analyse**-Seite in Tale die Anfrage gegen den API-Schlüssel verbucht zeigt.
 
-Streaming gibt Tokens aus, sobald das Modell sie produziert — bessere UX in CLIs und Chat-UIs, gleiche Gesamtkosten. Setze `stream=True`:
+## Schritt 4 — Auf Streaming umschalten
+
+Streaming druckt Tokens, sobald das Modell sie produziert — das fühlt sich in einer CLI oder einem Chat-UI für jede Antwort länger als ein Satz deutlich besser an. Das Drahtformat ist Server-Sent Events; das OpenAI-SDK parst das für dich.
 
 ```python
 stream = client.chat.completions.create(
-    model="product-support",
+    model="openai/gpt-4o",
     messages=[
-        {"role": "user", "content": "Fasse unsere Rückgabe-Richtlinie in 3 Stichpunkten zusammen."},
+        {"role": "user", "content": "Fasse unsere Rückgaberichtlinie in 3 Punkten zusammen."},
     ],
     stream=True,
 )
@@ -94,30 +116,33 @@ for chunk in stream:
 print()
 ```
 
-Das Wire-Format ist Server-Sent Events (SSE); das SDK übernimmt das Parsen. Wenn du den Endpoint ohne SDK konsumierst, lies die [Streaming-Hinweise](/de/develop/api-reference) der Referenz.
+Gesamtkosten und Endinhalt sind identisch zur Variante ohne Streaming — Streaming ändert das Drahtformat, nicht das Modell.
 
-## Schritt 5 — Einen Konversations-Thread wiederverwenden
+Der Schritt hat funktioniert, wenn Zeichen schrittweise in deinem Terminal erscheinen statt alle auf einmal.
 
-Standardmäßig ist jede Anfrage ein eigenständiger Turn. Um eine Konversation über mehrere Anfragen fortzuführen, sende den optionalen Kopfzeile `X-Thread-Id` mit einem Wert, den du kontrollierst. Dieselbe Thread-ID landet auf derselben Konversation in der Tale-UI, damit Endnutzer dort weitermachen können, wo dein Skript aufgehört hat.
+## Schritt 5 — Die richtige Organisation wählen, wenn du in mehreren bist
+
+Ein einzelner API-Schlüssel ist auf einen Nutzer begrenzt, und dieser Nutzer kann zu mehr als einer Organisation gehören. Gehört der Nutzer zu genau einer Organisation, löst Tale automatisch auf; sonst musst du sie mit dem `X-Organization-Slug`-Header benennen — der Wert ist der Org-Slug, der in deiner URL nach `/dashboard/` steht.
 
 ```python
-client_with_thread = OpenAI(
+client = OpenAI(
     base_url=os.environ["TALE_BASE_URL"],
     api_key=os.environ["TALE_API_KEY"],
-    default_headers={"X-Thread-Id": "nightly-report-2026-04-20"},
+    default_headers={"X-Organization-Slug": "acme"},
 )
 ```
 
-Siehe [API-Referenz](/de/develop/api-reference) für alle Kopfzeile.
+Der Schritt hat funktioniert, wenn eine Anfrage von einem Multi-Org-Nutzer den `Failed to resolve organization`-Fehler nicht mehr zurückgibt.
 
-## Troubleshooting
+## Fehlerbehebung
 
-- **401 Unauthorized** — der `tale_`-Schlüssel wurde widerrufen, vertippt oder der `Bearer`-Prefix fehlt.
-- **404 Not Found** bei `/chat/completions` — Base-URL fehlt das Suffix `/api/v1`.
-- **400 model not found** — Agent-Slug existiert nicht oder ist anders geschrieben; prüf erneut `GET /models`.
+- **401 Unauthorized** — der `tale_`-Schlüssel wurde widerrufen, falsch getippt, oder der Anfrage fehlt das `Bearer `-Präfix. Prüfe **Einstellungen > API-Schlüssel** und den `Authorization`-Header erneut.
+- **404 Not Found auf `/chat/completions`** — der Basis-URL fehlt das `/api/v1`-Suffix, oder das Deployment serviert kein HTTPS auf dem Host, den du aufrufst.
+- **400 missing model** — der Request-Body hat kein `model`-Feld. Übergib eine ID aus `GET /api/v1/models`.
+- **400 Failed to resolve organization** — der Nutzer hinter dem API-Schlüssel gehört zu mehr als einer Organisation. Sende `X-Organization-Slug` wie in Schritt 5.
 
-## Wo das hingehört
+## Wo das einsetzt
 
-Die Erkenntnis: Jeder OpenAI-kompatible Client spricht mit Tale, sobald du ihn auf die richtige Base-URL zeigst und den Agent-Slug als Modellnamen nutzt — kein Tale-spezifisches SDK, keine Migrationskosten, wenn du eine bestehende OpenAI-Integration umstellst. Der Streaming-Schalter ist identisch mit dem von OpenAI, und die `X-Thread-Id`-Kopfzeile ist die einzige Tale-spezifische Erweiterung, die du normalerweise brauchst.
+Jeder OpenAI-kompatible Client spricht mit Tale, sobald du ihn auf die richtige Basis-URL zeigst und ein Modell aus den Anbietern deiner Organisation wählst — es gibt kein Tale-spezifisches SDK, und eine bestehende OpenAI-Integration zu tauschen bedeutet, zwei Strings zu ändern. Der Streaming-Schalter ist identisch zu OpenAIs, und der `X-Organization-Slug`-Header ist die einzige Tale-spezifische Eigenheit, die du typischerweise brauchst.
 
-Zwei natürliche nächste Schritte: denselben Call in eine Automatisierung einhängen, damit er ohne expliziten Skript-Aufruf läuft — [Eine Automatisierung per Webhook auslösen](/de/tutorials/developer/trigger-automation-via-webhook) — oder den Client mit Tool-Calling erweitern, das die [API-Referenz](/de/develop/api-reference) abdeckt.
+Zwei häufige nächste Schritte: denselben Aufruf in eine Automatisierung verdrahten, die ohne expliziten Skript-Aufruf läuft — [Eine Automatisierung per Webhook auslösen](/de/tutorials/developer/trigger-automation-via-webhook) — oder den Client um Tool-Calling erweitern, abgedeckt in der [API-Referenz](/de/develop/api-reference).

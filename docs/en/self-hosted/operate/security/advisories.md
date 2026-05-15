@@ -3,9 +3,9 @@ title: Security advisory process
 description: How Tale coordinates, files, and publishes security-relevant fixes.
 ---
 
-This page documents how Tale handles security-relevant fixes from initial report to published advisory. The shape of the process — private draft on GitHub, patch released, advisory published with CVE linkage and release-notes cross-reference — is conventional; we're documenting it so operators know what to watch and so reporters know what to expect.
+This page documents how Tale handles security-relevant fixes from initial report to published advisory. The shape of the process — private draft on GitHub, patch released, advisory published with CVE linkage and release-notes cross-reference — is conventional; the page exists so operators know what to watch for and so reporters know what to expect.
 
-For the operator side, the practical takeaway is to subscribe to GitHub Security Advisories on `tale-project/tale` and read the `## 🔒 Security` section of every release. Anything that has a CVE will be in both places.
+The operator-side takeaway is short: subscribe to GitHub Security Advisories on `tale-project/tale` and read the `## 🔒 Security` section of every release. Anything that earns a CVE shows up in both places, with the upgrade path and workarounds named explicitly.
 
 ## Channels
 
@@ -61,4 +61,4 @@ Operators should:
 
 ## Where this fits
 
-Security advisories are how Ruler GmbH discloses CVEs and how operators learn what to patch. Every advisory points at a Tale release that contains the fix; operators then run `tale deploy` (or wait for Cloud's automatic roll-forward). The release-notes side of the same event lives at [Release notes format](/self-hosted/operate/release-notes/format), under the Security section. The `/release` slash command in the main repository drafts that section automatically.
+Security advisories are how Ruler GmbH discloses CVEs and how operators learn what to patch on a self-hosted instance. Every advisory points at a Tale release that contains the fix; operators run `tale deploy` to roll forward, while Cloud customers get the same fix on the next platform deploy. The release-notes side of the same event lives at [Release notes format](/self-hosted/operate/release-notes/format) under the `## 🔒 Security` section; the `/release` slash command in the main repository drafts that section automatically when a release ships.

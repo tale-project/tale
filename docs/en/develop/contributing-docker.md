@@ -1,11 +1,11 @@
 ---
 title: Contributing Docker guide
-description: How to modify Dockerfiles, run container tests, and keep images lean.
+description: Modify Dockerfiles, run container tests, and keep images within their size budgets.
 ---
 
-This guide covers the Docker development workflow for contributors who need to modify Dockerfiles, add dependencies, or debug container issues. The goal of the workflow below is to keep the production images small and the local build cycle fast — the two pull in opposite directions, and most of the rules here exist because one or the other was getting away from us.
+This page is the contributor workflow for the Docker side of the Tale build system — adding dependencies, changing the multi-stage shape, debugging a failing image, scanning for vulnerabilities. Most readers of this page are touching `Dockerfile.<service>`, the compose files, or the image-budget tests, and the rules below exist because production images and local build cycles pull in opposite directions: small final image versus fast iteration. The goal here is to keep both working.
 
-If you are only running Tale rather than building it, the user-facing install docs at [Quickstart](/self-hosted/install/quickstart) and [Linux server](/self-hosted/install/linux-server) cover everything you need. This page is contributor territory.
+If you're running Tale rather than building it, the install paths at [Quickstart](/self-hosted/install/quickstart) and [Linux server](/self-hosted/install/linux-server) cover everything you need — this page is contributor territory.
 
 ## Prerequisites
 
@@ -16,6 +16,8 @@ If you are only running Tale rather than building it, the user-facing install do
 | Trivy (optional)                | Latest                                |
 
 ## Quick reference
+
+The commands you reach for daily, before any of the details below:
 
 ```bash
 # Build all images
@@ -37,34 +39,40 @@ bun run docker:test:vulnerability
 docker compose -f compose.yml -f compose.dev.yml up --build
 ```
 
+Each of these commands is unpacked further down — the rest of the page is the why behind the rules they enforce.
+
 ## Dockerfile conventions
 
 ### Multi-stage builds
 
-All Python and Node.js images use multi-stage builds. The pattern is:
+Every Python and Node.js image uses multi-stage builds. The pattern is three stages, each with a single job:
 
-1. **Builder stage** — Install all build dependencies, compile native packages
-2. **Runtime stage** — Copy only runtime artifacts into a clean base image
-3. **Squash stage** — `FROM scratch` + `COPY --from=runtime / /` to flatten layers
+1. **Builder stage** installs build dependencies and compiles native packages. This is where `gcc`, `build-essential`, and language-specific build tools live.
+2. **Runtime stage** copies only the runtime artifacts into a clean base image — no build tools.
+3. **Squash stage** uses `FROM scratch` plus `COPY --from=runtime / /` to flatten the layers.
 
-The squash stage ensures that file deletions in cleanup steps actually reclaim disk space, rather than just adding masking layers. This keeps build tools (`gcc`, `build-essential`, `libpq-dev`) out of the final image.
+The squash stage matters because file deletions in cleanup steps don't reclaim disk space by themselves — they add masking layers that still ship in the final image. Squashing collapses the deletes into a single layer that genuinely doesn't include the files.
 
-> **Important:** When using `FROM scratch`, all ENV vars from upstream stages are lost and must be re-declared. Volume mountpoints must also be pre-created in the runtime stage before the squash.
+A consequence worth knowing: `FROM scratch` loses every `ENV` and `VOLUME` declaration from upstream stages. Re-declare them in the runtime stage before squash, or they're gone.
 
 ### Layer caching
 
-Order your `COPY` and `RUN` instructions from least-frequently-changed to most-frequently-changed:
+Order `COPY` and `RUN` instructions from least-frequently-changed to most-frequently-changed. Dependencies change less often than application code, so the dependency install should land before the application copy:
 
 ```dockerfile
-# Good: dependencies change less often than application code
+# Dependencies first — cached across most builds
 COPY pyproject.toml .
 RUN uv pip install --system --no-cache-dir .
+
+# Application code last — reinstalls only when deps change
 COPY app/ ./app/
 ```
 
-### No cache flags
+A wrong order forces a full reinstall on every code change, which is the most common reason a build that used to take 30 seconds now takes five minutes.
 
-Always use `--no-cache-dir` (pip/uv) and `--no-install-recommends` (apt-get):
+### No-cache flags
+
+Always use `--no-cache-dir` for pip and uv, and `--no-install-recommends` for apt:
 
 ```dockerfile
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
@@ -72,27 +80,33 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
 RUN uv pip install --system --no-cache-dir .
 ```
 
+The cache dirs serve no purpose in a production image — they only take space.
+
 ### OCI labels
 
-Every Dockerfile must include a version label:
+Every Dockerfile carries a version label so the registry can show where a tag came from:
 
 ```dockerfile
 ARG VERSION=dev
 LABEL org.opencontainers.image.version="${VERSION}"
 ```
 
+CI substitutes `VERSION` with the git tag at release time.
+
 ### Health checks
 
-Every Dockerfile must include a `HEALTHCHECK` instruction:
+Every Dockerfile carries a `HEALTHCHECK` so orchestrators can tell when the container is actually serving:
 
 ```dockerfile
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8001/health || exit 1
 ```
 
+`start-period` is critical for slow-starting services like the platform — without it, the container is marked unhealthy before it finishes booting.
+
 ## Image size budgets
 
-Each image has a size budget. CI will fail if an image exceeds its budget.
+Each image has a budget. CI fails when an image exceeds it.
 
 | Service  | Budget   | Current   |
 | -------- | -------- | --------- |
@@ -102,72 +116,55 @@ Each image has a size budget. CI will fail if an image exceeds its budget.
 | DB       | 1,200 MB | ~1,060 MB |
 | Proxy    | 100 MB   | ~88 MB    |
 
-### Common reasons for size increases
+When a budget breaks, the most common causes are: a new Python dependency pulling large transitive deps, an apt package added without `--no-install-recommends`, build artifacts not stripped before the squash stage, or the multi-stage shape broken so build tools land in the runtime layer.
 
-1. **Adding a new Python dependency** — Check if it pulls in large transitive deps
-2. **Adding apt packages** — Use `--no-install-recommends` and clean up afterwards
-3. **Forgetting to strip in builder** — Remove `__pycache__`, `.pyc`, test dirs, `.so` debug symbols
-4. **Not using multi-stage** — Build tools must stay in the builder stage
-
-### Reducing image size
+To see what's taking space inside an image:
 
 ```bash
-# Check what's taking space in an image
+# Top-level disk usage
 docker run --rm -it <image> du -sh /* 2>/dev/null | sort -rh | head -20
 
-# Check Python packages
-docker run --rm <image> pip list 2>/dev/null || \
-docker run --rm <image> python -c "import pkg_resources; [print(f'{p.key}: {p.location}') for p in pkg_resources.working_set]"
+# Python packages and their install paths
+docker run --rm <image> pip list
 
-# Dive: visual layer analysis
-# Install: https://github.com/wagoodman/dive
+# Visual layer analysis — installs separately
+# https://github.com/wagoodman/dive
 dive <image>
 ```
 
+`dive` is the most useful of the three for finding stray files in a layer that should have been deleted.
+
 ## Testing workflow
 
-### 1. Build and smoke test
+### Smoke tests
 
 ```bash
 bun run docker:test
 ```
 
-This runs `tests/container-smoke-test.sh` which:
+This runs `tests/container-smoke-test.sh`, which builds all five images, starts the services on non-conflicting ports (15432, 18001, 18002, …), waits for health checks, validates HTTP endpoints, exercises inter-service connectivity, and tears everything down including volumes. The non-conflicting ports let the test suite run alongside a local dev environment without colliding.
 
-- Builds all 5 images
-- Starts services on non-conflicting ports (15432, 18001, 18002, etc.)
-- Waits for health checks
-- Validates HTTP endpoints
-- Tests inter-service connectivity
-- Tears down everything (including volumes)
-
-### 2. Image validation
+### Image validation
 
 ```bash
 bun run docker:test:image
 ```
 
-Checks each image for:
+For each image, the validator checks the OCI `org.opencontainers.image.version` label, the non-root user (required for the platform image), the absence of secrets in env or filesystem, the `HEALTHCHECK` instruction, and the size budget. Any single failure rejects the image.
 
-- OCI `org.opencontainers.image.version` label
-- Non-root user (required for platform)
-- No secrets baked into image env or filesystem
-- `HEALTHCHECK` instruction present
-- Image size within budget
-
-### 3. Vulnerability scanning
+### Vulnerability scanning
 
 ```bash
 bun run docker:test:vulnerability
 ```
 
-Runs Trivy against each image. Reports are saved to `trivy-reports/`.
-
-To suppress a known false positive, add the CVE ID to `.trivyignore`:
+Runs Trivy against each image. Reports land in `trivy-reports/`. Known false positives go in `.trivyignore`:
 
 ```
 CVE-2023-12345    # false positive: function not reachable
 ```
+
+The file is plain text, one CVE per line, an optional comment after `#`.
 
 ## CI/CD pipeline
 
@@ -181,6 +178,8 @@ graph LR
     A --> E["Vulnerability scan (non-blocking)"]
 ```
 
+The vulnerability scan is non-blocking on PRs — Trivy's noise rate is too high to gate every merge, so reviewers skim the report on changes that touch dependencies.
+
 ### On release tags (`release.yml`)
 
 ```mermaid
@@ -191,13 +190,13 @@ graph LR
     D --> E["Trigger CLI build"]
 ```
 
-The container test gate pulls the just-pushed images and runs smoke tests + image validation before manifests are created.
+The container test gate pulls the just-pushed images and runs smoke tests plus image validation before manifests are created — that's the last chance to catch a regression before the tag is tagged.
 
 ## Common pitfalls
 
 ### "parent snapshot does not exist"
 
-Docker BuildKit cache corruption. Fix:
+Docker BuildKit cache corruption. Prune the builder cache:
 
 ```bash
 docker builder prune -f
@@ -205,27 +204,38 @@ docker builder prune -f
 
 ### Port already in use
 
-Use `compose.test.yml` which maps to non-conflicting ports:
+Use `compose.test.yml`, which maps to non-conflicting ports:
 
 ```bash
 docker compose -f compose.yml -f compose.test.yml --env-file .env.test -p tale-test up -d
 ```
 
-### Python package not found at runtime
+### Python package missing at runtime
 
-If a package is installed in the builder but not available in the runtime stage, check that:
+A package installs cleanly in the builder but isn't there in the runtime stage. Usually one of three things:
 
-1. You're copying from the correct path: `COPY --from=builder /usr/local/lib/python3.11/site-packages ...`
-2. The package's `.dist-info` isn't being removed if something depends on metadata at runtime
-3. The strip step isn't removing required `.so` files
+1. The `COPY --from=builder ...` path is wrong — confirm `/usr/local/lib/python3.11/site-packages` matches your base image's Python version.
+2. The package's `.dist-info` was removed by a cleanup step that something depends on at import time.
+3. A binary stripping step removed `.so` files the package needs.
 
-### Node.js module not found at runtime
+### Node module missing after pruner stage
 
-If a module is missing after the pruner stage, check:
+A module is in the builder but missing in the runtime. Usually one of two things:
 
-1. Whether it's listed in `dependencies` (not `devDependencies`) in `package.json`
-2. Whether the pruner step explicitly removes it in the `rm -rf` list
+1. The module is in `devDependencies` instead of `dependencies` in `package.json` — Node's pruner drops dev deps.
+2. The pruner's `rm -rf` list explicitly removes the module's directory.
+
+## Trust boundary
+
+When you're modifying Dockerfiles, treat the image build as crossing a trust boundary: the inputs (Dockerfile, base image, dependency list) are owned by Tale; the outputs (the pushed image) are consumed by every operator that runs Tale. The implications:
+
+- **Base images.** Pin by digest in production stages, not by tag. A floating `python:3.11-slim` pulls a different image every week.
+- **Build secrets.** Never copy a real secret into an image. The image validation step refuses build-arg secrets that leak into the runtime layer.
+- **Network access during build.** Builds reach the internet for dependencies; CI should run builds on isolated workers with no privileged credentials.
+- **Cross-architecture artifacts.** When the release pipeline builds amd64 and arm64, the two must produce equivalent images. A platform-specific dependency that quietly behaves differently is a debugging nightmare months later.
 
 ## Where this fits
 
-Contributing Docker is the source-contributor flow for the build system that produces Tale's container images. Most readers of this page are touching `Dockerfile.<service>`, the multi-stage build, or the image-budget tests; the runtime architecture those images run inside is documented at [Container architecture](/self-hosted/operate/container-architecture). For the operator-side install path that consumes the images, [Quickstart](/self-hosted/install/quickstart) and [Linux-server install](/self-hosted/install/linux-server) are the canonical references.
+Contributing Docker is the source-contributor flow for the build system that produces Tale's container images. The runtime architecture those images run inside is documented at [Container architecture](/self-hosted/operate/container-architecture); for the operator-side install path that consumes the images, [Quickstart](/self-hosted/install/quickstart) and [Linux server](/self-hosted/install/linux-server) are the canonical references.
+
+For the broader source-contributor flow — code conventions, PR shape, test layout — the project root carries `AGENTS.md` with the binding rules.

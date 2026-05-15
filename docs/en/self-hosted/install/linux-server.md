@@ -5,7 +5,7 @@ description: Deploy Tale to a production server using the Tale CLI with zero-dow
 
 This guide is the production path: a Linux server with a real domain, real TLS, and the blue-green deployment topology that makes upgrades survive without a maintenance window. The `tale` CLI does the heavy lifting — it pulls the Docker images, runs the migrations, and switches traffic only after the new containers pass their health checks. If a deploy fails to come up, the previous version stays serving and nothing user-visible breaks.
 
-If you just want to try Tale locally, [Quickstart](/self-hosted/install/quickstart) is shorter and runs in minutes. Come back here when you're ready to expose the instance to your team.
+For a laptop evaluation, [Quickstart](/self-hosted/install/quickstart) is shorter and runs in minutes. Come back here when you're ready to expose the instance to your team.
 
 ## Prerequisites
 
@@ -268,7 +268,7 @@ TLS_MODE=external
 BASE_PATH=/tale
 ```
 
-Caddy handles stripping the subpath prefix internally — your reverse proxy does **not** need to strip it. Simply forward all traffic under the subpath as-is (note: no trailing slash on `proxy_pass`):
+Caddy handles stripping the subpath prefix internally — your reverse proxy does **not** need to strip it. Forward all traffic under the subpath as-is (no trailing slash on `proxy_pass`):
 
 ```nginx
 location /tale/ {

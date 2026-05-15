@@ -3,7 +3,7 @@ title: Aufbewahrungs-Konfiguration
 description: Konfiguriere, wie lange Konversationen, Dateien, Audit-Einträge und Ausführungen aufbewahrt werden.
 ---
 
-Tale verfügt über eine zentrale Aufbewahrungs-Konfiguration, die für alle Datendomänen gilt — Chat-Konversationen, hochgeladene Dateien, Audit-Logs, Workflow-Ausführungen und Analytics-Einträge. Die Standardwerte sind für die meisten Deployments angemessen; passe sie an, wenn Compliance, Kosten oder Datenschutzregeln andere Einstellungen erfordern.
+Tale liefert eine zentrale Aufbewahrungs-Konfiguration, die für alle Datendomänen gilt — Chat-Konversationen, hochgeladene Dateien, Audit-Logs, Workflow-Ausführungen und Analytics-Einträge. Diese Seite ist für Betreiber, die diese Grenzen aus Compliance-, Kosten- oder Datenschutzgründen anpassen müssen; die In-App-Pro-Organisation-Einstellungen liegen unter [Governance](/de/platform/admin/governance). Die Defaults sind für die meisten Deployments angemessen, sodass die meisten Installationen die Datei- und Env-Schichten unten in Ruhe lassen und nur den Pro-Org-Schieberegler in der UI tunen.
 
 Aufbewahrungs-Grenzen werden in drei Schichten aufgelöst:
 
@@ -83,7 +83,7 @@ Nach dem Editieren einer Datei greift die nächste Editor-Reload automatisch die
 
 Die `docker-entrypoint.sh` der Plattform synct standardmäßig jede Env-Variable des Plattform-Containers nach Convex (passend zum `bun run dev`-Verhalten). Eine kleine `ENV_SYNC_DENYLIST` am Anfang des Entrypoints ist der einzige Platform-seitige Wartungsaufwand — sie ist aktuell leer und wächst nur, wenn eine bestimmte Variable Convex aktiv stört. Operatoren müssen keine Plattform-seitige Allowlist verhandeln, um eigene Env-Variablen hinzuzufügen.
 
-Diese gelten für jede Organisation auf dem Deployment, oben auf den Pro-Org-Datei-Werten. Sie können Grenzen nur VERSCHÄRFEN — einen Floor anheben oder ein Ceiling senken — niemals über das hinaus aufweichen, was die Datei deklariert. Alle Werte sind in Tagen, sofern nicht anders angegeben.
+Diese Variablen gelten für jede Organisation auf dem Deployment, oben auf den Pro-Org-Datei-Werten. Sie verschärfen Grenzen nur — einen Floor anheben oder ein Ceiling senken — und weichen sie nie über das hinaus auf, was die Datei deklariert. Alle Werte sind in Tagen, sofern nicht anders angegeben.
 
 Die Env-Namen unten stammen aus dem Root-`_metadata.envNames`-Map des mitgelieferten `examples/retention/default.json`. `envPrefix` ist `"TALE_RETENTION_"` (mit abschließendem Unterstrich). Vollständige Env-Namen entstehen durch reine String-Konkatenation: `envPrefix + suffix`.
 
@@ -166,7 +166,6 @@ Audit-Subtyp `gdpr_erasure_executed` (`category: 'admin'`) erfasst Akteur, Grund
 - Bei der Chat-Verlauf-Aufbewahrung wird jede Nachfolge-Zeile (Nachrichten, Metadata, Todos, Feedback, Artifacts usw.) per Cascade über den geteilten `cascadeDeleteThreadChildren`-Helper gelöscht, sodass User-Delete und Retention-Delete niemals auseinanderdriften.
 - Die Audit-Log-Aufbewahrung schreibt an jeder Batch-Grenze einen `auditLogCheckpoints`-Eintrag, sodass die SHA-256-Hash-Chain verifizierbar bleibt.
 
-## Verwandt
+## Wo das einsetzt
 
-- [Umgebungsvariablen-Referenz](/de/self-hosted/configuration/environment-reference) — vollständige Liste der Tale-Umgebungsvariablen.
-- [Governance](/de/platform/admin/governance) — Pro-Org-Aufbewahrungseinstellungen und Legal-Hold-Verwaltung.
+Aufbewahrung ist die Pro-Tabelle-Lebensdauer für alles, was Tale speichert. Die Defaults sind konservativ; die Pro-Org-Overrides kommen aus [Governance](/de/platform/admin/governance), und jede Umgebungsvariable, die das Aufbewahrungs-Verhalten steuert, ist in der [Umgebungs-Referenz](/de/self-hosted/configuration/environment-reference) katalogisiert. Greif zu dieser Seite, wenn eine Compliance-Person fragt, wie lange eine bestimmte Tabelle lebt; greif zu Governance, wenn die Antwort sich für einen einzelnen Tenant ändern muss.

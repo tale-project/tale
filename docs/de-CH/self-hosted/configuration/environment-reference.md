@@ -54,7 +54,7 @@ Die Anbieter-Konfiguration (API-Schlüssel, Base-URLs, Modelle) erfolgt über Da
 | `RAG_DATABASE_URL`     | Nein    |          | Überschreibt die DB-URL für den RAG-Dienst (muss den DB-Namen enthalten, z. B. `postgresql://...host/tale_knowledge`).                          |
 | `CRAWLER_DATABASE_URL` | Nein    |          | Überschreibt die DB-URL für den Crawler-Dienst (muss den DB-Namen enthalten, z. B. `postgresql://...host/tale_knowledge`).                      |
 
-Zum Einsatz einer externen PostgreSQL-Instanz statt des mitgelieferten Containers siehe [Externe Datenbank nutzen](/de/self-hosted/install/linux-server#externe-datenbank-nutzen).
+Zum Einsatz einer externen PostgreSQL-Instanz statt des mitgelieferten Containers siehe [Externe Datenbank nutzen](/de-CH/self-hosted/install/linux-server#externe-datenbank-nutzen).
 
 ## Error-Tracking
 
@@ -70,7 +70,7 @@ Falls nicht gesetzt, ist Error-Tracking deaktiviert und Fehler erscheinen nur in
 | ---------------------- | ------- | -------- | ---------------------------------------------------------- |
 | `METRICS_BEARER_TOKEN` | Nein    |          | Bearer-Token für externen Zugriff auf Prometheus-Metriken. |
 
-Wenn leer, liefern alle `/metrics/*`-Endpoints `401`. Siehe [Operations](/de/self-hosted/operate/observability/operations) für Endpoint-Details.
+Wenn leer, liefern alle `/metrics/*`-Endpoints `401`. Siehe [Operations](/de-CH/self-hosted/operate/observability/operations) für Endpoint-Details.
 
 ## Dienst-URLs
 
@@ -109,10 +109,10 @@ Diese Variablen sind nur nötig, wenn du SSO über Environment-Variablen konfigu
 | `TRUSTED_ROLE_HEADER`             | Nein    | Kopfzeile-Name für die Rolle des Nutzers (Standard: `Remote-Role`).               |
 | `TRUSTED_TEAMS_HEADER`            | Nein    | Kopfzeile-Name für die Teams des Nutzers (Standard: `Remote-Teams`).              |
 
-Siehe die [Authentifizierungs-Anleitung](/de/self-hosted/admin/authentication) für Details zur Konfiguration von Trusted Kopfzeilen.
+Siehe die [Authentifizierungs-Anleitung](/de-CH/self-hosted/admin/authentication) für Details zur Konfiguration von Trusted Kopfzeilen.
 
 ## Wo das hingehört
 
-Das oben aufgeführte Umgebungsvariablen-Inventar ist die Operator-API zu Tale. Alles, was Tales Runtime wissen muss und nicht im Code mitgeliefert oder über die UI gesetzt wird, lebt in einer dieser Variablen, und die meisten haben sinnvolle Defaults, die nur die Produktions-Installation überhaupt überschreibt. Die UI-Gegenstücke dieser Schrauben liegen unter **Einstellungen > Governance**, **Einstellungen > KI-Anbieter** und **Einstellungen > Branding** — für die feature-spezifischen Referenzseiten siehe [Governance](/de/platform/admin/governance), [KI-Anbieter — Konfigurationsreferenz](/de/self-hosted/configuration/providers) und [Branding](/de/platform/admin/branding).
+Das oben aufgeführte Umgebungsvariablen-Inventar ist die Operator-API zu Tale. Alles, was Tales Runtime wissen muss und nicht im Code mitgeliefert oder über die UI gesetzt wird, lebt in einer dieser Variablen, und die meisten haben sinnvolle Defaults, die nur die Produktions-Installation überhaupt überschreibt. Die UI-Gegenstücke dieser Schrauben liegen unter **Einstellungen > Governance**, **Einstellungen > KI-Anbieter** und **Einstellungen > Branding** — für die feature-spezifischen Referenzseiten siehe [Governance](/de-CH/platform/admin/governance), [KI-Anbieter — Konfigurationsreferenz](/de-CH/self-hosted/configuration/providers) und [Branding](/de-CH/platform/admin/branding).
 
-Wenn Tales Runtime etwas erwartet, das nicht da ist — ein fehlender API-Schlüssel, ein abwesender Pepper, ein verkorkstes `TALE_CONFIG_DIR` — sagt der Boot-Log das auf stderr. [Fehlerbehebung](/de/self-hosted/operate/observability/troubleshooting) katalogisiert die häufigsten Umgebungs-Fehlkonfigurations-Fehlermodi.
+Wenn Tales Runtime etwas erwartet, das nicht da ist — ein fehlender API-Schlüssel, ein abwesender Pepper, ein verkorkstes `TALE_CONFIG_DIR` — sagt der Boot-Log das auf stderr. [Fehlerbehebung](/de-CH/self-hosted/operate/observability/troubleshooting) katalogisiert die häufigsten Umgebungs-Fehlkonfigurations-Fehlermodi.

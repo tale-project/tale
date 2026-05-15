@@ -3,13 +3,13 @@ title: KI-Anbieter
 description: KI-Modell-Anbieter über JSON-Konfigurationsdateien einrichten, selbst gehostete Inferenz-Backends anbinden und Secrets entweder verschlüsselt (SOPS) oder als Klartext speichern.
 ---
 
-Anbieter verbinden Tale über OpenAI-kompatible HTTP-APIs mit KI-Modellen. Admins können Anbieter im laufenden Betrieb unter **Einstellungen > KI-Anbieter** anlegen und bearbeiten — siehe [KI-Anbieter](/de/platform/admin/providers) für den UI-Weg und das Feature-Konzept. Diese Seite beschreibt die Konfigurationsform auf der Platte: die JSON-Dateien in `TALE_CONFIG_DIR/providers/`, ihr Schema, die Speicherung von Secrets (SOPS-verschlüsselt oder als Klartext) und wie du Tale auf selbst gehostete Inferenz-Backends wie Ollama, vLLM, LocalAI oder faster-whisper-server zeigen lässt.
+Anbieter verbinden Tale über OpenAI-kompatible HTTP-APIs mit KI-Modellen. Admins können Anbieter im laufenden Betrieb unter **Einstellungen > KI-Anbieter** anlegen und bearbeiten — siehe [KI-Anbieter](/de-CH/platform/admin/providers) für den UI-Weg und das Feature-Konzept. Diese Seite beschreibt die Konfigurationsform auf der Platte: die JSON-Dateien in `TALE_CONFIG_DIR/providers/`, ihr Schema, die Speicherung von Secrets (SOPS-verschlüsselt oder als Klartext) und wie du Tale auf selbst gehostete Inferenz-Backends wie Ollama, vLLM, LocalAI oder faster-whisper-server zeigen lässt.
 
 Die UI-Form und die Dateiform sind gleichwertig — beim Speichern aus **Einstellungen > KI-Anbieter** schreibt die App dasselbe JSON. Wähle, was zu deinem Change-Management-Workflow passt: UI-Änderungen sind schneller für tägliche Anpassungen, Dateiänderungen landen sauber in Git und eignen sich für Infrastructure-as-Code-Betreiber.
 
 ## Dateistruktur
 
-Die Anbieter-Konfiguration liegt im Unterverzeichnis `providers/` von `TALE_CONFIG_DIR`. Den Wert der Variable pro Deployment-Variante findest du in der [Environment-Referenz](/de/self-hosted/configuration/environment-reference).
+Die Anbieter-Konfiguration liegt im Unterverzeichnis `providers/` von `TALE_CONFIG_DIR`. Den Wert der Variable pro Deployment-Variante findest du in der [Environment-Referenz](/de-CH/self-hosted/configuration/environment-reference).
 
 ```text
 $TALE_CONFIG_DIR/
@@ -240,7 +240,7 @@ Das Beispiel enthält Modelle mehrerer Hersteller:
 cp examples/providers/openai.json $TALE_CONFIG_DIR/providers/
 ```
 
-Trage deinen OpenAI-Schlüssel über **Einstellungen > KI-Anbieter > OpenAI** ein. Die Datei deklariert `whisper-1` und `defaults.transcription`, sodass Audio- und Video-Anhänge im Chat hierhin geroutet werden, sobald ein Schlüssel gesetzt ist. Den Endbenutzer-Blick findest du unter [Chat-Anhänge](/de/platform/chat/attachments#audio-und-video-transkription).
+Trage deinen OpenAI-Schlüssel über **Einstellungen > KI-Anbieter > OpenAI** ein. Die Datei deklariert `whisper-1` und `defaults.transcription`, sodass Audio- und Video-Anhänge im Chat hierhin geroutet werden, sobald ein Schlüssel gesetzt ist. Den Endbenutzer-Blick findest du unter [Chat-Anhänge](/de-CH/platform/chat/attachments#audio-und-video-transkription).
 
 ## Selbst gehostete Inferenz-Backends
 
@@ -324,4 +324,4 @@ Einfache Einträge (ohne Doppelpunkt) lösen auf den ersten Anbieter auf, der di
 
 Die hier beschriebenen Anbieter-Dateien sind die On-Disk-Form derselben Konfiguration, die die UI schreibt, wenn ein Admin unter **Einstellungen > Anbieter** speichert. Wähle die Oberfläche, die zu deinem Change-Management passt: die UI für tägliche Anpassungen und schnelle Rollouts, die Dateien, wenn die Konfiguration in git neben dem Rest deiner Infrastruktur leben soll. So oder so ist diese Seite der kanonische Ort, um zu lesen, was jedes Feld bedeutet.
 
-Verwandte Referenzen: [KI-Anbieter](/de/platform/admin/providers) zeigt das UI-Gegenstück für Admins, [Chat-Anhänge](/de/platform/chat/attachments#audio-und-video-transkription) demonstriert, wie die hier konfigurierten Transkriptions-Modelle endnutzer-seitig konsumiert werden, und [Environment-Referenz](/de/self-hosted/configuration/environment-reference) dokumentiert `TALE_CONFIG_DIR` und die anderen Variablen, die diese Seite voraussetzt.
+Verwandte Referenzen: [KI-Anbieter](/de-CH/platform/admin/providers) zeigt das UI-Gegenstück für Admins, [Chat-Anhänge](/de-CH/platform/chat/attachments#audio-und-video-transkription) demonstriert, wie die hier konfigurierten Transkriptions-Modelle endnutzer-seitig konsumiert werden, und [Environment-Referenz](/de-CH/self-hosted/configuration/environment-reference) dokumentiert `TALE_CONFIG_DIR` und die anderen Variablen, die diese Seite voraussetzt.

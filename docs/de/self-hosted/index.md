@@ -21,7 +21,7 @@ Jede Seite steht auf der Ebene einer Betreiber-Entscheidung. Die Form: Titel fet
 - **[Container-Architektur](/de/self-hosted/operate/container-architecture)** — wie die fünf Services im internen Docker-Netzwerk verbunden sind, wo Ports nach aussen reichen und wie der Blue-Green-Roll aussieht.
 - **[Observability: Betrieb](/de/self-hosted/operate/observability/operations)** — Prometheus-Metriken, Log-Ströme, Health-Probes und was du in deinen Monitoring-Stack verdrahtest.
 - **[Observability: Fehlersuche](/de/self-hosted/operate/observability/troubleshooting)** — die drei oder vier Probleme, die Betreiber wirklich sehen, und wie du sie auf einer laufenden Instanz diagnostizierst.
-- **[Sicherheitshinweise](/de/self-hosted/operate/security/advisories)** — wie Ruler GmbH CVEs veröffentlicht, wie du sie abonnierst und wer für welchen Patch zuständig ist.
+- **[Sicherheitshinweise](/de/self-hosted/operate/security/advisories)** — wie Ruler GmbH CVEs veröffentlicht, wie Betreiber sie abonnieren und wie sich die Patch-Verantwortung zwischen Projekt und Betreiber aufteilt.
 - **[Release-Notes-Format](/de/self-hosted/operate/release-notes/format)** — das kanonische Format für GitHub-Release-Notes; was rein, was raus, wie du sie vor einem Upgrade liest.
 
 ## Installiere deine Instanz

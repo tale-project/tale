@@ -3,7 +3,7 @@ title: Workflows
 description: Mehrstufige Workflows mit Triggern, Bedingungen, Schleifen und KI-Schritten bauen und ausführen.
 ---
 
-Mit Automatisierungen definierst und führst du mehrstufige Geschäftsprozesse aus, ohne Backend-Code schreiben zu müssen. Ein Workflow ist eine Reihe von Schritten. Jeder Schritt tut eine Sache, und Schritte werden zu einem vollständigen Ablauf verbunden.
+Ein Workflow ist die lauffähige Form einer Automatisierung — der Editor, in dem Schritte, Trigger und Variablen zu einem Graphen werden, der von Anfang bis Ende läuft. Diese Seite beschreibt den Editor selbst: wie du einen Workflow anlegst, die sechs Schritttypen, die er mitbringt, wie du Trigger an den **Start**-Schritt hängst, die Konfigurations-Stellschrauben für Retries und Timeouts, und wie du testest, bevor du veröffentlichst. Zielgruppe ist die Entwickler-Rolle oder höher, die einen Workflow baut oder pflegt; das Vokabular, auf das diese Seite zurückgreift, liegt unter [Automatisierungs-Konzepte](/de/platform/automations/concepts).
 
 ## Einen Workflow erstellen
 

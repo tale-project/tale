@@ -3,7 +3,7 @@ title: Release-Notes-Format
 description: Massgebliches Format für GitHub-Release-Notes auf tale-project/tale.
 ---
 
-Massgebliches Format für GitHub-Release-Notes auf `tale-project/tale`. Der `/release`-Slash-Command entwirft Notes gegen diese Spezifikation, und der Link „Was ist neu" im Produkt führt direkt zu diesen Releases.
+Tale veröffentlicht seine Release-Historie als GitHub-Release-Notes gegen das Repository `tale-project/tale`, in einer festen Form, damit Betreiber ein Release vor einem Upgrade auf die drei wichtigen Dinge scannen können — Sicherheitsrelevanz, Verhaltensänderung, Breaking Change — ohne jeden Bullet zu lesen. Diese Seite ist der Vertrag: sie benennt jeden Abschnitt, die Reihenfolge, den Rahmen, den jedes Release teilt, und die Klassifizierungsregeln, die entscheiden, welcher Bullet wo landet. Der `/release`-Slash-Command im Hauptrepository entwirft Notes nach dieser Spec, und der In-Product-Viewer **Was ist neu** rendert dasselbe Markdown.
 
 ## Warum diese Spec existiert
 
@@ -54,7 +54,7 @@ Jedes Release muss mindestens enthalten:
 
 ## Klassifizierungsregeln
 
-- **Security**: alles, was Authentifizierung, Session, Secret-Speicherung, Crypto oder erreichbare Abhängigkeits-CVEs berührt. Im Zweifel als Security klassifizieren UND ein [Security Advisory](/de/self-hosted/operate/security/advisories) anlegen.
+- **Security**: alles, was Authentifizierung, Session, Secret-Speicherung, Crypto oder erreichbare Abhängigkeits-CVEs berührt. Im Zweifel als Security klassifizieren UND ein [Security Advisory](/de-CH/self-hosted/operate/security/advisories) anlegen.
 - **Model & Anbieter**: jede Änderung, die die LLM-Ausgabe bei gleichem Nutzer-Input verschieben kann — Modell-Bumps, Anbieter-Wechsel, Prompt-/Template-Änderungen in Default-Agents.
 - **Breaking Changes**: Nutzer oder Operatoren müssen nach dem Upgrade etwas tun, damit es weiter funktioniert. Wenn das Upgrade "einfach funktioniert", ist es nicht breaking.
 - **Other**: nur für erwähnenswerte Änderungen, die nirgends sonst passen. Triviale Chores (Tippfehler, interne Refactors, reine Test-Änderungen) weglassen.
@@ -95,7 +95,6 @@ Run `tale upgrade` to update the CLI, then `tale deploy` to apply the new versio
 **Full Changelog**: https://github.com/tale-project/tale/compare/v1.5.2...v1.6.0
 ```
 
-## Verwandt
+## Wo das einsetzt
 
-- [Security-Advisory-Prozess](/de/self-hosted/operate/security/advisories) — wann zusätzlich ein GitHub Security Advisory erstellt wird.
-- Der `/release`-Slash-Command im Hauptrepository entwirft Notes nach dieser Spec.
+Das Release-Notes-Format ist der Vertrag zwischen Ruler GmbH und jedem Betreiber, der eine selbst gehostete Tale-Instanz fährt. Dasselbe Markdown, das der In-Product-Viewer [Was ist neu](/de-CH/platform/admin/changelog) rendert, ist das, was Leser:innen vor `tale deploy` konsultieren; die konsistente Form macht die Notes scannbar. Der `/release`-Slash-Command im Hauptrepository entwirft Notes nach dieser Spec. Für sicherheits-relevante Fixes, die zusätzlich eine CVE-Offenlegung verdienen, ist [Sicherheitshinweise](/de-CH/self-hosted/operate/security/advisories) die parallele Oberfläche.

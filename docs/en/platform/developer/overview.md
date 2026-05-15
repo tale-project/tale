@@ -1,46 +1,36 @@
 ---
-title: What you can build
-description: An orientation for agent and automation builders.
+title: Developer
+description: The build-and-integrate seat — agents, automations, integrations, MCP servers, and API keys. The Developer's task-oriented landing for the day-to-day.
 ---
 
-This section is for the people who set up the parts of the platform everyone else uses — the agents the rest of the team chats with, the automations that run in the background, the integrations that connect Tale to other systems, and the knowledge those agents and automations ground in. If you have a **Developer** seat (or an **Editor** seat for agent work), the pages below are your reference.
+A **Developer** in Tale is the build-and-integrate seat. You wire up the parts of the platform everyone else uses: the agents your Editors curate knowledge for, the automations that run in the background, the integrations that connect Tale to other systems, and the API keys that let scripts and webhooks call into Tale from the outside. Everything an Editor can do, you can do; on top of that you create and publish automations, configure integrations and MCP servers, and manage API keys. You do not change organisation settings — branding, governance, providers, member roles — those are Admin territory.
 
-"Building" in Tale is mostly composition rather than coding. You decide what an agent should know, what it can do, and how it should behave — Tale handles the model calls, the conversation memory, the tool orchestration, and the run history. The mental model below is the small set of pieces you compose.
+Building in Tale is mostly composition rather than coding. You decide what an agent should know, what it can do, and how it should behave; Tale handles the model calls, the conversation memory, the tool orchestration, and the run history. The mental model below is the small set of pieces you compose. The canonical permission matrix lives at [Members and roles](/platform/admin/members-and-roles) — read it when a tutorial fails on a missing button.
 
-## The building blocks
+## A Developer's day
 
-### Agents
+A typical Developer day starts in **Automations** to look at last night's runs — green is boring; red is the first thing to triage from the execution logs. From there the work splits two ways: the Editor team needs an agent updated with a new knowledge filter and a new tool, and an inbound webhook from the support system needs a new automation step. The agent edit is a single screen change in **Agents** and a publish; the new step is added in the workflow editor, tested in a dry run, and shipped behind a feature flag. Late afternoon, an Admin asks for an API key rotation; you create the replacement key, swap it on the external caller, and revoke the old one.
 
-An agent is a customised AI assistant. You decide its system prompt, which AI model it uses, which knowledge it can search, which tools it can call, and how it should behave. Think of an agent as a named role — `Customer support`, `Sales research`, `Legal review` — each with its own rules, available across chat, automations, and the API.
+The pages below are arranged in the order the day asks for them — agents first because the question is usually "is the agent doing the right thing?", automations next because the question becomes "what about when no one is watching?", knowledge and integrations because those are the inputs to both.
 
-See [Agent concepts](/platform/agents/concepts) for the mental model, [Create an agent](/platform/agents/create) for the step-by-step, and [Agent versions](/platform/agents/versions) for safely iterating on a live agent.
+## Pages in this section
 
-### Automations
-
-An automation is a multi-step workflow that runs on a trigger — a schedule, an event, a webhook, or a manual run. Each step does one thing: call an API, query a database, ask an LLM, branch on a condition, loop over a list. Automations handle the work that has to happen without a human in the chat — nightly imports, inbound webhook fan-outs, scheduled summaries.
-
-See [Automation concepts](/platform/automations/concepts) for the mental model, [Workflows](/platform/automations/workflows) for the editor, [Triggers](/platform/automations/triggers) for how they start, and [Execution logs](/platform/automations/execution-logs) for debugging runs.
-
-### Knowledge
-
-The knowledge base is what agents search to answer questions. You upload documents, point at websites for crawling, and import structured records — products, customers, vendors. Curating it well is what turns an agent that hallucinates into an agent that cites.
-
-See [Structured data](/platform/knowledge/structured-data) and [Website crawling](/platform/knowledge/crawling).
-
-### Integrations
-
-Integrations connect Tale to the systems where your real data lives — REST APIs, SQL databases, email providers, Microsoft 365. Once configured, integrations are available as tools for agents to call and as action steps in automations. The difference between an agent that gives generic advice and an agent that updates a ticket in your support tool is one integration.
-
-See [Integrations overview](/platform/integrations/overview) and [AI providers](/platform/admin/providers).
-
-## Permissions
-
-Building requires the **Editor** role for agents and the **Developer** role for automations, integrations, and API keys. The full permission matrix is at [Members and roles](/platform/admin/members-and-roles); if a tutorial fails on a missing button, role is the first thing to check.
+- **[Agent concepts](/platform/agents/concepts)** — the four pieces every agent is made of (instructions, knowledge, tools, model) and the trade-offs each piece names.
+- **[Create an agent](/platform/agents/create)** — the step-by-step from an empty `Agents > New` to a published agent the rest of the team can pick in chat.
+- **[Agent versions](/platform/agents/versions)** — how to iterate on a live agent without breaking the conversations and automations that already use it.
+- **[Automation concepts](/platform/automations/concepts)** — the mental model: workflow, step, trigger, run, branch, loop. Read once, refer back to.
+- **[Workflows](/platform/automations/workflows)** — the visual editor where steps are added, wired, and dry-run.
+- **[Triggers](/platform/automations/triggers)** — schedules, webhooks, events, manual runs; how an automation starts.
+- **[Execution logs](/platform/automations/execution-logs)** — per-run inputs, outputs, branch decisions, and errors; the debugger you reach for when an automation went the wrong way.
+- **[Structured data](/platform/knowledge/structured-data)** — products, customers, vendors; the rows agents ground against when an answer needs more than a document.
+- **[Website crawling](/platform/knowledge/crawling)** — point Tale at a website, schedule recrawls, watch the indexer fill the knowledge base.
+- **[Integrations overview](/platform/integrations/overview)** — REST, SQL, email, Microsoft 365; the systems where the real data lives.
+- **[AI providers](/platform/admin/providers)** — Admin-owned but linked here because every agent's model selection draws from this catalogue.
 
 ## AI-assisted building
 
-Every building block above can also be created from JSON files in your project directory. If you open the project in an AI-powered editor (Claude Code, Cursor, GitHub Copilot, Windsurf), the editor has full context about schemas and platform capabilities — describe what you want in plain language, and the editor generates the configuration. For complex workflows or fleets of agents, this is usually faster than the UI. See [AI-assisted development](/develop/ai-assisted-development) for the full setup.
+Every building block above can also be authored from JSON files in your project directory. If you open the project in an AI-aware editor (Claude Code, Cursor, GitHub Copilot, Windsurf), the editor has full context about the schemas and platform capabilities — describe what you want in plain language, and the editor generates the configuration. For complex workflows or fleets of agents, this is often faster than the UI. See [AI-assisted development](/develop/ai-assisted-development) for the setup.
 
 ## Where this fits
 
-The Developer role is the build-and-integrate seat. The same person who builds the agents your Editors curate also wires up the integrations the agents call, the automations that run in the background, and the API keys that let external systems call into Tale. For the canonical permission matrix, see [Members and roles](/platform/admin/members-and-roles); for cross-system work (calling Tale from a script, receiving webhooks), the [Develop](/develop/api-reference) section is one tab over.
+The Developer role is the build-and-integrate seat. The same person who builds the agents Editors curate also wires up the integrations the agents call, the automations that run in the background, and the API keys that let external systems call into Tale. For the canonical permission matrix, see [Members and roles](/platform/admin/members-and-roles); for cross-system work (calling Tale from a script, receiving webhooks), the [Develop](/develop/api-reference) section is one tab over.

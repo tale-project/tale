@@ -3,7 +3,7 @@ title: Retention configuration
 description: Configure how long conversations, files, audit records, and executions are kept.
 ---
 
-Tale has a single, central retention configuration that applies across every data domain — chat conversations, uploaded files, audit logs, workflow executions, and analytics records. The defaults are reasonable for most deployments; tune them when compliance, cost, or privacy rules require different settings.
+Tale ships one central retention configuration that applies across every data domain — chat conversations, uploaded files, audit logs, workflow executions, and analytics records. This page is for operators who need to tune those retention bounds for compliance, cost, or privacy reasons; the in-app per-organisation settings live under [Governance](/platform/admin/governance). The defaults are reasonable for most deployments, so most installs leave the file and env layers below alone and tune only the per-org slider in the UI.
 
 Retention bounds resolve in three layers:
 
@@ -187,4 +187,4 @@ Audit subtype `gdpr_erasure_executed` (`category: 'admin'`) records actor, reaso
 
 ## Where this fits
 
-Retention is the per-table lifespan policy for everything Tale stores. The defaults are conservative; the per-org overrides come from [Governance](/platform/admin/governance), and every environment variable that gates retention behaviour is catalogued in the [Environment reference](/self-hosted/configuration/environment-reference). Reach for this page when a compliance officer asks "how long do we keep X?"; reach for Governance when the answer needs to change for one specific tenant.
+Retention is the per-table lifespan policy for everything Tale stores. The defaults are conservative; the per-org overrides come from [Governance](/platform/admin/governance), and every environment variable that gates retention behaviour is catalogued in the [Environment reference](/self-hosted/configuration/environment-reference). Reach for this page when a compliance officer asks how long a particular table lives; reach for Governance when the answer needs to change for one specific tenant.

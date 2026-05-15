@@ -102,7 +102,7 @@ Um nach einem Deployment oder einer Konfigurationsänderung sicherzugehen, dass 
 bun run docker:test
 ```
 
-Er baut alle Images, startet sie auf nicht-konflikthaften Ports, prüft Health-Endpoints und Inter-Service-Konnektivität und baut wieder ab. Es ist derselbe Test, der in CI bei jedem Pull Anfrage läuft.
+Er baut alle Images, startet sie auf nicht-konflikthaften Ports, prüft Health-Endpoints und Inter-Service-Konnektivität und baut wieder ab. Es ist derselbe Test, der in CI bei jedem Pull Request läuft.
 
 Für Image-Validierung (OCI-Labels, keine Secrets, Size-Budgets):
 
@@ -122,4 +122,8 @@ Jedes Container-Image hat ein Size-Budget, das CI erzwingt. Aktuelle Grössen un
 | DB       | ~1.06 GB        | 1.2 GB |
 | Proxy    | ~88 MB          | 100 MB |
 
-Überschreitet ein Image nach einer Änderung sein Budget, schlägt `bun run docker:test:image` fehl. Siehe die Seite [Container-Architektur](/de/self-hosted/operate/container-architecture) für Multi-Stage-Strategien, die Images klein halten.
+Überschreitet ein Image nach einer Änderung sein Budget, schlägt `bun run docker:test:image` fehl. Siehe die Seite [Container-Architektur](/de-CH/self-hosted/operate/container-architecture) für Multi-Stage-Strategien, die Images klein halten.
+
+## Wo das einsetzt
+
+Operations ist die Tag-für-Tag-Oberfläche für die Betreiberin, die Tale in Produktion fährt — Metriken zum Scrapen, Logs zum Versenden, Health-Probes zum Überwachen, Image-Budgets zum Durchsetzen. Wenn auf einer Live-Instanz etwas schiefläuft, ist [Fehlersuche](/de-CH/self-hosted/operate/observability/troubleshooting) die Symptom-zu-Fix-Karte; für das Architekturmodell hinter den Services, die diese Metriken emittieren, ist [Container-Architektur](/de-CH/self-hosted/operate/container-architecture) einen Klick entfernt.

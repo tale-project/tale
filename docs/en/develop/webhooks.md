@@ -1,94 +1,160 @@
 ---
 title: Webhooks
-description: Invoke workflows and agents from external systems via signed HTTP requests.
+description: Invoke workflows and agents from external systems via unique-token HTTP endpoints.
 ---
 
-Tale exposes two kinds of webhooks: **workflow webhooks** (trigger an automation) and **agent webhooks** (send a message to an agent outside the chat UI). Both use the same request format and signature scheme.
+Tale exposes two inbound webhook surfaces: **workflow webhooks** (an external POST starts a workflow run) and **agent webhooks** (an external POST sends a message to an agent and gets the response). Both use a unique-token URL where the token is the credential — there's no separate HMAC signature, no shared secret to rotate, no signing code to write on the caller side. This page is the wire reference for both surfaces; for the worked end-to-end walkthrough, [Trigger an automation via webhook](/tutorials/developer/trigger-automation-via-webhook) covers the workflow side.
+
+The audience is integrators wiring an external system into Tale. The complement — Tale's outbound API, what your code calls — lives at [API reference](/develop/api-reference).
+
+## Worked example — fire a workflow webhook
+
+The smallest possible workflow trigger from cURL:
+
+```bash
+curl -X POST "https://your-tale-instance.com/api/workflows/wh/<TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"customerId":"c-42","priority":"high","lines":3}'
+```
+
+The response returns immediately, before the workflow runs:
+
+```json
+{ "status": "accepted", "workflowSlug": "incoming-order-intake" }
+```
+
+The workflow runs asynchronously; the caller never blocks waiting for its output. Status and step-level results live in the workflow's **Executions** tab — see [Execution logs](/platform/automations/execution-logs).
 
 ## Workflow webhooks
 
-Every workflow has a unique webhook URL visible on its Configuration tab:
+Every workflow with a webhook trigger has a unique URL of the form:
 
 ```text
-https://<your-tale-domain>/api/webhooks/workflow/<workflow-id>
+https://<your-tale-instance>/api/workflows/wh/<TOKEN>
 ```
 
-POST a JSON body to start the workflow with that data as input:
+The token is 64 hex characters, generated when you add the trigger in **Automations > <workflow> > Triggers**. It's the only credential — anyone holding the URL can post events at the workflow.
 
-```bash
-curl -X POST https://tale.example.com/api/webhooks/workflow/abc123 \
-  -H "Content-Type: application/json" \
-  -H "X-Tale-Signature: sha256=..." \
-  -d '{"customerId": "c-42", "priority": "high"}'
+### POST /api/workflows/wh/{token}
+
+Start a workflow run. The POST body becomes the workflow input, addressable as `{{ trigger.body }}` in every step.
+
+| Name                | Type   | Required | Description                                                                                                           |
+| ------------------- | ------ | -------- | --------------------------------------------------------------------------------------------------------------------- |
+| `Content-Type`      | string | Yes      | `application/json`. Other content types are rejected.                                                                 |
+| `X-Idempotency-Key` | string | No       | Stable identifier for safe retries. Duplicate deliveries return the original execution instead of starting a new run. |
+| _request body_      | object | Yes      | Arbitrary JSON. The whole body is passed to the workflow as input.                                                    |
+
+**Response — first delivery:**
+
+```json
+{ "status": "accepted", "workflowSlug": "<workflow-slug>" }
 ```
 
-The response returns immediately with an execution ID. Query the workflow's Executions tab (or the REST API) to see status and output.
+**Response — duplicate delivery (same `X-Idempotency-Key`):**
+
+```json
+{ "status": "duplicate", "executionId": "<id>" }
+```
+
+The duplicate path returns the original execution's ID so the caller can look up the existing run instead of guessing whether the retry took.
+
+### Status codes
+
+| Code | Meaning                                                                |
+| ---- | ---------------------------------------------------------------------- |
+| 200  | Accepted (or duplicate). The body distinguishes the two cases.         |
+| 400  | Invalid JSON payload, missing token, or invalid token format.          |
+| 403  | Webhook is disabled, or the workflow is not published / not installed. |
+| 404  | Token doesn't match any webhook.                                       |
+| 429  | Per-IP rate limit exceeded.                                            |
 
 ## Agent webhooks
 
-Every agent has a unique endpoint:
+Every agent with an active webhook has a unique URL:
 
 ```text
-https://<your-tale-domain>/api/webhooks/agent/<agent-slug>
+https://<your-tale-instance>/api/agents/wh/<TOKEN>
 ```
 
-POST a message to get an agent response without using the platform UI. The response is synchronous — the HTTP request blocks until the agent has finished generating.
+Tokens follow the same 64-hex-character format as workflow tokens; create or revoke them on the agent's **Webhook** tab. The endpoint exposes two wire formats — a Tale-native legacy shape, and an OpenAI-compatible sub-path — so an existing OpenAI client can address an agent without rewriting the request.
 
-```bash
-curl -X POST https://tale.example.com/api/webhooks/agent/support-agent \
-  -H "Content-Type: application/json" \
-  -H "X-Tale-Signature: sha256=..." \
-  -d '{
-    "message": "Where is my order?",
-    "conversationId": "optional-existing-id"
-  }'
-```
+### POST /api/agents/wh/{token} — Tale-native shape
 
-If `conversationId` is omitted, a new conversation is created and returned in the response.
+Send a single user message to the agent. The response polls until the agent has finished generating, or streams Server-Sent Events when `stream: true`.
 
-## Signature verification
+| Name       | Type    | Required | Description                                                                |
+| ---------- | ------- | -------- | -------------------------------------------------------------------------- |
+| `message`  | string  | Yes      | The user message. Plain text.                                              |
+| `threadId` | string  | No       | Reuse an existing conversation thread. A new thread is created if omitted. |
+| `stream`   | boolean | No       | Stream the response as SSE. Default `false`.                               |
 
-Tale signs every webhook request with HMAC-SHA-256 using the webhook's secret. The signature is sent in the `X-Tale-Signature` header as `sha256=<hex>`.
+The body can also be sent as `multipart/form-data` to attach a file alongside the message — fields are `message`, `threadId`, `stream`, and `file`.
 
-Receivers should:
+**Response — non-streaming:**
 
-1. Read the raw request body (not parsed JSON).
-2. Compute `HMAC-SHA-256(secret, body)`.
-3. Compare with the header value using a constant-time equality check.
-4. Reject requests that don't match.
-
-Node.js example:
-
-```javascript
-import { createHmac, timingSafeEqual } from 'node:crypto';
-
-export function verify(req, secret) {
-  const signature = req.headers['x-tale-signature'];
-  if (!signature) return false;
-  const expected =
-    'sha256=' + createHmac('sha256', secret).update(req.rawBody).digest('hex');
-  const a = Buffer.from(signature);
-  const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b);
+```json
+{
+  "threadId": "<id>",
+  "message": "<the agent's reply>",
+  "status": "done"
 }
 ```
 
-Python example:
+### POST /api/agents/wh/{token}/chat/completions — OpenAI-compatible
 
-```python
-import hmac, hashlib
+The same agent is addressable as an OpenAI Chat Completions endpoint. The sub-path lets any OpenAI client talk to the agent without rewriting:
 
-def verify(body: bytes, header: str, secret: str) -> bool:
-    expected = 'sha256=' + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
-    return hmac.compare_digest(header or '', expected)
+```bash
+curl -X POST "https://<your-tale-instance>/api/agents/wh/<TOKEN>/chat/completions" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "openai/gpt-4o",
+    "messages": [{"role": "user", "content": "Hello!"}]
+  }'
 ```
 
-## Retries
+The `model` field is optional — when present, Tale validates it against the agent's `supportedModels` and silently falls back to the agent's default when the requested model isn't allowed. The response shape matches OpenAI's `/v1/chat/completions`.
 
-Tale retries failed webhook deliveries (non-2xx responses, timeouts) with exponential backoff up to 5 attempts. After the final failure the delivery is marked failed and logged in the audit stream — an Admin can replay it from the Audit logs page.
+### Status codes (both shapes)
+
+| Code | Meaning                                                                             |
+| ---- | ----------------------------------------------------------------------------------- |
+| 200  | Response delivered.                                                                 |
+| 400  | Invalid body (missing `message`, malformed JSON, empty messages array).             |
+| 401  | Invalid webhook token.                                                              |
+| 403  | Webhook is disabled.                                                                |
+| 404  | Token doesn't match any agent webhook.                                              |
+| 429  | Per-IP rate limit exceeded.                                                         |
+| 413  | Concatenated client `system` text exceeds 50 000 characters (OpenAI sub-path only). |
+| 504  | Response timed out (the agent didn't finish within the 9-minute hard cap).          |
+
+## Token rotation
+
+There's no signature secret to rotate — the credential is the token itself. To rotate:
+
+1. Open the workflow's **Triggers** panel or the agent's **Webhook** tab.
+2. Click **Regenerate**. Tale mints a new token; the old one stops accepting requests immediately.
+3. Update the caller's stored URL to the new token.
+
+There's no overlap window: regeneration is instant, so caller updates should land in the same change window. For automated rotation flows, treat the token rotation as you would an API key rotation — keep both URLs valid for a brief window by adding a second trigger before retiring the old one.
+
+## Retries and idempotency
+
+For **workflow webhooks**, the caller is in charge of retries. Tale doesn't retry the inbound POST itself — the workflow's own step-level retries handle internal failures, but a non-2xx HTTP response is the caller's responsibility. Use `X-Idempotency-Key` to make caller-side retries safe.
+
+For **agent webhooks**, the request is synchronous — the caller waits for the agent's response — and retrying repeats the model call. Set a sensible client-side timeout (long enough for a slow model, short enough that hung connections don't pile up) and avoid retrying on `200` responses.
+
+## Trust boundary
+
+What crosses the network in each direction:
+
+- **From the caller to Tale**: the POST body and headers, including the token in the URL. HTTPS protects everything in transit; the token isn't sent as a header, so it stays out of standard `Authorization` log lines but appears in the URL of any access log the caller writes. Treat it accordingly.
+- **From Tale to the caller**: the response body. Agent webhooks return the model's full reply; workflow webhooks return only `accepted` / `duplicate` plus the workflow slug or execution ID — not the workflow's output.
+- **What Tale does with the payload**: the JSON body lands in the workflow's execution log or the agent's conversation history, governed by your org's retention and audit policies. There's no separate external persistence.
 
 ## Where this fits
 
-Webhooks are the inbound complement to Tale's outbound API. The API is what your code calls when _you_ drive the conversation; webhooks are what Tale exposes so an external system can drive a workflow or address an agent without sitting at the chat UI. Both forms share the same signature scheme and the same audit log, so a single hardened receiver pattern covers everything Tale sends.
+Webhooks are the inbound complement to Tale's outbound API. The API is what your code calls when you drive the conversation; webhooks are what Tale exposes so an external system can drive a workflow or address an agent without sitting at the chat UI. Both surfaces share the same audit log, so a single observability setup covers everything Tale receives.
 
-For the related pieces: [API reference](/develop/api-reference) is the outbound side of the same protocol, [Triggers](/platform/automations/triggers) covers how a workflow opts in to webhook triggers, and the [Agents — Webhook tab](/platform/agents/create#webhook-tab) walks the per-agent setup.
+For the related pieces: [API reference](/develop/api-reference) is the outbound side of the same protocol family, [Triggers](/platform/automations/triggers) covers how a workflow opts into a webhook trigger, and the [agent Webhook tab](/platform/agents/create#webhook-tab) walks the per-agent setup.

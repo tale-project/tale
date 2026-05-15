@@ -5,7 +5,7 @@ description: Connecte des serveurs Model Context Protocol externes à Tale pour 
 
 Un serveur Model Context Protocol (MCP) est un processus externe qui expose un ensemble d'outils, de ressources et de prompts via un petit RPC standardisé. Tale enregistre un serveur MCP une fois et rend ensuite ses outils disponibles à chaque agent de l'organisation qui s'y branche. Là où une [intégration](/fr/platform/integrations/overview) Tale enveloppe la surface REST ou SQL d'un fournisseur dans un manifeste écrit par Tale, un serveur MCP laisse un tiers publier son propre catalogue d'outils — et Tale le consomme sans écrire de connecteur.
 
-Cette page est la référence de l'écran **Paramètres > Serveurs MCP** et du schéma sous-jacent. Le public visé : Admins et Développeurs qui connectent un serveur MCP à une organisation. Les Membres et Éditeurs ne voient pas cette surface ; ils voient juste de nouveaux outils apparaître sur leurs agents.
+Cette page est la référence de l'écran **Paramètres > Serveurs MCP** et du schéma sous-jacent. Le public visé : Admins et Développeurs qui connectent un serveur MCP à une organisation. Les Membres et Éditeurs ne voient pas cette surface ; ils voient apparaître de nouveaux outils sur leurs agents.
 
 ## Un exemple complet
 

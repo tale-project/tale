@@ -3,9 +3,9 @@ title: Security-Advisory-Prozess
 description: Wie Tale sicherheitsrelevante Fixes koordiniert, einreicht und veröffentlicht.
 ---
 
-Diese Seite dokumentiert, wie Tale sicherheitsrelevante Fixes vom ersten Bericht bis zum veröffentlichten Advisory handhabt. Die Form des Prozesses — privater Entwurf auf GitHub, Patch veröffentlicht, Advisory mit CVE-Verknüpfung und Release-Notes-Querverweis publiziert — ist konventionell; wir dokumentieren sie, damit Operatoren wissen, worauf sie achten müssen, und Reporter wissen, was sie erwartet.
+Diese Seite dokumentiert, wie Tale sicherheitsrelevante Fixes vom ersten Bericht bis zum veröffentlichten Advisory handhabt. Die Form des Prozesses — privater Entwurf auf GitHub, Patch veröffentlicht, Advisory mit CVE-Verknüpfung und Release-Notes-Querverweis publiziert — ist konventionell; die Seite existiert, damit Betreiber wissen, worauf sie achten müssen, und Reporter wissen, was sie erwartet.
 
-Für die Operator-Seite ist die praktische Folge: abonniere GitHub Security Advisories auf `tale-project/tale` und lies den `## 🔒 Security`-Abschnitt jedes Releases. Alles, was eine CVE hat, landet an beiden Stellen.
+Die Operator-Folge ist kurz: abonniere GitHub Security Advisories auf `tale-project/tale` und lies den `## 🔒 Security`-Abschnitt jedes Releases. Alles, was eine CVE bekommt, landet an beiden Stellen, mit Upgrade-Pfad und Workarounds explizit benannt.
 
 ## Kanäle
 
@@ -59,7 +59,6 @@ Operatoren sollten:
 - Einträge unter `## 🔒 Security` in Release-Notes als Upgrade-Hinweis behandeln.
 - Sich (sobald verfügbar) in die Liste für direkte Benachrichtigungen für ausschließlich kritische Meldungen eintragen.
 
-## Verwandt
+## Wo das einsetzt
 
-- [Release-Notes-Format](/de/self-hosted/operate/release-notes/format) — wo Security-Einträge in den Notes stehen.
-- Der `/release`-Slash-Command im Hauptrepository entwirft den Security-Abschnitt.
+Sicherheitshinweise sind, wie Ruler GmbH CVEs offenlegt und wie Betreiber erfahren, was sie auf einer selbst gehosteten Instanz patchen müssen. Jedes Advisory zeigt auf ein Tale-Release, das den Fix enthält; Betreiber rollen mit `tale deploy` vorwärts, während Cloud-Kund:innen denselben Fix beim nächsten Platform-Deploy bekommen. Die Release-Notes-Seite desselben Ereignisses lebt unter [Release-Notes-Format](/de/self-hosted/operate/release-notes/format) im Abschnitt `## 🔒 Security`; der `/release`-Slash-Command im Hauptrepository entwirft diesen Abschnitt automatisch, sobald ein Release ausgeliefert wird.

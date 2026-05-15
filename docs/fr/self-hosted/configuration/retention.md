@@ -1,9 +1,9 @@
 ---
 title: Configuration de rétention
-description: Configurez combien de temps les conversations, fichiers, journaux d'audit et exécutions sont conservés.
+description: Configure combien de temps les conversations, fichiers, journaux d'audit et exécutions sont conservés.
 ---
 
-Tale dispose d'une configuration de rétention centrale qui s'applique à tous les domaines de données — conversations, fichiers téléversés, journaux d'audit, exécutions de workflows et enregistrements analytiques. Les valeurs par défaut conviennent à la plupart des déploiements ; ajustez-les lorsque la conformité, le coût ou les règles de confidentialité l'exigent.
+Tale livre une configuration de rétention centrale qui s'applique à tous les domaines de données — conversations, fichiers téléversés, journaux d'audit, exécutions de workflows et enregistrements analytiques. Cette page s'adresse aux exploitants qui doivent ajuster ces bornes pour des raisons de conformité, de coût ou de confidentialité ; les paramètres in-app par organisation vivent sous [Gouvernance](/fr/platform/admin/governance). Les valeurs par défaut conviennent à la plupart des déploiements, donc la plupart des installations laissent les couches fichier et environnement ci-dessous tranquilles et ne tunent que le slider par organisation dans l'UI.
 
 Les bornes de rétention se résolvent en trois couches :
 
@@ -47,7 +47,7 @@ Où :
   - `envNames` — mapping 1:1 direct entre suffixe d'env → chemin JSON. Les chemins doivent correspondre à `${catégorie}.${min|max|default}` pour une catégorie connue.
   - `envPrefix` et `envNames` sont uniquement autorisés au niveau racine ; le schéma les rejette à l'intérieur d'une catégorie.
 
-Les catégories absentes du fichier d'une organisation retombent sur le `default.json` de cette organisation. Si les deux sont absents (ex. l'opérateur a supprimé `default.json`), les lectures de rétention renvoient `RETENTION_CONFIG_MISSING` — redémarrez le conteneur avec `FORCE_SEED=true` (ou incrémentez `TALE_VERSION`) pour ré-amorcer `default.json` depuis l'`examples/retention/default.json` fourni.
+Les catégories absentes du fichier d'une organisation retombent sur le `default.json` de cette organisation. Si les deux sont absents (ex. l'exploitant a supprimé `default.json`), les lectures de rétention renvoient `RETENTION_CONFIG_MISSING` — redémarre le conteneur avec `FORCE_SEED=true` (ou incrémente `TALE_VERSION`) pour ré-amorcer `default.json` depuis l'`examples/retention/default.json` fourni.
 
 `unit` (`days` vs `hours`) n'est pas configurable par catégorie — il est lié à la logique de cleanup et reste dans le code de la plateforme uniquement.
 
@@ -98,7 +98,7 @@ Les noms d'env ci-dessous proviennent de la map `_metadata.envNames` racine de l
 | `TALE_RETENTION_PROMPTS_MIN` / `_MAX`        | `30`    | `3650` | `730`   | Modèles de prompts enregistrés (org-scope).                                                                                     |
 | `TALE_RETENTION_FEEDBACK_MIN` / `_MAX`       | `30`    | `3650` | `365`   | Feedbacks par message. Peut contenir du contenu utilisateur cité.                                                               |
 | `TALE_RETENTION_MEMORY_AUDIT_MIN` / `_MAX`   | `30`    | `3650` | `365`   | Journal des changements de la mémoire de personnalisation.                                                                      |
-| `TALE_RETENTION_CUSTOMERS_MIN` / `_MAX`      | `30`    | `3650` | `730`   | Fiches client CRM (nom, email, adresse, locale, métadonnées).                                                                   |
+| `TALE_RETENTION_CUSTOMERS_MIN` / `_MAX`      | `30`    | `3650` | `730`   | Fiches client CRM (nom, courriel, adresse, locale, métadonnées).                                                                |
 | `TALE_RETENTION_VENDORS_MIN` / `_MAX`        | `30`    | `3650` | `730`   | Fiches fournisseurs (nom, email, téléphone, adresse, notes).                                                                    |
 | `TALE_RETENTION_INBOX_MIN` / `_MAX`          | `30`    | `3650` | `730`   | Boîte de réception canal client externe (`externalConversations`) + corps de messages cascadés.                                 |
 | `TALE_RETENTION_MSG_META_MIN` / `_MAX`       | `30`    | `3650` | `365`   | Raisonnement par message, fenêtre de contexte de prompt, E/S d'outils. Données dérivées à fort PII.                             |
@@ -146,9 +146,9 @@ Le runner de nettoyage pré-charge chaque conservation active UNE FOIS par exéc
 
 ## Protection PII de la chaîne d'audit
 
-Le journal d'audit est conservé pendant des années (par défaut 730 jours, plancher 365). Pour empêcher cette chaîne de transporter des adresses email et IP en clair issues d'entrées utilisateur non authentifiées sur le long terme (en particulier les tentatives de connexion échouées), définissez `TALE_AUDIT_PEPPER` sur un secret unique d'au moins 16 caractères. Les nouvelles lignes d'audit stockent alors un hash HMAC-SHA256 de l'email et un préfixe réseau grossier de l'IP (`/24` pour v4, `/64` pour v6) dans des colonnes dédiées `actorEmailHash` / `actorIpHash` ; les colonnes en clair restent vides. Les lignes existantes ne sont pas réécrites — la rotation invalide la corrélation à la frontière, ce qui est l'intention de l'opérateur.
+Le journal d'audit est conservé pendant des années (par défaut 730 jours, plancher 365). Pour empêcher cette chaîne de transporter des adresses de courriel et IP en clair issues d'entrées utilisateur non authentifiées sur le long terme (en particulier les tentatives de connexion échouées), définis `TALE_AUDIT_PEPPER` sur un secret unique d'au moins 16 caractères. Les nouvelles lignes d'audit stockent alors un hash HMAC-SHA256 du courriel et un préfixe réseau grossier de l'IP (`/24` pour v4, `/64` pour v6) dans des colonnes dédiées `actorEmailHash` / `actorIpHash` ; les colonnes en clair restent vides. Les lignes existantes ne sont pas réécrites — la rotation invalide la corrélation à la frontière, ce qui est l'intention de l'exploitant.
 
-Lorsque `TALE_AUDIT_PEPPER` est non défini ou plus court que 16 caractères, les écrivains d'audit retombent sur le clair et émettent un avertissement `[SECURITY]` unique sur stderr lors du premier appel. Définissez la variable en production avant d'exposer le déploiement à de vrais utilisateurs.
+Lorsque `TALE_AUDIT_PEPPER` est non défini ou plus court que 16 caractères, les écrivains d'audit retombent sur le clair et émettent un avertissement `[SECURITY]` unique sur stderr lors du premier appel. Définis la variable en production avant d'exposer le déploiement à de vrais utilisateurs.
 
 `TALE_AUDIT_SIGNING_KEY` (distincte du pepper) signe les lignes `auditLogCheckpoints` afin que le vérificateur d'intégrité distingue une frontière de rétention/scrub PII délibérée d'une falsification. Sans clé de signature, la chaîne reste à preuve d'altération via la chaîne SHA-256 elle-même ; la signature est une défense en profondeur contre un attaquant capable à la fois de supprimer des lignes et de forger un nouveau checkpoint.
 

@@ -5,7 +5,7 @@ description: Tale auf einen Produktionsserver mit der Tale-CLI und Zero-Downtime
 
 Dieser Leitfaden ist der Produktionspfad: ein Linux-Server mit echter Domain, echter TLS und der Blue-Green-Topologie, mit der Upgrades ohne Wartungsfenster überleben. Die `tale`-CLI macht die Schwerarbeit — sie zieht die Docker-Images, fährt die Migrationen und schaltet den Traffic erst um, nachdem die neuen Container ihre Health-Checks bestanden haben. Wenn ein Deploy nicht hochkommt, bleibt die vorige Version aktiv und nichts Nutzersichtbares bricht.
 
-Wenn du Tale nur lokal probieren willst, ist [Quickstart](/de/self-hosted/install/quickstart) kürzer und in Minuten am Laufen. Komm hierher zurück, wenn du die Instanz dem Team zugänglich machst.
+Für eine Laptop-Evaluierung ist [Quickstart](/de-CH/self-hosted/install/quickstart) kürzer und in Minuten am Laufen. Komm hierher zurück, wenn du die Instanz dem Team zugänglich machst.
 
 ## Voraussetzungen
 
@@ -86,7 +86,7 @@ TLS_EMAIL=admin@yourdomain.com
 DB_PASSWORD=a-strong-database-password
 ```
 
-Alle verfügbaren Optionen in der [Environment-Referenz](/de/self-hosted/configuration/environment-reference).
+Alle verfügbaren Optionen in der [Environment-Referenz](/de-CH/self-hosted/configuration/environment-reference).
 
 ### Schritt 3: Deployen
 
@@ -400,7 +400,7 @@ Lokalen Vulnerability-Scan ausführen:
 bun run docker:test:vulnerability
 ```
 
-Berichte landen im Verzeichnis `trivy-reports/`. Siehe [Container-Architektur](/de/self-hosted/operate/container-architecture) für Image-Details.
+Berichte landen im Verzeichnis `trivy-reports/`. Siehe [Container-Architektur](/de-CH/self-hosted/operate/container-architecture) für Image-Details.
 
 ## Image-Versionierung
 
@@ -446,3 +446,7 @@ Tale enthält ein eingebettetes Convex-Backend. Das Convex-Dashboard erlaubt dir
 4. Den Admin-Schlüssel auf Nachfrage einfügen.
 
 > **Hinweis:** Das Convex-Dashboard gibt direkten Lese- und Schreibzugriff auf alle Daten. Teile Admin-Schlüssel nur mit vertrauenswürdigen Teammitgliedern.
+
+## Wo das einsetzt
+
+Die Linux-Server-Installation ist der kanonische Produktionspfad für selbst gehostetes Tale. Sobald die Instanz steht, katalogisiert die [Umgebungs-Referenz](/de-CH/self-hosted/configuration/environment-reference) jeden Knopf, den die Installation berührt hat, und jeden, den sie nicht berührt hat; [Authentifizierung](/de-CH/self-hosted/admin/authentication) verdrahtet die Instanz mit deinem Identitäts-Anbieter; [Operations](/de-CH/self-hosted/operate/observability/operations) deckt ab, was du scrapen und alerten musst, sobald Traffic fliesst. Für Endnutzer-Arbeit in der laufenden App ist [Platform](/de-CH/platform) das nächste Ziel.

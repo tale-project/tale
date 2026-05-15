@@ -3,7 +3,7 @@ title: Architecture des conteneurs
 description: Comment les images Docker de Tale sont structurées, construites et connectées.
 ---
 
-Tale tourne comme **six** conteneurs Docker gérés par Docker Compose. Chacun a une seule responsabilité et communique sur un réseau bridge interne. Convex tourne comme son propre service (`convex`) et sert les clients WebSocket indépendamment du conteneur platform ; platform est un client Vite léger qui pousse schéma et env à Convex en HTTP.
+Tale tourne comme six conteneurs Docker gérés par Docker Compose — chacun avec une seule responsabilité et un seul port sur le réseau bridge interne. Cette page est le modèle mental de l'exploitant pour ce qui tourne, où et comment les services se parlent : quels volumes sont partagés, quels ports sont exposés, où la topologie blue-green se replie sur elle-même pendant un déploiement. Va la voir quand quelque chose n'atterrit pas là où tu l'attends — un endpoint de métriques injoignable, un port exposé par accident, un switch blue-green qui n'a pas drainé proprement.
 
 ## Vue des services
 

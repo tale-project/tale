@@ -1,84 +1,87 @@
 ---
 title: Anfragen betroffener Personen
-description: Self-Service-Verwaltung für DSGVO-Art.-17-Löschungsanfragen mit Fristverfolgung, einmaliger Art.-12(3)-Verlängerung und Audit-Beleg.
+description: GDPR-Art.-17-Löschanträge direkt aus der Admin-Oberfläche einreichen — mit SLA-Verfolgung, einmaliger Art.-12(3)-Verlängerung und Audit-verkettetem Beleg.
 ---
 
-Org-Admins bearbeiten DSGVO-Art.-17-Anfragen (Recht auf Löschung) direkt unter **Einstellungen > Governance > Anfragen betroffener Personen**. Jede Einreichung legt einen dauerhaften Beleg mit 30-Tage-Frist an, führt die Kaskade asynchron aus und schreibt für jeden Statuswechsel einen Audit-Eintrag (eingereicht → blockiert / ausgeführt / verlängert / wiederholt).
+Anfragen betroffener Personen ist die Stelle, an der Org-Admins GDPR-Art.-17-Löschanträge bearbeiten, ohne das Produkt zu verlassen. Jede Einreichung legt einen dauerhaften Beleg-Datensatz mit einer 30-Tage-SLA-Frist an, lässt die Lösch-Kaskade asynchron laufen und schreibt einen Audit-Log-Eintrag für jeden Zustandsübergang — `eingereicht`, `blockiert`, `ausgeführt`, `verlängert`, `wiederholt`, `teilweise`, `fehlgeschlagen`. Die Seite ist nach dem Oberbegriff DSR benannt, nicht nur nach „Löschung", damit künftige Art.-16-(Berichtigung)- und Art.-20-(Portabilität)-Abläufe auf derselben Oberfläche landen können, ohne die Route umzubenennen; heute ist nur Art. 17 implementiert.
 
-Die Seite ist nach dem DSR-Oberbegriff benannt — nicht nach „Löschung" allein —, damit künftige Art.-16- (Berichtigung) und Art.-20-Flows (Datenübertragbarkeit) ohne Route-Umbenennung folgen können. Heute ist nur Art. 17 implementiert.
+Zielgruppe ist der Compliance-Admin der Organisation. Mitglieder, Redakteure und Entwickler sehen diese Seite nicht. Die Oberfläche ist **Einstellungen > Richtlinien > Anfragen betroffener Personen**.
 
-## Identitätsprüfung erfolgt außerhalb des Produkts
+## Identitätsprüfung läuft außerhalb
 
-Tale ist bewusst administrationsgesteuert — es gibt kein Self-Service-Portal für betroffene Personen. Der einreichende Admin **ist** die Identitätsprüfungsstelle und hat die Identität der Person über den eigenen Organisationsprozess (Offboarding, Support-Ticket, persönliche Verifizierung etc.) bestätigt, bevor er den Dialog öffnet. Das Produkt fügt keinen IDV-Schritt im Flow hinzu.
+Tale ist vom Design her admin-vermittelt — es gibt kein Self-Service-Portal für die betroffene Person. Der Admin, der die Anfrage einreicht, **ist** der Identitätsprüfungs-Punkt, weil er die Identität der Person über den eigenen Prozess der Organisation bestätigt hat, bevor er den Dialog öffnet (HR-Offboarding, ticketbasierter Support-Ablauf, persönliche Prüfung). Das Produkt fügt keine eigene IDV-Stufe ein.
 
-Dieser Vertrag macht den Admin maßgeblich. Counsel sollte die Bestätigungsphrase („ERASE") im Einreichdialog als IDV-Gate behandeln: das bewusste Eintippen ist ein audit-protokolliertes Signal, dass der Admin die Identität verifiziert hat.
+Dieser Vertrag macht den Admin zur autoritativen Stelle für die Anfrage. Die Rechtsabteilung sollte die getippte Bestätigungs-Phrase im Datei-Dialog als die IDV-Schranke werten: Sie durchzutippen ist ein bewusstes, im Audit-Log festgehaltenes Signal, dass der Admin die Person geprüft hat.
 
-## Anfrage einreichen
+## Eine Anfrage einreichen
 
-Klicke oben auf der Seite auf **Anfrage einreichen**. Der Dialog erfasst:
+Klicke oben auf der Seite auf **Anfrage einreichen**. Der Dialog fragt vier Felder ab:
 
-- **Person** — ein aktives Mitglied der Organisation, ausgewählt aus einer durchsuchbaren Liste. Es ist derselbe Picker wie in der Legal-Hold-Oberfläche.
-- **Rechtsgrund** — einer von sieben strukturierten Codes, abgebildet auf DSGVO Art. 17(1)(a)–(f) plus den operativen Grund `contract_termination` für HR-Offboarding. Produktive DSR-Tools (OneTrust, TrustArc, Ketch) führen alle einen strukturierten Code neben der freien Begründung, weil Aufsichtsbehörden Anfragen nach Rechtsgrund klassifiziert sehen wollen.
-- **Begründung** — Freitext (≥ 10 Zeichen) zum Verifizierungskontext. Landet im Beleg und im Audit-Log.
-- **Bestätigung tippen** — tippe `ERASE`, um den Absende-Button freizuschalten. Die Phrase ist sprachneutral, damit die Anforderung in jeder Sprache identisch ist.
+- **Betroffene Person** — irgendein aktives Mitglied der Organisation, gewählt aus einer Suchliste. Die Auswahl ist dieselbe wie im Legal-Hold-UI.
+- **Rechtsgrundlage** — einer von sieben strukturierten Codes, die auf GDPR Art. 17(1)(a)–(f) abbilden, plus die operative `contract_termination`-Grundlage für HR-Offboarding. Aufsichtsbehörden erwarten Anfragen klassifiziert nach Rechtsgrundlage; deshalb tragen Produkt-DSR-Tools (OneTrust, TrustArc, Ketch) alle einen strukturierten Code neben der Erzählung.
+- **Begründungs-Erzählung** — Freitext, mindestens 10 Zeichen, der den Prüfungskontext beschreibt. Die Erzählung wird in den Beleg und ins Audit-Log geschrieben.
+- **Getippte Bestätigung** — tippe `ERASE`, um die Sende-Schaltfläche zu aktivieren. Die Phrase ist locale-stabil, damit die Tipp-Anforderung über jede Sprache gleich ist.
 
-Beim Absenden läuft die Kaskade asynchron in einer Convex-Node-Action und löscht Chat-Threads der Person, RAG-indizierte Dokumente, File-Metadata-Blobs sowie neun pro-Tabelle erfasste Kategorien. Anschließend werden die PII aus der Audit-Kette für Zeilen gescrubt, die die Person erstellt hat.
+Beim Absenden läuft die Kaskade asynchron in einer Convex-Node-Action: Sie löscht die Chat-Threads der Person, die RAG-indexierten Dokumente, die Datei-Metadaten-Blobs und neun je-Tabelle-Subjekt-Kategorien, danach scrubbt sie die Audit-Kette-PII für alle Zeilen, die die Person verfasst hat.
 
-Steht die Person unter aktiver rechtlicher Sperre (organisationsweit oder Aufbewahrungssperre), wird die Anfrage **am Gate abgewiesen** und ein Inline-Panel zeigt die Zahl der bewahrten Threads / Dokumente sowie einen Deep-Link zur Legal-Hold-Seite. Der Beleg wird dennoch mit `status: blocked` geschrieben, damit die Audit-Spur für die Aufsicht beweisbar bleibt.
+Steht die Person unter einem aktiven Legal Hold — organisationsweit oder per Custodian — wird die Anfrage **an der Schranke abgelehnt**. Ein Inline-Panel zeigt die Anzahl gehaltener Threads und Dokumente plus einen Deep-Link zur Legal-Hold-Seite. Der Beleg-Datensatz wird dennoch mit `status: blocked` eingelegt, damit der Aufsichts-Audit-Pfad strukturierten Beweis hat, dass die Anfrage eingegangen ist.
 
-## Frist-Badge und Art.-12(3)-Verlängerung
+## SLA-Badge und die Art.-12(3)-Verlängerung
 
-Jede Anfrage trägt eine 30-Tage-Frist (`requestedAt + 30 Tage`). Liste und Detailansicht zeigen ein SLA-Badge mit vier Stufen:
+Jede Anfrage trägt eine 30-Tage-Frist, abgeleitet aus `requestedAt + 30 days`. Listen- und Detail-Ansicht rendern ein SLA-Countdown-Badge mit vier Eimern:
 
 - **Grün** — mehr als 7 Tage übrig.
-- **Gelb** — 7 oder weniger Tage übrig.
+- **Gelb** — 7 Tage oder weniger übrig.
 - **Rot** — überfällig.
-- **Grau** — Endzustand (`done` / `failed`); Frist obsolet.
+- **Grau** — terminaler Status (`done` oder `failed`); der Countdown ist gegenstandslos.
 
-Art. 12(3) DSGVO erlaubt, das Antwortfenster um bis zu zwei weitere Monate zu verlängern, **aber die Verlängerung selbst muss innerhalb des ursprünglichen Monats begründet mitgeteilt werden**. Die Aktion **Frist verlängern** im Detail-Drawer setzt das um:
+Art. 12(3) der DSGVO erlaubt dem Verantwortlichen, das Antwort-Fenster für komplexe Anfragen um bis zu zwei weitere Monate zu verlängern, **aber die Verlängerung muss der betroffenen Person innerhalb des ursprünglichen Monats mit Begründung mitgeteilt werden**. Die Aktion **Frist verlängern** in der Detail-Schublade setzt diese Einschränkung um:
 
-- Verfügbar, solange die Anfrage nicht in einem Endzustand ist und die ursprüngliche Frist noch nicht abgelaufen ist.
-- 1–60 Tage hinzufügen, mit Pflicht-Begründung (≥ 10 Zeichen).
-- Jede Anfrage kann **höchstens einmal** verlängert werden — der zweite Versuch wird mit `ALREADY_EXTENDED` abgewiesen.
-- Das SLA-Badge nutzt `extensionDeadlineAt ?? slaDeadlineAt`, damit gewährte Verlängerungen sofort die Farbstufe und den angezeigten Countdown beeinflussen.
+- Verfügbar, solange die Anfrage nicht-terminal ist und die ursprüngliche Frist nicht abgelaufen ist.
+- 1 bis 60 Tage hinzufügen, mit einer Pflicht-Begründung von mindestens 10 Zeichen.
+- Jede Anfrage darf **höchstens einmal** verlängert werden — ein zweiter Versuch wird mit `ALREADY_EXTENDED` abgelehnt.
+- Das SLA-Badge leitet sich aus `extensionDeadlineAt ?? slaDeadlineAt` ab, sodass eine gewährte Verlängerung Farbe und Countdown sofort ändert.
 
-Das Audit-Log hält fest, wer verlängert hat, mit welchem Grund und auf welche neue Frist.
+Das Audit-Log hält fest, wer die Verlängerung gewährt hat, die Begründung und die neue Frist.
 
-## Teilweise / blockierte / fehlgeschlagene Läufe wiederholen
+## Teilweise, blockierte oder fehlgeschlagene Läufe wiederholen
 
-Drei Zustände sind wiederholbar:
+Drei Zustände sind aus der **Wiederholen**-Aktion der Detail-Schublade wiederholbar:
 
-- `partial` — Kaskade lief, einzelne Kategorien wurden durch eine zwischenzeitlich gesetzte Sperre übersprungen, oder ein Thread hat das Seiten-Limit erreicht.
-- `blocked` — Anfrage wurde am Legal-Hold-Gate abgewiesen. Sperre lösen, dann erneut versuchen.
-- `failed` — Kaskade ist abgestürzt (RAG-Service nicht erreichbar, transienter Infrastrukturfehler) oder wurde vom Watchdog nach Überschreiten des 30-Minuten-Limits erfasst.
+- **teilweise** — die Kaskade lief, aber einige Kategorien wurden durch einen währenddessen gesetzten Hold übersprungen, oder die Seiten-Versuchs-Obergrenze wurde an einem bestimmten Thread erreicht.
+- **blockiert** — die Anfrage wurde beim Einreichen an der Legal-Hold-Schranke abgelehnt. Den hinderlichen Hold aufheben, dann wiederholen.
+- **fehlgeschlagen** — die Kaskade ist abgestürzt (RAG-Dienst unerreichbar, vorübergehender Infrastruktur-Fehler) oder wurde vom Watchdog nach der 30-Minuten-Action-Obergrenze eingesammelt.
 
-Die Aktion **Erneut versuchen** im Drawer plant den Processor neu ein. Das Hold-Gate läuft beim Start des Processors erneut, schließt also das Fenster zwischen „Sperre aufheben" und „Wiederholen".
+Die Hold-Schranke läuft beim Prozessor-Start erneut, sodass das Fenster im Operator-Intervall „Hold aufheben, dann wiederholen" geschlossen ist.
 
 ## Was der Beleg zeigt
 
-Der Detail-Drawer rendert den vollständigen Art.-17-/-19-Beleg für eine Anfrage:
+Die Detail-Schublade rendert den vollständigen Art.-17-/-19-Beleg für eine Anfrage:
 
-- Status-Badge + Frist-Countdown.
-- Identifier der Person, Rechtsgrund, Begründung, Einreichende Person und Zeitpunkt, aktuelle Frist (mit Verlängerungs-Info, falls vorhanden).
-- Zähler: gelöschte / Ziel-Threads, aus RAG entfernte Dokumente, gelöschte Dokumente, durch Sperre übersprungene Dokumente, Fehlermeldung im Fehlerfall.
-- Audit-Verlauf: jede `gdpr_erasure_*`-Zeile, die zur Person gehört, sortiert nach Audit-Kette.
+- Status-Badge plus SLA-Countdown.
+- Subjekt-Kennung, Rechtsgrundlage, Begründungs-Erzählung, wer eingereicht hat und wann, aktuelle SLA-Frist (mit Verlängerungs-Info, sofern relevant).
+- Zähler: gelöschte und avisierte Threads, entfernte RAG-Dokumente, gelöschte Dokumente, durch Hold übersprungene Dokumente, Fehlermeldung bei Misserfolg.
+- Audit-Zeitleiste: jede `gdpr_erasure_*`-Audit-Log-Zeile mit Subjekt-Bezug, geordnet nach Ketten-Zeitstempel.
 
-**Es werden keine gelöschten PII-Inhalte angezeigt** — nur aggregierte Zähler und Identifier. Der Beleg darf direkt an die Aufsicht oder an die Person ausgehändigt werden.
+**Es wird kein gelöschter PII-Inhalt gerendert** — nur Aggregat-Zähler und Kennungen. Der Beleg ist sicher, ihn direkt an die Aufsichtsbehörde oder an die Person zu übergeben.
 
-## Scope heute, Scope später
+## Heutiger Geltungsbereich, künftiger Geltungsbereich
 
-Diese Seite liefert nur DSGVO Art. 17 (Löschung). Bewusst nicht enthalten (v1):
+Heute liefert die Seite nur GDPR-Art.-17-Löschung aus. Die bewussten Ausschlüsse der v1-Schnittlinie:
 
-- Art. 16 Berichtigung und Art. 20 Datenübertragbarkeit — landen später als zusätzliche `kind`-Werte auf derselben DSR-Seite, ohne Route-Umbenennung.
-- Self-Service-Portal für betroffene Personen — Tale ist administrationsgesteuert.
-- Identitätsprüfung im Produkt — außerhalb des Produkts beim Admin.
-- Benachrichtigung der betroffenen Person bei Abschluss — Aufgabe der E-Mail-Infrastruktur.
-- Bulk-Subject-Anfragen (Sammelklagen).
-- Multi-Jurisdiktions-Templates (CCPA, LGPD etc.) — zuerst nur DSGVO.
-- KI-gestützte Schwärzung — Tale löscht statt zu schwärzen.
+- Art. 16 Berichtigung und Art. 20 Portabilität — landen als zusätzliche `kind`-Werte auf derselben DSR-Seite, ohne Route-Umbenennung.
+- Self-Service-Portal für die betroffene Person — Tale ist vom Design her admin-vermittelt.
+- Identitätsprüfung im Produkt — wird außerhalb durch die Organisation des Admin gehandhabt.
+- E-Mail-Benachrichtigung an die Person bei Abschluss — verschoben in den E-Mail-Infrastruktur-Track.
+- Bulk-Anfragen (Einreichungen über Claims-Management-Dienstleister).
+- Mehr-Rechtsraum-Vorlagen (CCPA, LGPD) — zuerst GDPR.
+- KI-gestützte Redaktion — Tale löscht, statt zu redigieren.
 
-## Verwandt
+## Wo das hingehört
 
-- [Governance-Übersicht](/platform/admin/governance) — Schwesterseiten zu Retention, Legal Hold und Audit-Log.
+Anfragen betroffener Personen ist die Compliance-Notausstiegsluke, die beweist, dass Tale das Recht auf Löschung ernst nimmt. Sie liegt neben [Richtlinien](/de/platform/admin/governance) (Aufbewahrung, Legal Hold, Audit-Logging) — zusammen decken diese drei Seiten die Datenlebenszyklus-Steuerungen ab, die eine Datenschutzbeauftragte braucht, um unter DSGVO ein belastbares Argument zu bauen. Greife zu dieser Seite, wenn eine geprüfte Anfrage einer betroffenen Person hereinkommt; greife zu Richtlinien, wenn die Frage „Was ist unsere Aufbewahrungs-Voreinstellung?" lautet.
+
+Externe Referenzen:
+
 - [DSGVO Art. 12 — Transparente Informationen und Modalitäten](https://gdpr-info.eu/art-12-gdpr/)
 - [DSGVO Art. 17 — Recht auf Löschung](https://gdpr-info.eu/art-17-gdpr/)

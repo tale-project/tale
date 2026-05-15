@@ -5,7 +5,7 @@ description: Connect external Model Context Protocol servers to Tale so their to
 
 A Model Context Protocol (MCP) server is an external process that exposes a set of tools, resources, and prompts over a small standardised RPC. Tale registers an MCP server once and then makes its tools available to every agent in the organisation that opts in. Where a Tale [integration](/platform/integrations/overview) wraps a vendor's REST or SQL surface in a Tale-authored manifest, an MCP server lets a third party publish its own tool catalogue — and Tale consumes it without writing a connector.
 
-This page is the reference for the **Settings > MCP servers** screen and the on-disk schema behind it. The audience is Admins and Developers connecting an MCP server to an organisation. Members and Editors don't see this surface; they just see new tools appear on their agents.
+This page is the reference for the **Settings > MCP servers** screen and the on-disk schema behind it. The audience is Admins and Developers connecting an MCP server to an organisation. Members and Editors don't see this surface; they see new tools appear on their agents.
 
 ## A worked example
 

@@ -5,7 +5,7 @@ description: Connecte Tale à des REST API et bases SQL via des connecteurs dév
 
 Une intégration est un connecteur défini par un développeur qui expose les capacités d’un système distant — endpoints REST ou requêtes SQL — comme une liste fixe d’opérations nommées. Une fois installées, ces opérations deviennent des outils que le chat assistant, les agents et les étapes d’action des automatisations appellent par leur nom avec des paramètres typés. La configuration vit sous **Paramètres > Intégrations** et demande au minimum le rôle Développeur ; les consommateurs appellent les opérations que le connecteur publie.
 
-La plateforme prend en charge deux types de connecteurs : `rest_api` pour les services HTTP et `sql` pour l’accès direct à une base de données. Tout le reste qui apparaît sous **Paramètres > Intégrations** dans l’UI — boîtes email, Microsoft OneDrive, clés API de l’API Tale elle-même — sont des connexions apparentées avec leur propre surface de configuration, pas le modèle connecteur. Elles sont couvertes en bas de cette page.
+La plateforme prend en charge deux types de connecteurs : `rest_api` pour les services HTTP et `sql` pour l’accès direct à une base de données. Tout le reste qui apparaît sous **Paramètres > Intégrations** dans l’UI — boîtes de courriel, Microsoft OneDrive, clés API de l’API Tale elle-même — sont des connexions apparentées avec leur propre surface de configuration, pas le modèle connecteur. Elles sont couvertes en bas de cette page.
 
 ## Types d’intégration
 
@@ -15,7 +15,7 @@ Les connecteurs REST encapsulent n’importe quel service HTTP. Le manifeste du 
 
 | Méthode          | Fonctionnement                                               |
 | ---------------- | ------------------------------------------------------------ |
-| **API key**      | Passe une clé dans un header ou un query parameter.          |
+| **API key**      | Passe une clé dans un en-tête ou un paramètre de requête.    |
 | **Bearer token** | En-tête `Authorization: Bearer <token>` à chaque requête.    |
 | **Basic auth**   | Utilisateur et mot de passe encodés en base64.               |
 | **OAuth 2.0**    | Authorization-code flow avec rafraîchissement de jeton auto. |

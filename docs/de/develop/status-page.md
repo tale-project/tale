@@ -1,57 +1,90 @@
 ---
 title: Status-Seite
-description: Die öffentliche /status-Oberfläche — was jeder Service meldet, was das Rollup bedeutet und wo es im Monitoring-Stack des Betreibers einsetzt.
+description: Die öffentliche /status-Oberfläche — was jede Komponente meldet, was das Rollup bedeutet und wie externe Monitore sie konsumieren.
 ---
 
-Tale stellt einen öffentlichen `/status`-Endpoint auf jeder Instanz bereit. Er liefert ein kleines, deterministisches JSON-Dokument plus eine HTML-Darstellung, die den Zustand der Plattform-Services zusammenfasst: welche erreichbar sind, welche degradiert sind und welches Rollup-Urteil daraus folgt. Die Seite richtet sich an zwei Zielgruppen — die Betreiberin, die die Instanz fährt und eine einzelne URL prüfen will, bevor sie einen Incident meldet, und den externen Integrator, der einen Monitoring-Agenten gegen die öffentlichen Oberflächen von Tale fährt.
+Tale exponiert auf jeder Instanz eine öffentliche Status-Oberfläche unter `/status` (HTML) und `/status.json` (JSON). Beide spiegeln denselben Probe: einen fünf Sekunden gecachten Health-Check gegen die drei internen Backends — Anwendung, Wissensdatenbank, Web- & Dokumentendienste —, zusammengeführt zu einem einzelnen Urteil aus `operational` / `degraded` / `outage`. Die Seite ist für zwei Leser: den Betreiber, der eine einzelne URL prüfen will, bevor er einen Vorfall meldet, und den externen Monitoring-Agent, der Tales öffentliche Oberfläche pollt.
 
-Diese Seite deckt den Vertrag ab: was auf der Seite steht, wie das JSON aussieht, was du scrapen kannst und was `/status` **nicht** verrät (dafür gibt es Observability-Tools wie Prometheus und Sentry).
+Diese Seite ist die Drahtreferenz: was jedes Feld bedeutet, welche Werte es annehmen kann und was die Seite absichtlich nicht sagt. Für Pro-Anfrage-Fehlerraten oder KI-Anbieter-Verfügbarkeit ist der Observability-Stack unter [Operations](/de/self-hosted/operate/observability/operations) die richtige Oberfläche.
 
-## Was auf der Seite steht
+## Durchgespieltes Beispiel — den Status-Feed abrufen
 
-Die Seite zeigt oben ein Rollup-Urteil — **Alle Systeme laufen** wenn jeder abhängige Service gesund antwortet, **Teilausfall** wenn mindestens ein Service degradiert antwortet, **Grosser Ausfall** wenn mindestens ein Service ungesund antwortet. Unter dem Rollup listet eine Pro-Service-Aufschlüsselung jeden Service der Plattform mit seinem aktuellen Zustand, dem Zeitstempel der letzten Prüfung und (in der Cloud) einer kleinen Historie kürzlicher Incidents.
+Der kleinstmögliche Monitor-Probe ist ein GET gegen `/status.json`:
 
-Das Urteil wird serverseitig alle 30 Sekunden aktualisiert; die Seite pollt und rendert neu, sodass ein lange offener Tab aktuell bleibt, ohne manuell zu aktualisieren.
+```bash
+curl -s https://your-tale-instance.com/status.json
+```
 
-## JSON-Form
-
-Derselbe Inhalt ist als maschinenlesbares JSON unter `/status.json` verfügbar — nützlich für eine Uptime-Probe oder einen Status-Dashboard-Aggregator. Die Form:
+Wenn alles gesund ist, ist die Antwort:
 
 ```json
 {
-  "rollup": "operational",
-  "services": [
-    {
-      "name": "platform",
-      "status": "healthy",
-      "lastCheckedAt": "2026-04-19T08:30:00Z"
-    },
-    {
-      "name": "rag",
-      "status": "healthy",
-      "lastCheckedAt": "2026-04-19T08:30:00Z"
-    },
-    {
-      "name": "crawler",
-      "status": "degraded",
-      "lastCheckedAt": "2026-04-19T08:30:00Z"
-    }
+  "status": "operational",
+  "checkedAt": "2026-05-15T13:45:07.123Z",
+  "components": [
+    { "id": "convex", "status": "operational" },
+    { "id": "rag", "status": "operational" },
+    { "id": "crawler", "status": "operational" }
   ]
 }
 ```
 
-`rollup` ist einer von `operational`, `partial_outage`, `major_outage`. Der `status` jedes Service-Eintrags ist einer von `healthy`, `degraded`, `unhealthy`. Die Form ist über Versionen stabil; neue Felder können hinzukommen, bestehende werden weder umbenannt noch entfernt.
+Beide Endpoints antworten mit `200 OK` und `Cache-Control: public, max-age=5` — auch während eines Ausfalls, damit externe Monitore eine stabile Antwortform statt eines Timeouts bekommen.
 
-## Was du scrapen kannst
+## Die beiden Endpoints
 
-Für eine Dritt-Monitoring-Probe GET `/status.json` im Intervall, das zum Alert-Fenster passt (1–5 Minuten sind typisch). Die Antwort ist klein (~500 Byte) und der Endpoint ist nicht authentifiziert; er ist bewusst nicht hinter Sign-In gesperrt, damit externe Monitore ihn erreichen.
+| Endpoint       | Verwendung                                                                                                                               |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `/status`      | Menschen-lesbare HTML-Seite. Sprache aus `Accept-Language` gewählt (Englisch, Deutsch, Französisch). Kein JavaScript, kein Auto-Refresh. |
+| `/status.json` | Maschinen-lesbarer Feed für externe Monitore — BetterStack, UptimeRobot, Atlassian Statuspage, Datadog Synthetics, alles andere.         |
 
-Für interne Alarme, die tiefer als das Rollup gehen, scrape stattdessen die Prometheus-Endpoints, die unter [Operations](/de/self-hosted/operate/observability/operations) dokumentiert sind — `/status` ist eine grobe Oberfläche für „ist die Plattform erreichbar", keine Metrik-Ebene-Gesundheitsansicht.
+Beide Endpoints teilen denselben Probe (ein einzelner In-Memory-Cache liegt vor beiden), sodass HTML-Seite und JSON-Feed nicht driften können. Der Unterschied liegt nur in der Darstellung.
 
-## Was nicht auf der Seite steht
+## Drahtform (`/status.json`)
 
-`/status` meldet keine Pro-Anfrage-Fehlerraten, keine KI-Anbieter-Verfügbarkeit und keine Queue-Tiefe. Es zeigt auch keine internen Services — Datenbank, Proxy, Hintergrund-Worker — weil deren Fehlermodi ohnehin durch einen der nutzerseitigen Services laufen. Für Pro-Anfrage-Fehlerraten nutze den Sentry-Stack, dokumentiert unter [Operations](/de/self-hosted/operate/observability/operations); für KI-Anbieter-Verfügbarkeit ist die Status-Seite des Anbieters die massgebliche Quelle.
+| Name                  | Typ    | Beschreibung                                                                                                                  |
+| --------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `status`              | string | Rollup-Urteil: `operational` (jede Komponente verfügbar), `degraded` (einige verfügbar, einige nicht), `outage` (alle nicht). |
+| `checkedAt`           | string | ISO-8601-Zeitstempel der letzten Probe-Runde.                                                                                 |
+| `components`          | array  | Pro-Komponenten-Health. Form und Reihenfolge sind über Versionen hinweg stabil.                                               |
+| `components[].id`     | string | Stabiler Komponenten-Identifier: `convex`, `rag` oder `crawler`.                                                              |
+| `components[].status` | string | `operational` oder `outage`. Aktuell gibt es keinen Pro-Komponenten-`degraded`-Wert.                                          |
+
+Die Felder sind über Versionen hinweg stabil: neue Felder können hinzukommen, bestehende werden nicht umbenannt oder entfernt. Schlüsselwort-basierte Uptime-Monitore können auf den Case-sensitiven Substring `"status":"outage"` alarmieren und auf diesen Treffer über Upgrades hinweg vertrauen.
+
+## Was jede Komponente abdeckt
+
+Die IDs mappen auf Subsysteme, nicht auf die zugrunde liegenden Stack-Namen — eine bewusste Wahl, damit die öffentliche Oberfläche lesbar bleibt, wenn sich der Stack ändert.
+
+| ID        | Abgedeckt                                                                             |
+| --------- | ------------------------------------------------------------------------------------- |
+| `convex`  | Das Anwendungs-Backend (Lese-, Schreib-, Realtime-Sync). Ist das aus, ist die UI aus. |
+| `rag`     | Die Wissensdatenbank — neue Dokumente indizieren und bestehende durchsuchen.          |
+| `crawler` | Web- & Dokumentendienste — Site-Crawls und On-Demand-URL-Fetches.                     |
+
+Das Rollup ist auf Komponenten-Ebene binär: jedes Subsystem ist entweder erreichbar und liefert (`operational`) oder nicht (`outage`). Ein künftiger Pro-Komponenten-`degraded`-Wert (z. B. latenz-basiert) kann landen, ohne Konsumenten zu brechen, weil `status` schon das breitere `OverallStatus`-Vokabular akzeptiert.
+
+## Wie der Probe funktioniert
+
+Eine einzelne Probe-Runde verteilt drei HTTP-Anfragen parallel — eine an jeden Backend-Health-Endpunkt — mit zwei Sekunden Pro-Probe-Timeout. Das Ergebnis wird fünf Sekunden im Prozess-Speicher gecacht, damit eine nicht-authentifizierte `/status`-Route nicht von einem feindlichen Anrufer zu einem Probe-Verstärker gemacht werden kann. Nur der HTTP-Status jedes Upstreams wird inspiziert; Antwort-Bodies werden sofort verworfen, sodass ein sich fehlverhaltender Upstream keine Bytes in die öffentliche Antwort drücken kann.
+
+Der Platform-Prozess selbst ist im Rollup implizit: wenn `/status` überhaupt antwortet, ist die Platform erreichbar. `outage` heisst also, dass jeder Backend-Probe fehlschlug — das ist, was Nutzer effektiv sehen, weil keiner der nutzerseitigen Flows ohne mindestens einen der drei funktioniert.
+
+## Was nicht auf der Seite ist
+
+`/status` ist eine grobkörnige Oberfläche — „ist die Plattform erreichbar" — keine Metrik-Health-Ansicht. Die Seite meldet nicht:
+
+- **Pro-Anfrage-Fehlerraten.** Nutze den Sentry-Stack unter [Operations](/de/self-hosted/operate/observability/operations).
+- **KI-Anbieter-Verfügbarkeit.** Die eigene Status-Seite des Anbieters ist die autoritative Quelle dafür.
+- **Queue-Tiefe, Latenz-Histogramme oder Pro-Mandanten-Metriken.** Die liegen in den Prometheus-Endpoints, ebenfalls unter Operations abgedeckt.
+- **Nur-interne Dienste.** Die Datenbank, der Proxy, die Hintergrund-Worker — ihre Fehlermodi laufen ohnehin durch eine der drei genannten Komponenten, also würde sie separat zu exponieren Rauschen ohne Information hinzufügen.
+
+## Was zu scrapen ist
+
+Für einen externen Uptime-Monitor GET `/status.json` in dem Intervall, das zum Alarm-Fenster passt — 1–5 Minuten sind typisch. Die Antwort ist klein (~500 Bytes) und der Endpunkt ist nicht authentifiziert; er gatet absichtlich nicht hinter einem Login, damit Monitore ihn ohne Anmelde-Provisioning erreichen.
+
+Für internes Alarming, das tiefer geht als das Rollup, scrape stattdessen die Prometheus-Endpoints unter [Operations](/de/self-hosted/operate/observability/operations). `/status` ist die URL, die du in einen Incident-Channel postest; Prometheus ist die URL, die Grafana abfragt.
 
 ## Wo das einsetzt
 
-Die Status-Seite ist die leichtgewichtigste Betreiber-Oberfläche — die URL, die jemand abruft, bevor er einen Incident meldet, der Endpoint, den ein Dritt-Monitor pollt. Für Tag-zu-Tag-Observability auf einer selbst gehosteten Instanz deckt [Operations](/de/self-hosted/operate/observability/operations) ab, was du scrapen und alerten musst; für die In-App-Kommunikation nach einem Upgrade ist [Was ist neu](/de/platform/admin/changelog) der Changelog-Dialog.
+Die Status-Seite ist die leichteste Operator-Oberfläche — die URL, die jemand vor dem Melden eines Vorfalls trifft, der Endpunkt, den ein Drittanbieter-Monitor pollt. Das API-Gegenstück zu dieser Seite ist der Rest der [API-Referenz](/de/develop/api-reference); der tiefere Observability-Stack für Self-hosted-Betreiber liegt unter [Operations](/de/self-hosted/operate/observability/operations), und der In-App-Kommunikations-Kanal für Upgrades und bekannte Probleme ist [What's new](/de/platform/admin/whats-new).

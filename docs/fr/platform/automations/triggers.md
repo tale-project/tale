@@ -23,7 +23,7 @@ Lance le workflow quand quelque chose se passe dans Tale.
 
 | Événement                 | Exemple d’usage                             |
 | ------------------------- | ------------------------------------------- |
-| Nouveau client ajouté     | envoyer un email de bienvenue.              |
+| Nouveau client ajouté     | envoyer un courriel de bienvenue.           |
 | Nouvelle conversation     | taguer le fil selon l’historique du client. |
 | Approbation demandée      | notifier un canal Slack.                    |
 | Document téléversé        | extraire métadonnées et classifier.         |
@@ -36,7 +36,7 @@ Chaque type d’événement accepte des conditions de filtre optionnelles. Le fi
 Chaque workflow a une URL webhook unique à laquelle tu peux POSTer. Utilise les triggers webhook quand quelque chose hors de Tale doit démarrer le workflow — soumission de formulaire, événement amont, hook CI/CD.
 
 - Le body de la requête est disponible comme entrée pour toutes les étapes.
-- Ajoute un secret webhook pour vérifier l’authenticité. Tale vérifie un header `X-Tale-Signature` et rejette les requêtes qui ne matchent pas.
+- Ajoute un secret webhook pour vérifier l’authenticité. Tale vérifie un en-tête `X-Tale-Signature` et rejette les requêtes qui ne matchent pas.
 - L’URL webhook est visible sur l’étape **Start** et dans l’onglet **Configuration**.
 
 Voir [Webhooks](/fr/develop/webhooks) pour les formats détaillés et le code de vérification de signature.

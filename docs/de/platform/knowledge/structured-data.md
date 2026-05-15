@@ -3,7 +3,7 @@ title: Strukturierte Daten
 description: Produkte, Kunden und Lieferanten als strukturierte Datensätze verwalten, die die KI abfragen kann.
 ---
 
-Die strukturierten Bereiche der Wissensdatenbank speichern Geschäftsdatensätze, die der KI-Agent neben Dokumenten- und Website-Inhalten abfragen kann. Anders als freie Dokumente haben strukturierte Einträge feste Felder und lassen sich in Massen importieren.
+Strukturierte Daten sind die Zeilen-und-Spalten-Hälfte der Wissensdatenbank — die drei Bereiche (**Produkte**, **Kunden**, **Lieferanten**), die Geschäftsdatensätze mit festen Feldern speichern, die der KI-Agent neben Dokumenten und gecrawlten Websites abfragen kann. Zielgruppe sind Redakteur und Entwickler, die diese Datensätze einzeln oder per CSV-Import pflegen. Diese Seite zeigt, was jeder Bereich enthält, das CSV-Format und wie du einschränkst, welche Entitäten ein bestimmter Agent sieht.
 
 ## Produkte
 
@@ -35,7 +35,7 @@ Der Bereich **Lieferanten** speichert Lieferanten- und Partnerdatensätze. Die L
 
 ## Strukturierte Daten in Agents nutzen
 
-Strukturierte Datensätze werden in denselben Wissens-Store wie Dokumente indiziert. Agents mit Wissens-Zugriff können alle Typen gleichzeitig durchsuchen. Um einen Agent auf eine Teilmenge zu beschränken — etwa einen Sales-Agent, der nur Produkte und Kunden sieht — konfiguriere seinen Wissen-Tab. Siehe [Agent erstellen](/de/platform/agents/create).
+Strukturierte Datensätze werden in denselben Wissens-Store wie Dokumente indiziert. Agents mit Wissens-Zugriff können alle Typen gleichzeitig durchsuchen. Um einen Agent auf eine Teilmenge zu beschränken — etwa einen Vertriebs-Agent, der nur Produkte und Kunden sieht — konfiguriere seinen Wissen-Tab. Siehe [Agent erstellen](/de/platform/agents/create).
 
 ## Wo das hingehört
 

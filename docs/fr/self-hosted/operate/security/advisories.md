@@ -3,9 +3,9 @@ title: Processus de Security Advisory
 description: Comment Tale coordonne, dépose et publie les correctifs liés à la sécurité.
 ---
 
-Cette page documente comment Tale traite les correctifs liés à la sécurité, depuis le premier rapport jusqu'à l'advisory publiée. La forme du processus — brouillon privé sur GitHub, patch publié, advisory publiée avec lien CVE et renvoi vers les release notes — est conventionnelle ; nous la documentons pour que les opérateurs sachent quoi surveiller et pour que les rapporteurs sachent à quoi s'attendre.
+Cette page documente comment Tale traite les correctifs liés à la sécurité, depuis le premier rapport jusqu'à l'advisory publiée. La forme du processus — brouillon privé sur GitHub, patch publié, advisory publiée avec lien CVE et renvoi vers les release notes — est conventionnelle ; la page existe pour que les exploitants sachent quoi surveiller et pour que les rapporteurs sachent à quoi s'attendre.
 
-Côté opérateur, la suite pratique : abonne-toi aux GitHub Security Advisories sur `tale-project/tale` et lis la section `## 🔒 Security` de chaque release. Tout ce qui porte un CVE apparaît dans les deux endroits.
+Côté exploitant, la suite pratique est courte : abonne-toi aux GitHub Security Advisories sur `tale-project/tale` et lis la section `## 🔒 Security` de chaque release. Tout ce qui décroche un CVE apparaît dans les deux endroits, avec le chemin d'upgrade et les contournements nommés explicitement.
 
 ## Canaux
 
@@ -59,7 +59,6 @@ Les opérateurs devraient :
 - traiter les entrées `## 🔒 Security` comme des invitations à mettre à jour ;
 - s’abonner à la liste de notification directe (quand elle existera) pour les alertes critiques.
 
-## Lié
+## Où cela s'inscrit
 
-- [Format des release notes](/fr/self-hosted/operate/release-notes/format) — où vivent les entrées Security dans les notes.
-- La slash-command `/release` du dépôt principal rédige la section Security.
+Les avis de sécurité sont la façon dont Ruler GmbH divulgue les CVE et dont les exploitants apprennent ce qu'il faut patcher sur une instance auto-hébergée. Chaque advisory pointe vers une release Tale qui contient le correctif ; les exploitants déroulent `tale deploy` pour avancer, tandis que les clients Cloud reçoivent le même correctif au prochain déploiement de la plateforme. Le pendant release-notes du même événement vit dans [Format des notes de version](/fr/self-hosted/operate/release-notes/format) sous la section `## 🔒 Security` ; la slash-command `/release` du dépôt principal rédige automatiquement cette section quand une release sort.

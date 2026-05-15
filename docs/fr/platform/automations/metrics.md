@@ -31,12 +31,6 @@ Chaque requête est plafonnée aux 5 000 exécutions les plus récentes sur la f
 
 Si aucun workflow ne s’est exécuté sur la période, la page affiche un état vide intitulé _Aucune exécution_ au lieu de cartes à zéro. C’est le signal pour élargir la période ou vérifier que tes triggers s’allument bien — voir [Triggers](/fr/platform/automations/triggers).
 
-## Où cela s'insère
-
-Les métriques de cette page agrègent les exécutions à l'échelle d'un workflow ; elles te disent si une automatisation se comporte normalement dans le temps. Pour descendre dans une exécution précise — la requête qui a déclenché le run, la sortie de chaque étape, l'erreur qui a fait planter le tout — c'est la page des journaux d'exécution qui prend le relais. Et pour la vue inverse — les tendances de tokens et de coûts à l'échelle de toute l'organisation, pas seulement d'un workflow — passe par les analyses d'usage.
-
-Références voisines : [Logs d'exécution](/fr/platform/automations/execution-logs) couvre l'historique par workflow avec détail par étape, et [Analyses d'utilisation](/fr/platform/admin/usage-analytics) donne la vue cross-workflow des tokens et coûts à l'échelle de l'organisation.
-
 ## Où ça s'inscrit
 
-Les métriques d'automatisation sont le tableau de bord cross-workflow — la surface qui répond à « est-ce que quelque chose ne va pas en ce moment ? » et « qu'est-ce qui a changé depuis la semaine dernière ? » sans ouvrir chaque workflow individuellement. Quand une métrique bouge, plonge dans [Logs d'exécution](/fr/platform/automations/execution-logs) pour la vérité par exécution. Pour les tendances de coût LLM qui traversent automatisations et chat, [Analyses d'utilisation](/fr/platform/admin/usage-analytics) est un onglet plus loin.
+Les métriques d'automatisation sont le tableau de bord cross-workflow — la surface qui répond à « est-ce que quelque chose ne va pas en ce moment ? » et « qu'est-ce qui a changé depuis la semaine dernière ? » sans ouvrir chaque workflow individuellement. Quand une métrique bouge, plonge dans les [Journaux d'exécution](/fr/platform/automations/execution-logs) pour la vérité par exécution. Pour les tendances de coût LLM qui traversent automatisations et chat, les [Analyses d'utilisation](/fr/platform/admin/usage-analytics) sont un onglet plus loin.

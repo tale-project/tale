@@ -1,9 +1,9 @@
 ---
-title: Automations
+title: Workflows
 description: Build and run multi-step workflows with triggers, conditions, loops, and AI steps.
 ---
 
-Automations let you define and run multi-step business processes without writing backend code. A workflow is a series of steps. Each step does one thing, and steps are connected to form a complete process.
+A workflow is the runnable shape of an automation — the editor where steps, triggers, and variables become a graph that runs end to end. This page covers the editor itself: how to create a workflow, the six step types it ships, how to wire triggers to the **Start** step, the configuration knobs that shape retries and timeouts, and how to test before publishing. The audience is the Developer or higher building or maintaining a workflow; the vocabulary the page leans on lives at [Automation concepts](/platform/automations/concepts).
 
 ## Creating a workflow
 

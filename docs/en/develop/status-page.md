@@ -1,57 +1,90 @@
 ---
 title: Status page
-description: The public /status surface — what each service reports, what the rollup means, and where it fits in the operator's monitoring stack.
+description: The public /status surface — what each component reports, what the rollup means, and how external monitors consume it.
 ---
 
-Tale exposes a public `/status` endpoint on every instance. It returns a small, deterministic JSON document plus an HTML render that summarises the health of the platform's services: which ones are reachable, which ones are degraded, and what the rollup verdict is. The page is for two audiences — the operator running the instance who wants a single URL to check before reporting an incident, and the external integrator who's running a monitoring agent against Tale's public surfaces.
+Tale exposes a public status surface on every instance, at `/status` (HTML) and `/status.json` (JSON). Both reflect the same probe: a five-second-cached health check against the three internal backends — application, knowledge base, and web & document services — rolled up into a single `operational` / `degraded` / `outage` verdict. The page is for two readers: the operator who wants a single URL to check before reporting an incident, and the external monitoring agent that polls Tale's public surface.
 
-This page covers the contract: what's on the page, what the JSON shape is, what to scrape, and what `/status` does **not** tell you (that's what observability tooling like Prometheus and Sentry are for).
+This page is the wire reference: what each field means, what the values can be, and what the page intentionally doesn't tell you. For per-request error rates or AI-provider availability, the observability stack documented at [Operations](/self-hosted/operate/observability/operations) is the right surface.
 
-## What's on the page
+## Worked example — fetch the status feed
 
-The page surfaces a rollup verdict at the top — **All systems operational** when every dependent service responds healthy, **Partial outage** when at least one service responds degraded, **Major outage** when at least one service responds unhealthy. Beneath the rollup, a per-service breakdown lists each service in the platform with its current status, the last-checked timestamp, and (on Cloud) a small history of recent incidents.
+The smallest possible monitor probe is one GET against `/status.json`:
 
-The verdict refreshes every 30 seconds from the server side; the page polls and re-renders so a long-open tab stays current without a manual refresh.
+```bash
+curl -s https://your-tale-instance.com/status.json
+```
 
-## JSON shape
-
-The same content is available as machine-readable JSON at `/status.json` — useful for an uptime probe or a status-dashboard aggregator. The shape:
+When everything is healthy, the response is:
 
 ```json
 {
-  "rollup": "operational",
-  "services": [
-    {
-      "name": "platform",
-      "status": "healthy",
-      "lastCheckedAt": "2026-04-19T08:30:00Z"
-    },
-    {
-      "name": "rag",
-      "status": "healthy",
-      "lastCheckedAt": "2026-04-19T08:30:00Z"
-    },
-    {
-      "name": "crawler",
-      "status": "degraded",
-      "lastCheckedAt": "2026-04-19T08:30:00Z"
-    }
+  "status": "operational",
+  "checkedAt": "2026-05-15T13:45:07.123Z",
+  "components": [
+    { "id": "convex", "status": "operational" },
+    { "id": "rag", "status": "operational" },
+    { "id": "crawler", "status": "operational" }
   ]
 }
 ```
 
-`rollup` is one of `operational`, `partial_outage`, `major_outage`. Each service entry's `status` is one of `healthy`, `degraded`, `unhealthy`. The shape is stable across versions; new fields may be added but existing ones are not renamed or removed.
+Both endpoints respond with `200 OK` and `Cache-Control: public, max-age=5` — even during an outage, so external monitors get a stable response shape rather than a timeout.
 
-## What to scrape
+## The two endpoints
 
-For a third-party monitoring probe, GET `/status.json` on the interval that suits the alert window (1–5 minutes is typical). The response is small (~500 bytes) and the endpoint is unauthenticated; it intentionally doesn't gate behind sign-in so external monitors can reach it.
+| Endpoint       | Use                                                                                                                              |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `/status`      | Human-readable HTML page. Locale picked from `Accept-Language` (English, German, French). No JavaScript, no auto-refresh.        |
+| `/status.json` | Machine-readable feed for external monitors — BetterStack, UptimeRobot, Atlassian Statuspage, Datadog Synthetics, anything else. |
 
-For an internal alert that goes deeper than the rollup, scrape the Prometheus endpoints documented at [Operations](/self-hosted/operate/observability/operations) instead — `/status` is a coarse-grained surface for "is the platform reachable", not a metric-level health view.
+Both endpoints share the same probe (a single in-memory cache fronts both) so the HTML page and the JSON feed cannot drift. They only differ in representation.
+
+## Wire shape (`/status.json`)
+
+| Name                  | Type   | Description                                                                                               |
+| --------------------- | ------ | --------------------------------------------------------------------------------------------------------- |
+| `status`              | string | Rollup verdict: `operational` (every component up), `degraded` (some up, some down), `outage` (all down). |
+| `checkedAt`           | string | ISO 8601 timestamp of the most recent probe round.                                                        |
+| `components`          | array  | Per-component health. The shape and order are stable across versions.                                     |
+| `components[].id`     | string | Stable component identifier: `convex`, `rag`, or `crawler`.                                               |
+| `components[].status` | string | `operational` or `outage`. There's no per-component `degraded` value today.                               |
+
+The fields are stable across versions: new fields may be added, existing ones won't be renamed or removed. Keyword-based uptime monitors can alert on the case-sensitive substring `"status":"outage"` and trust that match across upgrades.
+
+## What each component covers
+
+The IDs map to subsystems, not to the underlying stack names — a deliberate choice so the public surface stays readable when the stack changes.
+
+| ID        | Covers                                                                                    |
+| --------- | ----------------------------------------------------------------------------------------- |
+| `convex`  | The application backend (reads, writes, real-time sync). If this is down, the UI is down. |
+| `rag`     | The knowledge base — indexing new documents and searching existing ones.                  |
+| `crawler` | Web & document services — site crawls and on-demand URL fetches.                          |
+
+The rollup is binary at the component level: each subsystem is either reachable and serving (`operational`) or not (`outage`). A future per-component `degraded` value (e.g. latency-based) can land without breaking consumers, because `status` already accepts the wider `OverallStatus` vocabulary.
+
+## How the probe works
+
+A single probe round fans out three HTTP requests in parallel — one to each backend health endpoint — with a 2-second per-probe timeout. The result is cached for five seconds in process memory, so an unauthenticated `/status` route can't be turned into a probe amplifier by a hostile caller. Only the HTTP status of each upstream is inspected; response bodies are discarded immediately, so a misbehaving upstream can't push bytes into the public response.
+
+The platform process itself is implicit in the rollup: if `/status` is responding at all, the platform is reachable. `outage` therefore means every backend probe failed — which is what users effectively see, since none of the user-facing flows work without at least one of the three.
 
 ## What's not on the page
 
-`/status` doesn't report per-request error rates, AI-provider availability, or queue depth. It also doesn't expose any internal-only services — the database, the proxy, the background workers — because their failure modes route through one of the user-facing services anyway. For per-request error rates, use the Sentry stack documented in [Operations](/self-hosted/operate/observability/operations); for AI-provider availability, the provider's own status page is the authoritative source.
+`/status` is a coarse-grained surface — "is the platform reachable" — not a metric-level health view. It doesn't report:
+
+- **Per-request error rates.** Use the Sentry stack documented at [Operations](/self-hosted/operate/observability/operations).
+- **AI-provider availability.** The provider's own status page is the authoritative source for that.
+- **Queue depth, latency histograms, or per-tenant metrics.** Those live in the Prometheus endpoints, also covered under Operations.
+- **Internal-only services.** The database, the proxy, the background workers — their failure modes route through one of the three named components anyway, so exposing them separately would add noise without information.
+
+## What to scrape
+
+For an external uptime monitor, GET `/status.json` on the interval that suits the alert window — 1–5 minutes is typical. The response is small (~500 bytes) and the endpoint is unauthenticated; it intentionally doesn't gate behind sign-in so monitors can reach it without provisioning credentials.
+
+For internal alerting that goes deeper than the rollup, scrape the Prometheus endpoints documented at [Operations](/self-hosted/operate/observability/operations) instead. `/status` is the URL you put in an incident channel; Prometheus is the URL Grafana queries.
 
 ## Where this fits
 
-The status page is the lightest-weight operator surface — the URL someone hits before they report an incident, the endpoint a third-party monitor polls. For day-to-day observability on a self-hosted instance, [Operations](/self-hosted/operate/observability/operations) covers what to scrape and alert on; for the in-app communication after an upgrade, [What's new](/platform/admin/changelog) is the changelog dialog.
+The status page is the lightest-weight operator surface — the URL someone hits before reporting an incident, the endpoint a third-party monitor polls. The API counterpart to this page is the rest of [API reference](/develop/api-reference); the deeper observability stack for self-hosted operators lives at [Operations](/self-hosted/operate/observability/operations), and the in-app communication channel for upgrades and known issues is [What's new](/platform/admin/whats-new).

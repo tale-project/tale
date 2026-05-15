@@ -5,7 +5,7 @@ description: Tale auf einen Produktionsserver mit der Tale-CLI und Zero-Downtime
 
 Dieser Leitfaden ist der Produktionspfad: ein Linux-Server mit echter Domain, echter TLS und der Blue-Green-Topologie, mit der Upgrades ohne Wartungsfenster überleben. Die `tale`-CLI macht die Schwerarbeit — sie zieht die Docker-Images, fährt die Migrationen und schaltet den Traffic erst um, nachdem die neuen Container ihre Health-Checks bestanden haben. Wenn ein Deploy nicht hochkommt, bleibt die vorige Version aktiv und nichts Nutzersichtbares bricht.
 
-Wenn du Tale nur lokal probieren willst, ist [Quickstart](/de/self-hosted/install/quickstart) kürzer und in Minuten am Laufen. Komm hierher zurück, wenn du die Instanz dem Team zugänglich machst.
+Für eine Laptop-Evaluierung ist [Quickstart](/de/self-hosted/install/quickstart) kürzer und in Minuten am Laufen. Komm hierher zurück, wenn du die Instanz dem Team zugänglich machst.
 
 ## Voraussetzungen
 

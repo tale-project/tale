@@ -3,7 +3,7 @@ title: Integrations overview
 description: Connect Tale to REST APIs and SQL databases through developer-defined connectors.
 ---
 
-An integration is a developer-defined connector that exposes a remote system's capabilities — REST endpoints or SQL queries — as a fixed set of named operations. Once installed, those operations are tools the chat assistant, agents, and automation steps can call by name with typed parameters. Configuration lives in **Settings > Integrations** and requires the Developer role or higher; consumers just call the operations the connector publishes.
+An integration is a developer-defined connector that exposes a remote system's capabilities — REST endpoints or SQL queries — as a fixed set of named operations. Once installed, those operations are tools the chat assistant, agents, and automation steps can call by name with typed parameters. Configuration lives in **Settings > Integrations** and requires the Developer role or higher; consumers call the operations the connector publishes.
 
 The platform supports two connector types: `rest_api` for HTTP services and `sql` for direct database access. Anything else listed under **Settings > Integrations** in the UI — email mailboxes, Microsoft OneDrive, API keys for the Tale API itself — is a related connection that uses its own configuration surface, not the connector model. Those are covered at the bottom of this page.
 

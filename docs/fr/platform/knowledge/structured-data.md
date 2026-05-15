@@ -1,9 +1,9 @@
 ---
 title: Données structurées
-description: Gère Produits, Clients et Fournisseurs comme enregistrements structurés interrogeables par l’IA.
+description: Gère Produits, Clients et Fournisseurs comme enregistrements structurés interrogeables par l'IA.
 ---
 
-Les sections de données structurées de la base de connaissances stockent des enregistrements métier que l’agent IA peut interroger à côté des documents et sites. Contrairement aux documents libres, les entrées structurées ont des champs fixes et peuvent être importées en masse.
+Les données structurées sont la moitié lignes-et-colonnes de la base de connaissances — les trois sections (**Produits**, **Clients**, **Fournisseurs**) qui stockent des enregistrements métier avec des champs fixes que l'agent IA peut interroger à côté des documents et des sites web crawlés. Le public visé : Éditeur ou Développeur qui entretient ces enregistrements, un par un ou par import CSV. Cette page couvre ce que contient chaque section, le format CSV, et comment restreindre quelles entités voit un agent donné.
 
 ## Produits
 
@@ -19,7 +19,7 @@ Valeurs de statut valides : `active`, `inactive`, `draft`, `archived`. Valeurs i
 
 ## Clients
 
-La section Clients stocke ta liste de clients. Chaque client a une adresse email, une locale, un statut et des métadonnées personnalisées optionnelles. Les clients importés ont par défaut le statut `churned`.
+La section Clients stocke ta liste de clients. Chaque client a une adresse de courriel, une locale, un statut et des métadonnées personnalisées optionnelles. Les clients importés ont par défaut le statut `churned`.
 
 Import CSV :
 

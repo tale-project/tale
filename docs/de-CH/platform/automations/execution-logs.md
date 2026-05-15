@@ -42,4 +42,8 @@ Ausführungs-Datensätze werden gemäss der [Aufbewahrungsrichtlinie](/de/platfo
 
 ## Alarme
 
-Konfiguriere Alarme im **Alarme**-Tab des Workflows, damit ein Admin per E-Mail benachrichtigt wird, wenn ein Workflow fehlschlägt, länger als ein Schwellwert läuft oder einen Fehler erzeugt, der einem Muster entspricht. Für Workflow-übergreifende Alarme (z. B. "mehr als 5 Fehlschläge pro Stunde über alle Workflows") nutze [Operations](/de/self-hosted/operate/observability/operations).
+Konfiguriere Alarme im **Alarme**-Tab des Workflows, damit ein Admin per E-Mail benachrichtigt wird, wenn ein Workflow fehlschlägt, länger als ein Schwellwert läuft oder einen Fehler erzeugt, der einem Muster entspricht. Für Workflow-übergreifende Alarme („mehr als 5 Fehlschläge pro Stunde über alle Workflows") nutze [Operations](/de/self-hosted/operate/observability/operations).
+
+## Wo das einsetzt
+
+Ausführungslogs sind die Pro-Workflow-Debug-Oberfläche. Wenn etwas fehlschlägt, gehst du hier hin — der Schritt-Name, der buchstäbliche Input, der buchstäbliche Output, die Fehlermeldung. Für die Workflow-übergreifende Aufrollung (KPIs, Läufe über die Zeit, Status-Aufteilung, Top-Workflows) ist [Automatisierungs-Metriken](/de/platform/automations/metrics) das Dashboard. Für organisationsweite Fehler-Trends über Automatisierungen und Chat hinweg ist [Operations](/de/self-hosted/operate/observability/operations) die richtige Oberfläche.

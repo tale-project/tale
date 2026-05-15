@@ -52,3 +52,9 @@ Wenn ein Crawl Seiten nicht findet, die du erwartest:
 ## Eine Site entfernen
 
 Eine Site aus **Wissen > Websites** zu löschen, entfernt alle indizierten Inhalte dieser Site. Das geschieht sofort — die KI findet diese Seiten danach nicht mehr.
+
+## Wo das einsetzt
+
+Crawling ist der Bulk-Import-Pfad für öffentliche Web-Inhalte. Er existiert, weil Artikel für Artikel aus einem Help-Center in die Wissensdatenbank kopieren Beschäftigungsarbeit ist, die schlecht skaliert; den Crawler auf die Domain zu richten, holt alles in einem Zug rein. Sobald Inhalt in der Wissensdatenbank ist, liest er sich identisch zu hochgeladenen Dokumenten — dieselbe Suche, dieselben Agents, dieselben Zugriffskontrollen.
+
+Für das Aufnehmen von OneDrive-Dateien oder anderen authentifizierten Quellen nutze die entsprechende Integration in [Integrationen – Überblick](/de/platform/integrations/overview). Für den Endnutzer-Workflow zum Hinzufügen einer Website aus dem Chat siehe [Wissensdatenbank](/de/platform/workspace/knowledge-base).

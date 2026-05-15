@@ -102,7 +102,7 @@ Um nach einem Deployment oder einer Konfigurationsänderung sicherzugehen, dass 
 bun run docker:test
 ```
 
-Er baut alle Images, startet sie auf nicht-konflikthaften Ports, prüft Health-Endpoints und Inter-Service-Konnektivität und baut wieder ab. Es ist derselbe Test, der in CI bei jedem Pull Anfrage läuft.
+Er baut alle Images, startet sie auf nicht-konflikthaften Ports, prüft Health-Endpoints und Inter-Service-Konnektivität und baut wieder ab. Es ist derselbe Test, der in CI bei jedem Pull Request läuft.
 
 Für Image-Validierung (OCI-Labels, keine Secrets, Size-Budgets):
 

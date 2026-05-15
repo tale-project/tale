@@ -1,49 +1,67 @@
 ---
-title: Développement assisté par l’IA
-description: Utilise des éditeurs IA pour créer et modifier agents, workflows et intégrations avec contexte complet.
+title: Développement assisté par l'IA
+description: Utiliser des éditeurs IA pour créer agents, workflows et intégrations avec un contexte de plateforme complet.
 ---
 
-Quand tu lances `tale init`, le CLI génère des fichiers de configuration qui rendent les éditeurs de code IA conscients de la structure projet, des schémas et du code source plateforme de Tale. Tu peux ainsi créer et modifier agents, workflows et intégrations en décrivant ce que tu veux en langage naturel.
+Les commandes CLI `tale init` et `tale upgrade` génèrent des fichiers de configuration d'éditeur qui rendent les éditeurs IA — Claude Code, Cursor, GitHub Copilot, Windsurf — conscients de la structure de projet, des schémas et du code source de plateforme de Tale. Avec ces fichiers en place, tu peux décrire un agent, un workflow ou une intégration en langage naturel, et l'éditeur produit une configuration conforme au schéma. Cette page s'adresse aux contributeurs source et aux développeurs avec un workflow d'écriture basé sur fichiers ; les utilisateurs qui éditent par l'UI de la plateforme n'ont besoin de rien de tout ça.
 
-## Ce qui est généré
+Le résultat d'un seul `tale init` est un répertoire de projet que n'importe lequel des éditeurs nommés peut ouvrir avec un contexte complet : les schémas, les validateurs, la surface d'outils de connecteur et la bibliothèque d'exemples vivent tous sous `.tale/reference/`.
 
-| Fichier                           | Rôle                                       | Éditeur             |
-| --------------------------------- | ------------------------------------------ | ------------------- |
-| `CLAUDE.md`                       | règles et contexte projet                  | Claude Code         |
-| `.cursor/rules/tale.mdc`          | règles avec frontmatter glob               | Cursor              |
-| `.github/copilot-instructions.md` | règles projet                              | GitHub Copilot      |
-| `.windsurfrules`                  | règles projet                              | Windsurf            |
-| `.tale/reference/`                | code source plateforme complet (read-only) | tous les précédents |
+## Ce que `tale init` génère
 
-Les fichiers de règles contiennent le même cœur : structure projet, conventions de config et instruction de consulter `.tale/reference/` avant toute modification. Le répertoire reference contient tout le code source backend — schémas DB, validators, outils d’agent, types d’étape workflow et connecteurs d’intégration. L’IA a tout ce qu’il faut pour générer des configurations correctes.
+Un projet échafaudé livre un fichier de règles d'éditeur par éditeur pris en charge, plus un répertoire de référence en lecture seule que l'éditeur peut parcourir :
 
-## Comment l’utiliser
+| Fichier                           | Rôle                                 | Éditeur            |
+| --------------------------------- | ------------------------------------ | ------------------ |
+| `CLAUDE.md`                       | Règles et contexte du projet         | Claude Code        |
+| `.cursor/rules/tale.mdc`          | Règles avec frontmatter à motif glob | Cursor             |
+| `.github/copilot-instructions.md` | Règles du projet                     | GitHub Copilot     |
+| `.windsurfrules`                  | Règles du projet                     | Windsurf           |
+| `.tale/reference/`                | Source de plateforme (lecture seule) | tous les ci-dessus |
 
-1. Crée un projet avec `tale init my-project` (ou `tale upgrade` dans un projet existant pour regénérer).
-2. Ouvre le répertoire dans ton éditeur IA.
-3. L’éditeur lit automatiquement son fichier de règles et prend le contexte complet.
-4. Demande à l’IA de créer ou modifier des configurations. Par exemple :
-   - « Crée un agent qui aide l’équipe sales à chercher les détails produit et l’historique client. »
-   - « Ajoute un workflow qui tourne chaque matin, vérifie les factures en retard et envoie un résumé sur Slack. »
-   - « Crée une intégration REST API pour notre service interne sur api.example.com avec OAuth2. »
-   - « Donne à l’agent CRM l’accès supplémentaire à l’outil document search. »
-5. L’IA lit le code source reference, comprend les schémas et relations valides, et génère les JSON de configuration corrects.
-6. Les changements dans `agents/`, `workflows/`, `integrations/` et `branding/` sont hot-reloaded par la plateforme.
+Les quatre fichiers de règles portent le même contenu central — structure de projet, conventions de configuration, instruction de consulter `.tale/reference/` avant de générer quoi que ce soit — dans le format préféré de chaque éditeur. Le répertoire de référence contient l'implémentation backend : schémas de base de données, validateurs, définitions d'outils d'agent, types d'étapes de workflow et contrats de connecteur. C'est tout ce qu'il faut à l'éditeur pour produire une configuration correcte sans deviner.
 
-## Éditeurs supportés
+## Comment l'utiliser
 
-Tale génère des fichiers pour Claude Code, Cursor, GitHub Copilot et Windsurf. Tout éditeur qui lit l’un de ces formats marche. Pour d’autres outils, le `CLAUDE.md` à la racine sert de référence générale.
+Le workflow est le même pour chaque éditeur :
 
-## Garder les règles à jour
+1. Crée ou mets à jour le projet : `tale init <nom-de-projet>` pour un arbre frais, `tale upgrade` pour régénérer les fichiers de règles dans un existant.
+2. Ouvre le projet dans l'éditeur IA de ton choix. L'éditeur prend en charge le fichier de règles automatiquement.
+3. Décris en langage simple ce que tu veux. L'éditeur lit les schémas sous `.tale/reference/` et écrit les fichiers de configuration correspondants.
+4. Enregistre. La plateforme Tale recharge à chaud `agents/`, `workflows/`, `integrations/` et `branding/` — pas d'étape de déploiement séparée.
 
-Les fichiers de règles et le répertoire reference sont dans le binaire CLI. Lance `tale upgrade` pour récupérer le dernier CLI et regénérer :
+Quelques prompts qui marchent bien en pratique :
+
+```text
+Crée un agent qui aide l'équipe commerciale à consulter les détails produits et l'historique client.
+```
+
+```text
+Ajoute un workflow qui tourne chaque matin, vérifie les factures en retard et poste un résumé sur Slack.
+```
+
+```text
+Crée une intégration REST API pour notre service interne sur api.example.com avec authentification OAuth2.
+```
+
+```text
+Mets à jour l'agent assistant CRM pour qu'il ait aussi accès à l'outil de recherche documentaire.
+```
+
+L'éditeur génère le JSON, tu le revois, la plateforme l'applique.
+
+## Garder règles et référence à jour
+
+Les fichiers de règles et le répertoire de référence sont empaquetés dans le binaire CLI, donc une CLI obsolète produit des règles obsolètes. Lance `tale upgrade` régulièrement :
 
 ```bash
 tale upgrade
 ```
 
-Ne modifie pas ces fichiers à la main, ils sont écrasés à l'upgrade.
+L'upgrade réécrit chaque fichier généré. Ne les édite pas à la main — les modifications locales sont écrasées au prochain upgrade. Si une règle doit changer pour tout le projet (une convention maison, un style), soumets le changement contre la CLI elle-même plutôt que de patcher le fichier généré.
 
 ## Où ça s'inscrit
 
-Le développement assisté par IA est le chemin d'auteur par fichier pour les agents, automatisations, intégrations et branding. Il existe parce que la forme JSON derrière chaque écran UI est aussi la forme qu'un éditeur IA peut générer à partir d'une description en langage naturel — et pour une flotte d'agents, c'est plus rapide que de construire chacun dans l'UI. Pour le flux de construction UI canonique, [Créer un agent](/fr/platform/agents/create) est le point d'entrée ; pour le schéma de connecteur spécifiquement, [Construire une intégration](/fr/develop/integrations) est la page suivante.
+Le développement assisté par l'IA est le chemin d'écriture par fichier pour agents, automatisations, intégrations et branding. Il existe parce que la forme JSON qui sous-tend chaque écran d'UI est aussi la forme qu'un éditeur IA peut générer depuis une description en langage clair — pour une flotte d'agents, c'est plus rapide que d'en construire chacun dans l'UI.
+
+Pour le chemin de construction canonique par UI sans éditeur de code, [Construire ton premier agent end-to-end](/fr/tutorials/editor/first-agent-end-to-end) est le point d'entrée. Pour la surface d'écriture de connecteur à côté de laquelle cette page se situe, [Construire une intégration](/fr/develop/integrations) est la référence.

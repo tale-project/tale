@@ -17,10 +17,10 @@ Toute la configuration passe par des variables d’environnement dans `.env`. Co
 
 ## TLS/SSL
 
-| Variable    | Requis | Défaut       | Description                                                        |
-| ----------- | ------ | ------------ | ------------------------------------------------------------------ |
-| `TLS_MODE`  | Non    | `selfsigned` | gestion du certificat : `selfsigned`, `letsencrypt` ou `external`. |
-| `TLS_EMAIL` | Non    |              | email pour les notifications Let’s Encrypt (recommandé en prod).   |
+| Variable    | Requis | Défaut       | Description                                                         |
+| ----------- | ------ | ------------ | ------------------------------------------------------------------- |
+| `TLS_MODE`  | Non    | `selfsigned` | gestion du certificat : `selfsigned`, `letsencrypt` ou `external`.  |
+| `TLS_EMAIL` | Non    |              | courriel pour les notifications Let’s Encrypt (recommandé en prod). |
 
 - **selfsigned** : certificats auto-signés pour le dev. Le navigateur avertit.
 - **letsencrypt** : certificats gratuits de confiance. Exige un domaine public valide et les ports 80/443 joignables.
@@ -104,7 +104,7 @@ Ces variables ne sont nécessaires que si tu configures le SSO via environnement
 | --------------------------------- | ------ | ---------------------------------------------------------------------------- |
 | `TRUSTED_HEADERS_ENABLED`         | Non    | `true` pour activer l’auth Trusted En-têtes.                                 |
 | `TRUSTED_HEADERS_INTERNAL_SECRET` | Non    | secret partagé pour valider les requêtes Trusted En-tête (defense-in-depth). |
-| `TRUSTED_EMAIL_HEADER`            | Non    | nom du header email (défaut : `Remote-Email`).                               |
+| `TRUSTED_EMAIL_HEADER`            | Non    | nom du header courriel (défaut : `Remote-Email`).                            |
 | `TRUSTED_NAME_HEADER`             | Non    | nom du header nom affiché (défaut : `Remote-Name`).                          |
 | `TRUSTED_ROLE_HEADER`             | Non    | nom du header rôle (défaut : `Remote-Role`).                                 |
 | `TRUSTED_TEAMS_HEADER`            | Non    | nom du header équipes (défaut : `Remote-Teams`).                             |

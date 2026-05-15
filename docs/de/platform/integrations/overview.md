@@ -13,12 +13,12 @@ Die Plattform unterstützt zwei Konnektor-Typen: `rest_api` für HTTP-Dienste un
 
 REST-Konnektoren kapseln einen beliebigen HTTP-Dienst. Das Manifest des Konnektors listet die unterstützten Auth-Methoden und die Hosts, die er erreichen darf; sandboxierter Konnektor-Code übernimmt jede Operation. Unterstützte Authentifizierungsmethoden:
 
-| Methode           | So funktioniert sie                                          |
-| ----------------- | ------------------------------------------------------------ |
-| **API-Schlüssel** | Schlüssel in einem Kopfzeile oder Query-Parameter mitsenden. |
-| **Bearer-Token**  | `Authorization: Bearer <token>`-Kopfzeile bei jedem Anfrage. |
-| **Basic Auth**    | Benutzername und Passwort, base64-kodiert.                   |
-| **OAuth 2.0**     | Authorization-Code-Flow mit automatischem Token-Refresh.     |
+| Methode           | So funktioniert sie                                                |
+| ----------------- | ------------------------------------------------------------------ |
+| **API-Schlüssel** | Schlüssel in einer Kopfzeile oder einem Query-Parameter mitsenden. |
+| **Bearer-Token**  | `Authorization: Bearer <token>`-Kopfzeile bei jeder Anfrage.       |
+| **Basic Auth**    | Benutzername und Passwort, base64-kodiert.                         |
+| **OAuth 2.0**     | Authorization-Code-Flow mit automatischem Token-Refresh.           |
 
 Das Feld `allowedHosts` im Manifest wirkt als Netzwerk-Allowlist — der Konnektor kann nur die deklarierten Hosts erreichen. Siehe [Agent erstellen](/de/platform/agents/create), wie ein Agent Zugriff auf die Operationen einer Integration erhält.
 
@@ -51,7 +51,7 @@ Das Repository liefert dreizehn einsatzbereite Konnektoren unter [github.com/tal
 | **AI image**     | rest_api | bearer_token | Bildgenerierung gegen OpenAI-kompatible Anbieter.                       |
 | **Circuly**      | rest_api | basic_auth   | Produkte, Kunden und Abonnements in Circuly.                            |
 | **Discord**      | rest_api | bearer_token | Guilds, Kanäle und Nachrichten über die Discord-Bot-API.                |
-| **GitHub**       | rest_api | bearer_token | Repositories, Issues, Pull Anfragen und Code-Suche.                     |
+| **GitHub**       | rest_api | bearer_token | Repositories, Issues, Pull Requests und Code-Suche.                     |
 | **Gmail**        | rest_api | oauth2       | Nachrichten, Labels, Threads und Entwürfe in Gmail.                     |
 | **Google Drive** | rest_api | oauth2       | Dateien aus Drive-Ordnern in Tale-Dokumente synchronisieren.            |
 | **Outlook**      | rest_api | oauth2       | Mail, Kalender und Kontakte über Microsoft Graph.                       |

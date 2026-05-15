@@ -97,7 +97,7 @@ Tale transmet des champs de corps de requête arbitraires spécifiques au fourni
 
 **Règles d’écriture :**
 
-- Écrivez la forme **interne** du corps de requête — Tale la namespace au moment de l’appel sous le nom réel du fournisseur. Ne **pas** envelopper dans `{ "openrouter": { ... } }`.
+- Écris la forme **interne** du corps de requête — Tale la namespace au moment de l’appel sous le nom réel du fournisseur. Ne **pas** envelopper dans `{ "openrouter": { ... } }`.
 - **Précédence de fusion** : niveau fournisseur → niveau modèle (profondeur 2 : les clés top-level partagées fusionnent, sous-clés avec victoire du modèle, les tableaux remplacent intégralement).
 - Le tableau de bord expose le même JSON via les panneaux **Avancé — Options du fournisseur** sous _Paramètres → Fournisseurs → \[fournisseur\]_ (niveau fournisseur) et la boîte de dialogue d’ajout/édition de modèle (par modèle).
 
@@ -139,7 +139,7 @@ Tale transmet des champs de corps de requête arbitraires spécifiques au fourni
 }
 ```
 
-Les `providerOptions` de Tale ne circulent que dans le corps de requête. Les contrôles de routage par en-tête (`ai-gateway-order`, `ai-gateway-only`) et les tags d’observabilité (`metadata`) ne sont actuellement pas paramétrables depuis une configuration de fournisseur ; épinglez le routage via le préfixe d’ID de modèle et configurez le tagging dans le tableau de bord Vercel.
+Les `providerOptions` de Tale ne circulent que dans le corps de requête. Les contrôles de routage par en-tête (`ai-gateway-order`, `ai-gateway-only`) et les tags d’observabilité (`metadata`) ne sont actuellement pas paramétrables depuis une configuration de fournisseur ; épingle le routage via le préfixe d’ID de modèle et configure le tagging dans le tableau de bord Vercel.
 
 **Les fournisseurs directs** (OpenAI, Anthropic, Together AI, Groq, DeepSeek, Mistral) hébergent leurs propres modèles. Il n’y a **pas de couche de routage** ni de **champ `quantizations`** — la précision est figée par l’éditeur au moment du déploiement. Leurs champs passthrough sont des _paramètres de comportement du modèle_ au niveau supérieur du body :
 
@@ -160,9 +160,9 @@ Les `providerOptions` de Tale ne circulent que dans le corps de requête. Les co
 }
 ```
 
-Tale transmet tel quel — consultez la référence API de chaque fournisseur pour les noms exacts des champs et les valeurs acceptées. Les champs non reconnus par l’upstream sont silencieusement ignorés au gateway, donc une faute de frappe ressemble à un no-op plutôt qu’à un échec bruyant.
+Tale transmet tel quel — consulte la référence API de chaque fournisseur pour les noms exacts des champs et les valeurs acceptées. Les champs non reconnus par l’upstream sont silencieusement ignorés au gateway, donc une faute de frappe ressemble à un no-op plutôt qu’à un échec bruyant.
 
-**Vérifier que ça arrive :** définissez `TALE_DEBUG_LLM_WIRE=1` dans l’environnement du processus Convex (conteneur Convex auto-hébergé ou shell `bun run dev` Convex local) et observez stdout. Chaque requête LLM sortante (chat / embedding / image) routée via l’AI SDK affiche son URL plus les clés de body (avec `messages`/`input` masqués), permettant de confirmer que le champ `provider:` (ou autre) fusionné est présent. Note : le wrapper ne couvre pas la transcription, les sondes de test de connexion ni le chemin direct-fetch d’image-gen, et masque uniquement `messages`/`input` — les autres champs du body, y compris `system`, `tools`, `metadata`, `prompt_cache_key` et `user`, sont journalisés tels quels.
+**Vérifier que ça arrive :** définis `TALE_DEBUG_LLM_WIRE=1` dans l’environnement du processus Convex (conteneur Convex auto-hébergé ou shell `bun run dev` Convex local) et observe stdout. Chaque requête LLM sortante (chat / embedding / image) routée via l’AI SDK affiche son URL plus les clés de body (avec `messages`/`input` masqués), permettant de confirmer que le champ `provider:` (ou autre) fusionné est présent. Le wrapper ne couvre pas la transcription, les sondes de test de connexion ni le chemin direct-fetch d’image-gen, et masque uniquement `messages`/`input` — les autres champs du body, y compris `system`, `tools`, `metadata`, `prompt_cache_key` et `user`, sont journalisés tels quels.
 
 **Migration :** les `$TALE_CONFIG_DIR/providers/*.json` existants sans bloc `providerOptions` continuent de fonctionner tels quels — le champ est optionnel. Les nouveaux modèles ajoutés dans `examples/providers/openrouter.json` (GLM 5.x, Kimi K2.6, Qwen 3.6, Gemma 4) doivent être fusionnés manuellement dans les configs déployées.
 

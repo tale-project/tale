@@ -3,7 +3,7 @@ title: Container-Architektur
 description: Wie Tales Docker-Images strukturiert, gebaut und vernetzt sind.
 ---
 
-Tale läuft als **sechs** Docker-Container, die von Docker Compose verwaltet werden. Jeder Container hat genau eine Verantwortung und kommuniziert über ein internes Bridge-Netzwerk. Convex läuft als eigener Dienst (`convex`) und bedient WebSocket-Clients unabhängig vom Platform-Container; Platform ist ein schlanker Vite-Client, der Schema und Env über HTTP an Convex pusht.
+Tale läuft als sechs Docker-Container, die Docker Compose verwaltet — jeder mit einer einzigen Verantwortung und einem einzigen Port im internen Bridge-Netzwerk. Diese Seite ist das mentale Modell des Betreibers, was läuft, wo und wie die Dienste miteinander reden: welche Volumes geteilt werden, welche Ports nach aussen reichen, wo sich die Blue-Green-Topologie während eines Deploys auf sich selbst faltet. Greif zu ihr, wenn etwas nicht dort landet, wo du es erwartest — ein unerreichbarer Metrik-Endpoint, ein versehentlich exponierter Port, ein Blue-Green-Switch, der nicht sauber drainiert.
 
 ## Dienst-Übersicht
 
@@ -154,4 +154,8 @@ Tale bringt drei Container-Testskripte mit:
 | `tests/container-image-test.sh`         | `bun run docker:test:image`         | OCI-Labels, Non-Root-User, keine Secrets, HEALTHCHECK-Instruktion, Size-Budgets. |
 | `tests/container-vulnerability-scan.sh` | `bun run docker:test:vulnerability` | Trivy-Vulnerability-Scan (HIGH + CRITICAL).                                      |
 
-Siehe [Contributing Docker guide](/de/develop/contributing-docker) für Details zum Ändern von Dockerfiles und Ausführen der Tests.
+Siehe [Contributing Docker guide](/de-CH/develop/contributing-docker) für Details zum Ändern von Dockerfiles und Ausführen der Tests.
+
+## Wo das einsetzt
+
+Container-Architektur ist das mentale Modell dafür, was läuft, wo und wie die Dienste miteinander reden. Greif zu ihr, wenn etwas nicht dort landet, wo du es erwartest — ein nicht erreichbarer Metrik-Endpoint, ein versehentlich exponierter Port, ein Blue-Green-Switch, der nicht sauber drainiert. Für die observability-spezifischen Oberflächen jedes Dienstes ist [Operations](/de-CH/self-hosted/operate/observability/operations) die nächste Seite; für Knöpfe an Umgebungsvariablen ist [Umgebungs-Referenz](/de-CH/self-hosted/configuration/environment-reference) erschöpfend.

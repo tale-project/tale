@@ -3,7 +3,7 @@ title: Workflows
 description: Construis et exécute des workflows multi-étapes avec triggers, conditions, boucles et étapes IA.
 ---
 
-Les automatisations te permettent de définir et exécuter des processus métier multi-étapes sans écrire de code backend. Un workflow est une suite d’étapes. Chaque étape fait une chose, et les étapes sont connectées pour former un processus complet.
+Un workflow est la forme exécutable d'une automatisation — l'éditeur dans lequel étapes, triggers et variables deviennent un graphe qui tourne de bout en bout. Cette page couvre l'éditeur lui-même : comment créer un workflow, les six types d'étapes qu'il fournit, comment câbler des triggers sur l'étape **Start**, les boutons de configuration qui gouvernent retries et timeouts, et comment tester avant de publier. Le public visé est le rôle Développeur ou supérieur qui construit ou maintient un workflow ; le vocabulaire sur lequel s'appuie cette page vit aux [Concepts des automatisations](/fr/platform/automations/concepts).
 
 ## Créer un workflow
 
@@ -59,7 +59,7 @@ Chaque workflow a une URL webhook unique. Un POST HTTP avec un body JSON démarr
 
 Onglet Configuration :
 
-- Active : activer/désactiver. Les drafts ne peuvent être activées qu’après publication.
+- Active : activer/désactiver. Les brouillons ne peuvent être activés qu’après publication.
 - Timeout : durée maximale en millisecondes. Défaut : 300 000 ms (5 min).
 - Max retries : combien de fois une étape qui échoue est retentée. Défaut : 3.
 - Backoff : délai en ms entre tentatives. Défaut : 1 000 ms.

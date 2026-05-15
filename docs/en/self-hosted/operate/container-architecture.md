@@ -3,7 +3,7 @@ title: Container architecture
 description: How Tale's Docker images are structured, built, and connected.
 ---
 
-Tale runs as **six** Docker containers managed by Docker Compose. Each container has a single responsibility and communicates over an internal bridge network. Convex runs as its own service (`convex`) and serves WebSocket clients independently of the platform container; platform is a thin Vite client that pushes schema and env to Convex over HTTP.
+Tale runs as six Docker containers managed by Docker Compose, each with a single responsibility and a single port on the internal bridge network. This page is the operator's mental model for what's running, where, and how the services talk: which volumes are shared, which ports are exposed, where the blue-green topology folds on itself during a deploy. Reach for it when something doesn't land where you expect — an unreachable metrics endpoint, a port that's accidentally exposed, a blue-green switch that didn't drain cleanly.
 
 ## Service overview
 

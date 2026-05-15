@@ -3,7 +3,7 @@ title: Release notes format
 description: Authoritative format for GitHub release notes on tale-project/tale.
 ---
 
-Authoritative format for GitHub release notes on `tale-project/tale`. The `/release` slash command drafts notes against this spec, and the in-product "What's new" link takes users directly to these releases.
+Tale ships its release history as GitHub release notes against the `tale-project/tale` repository, in a fixed shape so operators can scan a release for the three things that matter before an upgrade — security relevance, behavioural change, breaking change — without reading every bullet. This page is the contract: it names every section, the order they appear in, the framing every release shares, and the classification rules that decide which bullet lands where. The `/release` slash command in the main repository drafts notes against this spec, and the in-product **What's new** viewer renders the same Markdown.
 
 ## Why this spec exists
 

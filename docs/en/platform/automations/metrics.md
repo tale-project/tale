@@ -31,11 +31,6 @@ The dashboard caps each query at the most recent 5,000 runs in the selected wind
 
 If no workflows have run in the selected period, the dashboard shows an empty state with the headline _No workflow runs_ instead of zero-valued cards. That's the cue to either widen the period or check that your triggers are firing — see [Triggers](/platform/automations/triggers).
 
-## Related
-
-- [Execution logs](/platform/automations/execution-logs) — per-workflow run history with step-level detail.
-- [Usage analytics](/platform/admin/usage-analytics) — token and cost trends across the whole organisation, including automations.
-
 ## Where this fits
 
 Automation metrics is the cross-workflow dashboard — the surface that answers "is anything broken right now?" and "what changed since last week?" without opening every workflow individually. When a KPI changes, drill into [Execution logs](/platform/automations/execution-logs) for the per-run truth. For LLM-cost trends that span both automations and chat, [Usage analytics](/platform/admin/usage-analytics) is one tab over.

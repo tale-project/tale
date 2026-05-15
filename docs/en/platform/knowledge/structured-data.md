@@ -3,7 +3,7 @@ title: Structured data
 description: Manage products, customers, and vendors as structured records the AI can query.
 ---
 
-Structured data sections of the knowledge base store business records the AI agent can query alongside document and website content. Unlike free-form documents, structured entries have fixed fields and can be imported in bulk.
+Structured data is the row-and-column half of the knowledge base — the three sections (**Products**, **Customers**, **Vendors**) that store business records with fixed fields the AI agent can query alongside documents and crawled websites. The audience is the Editor or Developer curating those records, individually or by CSV import. This page covers what each section holds, the CSV format, and how to constrain which entities a given agent sees.
 
 ## Products
 

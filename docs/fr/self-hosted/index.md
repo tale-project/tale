@@ -21,7 +21,7 @@ Chaque page se tient au niveau d'une décision d'exploitant. La forme : titre en
 - **[Architecture des conteneurs](/fr/self-hosted/operate/container-architecture)** — comment les cinq services se connectent sur le réseau Docker interne, où les ports sont exposés, et à quoi ressemble le déploiement blue-green.
 - **[Observabilité : exploitation](/fr/self-hosted/operate/observability/operations)** — métriques Prometheus, flux de logs, sondes de santé, et ce qu'il faut câbler dans ta stack de monitoring.
 - **[Observabilité : Dépannage](/fr/self-hosted/operate/observability/troubleshooting)** — les trois ou quatre problèmes que les exploitants rencontrent vraiment et comment les diagnostiquer sur une instance vivante.
-- **[Avis de sécurité](/fr/self-hosted/operate/security/advisories)** — comment Ruler GmbH publie les CVE, comment t'abonner, et le partage de responsabilité de patching entre nous et toi.
+- **[Avis de sécurité](/fr/self-hosted/operate/security/advisories)** — comment Ruler GmbH publie les CVE, comment les exploitants s'abonnent, et le partage de la responsabilité de patching entre le projet et l'exploitant.
 - **[Format des notes de version](/fr/self-hosted/operate/release-notes/format)** — le format canonique des notes de version GitHub ; ce qui est dans le périmètre, ce qui n'y est pas, comment les lire avant un upgrade.
 
 ## Installer ton instance

@@ -10,7 +10,7 @@ Cette page cible Éditeur/Développeur. Pour le parcours utilisateur (ajouter un
 ## Ce que fait le crawler
 
 1. Récupère l’URL fournie et parse le HTML.
-2. Découvre les pages liées sur le même domaine.
+2. Trouve les pages liées sur le même domaine.
 3. Récupère chaque page découverte et répète jusqu’à la limite d’URLs découvertes du domaine.
 4. Convertit chaque page en texte propre (supprime navigation, footers, pubs).
 5. Indexe le texte dans le store de connaissances partagé avec l’URL de la page comme source.
