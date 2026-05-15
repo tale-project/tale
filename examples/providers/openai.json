@@ -25,7 +25,10 @@
         "en": "alloy",
         "de": "nova",
         "fr": "shimmer",
-        "de-CH": "nova"
+        "de-CH": "nova",
+        "zh": "nova",
+        "ja": "shimmer",
+        "ko": "shimmer"
       },
       "cost": {
         "centsPerMillionCharacters": 1500

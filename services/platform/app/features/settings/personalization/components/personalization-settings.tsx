@@ -13,6 +13,7 @@ import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { PageSection } from '@/app/components/ui/layout/page-section';
 import { Text } from '@/app/components/ui/typography/text';
+import { primeAudio } from '@/app/features/chat/utils/prime-audio';
 import { useUpsertGovernancePolicy } from '@/app/features/settings/governance/hooks/mutations';
 import { useGovernancePolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
@@ -287,6 +288,10 @@ function VoiceOutputSection({
         description={t('page.voiceOutput.description')}
         disabled={providerAvailable === null}
         onCheckedChange={async (next) => {
+          // Prime synchronously inside the gesture — the gesture token does
+          // not survive the awaited mutation below, so playback from the
+          // next streamed reply would otherwise hit NotAllowedError.
+          if (next) primeAudio();
           try {
             await setVoiceOutput({ organizationId, enabled: next });
             toast({ title: t('toasts.preferencesUpdated') });

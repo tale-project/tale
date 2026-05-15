@@ -284,12 +284,16 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   // ============================================
   // Per-user bucket: realistic streaming generates ~5-15 chunks per minute;
   // 60 capacity covers a multi-message session burst, refills at 40/min.
+  // 16 shards (vs 4): structured-reply chunking fires up to MAX_IN_FLIGHT=3
+  // mutations concurrently per user; 4 shards produced enough same-shard
+  // collisions that the library's internal OCC retries exhausted and the
+  // mutation surfaced an OptimisticConcurrencyControlFailure to the caller.
   'tts:synthesize:user': {
     kind: 'token bucket',
     rate: 40,
     period: MINUTE,
     capacity: 60,
-    shards: 4,
+    shards: 16,
   },
   // Per-org bucket: cushions cross-tenant abuse where one user can't be
   // pinned. Higher rate than per-user since multiple legitimate members
@@ -299,7 +303,7 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 200,
     period: MINUTE,
     capacity: 400,
-    shards: 4,
+    shards: 16,
   },
 
   // ============================================

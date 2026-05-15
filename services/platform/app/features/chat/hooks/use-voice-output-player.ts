@@ -2,8 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { useLocale } from '@/app/hooks/use-locale';
-
 import { useVoiceChunks } from './use-voice-output';
 import { useVoiceOutputCoordinator } from './voice-output-context';
 
@@ -15,21 +13,8 @@ type ChunkRecord = {
   format?: string;
   error?: string;
   text: string;
+  createdAt: number;
 };
-
-function localeToBcp47(locale: string): string {
-  if (locale.includes('-')) return locale;
-  switch (locale) {
-    case 'en':
-      return 'en-US';
-    case 'de':
-      return 'de-DE';
-    case 'fr':
-      return 'fr-FR';
-    default:
-      return locale;
-  }
-}
 
 export type VoicePlayerStateName = 'idle' | 'playing' | 'blocked' | 'error';
 
@@ -45,14 +30,21 @@ export interface VoicePlayerState {
 
 /**
  * Plays back the ordered audio chunks for a message as they appear. Auto-
- * starts only when chunks arrive AFTER the hook has observed `isStreaming
- * === true` — historical chunks on a remount (e.g. revisiting a thread) do
- * NOT trigger automatic replay.
+ * starts only on chunks whose `createdAt` is later than the hook's mount
+ * time — chunks already present at mount are historical (e.g. revisiting
+ * a thread) and must NOT trigger automatic replay.
+ *
+ * The mount-time comparison is the only signal that reliably distinguishes
+ * a fresh generation from a thread-history load: ultra-fast assistant
+ * replies finish streaming before the bubble even sees `isStreaming=true`,
+ * so a streaming-watch heuristic misses them.
  *
  * Chains the `<audio>` element through chunks via an `ended` listener.
- * Falls back to `window.speechSynthesis` for any chunk whose server
- * synthesis failed (server returns a stable `errorCode` token) OR whose
- * audio element rejects decode (codec mismatch).
+ * Provider-only: failed chunks are skipped (their error surfaces via the
+ * indicator's `errorCode`) rather than re-spoken through the browser's
+ * speechSynthesis. Mixing provider audio with browser TTS mid-message
+ * produces jarring voice-style drift; either the provider works for the
+ * whole reply or the user sees an error and configures their setup.
  *
  * When `play()` rejects with `NotAllowedError` (autoplay policy), the
  * state transitions to `'blocked'` so the indicator can render a "Tap
@@ -64,7 +56,6 @@ export function useVoiceOutputPlayer(opts: {
   threadId: string | undefined;
   isStreaming: boolean;
 }): VoicePlayerState {
-  const { locale } = useLocale();
   const coordinator = useVoiceOutputCoordinator();
   const chunks = useVoiceChunks(opts.messageId, opts.threadId);
   const [state, setState] = useState<VoicePlayerStateName>('idle');
@@ -75,27 +66,20 @@ export function useVoiceOutputPlayer(opts: {
   } | null>(null);
   const nextIndexRef = useRef(0);
   const activeRef = useRef(false);
-  const currentUttRef = useRef<SpeechSynthesisUtterance | null>(null);
-  const uttListenersRef = useRef<{
-    end: () => void;
-    error: (ev: SpeechSynthesisErrorEvent) => void;
-  } | null>(null);
   const chunksRef = useRef<ChunkRecord[] | undefined>(undefined);
-  const localeRef = useRef(locale);
-  // Tracks whether the message was streaming at some point since mount.
-  // Auto-play only fires when chunks grow under that flag — prevents
-  // historical-audio replay on thread revisit (review H8).
-  const sawStreamingRef = useRef(false);
+  // Index of the chunk currently playing (or `null` when idle). Guards
+  // against `tryAdvance()` restarting an in-flight chunk every time the
+  // chunks subscription fires — without this, each new ready chunk that
+  // arrives mid-playback restarts whatever's already speaking, so the user
+  // hears each chunk repeated multiple times on long structured replies.
+  const currentChunkIndexRef = useRef<number | null>(null);
+  // Hook-mount wall-clock timestamp. Any chunk with `createdAt > mountTime`
+  // was produced during this mount → fresh, eligible for auto-play.
+  // Anything with `createdAt <= mountTime` is historical (loaded from
+  // thread history) → must not auto-play.
+  const mountTimeRef = useRef(Date.now());
   // One-shot guard so each (messageId, mount) pair auto-plays at most once.
   const hasAutoStartedRef = useRef(false);
-
-  useEffect(() => {
-    localeRef.current = locale;
-  }, [locale]);
-
-  useEffect(() => {
-    if (opts.isStreaming) sawStreamingRef.current = true;
-  }, [opts.isStreaming]);
 
   const tryAdvanceRef = useRef<() => boolean>(() => false);
 
@@ -113,26 +97,11 @@ export function useVoiceOutputPlayer(opts: {
     }
   }, []);
 
-  const detachUtteranceListeners = useCallback(() => {
-    if (currentUttRef.current && uttListenersRef.current) {
-      currentUttRef.current.removeEventListener(
-        'end',
-        uttListenersRef.current.end,
-      );
-      currentUttRef.current.removeEventListener(
-        'error',
-        uttListenersRef.current.error,
-      );
-      uttListenersRef.current = null;
-    }
-  }, []);
-
   const stopRef = useRef<() => void>(() => {});
 
   const stop = useCallback(() => {
     activeRef.current = false;
     detachAudioListeners();
-    detachUtteranceListeners();
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.removeAttribute('src');
@@ -142,69 +111,48 @@ export function useVoiceOutputPlayer(opts: {
         console.warn('[tts.player] audio.load() after stop failed', err);
       }
     }
-    if (typeof window !== 'undefined' && window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-    }
-    currentUttRef.current = null;
+    currentChunkIndexRef.current = null;
     coordinator.release(stopRef.current);
     setState('idle');
-  }, [detachAudioListeners, detachUtteranceListeners, coordinator]);
+  }, [detachAudioListeners, coordinator]);
 
   useEffect(() => {
     stopRef.current = stop;
   }, [stop]);
 
-  const speakFallback = useCallback((chunk: ChunkRecord): boolean => {
-    if (typeof window === 'undefined' || !window.speechSynthesis) {
-      return false;
-    }
-    const trimmed = chunk.text.trim();
-    if (trimmed.length === 0) {
-      nextIndexRef.current = chunk.index + 1;
-      return tryAdvanceRef.current();
-    }
-    const utt = new SpeechSynthesisUtterance(trimmed);
-    utt.lang = localeToBcp47(localeRef.current);
-    const onEnd = () => {
-      if (currentUttRef.current !== utt) return;
-      nextIndexRef.current = chunk.index + 1;
-      tryAdvanceRef.current();
-    };
-    const onErr = (ev: SpeechSynthesisErrorEvent) => {
-      console.error('[tts.player] speechSynthesis error', ev.error);
-      nextIndexRef.current = chunk.index + 1;
-      tryAdvanceRef.current();
-    };
-    utt.addEventListener('end', onEnd);
-    utt.addEventListener('error', onErr);
-    currentUttRef.current = utt;
-    uttListenersRef.current = { end: onEnd, error: onErr };
-    window.speechSynthesis.speak(utt);
-    setState('playing');
-    return true;
-  }, []);
-
   const playChunk = useCallback(
     (chunk: ChunkRecord): boolean => {
       if (chunk.status === 'ready' && chunk.url) {
+        if (currentChunkIndexRef.current === chunk.index) {
+          // Already playing this chunk; subscription updates that re-run
+          // tryAdvance() must not restart it from the beginning.
+          return true;
+        }
         if (!audioRef.current) {
           audioRef.current = new Audio();
         }
         const el = audioRef.current;
         detachAudioListeners();
         el.src = chunk.url;
+        currentChunkIndexRef.current = chunk.index;
         const onEnded = () => {
+          currentChunkIndexRef.current = null;
           nextIndexRef.current = chunk.index + 1;
           tryAdvanceRef.current();
         };
         const onError = () => {
+          // Decode / fetch failure on a chunk the server marked ready —
+          // skip it (the chunk row carries no errorCode in this case, so
+          // we only log; the indicator stays in its current state and the
+          // next chunk continues the playback).
           console.warn(
-            '[tts.player] audio element decode error; falling back to speechSynthesis',
+            '[tts.player] audio element decode error; skipping chunk',
+            chunk.index,
           );
-          // Codec / corrupted-blob fallback: route the chunk's text
-          // through browser TTS so the user still hears something.
           detachAudioListeners();
-          speakFallback(chunk);
+          currentChunkIndexRef.current = null;
+          nextIndexRef.current = chunk.index + 1;
+          tryAdvanceRef.current();
         };
         el.addEventListener('ended', onEnded);
         el.addEventListener('error', onError);
@@ -224,12 +172,18 @@ export function useVoiceOutputPlayer(opts: {
         return true;
       }
       if (chunk.status === 'failed') {
-        return speakFallback(chunk);
+        // Provider returned a failure for this chunk (NO_PROVIDER,
+        // RATE_LIMITED, BUDGET_EXCEEDED, etc). Advance past it; the
+        // error is surfaced via `errorCode` on the indicator so the
+        // user can act on it without us swapping in a different voice.
+        currentChunkIndexRef.current = null;
+        nextIndexRef.current = chunk.index + 1;
+        return tryAdvanceRef.current();
       }
       // status === 'pending' — wait for the next subscription tick.
       return false;
     },
-    [detachAudioListeners, speakFallback],
+    [detachAudioListeners],
   );
 
   const tryAdvance = useCallback((): boolean => {
@@ -267,31 +221,34 @@ export function useVoiceOutputPlayer(opts: {
     tryAdvance();
   }, [coordinator, tryAdvance]);
 
-  // Auto-play: fires once per (messageId, mount) only when chunks grow
-  // while `isStreaming` was true since mount. Historical chunks on
-  // remount do not auto-play (review H8).
+  // Auto-play: fires once per (messageId, mount) only when a ready chunk
+  // produced after mount appears. Historical chunks (createdAt <= mount)
+  // are loaded from thread history and must not auto-replay.
   useEffect(() => {
     if (!opts.enabled) return;
     if (hasAutoStartedRef.current) return;
     if (activeRef.current) return;
-    if (!sawStreamingRef.current) return;
     if (!chunks || chunks.length === 0) return;
     const playable = chunks.find(
-      (c) => c.status === 'ready' || c.status === 'failed',
+      (c) => c.status === 'ready' && c.createdAt > mountTimeRef.current,
     );
     if (!playable) return;
     hasAutoStartedRef.current = true;
     play();
   }, [opts.enabled, chunks, play]);
 
-  // Reset auto-play guard + stop on message change.
+  // Reset auto-play guard + stop on message change. Do NOT reset
+  // mountTimeRef here — it must keep its first-render value so the
+  // "is this chunk fresh?" comparison is stable. Re-running this effect
+  // (e.g. when `stop`'s identity churns) would otherwise bump mountTime
+  // forward and reclassify the fresh chunk as historical, killing
+  // auto-play.
   useEffect(() => {
     hasAutoStartedRef.current = false;
-    sawStreamingRef.current = opts.isStreaming;
     return () => {
       stop();
     };
-  }, [opts.messageId, opts.isStreaming, stop]);
+  }, [opts.messageId, stop]);
 
   useEffect(() => {
     if (!opts.enabled) {

@@ -191,17 +191,33 @@ export const synthesizeChunk = action({
     // yet), so we don't catch them — the action surfaces them to the client
     // as a hard failure distinct from a chunk-level `failed` row, which
     // lets the UI render the right recovery affordance.
-    const reservation = await ctx.runMutation(
-      internal.tts.mutations.reserveChunk,
-      {
+    //
+    // Exception: an OptimisticConcurrencyControlFailure on the rate-limiter
+    // shard can leak through when many concurrent callers contend on the
+    // same shard and the library's internal OCC retries exhaust. The chunk
+    // wasn't reserved, so we have no row to mark — instead surface it as a
+    // retryable `RATE_LIMITED` failure so the client backs off and retries.
+    const reservation = await ctx
+      .runMutation(internal.tts.mutations.reserveChunk, {
         messageId: args.messageId,
         threadId: args.threadId,
         organizationId: args.organizationId,
         index: args.index,
         text,
         locale: args.locale,
-      },
-    );
+      })
+      .catch((err: unknown): { __occ: true } => {
+        if (
+          err instanceof Error &&
+          /OptimisticConcurrencyControlFailure/.test(err.message)
+        ) {
+          return { __occ: true };
+        }
+        throw err;
+      });
+    if ('__occ' in reservation) {
+      return { status: 'failed' as const, errorCode: 'RATE_LIMITED' };
+    }
 
     if (reservation.kind === 'ready') {
       return { status: 'ready' as const };

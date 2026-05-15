@@ -5,10 +5,17 @@ import { useCallback, useEffect, useRef } from 'react';
 
 import { useLocale } from '@/app/hooks/use-locale';
 import { api } from '@/convex/_generated/api';
+import { parseMarkers } from '@/lib/utils/marker-parser';
 
 const MIN_CHUNK_CHARS = 12;
 const MAX_CHUNK_CHARS = 1800;
 const MAX_IN_FLIGHT = 3;
+// Post-stream coalescing: when a reply has finished streaming and the
+// remaining text is shorter than this, emit it as a single chunk instead
+// of one chunk per sentence. Each chunk is a separate <audio> file load
+// with a perceptible swap gap, so short replies otherwise sound choppy
+// (and isolated punctuation/emoji confuse the model when sent alone).
+const POST_STREAM_BATCH_MAX_CHARS = 300;
 const RETRYABLE_ERROR_CODES = new Set([
   'RATE_LIMITED',
   'PROVIDER_5XX',
@@ -19,6 +26,17 @@ const MAX_RETRIES_PER_CHUNK = 2;
 const RETRY_BASE_DELAY_MS = 1500;
 // Module-level fallback splitter for environments without Intl.Segmenter.
 const FALLBACK_SENTENCE_BOUNDARY = /(?<=[.!?。！？])\s+|\n{2,}/g;
+
+// Honor the requirement's "in the user's or conversation's language" clause:
+// when chunk text is dominantly CJK, override the UI locale so the resolver
+// picks a CJK-appropriate voice (falling through `voicesByLocale` → base →
+// `defaultVoice` if no explicit mapping exists).
+function detectChunkLocale(text: string, fallback: string): string {
+  if (/[一-鿿]/.test(text)) return 'zh';
+  if (/[぀-ゟ゠-ヿ]/.test(text)) return 'ja';
+  if (/[가-힯]/.test(text)) return 'ko';
+  return fallback;
+}
 
 export interface VoiceModeState {
   enabled: boolean;
@@ -99,6 +117,10 @@ function stripMarkdown(
       .replace(/^\s{0,3}>\s?/gm, '')
       // horizontal rules
       .replace(/^\s*(?:-\s*){3,}$/gm, '')
+      // emoji / pictographs — gpt-4o-mini-tts can pronounce isolated
+      // emoji as random syllables (the "z dot" artifact users hear at
+      // the end of short replies). Strip them; text rendering keeps them.
+      .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '')
       // collapse runs of whitespace
       .replace(/\s+/g, ' ')
       .trim()
@@ -253,24 +275,69 @@ export function useVoiceOutputChunker(opts: {
   useEffect(() => {
     if (!opts.enabled) return;
     if (!opts.messageId || !opts.threadId || !opts.organizationId) return;
-    const full = opts.text;
+    // Strip structured-response markers and drop the NEXT_STEPS suggestion-
+    // chip section before chunking. parseMarkers buffers partial markers
+    // mid-stream via pendingText, so this is safe to call on every tick.
+    const parsed = parseMarkers(opts.text, opts.isStreaming);
+    const full = parsed.sections
+      .filter((s) => s.type === 'plain')
+      .map((s) => s.content)
+      .join('\n\n');
     if (full.length <= cursorRef.current) return;
 
     const tail = full.slice(cursorRef.current);
+
+    // Post-stream short-reply path: when the whole remaining tail fits
+    // under POST_STREAM_BATCH_MAX_CHARS, emit it as one chunk. This
+    // avoids the inter-chunk audio swap gap for short replies and gives
+    // the model enough context to handle trailing punctuation/emoji
+    // gracefully (isolated `？` / `😊` chunks produce odd vocalizations).
+    // Uses a fence-state snapshot so the test doesn't corrupt the live
+    // fence tracker if we fall through to per-segment emission.
+    if (!opts.isStreaming) {
+      const fenceSnapshot = { current: fenceOpenRef.current };
+      const cleanedTail = stripMarkdown(tail, fenceSnapshot);
+      if (
+        cleanedTail.length > 0 &&
+        cleanedTail.length <= POST_STREAM_BATCH_MAX_CHARS
+      ) {
+        fenceOpenRef.current = fenceSnapshot.current;
+        const myIndex = indexRef.current++;
+        enqueueSynthesis(
+          {
+            messageId: opts.messageId,
+            threadId: opts.threadId,
+            organizationId: opts.organizationId,
+            index: myIndex,
+            text: cleanedTail,
+            locale: detectChunkLocale(cleanedTail, locale),
+          },
+          0,
+        );
+        cursorRef.current = full.length;
+        runNext();
+        return;
+      }
+    }
+
     const segments = segmentSentences(tail, locale, opts.isStreaming);
 
     let consumed = 0;
     for (const { end, segment } of segments) {
       const cleaned = stripMarkdown(segment, fenceOpenRef);
       consumed = end;
+      if (cleaned.length === 0) {
+        // Whitespace-only segment (blank line between paragraphs). The
+        // cursor must still advance — waiting for "more text" here would
+        // never help, since the segment can never grow.
+        continue;
+      }
       if (cleaned.length < MIN_CHUNK_CHARS && opts.isStreaming) {
-        // Don't emit tiny chunks mid-stream; wait for more text. Cursor
-        // must NOT advance past this segment yet — once more text arrives
-        // the sentence will be re-segmented and emitted properly.
+        // Non-empty but too short mid-stream: roll cursor back so the
+        // sentence is re-segmented once more text arrives.
         consumed = Math.max(0, end - segment.length);
         break;
       }
-      if (cleaned.length === 0) continue;
       const text =
         cleaned.length > MAX_CHUNK_CHARS
           ? cleaned.slice(0, MAX_CHUNK_CHARS)
@@ -283,7 +350,7 @@ export function useVoiceOutputChunker(opts: {
           organizationId: opts.organizationId,
           index: myIndex,
           text,
-          locale,
+          locale: detectChunkLocale(text, locale),
         },
         0,
       );

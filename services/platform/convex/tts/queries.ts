@@ -35,6 +35,10 @@ export const getMessageChunks = query({
       format: v.optional(v.string()),
       error: v.optional(v.string()),
       text: v.string(),
+      // Used by the player to distinguish chunks created during the current
+      // mount (auto-play candidates) from chunks loaded on thread revisit
+      // (historical — must not auto-play).
+      createdAt: v.number(),
     }),
   ),
   handler: async (ctx, args) => {
@@ -52,6 +56,7 @@ export const getMessageChunks = query({
       text: string;
       threadId: string;
       organizationId: string;
+      createdAt: number;
     }> = [];
     // AGENTS.md mandates `for await` over `.collect()` so large result sets
     // don't pull into memory wholesale.
@@ -75,6 +80,7 @@ export const getMessageChunks = query({
         text: row.text,
         threadId: row.threadId,
         organizationId: row.organizationId,
+        createdAt: row.createdAt,
       });
     }
     rows.sort((a, b) => a.index - b.index);
@@ -95,6 +101,7 @@ export const getMessageChunks = query({
       format: row.format,
       error: row.error,
       text: row.text,
+      createdAt: row.createdAt,
     }));
   },
 });
