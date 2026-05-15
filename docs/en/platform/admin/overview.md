@@ -19,3 +19,4 @@ If you are standing up a fresh organisation, read the pages in the order they ap
 - [Governance](/platform/admin/governance) — retention, data-subject requests, audit log.
 - [Two-factor authentication](/platform/admin/two-factor-authentication) — TOTP and recovery codes.
 - [Usage analytics](/platform/admin/usage-analytics) — per-user and org-wide activity.
+- [What's new](/platform/admin/changelog) — the in-app changelog viewer for release-note communication.

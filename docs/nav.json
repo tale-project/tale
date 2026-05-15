@@ -137,7 +137,8 @@
             "platform/admin/governance",
             "platform/admin/data-subject-requests",
             "platform/admin/two-factor-authentication",
-            "platform/admin/usage-analytics"
+            "platform/admin/usage-analytics",
+            "platform/admin/changelog"
           ]
         }
       ]

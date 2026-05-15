@@ -19,3 +19,4 @@ Wenn du eine frische Organisation aufsetzt, lies die Seiten in der Reihenfolge d
 - [Governance](/de/platform/admin/governance) — Aufbewahrung, Anfragen betroffener Personen, Audit-Log.
 - [Zwei-Faktor-Authentifizierung](/de/platform/admin/two-factor-authentication) — TOTP und Wiederherstellungscodes.
 - [Nutzungsanalyse](/de/platform/admin/usage-analytics) — Aktivität pro Nutzer und für die ganze Organisation.
+- [Was ist neu](/de/platform/admin/changelog) — der In-App-Changelog-Viewer für Release-Notes-Kommunikation.

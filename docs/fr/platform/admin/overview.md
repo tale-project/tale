@@ -19,3 +19,4 @@ Si tu mets en place une organisation toute neuve, lis les pages dans l'ordre de 
 - [Gouvernance](/fr/platform/admin/governance) — rétention, demandes des personnes concernées, journal d'audit.
 - [Authentification à deux facteurs](/fr/platform/admin/two-factor-authentication) — TOTP et codes de récupération.
 - [Analytique d'usage](/fr/platform/admin/usage-analytics) — activité par utilisateur et à l'échelle de l'organisation.
+- [Nouveautés](/fr/platform/admin/changelog) — le visualisateur de changelog in-app pour la communication des notes de version.
