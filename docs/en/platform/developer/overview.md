@@ -39,4 +39,8 @@ Building requires the **Editor** role for agents and the **Developer** role for 
 
 ## AI-assisted building
 
-Every building block above can also be created from JSON files in your project directory. If you open the project in an AI-powered editor (Claude Code, Cursor, GitHub Copilot, Windsurf), the editor has full context about schemas and platform capabilities — you describe what you want in plain language, and the editor generates the configuration. For complex workflows or fleets of agents, this is usually faster than the UI. See [AI-assisted development](/develop/ai-assisted-development) for the full setup.
+Every building block above can also be created from JSON files in your project directory. If you open the project in an AI-powered editor (Claude Code, Cursor, GitHub Copilot, Windsurf), the editor has full context about schemas and platform capabilities — describe what you want in plain language, and the editor generates the configuration. For complex workflows or fleets of agents, this is usually faster than the UI. See [AI-assisted development](/develop/ai-assisted-development) for the full setup.
+
+## Where this fits
+
+The Developer role is the build-and-integrate seat. The same person who builds the agents your Editors curate also wires up the integrations the agents call, the automations that run in the background, and the API keys that let external systems call into Tale. For the canonical permission matrix, see [Members and roles](/platform/admin/members-and-roles); for cross-system work (calling Tale from a script, receiving webhooks), the [Develop](/develop/api-reference) section is one tab over.

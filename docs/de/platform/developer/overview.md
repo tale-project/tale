@@ -39,4 +39,8 @@ Das Einrichten erfordert für Agents die **Redakteur**-Rolle und für Automatisi
 
 ## KI-gestütztes Einrichten
 
-Alle Bausteine oben lassen sich auch aus JSON-Dateien in deinem Projekt-Verzeichnis erstellen. Wenn du das Projekt in einem KI-Editor öffnest (Claude Code, Cursor, GitHub Copilot, Windsurf), kennt dieser die Schemas und Plattform-Fähigkeiten vollständig — du beschreibst in natürlicher Sprache, was du willst, und der Editor erzeugt die Konfiguration. Bei komplexen Workflows oder Flotten von Agents ist das meist schneller als die UI. Siehe [AI-assisted development](/de/develop/ai-assisted-development).
+Alle Bausteine oben lassen sich auch aus JSON-Dateien in deinem Projekt-Verzeichnis erstellen. Wenn du das Projekt in einem KI-Editor öffnest (Claude Code, Cursor, GitHub Copilot, Windsurf), kennt dieser die Schemas und Plattform-Fähigkeiten vollständig — beschreibe in natürlicher Sprache, was du willst, und der Editor erzeugt die Konfiguration. Bei komplexen Workflows oder Flotten von Agents ist das meist schneller als die UI. Siehe [AI-assisted development](/de/develop/ai-assisted-development).
+
+## Wo das einsetzt
+
+Die Entwickler-Rolle ist der Bau-und-Integriere-Sitz. Dieselbe Person, die die Agents baut, die deine Redakteure pflegen, verkabelt auch die Integrationen, die die Agents aufrufen, die Automatisierungen, die im Hintergrund laufen, und die API-Schlüssel, mit denen externe Systeme in Tale reinrufen. Für die kanonische Berechtigungsmatrix siehe [Mitglieder und Rollen](/de/platform/admin/members-and-roles); für die systemübergreifende Arbeit (Tale aus einem Skript aufrufen, Webhooks empfangen) ist der Bereich [Develop](/de/develop/api-reference) einen Tab weiter.

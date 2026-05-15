@@ -42,6 +42,6 @@ The knowledge base holds documents your org has uploaded or crawled. Search it, 
 
 Set your display name, language, theme, and notification preferences from the avatar menu. Details: [preferences](/platform/member/preferences).
 
-## Want to do more?
+## Where this fits
 
-Members are read-only. To create agents, edit knowledge, or run automations, ask your admin to upgrade your role. The full role matrix is on [Members and roles](/platform/admin/members-and-roles).
+Members are the read-only consumers — the role designed for people who use the AI without curating it. To create agents, edit knowledge, or run automations, ask an Admin to upgrade your role to Editor or Developer. The full role matrix is on [Members and roles](/platform/admin/members-and-roles); the role-specific landing pages ([Editor](/platform/editor/overview), [Developer](/platform/developer/overview)) describe what each upgrade unlocks.

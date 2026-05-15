@@ -27,4 +27,8 @@ Choisis entre Clair, Sombre ou Système. Système suit le paramètre clair/sombr
 
 ## Notifications
 
-Active ou désactive les notifications email pour les demandes d’approbation, les assignations de conversation et les fins de workflow.
+Active ou désactive les notifications email pour les demandes d'approbation, les assignations de conversation et les fins de workflow.
+
+## Où ça s'inscrit
+
+Les préférences sont la surface par utilisateur pour les paramètres personnels — mot de passe, langue, notifications. Elles ne changent rien pour le reste de l'organisation ; elles affectent seulement la façon dont Tale se présente à toi. Pour les paramètres à l'échelle de l'organisation (branding, gouvernance, fournisseurs), un Admin travaille depuis [Admin](/fr/platform/admin/overview).

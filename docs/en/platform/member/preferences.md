@@ -28,3 +28,7 @@ Choose between Light, Dark, and System. System follows your operating system's l
 ## Notifications
 
 Opt in or out of email notifications for approval requests, conversation assignments, and workflow completions.
+
+## Where this fits
+
+Preferences are the per-user surface for personal settings — password, language, notifications. They don't change anything for the rest of the organisation; they only affect how Tale presents itself to you. For organisation-wide settings (branding, governance, providers), an Admin works from [Admin](/platform/admin/overview).

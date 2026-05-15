@@ -28,3 +28,7 @@ Wähle zwischen Hell, Dunkel und System. System folgt der Hell/Dunkel-Einstellun
 ## Benachrichtigungen
 
 Aktiviere oder deaktiviere E-Mail-Benachrichtigungen für Freigabeanfragen, Konversationszuweisungen und Workflow-Abschlüsse.
+
+## Wo das einsetzt
+
+Einstellungen sind die Pro-Nutzer-Oberfläche für persönliche Einstellungen — Passwort, Sprache, Benachrichtigungen. Sie ändern nichts für den Rest der Organisation; sie beeinflussen nur, wie Tale sich dir präsentiert. Für organisationsweite Einstellungen (Branding, Governance, Anbieter) arbeitet ein Admin von [Admin](/de/platform/admin/overview) aus.

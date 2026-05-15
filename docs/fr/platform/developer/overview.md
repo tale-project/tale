@@ -39,4 +39,8 @@ Construire requiert le rôle **Éditeur** pour les agents et le rôle **Dévelop
 
 ## Construction assistée par IA
 
-Tous les blocs ci-dessus peuvent aussi être créés depuis des fichiers JSON dans ton répertoire de projet. Si tu ouvres le projet dans un éditeur IA (Claude Code, Cursor, GitHub Copilot, Windsurf), l'éditeur a le contexte complet des schémas et capacités plateforme — tu décris ce que tu veux en langage naturel et l'éditeur génère la configuration. Pour des workflows complexes ou des flottes d'agents, c'est généralement plus rapide que l'interface. Voir [AI-assisted development](/fr/develop/ai-assisted-development).
+Tous les blocs ci-dessus peuvent aussi être créés depuis des fichiers JSON dans ton répertoire de projet. Si tu ouvres le projet dans un éditeur IA (Claude Code, Cursor, GitHub Copilot, Windsurf), l'éditeur a le contexte complet des schémas et capacités plateforme — décris ce que tu veux en langage naturel et l'éditeur génère la configuration. Pour des workflows complexes ou des flottes d'agents, c'est généralement plus rapide que l'interface. Voir [AI-assisted development](/fr/develop/ai-assisted-development).
+
+## Où ça s'inscrit
+
+Le rôle Développeur est le siège construire-et-intégrer. La même personne qui construit les agents que tes Éditeurs entretiennent câble aussi les intégrations que les agents appellent, les automatisations qui tournent en arrière-plan, et les clés API qui permettent à des systèmes externes d'appeler Tale. Pour la matrice de permissions canonique, voir [Membres et rôles](/fr/platform/admin/members-and-roles) ; pour le travail cross-système (appeler Tale depuis un script, recevoir des webhooks), la section [Develop](/fr/develop/api-reference) est un onglet plus loin.
