@@ -98,8 +98,8 @@ Die Env-Namen unten stammen aus dem Root-`_metadata.envNames`-Map des mitgeliefe
 | `TALE_RETENTION_PROMPTS_MIN` / `_MAX`        | `30`    | `3650` | `730`   | Gespeicherte Prompt-Vorlagen (org-scope).                                                                    |
 | `TALE_RETENTION_FEEDBACK_MIN` / `_MAX`       | `30`    | `3650` | `365`   | Pro-Nachricht Daumen / Kommentare. Können zitierten Nutzerinhalt enthalten.                                  |
 | `TALE_RETENTION_MEMORY_AUDIT_MIN` / `_MAX`   | `30`    | `3650` | `365`   | Personalisierungs-Memory Änderungs-Log.                                                                      |
-| `TALE_RETENTION_CUSTOMERS_MIN` / `_MAX`      | `30`    | `3650` | `730`   | CRM-Kundendaten (Name, Email, Adresse, Locale, Metadaten).                                                   |
-| `TALE_RETENTION_VENDORS_MIN` / `_MAX`        | `30`    | `3650` | `730`   | Lieferantendatensätze (Name, Email, Telefon, Adresse, Freitext-Notizen).                                     |
+| `TALE_RETENTION_CUSTOMERS_MIN` / `_MAX`      | `30`    | `3650` | `730`   | CRM-Kundendaten (Name, E-Mail, Adresse, Locale, Metadaten).                                                  |
+| `TALE_RETENTION_VENDORS_MIN` / `_MAX`        | `30`    | `3650` | `730`   | Lieferantendatensätze (Name, E-Mail, Telefon, Adresse, Freitext-Notizen).                                    |
 | `TALE_RETENTION_INBOX_MIN` / `_MAX`          | `30`    | `3650` | `730`   | Externer Kundenkanal-Posteingang (`externalConversations`) + kaskadierte Nachrichteninhalte.                 |
 | `TALE_RETENTION_MSG_META_MIN` / `_MAX`       | `30`    | `3650` | `365`   | Pro-Nachricht Reasoning, Prompt-Kontextfenster, Tool-I/O. Stark PII-haltige abgeleitete Daten.               |
 | `TALE_RETENTION_USER_TEMP_MIN` / `_MAX`      | `1`     | `720`  | `24`    | Temporäre nutzerseitige Dateien (Stunden).                                                                   |
@@ -146,7 +146,7 @@ Der Cleanup-Runner liest jeden aktiven Hold EINMAL pro Lauf vor, sodass laufende
 
 ## Audit-Chain PII-Schutz
 
-Das Audit-Log wird jahrelang aufbewahrt (Standard 730 Tage, Min 365). Damit diese Chain keine langlebigen Klartext-Email-Adressen und IPs aus unauthentifizierter Nutzereingabe trägt (insbesondere fehlgeschlagene Login-Versuche), setze `TALE_AUDIT_PEPPER` auf ein einmaliges Geheimnis von mindestens 16 Zeichen. Neue Audit-Einträge speichern dann einen HMAC-SHA256-Hash der Email und ein grobes Netzwerk-Präfix der IP (`/24` für v4, `/64` für v6) in dedizierten `actorEmailHash` / `actorIpHash`-Spalten; die Klartext-Spalten bleiben leer. Bestehende Einträge werden nicht umgeschrieben — Rotation invalidiert die Korrelation über die Grenze hinweg, was die Operator-Intention ist.
+Das Audit-Log wird jahrelang aufbewahrt (Standard 730 Tage, Min 365). Damit diese Chain keine langlebigen Klartext-E-Mail-Adressen und IPs aus unauthentifizierter Nutzereingabe trägt (insbesondere fehlgeschlagene Login-Versuche), setze `TALE_AUDIT_PEPPER` auf ein einmaliges Geheimnis von mindestens 16 Zeichen. Neue Audit-Einträge speichern dann einen HMAC-SHA256-Hash der E-Mail und ein grobes Netzwerk-Präfix der IP (`/24` für v4, `/64` für v6) in dedizierten `actorEmailHash` / `actorIpHash`-Spalten; die Klartext-Spalten bleiben leer. Bestehende Einträge werden nicht umgeschrieben — Rotation invalidiert die Korrelation über die Grenze hinweg, was die Operator-Intention ist.
 
 Wenn `TALE_AUDIT_PEPPER` ungesetzt ist oder kürzer als 16 Zeichen, fallen Audit-Writer auf Klartext zurück und loggen einen einmaligen `[SECURITY]`-Warnung auf stderr beim ersten Aufruf. Setze die Variable in der Produktion bevor das Deployment realen Nutzern ausgesetzt wird.
 

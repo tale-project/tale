@@ -3,7 +3,9 @@ title: Contributing Docker guide
 description: How to modify Dockerfiles, run container tests, and keep images lean.
 ---
 
-This guide covers the Docker development workflow for contributors who need to modify Dockerfiles, add dependencies, or debug container issues.
+This guide covers the Docker development workflow for contributors who need to modify Dockerfiles, add dependencies, or debug container issues. The goal of the workflow below is to keep the production images small and the local build cycle fast — the two pull in opposite directions, and most of the rules here exist because one or the other was getting away from us.
+
+If you are only running Tale rather than building it, the user-facing install docs at [Quickstart](/self-hosted/install/quickstart) and [Linux server](/self-hosted/install/linux-server) cover everything you need. This page is contributor territory.
 
 ## Prerequisites
 

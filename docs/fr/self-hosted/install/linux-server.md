@@ -3,6 +3,10 @@ title: Déploiement en production
 description: Déploie Tale sur un serveur de production avec le CLI Tale et des déploiements blue-green zero-downtime.
 ---
 
+Ce guide est le chemin de production : un serveur Linux avec un vrai nom de domaine, un vrai TLS et la topologie blue-green qui permet aux montées de version de tenir sans fenêtre de maintenance. Le CLI `tale` fait le gros du travail — il télécharge les images Docker, joue les migrations et ne bascule le trafic qu'une fois que les nouveaux conteneurs ont passé leurs health checks. Si un déploiement ne monte pas, la version précédente continue de servir et rien de visible côté utilisateur ne casse.
+
+Si tu veux juste essayer Tale en local, [Démarrage rapide](/fr/self-hosted/install/quickstart) est plus court et tourne en quelques minutes. Reviens ici quand tu es prêt à exposer l'instance à ton équipe.
+
 ## Prérequis
 
 - Un serveur Linux avec Docker Engine 24.0+.
@@ -260,7 +264,7 @@ TLS_MODE=external
 BASE_PATH=/tale
 ```
 
-Caddy gère le strip du préfixe en interne — ton reverse proxy n’a **pas** besoin de le stripper. Transfère simplement tout le trafic sous le sous-chemin tel quel (note : pas de slash final sur `proxy_pass`) :
+Caddy gère le strip du préfixe en interne — ton reverse proxy n'a **pas** besoin de le stripper. Transfère tout le trafic sous le sous-chemin tel quel (note : pas de slash final sur `proxy_pass`) :
 
 ```nginx
 location /tale/ {

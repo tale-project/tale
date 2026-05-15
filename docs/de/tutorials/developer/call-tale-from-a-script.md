@@ -98,7 +98,7 @@ Das Wire-Format ist Server-Sent Events (SSE); das SDK übernimmt das Parsen. Wen
 
 ## Schritt 5 — Einen Konversations-Thread wiederverwenden
 
-Standardmäßig ist jede Anfrage ein eigenständiger Turn. Um eine Konversation über mehrere Anfragen fortzuführen, sende den optionalen Header `X-Thread-Id` mit einem Wert, den du kontrollierst. Dieselbe Thread-ID landet auf derselben Konversation in der Tale-UI, damit Endnutzer dort weitermachen können, wo dein Skript aufgehört hat.
+Standardmäßig ist jede Anfrage ein eigenständiger Turn. Um eine Konversation über mehrere Anfragen fortzuführen, sende den optionalen Kopfzeile `X-Thread-Id` mit einem Wert, den du kontrollierst. Dieselbe Thread-ID landet auf derselben Konversation in der Tale-UI, damit Endnutzer dort weitermachen können, wo dein Skript aufgehört hat.
 
 ```python
 client_with_thread = OpenAI(
@@ -108,7 +108,7 @@ client_with_thread = OpenAI(
 )
 ```
 
-Siehe [API-Referenz](/de/develop/api-reference) für alle Header.
+Siehe [API-Referenz](/de/develop/api-reference) für alle Kopfzeile.
 
 ## Troubleshooting
 
@@ -116,7 +116,8 @@ Siehe [API-Referenz](/de/develop/api-reference) für alle Header.
 - **404 Not Found** bei `/chat/completions` — Base-URL fehlt das Suffix `/api/v1`.
 - **400 model not found** — Agent-Slug existiert nicht oder ist anders geschrieben; prüf erneut `GET /models`.
 
-## Weiter
+## Wo das hingehört
 
-- Denselben Call in eine Automatisierung einhängen: [Eine Automatisierung per Webhook auslösen](/de/tutorials/developer/trigger-automation-via-webhook).
-- Tool Calling aus deinem Client nutzen: [API-Referenz — Tool Calling](/de/develop/api-reference).
+Die Erkenntnis: Jeder OpenAI-kompatible Client spricht mit Tale, sobald du ihn auf die richtige Base-URL zeigst und den Agent-Slug als Modellnamen nutzt — kein Tale-spezifisches SDK, keine Migrationskosten, wenn du eine bestehende OpenAI-Integration umstellst. Der Streaming-Schalter ist identisch mit dem von OpenAI, und die `X-Thread-Id`-Kopfzeile ist die einzige Tale-spezifische Erweiterung, die du normalerweise brauchst.
+
+Zwei natürliche nächste Schritte: denselben Call in eine Automatisierung einhängen, damit er ohne expliziten Skript-Aufruf läuft — [Eine Automatisierung per Webhook auslösen](/de/tutorials/developer/trigger-automation-via-webhook) — oder den Client mit Tool-Calling erweitern, das die [API-Referenz](/de/develop/api-reference) abdeckt.

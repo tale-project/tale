@@ -87,8 +87,8 @@ def verify(body: bytes, header: str, secret: str) -> bool:
 
 Tale retente les livraisons webhook échouées (réponses non-2xx, timeouts) avec backoff exponentiel jusqu’à 5 tentatives. Après l’échec final, la livraison est marquée en échec et loggée dans le flux d’audit — un Admin peut la rejouer depuis la page Audit logs.
 
-## Voir aussi
+## Où cela s'insère
 
-- [Référence API](/fr/develop/api-reference) pour l’API REST complète.
-- [Triggers](/fr/platform/automations/triggers) pour configurer des triggers webhook sur les workflows.
-- [Agents — onglet Webhook](/fr/platform/agents/create#onglet-webhook) pour la mise en place des webhooks d’agent.
+Les webhooks sont le pendant entrant de l'API sortante de Tale. L'API, c'est ce que ton code appelle quand _toi_ tu pilotes la conversation ; les webhooks sont ce que Tale expose pour qu'un système externe pilote un workflow ou s'adresse à un agent sans passer par l'interface de chat. Les deux formes partagent le même schéma de signature et le même journal d'audit — un seul motif de receiver durci suffit donc à couvrir tout ce que Tale envoie.
+
+Pour les pièces voisines : [Référence API](/fr/develop/api-reference) est le côté sortant du même protocole, [Triggers](/fr/platform/automations/triggers) montre comment un workflow opte pour un trigger webhook, et [Agents — onglet Webhook](/fr/platform/agents/create#onglet-webhook) couvre la mise en place par agent.

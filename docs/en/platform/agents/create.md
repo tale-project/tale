@@ -54,3 +54,9 @@ You can add a webhook secret to verify that incoming requests are genuine.
 ## Versioning
 
 Agents support versioning. When you edit an agent's instructions, a draft version is created. The live version keeps serving requests until you publish the draft. The version history dialog shows all past versions and lets you compare or roll back.
+
+## Where this fits
+
+This page is the build flow — name, model, instructions, knowledge, tools, version. Most of the iteration on an agent happens _after_ this initial create: rewriting instructions as you learn what the agent gets wrong, narrowing knowledge as you see what it grounds in, toggling tools as the use case sharpens. The four decisions you made here are the four knobs you'll keep tuning.
+
+For the iteration loop — drafting, publishing, and rolling back live agents — [Agent versions](/platform/agents/versions) is the dedicated reference. To call this agent from outside the UI, [Webhooks](/develop/webhooks) and the [API reference](/develop/api-reference) cover the two non-UI surfaces.

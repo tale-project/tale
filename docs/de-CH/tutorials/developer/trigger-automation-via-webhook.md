@@ -60,7 +60,7 @@ Der POST kehrt sofort mit einer Execution-ID zurück — der Workflow selbst lä
 ## Schritt 5 — Retries und Idempotenz (Hardening für Produktion)
 
 - **Retries:** Tale wiederholt Nicht-2xx-Antworten mit exponentiellem Backoff bis zu fünf Versuchen. Wenn dein Caller selbst retry't, muss jede Wiederholung denselben Body senden — sonst passt die Signatur nicht.
-- **Idempotenz:** lass im Body eine stabile Request-ID mitlaufen (`requestId`). Der erste Workflow-Schritt kann darauf verzweigen, ob diese ID schon gesehen wurde, damit doppelte Zustellungen keine doppelten Seiteneffekte verursachen.
+- **Idempotenz:** lass im Body eine stabile Anfrage-ID mitlaufen (`requestId`). Der erste Workflow-Schritt kann darauf verzweigen, ob diese ID schon gesehen wurde, damit doppelte Zustellungen keine doppelten Seiteneffekte verursachen.
 - **Secret-Rotation:** ändere das Webhook-Secret in der Tale-UI, roll es in der Caller-Konfig aus, dann deploy den Caller neu. Ein kurzer Overlap ist unvermeidbar; kurzzeitig fail-open ist akzeptabel, wenn das passt.
 
 ## Troubleshooting
@@ -69,7 +69,8 @@ Der POST kehrt sofort mit einer Execution-ID zurück — der Workflow selbst lä
 - **404 workflow not found** — Workflow wurde gelöscht oder seine ID hat sich geändert; kopiere die URL erneut aus dem Start-Schritt.
 - **5xx** — prüf den Tab Executions des Workflows auf einen scheiternden Schritt. Der HTTP-Response-Body enthält die Fehlerzusammenfassung.
 
-## Weiter
+## Wo das hingehört
 
-- Quer-Referenz mit [Webhooks](/de/develop/webhooks) für Signaturprüfungs-Codebeispiele in Node und Python.
-- Agent-Webhooks statt Workflow-Webhook nutzen, wenn du ohne die Automatisierungsschicht direkt eine Agent-Antwort willst: [Webhooks — Agent webhooks](/de/develop/webhooks#agent-webhooks).
+Du hast jetzt ein externes System, das einen Tale-Workflow treibt: einen HTTPS-Endpunkt, eine signierte Anfrage, einen asynchronen Lauf und einen Executions-Tab, in dem du jeden Schritt debuggen kannst. Dieselbe Form — signierte Anfrage, sofortige Execution-ID, asynchroner Lauf — gilt für jede Quelle, die du anschliessen kannst: einen CI-Job, ein Formular-Backend, einen Slack-Slash-Command.
+
+Wenn du eine direkte Agent-Antwort statt eines Workflow-Laufs brauchst, gilt dasselbe Protokoll für [Webhooks — Agent webhooks](/de/develop/webhooks#agent-webhooks). Für den Signatur-Prüfungscode, den du in einen eigenen Receiver in Node oder Python einbauen würdest, hat [Webhooks](/de/develop/webhooks) fertige Beispiele.

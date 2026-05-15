@@ -3,6 +3,10 @@ title: Operations
 description: Monitoring, error tracking, logs, database backups, health checks, and container validation.
 ---
 
+Operations is everything you need to do _after_ Tale is running: watch it, back it up, prove it's healthy, and recover when something goes wrong. The pages this section anchors are organised around that loop — observe (metrics, logs), preserve (backups, retention), verify (health checks, container validation), and react (advisories, release notes).
+
+The choices below have sane defaults so a fresh install is operable on day one. The work documented here is what you tune once you have traffic worth protecting.
+
 ## Monitoring
 
 All Tale services expose a Prometheus `/metrics` endpoint on the internal Docker network. To enable access from outside, set a bearer token in your `.env` file:

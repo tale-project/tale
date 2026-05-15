@@ -31,4 +31,4 @@ Teams haben keine formalen Manager-Rollen — Berechtigungen kommen aus der Orga
 
 ## Externe Identity Anbieter
 
-Wenn SSO oder Trusted Headers genutzt werden, ist der externe IdP die einzige Quelle der Wahrheit für Teams. Tale liest bei jedem Login den Teams-Header und aktualisiert die Teams-Liste des Nutzers. Siehe [Authentifizierung](/de/self-hosted/admin/authentication).
+Wenn SSO oder Trusted Kopfzeilen genutzt werden, ist der externe IdP die einzige Quelle der Wahrheit für Teams. Tale liest bei jedem Login den Teams-Kopfzeile und aktualisiert die Teams-Liste des Nutzers. Siehe [Authentifizierung](/de/self-hosted/admin/authentication).

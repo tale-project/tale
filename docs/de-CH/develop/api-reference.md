@@ -199,7 +199,7 @@ curl https://your-tale-instance.com/api/v1/chat/completions \
 
 #### Authentifizierung
 
-Alle Requests brauchen ein Bearer-Token im `Authorization`-Header:
+Alle Anfragen brauchen ein Bearer-Token im `Authorization`-Kopfzeile:
 
 ```text
 Authorization: Bearer tale_...
@@ -207,13 +207,13 @@ Authorization: Bearer tale_...
 
 API-Schlüssel erstellst du in der Plattform-UI unter **Einstellungen > API-Schlüssel**.
 
-#### Header
+#### Kopfzeile
 
-| Header                | Pflicht | Beschreibung                                                                                   |
+| Kopfzeile             | Pflicht | Beschreibung                                                                                   |
 | --------------------- | ------- | ---------------------------------------------------------------------------------------------- |
 | `Authorization`       | Ja      | `Bearer <api-key>`.                                                                            |
 | `X-Organization-Slug` | Nein    | Organisations-Slug. Wird automatisch aufgelöst, wenn der Nutzer nur in einer Organisation ist. |
-| `X-Thread-Id`         | Nein    | Einen Konversations-Thread über Requests hinweg wiederverwenden.                               |
+| `X-Thread-Id`         | Nein    | Einen Konversations-Thread über Anfragen hinweg wiederverwenden.                               |
 
 #### Endpoints
 
@@ -221,7 +221,7 @@ API-Schlüssel erstellst du in der Plattform-UI unter **Einstellungen > API-Schl
 
 Sendet eine Chat-Nachricht und erhält eine Antwort. Unterstützt Streaming und Tool-Calling.
 
-**Request-Body:**
+**Anfrage-Body:**
 
 | Feld                | Typ                | Beschreibung                                                                           |
 | ------------------- | ------------------ | -------------------------------------------------------------------------------------- |
@@ -327,3 +327,9 @@ Beide Endpoints antworten immer mit `200 OK` und `Cache-Control: public, max-age
 | `components[].status` | string | `operational` oder `outage` pro Komponente.                                          |
 
 Keyword-basierte Uptime-Monitore können auf den gross-/kleinschreibungssensitiven Substring `"status":"outage"` reagieren.
+
+## Wo das hingehört
+
+Die API ist Tales ausgehende Oberfläche — was dein Code aufruft, wenn _du_ die Konversation, den Workflow oder den Datenzugriff treibst. Das eingehende Gegenstück ist [Webhooks](/de/develop/webhooks): dasselbe Protokoll, dasselbe Signatur-Schema, derselbe Audit-Log, mit Tale auf der rufenden statt der empfangenden Seite. Jeder Client, der mit OpenAIs `/chat/completions` spricht, spricht mit Tale, sobald du zwei Werte änderst (Base-URL und Schlüssel); jedes System, das eine signierte HTTPS-POST schicken kann, treibt einen Workflow.
+
+Für das Tutorial, das beide Richtungen durchgeht, deckt [Tale aus einem Skript aufrufen](/de/tutorials/developer/call-tale-from-a-script) die API-Seite ab und [Eine Automatisierung per Webhook auslösen](/de/tutorials/developer/trigger-automation-via-webhook) die eingehende Webhook-Seite.

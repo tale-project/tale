@@ -3,7 +3,9 @@ title: Guide de contribution Docker
 description: Comment modifier les Dockerfiles, lancer les tests conteneurs et garder les images légères.
 ---
 
-Ce guide couvre le workflow Docker pour les contributeurs qui doivent modifier les Dockerfiles, ajouter des dépendances ou déboguer des problèmes conteneurs.
+Ce guide couvre le workflow Docker pour les contributeurs qui doivent modifier les Dockerfiles, ajouter des dépendances ou déboguer des problèmes conteneurs. L'objectif du workflow ci-dessous est de garder les images de production légères et le cycle de build local rapide — les deux tirent dans des directions opposées, et la plupart des règles ici existent parce que l'une ou l'autre a fini par nous échapper.
+
+Si tu fais seulement tourner Tale plutôt que de le construire, les docs d'installation sous [Démarrage rapide](/fr/self-hosted/install/quickstart) et [Serveur Linux](/fr/self-hosted/install/linux-server) couvrent tout ce qu'il te faut. Cette page est le terrain des contributeurs.
 
 ## Prérequis
 

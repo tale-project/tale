@@ -3,9 +3,9 @@ title: Tutorials
 description: Aufgabenorientierte End-to-End-Anleitungen für jede Tale-Rolle.
 ---
 
-Tutorials sind Schritt-für-Schritt-Anleitungen, die dich von „Ich will X tun“ zu einem funktionierenden Ergebnis führen. Sie stehen neben der Referenz unter [Platform](/de/platform) — die Referenz beschreibt, was jede Funktion tut, die Tutorials zeigen, wie man Funktionen zu einem konkreten Ergebnis kombiniert. Nutze Platform, wenn du die Funktion bereits kennst und Details brauchst; nutze diesen Bereich, wenn du einen geführten Weg willst.
+Tutorials sind Schritt-für-Schritt-Anleitungen, die dich von „Ich will X tun" zu einem funktionierenden Ergebnis führen. Sie stehen neben der Referenz unter [Platform](/de/platform): Die Referenz beschreibt, was jede Funktion isoliert tut, die Tutorials zeigen, wie man Funktionen zu einem konkreten Ergebnis kombiniert. Öffne Platform, wenn du die Funktion bereits kennst und Details brauchst; öffne diesen Bereich, wenn du einen geführten Weg willst.
 
-Die Tutorials sind nach Rolle gegliedert, damit du auf Inhalten landest, die du wirklich ausführen kannst. Die Berechtigungen folgen dem [Sechs-Rollen-Modell](/de/platform/admin/members-and-roles); wenn ein Tutorial unter Admin liegt, brauchst du einen Admin- oder Inhaber-Platz, um es abzuschließen.
+Die Tutorials sind nach Rolle gegliedert, damit du auf Inhalten landest, die du wirklich ausführen kannst. Die Berechtigungen folgen dem [Sechs-Rollen-Modell](/de/platform/admin/members-and-roles) — liegt ein Tutorial unter Admin, brauchst du einen Admin- oder Inhaber-Platz, um es abzuschliessen.
 
 ## Nach Rolle
 
@@ -16,8 +16,12 @@ Die Tutorials sind nach Rolle gegliedert, damit du auf Inhalten landest, die du 
 
 ## Voraussetzungen, die für jedes Tutorial gelten
 
-- Eine Tale-Instanz, die du erreichen kannst — Cloud oder [self-hosted](/de/self-hosted).
+- Eine Tale-Instanz, die du erreichen kannst — Cloud oder [selbst gehostet](/de/self-hosted).
 - Ein Konto in dieser Instanz. Rollen-gebundene Tutorials sagen das oben.
 - Für Tutorials, die die API aufrufen, einen API-Schlüssel aus **Einstellungen > API-Schlüssel**. Das Erstellen ist Admin-only; siehe [Mitglieder und Rollen](/de/platform/admin/members-and-roles).
 
 Falls ein Schritt etwas voraussetzt, das nicht oben steht, führt das jeweilige Tutorial es in seinem eigenen Voraussetzungs-Abschnitt auf.
+
+## So arbeitest du ein Tutorial durch
+
+Tutorials sind so geschrieben, dass sie in Reihenfolge laufen, von oben nach unten, auf einer frischen Instanz. Wenn du einen Abschnitt überspringst in der Annahme, du habest die Voraussetzung schon — prüfe doppelt nach, denn der nächste Schritt hängt oft an genau dem Feld, das der übersprungene konfiguriert. Wenn etwas scheitert, tragen die Seite [Ausführungslogs](/de/platform/automations/execution-logs) (für Automatisierungen) und die Konversationshistorie (für Agents) meist genug Kontext, um ohne Rückkehr zum Tutorial zu diagnostizieren.

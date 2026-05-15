@@ -321,8 +321,8 @@ Quand le même id de modèle est défini dans plus d’un fichier fournisseur (p
 
 Les entrées simples (sans deux-points) résolvent vers le premier fournisseur qui définit l’id. Le chemin d’enregistrement de l’agent émet un avertissement quand une entrée non qualifiée matche plus d’un fournisseur, ce qui te permet de désambiguïser. Les modifications directes de fichier contournent cette validation d’enregistrement — le resolver runtime remontera les avertissements, mais épingler explicitement est plus sûr dans les setups multi-fournisseurs.
 
-## Voir aussi
+## Où cela s'insère
 
-- [Fournisseurs IA](/fr/platform/admin/providers) — gérer les fournisseurs via l’UI.
-- [Pièces jointes du chat](/fr/platform/chat/attachments#transcription-audio-et-vidéo) — comment les modèles tagués `transcription` sont utilisés.
-- [Référence d’environnement](/fr/self-hosted/configuration/environment-reference) — `TALE_CONFIG_DIR` et les variables liées.
+Les fichiers fournisseurs décrits ici sont la forme sur disque de la même configuration que l'interface écrit quand un Admin enregistre depuis **Paramètres > Fournisseurs IA**. Choisis la surface qui colle à ta posture de gestion de changements : l'interface pour les ajustements quotidiens et les rollouts rapides, les fichiers quand la configuration doit vivre dans git avec le reste de ton infrastructure. Dans les deux cas, l'endroit canonique pour lire ce que veut dire chaque champ reste cette page.
+
+Références voisines : [Fournisseurs IA](/fr/platform/admin/providers) couvre la contrepartie UI pour les Admins, [Pièces jointes du chat](/fr/platform/chat/attachments#transcription-audio-et-vidéo) montre comment les modèles transcription configurés ici sont consommés côté utilisateur, et [Référence d'environnement](/fr/self-hosted/configuration/environment-reference) documente `TALE_CONFIG_DIR` et les autres variables que cette page présuppose.

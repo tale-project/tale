@@ -3,6 +3,10 @@ title: Operations
 description: Monitoring, Error-Tracking, Logs, DB-Backups, Health-Checks und Container-Validierung.
 ---
 
+Operations ist alles, was du tust, _nachdem_ Tale läuft: beobachten, sichern, beweisen, dass es gesund ist, und reagieren, wenn etwas schief geht. Die Seiten in diesem Bereich sind um diese Schleife organisiert — beobachten (Metriken, Logs), sichern (Backups, Aufbewahrung), verifizieren (Health-Checks, Container-Validierung) und reagieren (Advisories, Release-Notes).
+
+Die Voreinstellungen unten sind sinnvoll, sodass eine frische Installation am ersten Tag betreibbar ist. Die hier dokumentierte Arbeit ist das, was du anpasst, sobald du Traffic hast, der Schutz verdient.
+
 ## Monitoring
 
 Alle Tale-Dienste bieten einen Prometheus-`/metrics`-Endpoint im internen Docker-Netzwerk. Für Zugriff von aussen setzt du ein Bearer-Token in deiner `.env`:
@@ -98,7 +102,7 @@ Um nach einem Deployment oder einer Konfigurationsänderung sicherzugehen, dass 
 bun run docker:test
 ```
 
-Er baut alle Images, startet sie auf nicht-konflikthaften Ports, prüft Health-Endpoints und Inter-Service-Konnektivität und baut wieder ab. Es ist derselbe Test, der in CI bei jedem Pull Request läuft.
+Er baut alle Images, startet sie auf nicht-konflikthaften Ports, prüft Health-Endpoints und Inter-Service-Konnektivität und baut wieder ab. Es ist derselbe Test, der in CI bei jedem Pull Anfrage läuft.
 
 Für Image-Validierung (OCI-Labels, keine Secrets, Size-Budgets):
 

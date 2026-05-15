@@ -53,7 +53,7 @@ Lasse den Workflow laufen, wenn in der Plattform etwas passiert, z. B. wenn ein 
 
 ### Webhook-Trigger
 
-Jeder Workflow bekommt eine eigene Webhook-URL. Ein HTTP-POST an diese URL mit einem JSON-Body startet den Workflow mit diesen Daten als Input. Du kannst ein Webhook-Secret hinzufügen, um die Authentizität eingehender Requests zu prüfen.
+Jeder Workflow bekommt eine eigene Webhook-URL. Ein HTTP-POST an diese URL mit einem JSON-Body startet den Workflow mit diesen Daten als Input. Du kannst ein Webhook-Secret hinzufügen, um die Authentizität eingehender Anfragen zu prüfen.
 
 ## Workflow-Konfiguration
 
@@ -74,3 +74,9 @@ Nutze das Test-Panel (verfügbar im Seitenpanel des Workflow-Editors), um:
 ## Ausführungsverlauf
 
 Navigiere zum **Ausführungen**-Tab eines beliebigen Workflows, um ein Log aller vergangenen Läufe zu sehen, inklusive Startzeit, Dauer, Status sowie Input- und Output-Daten in jedem Schritt.
+
+## Wo das hingehört
+
+Workflows sind die Leinwand, auf der das Vokabular aus [Automatisierungs-Konzepte](/de/platform/automations/concepts) — Schritte, Trigger, Variablen, Entwürfe — zu etwas Lauffähigem wird. Der Editor ist opinionated: Jeder Schritt tut einen Zug, der Graph läuft von Start zu Output, und das Test-Panel beweist die Logik vor der Veröffentlichung. Der Ausführungen-Tab ist der Ort fürs Debuggen danach — er trägt die vollständige Pro-Schritt-Spur, die einen `400 Bad Request` einer Drittsystem-API in einen einzigen lesbaren Datensatz verwandelt.
+
+Die natürlichen nächsten Schritte: wie der Workflow startet, regelst du in [Trigger](/de/platform/automations/triggers); fehlgeschlagene Läufe debuggst du in [Ausführungslogs](/de/platform/automations/execution-logs).

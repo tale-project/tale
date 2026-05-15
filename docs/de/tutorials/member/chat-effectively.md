@@ -21,7 +21,7 @@ Anhänge bleiben bei der Konversation, nicht bei der gemeinsamen Wissensdatenban
 
 ## Schritt 3 — Diktieren, wenn es schneller geht
 
-Wenn du unterwegs bist, ein Gespräch zusammenfasst oder einfach schneller denkst als tippst, klicke das Mikrofon-Symbol im Composer und sprich. Das Diktat läuft in deinem Browser (Web Speech API), das Audio verlässt dein Gerät nicht. Das Transkript erscheint beim Sprechen im Eingabefeld; du kannst es vor dem Senden bearbeiten.
+Wenn du unterwegs bist, ein Gespräch zusammenfasst oder schneller denkst als du tippst, klicke das Mikrofon-Symbol im Composer und sprich. Das Diktat läuft in deinem Browser (Web Speech API), das Audio verlässt dein Gerät nicht. Das Transkript erscheint beim Sprechen im Eingabefeld; du kannst es vor dem Senden bearbeiten.
 
 Diktieren ist kein Modus, sondern ein Tool pro Nachricht — einschalten, sprechen, ausschalten, senden.
 
@@ -35,7 +35,8 @@ Wenn du auf ein Ergebnis triffst, das du wiederverwenden willst, speichere es in
 
 Wenn der Agent lauffähiges HTML, ein SVG, ein Mermaid-Diagramm oder ein längeres Markdown-Dokument zurückgibt, legt er ein **Artefakt** an, das automatisch im Canvas-Seitenbereich öffnet und in der Artefakte-Leiste über dem Chat erscheint. Canvas gibt dir Live-Vorschau, Quellcode-Bearbeitung und Export — deutlich lesbarer als eine rollende Chat-Bubble, und die KI kann das Artefakt direkt überarbeiten, wenn du um Korrekturen bittest. Siehe [Canvas](/de/platform/workspace/canvas) für alle Aktionen.
 
-## Weiter
+## Wo das eingesetzt wird
 
-- Einen Agent gezielt für dein Team bauen: [Den ersten Agent end-to-end bauen](/de/tutorials/editor/first-agent-end-to-end) (Redakteur-Rolle).
-- Shortcuts lernen: [AI-Chat](/de/platform/chat/basics).
+Dieselben fünf Schritte decken fast jede tägliche Chat-Aufgabe ab: den Agent wählen, der zur Aufgabe passt, ihm den Kontext geben, fragen, iterieren, Artefakte aus der Chat-Bubble in etwas Grösseres heben, wenn sie dorthin gehören. Die Shortcuts, die diese Schleife schnell machen — Drag-and-Drop für Anhänge, Diktat, Agent-Selektor, die Prompt-Bibliothek — liegen alle im Composer; je mehr Muskelgedächtnis du aufbaust, desto näher fühlt sich der Chat an eine Suchleiste über dem Wissen deiner Organisation an.
+
+Wenn du merkst, dass du einen passgenaueren Agent willst als die verfügbaren, führt [Den ersten Agent end-to-end bauen](/de/tutorials/editor/first-agent-end-to-end) durch den Bau (Redakteur-Rolle). Für die Tastenkürzel, die die Schleife oben schneller machen, hat [AI-Chat](/de/platform/chat/basics) die volle Liste.

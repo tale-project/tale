@@ -327,3 +327,9 @@ Both endpoints always respond with `200 OK` and `Cache-Control: public, max-age=
 | `components[].status` | string | `operational` or `outage` per component.                                  |
 
 Keyword-based uptime monitors can alert on the case-sensitive substring `"status":"outage"`.
+
+## Where this fits
+
+The API is Tale's outbound surface — what your code calls when _you_ drive the conversation, the workflow, or the data access. Its inbound counterpart is [Webhooks](/develop/webhooks): the same protocol, the same signature scheme, the same audit log, with Tale on the calling side instead of the receiving side. Any client that talks to OpenAI's `/chat/completions` talks to Tale by changing two values (base URL and key); any system that can send a signed HTTPS POST can drive a workflow.
+
+For the tutorial that walks both directions end to end, [Call Tale from a script](/tutorials/developer/call-tale-from-a-script) covers the API side and [Trigger an automation via webhook](/tutorials/developer/trigger-automation-via-webhook) covers the inbound webhook side.

@@ -1,5 +1,6 @@
 {
-  "_note": "Generated-by-hand (for now) glossary consumed by services/docs/tests/terminology.test.ts. Keep in sync with .agents/terminology/TERMINOLOGY_*.md — the markdown files are the human source of truth; this JSON is the machine-readable projection. Each entry in enToLocale[locale] maps an English product term to the shipped UI translation that docs in that locale must use. Entries where the English term equals the locale term are loanwords — not flagged. formalPronouns lists words that indicate the wrong politeness form; docs must use the informal form.",
+  "_note": "Machine-readable projection of the terminology contract. Keep in sync with .agents/terminology/TERMINOLOGY_*.md — the markdown files are the human source of truth; this JSON is the machine view consumed by services/docs/tests/.\n\nSections:\n  - enToLocale[locale][enTerm] -> localeTerm. Used by terminology.test.ts (hard-fail). Entries where enTerm === localeTerm are Bucket-2 loanwords (kept English) and are NOT flagged.\n  - formalPronouns[locale] -> list of words that signal the wrong politeness form. Hard-fail in terminology.test.ts.\n  - translateBucket[locale] -> list of {en, native} pairs for Bucket-3 English nouns that have a native equivalent and must be translated. Consumed by loanword.test.ts (hard-fail).\n  - establishedLoanwords[locale] -> list of Bucket-2 English nouns that intentionally appear unchanged in target prose. Documented for human reference; not consumed by the tests (their absence from translateBucket is what keeps them un-flagged).\n  - styleConventions[locale] -> per-locale machine-readable rules: quotation marks, decimal separator, etc. Not consumed by tests today but available for future formatters or linters.",
+
   "enToLocale": {
     "de": {
       "Prompt Library": "Prompt-Bibliothek",
@@ -28,7 +29,9 @@
       "Providers": "Anbieter",
       "Canvas": "Canvas",
       "Composer": "Composer",
-      "Arena Mode": "Arena-Modus"
+      "Arena Mode": "Arena-Modus",
+      "Audit log": "Audit-Log",
+      "Folder": "Ordner"
     },
     "fr": {
       "Canvas": "Canevas",
@@ -62,11 +65,477 @@
       "Website": "Site web",
       "Websites": "Sites web",
       "Arena Mode": "Mode Arène",
-      "Composer": "Composeur"
+      "Composer": "Composeur",
+      "Audit log": "Journal d'audit",
+      "Folder": "Dossier",
+      "Browser": "Navigateur"
     }
   },
+
   "formalPronouns": {
     "de": ["Sie", "Ihnen", "Ihre", "Ihrer", "Ihres", "Ihrem"],
     "fr": ["vous", "votre", "vos", "Vous", "Votre", "Vos"]
-  }
+  },
+
+  "translateBucket": {
+    "de": [
+      {
+        "en": "Header",
+        "native": "Kopfzeile",
+        "rationale": "Native German noun. `Header` reads as undigested English in prose."
+      },
+      {
+        "en": "Headers",
+        "native": "Kopfzeilen",
+        "rationale": "Plural of Header."
+      },
+      {
+        "en": "Request",
+        "native": "Anfrage",
+        "rationale": "Native noun for any kind of request."
+      },
+      {
+        "en": "Requests",
+        "native": "Anfragen",
+        "rationale": "Plural of Request."
+      },
+      {
+        "en": "Email",
+        "native": "E-Mail",
+        "rationale": "Duden form. Hyphenated standard."
+      },
+      { "en": "Emails", "native": "E-Mails", "rationale": "Plural of E-Mail." },
+      {
+        "en": "Help Center",
+        "native": "Hilfe-Center",
+        "rationale": "Native compound."
+      },
+      { "en": "Billing", "native": "Abrechnung", "rationale": "Native noun." },
+      {
+        "en": "Sales Research",
+        "native": "Vertriebs-Recherche",
+        "rationale": "Native compound."
+      },
+      {
+        "en": "Draft",
+        "native": "Entwurf",
+        "rationale": "Native noun. Shipped UI uses Entwurf."
+      },
+      {
+        "en": "Drafts",
+        "native": "Entwürfe",
+        "rationale": "Plural of Entwurf."
+      },
+      {
+        "en": "Attachment",
+        "native": "Anhang",
+        "rationale": "Native noun. Shipped UI uses Anhang."
+      },
+      {
+        "en": "Attachments",
+        "native": "Anhänge",
+        "rationale": "Plural of Anhang."
+      },
+      {
+        "en": "Self-hosted",
+        "native": "selbst gehostet",
+        "rationale": "Native compound adjective. Lowercase in prose."
+      }
+    ],
+    "fr": [
+      {
+        "en": "Header",
+        "native": "En-tête",
+        "rationale": "Native French noun for HTTP or table header."
+      },
+      {
+        "en": "Headers",
+        "native": "En-têtes",
+        "rationale": "Plural of En-tête."
+      },
+      {
+        "en": "Request",
+        "native": "Requête",
+        "rationale": "Native noun for HTTP/API request."
+      },
+      {
+        "en": "Requests",
+        "native": "Requêtes",
+        "rationale": "Plural of Requête."
+      },
+      {
+        "en": "Email",
+        "native": "Courriel",
+        "rationale": "Académie Française form. Prose uses Courriel; UI may abbreviate to Email for space."
+      },
+      {
+        "en": "Emails",
+        "native": "Courriels",
+        "rationale": "Plural of Courriel."
+      },
+      {
+        "en": "Help Center",
+        "native": "Centre d'aide",
+        "rationale": "Native phrase."
+      },
+      { "en": "Billing", "native": "Facturation", "rationale": "Native noun." },
+      {
+        "en": "Sales Research",
+        "native": "Recherche commerciale",
+        "rationale": "Native phrase."
+      },
+      {
+        "en": "Draft",
+        "native": "Brouillon",
+        "rationale": "Native noun. Shipped UI uses Brouillon."
+      },
+      {
+        "en": "Drafts",
+        "native": "Brouillons",
+        "rationale": "Plural of Brouillon."
+      },
+      {
+        "en": "Attachment",
+        "native": "Pièce jointe",
+        "rationale": "Native noun. Shipped UI uses Pièce jointe."
+      },
+      {
+        "en": "Attachments",
+        "native": "Pièces jointes",
+        "rationale": "Plural of Pièce jointe."
+      },
+      {
+        "en": "Self-hosted",
+        "native": "Auto-hébergé",
+        "rationale": "Native compound adjective."
+      },
+      {
+        "en": "Engineering",
+        "native": "Ingénierie",
+        "rationale": "Native noun. Loanword acceptable only in job-title contexts."
+      }
+    ]
+  },
+
+  "establishedLoanwords": {
+    "de": [
+      "Agent",
+      "Workflow",
+      "Dashboard",
+      "Cloud",
+      "Webhook",
+      "Prompt",
+      "Token",
+      "Server",
+      "Canvas",
+      "Composer",
+      "Status",
+      "Integration",
+      "Integrationen",
+      "Tool",
+      "Pipeline",
+      "Cache",
+      "Snapshot",
+      "Endpoint",
+      "Payload",
+      "Open Source",
+      "Branding",
+      "Team",
+      "Browser",
+      "Backup",
+      "Health-Check",
+      "Reverse-Proxy",
+      "Rate-Limit",
+      "Throttling"
+    ],
+    "fr": [
+      "Agent",
+      "Workflow",
+      "Dashboard",
+      "Cloud",
+      "Webhook",
+      "Prompt",
+      "Token",
+      "Server",
+      "Status",
+      "Statut",
+      "Tool",
+      "Pipeline",
+      "Cache",
+      "Open source",
+      "Branding",
+      "Snapshot",
+      "Endpoint",
+      "Payload",
+      "Health check",
+      "Reverse proxy",
+      "Rate limit"
+    ]
+  },
+
+  "alwaysEnglish": {
+    "_note": "Brands, acronyms, code identifiers, and role names that are English on every surface in every locale (with the per-locale exception that DE/FR UI translate role names to native forms — handled in enToLocale).",
+    "brands": [
+      "Tale",
+      "Convex",
+      "OpenRouter",
+      "Claude",
+      "OpenAI",
+      "Anthropic",
+      "Google",
+      "Mistral",
+      "Meta",
+      "DeepSeek",
+      "Moonshot",
+      "Qwen",
+      "GitHub",
+      "Slack",
+      "Gmail",
+      "Outlook",
+      "Shopify",
+      "Microsoft",
+      "Docker",
+      "Kubernetes",
+      "Prometheus",
+      "Grafana",
+      "Ollama",
+      "vLLM",
+      "LocalAI",
+      "Authelia",
+      "Authentik",
+      "oauth2-proxy",
+      "Meetily",
+      "Sentry"
+    ],
+    "acronyms": [
+      "AI",
+      "LLM",
+      "API",
+      "MCP",
+      "RAG",
+      "OIDC",
+      "SAML",
+      "PII",
+      "SOPS",
+      "TLS",
+      "SSL",
+      "URL",
+      "URI",
+      "HTTP",
+      "HTTPS",
+      "JSON",
+      "YAML",
+      "XML",
+      "SQL",
+      "CLI",
+      "SDK",
+      "IDE",
+      "CI",
+      "CD",
+      "SaaS",
+      "VPC",
+      "RBAC",
+      "2FA",
+      "MFA",
+      "SSO",
+      "TOTP",
+      "CSV",
+      "PDF",
+      "DOCX",
+      "XLSX",
+      "PNG",
+      "JPG",
+      "JPEG",
+      "GIF",
+      "SVG",
+      "MD",
+      "MDX",
+      "CSS",
+      "HTML",
+      "DSGVO",
+      "GDPR",
+      "DPA",
+      "ISO",
+      "SOC",
+      "EDÖB",
+      "FADP",
+      "LPD"
+    ],
+    "codeIdentifiers": [
+      "TALE_CONFIG_DIR",
+      "SOPS_AGE_KEY",
+      "SOPS_AGE_KEY_FILE",
+      "METRICS_BEARER_TOKEN",
+      "TALE_RETENTION_DAYS",
+      "TALE_AUDIT_PEPPER",
+      "TALE_AUDIT_SIGNING_KEY",
+      "TALE_LEGAL_HOLD_RELEASE_COOLDOWN_HOURS",
+      "TALE_LEGAL_HOLD_SINGLE_ADMIN_OK",
+      "TALE_DEBUG_LLM_WIRE"
+    ],
+    "_codeIdentifierExamples": "CLI flags, env vars, file paths, JSON keys, i18n keys, and API endpoints are always English. The lists above are illustrative; any token matching `[A-Z_]+`, `--[a-z-]+`, `<word>.<word>`, or `/api/...` is by definition Bucket-1 and never translates."
+  },
+
+  "roleNames": {
+    "_note": "Six platform roles. UI ships translated forms in DE/FR; docs match the shipped UI per locale. See `enToLocale` for the mappings the tests enforce.",
+    "matrix": [
+      { "en": "Owner", "de": "Inhaber", "fr": "Propriétaire" },
+      { "en": "Admin", "de": "Admin", "fr": "Admin" },
+      { "en": "Developer", "de": "Entwickler", "fr": "Développeur" },
+      { "en": "Editor", "de": "Redakteur", "fr": "Éditeur" },
+      { "en": "Member", "de": "Mitglied", "fr": "Membre" },
+      { "en": "Disabled", "de": "Deaktiviert", "fr": "Désactivé" }
+    ]
+  },
+
+  "styleConventions": {
+    "en": {
+      "pronoun": "you",
+      "quotes": "\"text\"",
+      "apostrophe": "'",
+      "decimalSeparator": ".",
+      "thousandsSeparator": ",",
+      "datePros": "YYYY-MM-DD or `Month D, YYYY`",
+      "dateCode": "YYYY-MM-DD",
+      "timeProse": "12-hour, lowercase am/pm",
+      "timeCode": "24-hour"
+    },
+    "de": {
+      "pronoun": "du",
+      "quotes": "„text\"",
+      "apostrophe": "'",
+      "decimalSeparator": ",",
+      "thousandsSeparator": ". or narrow non-breaking space",
+      "dateProse": "DD.MM.YYYY",
+      "dateCode": "YYYY-MM-DD",
+      "timeProse": "24-hour, 09:00",
+      "timeCode": "24-hour",
+      "nbspBeforePunctuation": false,
+      "compoundHyphenation": "for English loanwords and abbreviations only",
+      "specialCharacter": "ß (use ss in DE-CH)"
+    },
+    "de-CH": {
+      "pronoun": "du",
+      "quotes": "«text» or „text\"",
+      "apostrophe": "'",
+      "decimalSeparator": ".",
+      "thousandsSeparator": "' (apostrophe)",
+      "dateProse": "DD.MM.YYYY",
+      "dateCode": "YYYY-MM-DD",
+      "timeProse": "24-hour, 09:00",
+      "timeCode": "24-hour",
+      "specialCharacter": "ss only (no ß)",
+      "currency": "CHF"
+    },
+    "fr": {
+      "pronoun": "tu",
+      "quotes": "« text »",
+      "apostrophe": "' (typographic in docs prose, ASCII in JSON)",
+      "decimalSeparator": ",",
+      "thousandsSeparator": " (narrow non-breaking space)",
+      "dateProse": "DD/MM/YYYY",
+      "dateCode": "YYYY-MM-DD",
+      "timeProse": "24-hour, 09 h 00",
+      "timeCode": "24-hour",
+      "nbspBeforePunctuation": "before :;!?% and inside guillemets"
+    }
+  },
+
+  "antiPatterns": {
+    "_note": "Named patterns the test suite enforces or that reviewers flag on sight. Documented here for cross-reference; the test logic lives in services/docs/tests/.",
+    "shared": [
+      {
+        "name": "Stub Closing",
+        "test": "closing-paragraph.test.ts",
+        "fix": "Rename closing section; replace bare link list with recap paragraph + contextualised link."
+      },
+      {
+        "name": "Naked List",
+        "test": null,
+        "fix": "Add prose paragraph before list; the heading owns a paragraph, not a list."
+      },
+      {
+        "name": "Marketing Drift",
+        "test": null,
+        "fix": "Strike the marketing softener (simply, easy, powerful, seamless, discover, …)."
+      },
+      {
+        "name": "Status Chatter",
+        "test": null,
+        "fix": "Delete `Updated:`, `New in v1.6:`, `TODO:`, `Note that…`."
+      },
+      {
+        "name": "Stub Page",
+        "test": null,
+        "fix": "Merge with parent or expand."
+      }
+    ],
+    "de": [
+      {
+        "name": "Passive present (Wird X…)",
+        "test": null,
+        "fix": "Use active verb: Speichert… not Wird gespeichert…"
+      },
+      {
+        "name": "Sentence-final erfolgreich",
+        "test": null,
+        "fix": "Strike erfolgreich from confirmation toasts."
+      },
+      {
+        "name": "Damit-Opener",
+        "test": null,
+        "fix": "Verb-first construction: Entfernt… not Damit werden…"
+      },
+      {
+        "name": "Compound Stack",
+        "test": null,
+        "fix": "Split compounds longer than three roots."
+      },
+      {
+        "name": "Sie-Slip",
+        "test": "terminology.test.ts (formalPronouns)",
+        "fix": "Rewrite to du-form."
+      },
+      {
+        "name": "English noun in prose",
+        "test": "loanword.test.ts",
+        "fix": "Use the native term from translateBucket.de."
+      }
+    ],
+    "fr": [
+      {
+        "name": "Marketing softener (Découvre, N'hésite pas à, …)",
+        "test": null,
+        "fix": "Strike or replace with imperative."
+      },
+      {
+        "name": "Stacked nominal phrase",
+        "test": null,
+        "fix": "Replace de-de-de chains with relative clause."
+      },
+      {
+        "name": "Vous-Slip",
+        "test": "terminology.test.ts (formalPronouns)",
+        "fix": "Rewrite to tu-form."
+      },
+      {
+        "name": "English noun in prose",
+        "test": "loanword.test.ts",
+        "fix": "Use the native term from translateBucket.fr."
+      },
+      {
+        "name": "Wrong apostrophe in fr.json",
+        "test": null,
+        "fix": "ASCII ' in JSON; typographic ' only in docs prose."
+      },
+      {
+        "name": "Missing NBSP before colon",
+        "test": null,
+        "fix": "Insert U+00A0 before :;!?% in prose; preserve in JSON."
+      }
+    ]
+  },
+
+  "version": "2.0.0",
+  "_versionNote": "v2.0.0 — restructured glossary (categorised inventory, anti-patterns catalogue, per-locale style conventions, alwaysEnglish/establishedLoanwords/translateBucket separation). v1.x was the original flat enToLocale+formalPronouns shape; the existing tests read enToLocale, formalPronouns, and translateBucket — the new sections are documented projections for future tooling and human reference."
 }

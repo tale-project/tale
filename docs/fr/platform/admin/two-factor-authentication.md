@@ -49,8 +49,8 @@ Chaque action 2FA produit une entrée structurée visible sous **Paramètres > G
 | `2fa_backup_code_failed` | Une tentative de code de secours a échoué.                                  |
 | `2fa_reset_by_admin`     | Un Admin a réinitialisé la 2FA d’un membre depuis **Paramètres > Membres**. |
 
-## Voir aussi
+## Où cela s'insère
 
-- [Authentification](/fr/self-hosted/admin/authentication) — connexion par mot de passe, SSO et trusted headers.
-- [Membres et rôles](/fr/platform/admin/members-and-roles) — réinitialiser la 2FA d’un membre depuis le menu de la ligne.
-- [Gouvernance](/fr/platform/admin/governance) — définir la politique et lire l’audit log.
+La 2FA est la couche que tu rajoutes par-dessus le mécanisme d'authentification choisi pour l'organisation — mot de passe, SSO ou en-têtes de reverse-proxy de confiance — pour exiger un second facteur. Chaque tentative et chaque réinitialisation passe par le journal d'audit, ce qui fait que l'image de l'authentification reste lisible à l'échelle de l'organisation même quand un Admin a réinitialisé un facteur après une perte de téléphone.
+
+Pour les pièces voisines : [Authentification](/fr/self-hosted/admin/authentication) couvre les méthodes de connexion sous-jacentes, [Membres et rôles](/fr/platform/admin/members-and-roles) montre comment un Admin réinitialise la 2FA d'un membre depuis le menu de la ligne, et [Gouvernance](/fr/platform/admin/governance) définit la politique et expose le journal d'audit.

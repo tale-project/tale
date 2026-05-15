@@ -3,9 +3,9 @@ title: Aperçu de la plateforme
 description: Documentation produit de Tale — fonctionnalités, rôles et administration de l’organisation. S’applique de manière identique en Cloud et en auto-hébergé.
 ---
 
-Platform rassemble toute la documentation produit de Tale. Tu y trouves chaque fonctionnalité visible par l’utilisateur — chat, base de connaissances, agents, automatisations, intégrations — ainsi que les guides par rôle orientés tâches et l’ensemble des paramètres au niveau de l’organisation (membres, rôles, équipes, image de marque, gouvernance, fournisseurs d’IA, analytique). Tout ce qui est ici s’applique à l’identique, que tu utilises l’édition [Cloud](/fr/cloud) managée ou une instance [Self-hosted](/fr/self-hosted).
+Platform rassemble toute la documentation produit de Tale. Tu y trouves chaque fonctionnalité visible par l’utilisateur — chat, base de connaissances, agents, automatisations, intégrations — ainsi que les guides par rôle orientés tâches et l’ensemble des paramètres au niveau de l’organisation (membres, rôles, équipes, image de marque, gouvernance, fournisseurs d’IA, analytique). Tout ce qui est ici s’applique à l’identique, que tu utilises l’édition [Cloud](/fr/cloud) managée ou une instance [Auto-hébergé](/fr/self-hosted).
 
-Seuls les sujets propres à une édition vivent ailleurs : facturation Cloud, résidence et SSO hébergé sont dans Cloud ; installation, configuration d’environnement, observabilité et notes de version sont dans Self-hosted. Si une page décrit ce que tu vois dans l’interface, elle est dans cette section.
+Seuls les sujets propres à une édition vivent ailleurs : facturation Cloud, résidence et SSO hébergé sont dans Cloud ; installation, configuration d’environnement, observabilité et notes de version sont dans Auto-hébergé. Si une page décrit ce que tu vois dans l’interface, elle est dans cette section.
 
 ## Par fonctionnalité
 

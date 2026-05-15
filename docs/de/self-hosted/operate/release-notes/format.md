@@ -19,7 +19,7 @@ Konsistente Abschnitte — in konsistenter Reihenfolge — machen es leicht, ein
 
 Nur Abschnitte einfügen, zu denen Inhalt existiert. Immer in dieser Reihenfolge verwenden:
 
-| Nr. | Abschnitts-Header        | Umfang                                                                                               |
+| Nr. | Abschnitts-Kopfzeile     | Umfang                                                                                               |
 | --- | ------------------------ | ---------------------------------------------------------------------------------------------------- |
 | 1   | `## 🔒 Security`         | CVE-Fixes, Abhängigkeits-Patches, Auth-/Session-/Crypto-Härtung, Secret-Handling                     |
 | 2   | `## 🤖 Model & Provider` | LLM-Modell-Wechsel/-Upgrade/-Deprecation, Anbieter-Config-Änderungen, die Output verändern           |

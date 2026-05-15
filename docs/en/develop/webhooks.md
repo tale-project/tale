@@ -87,8 +87,8 @@ def verify(body: bytes, header: str, secret: str) -> bool:
 
 Tale retries failed webhook deliveries (non-2xx responses, timeouts) with exponential backoff up to 5 attempts. After the final failure the delivery is marked failed and logged in the audit stream — an Admin can replay it from the Audit logs page.
 
-## See also
+## Where this fits
 
-- [API reference](/develop/api-reference) for the full REST API.
-- [Triggers](/platform/automations/triggers) for configuring webhook triggers on workflows.
-- [Agents — Webhook tab](/platform/agents/create#webhook-tab) for agent webhook setup.
+Webhooks are the inbound complement to Tale's outbound API. The API is what your code calls when _you_ drive the conversation; webhooks are what Tale exposes so an external system can drive a workflow or address an agent without sitting at the chat UI. Both forms share the same signature scheme and the same audit log, so a single hardened receiver pattern covers everything Tale sends.
+
+For the related pieces: [API reference](/develop/api-reference) is the outbound side of the same protocol, [Triggers](/platform/automations/triggers) covers how a workflow opts in to webhook triggers, and the [Agents — Webhook tab](/platform/agents/create#webhook-tab) walks the per-agent setup.

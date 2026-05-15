@@ -34,3 +34,9 @@ Select multiple conversations using the checkbox at the top of the list. Availab
 ## Filtering
 
 Use the filter dropdown in the toolbar to show read or unread conversations. This helps surface threads that still need attention without scrolling through the full inbox.
+
+## Where this fits
+
+Conversations is Tale's shared inbox for customer-facing channels — email, chat, and voice. It exists because customer reply work doesn't fit inside the AI chat: replies need a human in the loop, a single thread per customer across channels, and a record reviewers can audit. The agent that handles the AI side is the same agent the rest of the workspace uses; what changes is the surface.
+
+For the agent-side configuration that decides which conversations get auto-drafted replies, see [Agent concepts](/platform/agents/concepts) and [Create an agent](/platform/agents/create). For approvals that fall out of customer threads (a draft reply waiting for review, an integration call waiting for a green light), [Approvals](/platform/workspace/approvals) is the surface.

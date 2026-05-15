@@ -42,4 +42,10 @@ L’agent de chat par défaut est préconfiguré avec les modèles exemple OpenR
 
 Les opérateurs self-hosted peuvent gérer les fournisseurs via des fichiers de config JSON en plus de l’UI — utile pour les workflows infrastructure-as-code, les modifications en masse ou les déploiements où l’UI n’est pas joignable. L’UI et les fichiers restent synchronisés ; enregistrer depuis **Paramètres > Fournisseurs IA** écrit le même JSON.
 
-Pour le schéma de fichier, les fournisseurs exemple livrés, les secrets chiffrés par SOPS, les backends d’inférence auto-hébergés (Ollama, vLLM, LocalAI, faster-whisper-server), le réseau hôte Docker et la syntaxe d’épinglage de fournisseur, voir [Fournisseurs IA — référence de configuration](/fr/self-hosted/configuration/providers).
+Pour le schéma de fichier, les fournisseurs exemple livrés, les secrets chiffrés par SOPS, les backends d'inférence auto-hébergés (Ollama, vLLM, LocalAI, faster-whisper-server), le réseau hôte Docker et la syntaxe d'épinglage de fournisseur, voir [Fournisseurs IA — référence de configuration](/fr/self-hosted/configuration/providers).
+
+## Où cela s'insère
+
+Les fournisseurs IA sont la porte entre Tale et les modèles IA avec lesquels le reste de l'organisation parle. Un agent choisit un préréglage de modèle (Rapide / Standard / Avancé) ; chaque préréglage pointe vers un modèle précis défini sur un fournisseur. Ajouter un fournisseur élargit le menu ; changer un défaut redirige tous les agents qui ne se sont pas explicitement liés à un modèle.
+
+L'interface décrite ici est la même que celle utilisée par les admins Cloud ; les opérateurs auto-hébergés ont le choix entre l'UI et la forme fichier JSON documentée à [Fournisseurs IA — référence de configuration](/fr/self-hosted/configuration/providers). Une fois la liste des fournisseurs posée, les préréglages de modèle de chaque agent vivent sur l'agent lui-même — voir [Créer un agent](/fr/platform/agents/create).

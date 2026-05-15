@@ -3,7 +3,9 @@ title: Contributing-Docker-Leitfaden
 description: Wie man Dockerfiles ändert, Container-Tests ausführt und Images schlank hält.
 ---
 
-Dieser Leitfaden beschreibt den Docker-Entwicklungs-Workflow für Beitragende, die Dockerfiles anpassen, Abhängigkeiten ergänzen oder Container-Probleme debuggen.
+Dieser Leitfaden beschreibt den Docker-Entwicklungs-Workflow für Beitragende, die Dockerfiles anpassen, Abhängigkeiten ergänzen oder Container-Probleme debuggen. Das Ziel des Workflows unten ist, die Produktions-Images klein und den lokalen Build-Zyklus schnell zu halten — die beiden ziehen in entgegengesetzte Richtungen, und die meisten Regeln hier existieren, weil das eine oder das andere uns davongelaufen ist.
+
+Wenn du Tale nur betreibst statt baust, decken die Installations-Dokumente unter [Quickstart](/de/self-hosted/install/quickstart) und [Linux-Server](/de/self-hosted/install/linux-server) alles ab, was du brauchst. Diese Seite ist Beitragenden-Terrain.
 
 ## Voraussetzungen
 
@@ -169,7 +171,7 @@ CVE-2023-12345    # false positive: function not reachable
 
 ## CI/CD-Pipeline
 
-### Bei Pull Requests (`build.yml`)
+### Bei Pull Anfragen (`build.yml`)
 
 ```mermaid
 graph LR

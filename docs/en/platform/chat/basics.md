@@ -92,3 +92,9 @@ The Research plan is read-only — you don't edit todos directly. Steer the run 
 | New chat               | `Alt + Ctrl + N` | `Option + Cmd + N` |
 | Search chats           | `Ctrl + K`       | `Cmd + K`          |
 | Toggle history sidebar | `Ctrl + H`       | `Cmd + H`          |
+
+## Where this fits
+
+Chat is the front door for everything Tale's AI can do — the same agents, knowledge, and tools the rest of the platform uses are reachable through the composer. Most users live in this one page; the rest of the platform reads as either _how to make chat better_ (curating knowledge, building agents) or _what to do when chat isn't the right surface_ (automations for unattended work, the API for scripts).
+
+To make chat more useful for your team, the next step is usually to build a purpose-built agent — see [Agent concepts](/platform/agents/concepts) for the mental model, then [Build your first agent end to end](/tutorials/editor/first-agent-end-to-end) for the walkthrough.

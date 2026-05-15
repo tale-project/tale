@@ -3,6 +3,10 @@ title: Fehlerbehebung
 description: Lösungen für häufige Probleme und wo du Hilfe findest.
 ---
 
+Diese Seite sammelt die Probleme, die wir am häufigsten sehen, wenn Operatoren Tale installieren oder upgraden, zusammen mit den Lösungen, die sich in der Praxis bewährt haben. Die Struktur ist symptom-zuerst: scrolle die Überschriften, bis eine zu dem passt, was du siehst, und lies dann die Lösung darunter.
+
+Wenn dein Problem hier nicht steht, reichen das `--verbose`-Flag der `tale`-CLI plus die Container-Logs (siehe [Operations — Logs](/de/self-hosted/operate/observability/operations#logs)) meist aus, um die Ursache freizulegen; wenn nicht, eröffne ein Issue auf [GitHub](https://github.com/tale-project/tale/issues) und hänge diese Ausgabe an.
+
 ## Häufige Probleme
 
 ### "Docker Engine not found" unter Windows

@@ -3,7 +3,7 @@ title: Équipes
 description: Organise les membres en équipes et cadre la visibilité des connaissances.
 ---
 
-Les équipes permettent de grouper les membres — Engineering, Sales, Support, Legal — et de contrôler quelles connaissances chaque groupe voit. Une équipe est un regroupement souple : elle n’affecte pas la connexion, les rôles ou les permissions. Elle _affecte_ les documents et conversations qui apparaissent dans les vues filtrées de chaque membre.
+Les équipes permettent de grouper les membres — Ingénierie, Sales, Support, Legal — et de contrôler quelles connaissances chaque groupe voit. Une équipe est un regroupement souple : elle n’affecte pas la connexion, les rôles ou les permissions. Elle _affecte_ les documents et conversations qui apparaissent dans les vues filtrées de chaque membre.
 
 La gestion des équipes est sous **Paramètres > Équipes** et réservée aux Admins.
 
@@ -31,4 +31,4 @@ Les équipes n’ont pas de rôles de manager formels — les permissions vienne
 
 ## Fournisseurs d’identité externes
 
-Quand SSO ou Trusted Headers sont utilisés, l’IdP externe est la source unique de vérité pour l’appartenance aux équipes. Tale lit le header des équipes à chaque connexion et met à jour la liste des équipes de l’utilisateur. Voir [Authentification](/fr/self-hosted/admin/authentication).
+Quand SSO ou Trusted En-têtes sont utilisés, l’IdP externe est la source unique de vérité pour l’appartenance aux équipes. Tale lit le header des équipes à chaque connexion et met à jour la liste des équipes de l’utilisateur. Voir [Authentification](/fr/self-hosted/admin/authentication).

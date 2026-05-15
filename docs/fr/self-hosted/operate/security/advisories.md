@@ -3,7 +3,9 @@ title: Processus de Security Advisory
 description: Comment Tale coordonne, dépose et publie les correctifs liés à la sécurité.
 ---
 
-Comment Tale coordonne, dépose et publie les correctifs liés à la sécurité.
+Cette page documente comment Tale traite les correctifs liés à la sécurité, depuis le premier rapport jusqu'à l'advisory publiée. La forme du processus — brouillon privé sur GitHub, patch publié, advisory publiée avec lien CVE et renvoi vers les release notes — est conventionnelle ; nous la documentons pour que les opérateurs sachent quoi surveiller et pour que les rapporteurs sachent à quoi s'attendre.
+
+Côté opérateur, la suite pratique : abonne-toi aux GitHub Security Advisories sur `tale-project/tale` et lis la section `## 🔒 Security` de chaque release. Tout ce qui porte un CVE apparaît dans les deux endroits.
 
 ## Canaux
 
@@ -24,7 +26,7 @@ On dépose un GitHub Security Advisory quand l’un des points suivants s’appl
 
 ## Matrice gravité → escalade
 
-| CVSS             | Advisory    | Release notes            | Email direct aux opérateurs                                            |
+| CVSS             | Advisory    | Release notes            | Courriel direct aux opérateurs                                         |
 | ---------------- | ----------- | ------------------------ | ---------------------------------------------------------------------- |
 | Critical (9.0+)  | Requise     | Requise, résumé en avant | Oui — avant divulgation publique si coordonnée, sinon à la publication |
 | High (7.0–8.9)   | Requise     | Requise                  | Seulement si l’exploitation ne demande aucune action utilisateur       |

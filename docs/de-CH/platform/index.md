@@ -3,9 +3,9 @@ title: Platform-Übersicht
 description: Produktdokumentation für Tale — Funktionen, Rollen und Organisationsverwaltung. Gilt identisch für Cloud und Self-hosted.
 ---
 
-Platform ist die vollständige Produktdokumentation zu Tale. Sie beschreibt jede nutzerseitige Funktion — Chat, Wissensdatenbank, Agents, Automatisierungen, Integrationen — und enthält zusätzlich rollenspezifische Aufgaben-Leitfäden sowie alle Einstellungen auf Organisationsebene (Mitglieder, Rollen, Teams, Branding, Governance, KI-Anbieter, Analytics). Alles hier gilt gleichermassen, egal ob du die gemanagte [Cloud](/de/cloud)-Edition nutzt oder eine eigene [Self-hosted](/de/self-hosted)-Instanz betreibst.
+Platform ist die vollständige Produktdokumentation zu Tale. Sie beschreibt jede nutzerseitige Funktion — Chat, Wissensdatenbank, Agents, Automatisierungen, Integrationen — und enthält zusätzlich rollenspezifische Aufgaben-Leitfäden sowie alle Einstellungen auf Organisationsebene (Mitglieder, Rollen, Teams, Branding, Governance, KI-Anbieter, Analytics). Alles hier gilt gleichermassen, egal ob du die gemanagte [Cloud](/de/cloud)-Edition nutzt oder eine eigene [selbst gehostet](/de/self-hosted)-Instanz betreibst.
 
-Nur editionsspezifische Themen gehören **nicht** hierher: Cloud-Abrechnung, regionale Datenhaltung und gehostetes SSO stehen unter Cloud; Installation, Umgebungskonfiguration, Observability und Release Notes stehen unter Self-hosted. Alles, was du in der Produktoberfläche siehst, ist in diesem Bereich beschrieben.
+Nur editionsspezifische Themen gehören **nicht** hierher: Cloud-Abrechnung, regionale Datenhaltung und gehostetes SSO stehen unter Cloud; Installation, Umgebungskonfiguration, Observability und Release Notes stehen unter selbst gehostet. Alles, was du in der Produktoberfläche siehst, ist in diesem Bereich beschrieben.
 
 ## Nach Funktion
 
@@ -27,7 +27,7 @@ Tale kennt sechs Rollen. Vier davon bekommen hier einen aufgabenorientierten Lei
 
 ## Organisationsverwaltung
 
-Organisationsweite Einstellungen gelten sowohl für Cloud als auch für Self-hosted, sofern nicht anders vermerkt. Kanonische Referenz:
+Organisationsweite Einstellungen gelten sowohl für Cloud als auch für selbst gehostet, sofern nicht anders vermerkt. Kanonische Referenz:
 
 - [Mitglieder und Rollen](/de/platform/admin/members-and-roles) — die Sechs-Rollen-Rechtematrix.
 - [Teams](/de/platform/admin/teams) — Zugriff auf Wissen und Chat eingrenzen.
@@ -36,4 +36,4 @@ Organisationsweite Einstellungen gelten sowohl für Cloud als auch für Self-hos
 - [Governance](/de/platform/admin/governance) — Regeln für Inhalte und Richtlinien.
 - [Nutzungsanalyse](/de/platform/admin/usage-analytics) — Aktivität pro Person und organisationsweit.
 
-Für die Einrichtung der Authentifizierung (Passwort, SSO, Trusted Headers) siehe [Self-hosted-Authentifizierung](/de/self-hosted/admin/authentication) — die Konfiguration ist self-hosted-spezifisch; in Cloud erledigt das die gehostete Admin-Oberfläche.
+Für die Einrichtung der Authentifizierung (Passwort, SSO, Trusted Kopfzeilen) siehe [selbst gehostet-Authentifizierung](/de/self-hosted/admin/authentication) — die Konfiguration ist self-hosted-spezifisch; in Cloud erledigt das die gehostete Admin-Oberfläche.

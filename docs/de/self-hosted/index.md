@@ -9,13 +9,13 @@ Alles, was Mitglied, Redakteur, Entwickler oder Admin täglich nutzen — Chat, 
 
 ## Instanz installieren
 
-Starte mit der [Self-hosted-Übersicht](/de/self-hosted/overview) für Architektur und Services. Danach führt dich der [Installationsleitfaden für Linux-Server](/de/self-hosted/install/linux-server) Schritt für Schritt durch die Einrichtung. TLS, Reverse Proxies und Deployments unter einem Unterpfad sind dort ebenfalls beschrieben.
+Starte mit der [selbst gehostet-Übersicht](/de/self-hosted/overview) für Architektur und Services. Danach führt dich der [Installationsleitfaden für Linux-Server](/de/self-hosted/install/linux-server) Schritt für Schritt durch die Einrichtung. TLS, Reverse Proxies und Deployments unter einem Unterpfad sind dort ebenfalls beschrieben.
 
 ## Konfigurieren
 
 - [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference) — jede Umgebungsvariable, die Tale liest, geordnet nach Service.
 - [Aufbewahrung](/de/self-hosted/configuration/retention) — Regeln zur Datenaufbewahrung pro Tabelle.
-- [Authentifizierung](/de/self-hosted/admin/authentication) — Passwort-Login, SSO (Microsoft Entra ID) oder Trusted Headers. Self-hosted-spezifisch, weil über Umgebungsvariablen gesteuert.
+- [Authentifizierung](/de/self-hosted/admin/authentication) — Passwort-Login, SSO (Microsoft Entra ID) oder Trusted Kopfzeilen. selbst gehostet-spezifisch, weil über Umgebungsvariablen gesteuert.
 
 ## Betreiben
 

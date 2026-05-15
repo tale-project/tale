@@ -5,13 +5,13 @@ description: Self-Service-Verwaltung für DSGVO-Art.-17-Löschungsanfragen mit F
 
 Org-Admins bearbeiten DSGVO-Art.-17-Anfragen (Recht auf Löschung) direkt unter **Einstellungen > Governance > Anfragen betroffener Personen**. Jede Einreichung legt einen dauerhaften Beleg mit 30-Tage-Frist an, führt die Kaskade asynchron aus und schreibt für jeden Statuswechsel einen Audit-Eintrag (eingereicht → blockiert / ausgeführt / verlängert / wiederholt).
 
-Die Seite ist nach dem DSR-Oberbegriff benannt — nicht nach «Löschung» allein —, damit künftige Art.-16- (Berichtigung) und Art.-20-Flows (Datenübertragbarkeit) ohne Route-Umbenennung folgen können. Heute ist nur Art. 17 implementiert.
+Die Seite ist nach dem DSR-Oberbegriff benannt — nicht nach „Löschung" allein —, damit künftige Art.-16- (Berichtigung) und Art.-20-Flows (Datenübertragbarkeit) ohne Route-Umbenennung folgen können. Heute ist nur Art. 17 implementiert.
 
 ## Identitätsprüfung erfolgt ausserhalb des Produkts
 
 Tale ist bewusst administrationsgesteuert — es gibt kein Self-Service-Portal für betroffene Personen. Der einreichende Admin **ist** die Identitätsprüfungsstelle und hat die Identität der Person über den eigenen Organisationsprozess (Offboarding, Support-Ticket, persönliche Verifizierung etc.) bestätigt, bevor er den Dialog öffnet. Das Produkt fügt keinen IDV-Schritt im Flow hinzu.
 
-Dieser Vertrag macht den Admin massgeblich. Die Bestätigungsphrase («ERASE») im Einreichdialog ist das IDV-Gate: Das bewusste Eintippen ist ein audit-protokolliertes Signal, dass der Admin die Identität verifiziert hat.
+Dieser Vertrag macht den Admin massgeblich. Counsel sollte die Bestätigungsphrase („ERASE") im Einreichdialog als IDV-Gate behandeln: das bewusste Eintippen ist ein audit-protokolliertes Signal, dass der Admin die Identität verifiziert hat.
 
 ## Anfrage einreichen
 
@@ -52,7 +52,7 @@ Drei Zustände sind wiederholbar:
 - `blocked` — Anfrage wurde am Legal-Hold-Gate abgewiesen. Sperre lösen, dann erneut versuchen.
 - `failed` — Kaskade ist abgestürzt (RAG-Service nicht erreichbar, transienter Infrastrukturfehler) oder wurde vom Watchdog nach Überschreiten des 30-Minuten-Limits erfasst.
 
-Die Aktion **Erneut versuchen** im Drawer plant den Processor neu ein. Das Hold-Gate läuft beim Start des Processors erneut, schliesst also das Fenster zwischen «Sperre aufheben» und «Wiederholen».
+Die Aktion **Erneut versuchen** im Drawer plant den Processor neu ein. Das Hold-Gate läuft beim Start des Processors erneut, schliesst also das Fenster zwischen „Sperre aufheben" und „Wiederholen".
 
 ## Was der Beleg zeigt
 
@@ -72,8 +72,8 @@ Diese Seite liefert nur DSGVO Art. 17 (Löschung). Bewusst nicht enthalten (v1):
 - Art. 16 Berichtigung und Art. 20 Datenübertragbarkeit — landen später als zusätzliche `kind`-Werte auf derselben DSR-Seite, ohne Route-Umbenennung.
 - Self-Service-Portal für betroffene Personen — Tale ist administrationsgesteuert.
 - In-Product-Identitätsprüfung — ausserhalb des Produkts beim Admin.
-- Benachrichtigung der betroffenen Person bei Abschluss — Aufgabe der Email-Infrastruktur.
-- Bulk-Subject-Requests (Sammelklagen).
+- Benachrichtigung der betroffenen Person bei Abschluss — Aufgabe der E-Mail-Infrastruktur.
+- Bulk-Subject-Anfragen (Sammelklagen).
 - Multi-Jurisdiktions-Templates (CCPA, LGPD etc.) — zuerst nur DSGVO.
 - KI-gestützte Schwärzung — Tale löscht statt zu schwärzen.
 

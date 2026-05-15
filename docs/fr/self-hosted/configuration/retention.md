@@ -166,7 +166,8 @@ Sous-type d'audit `gdpr_erasure_executed` (`category: 'admin'`) enregistre acteu
 - Pour la rétention de l'historique de chat, chaque ligne descendante (messages, metadata, todos, feedback, artifacts, etc.) est supprimée en cascade via le helper partagé `cascadeDeleteThreadChildren`, afin que la suppression utilisateur et la suppression de rétention ne divergent jamais sur les tables nettoyées.
 - La rétention des journaux d'audit écrit une ligne `auditLogCheckpoints` à chaque limite de batch afin que la chaîne de hash SHA-256 reste vérifiable.
 
-## Voir aussi
+## Où cela s'insère
 
-- [Référence des variables d'environnement](/fr/self-hosted/configuration/environment-reference) — liste complète des variables d'environnement de Tale.
-- [Gouvernance](/fr/platform/admin/governance) — paramètres de rétention par organisation et gestion des conservations légales.
+La rétention est le point de contact entre la politique légale d'une organisation et ce qui vit physiquement sur disque. Les variables documentées sur cette page sont l'API de l'opérateur ; les paramètres correspondants dans **Paramètres > Gouvernance** sont l'API de l'Admin. Les deux se rencontrent au niveau du runner de nettoyage quotidien, qui consomme les valeurs effectives en début d'exécution et écrit un checkpoint d'audit à chaque limite de batch.
+
+Pour les pièces voisines : [Référence des variables d'environnement](/fr/self-hosted/configuration/environment-reference) liste l'ensemble des variables, [Gouvernance](/fr/platform/admin/governance) couvre les paramètres de rétention par organisation et la gestion des conservations légales depuis l'interface.

@@ -26,7 +26,7 @@ Nach dem Senden einer Nachricht teilt sich der Chat-Bereich in zwei Spalten:
 | Links (A)  | Nachrichten aus dem Thread von Modell A |
 | Rechts (B) | Nachrichten aus dem Thread von Modell B |
 
-Jede Spalte hat einen Header mit Label und Modellnamen. Beide Spalten scrollen unabhängig voneinander und unterstützen alle Chat-Funktionen inklusive Freigaben, Datei-Anhängen und Nachrichten-Aktionen.
+Jede Spalte hat einen Kopfzeile mit Label und Modellnamen. Beide Spalten scrollen unabhängig voneinander und unterstützen alle Chat-Funktionen inklusive Freigaben, Datei-Anhängen und Nachrichten-Aktionen.
 
 Du kannst im Arena-Modus weiter Nachrichten senden. Jede neue Nachricht geht parallel an beide Modelle.
 

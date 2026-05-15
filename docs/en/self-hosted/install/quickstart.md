@@ -141,3 +141,9 @@ docker compose -f compose.yml -f compose.dev.yml up --build
 ```
 
 After modifying Dockerfiles or dependencies, run `bun run docker:test` to smoke-test the build. See the [Contributing Docker guide](/develop/contributing-docker) for image validation and vulnerability scan scripts.
+
+## Where this gets used
+
+What you have now is a Tale instance reachable on `localhost`, with sample agents, sample knowledge, and a working AI provider. That's enough to evaluate the product, run a demo, or develop against the platform — but not enough to expose to the rest of your team, since the quickstart sets up self-signed TLS and runs everything on one container per service.
+
+When you're ready to put Tale in front of users, [Production deployment](/self-hosted/install/linux-server) walks the same setup with a real domain, a real TLS certificate, and the blue-green deployment topology that survives upgrades without a maintenance window. For the rest of the operational surface — observability, backups, retention, advisories — the [Operations](/self-hosted/operate/observability/operations) section is the index.

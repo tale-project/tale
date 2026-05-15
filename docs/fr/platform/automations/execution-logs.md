@@ -3,9 +3,11 @@ title: Journaux d’exécution
 description: Inspecte les runs passés, débogue les échecs et relance avec ajustements.
 ---
 
-L’onglet Exécutions d’un workflow liste chaque run — calendrier, événement, webhook ou manuel — avec dates, durée, statut final et détail par étape.
+L'onglet Exécutions d'un workflow liste chaque run — calendrier, événement, webhook ou manuel — avec dates, durée, statut final et détail par étape. C'est l'endroit où tu vas quand un workflow a tourné et que tu dois savoir exactement ce qui s'est passé : quelle étape a échoué, quelle entrée elle a vue, quelle sortie elle a produite, à quoi ressemblait l'état des variables à ce moment précis.
 
-## Ce qu’affiche un enregistrement d’exécution
+Les exécutions sont conservées pendant la période configurée dans [Gouvernance — Rétention](/fr/platform/admin/governance#rétention) ; au-delà, les lignes sont hard-deleted par le runner de nettoyage quotidien. Pour un débogage longue durée, copie la trace avant que la rétention ne la rattrape.
+
+## Ce qu'affiche un enregistrement d'exécution
 
 Clique une ligne pour ouvrir le panneau de détail :
 

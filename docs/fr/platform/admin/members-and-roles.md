@@ -11,9 +11,9 @@ La table sous **Paramètres > Membres** liste tous les utilisateurs de l’organ
 
 - **Ajouter des membres** — email, mot de passe optionnel, nom affiché et rôle. Si l’email existe déjà dans Tale, l’utilisateur est ajouté à l’organisation sans créer de nouveau compte.
 - **Éditer des membres** — changer le nom affiché, le rôle, ou définir un nouveau mot de passe.
-- **Retirer des membres** — retire le membre de l’organisation. Le compte n’est pas supprimé ; l’utilisateur perd simplement l’accès.
+- **Retirer des membres** — retire le membre de l'organisation. Le compte n'est pas supprimé ; l'utilisateur perd l'accès à cette organisation seulement.
 
-Pour les options d’authentification (mot de passe, SSO Microsoft Entra ID, Trusted Headers), voir [Authentification](/fr/self-hosted/admin/authentication).
+Pour les options d’authentification (mot de passe, SSO Microsoft Entra ID, Trusted En-têtes), voir [Authentification](/fr/self-hosted/admin/authentication).
 
 ## Vue d’ensemble des rôles
 
@@ -96,6 +96,12 @@ Pour les options d’authentification (mot de passe, SSO Microsoft Entra ID, Tru
 
 ## Authentification
 
-Tale supporte email/mot de passe, Microsoft Entra ID SSO et Trusted Headers. Toutes les méthodes peuvent être utilisées en même temps.
+Tale supporte email/mot de passe, Microsoft Entra ID SSO et Trusted En-têtes. Toutes les méthodes peuvent être utilisées en même temps.
 
-Pour l’installation complète, voir le [guide d’authentification](/fr/self-hosted/admin/authentication).
+Pour l'installation complète, voir le [guide d'authentification](/fr/self-hosted/admin/authentication).
+
+## Où cela s'insère
+
+Membres et rôles est la page que toutes les autres pages admin présupposent. Authentification répond à _qui peut se connecter du tout_ ; Fournisseurs IA répond à _quels modèles l'organisation est autorisée à dépenser_ ; Gouvernance répond à _quelles règles s'appliquent à ce qu'ils font_ — mais aucune de ces questions n'a de réponse sensée tant qu'on n'a pas décidé qui peut faire quoi. C'est ce que fait cette page.
+
+L'étape suivante dépend de la question avec laquelle tu es venu. Pour le login au-delà du couple email/mot de passe, [Authentification](/fr/self-hosted/admin/authentication) couvre SSO et Trusted En-têtes. Pour grouper des membres en accès partagé, [Équipes](/fr/platform/admin/teams) est la page. Pour auditer qui a fait quoi, [Gouvernance](/fr/platform/admin/governance) couvre le journal d'audit.

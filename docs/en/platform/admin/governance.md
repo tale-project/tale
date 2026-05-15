@@ -88,3 +88,9 @@ View token consumption, cost breakdowns, and usage trends across the organisatio
 A time-ordered record of significant actions taken in the organisation. Categories include authentication events, member changes, data operations, integration updates, workflow publications, security events, and admin actions. Useful for compliance and troubleshooting.
 
 Admins can export audit logs as **CSV** or **JSON** using the export buttons above the log table. Exports respect the currently active category filter.
+
+## Where this fits
+
+Governance is the contract between your organisation's policy and what Tale physically does on disk. Retention bounds how long data lives. Data-subject requests give you the GDPR machinery for export and erasure. Legal holds suspend deletion under investigation. The audit log proves what happened. Each of these is a knob; the cleanup runner that enforces retention reads them all at the start of every run.
+
+The configuration this page describes is org-scoped (admins set it from the UI). For the operator-scoped knobs that govern the cleanup runner itself — the environment variables, the audit pepper for PII hashing, the legal-hold cooldown — see [Retention](/self-hosted/configuration/retention).

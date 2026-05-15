@@ -43,14 +43,20 @@ Jeder Starter hat einen Titel und einen Prompt. Der Titel erscheint als klickbar
 
 ## Tab Delegation
 
-Konfiguriere Agent-zu-Agent-Übergaben. Mit Delegation kann dieser Agent Konversationen an andere Agents weiterleiten, wenn das Thema außerhalb seines Bereichs liegt. Zum Beispiel kann ein allgemeiner Support-Agent Billing-Fragen an einen spezialisierten Billing-Agent übergeben.
+Konfiguriere Agent-zu-Agent-Übergaben. Mit Delegation kann dieser Agent Konversationen an andere Agents weiterleiten, wenn das Thema außerhalb seines Bereichs liegt. Zum Beispiel kann ein allgemeiner Support-Agent Abrechnung-Fragen an einen spezialisierten Abrechnung-Agent übergeben.
 
 ## Tab Webhook
 
 Jeder Agent bekommt einen eigenen Webhook-Endpoint. Du kannst eine Nachricht und den Konversationskontext an diese URL POSTen, um eine Antwort vom Agent zu erhalten, ohne die Plattform-Oberfläche zu nutzen. Nützlich, um den Agent in externe Produkte oder Chat-Widgets zu integrieren.
 
-Du kannst ein Webhook-Secret hinzufügen, um die Authentizität eingehender Requests zu prüfen.
+Du kannst ein Webhook-Secret hinzufügen, um die Authentizität eingehender Anfragen zu prüfen.
 
 ## Versionierung
 
-Agents unterstützen Versionen. Beim Bearbeiten der Anweisungen eines Agents wird eine Entwurf-Version erzeugt. Die aktive Version bedient weiter Requests, bis du den Entwurf veröffentlichst. Der Versionsverlauf-Dialog zeigt alle vergangenen Versionen und erlaubt Vergleich und Rollback.
+Agents unterstützen Versionen. Beim Bearbeiten der Anweisungen eines Agents wird eine Entwurf-Version erzeugt. Die aktive Version bedient weiter Anfragen, bis du den Entwurf veröffentlichst. Der Versionsverlauf-Dialog zeigt alle vergangenen Versionen und erlaubt Vergleich und Rollback.
+
+## Wo das hingehört
+
+Diese Seite ist der Bau-Flow — Name, Modell, Anweisungen, Wissen, Tools, Version. Die meiste Iteration an einem Agent passiert _nach_ diesem ersten Anlegen: Anweisungen umschreiben, wenn du lernst, was der Agent falsch versteht; Wissen verengen, wenn du siehst, woraus er sich verankert; Tools an- und abschalten, wenn der Anwendungsfall sich schärft. Die vier Entscheidungen, die du hier getroffen hast, sind die vier Knöpfe, an denen du weiter drehst.
+
+Für die Iterationsschleife — Entwerfen, Veröffentlichen und Rollback aktiver Agents — ist [Agent-Versionen](/de/platform/agents/versions) die dedizierte Referenz. Um den Agent von ausserhalb der UI aufzurufen, decken [Webhooks](/de/develop/webhooks) und die [API-Referenz](/de/develop/api-reference) die beiden Nicht-UI-Oberflächen ab.

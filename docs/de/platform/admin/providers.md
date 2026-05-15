@@ -38,8 +38,14 @@ Anbieter legen fest, welche Modelle es _gibt_. Agents legen fest, auf welchen da
 
 Der Standard-Chat-Agent ist mit den OpenRouter-Beispiel-Modellen vorkonfiguriert. Eigene Agents starten leer — wähle die Modelle aus, die der Agent unterstützen soll. Wie sich der Selector verhält, wenn zwei Anbieter dieselbe Modell-ID definieren (und wie Pinning funktioniert), steht in der unten verlinkten Anbieter-Referenz.
 
-## Self-hosted-Instanzen: Konfiguration als Dateien
+## selbst gehostet-Instanzen: Konfiguration als Dateien
 
-Self-hosted-Betreiber können Anbieter zusätzlich zur UI über JSON-Konfigurationsdateien verwalten — nützlich für Infrastructure-as-Code-Workflows, Bulk-Änderungen oder Deployments, in denen die UI nicht erreichbar ist. UI und Dateien bleiben synchron; das Speichern aus **Einstellungen > KI-Anbieter** schreibt dasselbe JSON.
+selbst gehostet-Betreiber können Anbieter zusätzlich zur UI über JSON-Konfigurationsdateien verwalten — nützlich für Infrastructure-as-Code-Workflows, Bulk-Änderungen oder Deployments, in denen die UI nicht erreichbar ist. UI und Dateien bleiben synchron; das Speichern aus **Einstellungen > KI-Anbieter** schreibt dasselbe JSON.
 
 Für das Datei-Schema, mitgelieferte Beispiel-Anbieter, SOPS-verschlüsselte Secrets, selbst gehostete Inferenz-Backends (Ollama, vLLM, LocalAI, faster-whisper-server), Docker-Host-Networking und die Syntax zum Anbieter-Pinning siehe [KI-Anbieter — Konfigurationsreferenz](/de/self-hosted/configuration/providers).
+
+## Wo das hingehört
+
+Anbieter sind das Tor zwischen Tale und den KI-Modellen, mit denen der Rest der Organisation spricht. Ein Agent wählt eine Modellvoreinstellung (Schnell / Standard / Erweitert); jede Voreinstellung bindet an ein bestimmtes Modell, das auf einem Anbieter definiert ist. Einen Anbieter hinzuzufügen, erweitert das Menü; einen Standard zu ändern, leitet jeden Agent um, der sich nicht explizit auf ein Modell festgelegt hat.
+
+Die UI-Oberfläche dieser Seite ist dieselbe, die Cloud-Admins nutzen; selbst gehostete Operatoren haben die Wahl zwischen der UI und der JSON-Dateiform unter [KI-Anbieter — Konfigurationsreferenz](/de/self-hosted/configuration/providers). Sobald die Anbieter-Liste steht, leben die Modellvoreinstellungen jedes Agents auf dem Agent selbst — siehe [Agent erstellen](/de/platform/agents/create).

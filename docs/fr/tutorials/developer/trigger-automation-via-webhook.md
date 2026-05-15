@@ -69,7 +69,8 @@ Ouvre le workflow et clique l’onglet **Executions**. Filtre par ID d’exécut
 - **404 workflow not found** — le workflow a été supprimé ou son ID a changé ; recopie l’URL depuis l’étape Start.
 - **5xx** — regarde l’onglet Executions pour l’étape qui échoue. Le corps de réponse HTTP contient le résumé d’erreur.
 
-## Ensuite
+## Où cela s'insère
 
-- Croiser avec [Webhooks](/fr/develop/webhooks) pour des exemples de vérification de signature en Node et Python.
-- Utiliser les webhooks d’agent plutôt que de workflow, quand tu veux une réponse d’agent directe sans couche d’automatisation : [Webhooks](/fr/develop/webhooks).
+Tu as maintenant un système externe capable de piloter un workflow Tale : un endpoint HTTPS, une charge signée, une exécution asynchrone, et un onglet Executions où tu débogues chaque étape. La même forme — requête signée, ID d'exécution immédiat, run asynchrone — s'applique à n'importe quelle source que tu peux brancher : un job CI, un backend de formulaire, une slash-command Slack.
+
+Si tu veux une réponse d'agent directe plutôt qu'un run de workflow, le même protocole vaut pour [Webhooks — Agent webhooks](/fr/develop/webhooks#agent-webhooks). Pour le code de vérification de signature à ajouter à un receiver custom en Node ou Python, [Webhooks](/fr/develop/webhooks) contient des exemples copiables.

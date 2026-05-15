@@ -29,11 +29,11 @@ Zum Überarbeiten ruft die KI `artifact_edit` für dasselbe Artefakt auf. Kleine
 
 Eine horizontale Leiste über dem Chat listet jedes Artefakt im aktuellen Thread. Jede Karte zeigt Titel, Typ-Icon und aktuelle Revision (`v3`, `v4`, …). Klicke auf eine Karte, um sie in Canvas zu öffnen.
 
-Während die KI ein Artefakt schreibt oder patcht, zeigt die Karte einen Spinner und der Canvas-Header **KI schreibt …** oder **KI bearbeitet …**.
+Während die KI ein Artefakt schreibt oder patcht, zeigt die Karte einen Spinner und der Canvas-Kopfzeile **KI schreibt …** oder **KI bearbeitet …**.
 
 ## Toolbar-Aktionen
 
-Der Canvas-Header enthält:
+Der Canvas-Kopfzeile enthält:
 
 - **Bearbeiten / Vorschau**-Umschalter — zwischen Bearbeitung der Quelle und Anzeige der gerenderten Ausgabe wechseln.
 - **Änderungen übernehmen** — deine Änderungen als neue Revision speichern. Erscheint nur, wenn du etwas geändert hast und die KI gerade nicht schreibt.

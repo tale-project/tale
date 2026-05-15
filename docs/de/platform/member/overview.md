@@ -11,9 +11,9 @@ Wenn du selbst eine Tale-Instanz installieren oder betreiben willst, siehe [Loka
 
 Es ist nichts zu installieren — Tale läuft vollständig im Browser. Dein Admin schaltet dich auf eine von drei Arten frei, je nachdem, wie deine Organisation konfiguriert ist.
 
-- **Email und Passwort.** Dein Admin legt dein Konto unter **Einstellungen → Mitglieder** mit einem initialen Passwort an und teilt es dir mit. Du wirst beim ersten Login aufgefordert, es zu ändern.
+- **E-Mail und Passwort.** Dein Admin legt dein Konto unter **Einstellungen → Mitglieder** mit einem initialen Passwort an und teilt es dir mit. Du wirst beim ersten Login aufgefordert, es zu ändern.
 - **SSO (Microsoft Entra).** Melde dich mit deinem vorhandenen Microsoft-Konto an; dein Tale-Konto wird beim ersten Anmelden automatisch angelegt.
-- **Reverse Proxy (Trusted Headers).** Wenn Tale hinter Authelia, Authentik, oauth2-proxy o. ä. läuft, authentifiziert dich der Proxy und dein Konto wird bei der ersten Anfrage automatisch angelegt.
+- **Reverse Proxy (Trusted Kopfzeilen).** Wenn Tale hinter Authelia, Authentik, oauth2-proxy o. ä. läuft, authentifiziert dich der Proxy und dein Konto wird bei der ersten Anfrage automatisch angelegt.
 
 Wenn du dich nicht anmelden kannst, frage deinen Admin, welche Methode aktiv ist. (Admins: siehe [Authentifizierung](/de/self-hosted/admin/authentication) für die instanzweite Konfiguration.)
 

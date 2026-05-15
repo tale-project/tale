@@ -327,3 +327,9 @@ Les deux endpoints répondent toujours avec `200 OK` et `Cache-Control: public, 
 | `components[].status` | string | `operational` ou `outage` par composant.                                              |
 
 Les services de surveillance par mots-clés peuvent déclencher une alerte sur la sous-chaîne sensible à la casse `"status":"outage"`.
+
+## Où cela s'insère
+
+L'API est la surface sortante de Tale — ce que ton code appelle quand _toi_ tu pilotes la conversation, le workflow ou l'accès aux données. Son pendant entrant est [Webhooks](/fr/develop/webhooks) : le même protocole, le même schéma de signature, le même journal d'audit, avec Tale du côté appelant plutôt qu'appelé. Tout client qui parle à `/chat/completions` d'OpenAI parle à Tale en changeant deux valeurs (URL de base et clé) ; tout système capable d'envoyer un POST HTTPS signé peut piloter un workflow.
+
+Pour le tutoriel qui traverse les deux directions, [Appeler Tale depuis un script](/fr/tutorials/developer/call-tale-from-a-script) couvre le côté API et [Déclencher une automatisation via webhook](/fr/tutorials/developer/trigger-automation-via-webhook) couvre le côté webhook entrant.

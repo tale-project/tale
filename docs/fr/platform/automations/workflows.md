@@ -73,4 +73,10 @@ Utilise le panneau Test dans l’éditeur pour :
 
 ## Historique d’exécution
 
-L’onglet Exécutions de chaque workflow liste tous les runs passés avec date, durée, statut, entrée et sortie de chaque étape.
+L'onglet Exécutions de chaque workflow liste tous les runs passés avec date, durée, statut, entrée et sortie de chaque étape.
+
+## Où cela s'insère
+
+Les workflows sont la toile sur laquelle le vocabulaire des [Concepts des automatisations](/fr/platform/automations/concepts) — étapes, triggers, variables, brouillons — devient une chose exécutable. L'éditeur est opinionated : chaque étape fait un mouvement, le graphe va de Start à Output, et le panneau Test prouve la logique avant la publication. L'onglet Exécutions, lui, sert au débogage après — il porte la trace pas-à-pas qui transforme un `400 Bad Request` d'une API tierce en un enregistrement unique lisible.
+
+Les suites naturelles : pour régler la façon dont le workflow démarre, [Triggers](/fr/platform/automations/triggers) ; pour déboguer un run en échec, [Journaux d'exécution](/fr/platform/automations/execution-logs).

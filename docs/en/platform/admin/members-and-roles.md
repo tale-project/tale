@@ -11,7 +11,7 @@ The member table under **Settings > Members** lists all users in the organisatio
 
 - **Add members** — enter an email, optional password, display name, and role. If the email already exists in Tale, the user is added to the organisation without creating a new account.
 - **Edit members** — change a member's display name, role, or set a new password for them.
-- **Remove members** — remove the member from the organisation. Their account is not deleted; they simply lose access.
+- **Remove members** — remove the member from the organisation. Their account is not deleted; they lose access to this organisation only.
 
 For authentication options (password, Microsoft Entra ID SSO, trusted headers), see [Authentication](/self-hosted/admin/authentication).
 
@@ -99,3 +99,9 @@ For authentication options (password, Microsoft Entra ID SSO, trusted headers), 
 Tale supports email/password, Microsoft Entra ID SSO, and trusted headers authentication. All methods can be used simultaneously.
 
 For full setup instructions, see the [Authentication guide](/self-hosted/admin/authentication).
+
+## Where this fits
+
+Members and roles is the page every other admin page assumes. Authentication answers _who can sign in at all_; Providers answers _which models the organisation can spend money on_; Governance answers _what rules apply to what they do_ — but none of those questions has a meaningful answer until you've decided who can do what, and that's this page.
+
+The natural next move depends on which question you came here for. To wire up sign-in beyond email/password, [Authentication](/self-hosted/admin/authentication) covers SSO and trusted headers. To group members for shared access, [Teams](/platform/admin/teams) does that. To audit who did what, [Governance](/platform/admin/governance) covers the audit log.

@@ -59,3 +59,9 @@ Website tracking tells Tale's crawler to visit and index pages from a given doma
 | Every 30 days           | Rarely changing reference material      |
 
 For deeper control over crawling behaviour, see [Website crawling](/platform/knowledge/crawling).
+
+## Where this fits
+
+The knowledge base is the substrate every agent grounds in — the documents, websites, and structured records the AI cites when it answers. Curating it well is what turns a generic AI assistant into one that knows your products, your policies, and your customers. Most quality wins from building a new agent come from sharpening the agent's knowledge scope rather than swapping models.
+
+To narrow what a specific agent can search (instead of giving every agent access to everything), the next page is [Agent concepts → Knowledge](/platform/agents/concepts#knowledge). To enrich the base with structured records, [Structured data](/platform/knowledge/structured-data) walks the Products / Customers / Vendors entities.

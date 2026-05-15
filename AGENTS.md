@@ -31,6 +31,7 @@ Paste this into the PR description. Empty boxes get rejected.
 - [ ] Ran `bun run check` (format, lint, typecheck, all tests).
 - [ ] Updated `services/platform/messages/{en,de,fr}.json` — or N/A.
 - [ ] Updated `/docs/{en,de,fr}/` for every user-visible change — or N/A.
+- [ ] Every touched docs page has a real opening (≥ 2 sentences of prose) and a real closing (a recap paragraph, not a bare `## Next` stub). See the [`docs`](.agents/docs/AGENTS.md) skill for the bar. The opening/closing/loanword tests in [`services/docs/tests/`](services/docs/tests/) flag failures.
 - [ ] Ran `bun run --filter @tale/docs lint` and `bun run --filter @tale/docs test` — or N/A.
 - [ ] Updated [`README.md`](README.md), [`README.de.md`](README.de.md), [`README.fr.md`](README.fr.md) — or N/A.
 

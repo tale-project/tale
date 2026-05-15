@@ -21,7 +21,7 @@ Les pièces jointes restent attachées à la conversation, pas à la base de con
 
 ## Étape 3 — Dicter quand c’est plus rapide que taper
 
-En marchant, pour résumer un appel, ou simplement quand tu penses plus vite que tu ne tapes : clique l’icône micro dans le composeur et parle. La dictée tourne dans ton navigateur (Web Speech API), l’audio ne quitte pas ton appareil. La transcription apparaît dans le champ au fil de la voix ; tu peux la corriger avant d’envoyer.
+En marchant, pour résumer un appel, ou quand tu penses plus vite que tu ne tapes : clique l'icône micro dans le composeur et parle. La dictée tourne dans ton navigateur (Web Speech API), l'audio ne quitte pas ton appareil. La transcription apparaît dans le champ au fil de la voix ; tu peux la corriger avant d'envoyer.
 
 La dictée n’est pas un mode, c’est un outil par message — active, parle, désactive, envoie.
 
@@ -35,7 +35,8 @@ Quand tu atteins un résultat réutilisable, enregistre-le dans la [Bibliothèqu
 
 Si l’agent renvoie du HTML exécutable, un SVG, un diagramme Mermaid ou un long document Markdown, il crée un **artéfact** qui s’ouvre automatiquement dans le volet latéral du Canevas et apparaît dans la barre d’artéfacts au-dessus du chat. Le Canevas te donne aperçu en direct, édition de la source et export — bien plus lisible qu’une bulle de chat qui défile, et l’IA peut réviser l’artéfact en place quand tu demandes des corrections. Voir [Canevas](/fr/platform/workspace/canvas) pour la liste complète des actions.
 
-## Ensuite
+## Où cela sert
 
-- Construis un agent calibré pour ton équipe : [Construire ton premier agent end-to-end](/fr/tutorials/editor/first-agent-end-to-end) (rôle Éditeur).
-- Apprends les raccourcis clavier : [AI chat — Raccourcis clavier](/fr/platform/chat/basics#raccourcis-clavier).
+Les mêmes cinq étapes couvrent presque toutes les tâches de chat au quotidien : choisir l'agent qui correspond au travail, lui donner le contexte qu'il lui faut, demander, itérer, sortir les artefacts de la bulle de chat quand ils ont leur place ailleurs. Les raccourcis qui rendent cette boucle rapide — glisser-déposer des pièces jointes, dictée, sélecteur d'agent, Bibliothèque de prompts — vivent tous dans le composeur ; plus tu construis la mémoire musculaire, plus le chat se rapproche d'une barre de recherche par-dessus les connaissances de ton organisation.
+
+Quand tu te surprends à vouloir un agent plus ajusté que ceux disponibles, [Construire ton premier agent end-to-end](/fr/tutorials/editor/first-agent-end-to-end) traverse la construction (rôle Éditeur). Pour les raccourcis clavier qui accélèrent la boucle ci-dessus, [AI chat — Raccourcis clavier](/fr/platform/chat/basics#raccourcis-clavier) en a la liste complète.

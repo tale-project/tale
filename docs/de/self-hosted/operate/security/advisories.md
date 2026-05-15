@@ -3,13 +3,15 @@ title: Security-Advisory-Prozess
 description: Wie Tale sicherheitsrelevante Fixes koordiniert, einreicht und veröffentlicht.
 ---
 
-Wie Tale sicherheitsrelevante Fixes koordiniert, einreicht und veröffentlicht.
+Diese Seite dokumentiert, wie Tale sicherheitsrelevante Fixes vom ersten Bericht bis zum veröffentlichten Advisory handhabt. Die Form des Prozesses — privater Entwurf auf GitHub, Patch veröffentlicht, Advisory mit CVE-Verknüpfung und Release-Notes-Querverweis publiziert — ist konventionell; wir dokumentieren sie, damit Operatoren wissen, worauf sie achten müssen, und Reporter wissen, was sie erwartet.
+
+Für die Operator-Seite ist die praktische Folge: abonniere GitHub Security Advisories auf `tale-project/tale` und lies den `## 🔒 Security`-Abschnitt jedes Releases. Alles, was eine CVE hat, landet an beiden Stellen.
 
 ## Kanäle
 
 - **Primär**: [GitHub Security Advisories](https://github.com/tale-project/tale/security/advisories) auf `tale-project/tale`. Advisories werden privat vorbereitet, bei Relevanz mit einer CVE verknüpft und erst veröffentlicht, sobald ein Patched Release verfügbar ist.
 - **Sekundär**: jedes Advisory wird in den zugehörigen GitHub-Release-Notes unter dem Abschnitt `## 🔒 Security` referenziert (siehe [release-notes-format.md](/de/self-hosted/operate/release-notes/format)).
-- **Direkte Benachrichtigung** (zurzeit manuell): kritische Advisories werden per Email an bekannte Deployment-Operatoren geschickt. Eine automatisierte Operator-Email-Liste gibt es noch nicht — das ist geplant.
+- **Direkte Benachrichtigung** (zurzeit manuell): kritische Advisories werden per E-Mail an bekannte Deployment-Operatoren geschickt. Eine automatisierte Operator-E-Mail-Liste gibt es noch nicht — das ist geplant.
 
 ## Wann ein Advisory eingereicht wird
 
@@ -24,7 +26,7 @@ Ein GitHub Security Advisory wird eingereicht, wenn eines der folgenden Kriterie
 
 ## Schwere → Eskalations-Matrix
 
-| CVSS             | Advisory | Release-Notes                       | Direkte Email an Operatoren                                                    |
+| CVSS             | Advisory | Release-Notes                       | Direkte E-Mail an Operatoren                                                   |
 | ---------------- | -------- | ----------------------------------- | ------------------------------------------------------------------------------ |
 | Critical (9.0+)  | Pflicht  | Pflicht, prominente Zusammenfassung | Ja — vor öffentlicher Offenlegung bei Koordination, sonst bei Veröffentlichung |
 | High (7.0–8.9)   | Pflicht  | Pflicht                             | Nur wenn Ausnutzung keine Nutzer-Aktion braucht                                |

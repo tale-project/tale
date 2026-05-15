@@ -81,3 +81,9 @@ A few other items live under **Settings > Integrations** for discoverability but
 ## API keys
 
 API keys grant programmatic access to the Tale API itself. They live under **Settings > Integrations > API keys** because that is the same admin surface, not because they are connectors. Each key inherits the role of the user who created it; revoke at any time from the same screen. Endpoint details are in the [API reference](/develop/api-reference).
+
+## Where this fits
+
+Integrations are the bridge between Tale's AI and the systems where your real data lives. An agent without integrations can only talk; an agent with the right integration can update a ticket, query a database, send an email, or post a Slack message. Every operation a connector exposes shows up consistently — as a tool for agents to call by name and as an action step for automations to invoke with typed parameters.
+
+To grant an agent access to a specific integration's operations, the next page is [Create an agent → Tools](/platform/agents/create). For the API-key counterpart of these integrations — letting _your_ code call Tale instead of Tale calling out — open [API reference](/develop/api-reference).

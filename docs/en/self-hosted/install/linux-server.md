@@ -3,6 +3,10 @@ title: Production deployment
 description: Deploy Tale to a production server using the Tale CLI with zero-downtime blue-green deployments.
 ---
 
+This guide is the production path: a Linux server with a real domain, real TLS, and the blue-green deployment topology that makes upgrades survive without a maintenance window. The `tale` CLI does the heavy lifting — it pulls the Docker images, runs the migrations, and switches traffic only after the new containers pass their health checks. If a deploy fails to come up, the previous version stays serving and nothing user-visible breaks.
+
+If you just want to try Tale locally, [Quickstart](/self-hosted/install/quickstart) is shorter and runs in minutes. Come back here when you're ready to expose the instance to your team.
+
 ## Prerequisites
 
 - A Linux server with Docker Engine 24.0+ installed

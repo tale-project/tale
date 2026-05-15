@@ -3,9 +3,9 @@ title: Tutorials
 description: Task-oriented, end-to-end walkthroughs for every Tale role.
 ---
 
-Tutorials are step-by-step walkthroughs that take you from "I want to do X" to a working result. They sit alongside the [Platform](/platform) reference — reference describes what every feature does, tutorials show how to combine features into a concrete outcome. Use Platform when you already know the feature and need detail; use this section when you want a guided path.
+Tutorials are step-by-step walkthroughs that take you from "I want to do X" to a working result. They sit alongside the [Platform](/platform) reference: reference describes what every feature does in isolation, tutorials show how to combine features into a concrete outcome. Open Platform when you already know the feature and need detail; open this section when you want a guided path.
 
-The tutorials are grouped by role so you land on content you can actually execute. Permissions follow the [six-role model](/platform/admin/members-and-roles); if a tutorial lives under Admin, you need an Admin or Owner seat to finish it.
+The tutorials are grouped by role so you land on content you can actually execute. Permissions follow the [six-role model](/platform/admin/members-and-roles) — if a tutorial sits under Admin, you need an Admin or Owner seat to finish it.
 
 ## By role
 
@@ -21,3 +21,7 @@ The tutorials are grouped by role so you land on content you can actually execut
 - For tutorials that call the API, an API key from **Settings > API Keys**. Creation is Admin-only; see [Members and roles](/platform/admin/members-and-roles).
 
 If a step assumes something not listed above, the tutorial spells it out in its own prerequisites section.
+
+## Working through a tutorial
+
+Tutorials are written to run in order, top to bottom, on a fresh instance. If you skip a section assuming you already have the prerequisite, double-check — the next step often depends on the exact field the skipped section configures. When something fails, the [Execution logs](/platform/automations/execution-logs) page (for automations) and the conversation history (for agents) usually carry enough context to diagnose without going back to the tutorial.

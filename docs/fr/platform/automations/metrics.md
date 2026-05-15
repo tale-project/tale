@@ -31,7 +31,8 @@ Chaque requête est plafonnée aux 5 000 exécutions les plus récentes sur la f
 
 Si aucun workflow ne s’est exécuté sur la période, la page affiche un état vide intitulé _Aucune exécution_ au lieu de cartes à zéro. C’est le signal pour élargir la période ou vérifier que tes triggers s’allument bien — voir [Triggers](/fr/platform/automations/triggers).
 
-## Voir aussi
+## Où cela s'insère
 
-- [Logs d’exécution](/fr/platform/automations/execution-logs) — historique par workflow avec détail par étape.
-- [Analyses d’utilisation](/fr/platform/admin/usage-analytics) — tendances de tokens et de coûts à l’échelle de toute l’organisation, automatisations comprises.
+Les métriques de cette page agrègent les exécutions à l'échelle d'un workflow ; elles te disent si une automatisation se comporte normalement dans le temps. Pour descendre dans une exécution précise — la requête qui a déclenché le run, la sortie de chaque étape, l'erreur qui a fait planter le tout — c'est la page des journaux d'exécution qui prend le relais. Et pour la vue inverse — les tendances de tokens et de coûts à l'échelle de toute l'organisation, pas seulement d'un workflow — passe par les analyses d'usage.
+
+Références voisines : [Logs d'exécution](/fr/platform/automations/execution-logs) couvre l'historique par workflow avec détail par étape, et [Analyses d'utilisation](/fr/platform/admin/usage-analytics) donne la vue cross-workflow des tokens et coûts à l'échelle de l'organisation.

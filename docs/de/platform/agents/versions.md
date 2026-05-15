@@ -3,13 +3,15 @@ title: Agent-Versionen
 description: Mit Entwurf und Veröffentlichung sowie Rollback sicher an einem produktiven Agent iterieren.
 ---
 
-Agents nutzen ein Entwurf-Veröffentlichen-Versionsmodell, damit du an einem Agent arbeiten kannst, ohne die gerade laufenden Nutzer zu stören.
+Agents nutzen ein Entwurf-Veröffentlichen-Versionsmodell, damit du an einem Agent arbeiten kannst, ohne die gerade laufenden Nutzer zu stören. Anweisungen, Wissensfilter, Tools und Modell-Preset versionieren zusammen — wenn du veröffentlichst, wird das ganze Bündel atomar zur neuen aktiven Version, und Rollback bringt das ganze Bündel zurück. Es gibt keinen Halbzustand in der Produktion.
+
+Das Modell ist identisch zur Versionierung von Automatisierungen (siehe [Automatisierungs-Konzepte — Entwurf vs. Aktiv](/de/platform/automations/concepts#entwurf-vs-aktiv)) — wer eines kennt, liest das andere genauso.
 
 ## Entwurf vs. Aktiv
 
 Jeder Agent hat zu jeder Zeit zwei Zustände:
 
-- **Aktive Version** — die, die gerade Requests bedient. Das ist, was Nutzer sehen, wenn sie den Agent im Chat auswählen, und was Webhooks und Delegations aufrufen.
+- **Aktive Version** — die, die gerade Anfragen bedient. Das ist, was Nutzer sehen, wenn sie den Agent im Chat auswählen, und was Webhooks und Delegations aufrufen.
 - **Entwurf-Version** — deine laufende Arbeit. Änderungen an Anweisungen, Wissen oder Tools aktualisieren den Entwurf. Bis du veröffentlichst, sehen die Nutzer nichts davon.
 
 Oben rechts im Agent-Editor zeigt eine Anzeige, welche Version du gerade bearbeitest — **Entwurf** oder **Aktiv** — und erlaubt den Wechsel.

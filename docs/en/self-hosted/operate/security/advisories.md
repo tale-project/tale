@@ -3,7 +3,9 @@ title: Security advisory process
 description: How Tale coordinates, files, and publishes security-relevant fixes.
 ---
 
-How Tale coordinates, files, and publishes security-relevant fixes.
+This page documents how Tale handles security-relevant fixes from initial report to published advisory. The shape of the process — private draft on GitHub, patch released, advisory published with CVE linkage and release-notes cross-reference — is conventional; we're documenting it so operators know what to watch and so reporters know what to expect.
+
+For the operator side, the practical takeaway is to subscribe to GitHub Security Advisories on `tale-project/tale` and read the `## 🔒 Security` section of every release. Anything that has a CVE will be in both places.
 
 ## Channels
 

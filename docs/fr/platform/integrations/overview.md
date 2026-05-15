@@ -3,7 +3,7 @@ title: Intégrations — aperçu
 description: Connecte Tale à des REST API et bases SQL via des connecteurs développés sur mesure.
 ---
 
-Une intégration est un connecteur défini par un développeur qui expose les capacités d’un système distant — endpoints REST ou requêtes SQL — comme une liste fixe d’opérations nommées. Une fois installées, ces opérations deviennent des outils que le chat assistant, les agents et les étapes d’action des automatisations appellent par leur nom avec des paramètres typés. La configuration vit sous **Paramètres > Intégrations** et demande au minimum le rôle Développeur ; les consommateurs appellent simplement les opérations que le connecteur publie.
+Une intégration est un connecteur défini par un développeur qui expose les capacités d’un système distant — endpoints REST ou requêtes SQL — comme une liste fixe d’opérations nommées. Une fois installées, ces opérations deviennent des outils que le chat assistant, les agents et les étapes d’action des automatisations appellent par leur nom avec des paramètres typés. La configuration vit sous **Paramètres > Intégrations** et demande au minimum le rôle Développeur ; les consommateurs appellent les opérations que le connecteur publie.
 
 La plateforme prend en charge deux types de connecteurs : `rest_api` pour les services HTTP et `sql` pour l’accès direct à une base de données. Tout le reste qui apparaît sous **Paramètres > Intégrations** dans l’UI — boîtes email, Microsoft OneDrive, clés API de l’API Tale elle-même — sont des connexions apparentées avec leur propre surface de configuration, pas le modèle connecteur. Elles sont couvertes en bas de cette page.
 
@@ -16,7 +16,7 @@ Les connecteurs REST encapsulent n’importe quel service HTTP. Le manifeste du 
 | Méthode          | Fonctionnement                                               |
 | ---------------- | ------------------------------------------------------------ |
 | **API key**      | Passe une clé dans un header ou un query parameter.          |
-| **Bearer token** | Header `Authorization: Bearer <token>` à chaque requête.     |
+| **Bearer token** | En-tête `Authorization: Bearer <token>` à chaque requête.    |
 | **Basic auth**   | Utilisateur et mot de passe encodés en base64.               |
 | **OAuth 2.0**    | Authorization-code flow avec rafraîchissement de jeton auto. |
 
@@ -32,7 +32,7 @@ Chaque intégration publie une liste d’opérations. Une opération a un `name`
 
 ## Lecture, écriture et approbations
 
-Les opérations marquées `operationType: write` exigent par défaut une approbation avant exécution. Quand un agent ou une automatisation déclenche une telle opération, une carte d’approbation apparaît dans le chat — un humain accepte ou refuse, et seule l’acceptation lance l’appel. Voir [Approbations](/fr/platform/workspace/approvals) pour le flux complet. Utile pour la facturation, les Emails de masse, l’écriture en données de production, et tout ce où tu veux un humain dans la boucle. Les opérations en lecture s’exécutent directement, sans étape d’approbation.
+Les opérations marquées `operationType: write` exigent par défaut une approbation avant exécution. Quand un agent ou une automatisation déclenche une telle opération, une carte d’approbation apparaît dans le chat — un humain accepte ou refuse, et seule l’acceptation lance l’appel. Voir [Approbations](/fr/platform/workspace/approvals) pour le flux complet. Utile pour la facturation, les Courriels de masse, l’écriture en données de production, et tout ce où tu veux un humain dans la boucle. Les opérations en lecture s’exécutent directement, sans étape d’approbation.
 
 ## Authentification et secrets
 
@@ -74,10 +74,16 @@ Il y a deux façons d’installer un connecteur. Les deux finissent avec le mêm
 
 Quelques autres éléments vivent sous **Paramètres > Intégrations** par souci de découvrabilité, mais ne sont pas des connecteurs `rest_api` ou `sql` — ils ont leur propre surface de configuration.
 
-**Email (boîte Conversations).** Connecte une boîte IMAP+SMTP pour alimenter l’inbox [Conversations](/fr/platform/workspace/conversations). Les Emails entrants deviennent des fils ; les réponses envoyées depuis la plateforme partent comme des Emails normaux. Configuré séparément des connecteurs.
+**Courriel (boîte Conversations).** Connecte une boîte IMAP+SMTP pour alimenter l’inbox [Conversations](/fr/platform/workspace/conversations). Les Courriels entrants deviennent des fils ; les réponses envoyées depuis la plateforme partent comme des Courriels normaux. Configuré séparément des connecteurs.
 
 **Microsoft OneDrive.** Connecte un compte Microsoft 365 pour permettre aux utilisateurs d’importer des fichiers OneDrive directement dans la [base de connaissances](/fr/platform/workspace/knowledge-base) sans téléchargement préalable. Configuré via le flux d’import de la base de connaissances, pas comme connecteur.
 
 ## Clés API
 
-Les clés API donnent un accès programmatique à l’API Tale elle-même. Elles vivent sous **Paramètres > Intégrations > Clés API** parce que c’est la même surface admin, pas parce qu’elles sont des connecteurs. Chaque clé hérite du rôle de l’utilisateur qui l’a créée ; révocable à tout moment depuis le même écran. Détails des endpoints dans la [référence API](/fr/develop/api-reference).
+Les clés API donnent un accès programmatique à l'API Tale elle-même. Elles vivent sous **Paramètres > Intégrations > Clés API** parce que c'est la même surface admin, pas parce qu'elles sont des connecteurs. Chaque clé hérite du rôle de l'utilisateur qui l'a créée ; révocable à tout moment depuis le même écran. Détails des endpoints dans la [référence API](/fr/develop/api-reference).
+
+## Où cela s'insère
+
+Les intégrations sont le pont entre l'IA de Tale et les systèmes où vivent tes vraies données. Un agent sans intégration sait seulement parler ; un agent avec la bonne intégration peut mettre à jour un ticket, interroger une base, envoyer un courriel ou poster un message Slack. Chaque opération qu'un connecteur expose apparaît de la même façon partout — comme outil que les agents appellent par leur nom, et comme étape d'action que les automatisations invoquent avec des paramètres typés.
+
+Pour donner à un agent l'accès aux opérations d'une intégration précise, la page suivante est [Créer un agent → Outils](/fr/platform/agents/create). Pour le pendant clé API de ces intégrations — _ton_ code qui appelle Tale, plutôt que Tale qui appelle dehors — ouvre la [référence API](/fr/develop/api-reference).

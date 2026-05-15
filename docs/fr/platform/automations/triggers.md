@@ -53,4 +53,10 @@ Les runs manuels apparaissent dans Exécutions comme les autres.
 
 ## Plusieurs triggers sur un workflow
 
-Un workflow peut être déclenché par exemple à la fois par un calendrier (chaque heure) et un webhook (à la demande). Chaque exécution enregistre quel trigger l’a lancée.
+Un workflow peut être déclenché par exemple à la fois par un calendrier (chaque heure) et un webhook (à la demande). Chaque exécution enregistre quel trigger l'a lancée.
+
+## Où cela s'insère
+
+Les triggers sont la frontière entre Tale et tout le reste. Un workflow sans trigger ne fait rien ; un workflow avec le bon trigger tourne au moment exact, avec l'entrée exacte. Les quatre types — calendrier, événement, webhook, manuel — couvrent presque tout : le travail régulier passe par un calendrier, le travail réactif par un événement ou un webhook, les cas d'exception par le manuel.
+
+Pour les webhooks entrants en particulier, [Webhooks](/fr/develop/webhooks) couvre le schéma de signature et un exemple complet en cURL, Node et Python. Pour voir ce qu'un trigger a déclenché et ce qu'il a passé en entrée, va voir [Journaux d'exécution](/fr/platform/automations/execution-logs).

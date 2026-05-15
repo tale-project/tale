@@ -9,7 +9,7 @@ Tes préférences personnelles sont sous **Paramètres du compte**, accessible d
 
 Change le mot de passe utilisé pour te connecter. Saisis ton mot de passe actuel pour confirmer.
 
-Si tu t’es inscrit via SSO ou Trusted Headers et n’as jamais eu de mot de passe, tu peux en définir un ici pour permettre la connexion directe email/mot de passe en plus du SSO.
+Si tu t’es inscrit via SSO ou Trusted En-têtes et n’as jamais eu de mot de passe, tu peux en définir un ici pour permettre la connexion directe email/mot de passe en plus du SSO.
 
 ## Nom affiché
 

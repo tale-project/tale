@@ -84,7 +84,8 @@ In Tale, the request becomes a real conversation thread under the summarisation 
 - **Empty or refused summary** — inspect the agent's conversation thread in Tale; the full model response (including any refusal or governance message) appears there.
 - **401 Unauthorized** — the webhook URL is invalid or the webhook is disabled. Check Settings > agent > **Webhook** tab; toggle active, or delete and regenerate.
 
-## Next
+## Where this fits
 
-- Pipe the same transcript through a workflow instead of a single agent call: [Trigger an automation via webhook](/tutorials/developer/trigger-automation-via-webhook).
-- Run the summariser with a fully local model backing: [Connect a local provider](/tutorials/admin/connect-local-provider).
+What you built is a privacy-preserving meeting capture: raw audio stays on the laptop, only the transcript crosses the network, and Tale handles the summary as a normal agent conversation — auditable, retention-bound, knowledge-scoped. The trade-off versus the server-side transcription path is one of trust boundary: Meetily moves the audio handling under your endpoint policy at the cost of an extra desktop dependency. If your compliance posture allows server-side transcription, the simpler path is to drop the recording into chat directly.
+
+Two directions to take the same flow further: pipe transcripts through an automation instead of a single agent call with [Trigger an automation via webhook](/tutorials/developer/trigger-automation-via-webhook), or push the model itself on-device with [Connect a local provider](/tutorials/admin/connect-local-provider) so the summary never leaves the network either.

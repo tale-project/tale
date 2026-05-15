@@ -9,7 +9,7 @@ Il te faut un accès Éditeur ou supérieur. La référence vit dans [Concepts d
 
 ## Étape 1 — Définir à quoi sert l’agent
 
-Avant de cliquer quoi que ce soit, écris une phrase : « Cet agent répond à X en s’appuyant sur Y, et ne fait pas Z. » Exemple : « Cet agent répond aux questions de support produit en s’appuyant sur le dossier Help Center, et ne donne pas de conseil juridique ni de facturation. » Cette phrase devient la colonne vertébrale de tes instructions système — sans elle, l’agent dérive.
+Avant de cliquer quoi que ce soit, écris une phrase : « Cet agent répond à X en s’appuyant sur Y, et ne fait pas Z. » Exemple : « Cet agent répond aux questions de support produit en s’appuyant sur le dossier Centre d'aide, et ne donne pas de conseil juridique ni de facturation. » Cette phrase devient la colonne vertébrale de tes instructions système — sans elle, l’agent dérive.
 
 ## Étape 2 — Créer l’agent
 
@@ -67,7 +67,8 @@ Itère sur l’onglet Instructions et modèle, puis re-teste. Cette boucle fait 
 
 Chaque édition crée un **brouillon** ; la version active continue de servir le chat jusqu’à publication. Quand tu es satisfait, clique **Publier** dans l’en-tête de version. Les éditions suivantes démarrent un nouveau brouillon — les utilisateurs continuent de frapper la version publiée jusqu’à une nouvelle publication. Voir [Versions d’agents](/fr/platform/agents/versions) pour le rollback.
 
-## Ensuite
+## Où cela sert
 
-- Laisse des utilisateurs appeler l’agent depuis un script : [Appeler Tale depuis un script](/fr/tutorials/developer/call-tale-from-a-script).
-- Intègre l’agent dans un workflow automatisé : [Déclencher une automatisation via webhook](/fr/tutorials/developer/trigger-automation-via-webhook).
+Ce que tu as construit, c'est un agent versionné et cloisonné par les connaissances, que ton équipe peut sélectionner depuis le sélecteur de chat — et le même agent est également disponible via les automatisations, l'API publique et l'onglet Webhook sans configuration supplémentaire. C'est tout l'intérêt des quatre décisions que tu viens de prendre (instructions, connaissances, outils, modèle) : elles tiennent sur chaque surface où l'agent tourne.
+
+Deux suites courantes : laisser tes scripts appeler l'agent directement avec [Appeler Tale depuis un script](/fr/tutorials/developer/call-tale-from-a-script), ou brancher le même agent dans un workflow multi-étapes avec [Déclencher une automatisation via webhook](/fr/tutorials/developer/trigger-automation-via-webhook).

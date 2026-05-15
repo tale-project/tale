@@ -5,7 +5,7 @@ description: Configure Tale's crawler to index external websites for AI search.
 
 Tale's crawler visits pages on a domain you point it at, extracts the text content, and indexes it into the knowledge base alongside your uploaded documents. The AI agent can then answer questions grounded in that content — "What's our current pricing on the website?", "Which features changed in the v3 release notes?".
 
-This page covers the Editor/Developer side. For the end-user workflow of simply adding a website, see [Knowledge base](/platform/workspace/knowledge-base).
+This page covers the Editor/Developer side. For the end-user workflow of adding a website from chat, see [Knowledge base](/platform/workspace/knowledge-base).
 
 ## What the crawler does
 

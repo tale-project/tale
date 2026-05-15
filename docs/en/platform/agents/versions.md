@@ -3,7 +3,9 @@ title: Agent versions
 description: Iterate on a live agent safely using drafts, publishing, and rollback.
 ---
 
-Agents use draft-and-publish versioning so you can iterate on an agent without affecting the users talking to it right now.
+Agents use draft-and-publish versioning so you can iterate on an agent without affecting the users talking to it right now. The instructions, knowledge filters, tools, and model preset all version together — when you publish, the whole bundle becomes the new live version atomically, and rollback puts the whole bundle back. There is no half-state in production.
+
+The model is identical to how automations version (see [Automation concepts — Draft vs. active](/platform/automations/concepts#draft-vs-active)), so once you have learned one, the other reads the same way.
 
 ## Draft vs. live
 

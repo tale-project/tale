@@ -9,7 +9,7 @@ Du brauchst Redakteur-Zugriff oder höher. Die Funktionsreferenz steht unter [Ag
 
 ## Schritt 1 — Festlegen, wofür der Agent da ist
 
-Bevor du irgendwas klickst, schreib einen Satz: „Dieser Agent beantwortet X auf Basis von Y und macht kein Z.“ Beispiel: „Dieser Agent beantwortet Produkt-Support-Fragen aus dem Ordner Help Center und gibt keine rechtlichen oder Billing-Auskünfte.“ Dieser Satz wird das Rückgrat deiner Systemanweisungen — ohne ihn driftet der Agent.
+Bevor du irgendwas klickst, schreib einen Satz: „Dieser Agent beantwortet X auf Basis von Y und macht kein Z.“ Beispiel: „Dieser Agent beantwortet Produkt-Support-Fragen aus dem Ordner Hilfe-Center und gibt keine rechtlichen oder Abrechnung-Auskünfte.“ Dieser Satz wird das Rückgrat deiner Systemanweisungen — ohne ihn driftet der Agent.
 
 ## Schritt 2 — Agent anlegen
 
@@ -29,7 +29,7 @@ Deine Aufgabe: <Task> auf Basis von <Wissensumfang>.
 Regeln:
 - Antworte immer in der Sprache des Nutzers.
 - Nenne das Quelldokument, wenn du aus der Wissensdatenbank antwortest.
-- Wenn eine Frage außerhalb des Bereichs liegt, sag das und schlag eine passende Anlaufstelle vor.
+- Wenn eine Frage ausserhalb des Bereichs liegt, sag das und schlag eine passende Anlaufstelle vor.
 
 Ton: <Ton>.
 Format: <Format>.
@@ -47,7 +47,7 @@ Wenn die Ordner noch nicht existieren, leg sie zuerst in der [Wissensdatenbank](
 
 ## Schritt 5 — Tools abschalten, die nicht nötig sind
 
-Öffne den Tab **Tools** und deaktiviere alles, was der Agent nicht nutzen soll. Ein Support-Agent braucht wahrscheinlich keine Web-Suche. Ein Research-Agent braucht wahrscheinlich nicht die Billing-Integration. Weniger Tools heisst weniger Überraschungen im Produktivbetrieb.
+Öffne den Tab **Tools** und deaktiviere alles, was der Agent nicht nutzen soll. Ein Support-Agent braucht wahrscheinlich keine Web-Suche. Ein Research-Agent braucht wahrscheinlich nicht die Abrechnung-Integration. Weniger Tools heisst weniger Überraschungen im Produktivbetrieb.
 
 ## Schritt 6 — Gesprächseinstieg hinzufügen
 
@@ -65,9 +65,10 @@ Iteriere im Tab Anweisungen & Modell und teste erneut. Diese Schleife ist der Gr
 
 ## Schritt 8 — Version veröffentlichen
 
-Jede Bearbeitung erzeugt einen **Entwurf**; die aktive Version bedient den Chat weiter, bis du veröffentlichst. Wenn du zufrieden bist, klicke **Veröffentlichen** im Versions-Header. Spätere Bearbeitungen starten einen neuen Entwurf — Nutzer treffen weiter die veröffentlichte Version, bis du erneut veröffentlichst. Siehe [Agent-Versionen](/de/platform/agents/versions) für Rollback.
+Jede Bearbeitung erzeugt einen **Entwurf**; die aktive Version bedient den Chat weiter, bis du veröffentlichst. Wenn du zufrieden bist, klicke **Veröffentlichen** im Versions-Kopfzeile. Spätere Bearbeitungen starten einen neuen Entwurf — Nutzer treffen weiter die veröffentlichte Version, bis du erneut veröffentlichst. Siehe [Agent-Versionen](/de/platform/agents/versions) für Rollback.
 
-## Weiter
+## Wo das eingesetzt wird
 
-- Nutzer auf den Agent per Skript zugreifen lassen: [Tale aus einem Skript aufrufen](/de/tutorials/developer/call-tale-from-a-script).
-- Den Agent in eine automatisierte Workflow-Kette einbinden: [Eine Automatisierung per Webhook auslösen](/de/tutorials/developer/trigger-automation-via-webhook).
+Was du gebaut hast, ist ein versionierter, wissens-eingegrenzter Agent, den dein Team aus dem Chat-Selektor wählen kann — und derselbe Agent steht ohne Zusatzaufbau auch über Automatisierungen, die öffentliche API und den Webhook-Tab zur Verfügung. Genau das ist der Sinn der vier Entscheidungen aus diesem Tutorial (Anweisungen, Wissen, Tools, Modell): dieselben Knöpfe halten über jede Oberfläche, auf der der Agent läuft.
+
+Zwei häufige nächste Schritte: deine Skripte den Agent direkt aufrufen lassen mit [Tale aus einem Skript aufrufen](/de/tutorials/developer/call-tale-from-a-script), oder denselben Agent in einen mehrstufigen Workflow einbinden mit [Eine Automatisierung per Webhook auslösen](/de/tutorials/developer/trigger-automation-via-webhook).

@@ -3,7 +3,9 @@ title: Versions des agents
 description: Itère sur un agent en production en toute sécurité avec brouillon, publication et rollback.
 ---
 
-Les agents utilisent un modèle brouillon-et-publication pour que tu puisses itérer sans gêner les utilisateurs en train de discuter.
+Les agents utilisent un modèle brouillon-et-publication pour que tu puisses itérer sans gêner les utilisateurs en train de discuter. Les instructions, les filtres de connaissances, les outils et le préréglage de modèle versionnent ensemble — quand tu publies, le bundle entier devient la nouvelle version active atomiquement, et le rollback ramène le bundle entier. Il n'y a pas de demi-état en production.
+
+Le modèle est identique à celui des automatisations (voir [Concepts des automatisations — Brouillon vs Actif](/fr/platform/automations/concepts#brouillon-vs-actif)) ; une fois que tu en connais un, l'autre se lit pareil.
 
 ## Brouillon vs Actif
 

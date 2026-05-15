@@ -148,7 +148,7 @@ Ein Konnektor definiert zwei Funktionen: eine zur Verbindungsprüfung beim Insta
 
 | Funktion              | Wann sie läuft                                                 | Was sie tun soll                                                                                                                    |
 | --------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `testConnection(ctx)` | Wenn der Nutzer **Verbindung testen** im Manage-Dialog klickt. | Den günstigsten authentifizierten Request, den die API bietet. Bei Fehlschlag einen klaren `Error` mit Hinweis zur Behebung werfen. |
+| `testConnection(ctx)` | Wenn der Nutzer **Verbindung testen** im Manage-Dialog klickt. | Den günstigsten authentifizierten Anfrage, den die API bietet. Bei Fehlschlag einen klaren `Error` mit Hinweis zur Behebung werfen. |
 | `execute(ctx)`        | Bei jedem Operations-Aufruf.                                   | Auf `ctx.operation` dispatchen, Inputs validieren, API aufrufen, Response formen. Bei jeglichem Fehler `Error` werfen.              |
 
 Beide können entweder als einzelnes `connector`-Objektliteral (Tavily, Discord) oder als Top-Level-Funktionen exportiert werden; beide Formen sind erlaubt. Die Objektform ist empfohlen, weil sie die zwei Einstiegspunkte nahe an einer Operations-Liste hält und die Dispatch-Tabelle offensichtlich macht.

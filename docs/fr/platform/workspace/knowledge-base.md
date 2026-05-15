@@ -59,3 +59,9 @@ Le suivi de site web indique au crawler de Tale de visiter et indexer les pages 
 | Tous les 30 jours            | contenu de référence rarement modifié.        |
 
 Pour plus de contrôle sur le crawling, voir [Crawling de sites](/fr/platform/knowledge/crawling).
+
+## Où cela s'insère
+
+La base de connaissances est le substrat dans lequel chaque agent s'ancre — les documents, sites web et enregistrements structurés que l'IA cite dans ses réponses. Bien la curer, c'est ce qui transforme un assistant générique en un assistant qui connaît tes produits, tes politiques et tes clients. La plupart des gains de qualité au moment de bâtir un nouvel agent viennent du resserrement de son périmètre de connaissances plutôt que d'un changement de modèle.
+
+Pour restreindre ce qu'un agent précis peut chercher (au lieu de donner à chaque agent l'accès à tout), la page suivante est [Concepts des agents → Connaissances](/fr/platform/agents/concepts#connaissances). Pour enrichir la base avec des enregistrements structurés, [Données structurées](/fr/platform/knowledge/structured-data) parcourt les entités Produits / Clients / Fournisseurs.

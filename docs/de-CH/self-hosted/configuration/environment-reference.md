@@ -9,7 +9,7 @@ Die gesamte Konfiguration erfolgt über Environment-Variablen in der `.env`-Date
 
 | Variable    | Pflicht | Standard             | Beschreibung                                                                         |
 | ----------- | ------- | -------------------- | ------------------------------------------------------------------------------------ |
-| `HOST`      | Ja      | `tale.local`         | Hostname ohne Protokoll (wird für Docker-Netzwerk und Emails genutzt).               |
+| `HOST`      | Ja      | `tale.local`         | Hostname ohne Protokoll (wird für Docker-Netzwerk und E-Mails genutzt).              |
 | `SITE_URL`  | Ja      | `https://tale.local` | vollständige kanonische URL mit Protokoll (für externe Links und Auth-Callbacks).    |
 | `BASE_PATH` | Nein    |                      | Basis-Pfad für Subpath-Deployments (z. B. `/app`). Leer lassen bei Root-Deployments. |
 
@@ -17,10 +17,10 @@ Die gesamte Konfiguration erfolgt über Environment-Variablen in der `.env`-Date
 
 ## TLS/SSL
 
-| Variable    | Pflicht | Standard     | Beschreibung                                                           |
-| ----------- | ------- | ------------ | ---------------------------------------------------------------------- |
-| `TLS_MODE`  | Nein    | `selfsigned` | Zertifikatsverwaltung: `selfsigned`, `letsencrypt` oder `external`.    |
-| `TLS_EMAIL` | Nein    |              | Email für Let's-Encrypt-Benachrichtigungen (für Produktion empfohlen). |
+| Variable    | Pflicht | Standard     | Beschreibung                                                            |
+| ----------- | ------- | ------------ | ----------------------------------------------------------------------- |
+| `TLS_MODE`  | Nein    | `selfsigned` | Zertifikatsverwaltung: `selfsigned`, `letsencrypt` oder `external`.     |
+| `TLS_EMAIL` | Nein    |              | E-Mail für Let's-Encrypt-Benachrichtigungen (für Produktion empfohlen). |
 
 - **selfsigned**: selbstsignierte Zertifikate für Entwicklung. Browser zeigt eine Warnung.
 - **letsencrypt**: kostenlose vertrauenswürdige Zertifikate von Let's Encrypt. Benötigt eine gültige öffentliche Domain und die Ports 80/443 offen.
@@ -98,15 +98,21 @@ Diese Variablen sind nur nötig, wenn du SSO über Environment-Variablen konfigu
 | `AUTH_MICROSOFT_ENTRA_ID_SECRET`    | Nein    | Microsoft-Entra-ID-Client-Secret.           |
 | `AUTH_MICROSOFT_ENTRA_ID_TENANT_ID` | Nein    | Microsoft-Entra-ID-Tenant-ID.               |
 
-## Trusted-Headers-Authentifizierung
+## Trusted-Kopfzeilen-Authentifizierung
 
-| Variable                          | Pflicht | Beschreibung                                                                   |
-| --------------------------------- | ------- | ------------------------------------------------------------------------------ |
-| `TRUSTED_HEADERS_ENABLED`         | Nein    | Auf `true` setzen, um Trusted-Headers-Auth zu aktivieren.                      |
-| `TRUSTED_HEADERS_INTERNAL_SECRET` | Nein    | Gemeinsames Secret zur Prüfung von Trusted-Header-Requests (Defense-in-Depth). |
-| `TRUSTED_EMAIL_HEADER`            | Nein    | Header-Name für die Email des Nutzers (Standard: `Remote-Email`).              |
-| `TRUSTED_NAME_HEADER`             | Nein    | Header-Name für den Anzeigenamen des Nutzers (Standard: `Remote-Name`).        |
-| `TRUSTED_ROLE_HEADER`             | Nein    | Header-Name für die Rolle des Nutzers (Standard: `Remote-Role`).               |
-| `TRUSTED_TEAMS_HEADER`            | Nein    | Header-Name für die Teams des Nutzers (Standard: `Remote-Teams`).              |
+| Variable                          | Pflicht | Beschreibung                                                                      |
+| --------------------------------- | ------- | --------------------------------------------------------------------------------- |
+| `TRUSTED_HEADERS_ENABLED`         | Nein    | Auf `true` setzen, um Trusted-Kopfzeilen-Auth zu aktivieren.                      |
+| `TRUSTED_HEADERS_INTERNAL_SECRET` | Nein    | Gemeinsames Secret zur Prüfung von Trusted-Kopfzeile-Anfragen (Defense-in-Depth). |
+| `TRUSTED_EMAIL_HEADER`            | Nein    | Kopfzeile-Name für die E-Mail des Nutzers (Standard: `Remote-Email`).             |
+| `TRUSTED_NAME_HEADER`             | Nein    | Kopfzeile-Name für den Anzeigenamen des Nutzers (Standard: `Remote-Name`).        |
+| `TRUSTED_ROLE_HEADER`             | Nein    | Kopfzeile-Name für die Rolle des Nutzers (Standard: `Remote-Role`).               |
+| `TRUSTED_TEAMS_HEADER`            | Nein    | Kopfzeile-Name für die Teams des Nutzers (Standard: `Remote-Teams`).              |
 
-Siehe die [Authentifizierungs-Anleitung](/de/self-hosted/admin/authentication) für Details zur Konfiguration von Trusted Headers.
+Siehe die [Authentifizierungs-Anleitung](/de/self-hosted/admin/authentication) für Details zur Konfiguration von Trusted Kopfzeilen.
+
+## Wo das hingehört
+
+Das oben aufgeführte Umgebungsvariablen-Inventar ist die Operator-API zu Tale. Alles, was Tales Runtime wissen muss und nicht im Code mitgeliefert oder über die UI gesetzt wird, lebt in einer dieser Variablen, und die meisten haben sinnvolle Defaults, die nur die Produktions-Installation überhaupt überschreibt. Die UI-Gegenstücke dieser Schrauben liegen unter **Einstellungen > Governance**, **Einstellungen > KI-Anbieter** und **Einstellungen > Branding** — für die feature-spezifischen Referenzseiten siehe [Governance](/de/platform/admin/governance), [KI-Anbieter — Konfigurationsreferenz](/de/self-hosted/configuration/providers) und [Branding](/de/platform/admin/branding).
+
+Wenn Tales Runtime etwas erwartet, das nicht da ist — ein fehlender API-Schlüssel, ein abwesender Pepper, ein verkorkstes `TALE_CONFIG_DIR` — sagt der Boot-Log das auf stderr. [Fehlerbehebung](/de/self-hosted/operate/observability/troubleshooting) katalogisiert die häufigsten Umgebungs-Fehlkonfigurations-Fehlermodi.

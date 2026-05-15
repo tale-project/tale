@@ -74,3 +74,9 @@ Use the Test panel, available from the side panel in the workflow editor, to:
 ## Execution history
 
 Navigate to the Executions tab of any workflow to see a log of all past runs, including start time, duration, status, and the input and output data at each step.
+
+## Where this fits
+
+Workflows are the canvas where the vocabulary from [Automation concepts](/platform/automations/concepts) — steps, triggers, variables, drafts — becomes a runnable thing. The editor is opinionated: each step does one move, the graph runs from Start to Output, and the Test panel proves it before publication. The Executions tab is where you debug after — it carries the full per-step trace that a `400 Bad Request` on a third-party API turns into a single readable record.
+
+The natural next moves: configure how the workflow fires with [Triggers](/platform/automations/triggers), and debug a failed run with [Execution logs](/platform/automations/execution-logs).

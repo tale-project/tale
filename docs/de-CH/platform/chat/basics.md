@@ -92,3 +92,9 @@ Der Recherche-Plan ist schreibgeschützt — du bearbeitest Todos nicht direkt. 
 | Neuer Chat                      | `Alt + Ctrl + N` | `Option + Cmd + N` |
 | Chats durchsuchen               | `Ctrl + K`       | `Cmd + K`          |
 | Verlaufsseitenleiste umschalten | `Ctrl + H`       | `Cmd + H`          |
+
+## Wo das hingehört
+
+Der Chat ist die Eingangstür für alles, was Tales KI kann — dieselben Agents, dasselbe Wissen, dieselben Tools, die der Rest der Plattform nutzt, sind über den Composer erreichbar. Die meisten Nutzer leben in dieser einen Seite; der Rest der Plattform liest sich entweder als _wie du den Chat besser machst_ (Wissen kuratieren, Agents bauen) oder als _wann der Chat nicht die richtige Oberfläche ist_ (Automatisierungen für unbeobachtete Arbeit, die API für Skripte).
+
+Um den Chat für dein Team nützlicher zu machen, ist der nächste Schritt meist ein passgenauer Agent — siehe [Agent-Konzepte](/de/platform/agents/concepts) für das mentale Modell, dann [Den ersten Agent end-to-end bauen](/de/tutorials/editor/first-agent-end-to-end) für die Anleitung.

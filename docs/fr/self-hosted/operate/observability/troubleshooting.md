@@ -1,7 +1,11 @@
 ---
 title: Dépannage
-description: Solutions aux problèmes courants et où trouver de l’aide.
+description: Solutions aux problèmes courants et où trouver de l'aide.
 ---
+
+Cette page rassemble les problèmes qu'on voit le plus souvent quand des opérateurs installent ou montent en version Tale, accompagnés des correctifs qui ont fonctionné en pratique. La structure est symptôme-en-premier : parcours les titres jusqu'à en trouver un qui colle à ce que tu vois, puis lis le correctif en dessous.
+
+Si tu ne vois pas ton problème ici, le flag `--verbose` du CLI `tale` plus les logs des conteneurs (voir [Exploitation — Logs](/fr/self-hosted/operate/observability/operations#logs)) suffisent en général à remonter à la cause racine ; sinon, ouvre une issue sur [GitHub](https://github.com/tale-project/tale/issues) en y joignant cette sortie.
 
 ## Problèmes courants
 

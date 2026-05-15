@@ -101,3 +101,9 @@ TRUSTED_HEADERS_INTERNAL_SECRET=your-random-secret
 This ensures the authentication endpoint can only be called through the trusted proxy chain.
 
 > **Security:** Only enable trusted headers when Tale is behind a trusted proxy that strips these headers from external requests. If external clients can set these headers directly, they can impersonate any user.
+
+## Where this fits
+
+Authentication is the strictest version of the question [Members and roles](/platform/admin/members-and-roles) answers. Members-and-roles decides _who can do what_ once they're in; authentication decides _who gets in at all_. The three methods — email/password, Microsoft Entra SSO, trusted reverse-proxy headers — can run side by side; an organisation can use SSO for employees and trusted headers for an Authelia-fronted public surface, and the same Tale role matrix applies to both.
+
+For the second-factor layer that sits on top of any of the three methods, [Two-factor authentication](/platform/admin/two-factor-authentication) is the page. For the env-var inventory that ties trusted headers into the deployment, [Environment reference](/self-hosted/configuration/environment-reference) is the index.

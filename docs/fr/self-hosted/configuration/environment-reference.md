@@ -9,7 +9,7 @@ Toute la configuration passe par des variables d’environnement dans `.env`. Co
 
 | Variable    | Requis | Défaut               | Description                                                                                                |
 | ----------- | ------ | -------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `HOST`      | Oui    | `tale.local`         | nom d’hôte sans protocole (utilisé pour le réseau Docker et les Emails).                                   |
+| `HOST`      | Oui    | `tale.local`         | nom d’hôte sans protocole (utilisé pour le réseau Docker et les Courriels).                                |
 | `SITE_URL`  | Oui    | `https://tale.local` | URL canonique complète avec protocole (utilisée pour liens externes et callbacks d’auth).                  |
 | `BASE_PATH` | Non    |                      | chemin de base pour déploiement en sous-chemin (ex. `/app`). Laisser vide pour un déploiement à la racine. |
 
@@ -100,13 +100,19 @@ Ces variables ne sont nécessaires que si tu configures le SSO via environnement
 
 ## Authentification par trusted headers
 
-| Variable                          | Requis | Description                                                                 |
-| --------------------------------- | ------ | --------------------------------------------------------------------------- |
-| `TRUSTED_HEADERS_ENABLED`         | Non    | `true` pour activer l’auth Trusted Headers.                                 |
-| `TRUSTED_HEADERS_INTERNAL_SECRET` | Non    | secret partagé pour valider les requêtes Trusted Header (defense-in-depth). |
-| `TRUSTED_EMAIL_HEADER`            | Non    | nom du header email (défaut : `Remote-Email`).                              |
-| `TRUSTED_NAME_HEADER`             | Non    | nom du header nom affiché (défaut : `Remote-Name`).                         |
-| `TRUSTED_ROLE_HEADER`             | Non    | nom du header rôle (défaut : `Remote-Role`).                                |
-| `TRUSTED_TEAMS_HEADER`            | Non    | nom du header équipes (défaut : `Remote-Teams`).                            |
+| Variable                          | Requis | Description                                                                  |
+| --------------------------------- | ------ | ---------------------------------------------------------------------------- |
+| `TRUSTED_HEADERS_ENABLED`         | Non    | `true` pour activer l’auth Trusted En-têtes.                                 |
+| `TRUSTED_HEADERS_INTERNAL_SECRET` | Non    | secret partagé pour valider les requêtes Trusted En-tête (defense-in-depth). |
+| `TRUSTED_EMAIL_HEADER`            | Non    | nom du header email (défaut : `Remote-Email`).                               |
+| `TRUSTED_NAME_HEADER`             | Non    | nom du header nom affiché (défaut : `Remote-Name`).                          |
+| `TRUSTED_ROLE_HEADER`             | Non    | nom du header rôle (défaut : `Remote-Role`).                                 |
+| `TRUSTED_TEAMS_HEADER`            | Non    | nom du header équipes (défaut : `Remote-Teams`).                             |
 
-Voir le [guide d’authentification](/fr/self-hosted/admin/authentication) pour configurer les Trusted Headers.
+Voir le [guide d'authentification](/fr/self-hosted/admin/authentication) pour configurer les Trusted En-têtes.
+
+## Où cela s'insère
+
+L'inventaire de variables d'environnement ci-dessus est l'API de l'opérateur à Tale. Tout ce que le runtime de Tale doit savoir et qui n'est ni livré en dur dans le code ni posé via l'UI vit dans l'une de ces variables, et la plupart ont des défauts sensés que seules les pages d'installation production prennent la peine de remplacer. Les contreparties UI de ces boutons vivent sous **Paramètres > Gouvernance**, **Paramètres > Fournisseurs IA** et **Paramètres > Image de marque** — pour les pages de référence par fonctionnalité, voir [Gouvernance](/fr/platform/admin/governance), [Fournisseurs IA — référence de configuration](/fr/self-hosted/configuration/providers) et [Image de marque](/fr/platform/admin/branding).
+
+Quand le runtime de Tale attend quelque chose qui n'est pas là — une clé API manquante, un pepper absent, un `TALE_CONFIG_DIR` mal formé — le log de boot le dit sur stderr. [Dépannage](/fr/self-hosted/operate/observability/troubleshooting) catalogue les modes d'échec de mauvaise configuration les plus courants.

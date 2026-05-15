@@ -141,3 +141,9 @@ docker compose -f compose.yml -f compose.dev.yml up --build
 ```
 
 Nach Änderungen an Dockerfiles oder Abhängigkeiten kannst du mit `bun run docker:test` einen Smoke-Test fahren. Der [Contributing-Docker-Guide](/de/develop/contributing-docker) beschreibt Image-Validierung und Vulnerability-Scan-Skripte.
+
+## Wo das eingesetzt wird
+
+Was du jetzt hast, ist eine Tale-Instanz, die unter `localhost` erreichbar ist, mit Beispiel-Agents, Beispiel-Wissen und einem funktionierenden KI-Anbieter. Das reicht, um das Produkt zu evaluieren, eine Demo zu fahren oder gegen die Plattform zu entwickeln — aber nicht, um es dem restlichen Team verfügbar zu machen, denn der Quickstart richtet selbstsigniertes TLS ein und betreibt alles in einem Container pro Dienst.
+
+Wenn du bereit bist, Tale vor Nutzer zu stellen, führt [Produktions-Deployment](/de/self-hosted/install/linux-server) durch denselben Aufbau mit echter Domain, echtem TLS-Zertifikat und der Blue-Green-Topologie, die Upgrades ohne Wartungsfenster übersteht. Für die restliche Betriebsfläche — Observability, Backups, Aufbewahrung, Advisories — ist [Operations](/de/self-hosted/operate/observability/operations) der Einstieg.

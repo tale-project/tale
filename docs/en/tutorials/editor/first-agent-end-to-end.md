@@ -67,7 +67,8 @@ Iterate on the Instructions tab, then retest. This loop is the bulk of agent bui
 
 Every edit creates a **draft**; the live version keeps serving chat until you publish. Once you are happy, click **Publish** in the version header. Future edits start a new draft — users keep hitting the published version until you publish again. See [Agent versions](/platform/agents/versions) for rollback.
 
-## Next
+## Where this gets used
 
-- Let users call the agent from scripts: [Call Tale from a script](/tutorials/developer/call-tale-from-a-script).
-- Wire the agent into an automated workflow: [Trigger an automation via webhook](/tutorials/developer/trigger-automation-via-webhook).
+What you built is a versioned, knowledge-scoped agent your team can pick from the chat selector — and the same agent is also available through automations, the public API, and the Webhook tab without any extra setup. That's the point of the four decisions you just made (instructions, knowledge, tools, model): they hold across every surface where the agent runs.
+
+Two common next moves: let your scripts call the agent directly with [Call Tale from a script](/tutorials/developer/call-tale-from-a-script), or wire the same agent into a multi-step workflow with [Trigger an automation via webhook](/tutorials/developer/trigger-automation-via-webhook).

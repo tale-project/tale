@@ -23,7 +23,7 @@ Lasse den Workflow laufen, wenn in Tale etwas passiert.
 
 | Event                      | Beispiel-Einsatz                                          |
 | -------------------------- | --------------------------------------------------------- |
-| Neuer Kunde hinzugefügt    | Eine Willkommens-Email senden.                            |
+| Neuer Kunde hinzugefügt    | Eine Willkommens-E-Mail senden.                           |
 | Neue Konversation geöffnet | Die Konversation basierend auf der Kundenhistorie taggen. |
 | Genehmigung angefordert    | Einen Slack-Kanal benachrichtigen.                        |
 | Dokument hochgeladen       | Metadaten extrahieren und klassifizieren.                 |
@@ -35,11 +35,11 @@ Jeder Event-Typ unterstützt optionale Filter. Der Filter greift, bevor der Work
 
 Jeder Workflow bekommt eine eigene Webhook-URL, an die du POSTen kannst. Nutze Webhook-Trigger, wenn etwas ausserhalb von Tale den Workflow starten soll — ein Formular-Submit, ein Upstream-System-Event, ein CI/CD-Hook.
 
-- Der Request-Body steht jedem Schritt als Workflow-Input zur Verfügung.
-- Füge ein Webhook-Secret hinzu, um Request-Authentizität zu prüfen. Tale prüft den Header `X-Tale-Signature` und lehnt nicht passende Requests ab.
+- Der Anfrage-Body steht jedem Schritt als Workflow-Input zur Verfügung.
+- Füge ein Webhook-Secret hinzu, um Anfrage-Authentizität zu prüfen. Tale prüft den Kopfzeile `X-Tale-Signature` und lehnt nicht passende Anfragen ab.
 - Die Webhook-URL ist auf dem Start-Schritt und im **Konfiguration**-Tab des Workflows sichtbar.
 
-Siehe [Webhooks](/de/develop/webhooks) für detaillierte Request-/Response-Formate und Signatur-Verifizierungs-Code.
+Siehe [Webhooks](/de/develop/webhooks) für detaillierte Anfrage-/Response-Formate und Signatur-Verifizierungs-Code.
 
 ## Manuelle Trigger
 
@@ -54,3 +54,9 @@ Manuelle Läufe erscheinen genau wie andere Läufe im **Ausführungen**-Tab.
 ## Mehrere Trigger auf einem Workflow
 
 Ein Workflow kann z. B. sowohl per Zeitplan (jede Stunde) als auch per Webhook (on-demand) getriggert werden. Jede Ausführung zeigt, welcher Trigger sie gestartet hat.
+
+## Wo das hingehört
+
+Trigger sind die Grenze zwischen Tale und allem anderen. Ein Workflow ohne Trigger tut nichts; ein Workflow mit dem richtigen Trigger läuft genau im richtigen Moment mit genau dem richtigen Input. Die vier Arten — Zeitplan, Event, Webhook, manuell — decken fast alles ab: Regelarbeit per Zeitplan, reaktive Arbeit per Event oder Webhook, Ausnahmefälle manuell.
+
+Für eingehende Webhooks im Speziellen deckt [Webhooks](/de/develop/webhooks) das Signatur-Schema und ein durchgearbeitetes Beispiel in cURL, Node und Python ab. Um zu sehen, was ein Trigger gefeuert und was er übergeben hat, springe zu [Ausführungslogs](/de/platform/automations/execution-logs).

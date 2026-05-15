@@ -1,7 +1,11 @@
 ---
 title: Exploitation
-description: Monitoring, tracking d’erreurs, logs, backups DB, health checks et validation des conteneurs.
+description: Monitoring, tracking d'erreurs, logs, backups DB, health checks et validation des conteneurs.
 ---
+
+L'exploitation, c'est tout ce que tu fais _après_ que Tale tourne : observer, sauvegarder, prouver qu'il est en bonne santé, et réagir quand quelque chose dérape. Les pages que cette section ancre sont organisées autour de cette boucle — observer (métriques, logs), préserver (backups, rétention), vérifier (health checks, validation des conteneurs), et réagir (advisories, release notes).
+
+Les choix par défaut sont raisonnables, donc une installation fraîche est exploitable dès le premier jour. Le travail documenté ici, c'est ce que tu ajustes une fois que tu as du trafic qui mérite d'être protégé.
 
 ## Monitoring
 

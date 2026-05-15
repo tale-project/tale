@@ -54,3 +54,9 @@ Manual runs show up in Executions like any other run.
 ## Multiple triggers on one workflow
 
 A workflow can be triggered by, for example, both a schedule (every hour) and a webhook (on-demand). Each execution records which trigger started it.
+
+## Where this fits
+
+Triggers are the boundary between Tale and everything else. A workflow with no triggers does nothing; a workflow with the right trigger runs at exactly the right moment with exactly the right input. The four kinds — schedule, event, webhook, manual — cover almost everything: regular work goes on a schedule, reactive work goes on an event or a webhook, and exception cases fall to manual.
+
+For inbound webhooks specifically, [Webhooks](/develop/webhooks) covers the signature scheme and a worked example in cURL, Node, and Python. To see what a trigger fired and what it passed in, jump to [Execution logs](/platform/automations/execution-logs).

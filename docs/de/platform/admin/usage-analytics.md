@@ -13,8 +13,8 @@ Das Usage-Analytics-Dashboard unter **Einstellungen > Governance > Usage Dashboa
 | **Kosten im Zeitverlauf** | Kosten pro Tag und Monat, gestapelt nach Anbieter.                                            |
 | **Top-Nutzer**            | Ranking der Nutzer nach Token-Verbrauch im gewählten Zeitraum.                                |
 | **Top-Teams**             | Ranking der Teams nach Token-Verbrauch.                                                       |
-| **Model-Mix**             | Anteile der Requests pro Modell — nützlich bei Rollouts neuer Modelle oder Kostenoptimierung. |
-| **Feature-Mix**           | Anteile der Requests pro Feature — Chat, Arena, Agents, Automatisierungen.                    |
+| **Model-Mix**             | Anteile der Anfragen pro Modell — nützlich bei Rollouts neuer Modelle oder Kostenoptimierung. |
+| **Feature-Mix**           | Anteile der Anfragen pro Feature — Chat, Arena, Agents, Automatisierungen.                    |
 | **Workflow-Kennzahlen**   | Run-Anzahl, Erfolgsrate, Median-Dauer und p95-Dauer pro Automatisierung.                      |
 
 ## Filter

@@ -84,7 +84,8 @@ Dans Tale, la requête devient un vrai thread de conversation sous l’agent de 
 - **Résumé vide ou refusé** — inspecte le thread de conversation de l’agent dans Tale ; la réponse complète du modèle (y compris les refus ou messages de gouvernance) y apparaît.
 - **401 Unauthorized** — l’URL du webhook est invalide ou le webhook est désactivé. Vérifie Paramètres > agent > onglet **Webhook** ; bascule en actif, ou supprime et régénère.
 
-## Ensuite
+## Où cela s'insère
 
-- Faire passer la même transcription dans un workflow plutôt qu’un appel d’agent unique : [Déclencher une automatisation via webhook](/fr/tutorials/developer/trigger-automation-via-webhook).
-- Faire tourner le résumeur avec un modèle entièrement local comme backend : [Connecter un fournisseur local](/fr/tutorials/admin/connect-local-provider).
+Ce que tu as construit, c'est une capture de réunion respectueuse de la vie privée : l'audio brut reste sur le poste, seul le transcript traverse le réseau, et Tale traite le résumé comme une conversation d'agent normale — auditable, soumise à rétention, cloisonnée par les connaissances. Le compromis avec la transcription côté serveur est une question de frontière de confiance : Meetily déplace la manipulation de l'audio sous ta politique poste de travail, au prix d'une dépendance desktop supplémentaire. Si ta posture de conformité permet la transcription côté serveur, le chemin le plus simple reste de déposer l'enregistrement directement dans le chat.
+
+Deux directions pour pousser ce flux plus loin : faire passer la même transcription par une automatisation plutôt qu'un appel d'agent unique avec [Déclencher une automatisation via webhook](/fr/tutorials/developer/trigger-automation-via-webhook), ou pousser le modèle lui-même sur l'appareil avec [Connecter un fournisseur local](/fr/tutorials/admin/connect-local-provider) pour que même le résumé ne quitte pas le réseau.

@@ -321,8 +321,8 @@ When the same model id is defined in more than one provider file (e.g. `anthropi
 
 Plain entries (no colon) resolve to the first provider that defines the id. The agent save path emits a warning when an unqualified entry matches more than one provider so you can disambiguate. Direct file edits bypass that save-time validation — the runtime resolver will still surface warnings, but pinning explicitly is safer for multi-provider setups.
 
-## See also
+## Where this fits
 
-- [AI providers](/platform/admin/providers) — managing providers through the UI.
-- [Chat attachments](/platform/chat/attachments#audio-and-video-transcription) — how transcription-tagged models are used.
-- [Environment reference](/self-hosted/configuration/environment-reference) — `TALE_CONFIG_DIR` and related variables.
+The provider files described here are the on-disk form of the same configuration the UI writes when an Admin saves from **Settings > Providers**. Pick whichever surface fits your change-management posture: the UI for day-to-day tweaks and quick rollouts, the files when the configuration belongs in git alongside the rest of your infrastructure. Either way, the canonical place to read what every field means is this page.
+
+Related references: [AI providers](/platform/admin/providers) covers the UI counterpart for Admins, [Chat attachments](/platform/chat/attachments#audio-and-video-transcription) shows how the transcription-tagged models you configure here are consumed end-user-side, and [Environment reference](/self-hosted/configuration/environment-reference) documents `TALE_CONFIG_DIR` and the other variables this page assumes.

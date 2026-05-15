@@ -3,7 +3,9 @@ title: Execution logs
 description: Inspect past workflow runs, debug failures, and rerun with tweaks.
 ---
 
-The Executions tab on any workflow lists every run — scheduled, event-triggered, webhook, or manual — with timestamps, duration, final status, and step-level detail.
+The Executions tab on any workflow lists every run — scheduled, event-triggered, webhook, or manual — with timestamps, duration, final status, and step-level detail. It is where you go when a workflow ran and you need to know exactly what happened: which step failed, what input it saw, what output it produced, what the variable state looked like at that moment.
+
+Executions retain for the period configured in [Governance — Retention](/platform/admin/governance#retention); past that horizon, rows are hard-deleted on the daily cleanup runner. For long-lived debugging, copy the trace before retention catches up.
 
 ## What an execution record shows
 

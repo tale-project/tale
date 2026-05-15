@@ -110,3 +110,9 @@ These variables are only needed if you configure SSO through environment variabl
 | `TRUSTED_TEAMS_HEADER`            | No       | Header name for the user's teams (default: `Remote-Teams`)              |
 
 See the [Authentication guide](/self-hosted/admin/authentication) for details on configuring trusted headers.
+
+## Where this fits
+
+The environment-variable inventory above is the operator's API to Tale. Anything Tale's runtime needs to know that isn't shipped in code or set through the UI lives in one of these variables, and most of them have sensible defaults that only the production-grade install pages bother to override. The UI counterparts of these knobs live under **Settings > Governance**, **Settings > Providers**, and **Settings > Branding** — for the per-feature reference pages, see [Governance](/platform/admin/governance), [Providers — configuration reference](/self-hosted/configuration/providers), and [Branding](/platform/admin/branding).
+
+When something Tale's runtime expects to find isn't there — a missing API key, an absent pepper, a malformed `TALE_CONFIG_DIR` — the boot log says so on stderr. [Troubleshooting](/self-hosted/operate/observability/troubleshooting) catalogues the most common environment-misconfiguration failure modes.

@@ -29,7 +29,7 @@ Folge dem README unter [github.com/hewliyang/office-agents](https://github.com/h
 ```bash
 git clone https://github.com/hewliyang/office-agents.git
 cd office-agents
-# Install- und Start-Kommandos gemäß README
+# Install- und Start-Kommandos gemäss README
 ```
 
 Das Repository ist ein Monorepo mit einem Package pro Office-Host (Word, Excel, PowerPoint). Starte den Dev-Server für den gewünschten Host — Excel und Word haben eigene Kommandos; das README ist massgebend.

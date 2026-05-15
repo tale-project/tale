@@ -53,4 +53,10 @@ Tu peux ajouter un secret webhook pour vérifier l’authenticité des requêtes
 
 ## Versions
 
-Les agents supportent les versions. Quand tu édites les instructions d’un agent, une version **Brouillon** est créée. La version **Actif** continue à servir les requêtes jusqu’à publication du brouillon. Le dialogue d’historique des versions liste toutes les versions passées et permet comparaison et rollback.
+Les agents supportent les versions. Quand tu édites les instructions d'un agent, une version **Brouillon** est créée. La version **Actif** continue à servir les requêtes jusqu'à publication du brouillon. Le dialogue d'historique des versions liste toutes les versions passées et permet comparaison et rollback.
+
+## Où cela s'insère
+
+Cette page est le flux de création — nom, modèle, instructions, connaissances, outils, version. La majeure partie de l'itération sur un agent se passe _après_ cette création initiale : réécrire les instructions à mesure que tu repères ce que l'agent comprend de travers, resserrer les connaissances quand tu vois ce sur quoi il s'ancre, activer ou désactiver les outils quand le cas d'usage se précise. Les quatre décisions que tu viens de prendre sont les quatre boutons que tu continueras d'ajuster.
+
+Pour la boucle d'itération — brouillons, publication, rollback d'agents en production — [Versions des agents](/fr/platform/agents/versions) est la référence dédiée. Pour appeler l'agent depuis l'extérieur de l'UI, [Webhooks](/fr/develop/webhooks) et la [référence API](/fr/develop/api-reference) couvrent les deux surfaces hors UI.

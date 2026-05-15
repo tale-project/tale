@@ -142,4 +142,10 @@ Pour un cycle édit-reload plus rapide, utilise l’override de développement, 
 docker compose -f compose.yml -f compose.dev.yml up --build
 ```
 
-Après modification des Dockerfiles ou dépendances, lance `bun run docker:test` pour un smoke-test du build. Le [guide Contributing Docker](/fr/develop/contributing-docker) couvre la validation d’images et les scripts de scan de vulnérabilités.
+Après modification des Dockerfiles ou dépendances, lance `bun run docker:test` pour un smoke-test du build. Le [guide Contributing Docker](/fr/develop/contributing-docker) couvre la validation d'images et les scripts de scan de vulnérabilités.
+
+## Où cela sert
+
+Ce que tu as maintenant, c'est une instance Tale joignable sur `localhost`, avec des agents d'exemple, des connaissances d'exemple et un fournisseur IA qui répond. C'est suffisant pour évaluer le produit, faire une démo ou développer contre la plateforme — mais pas pour l'exposer au reste de ton équipe, parce que le démarrage rapide configure du TLS auto-signé et fait tourner tous les services dans un seul conteneur chacun.
+
+Quand tu seras prêt à mettre Tale devant des utilisateurs, [Déploiement en production](/fr/self-hosted/install/linux-server) traverse le même montage avec un vrai nom de domaine, un vrai certificat TLS et la topologie blue-green qui survit aux montées de version sans fenêtre de maintenance. Pour le reste de la surface d'exploitation — observabilité, sauvegardes, rétention, advisories — la section [Exploitation](/fr/self-hosted/operate/observability/operations) est l'entrée.

@@ -69,7 +69,8 @@ Open the workflow and click the **Executions** tab. Filter by the execution ID o
 - **404 workflow not found** — workflow was deleted or its ID changed; re-copy the URL from the Start step.
 - **5xx** — check the workflow's Executions tab for a failing step. The HTTP response body contains the error summary.
 
-## Next
+## Where this fits
 
-- Cross-reference with [Webhooks](/develop/webhooks) for signature verification code samples in Node and Python.
-- Use agent webhooks instead when you want a direct agent reply without the automation layer: [Webhooks — Agent webhooks](/develop/webhooks#agent-webhooks).
+You now have an external system that can drive a Tale workflow: an HTTPS endpoint, a signed payload, an asynchronous run, and an executions tab where you can debug every step. The same shape — signed request, immediate execution ID, async run — applies to any source you can wire up, from a CI job to a form backend to a Slack slash command.
+
+If you need a direct agent reply rather than a workflow run, the same protocol applies to [Webhooks — Agent webhooks](/develop/webhooks#agent-webhooks). For the signature-verification code you'd add to a custom receiver in Node or Python, [Webhooks](/develop/webhooks) has copy-paste samples.

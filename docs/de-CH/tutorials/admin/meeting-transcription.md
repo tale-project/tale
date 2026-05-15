@@ -84,7 +84,8 @@ In Tale wird die Anfrage zu einem echten Konversations-Thread unter dem Zusammen
 - **Leere oder abgelehnte Zusammenfassung** — den Konversations-Thread des Agents in Tale prüfen; die vollständige Modell-Antwort (inklusive Ablehnungs- oder Governance-Meldungen) steht dort.
 - **401 Unauthorized** — die Webhook-URL ist ungültig oder der Webhook ist deaktiviert. Prüfe Einstellungen > Agent > **Webhook**-Tab; aktiv schalten oder löschen und neu erstellen.
 
-## Weiter
+## Wo das hingehört
 
-- Dasselbe Transkript durch einen Workflow statt einen einzelnen Agent-Call schicken: [Eine Automatisierung per Webhook auslösen](/de/tutorials/developer/trigger-automation-via-webhook).
-- Den Zusammenfasser mit einem vollständig lokalen Modell-Backend betreiben: [Lokalen Anbieter verbinden](/de/tutorials/admin/connect-local-provider).
+Was du gebaut hast, ist eine datenschutzfreundliche Meeting-Aufnahme: Rohaudio bleibt auf dem Laptop, nur das Transkript überquert das Netzwerk, und Tale behandelt die Zusammenfassung als normale Agent-Konversation — auditierbar, retentionsgebunden, wissens-eingegrenzt. Der Trade-off zur serverseitigen Transkription ist eine Frage der Vertrauensgrenze: Meetily verschiebt die Audio-Verarbeitung unter deine Endpunkt-Policy, zum Preis einer zusätzlichen Desktop-Abhängigkeit. Wenn deine Compliance-Lage serverseitige Transkription erlaubt, ist der einfachere Weg, die Aufnahme direkt in den Chat zu ziehen.
+
+Zwei Richtungen, denselben Fluss weiterzuziehen: dasselbe Transkript per [Eine Automatisierung per Webhook auslösen](/de/tutorials/developer/trigger-automation-via-webhook) durch einen Workflow statt einen einzelnen Agent-Call schicken, oder das Modell selbst on-device packen mit [Lokalen Anbieter verbinden](/de/tutorials/admin/connect-local-provider), damit auch die Zusammenfassung das Netzwerk nicht verlässt.

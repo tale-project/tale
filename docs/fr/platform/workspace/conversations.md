@@ -33,4 +33,10 @@ Sélectionne plusieurs conversations via la case à cocher en tête de liste. Ac
 
 ## Filtrer
 
-Utilise le menu de filtres dans la barre d’outils pour afficher les conversations lues ou non lues. Cela fait ressortir ce qui demande encore de l’attention sans faire défiler tout l’inbox.
+Utilise le menu de filtres dans la barre d'outils pour afficher les conversations lues ou non lues. Cela fait ressortir ce qui demande encore de l'attention sans faire défiler tout l'inbox.
+
+## Où cela s'insère
+
+Conversations est l'inbox partagé de Tale pour les canaux côté client — courriel, chat et vocal. Il existe parce que le travail de réponse aux clients ne tient pas dans le chat IA : les réponses ont besoin d'un humain dans la boucle, d'un fil unique par client à travers les canaux, et d'un historique auditable. L'agent qui assure le côté IA est le même que celui que le reste de l'espace de travail utilise ; ce qui change, c'est la surface.
+
+Pour la configuration côté agent qui décide quelles conversations reçoivent des brouillons de réponse automatiques, voir [Concepts des agents](/fr/platform/agents/concepts) et [Créer un agent](/fr/platform/agents/create). Pour les approbations qui sortent d'un fil client (un brouillon de réponse en attente de relecture, un appel d'intégration en attente de feu vert), [Approbations](/fr/platform/workspace/approvals) est la surface.

@@ -3,9 +3,9 @@ title: Konversationen
 description: Kundenkonversationen aus einem zentralen Posteingang verwalten.
 ---
 
-**Konversationen** ist der Kunden-Posteingang. Wenn Kunden dein Team über einen angebundenen Kanal wie Email kontaktieren, erscheinen ihre Nachrichten hier als Konversationen. Dein Team kann sie aus dieser einen Ansicht heraus lesen, beantworten, schliessen und verwalten.
+**Konversationen** ist der Kunden-Posteingang. Wenn Kunden dein Team über einen angebundenen Kanal wie E-Mail kontaktieren, erscheinen ihre Nachrichten hier als Konversationen. Dein Team kann sie aus dieser einen Ansicht heraus lesen, beantworten, schliessen und verwalten.
 
-Kanal-Anbindungen werden einmalig von einem Entwickler unter [Integrationen – Überblick](/de/platform/integrations/overview) eingerichtet — die Email-Integration liefert diesen Posteingang.
+Kanal-Anbindungen werden einmalig von einem Entwickler unter [Integrationen – Überblick](/de/platform/integrations/overview) eingerichtet — die E-Mail-Integration liefert diesen Posteingang.
 
 ## Konversations-Status
 
@@ -34,3 +34,9 @@ Wähle mehrere Konversationen über das Kontrollkästchen oben in der Liste aus.
 ## Filtern
 
 Nutze das Filter-Dropdown in der Toolbar, um gelesene oder ungelesene Konversationen anzuzeigen. So sehen deine Teamkolleginnen und Teamkollegen auf einen Blick, was noch Aufmerksamkeit braucht, ohne durch den gesamten Posteingang zu scrollen.
+
+## Wo das hingehört
+
+Konversationen ist Tales gemeinsamer Posteingang für kundenseitige Kanäle — E-Mail, Chat und Sprache. Er existiert, weil Kundenantworten nicht in den AI-Chat passen: Antworten brauchen einen Menschen im Loop, einen einzelnen Thread pro Kunde über Kanäle hinweg und einen Auditrekord, den Prüfer einsehen können. Der Agent, der die KI-Seite bedient, ist derselbe Agent, den der Rest des Arbeitsbereichs nutzt; was sich ändert, ist die Oberfläche.
+
+Für die agent-seitige Konfiguration, die entscheidet, welche Konversationen automatisch entworfene Antworten bekommen, siehe [Agent-Konzepte](/de/platform/agents/concepts) und [Agent erstellen](/de/platform/agents/create). Für Genehmigungen, die aus Kunden-Threads herausfallen (ein Antwort-Entwurf, der auf Prüfung wartet, ein Integration-Aufruf, der auf Freigabe wartet), ist [Genehmigungen](/de/platform/workspace/approvals) die Oberfläche.

@@ -43,3 +43,9 @@ The default chat agent is pre-configured with the OpenRouter example models. Cus
 Self-hosted operators can manage providers through JSON config files in addition to the UI — useful for infrastructure-as-code workflows, bulk edits, or deployments where the UI is not reachable. The UI and the files stay in sync; saving from **Settings > Providers** writes the same JSON.
 
 For the file schema, bundled example providers, SOPS-encrypted secrets, self-hosted inference backends (Ollama, vLLM, LocalAI, faster-whisper-server), Docker host networking, and provider pinning syntax, see [Providers — configuration reference](/self-hosted/configuration/providers).
+
+## Where this fits
+
+Providers are the gate between Tale and the AI models the rest of the organisation talks to. An agent picks a model preset (Fast / Standard / Advanced); each preset is bound to a specific model defined on a provider. Adding a provider extends the menu; changing a default redirects every agent that hadn't explicitly opted into a model.
+
+The UI surface this page describes is the same one Cloud admins use; self-hosted operators have the choice between the UI and the JSON file form documented at [Providers — configuration reference](/self-hosted/configuration/providers). Once the provider list is settled, the model presets each agent uses live on the agent itself — see [Create an agent](/platform/agents/create).

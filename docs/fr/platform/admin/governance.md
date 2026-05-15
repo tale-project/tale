@@ -88,3 +88,9 @@ Vois la consommation de tokens, la ventilation des coûts et les tendances d’u
 Enregistrement chronologique des actions significatives dans l’organisation. Catégories : événements d’authentification, changements de membres, opérations sur données, mises à jour d’intégrations, publications de workflows, événements de sécurité, actions admin. Utile pour la conformité et le dépannage.
 
 Les admins peuvent exporter les audit logs en **CSV** ou **JSON** depuis les boutons au-dessus de la table. Les exports respectent le filtre de catégorie actif.
+
+## Où cela s'insère
+
+La gouvernance est le contrat entre la politique de ton organisation et ce que Tale fait physiquement sur disque. La rétention borne la durée de vie des données. Les demandes des personnes concernées fournissent la mécanique RGPD pour l'export et l'effacement. Les conservations légales suspendent les suppressions pendant une investigation. Le journal d'audit prouve ce qui s'est passé. Chacun de ces réglages est un bouton ; le runner de nettoyage qui applique la rétention les lit tous au début de chaque exécution.
+
+La configuration de cette page est au niveau de l'organisation (les admins la posent depuis l'UI). Pour les boutons côté opérateur qui régissent le runner lui-même — les variables d'environnement, le pepper d'audit pour le hachage des PII, le cooldown des conservations légales — voir [Rétention](/fr/self-hosted/configuration/retention).

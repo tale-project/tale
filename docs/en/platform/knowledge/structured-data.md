@@ -36,3 +36,9 @@ The Vendors section stores supplier and partner records. Vendor data is searchab
 ## Using structured data in agents
 
 Structured records are indexed into the same knowledge store as documents. Agents with knowledge access can search across all types. To restrict an agent to a subset — for example, a sales agent that only sees Products and Customers — configure its Knowledge tab. See [Create an agent](/platform/agents/create).
+
+## Where this fits
+
+Structured data is the half of the knowledge base that has rows and columns instead of paragraphs and headings. The free-text half (documents, crawled websites) is for prose-shaped content; this half is for entities — the catalogues, customer lists, and supplier records the AI cites when it answers domain-specific questions. Both halves are indexed into the same store and reachable through the same knowledge search, so an agent that grounds in both fluidly mixes them.
+
+For the prose half of the knowledge base, [Knowledge base](/platform/workspace/knowledge-base) covers document upload and website crawling. For the agent-side controls that decide which entities a given agent sees, [Create an agent → Knowledge](/platform/agents/create) is the next page.

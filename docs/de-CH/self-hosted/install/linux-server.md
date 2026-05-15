@@ -3,6 +3,10 @@ title: Produktions-Deployment
 description: Tale auf einen Produktionsserver mit der Tale-CLI und Zero-Downtime-Blue-Green-Deployment bringen.
 ---
 
+Dieser Leitfaden ist der Produktionspfad: ein Linux-Server mit echter Domain, echter TLS und der Blue-Green-Topologie, mit der Upgrades ohne Wartungsfenster überleben. Die `tale`-CLI macht die Schwerarbeit — sie zieht die Docker-Images, fährt die Migrationen und schaltet den Traffic erst um, nachdem die neuen Container ihre Health-Checks bestanden haben. Wenn ein Deploy nicht hochkommt, bleibt die vorige Version aktiv und nichts Nutzersichtbares bricht.
+
+Wenn du Tale nur lokal probieren willst, ist [Quickstart](/de/self-hosted/install/quickstart) kürzer und in Minuten am Laufen. Komm hierher zurück, wenn du die Instanz dem Team zugänglich machst.
+
 ## Voraussetzungen
 
 - Ein Linux-Server mit Docker Engine 24.0+.
@@ -213,7 +217,7 @@ TLS_MODE=external
 Caddy lauscht dann nur auf HTTP (Port 80). Dein Reverse-Proxy muss:
 
 - TLS terminieren und den gesamten Traffic (inkl. WebSocket) an Tale auf Port 80 weiterleiten;
-- die Header `X-Forwarded-Proto` und `X-Forwarded-For` setzen.
+- die Kopfzeile `X-Forwarded-Proto` und `X-Forwarded-For` setzen.
 
 Beispiel-Konfiguration für nginx:
 
@@ -262,7 +266,7 @@ TLS_MODE=external
 BASE_PATH=/tale
 ```
 
-Caddy entfernt das Subpath-Präfix intern — dein Reverse-Proxy muss es **nicht** strippen. Leite einfach den gesamten Traffic unter dem Subpath unverändert weiter (Hinweis: kein Trailing-Slash bei `proxy_pass`):
+Caddy entfernt das Subpath-Präfix intern — dein Reverse-Proxy muss es **nicht** strippen. Leite den gesamten Traffic unter dem Subpath unverändert weiter (Hinweis: kein Trailing-Slash bei `proxy_pass`):
 
 ```nginx
 location /tale/ {

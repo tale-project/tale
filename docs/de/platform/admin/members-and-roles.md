@@ -7,13 +7,13 @@ Tale nutzt sechs Rollen. Jeder Nutzer hat genau eine Rolle innerhalb einer Organ
 
 ## Mitglieder verwalten
 
-Die Mitglieder-Tabelle unter **Einstellungen > Mitglieder** listet alle Nutzer der Organisation mit Email, Anzeigename, Rolle und Beitrittsdatum. Admins können:
+Die Mitglieder-Tabelle unter **Einstellungen > Mitglieder** listet alle Nutzer der Organisation mit E-Mail, Anzeigename, Rolle und Beitrittsdatum. Admins können:
 
-- **Mitglieder hinzufügen** — Email, optionales Passwort, Anzeigename und Rolle eingeben. Existiert die Email bereits in Tale, wird der Nutzer der Organisation hinzugefügt, ohne dass ein neues Konto entsteht.
+- **Mitglieder hinzufügen** — E-Mail, optionales Passwort, Anzeigename und Rolle eingeben. Existiert die E-Mail bereits in Tale, wird der Nutzer der Organisation hinzugefügt, ohne dass ein neues Konto entsteht.
 - **Mitglieder bearbeiten** — Anzeigename, Rolle oder ein neues Passwort für ein Mitglied setzen.
 - **Mitglieder entfernen** — das Mitglied aus der Organisation entfernen. Das Konto wird nicht gelöscht; der Nutzer verliert lediglich den Zugriff.
 
-Für Authentifizierungsoptionen (Passwort, Microsoft Entra ID SSO, Trusted Headers) siehe [Authentifizierung](/de/self-hosted/admin/authentication).
+Für Authentifizierungsoptionen (Passwort, Microsoft Entra ID SSO, Trusted Kopfzeilen) siehe [Authentifizierung](/de/self-hosted/admin/authentication).
 
 ## Rollen-Übersicht
 
@@ -96,6 +96,12 @@ Für Authentifizierungsoptionen (Passwort, Microsoft Entra ID SSO, Trusted Heade
 
 ## Authentifizierung
 
-Tale unterstützt Email/Passwort, Microsoft Entra ID SSO und Trusted Headers. Alle Methoden lassen sich gleichzeitig nutzen.
+Tale unterstützt E-Mail/Passwort, Microsoft Entra ID SSO und Trusted Kopfzeilen. Alle Methoden lassen sich gleichzeitig nutzen.
 
 Die vollständige Einrichtung beschreibt die [Authentifizierungs-Anleitung](/de/self-hosted/admin/authentication).
+
+## Wo das hingehört
+
+Mitglieder und Rollen ist die Seite, die jede andere Admin-Seite voraussetzt. Authentifizierung beantwortet _wer sich überhaupt anmelden darf_; Anbieter beantworten _welche Modelle die Organisation auf Kosten bringt_; Governance beantwortet _welche Regeln für ihr Tun gelten_ — aber keine dieser Fragen hat eine sinnvolle Antwort, solange nicht entschieden ist, wer was darf. Das passiert hier.
+
+Der natürliche nächste Schritt hängt davon ab, mit welcher Frage du gekommen bist. Für den Login jenseits von E-Mail/Passwort deckt [Authentifizierung](/de/self-hosted/admin/authentication) SSO und Trusted Kopfzeilen ab. Um Mitglieder für geteilten Zugriff zu gruppieren, ist [Teams](/de/platform/admin/teams) die Seite. Um nachzuvollziehen, wer was getan hat, deckt [Governance](/de/platform/admin/governance) das Audit-Log ab.

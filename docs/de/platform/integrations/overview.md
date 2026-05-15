@@ -3,9 +3,9 @@ title: Integrationen – Überblick
 description: Tale per entwicklergebauten Konnektoren mit REST-APIs und SQL-Datenbanken verbinden.
 ---
 
-Eine Integration ist ein vom Entwickler definierter Konnektor, der die Fähigkeiten eines fremden Systems — REST-Endpoints oder SQL-Abfragen — als feste Liste benannter Operationen verfügbar macht. Einmal installiert, sind diese Operationen Werkzeuge, die der Chat-Assistent, Agents und Action-Schritte in Automatisierungen namentlich mit typisierten Parametern aufrufen. Die Konfiguration lebt unter **Einstellungen > Integrationen** und erfordert mindestens die Entwickler-Rolle; die Konsumenten rufen einfach die Operationen auf, die der Konnektor publiziert.
+Eine Integration ist ein vom Entwickler definierter Konnektor, der die Fähigkeiten eines fremden Systems — REST-Endpoints oder SQL-Abfragen — als feste Liste benannter Operationen verfügbar macht. Einmal installiert, sind diese Operationen Werkzeuge, die der Chat-Assistent, Agents und Action-Schritte in Automatisierungen namentlich mit typisierten Parametern aufrufen. Die Konfiguration lebt unter **Einstellungen > Integrationen** und erfordert mindestens die Entwickler-Rolle; die Konsumenten rufen die Operationen auf, die der Konnektor publiziert.
 
-Die Plattform unterstützt zwei Konnektor-Typen: `rest_api` für HTTP-Dienste und `sql` für direkten Datenbankzugriff. Alles andere, was unter **Einstellungen > Integrationen** in der UI auftaucht — Email-Postfächer, Microsoft OneDrive, API-Schlüssel für die Tale-API selbst — sind verwandte Verbindungen mit eigener Konfigurationsoberfläche, kein Konnektor-Modell. Diese decken wir am Ende der Seite ab.
+Die Plattform unterstützt zwei Konnektor-Typen: `rest_api` für HTTP-Dienste und `sql` für direkten Datenbankzugriff. Alles andere, was unter **Einstellungen > Integrationen** in der UI auftaucht — E-Mail-Postfächer, Microsoft OneDrive, API-Schlüssel für die Tale-API selbst — sind verwandte Verbindungen mit eigener Konfigurationsoberfläche, kein Konnektor-Modell. Diese decken wir am Ende der Seite ab.
 
 ## Integrationen-Typen
 
@@ -13,12 +13,12 @@ Die Plattform unterstützt zwei Konnektor-Typen: `rest_api` für HTTP-Dienste un
 
 REST-Konnektoren kapseln einen beliebigen HTTP-Dienst. Das Manifest des Konnektors listet die unterstützten Auth-Methoden und die Hosts, die er erreichen darf; sandboxierter Konnektor-Code übernimmt jede Operation. Unterstützte Authentifizierungsmethoden:
 
-| Methode           | So funktioniert sie                                       |
-| ----------------- | --------------------------------------------------------- |
-| **API-Schlüssel** | Schlüssel in einem Header oder Query-Parameter mitsenden. |
-| **Bearer-Token**  | `Authorization: Bearer <token>`-Header bei jedem Request. |
-| **Basic Auth**    | Benutzername und Passwort, base64-kodiert.                |
-| **OAuth 2.0**     | Authorization-Code-Flow mit automatischem Token-Refresh.  |
+| Methode           | So funktioniert sie                                          |
+| ----------------- | ------------------------------------------------------------ |
+| **API-Schlüssel** | Schlüssel in einem Kopfzeile oder Query-Parameter mitsenden. |
+| **Bearer-Token**  | `Authorization: Bearer <token>`-Kopfzeile bei jedem Anfrage. |
+| **Basic Auth**    | Benutzername und Passwort, base64-kodiert.                   |
+| **OAuth 2.0**     | Authorization-Code-Flow mit automatischem Token-Refresh.     |
 
 Das Feld `allowedHosts` im Manifest wirkt als Netzwerk-Allowlist — der Konnektor kann nur die deklarierten Hosts erreichen. Siehe [Agent erstellen](/de/platform/agents/create), wie ein Agent Zugriff auf die Operationen einer Integration erhält.
 
@@ -32,7 +32,7 @@ Jede Integration veröffentlicht eine Liste von Operationen. Eine Operation hat 
 
 ## Lesen, Schreiben und Genehmigungen
 
-Operationen mit `operationType: write` erfordern standardmäßig eine Genehmigung vor der Ausführung. Wenn ein Agent oder eine Automatisierung eine solche Operation auslöst, erscheint eine Genehmigungs-Karte im Chat — ein Mensch akzeptiert oder lehnt ab, und nur bei Akzeptanz wird der Aufruf ausgeführt. Siehe [Genehmigungen](/de/platform/workspace/approvals) für den vollständigen Ablauf. Nutze das für Billing-Aktionen, Massen-Emails, Schreibvorgänge auf Produktionsdaten und alles, wo du einen Menschen in der Schleife willst. Lese-Operationen werden ohne Genehmigungsschritt ausgeführt.
+Operationen mit `operationType: write` erfordern standardmäßig eine Genehmigung vor der Ausführung. Wenn ein Agent oder eine Automatisierung eine solche Operation auslöst, erscheint eine Genehmigungs-Karte im Chat — ein Mensch akzeptiert oder lehnt ab, und nur bei Akzeptanz wird der Aufruf ausgeführt. Siehe [Genehmigungen](/de/platform/workspace/approvals) für den vollständigen Ablauf. Nutze das für Abrechnung-Aktionen, Massen-E-Mails, Schreibvorgänge auf Produktionsdaten und alles, wo du einen Menschen in der Schleife willst. Lese-Operationen werden ohne Genehmigungsschritt ausgeführt.
 
 ## Authentifizierung und Geheimnisse
 
@@ -51,7 +51,7 @@ Das Repository liefert dreizehn einsatzbereite Konnektoren unter [github.com/tal
 | **AI image**     | rest_api | bearer_token | Bildgenerierung gegen OpenAI-kompatible Anbieter.                       |
 | **Circuly**      | rest_api | basic_auth   | Produkte, Kunden und Abonnements in Circuly.                            |
 | **Discord**      | rest_api | bearer_token | Guilds, Kanäle und Nachrichten über die Discord-Bot-API.                |
-| **GitHub**       | rest_api | bearer_token | Repositories, Issues, Pull Requests und Code-Suche.                     |
+| **GitHub**       | rest_api | bearer_token | Repositories, Issues, Pull Anfragen und Code-Suche.                     |
 | **Gmail**        | rest_api | oauth2       | Nachrichten, Labels, Threads und Entwürfe in Gmail.                     |
 | **Google Drive** | rest_api | oauth2       | Dateien aus Drive-Ordnern in Tale-Dokumente synchronisieren.            |
 | **Outlook**      | rest_api | oauth2       | Mail, Kalender und Kontakte über Microsoft Graph.                       |
@@ -74,10 +74,16 @@ Es gibt zwei Wege, einen Konnektor zu installieren. Beide enden mit derselben `c
 
 Ein paar weitere Punkte stehen unter **Einstellungen > Integrationen** zur besseren Auffindbarkeit, sind aber keine `rest_api`- oder `sql`-Konnektoren — sie haben eigene Konfigurationsoberflächen.
 
-**Email (Konversationen-Posteingang).** Verbinde ein IMAP- und SMTP-Postfach, um den [Konversationen](/de/platform/workspace/conversations)-Posteingang zu versorgen. Eingehende Emails werden zu Threads; aus der Plattform versendete Antworten gehen als normale Emails raus. Konfiguration getrennt von Konnektoren.
+**E-Mail (Konversationen-Posteingang).** Verbinde ein IMAP- und SMTP-Postfach, um den [Konversationen](/de/platform/workspace/conversations)-Posteingang zu versorgen. Eingehende E-Mails werden zu Threads; aus der Plattform versendete Antworten gehen als normale E-Mails raus. Konfiguration getrennt von Konnektoren.
 
 **Microsoft OneDrive.** Verbinde ein Microsoft-365-Konto, sodass Nutzer OneDrive-Dateien direkt in die [Wissensdatenbank](/de/platform/workspace/knowledge-base) importieren können, ohne sie vorher herunterzuladen. Konfiguriert über den Knowledge-Base-Importfluss, nicht als Konnektor.
 
 ## API-Schlüssel
 
 API-Schlüssel gewähren programmatischen Zugriff auf die Tale-API selbst. Sie leben unter **Einstellungen > Integrationen > API-Schlüssel**, weil das die gleiche Admin-Oberfläche ist, nicht weil sie Konnektoren wären. Jeder Schlüssel erbt die Rolle des Nutzers, der ihn erstellt hat; jederzeit auf demselben Bildschirm widerrufbar. Endpoint-Details siehe [API-Referenz](/de/develop/api-reference).
+
+## Wo das hingehört
+
+Integrationen sind die Brücke zwischen Tales KI und den Systemen, in denen eure echten Daten leben. Ein Agent ohne Integrationen kann nur reden; ein Agent mit der richtigen Integration kann ein Ticket aktualisieren, eine Datenbank abfragen, eine E-Mail senden oder eine Slack-Nachricht posten. Jede Operation, die ein Konnektor publiziert, erscheint einheitlich — als Tool, das Agents namentlich aufrufen, und als Action-Schritt, den Automatisierungen mit typisierten Parametern triggern.
+
+Um einem Agent Zugriff auf die Operationen einer bestimmten Integration zu geben, ist die nächste Seite [Agent erstellen → Tools](/de/platform/agents/create). Für das API-Schlüssel-Gegenstück dieser Integrationen — _dein_ Code, der Tale aufruft, statt Tale, das hinausruft — öffne die [API-Referenz](/de/develop/api-reference).

@@ -3,7 +3,7 @@ title: Webhooks
 description: Workflows und Agents aus externen Systemen per signierter HTTP-Request aufrufen.
 ---
 
-Tale bietet zwei Arten von Webhooks: **Workflow-Webhooks** (lösen eine Automatisierung aus) und **Agent-Webhooks** (senden eine Nachricht an einen Agent außerhalb der Chat-UI). Beide nutzen dasselbe Request-Format und dasselbe Signatur-Schema.
+Tale bietet zwei Arten von Webhooks: **Workflow-Webhooks** (lösen eine Automatisierung aus) und **Agent-Webhooks** (senden eine Nachricht an einen Agent außerhalb der Chat-UI). Beide nutzen dasselbe Anfrage-Format und dasselbe Signatur-Schema.
 
 ## Workflow-Webhooks
 
@@ -32,7 +32,7 @@ Jeder Agent hat einen eigenen Endpoint:
 https://<your-tale-domain>/api/webhooks/agent/<agent-slug>
 ```
 
-POSTe eine Nachricht, um eine Agent-Antwort ohne die Plattform-UI zu bekommen. Die Antwort ist synchron — der HTTP-Request blockiert, bis der Agent fertig generiert hat.
+POSTe eine Nachricht, um eine Agent-Antwort ohne die Plattform-UI zu bekommen. Die Antwort ist synchron — der HTTP-Anfrage blockiert, bis der Agent fertig generiert hat.
 
 ```bash
 curl -X POST https://tale.example.com/api/webhooks/agent/support-agent \
@@ -48,14 +48,14 @@ Wenn `conversationId` weggelassen wird, wird eine neue Konversation angelegt und
 
 ## Signatur-Verifizierung
 
-Tale signiert jeden Webhook-Request mit HMAC-SHA-256 unter Verwendung des Webhook-Secrets. Die Signatur wird im Header `X-Tale-Signature` als `sha256=<hex>` mitgeschickt.
+Tale signiert jeden Webhook-Anfrage mit HMAC-SHA-256 unter Verwendung des Webhook-Secrets. Die Signatur wird im Kopfzeile `X-Tale-Signature` als `sha256=<hex>` mitgeschickt.
 
 Empfänger sollten:
 
-1. den rohen Request-Body lesen (nicht das geparste JSON);
+1. den rohen Anfrage-Body lesen (nicht das geparste JSON);
 2. `HMAC-SHA-256(secret, body)` berechnen;
-3. den Header-Wert per constant-time-Vergleich prüfen;
-4. Requests ablehnen, die nicht übereinstimmen.
+3. den Kopfzeile-Wert per constant-time-Vergleich prüfen;
+4. Anfragen ablehnen, die nicht übereinstimmen.
 
 Node.js-Beispiel:
 
@@ -87,8 +87,8 @@ def verify(body: bytes, header: str, secret: str) -> bool:
 
 Tale versucht fehlgeschlagene Webhook-Zustellungen (Non-2xx-Antworten, Timeouts) mit exponentiellem Backoff bis zu 5 Mal erneut. Nach dem letzten Fehlschlag wird die Zustellung als fehlgeschlagen markiert und im Audit-Stream protokolliert — ein Admin kann sie über die Audit-Logs-Seite wiedergeben.
 
-## Siehe auch
+## Wo das hingehört
 
-- [API-Referenz](/de/develop/api-reference) für die vollständige REST-API.
-- [Trigger](/de/platform/automations/triggers) für die Konfiguration von Webhook-Triggern an Workflows.
-- [Agents — Webhook-Tab](/de/platform/agents/create#tab-webhook) für die Agent-Webhook-Einrichtung.
+Webhooks sind das eingehende Gegenstück zur ausgehenden API von Tale. Die API ruft dein Code, wenn _du_ die Konversation treibst; Webhooks bietet Tale an, damit ein externes System einen Workflow auslöst oder einen Agent anspricht, ohne dass jemand in der Chat-UI sitzt. Beide Formen teilen sich dasselbe Signatur-Schema und denselben Audit-Log, sodass ein einziges gehärtetes Receiver-Muster alles abdeckt, was Tale sendet.
+
+Für die verwandten Stücke: [API-Referenz](/de/develop/api-reference) ist die ausgehende Seite desselben Protokolls, [Trigger](/de/platform/automations/triggers) zeigt, wie ein Workflow Webhook-Trigger einschaltet, und der [Agents — Webhook-Tab](/de/platform/agents/create#tab-webhook) führt durch die Pro-Agent-Einrichtung.

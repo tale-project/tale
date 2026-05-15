@@ -35,7 +35,8 @@ When you land on a result worth reusing, save it to the [Prompt library](/platfo
 
 If the agent returns a runnable HTML page, an SVG, a Mermaid diagram, or a long markdown document, it creates an **artifact** that auto-opens in the Canvas side pane and lists in the Artifacts bar above the chat. Canvas gives you live preview, source editing, and export — much easier to read than a scrolling chat bubble, and the AI can revise the artifact in place when you ask for fixes. See [Canvas](/platform/workspace/canvas) for the full set of actions.
 
-## Next
+## Where this gets used
 
-- Build an agent tuned for your own team: [First agent end to end](/tutorials/editor/first-agent-end-to-end) (Editor role).
-- Learn the shortcut keys: [AI chat — Keyboard shortcuts](/platform/chat/basics#keyboard-shortcuts).
+The same five steps cover almost every day-to-day chat task: pick the agent that matches the job, give it the context it needs, ask, iterate, and pull artifacts out of the chat bubble when they belong somewhere bigger. The shortcuts that make this loop fast — drag-drop attachments, dictation, agent switcher, the Prompt library — are all in the composer; the more you build the muscle memory, the closer chat gets to feeling like a search bar over your org's knowledge.
+
+When you find yourself wanting a tighter-fit agent than what's available, [First agent end to end](/tutorials/editor/first-agent-end-to-end) walks through building one (Editor role). For the keyboard shortcuts that make the loop above faster, [AI chat — Keyboard shortcuts](/platform/chat/basics#keyboard-shortcuts) has the full list.

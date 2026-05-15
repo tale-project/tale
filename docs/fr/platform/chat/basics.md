@@ -91,4 +91,10 @@ Le Plan de recherche est en lecture seule — tu n’édites pas les todos direc
 | --------------------- | ---------------- | ------------------ |
 | Nouveau chat          | `Alt + Ctrl + N` | `Option + Cmd + N` |
 | Rechercher des chats  | `Ctrl + K`       | `Cmd + K`          |
-| Afficher l’historique | `Ctrl + H`       | `Cmd + H`          |
+| Afficher l'historique | `Ctrl + H`       | `Cmd + H`          |
+
+## Où cela s'insère
+
+Le chat est la porte d'entrée de tout ce que l'IA de Tale sait faire — les mêmes agents, les mêmes connaissances, les mêmes outils que le reste de la plateforme utilise restent joignables depuis le composeur. La plupart des utilisateurs vivent dans cette seule page ; le reste de la plateforme se lit comme _comment rendre le chat meilleur_ (curer les connaissances, construire des agents) ou _quand le chat n'est pas la bonne surface_ (automatisations pour le travail sans supervision, l'API pour les scripts).
+
+Pour rendre le chat plus utile à ton équipe, l'étape suivante est en général de construire un agent dédié — voir [Concepts des agents](/fr/platform/agents/concepts) pour le modèle mental, puis [Construire ton premier agent end-to-end](/fr/tutorials/editor/first-agent-end-to-end) pour le pas-à-pas.

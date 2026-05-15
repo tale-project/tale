@@ -25,7 +25,7 @@ Wenn du mit einem Agent eine neue Konversation startest, der **Gesprächseinstie
 
 ## Übergaben (Delegation)
 
-Manche Agents sind so konfiguriert, dass sie bei Themenwechseln an andere Agents **übergeben**. Wenn du einen allgemeinen Support-Agent eine Abrechnungsfrage stellst, kann er automatisch an einen spezialisierten Billing-Agent übergeben. In diesem Fall zeigt die Konversation einen kurzen Hinweis, der den Wechsel erklärt.
+Manche Agents sind so konfiguriert, dass sie bei Themenwechseln an andere Agents **übergeben**. Wenn du einen allgemeinen Support-Agent eine Abrechnungsfrage stellst, kann er automatisch an einen spezialisierten Abrechnung-Agent übergeben. In diesem Fall zeigt die Konversation einen kurzen Hinweis, der den Wechsel erklärt.
 
 ## Eigenen Agent erstellen
 

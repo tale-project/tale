@@ -73,7 +73,7 @@ Lass `cost` für selbst gehostete Backends weg, bei denen der Aufwand operativ s
 
 ### Anbieter-Optionen (fortgeschritten)
 
-Tale leitet beliebige anbieterspezifische Request-Body-Felder über einen optionalen `providerOptions`-Block weiter — verfügbar **sowohl** auf Anbieter-Ebene als auch pro Modell. Häufigster Anwendungsfall ist OpenRouters [Anbieter-Routing](https://openrouter.ai/docs/guides/routing/provider-selection) — Quantisierung anpinnen, erlaubte Anbieter wählen, Fallback-Richtlinie usw.
+Tale leitet beliebige anbieterspezifische Anfrage-Body-Felder über einen optionalen `providerOptions`-Block weiter — verfügbar **sowohl** auf Anbieter-Ebene als auch pro Modell. Häufigster Anwendungsfall ist OpenRouters [Anbieter-Routing](https://openrouter.ai/docs/guides/routing/provider-selection) — Quantisierung anpinnen, erlaubte Anbieter wählen, Fallback-Richtlinie usw.
 
 ```json
 {
@@ -97,7 +97,7 @@ Tale leitet beliebige anbieterspezifische Request-Body-Felder über einen option
 
 **Schreibregeln:**
 
-- Schreib die **innere** Request-Body-Struktur — Tale namespaced sie zur Aufrufzeit unter dem tatsächlichen Anbieternamen. **Nicht** in `{ "openrouter": { ... } }` einwickeln.
+- Schreib die **innere** Anfrage-Body-Struktur — Tale namespaced sie zur Aufrufzeit unter dem tatsächlichen Anbieternamen. **Nicht** in `{ "openrouter": { ... } }` einwickeln.
 - **Merge-Vorrang**: Anbieter-Ebene → Modell-Ebene (Tiefe 2: gemeinsame Top-Level-Schlüssel werden zusammengeführt, Sub-Schlüssel mit Modell-Sieg, Arrays werden vollständig ersetzt).
 - Das Dashboard exponiert dasselbe JSON über die Panels **Erweitert — Anbieter-Optionen** unter _Einstellungen → Anbieter → \[Anbieter\]_ (Anbieter-Ebene) und im Modell-Bearbeiten-Dialog (pro Modell).
 
@@ -138,7 +138,7 @@ Tale leitet beliebige anbieterspezifische Request-Body-Felder über einen option
 }
 ```
 
-Tales `providerOptions` fließen nur in den Request-Body. Header-Routing-Steuerungen (`ai-gateway-order`, `ai-gateway-only`) und Observability-Tags (`metadata`) sind aktuell nicht über die Anbieter-Konfiguration setzbar; Routing über das Modell-ID-Präfix anpinnen und Tagging im Vercel-Dashboard konfigurieren.
+Tales `providerOptions` fließen nur in den Anfrage-Body. Kopfzeile-Routing-Steuerungen (`ai-gateway-order`, `ai-gateway-only`) und Observability-Tags (`metadata`) sind aktuell nicht über die Anbieter-Konfiguration setzbar; Routing über das Modell-ID-Präfix anpinnen und Tagging im Vercel-Dashboard konfigurieren.
 
 **Direkte Anbieter** (OpenAI, Anthropic, Together AI, Groq, DeepSeek, Mistral) hosten ihre eigenen Modelle. Es gibt **keine Routing-Schicht** und **kein `quantizations`-Feld** — die Präzision ist beim Deployment durch den Anbieter festgelegt. Ihre Passthrough-Felder sind _Modellverhaltens-Knöpfe_ auf oberster Body-Ebene:
 
@@ -161,7 +161,7 @@ Tales `providerOptions` fließen nur in den Request-Body. Header-Routing-Steueru
 
 Tale leitet wortgetreu weiter — die exakten Feldnamen und akzeptierten Werte stehen in der API-Dokumentation des jeweiligen Anbieters. Vom Upstream nicht erkannte Felder werden am Gateway stillschweigend ignoriert; ein Tippfehler sieht also wie ein No-Op aus, statt laut zu scheitern.
 
-**Verifikation:** `TALE_DEBUG_LLM_WIRE=1` im Convex-Backend-Process-Env setzen (selbst gehosteter Convex-Container oder lokale `bun run dev` Convex-Shell) und stdout beobachten. Jeder ausgehende Chat-/Embedding-/Bild-LLM-Request, der durch das AI-SDK läuft, gibt URL plus Body-Schlüssel aus (mit `messages`/`input` redigiert), so dass das eingearbeitete `provider:`-Feld (oder andere) verifiziert werden kann. Hinweis: Der Wrapper deckt Transkription, Connection-Test-Probes und den Direct-Fetch-Image-Gen-Pfad nicht ab und redigiert nur `messages`/`input` — andere Body-Felder einschließlich `system`, `tools`, `metadata`, `prompt_cache_key` und `user` werden wortgetreu geloggt.
+**Verifikation:** `TALE_DEBUG_LLM_WIRE=1` im Convex-Backend-Process-Env setzen (selbst gehosteter Convex-Container oder lokale `bun run dev` Convex-Shell) und stdout beobachten. Jeder ausgehende Chat-/Embedding-/Bild-LLM-Anfrage, der durch das AI-SDK läuft, gibt URL plus Body-Schlüssel aus (mit `messages`/`input` redigiert), so dass das eingearbeitete `provider:`-Feld (oder andere) verifiziert werden kann. Hinweis: Der Wrapper deckt Transkription, Connection-Test-Probes und den Direct-Fetch-Image-Gen-Pfad nicht ab und redigiert nur `messages`/`input` — andere Body-Felder einschließlich `system`, `tools`, `metadata`, `prompt_cache_key` und `user` werden wortgetreu geloggt.
 
 **Migration:** Bestehende `$TALE_CONFIG_DIR/providers/*.json` ohne `providerOptions`-Block funktionieren unverändert weiter — das Feld ist optional. Neue Modelle in `examples/providers/openrouter.json` (GLM 5.x, Kimi K2.6, Qwen 3.6, Gemma 4) müssen manuell in deployed Configs übernommen werden.
 
@@ -320,8 +320,8 @@ Wenn dieselbe Modell-ID in mehr als einer Anbieter-Datei definiert ist (z. B. `a
 
 Einfache Einträge (ohne Doppelpunkt) lösen auf den ersten Anbieter auf, der die ID definiert. Der Speicherpfad des Agents gibt eine Warnung aus, wenn ein unqualifizierter Eintrag auf mehr als einen Anbieter passt, sodass du disambiguieren kannst. Direkte Dateibearbeitung umgeht diese Validierung beim Speichern — der Runtime-Resolver wirft die Warnungen trotzdem, aber explizites Pinnen ist bei Multi-Anbieter-Setups sicherer.
 
-## Siehe auch
+## Wo das hingehört
 
-- [KI-Anbieter](/de/platform/admin/providers) — Anbieter über die UI verwalten.
-- [Chat-Anhänge](/de/platform/chat/attachments#audio-und-video-transkription) — wie `transcription`-getaggte Modelle verwendet werden.
-- [Environment-Referenz](/de/self-hosted/configuration/environment-reference) — `TALE_CONFIG_DIR` und verwandte Variablen.
+Die hier beschriebenen Anbieter-Dateien sind die On-Disk-Form derselben Konfiguration, die die UI schreibt, wenn ein Admin unter **Einstellungen > Anbieter** speichert. Wähle die Oberfläche, die zu deinem Change-Management passt: die UI für tägliche Anpassungen und schnelle Rollouts, die Dateien, wenn die Konfiguration in git neben dem Rest deiner Infrastruktur leben soll. So oder so ist diese Seite der kanonische Ort, um zu lesen, was jedes Feld bedeutet.
+
+Verwandte Referenzen: [KI-Anbieter](/de/platform/admin/providers) zeigt das UI-Gegenstück für Admins, [Chat-Anhänge](/de/platform/chat/attachments#audio-und-video-transkription) demonstriert, wie die hier konfigurierten Transkriptions-Modelle endnutzer-seitig konsumiert werden, und [Environment-Referenz](/de/self-hosted/configuration/environment-reference) dokumentiert `TALE_CONFIG_DIR` und die anderen Variablen, die diese Seite voraussetzt.

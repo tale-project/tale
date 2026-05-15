@@ -116,7 +116,8 @@ Voir [Référence API](/fr/develop/api-reference) pour tous les en-têtes.
 - **404 Not Found** sur `/chat/completions` — l’URL de base n’a pas le suffixe `/api/v1`.
 - **400 model not found** — le slug d’agent n’existe pas ou est mal orthographié ; revérifie `GET /models`.
 
-## Ensuite
+## Où cela s'insère
 
-- Brancher le même appel dans une automatisation : [Déclencher une automatisation via webhook](/fr/tutorials/developer/trigger-automation-via-webhook).
-- Utiliser le tool calling depuis ton client : [Référence API — Tool calling](/fr/develop/api-reference).
+À retenir : n'importe quel client compatible OpenAI parle à Tale dès que tu le pointes sur la bonne URL de base et que tu utilises le slug de l'agent comme nom de modèle — pas de SDK propre à Tale, pas de coût de migration si tu remplaces une intégration OpenAI existante. Le bouton streaming est identique à celui d'OpenAI, et l'en-tête `X-Thread-Id` est la seule extension propre à Tale dont tu as généralement besoin.
+
+Deux suites naturelles : brancher le même appel dans une automatisation pour qu'il tourne sans invocation explicite de script — [Déclencher une automatisation via webhook](/fr/tutorials/developer/trigger-automation-via-webhook) — ou étendre le client au tool calling, couvert par la [Référence API](/fr/develop/api-reference).

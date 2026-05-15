@@ -2,71 +2,129 @@
 
 Variant of German (de). Read [`TERMINOLOGY.md`](TERMINOLOGY.md) and [`TERMINOLOGY_DE.md`](TERMINOLOGY_DE.md) first — those rules apply here too. **This file lists only what differs from the German base.**
 
-Swiss High German ("Schweizer Hochdeutsch") is the written form used in Swiss documentation. It is not Swiss German dialect (Schwyzerdütsch), which we never write.
+Swiss High German (Schweizer Hochdeutsch) is the written form used in Swiss documentation. It is **not** Swiss German dialect (Schwyzerdütsch), which Tale does not write.
 
-## Where to put overrides
+---
 
-This file documents the Swiss German variant. The same conventions apply to any future regional variant — substitute `de-CH` for the appropriate `xx-YY` code.
+## 1 · The override-only rule
 
-- **UI (platform/web/docs):** `services/{platform,web,docs}/messages/de-CH.json`. Include only the keys whose values differ from `de.json`. Anything missing falls back to `de.json` automatically. The i18n loader auto-discovers any `xx-YY.json` you drop into `messages/`.
-- **Docs page content:** `docs/de-CH/<same-path-as-base>.md`. Full-file override — the loader uses it in place of the `docs/de/` file. Only create files whose wording genuinely differs.
+`de-CH` is a sparse overlay on top of `de`. Anything the Swiss variant does not override falls back to the German base automatically, in both messages and docs:
 
-## Spelling: no "ß"
+- **Messages**: `de-CH.json` keys missing → fall back to `de.json` → fall back to `en.json`.
+- **Docs**: `docs/de-CH/<path>.md` missing → fall back to `docs/de/<path>.md` → fall back to `docs/en/<path>.md`.
+
+This has one consequence that drift kept missing: **do not copy the German base into `de-CH.json` or `docs/de-CH/` just to feel complete**. Every key or page in the Swiss tree should be there because its Swiss value genuinely differs from the German one. If a `de-CH` value is byte-identical to its `de` counterpart, delete it.
+
+The Swiss tree was built that way originally and then drifted — `de-CH` ended up with arbitrary partial coverage. The fix is to (a) sync from `de` with `ß → ss` applied, then (b) strip every byte-identical override so the result is genuinely override-only.
+
+### Maintenance loop
+
+When `de/` changes:
+
+1. Re-run `python3 /tmp/sync_de_ch.py` (the helper from the rewrite) — it copies the new `de/` content into `de-CH/`, applies `ß → ss`, and deletes files that match `de/` byte-for-byte after the substitution.
+2. Review any remaining `de-CH` files: are they Swiss-specific because of CHF, Swiss legal references, or Swiss number formatting? If not, delete them too.
+
+---
+
+## 2 · Spelling: no "ß"
 
 The single largest difference: **Swiss German does not use "ß".** Replace every "ß" with "ss" in any Swiss override.
 
-| Standard German (de) | Swiss German (de-CH) |
-| -------------------- | -------------------- |
-| Straße               | Strasse              |
-| Fuß                  | Fuss                 |
-| außerdem             | ausserdem            |
-| heißt                | heisst               |
-| müssen (same)        | müssen               |
+| Standard German (de)        | Swiss German (de-CH) |
+| --------------------------- | -------------------- |
+| Strasse → Straße            | Strasse              |
+| Fuß                         | Fuss                 |
+| außerdem                    | ausserdem            |
+| heißt                       | heisst               |
+| muss / lässt (same)         | muss / lässt         |
+| groß                        | gross                |
+| schließen                   | schliessen           |
+| daß (archaic; modern: dass) | dass                 |
 
-Note that most of Tale's current German text already avoids "ß" (e.g. "muss", "lässt") — but the substitution must be applied consistently in any override.
+Most of Tale's German text already avoids `ß` (Tale's `de/` files use `muss`, `lässt`, `dass`), but the substitution has to be applied consistently in any override.
 
-## Lexical overrides
+---
 
-Swiss German accepts more English loanwords than standard German, and has some distinct vocabulary. Only override when the Swiss form is clearly preferred; avoid forcing Helvetisms for their own sake.
+## 3 · Lexical overrides
+
+Swiss German accepts more English loanwords than standard German and has some distinct vocabulary. Only override when the Swiss form is clearly preferred; avoid forcing Helvetisms for their own sake.
 
 | Standard German (de)    | Swiss German (de-CH) | When to override                                      |
 | ----------------------- | -------------------- | ----------------------------------------------------- |
 | Bürgersteig             | Trottoir             | Unlikely in Tale content; noted for completeness      |
 | Geldbörse / Brieftasche | Portemonnaie         | Unlikely in Tale content                              |
 | parken                  | parkieren            | Rarely applicable                                     |
-| Velo (bicycle)          | Velo                 | Same; only notable if comparing to standard "Fahrrad" |
-| Email                   | Email                | Same — no override needed                             |
+| Velo (bicycle)          | Velo                 | Same; only notable if comparing to standard `Fahrrad` |
+| Fußball                 | Fussball             | (`ß → ss`)                                            |
+| E-Mail                  | E-Mail               | Same — no override needed                             |
 
-In practice, most Tale UI and docs strings need no lexical Swiss override. The "ß" → "ss" substitution is the main mechanical transform.
+In practice, most Tale UI and docs strings need no lexical Swiss override. The `ß → ss` substitution is the main mechanical transform.
 
-## Currency and numbers
+---
 
-- CURRENCY in examples or pricing: **CHF** for Switzerland (not EUR). If the base uses EUR in a Swiss-specific context (e.g. pricing page), override with CHF.
-- DECIMAL separator: period (`2.5 GB`) rather than comma — Switzerland uses the period, unlike Germany and Austria. This is the biggest day-to-day number-formatting difference.
-- THOUSANDS separator: apostrophe (`1'000`) is the Swiss standard in official writing. Narrow space is also accepted. Period is **not** used as a thousands separator in Switzerland.
+## 4 · Currency and numbers
+
+Swiss number formatting differs from German formatting in two ways: the decimal separator is the period (like English), and the thousands separator is the apostrophe.
+
+| Locale    | Decimal | Thousands          | Currency in pricing |
+| --------- | ------- | ------------------ | ------------------- |
+| EN        | `2.5`   | `1,000`            | `$100`, `€100`      |
+| DE        | `2,5`   | `1.000` or `1 000` | `100 €`             |
+| **DE-CH** | `2.5`   | `1'000`            | `CHF 100`           |
+| FR        | `2,5`   | `1 000`            | `100 €`             |
+
+- CURRENCY in examples or pricing: **CHF** for Switzerland (not EUR). If the base uses EUR in a Swiss-specific context (pricing page, billing example), override with CHF.
+- DECIMAL separator: **period** (`2.5 GB`) rather than comma. Switzerland uses the period, unlike Germany and Austria. This is the biggest day-to-day number-formatting difference.
+- THOUSANDS separator: **apostrophe** (`1'000`) is the Swiss standard in official writing. Narrow space is also accepted. Period is **not** used as a thousands separator in Switzerland.
 - DATES: `DD.MM.YYYY` (same as base).
 - TIME: 24-hour (same as base).
 
-## Legal / authority references
+---
+
+## 5 · Legal and authority references
 
 Where a doc mentions a supervisory authority:
 
 - Switzerland's authority is the **Eidgenössischer Datenschutz- und Öffentlichkeitsbeauftragter (EDÖB)** — already referenced in the base German legal pages because Ruler GmbH is Swiss-based. No Swiss override typically needed.
 - The base legal pages already reflect Swiss law (LPD/FADP) as the governing law. Do not "Germanise" them when writing the Swiss variant.
 
-## Style
+The Swiss data-protection act is the **LPD** (Loi sur la protection des données / Bundesgesetz über den Datenschutz / DSG). Reference it explicitly in Swiss-specific compliance contexts.
 
-- SPELLING: "ss" everywhere for "ß". Otherwise identical to standard German.
-- QUOTATION marks: «Swiss guillemets» are the traditional form, but `„German quotes“` are also accepted. Use «guillemets» in running prose; straight quotes inside UI and code blocks. In shared docs pages, matching the base German style (`„text“`) is acceptable.
-- APOSTROPHES: straight ASCII `'` (same as base). The thousands-separator `'` in `1'000` is the same character — keep it ASCII so figures parse cleanly.
-- DECIMAL period, thousands apostrophe — override when a figure appears in prose that is meant to be read as Swiss.
-- CURRENCY: CHF in Swiss-specific examples.
+---
 
-## Do not override
+## 6 · Style
 
-- Product feature names (Workflow, Dashboard, Canvas, Prompt Library, etc.) — keep English, same as base.
-- Role names (Inhaber, Admin, Entwickler, Redakteur, Mitglied, Deaktiviert) — translate to match the shipped UI, same as base.
-- Code, command output, environment variable names, CLI flags. CSS/HTML/JSON stays byte-for-byte identical across locales.
-- API endpoints, JSON keys, error codes.
-- External brand names.
-- Anything inside a code fence — even if it contains a "ß" as sample data.
+- **SPELLING:** `ss` everywhere for `ß`. Otherwise identical to standard German.
+- **QUOTATION marks:** `«Swiss guillemets»` are the traditional form, but `„German quotes"` are also accepted. Use «guillemets» in running prose; straight quotes inside UI and code blocks. In shared docs pages, matching the base German style (`„text"`) is acceptable.
+- **APOSTROPHES:** straight ASCII `'` (same as base). The thousands-separator `'` in `1'000` is the same character — keep it ASCII so figures parse cleanly.
+- **DECIMAL period, thousands apostrophe** — override when a figure appears in prose that is meant to be read as Swiss.
+- **CURRENCY:** CHF in Swiss-specific examples. The currency symbol comes before the value (`CHF 100`), not after (`100 CHF`), matching Swiss official style.
+
+---
+
+## 7 · Do not override
+
+These either don't change between Germany and Switzerland, or come from cross-locale rules that the Swiss variant has no business contradicting.
+
+- **Product feature names** (`Workflow`, `Dashboard`, `Canvas`, `Prompt-Bibliothek`, etc.) — same as the German base.
+- **Role names** (`Inhaber`, `Admin`, `Entwickler`, `Redakteur`, `Mitglied`, `Deaktiviert`) — translate to match the shipped UI, same as base.
+- **Code, command output, environment variable names, CLI flags.** CSS/HTML/JSON stays byte-for-byte identical across locales.
+- **API endpoints, JSON keys, error codes.**
+- **External brand names** (Tale, Convex, OpenRouter, GitHub, etc.).
+- **Anything inside a code fence** — even if it contains a `ß` as sample data. The code is part of the example.
+- **The translate-bucket terms from `TERMINOLOGY_DE.md`** (`Kopfzeile`, `Anfrage`, `Anbieter`, `E-Mail`, `Hilfe-Center`, `Abrechnung`, `Vertriebs-Recherche`, `Entwurf`, `Anhang`, `selbst gehostet`) — same translations apply in Swiss German.
+- **The voice rules** — `du` (never `Sie`), active verbs, no marketing softening, no sentence-final `erfolgreich`. Same as base.
+
+---
+
+## Quick reference
+
+| Question                                                         | Answer                                                                   |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `Straße` or `Strasse` in DE-CH?                                  | `Strasse`.                                                               |
+| Decimal in DE-CH prose: `2,5` or `2.5`?                          | `2.5`.                                                                   |
+| Thousands separator?                                             | `1'000` (apostrophe).                                                    |
+| EUR or CHF in Swiss pricing?                                     | CHF.                                                                     |
+| When to create a `de-CH/foo.md` file?                            | Only when its content genuinely differs from `de/foo.md` after `ß → ss`. |
+| Should I keep a `de-CH` file identical to `de` for completeness? | No. Delete it. The loader falls through.                                 |
+| `du` or `Sie` in DE-CH?                                          | `du`. Same as base.                                                      |

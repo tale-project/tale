@@ -59,3 +59,9 @@ Das Website-Tracking weist Tales Crawler an, Seiten einer Domain nach Plan zu be
 | Alle 30 Tage              | Kaum wechselnde Referenzinhalte       |
 
 Für tiefere Kontrolle über das Crawl-Verhalten siehe [Website-Crawling](/de/platform/knowledge/crawling).
+
+## Wo das hingehört
+
+Die Wissensdatenbank ist das Substrat, in dem jeder Agent verankert ist — die Dokumente, Websites und strukturierten Datensätze, die die KI bei der Antwort zitiert. Wer sie gut kuratiert, macht aus einer generischen KI eine, die deine Produkte, deine Richtlinien und deine Kunden kennt. Die meisten Qualitätsgewinne beim Bau eines neuen Agents kommen aus dem Verengen des Wissensumfangs, nicht aus dem Modelltausch.
+
+Um einzugrenzen, was ein bestimmter Agent durchsuchen darf (statt jedem Agent Zugriff auf alles zu geben), ist die nächste Seite [Agent-Konzepte → Wissen](/de/platform/agents/concepts#wissen). Um die Datenbank mit strukturierten Datensätzen anzureichern, führt [Strukturierte Daten](/de/platform/knowledge/structured-data) durch die Produkte / Kunden / Lieferanten-Entitäten.

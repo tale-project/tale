@@ -22,7 +22,7 @@ Ollama lauscht standardmässig auf `http://localhost:11434`. Prüfe die Erreichb
 curl -s http://localhost:11434/api/tags | jq '.models[].name'
 ```
 
-Wenn Tale in Docker läuft, zeige statt auf `localhost` auf den Host — auf Linux nutze `http://host.docker.internal:11434` mit explizitem Docker-Extra-Host oder die LAN-IP des Hosts. Siehe [Self-hosted-Konfiguration](/de/self-hosted/configuration/environment-reference) für die Netzwerk-Optionen.
+Wenn Tale in Docker läuft, zeige statt auf `localhost` auf den Host — auf Linux nutze `http://host.docker.internal:11434` mit explizitem Docker-Extra-Host oder die LAN-IP des Hosts. Siehe [selbst gehostet-Konfiguration](/de/self-hosted/configuration/environment-reference) für die Netzwerk-Optionen.
 
 ## Schritt 2 — Den Anbieter in Tale hinzufügen
 
