@@ -40,3 +40,9 @@ If a published change causes problems — wrong tone, bad answers, broken tool a
 ## File-based agents
 
 Agents defined in `TALE_CONFIG_DIR/agents/*.json` don't use the UI versioning system — their history is whatever your git repository records. See [AI-assisted development](/develop/ai-assisted-development) for the file-based workflow.
+
+## Where this fits
+
+Versioning is the iteration safety net for agents. The decision the page-shape contract asks you to remember: drafts and the published live version coexist, so rewriting an agent's instructions is risk-free as long as you don't publish until the draft proves out. Use the Versions tab for every meaningful change; use rollback when production starts giving worse answers right after a publish.
+
+For the create flow itself — naming, model picker, instructions composer — go back to [Create an agent](/platform/agents/create). For the mental model behind the four knobs you're iterating on, [Agent concepts](/platform/agents/concepts).

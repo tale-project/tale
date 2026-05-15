@@ -35,3 +35,7 @@ If no workflows have run in the selected period, the dashboard shows an empty st
 
 - [Execution logs](/platform/automations/execution-logs) — per-workflow run history with step-level detail.
 - [Usage analytics](/platform/admin/usage-analytics) — token and cost trends across the whole organisation, including automations.
+
+## Where this fits
+
+Automation metrics is the cross-workflow dashboard — the surface that answers "is anything broken right now?" and "what changed since last week?" without opening every workflow individually. When a KPI changes, drill into [Execution logs](/platform/automations/execution-logs) for the per-run truth. For LLM-cost trends that span both automations and chat, [Usage analytics](/platform/admin/usage-analytics) is one tab over.

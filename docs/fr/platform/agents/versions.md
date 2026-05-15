@@ -39,4 +39,10 @@ Si une modification publiée pose problème — ton erroné, mauvaises réponses
 
 ## Agents par fichier
 
-Les agents définis dans `TALE_CONFIG_DIR/agents/*.json` n’utilisent pas le système de versions UI — leur historique est ce que ton dépôt git enregistre. Voir [AI-assisted development](/fr/develop/ai-assisted-development) pour le workflow par fichier.
+Les agents définis dans `TALE_CONFIG_DIR/agents/*.json` n'utilisent pas le système de versions UI — leur historique est ce que ton dépôt git enregistre. Voir [AI-assisted development](/fr/develop/ai-assisted-development) pour le workflow par fichier.
+
+## Où ça s'inscrit
+
+Le versioning est le filet d'itération pour les agents. La décision que le contrat de forme te demande de retenir : les brouillons et la version publiée coexistent, donc réécrire les instructions d'un agent est sans risque tant que tu ne publies pas avant que le brouillon ait fait ses preuves. Utilise l'onglet Versions pour chaque changement significatif ; utilise le rollback quand la production donne de moins bonnes réponses juste après une publication.
+
+Pour le flux de création lui-même — nommer, choisir le modèle, écrire les instructions — retourne à [Créer un agent](/fr/platform/agents/create). Pour le modèle mental derrière les quatre boutons que tu règles, [Concepts des agents](/fr/platform/agents/concepts).

@@ -52,3 +52,9 @@ If a crawl isn't picking up pages you expect:
 ## Removing a site
 
 Deleting a tracked website from **Knowledge > Websites** removes all indexed content from that site. This is immediate — the AI will no longer find those pages.
+
+## Where this fits
+
+Crawling is the bulk-import path for public web content. It exists because copying a help-centre article-by-article into the knowledge base is busywork that scales badly; pointing the crawler at the domain pulls the whole thing in one move. Once content is in the knowledge base, it reads identically to uploaded documents — same search, same agents, same access controls.
+
+For ingesting OneDrive files or other authenticated sources, use the relevant integration in [Integrations overview](/platform/integrations/overview). For the end-user workflow of adding a website from chat, see [Knowledge base](/platform/workspace/knowledge-base).

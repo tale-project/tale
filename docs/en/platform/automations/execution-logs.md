@@ -42,4 +42,8 @@ Execution records are kept according to your organisation's [retention policy](/
 
 ## Alerts
 
-Configure alerts under the workflow's **Alerts** tab to email an Admin when a workflow fails, runs longer than a threshold, or produces an error matching a pattern. For cross-workflow alerting (e.g., "more than 5 failures in the last hour across all workflows"), use [Operations](/self-hosted/operate/observability/operations).
+Configure alerts under the workflow's **Alerts** tab to email an Admin when a workflow fails, runs longer than a threshold, or produces an error matching a pattern. For cross-workflow alerting ("more than 5 failures in the last hour across all workflows"), use [Operations](/self-hosted/operate/observability/operations).
+
+## Where this fits
+
+Execution logs are the per-workflow debug surface. When something fails, this is where you go — the step name, the literal input, the literal output, the error message. For the cross-workflow rollup (KPIs, runs over time, status breakdown, top workflows), [Automation metrics](/platform/automations/metrics) is the dashboard. For org-wide error trends across both automations and chat, [Operations](/self-hosted/operate/observability/operations) is the right surface.

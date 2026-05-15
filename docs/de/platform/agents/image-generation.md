@@ -45,3 +45,9 @@ Wähle den Bildgenerierungs-Agent im Agent-Selector. Das Composer-Verhalten pass
 - **Modell kann nicht bearbeiten** — wenn das gewählte Modell nur `image-generation` ist, zeigt der Composer _Dieses Modell erstellt nur neue Bilder. Wechsle zu einem Editing-Modell, um Änderungen anzuwenden._ Wähle dann ein Modell mit dem Tag `image-edit`.
 
 Erzeugte Bilder werden als Message-Anhänge gespeichert, folgen derselben Aufbewahrungsrichtlinie wie andere Anhänge und können heruntergeladen, im Canvas geöffnet oder als Edit-Vorlage für Folgeanfragen wiederverwendet werden.
+
+## Wo das einsetzt
+
+Bildgenerierungs-Agents sind die Ein-Schritt-Bild-Oberfläche im Chat — ein schneller Weg, ein Marketing-Thumbnail, ein Produkt-Mockup oder eine Konzept-Skizze zu erzeugen. Sie ersetzen kein dediziertes Bildbearbeitungstool; der Tradeoff ist Geschwindigkeit und konversationelle Erreichbarkeit, nicht pixelgenaue Kontrolle. Für teamweite Bildworkflows mit Iterations-Tracking ist ein Agent, der über eine [Integration](/de/platform/integrations/overview) an einen externen Bild-Dienst übergibt, die bessere Wahl.
+
+Um die zugrunde liegenden Modelle zu konfigurieren, richtet ein Admin Modelle mit den Tags `image-generation` und `image-edit` unter [KI-Anbieter](/de/platform/admin/providers) ein.

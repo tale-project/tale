@@ -44,4 +44,10 @@ Choisis l’agent de génération d’images dans le sélecteur d’agent. Le co
 - **Mode édition** — clique sur une image plus haut dans le thread, ou attache une image de référence avec le sélecteur de miniatures, et le placeholder bascule en _Décris la modification…_. L’image de référence part vers l’endpoint d’édition (ou en tant que content part pour les modèles `chat-multimodal`).
 - **Modèle incapable d’éditer** — si le modèle choisi est uniquement `image-generation`, le composeur affiche _Ce modèle ne crée que de nouvelles images. Passe à un modèle d’édition pour appliquer des changements._ Choisis alors un modèle avec le tag `image-edit`.
 
-Les images générées sont stockées comme pièces jointes du message, suivent la même politique de rétention que les autres pièces jointes, et peuvent être téléchargées, ouvertes dans le Canevas ou réutilisées comme entrée d’édition pour des tours suivants.
+Les images générées sont stockées comme pièces jointes du message, suivent la même politique de rétention que les autres pièces jointes, et peuvent être téléchargées, ouvertes dans le Canevas ou réutilisées comme entrée d'édition pour des tours suivants.
+
+## Où ça s'inscrit
+
+Les agents de génération d'image sont la surface d'image en un tour dans le chat — une façon rapide de produire une vignette marketing, une maquette produit, une esquisse conceptuelle. Ils ne remplacent pas un outil d'édition d'image dédié ; le compromis porte sur la vitesse et l'accessibilité conversationnelle, pas sur le contrôle au pixel près. Pour des workflows d'images à l'échelle de l'équipe qui demandent du suivi d'itérations, un agent qui délègue à un service d'image externe via une [intégration](/fr/platform/integrations/overview) est mieux adapté.
+
+Pour configurer les modèles sous-jacents, un Admin met en place les modèles tagués `image-generation` et `image-edit` sous [Fournisseurs IA](/fr/platform/admin/providers).

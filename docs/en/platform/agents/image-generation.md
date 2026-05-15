@@ -45,3 +45,9 @@ Pick the image-generation agent from the agent selector. The composer behaviour 
 - **Model can't edit** — if the picked model is `image-generation` only, the composer shows _This model creates new images only. Switch to an editing model to apply changes._ Pick a model with the `image-edit` tag instead.
 
 Generated images are saved as message attachments, stored under the same retention policy as other attachments, and can be downloaded, opened in Canvas, or referenced again as edit input for follow-up turns.
+
+## Where this fits
+
+Image-generation agents are the one-turn image surface inside chat — a quick way to produce a marketing thumbnail, a product mock-up, a concept sketch. They're not a replacement for a dedicated image-editing tool; the trade-off is speed and conversational reachability, not pixel-level control. For team-wide imagery workflows that need iteration tracking, an agent that hands off to an external image service via an [integration](/platform/integrations/overview) is a better fit.
+
+To configure the underlying models, an Admin sets up image-generation and image-edit model tags under [AI providers](/platform/admin/providers).

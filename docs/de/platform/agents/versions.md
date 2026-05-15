@@ -40,3 +40,9 @@ Wenn eine veröffentlichte Änderung Probleme verursacht — falscher Ton, schle
 ## Datei-basierte Agents
 
 Agents, die in `TALE_CONFIG_DIR/agents/*.json` definiert sind, nutzen nicht die UI-Versionierung — ihre Historie ist das, was dein Git-Repository aufzeichnet. Siehe [AI-assisted development](/de/develop/ai-assisted-development) für den datei-basierten Workflow.
+
+## Wo das einsetzt
+
+Versionierung ist das Iterations-Sicherheitsnetz für Agents. Die Entscheidung, die der Page-Shape-Vertrag merken lässt: Entwürfe und die veröffentlichte Live-Version koexistieren, sodass das Umschreiben der Anweisungen eines Agents risikofrei ist, solange du nicht veröffentlichst, bevor der Entwurf sich bewährt hat. Nutze den Versionen-Tab für jede sinnvolle Änderung; nutze Rollback, wenn die Produktion direkt nach einem Publish schlechtere Antworten liefert.
+
+Für den Erstellen-Flow selbst — Namen, Modellauswahl, Anweisungs-Composer — geh zurück zu [Agent erstellen](/de/platform/agents/create). Für das mentale Modell hinter den vier Stellschrauben, an denen du drehst, [Agent-Konzepte](/de/platform/agents/concepts).

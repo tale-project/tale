@@ -42,4 +42,8 @@ Les exécutions sont conservées selon la [politique de rétention](/fr/platform
 
 ## Alertes
 
-Configure les alertes dans l’onglet Alertes du workflow pour notifier un Admin par email quand un workflow échoue, dure plus qu’un seuil ou produit une erreur qui matche un pattern. Pour des alertes cross-workflow (ex. "plus de 5 échecs par heure tous workflows confondus"), utilise [Opérations](/fr/self-hosted/operate/observability/operations).
+Configure les alertes dans l'onglet Alertes du workflow pour notifier un Admin par email quand un workflow échoue, dure plus qu'un seuil ou produit une erreur qui matche un pattern. Pour des alertes cross-workflow (« plus de 5 échecs par heure tous workflows confondus »), utilise [Opérations](/fr/self-hosted/operate/observability/operations).
+
+## Où ça s'inscrit
+
+Les logs d'exécution sont la surface de débogage par workflow. Quand quelque chose échoue, c'est ici que tu vas — le nom de l'étape, l'entrée littérale, la sortie littérale, le message d'erreur. Pour le résumé cross-workflow (KPI, runs dans le temps, répartition des statuts, top workflows), [Métriques d'automatisation](/fr/platform/automations/metrics) est le tableau de bord. Pour les tendances d'erreurs à l'échelle de l'organisation à travers automatisations et chat, [Opérations](/fr/self-hosted/operate/observability/operations) est la bonne surface.

@@ -51,4 +51,10 @@ Si un crawl ne remonte pas les pages attendues :
 
 ## Supprimer un site
 
-Supprimer un site suivi depuis **Base de connaissances > Sites web** retire tout le contenu indexé de ce site. C’est immédiat — l’IA ne les trouvera plus.
+Supprimer un site suivi depuis **Base de connaissances > Sites web** retire tout le contenu indexé de ce site. C'est immédiat — l'IA ne les trouvera plus.
+
+## Où ça s'inscrit
+
+Le crawling est le chemin d'import en masse pour le contenu web public. Il existe parce que copier un centre d'aide article par article dans la base de connaissances est un travail répétitif qui passe mal à l'échelle ; pointer le crawler vers le domaine importe tout en un mouvement. Une fois le contenu en base de connaissances, il se lit à l'identique des documents téléversés — même recherche, mêmes agents, mêmes contrôles d'accès.
+
+Pour ingérer des fichiers OneDrive ou d'autres sources authentifiées, utilise l'intégration correspondante dans [Intégrations — aperçu](/fr/platform/integrations/overview). Pour le workflow utilisateur final d'ajout d'un site depuis le chat, voir [Base de connaissances](/fr/platform/workspace/knowledge-base).

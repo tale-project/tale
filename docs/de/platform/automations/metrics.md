@@ -35,3 +35,7 @@ Hat im gewählten Zeitraum kein Workflow laufen, zeigt die Seite einen leeren Zu
 
 - [Ausführungsprotokolle](/de/platform/automations/execution-logs) — pro Workflow mit Step-Detail.
 - [Usage Analytics](/de/platform/admin/usage-analytics) — Token- und Kosten-Trends über die ganze Organisation inklusive Automatisierungen.
+
+## Wo das einsetzt
+
+Automatisierungs-Metriken ist das Workflow-übergreifende Dashboard — die Oberfläche, die „läuft gerade etwas schief?" und „was hat sich seit letzter Woche geändert?" beantwortet, ohne jeden Workflow einzeln zu öffnen. Wenn eine Kennzahl sich ändert, bohre in [Ausführungsprotokolle](/de/platform/automations/execution-logs) für die Pro-Lauf-Wahrheit. Für LLM-Kostentrends über Automatisierungen und Chat hinweg ist [Usage Analytics](/de/platform/admin/usage-analytics) einen Tab weiter.
