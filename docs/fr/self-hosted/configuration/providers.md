@@ -215,23 +215,13 @@ cp examples/providers/openrouter.json $TALE_CONFIG_DIR/providers/
 
 Récupère une clé sur [openrouter.ai/keys](https://openrouter.ai/keys) et ajoute-la via **Paramètres > Fournisseurs IA > OpenRouter** — l'application écrit le `openrouter.secrets.json` correspondant dans le mode configuré. Les fichiers `examples/providers/*.secrets.json` versionnés sont chiffrés pour le destinataire age du dépôt et ne servent pas comme modèles prêts à l'emploi.
 
-### OpenAI (Whisper pour la transcription)
+### OpenAI
 
 ```bash
 cp examples/providers/openai.json $TALE_CONFIG_DIR/providers/
 ```
 
-Ajoute ta clé OpenAI via **Paramètres > Fournisseurs IA > OpenAI**. L'exemple déclare `whisper-1` et `defaults.transcription`, donc les pièces jointes audio et vidéo passent par là dès qu'une clé est posée. La vue côté utilisateur final vit sur [Pièces jointes de chat](/fr/platform/chat/attachments#audio-and-video-transcription).
-
-### Synthèse vocale
-
-Le fichier fourni `examples/providers/openai-tts.json` déclare `gpt-4o-mini-tts` et une table de voix par défaut, et alimente la [Sortie vocale](/fr/platform/chat/voice-output) dans le chat.
-
-```bash
-cp examples/providers/openai-tts.json $TALE_CONFIG_DIR/providers/
-```
-
-Ajoute la clé OpenAI via **Paramètres > Fournisseurs IA > openai-tts** et le bouton vocal de l'en-tête de chat commence à utiliser le fournisseur configuré. Sans ce fichier, la sortie vocale bascule silencieusement sur la `speechSynthesis` intégrée au navigateur.
+Ajoute ta clé OpenAI une seule fois via **Paramètres > Fournisseurs IA > OpenAI**. Le fichier déclare à la fois `whisper-1` (transcription) et `gpt-4o-mini-tts` (synthèse vocale) ainsi que les `defaults` correspondants, donc les pièces jointes audio et vidéo du chat sont routées ici pour la transcription et le bouton vocal de l'en-tête de chat utilise OpenAI pour la [Sortie vocale](/fr/platform/chat/voice-output). Voir [Pièces jointes du chat](/fr/platform/chat/attachments#transcription-audio-et-vidéo) pour la vue utilisateur. Sans ce fichier, la sortie vocale bascule silencieusement sur la `speechSynthesis` intégrée au navigateur.
 
 Champs spécifiques à la TTS dans une entrée modèle :
 

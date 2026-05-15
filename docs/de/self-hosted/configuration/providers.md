@@ -215,23 +215,13 @@ cp examples/providers/openrouter.json $TALE_CONFIG_DIR/providers/
 
 Hol einen Schlüssel auf [openrouter.ai/keys](https://openrouter.ai/keys) und füge ihn über **Einstellungen > Anbieter > OpenRouter** hinzu — die App schreibt die passende `openrouter.secrets.json` im jeweils konfigurierten Modus. Die committeten `examples/providers/*.secrets.json`-Dateien sind an den age-Empfänger des Repositories verschlüsselt und nicht als Drop-in-Templates nutzbar.
 
-### OpenAI (Whisper für Transkription)
+### OpenAI
 
 ```bash
 cp examples/providers/openai.json $TALE_CONFIG_DIR/providers/
 ```
 
-Füge deinen OpenAI-Schlüssel über **Einstellungen > Anbieter > OpenAI** hinzu. Das Beispiel deklariert `whisper-1` und `defaults.transcription`, also routen Audio- und Video-Chat-Anhänge hier durch, sobald ein Schlüssel gesetzt ist. Die Endnutzer-Sicht steht unter [Chat-Anhänge](/de/platform/chat/attachments#audio-and-video-transcription).
-
-### Text-zu-Sprache
-
-Die mitgelieferte Datei `examples/providers/openai-tts.json` deklariert `gpt-4o-mini-tts` und eine Standard-Stimmen-Zuordnung und treibt die [Sprachausgabe](/de/platform/chat/voice-output) im Chat an.
-
-```bash
-cp examples/providers/openai-tts.json $TALE_CONFIG_DIR/providers/
-```
-
-Trage den OpenAI-Schlüssel über **Einstellungen > KI-Anbieter > openai-tts** ein, dann nutzt der Sprach-Schalter im Chat-Header den konfigurierten Anbieter. Ohne diese Datei greift die Sprachausgabe stillschweigend auf die im Browser eingebaute `speechSynthesis` zurück.
+Trage deinen OpenAI-Schlüssel einmal über **Einstellungen > KI-Anbieter > OpenAI** ein. Die Datei deklariert sowohl `whisper-1` (Transkription) als auch `gpt-4o-mini-tts` (Text-zu-Sprache) samt der passenden `defaults`-Einträge, sodass Audio- und Video-Anhänge im Chat hierhin geroutet werden und der Sprach-Schalter im Chat-Header für die [Sprachausgabe](/de/platform/chat/voice-output) OpenAI nutzt. Den Endbenutzer-Blick findest du unter [Chat-Anhänge](/de/platform/chat/attachments#audio-und-video-transkription). Ohne diese Datei greift die Sprachausgabe stillschweigend auf die im Browser eingebaute `speechSynthesis` zurück.
 
 TTS-spezifische Felder eines Modell-Eintrags:
 

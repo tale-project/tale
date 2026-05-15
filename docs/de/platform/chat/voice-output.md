@@ -22,7 +22,7 @@ Die Sprachausgabe liest Antworten des Assistenten in deiner Oberflächensprache 
 
 Die Sprachausgabe bevorzugt einen serverseitigen Text-zu-Sprache-Anbieter für Qualität und Konsistenz. Wenn deine Organisation keinen konfiguriert hat — oder die Synthese fehlschlägt — greift Tale automatisch auf die im Browser eingebaute `speechSynthesis` für diesen Satz zurück. Der Fallback gilt pro Chunk, ein vorübergehender Anbieterfehler oder ein Codec-Mismatch bei einem Satz unterbricht also nicht den Rest der Antwort.
 
-Wenn kein Anbieter konfiguriert ist, blendet die Personalisierungsseite einen Link zu **Einstellungen → KI-Anbieter** ein, wo eine administrative Person einen hinzufügen kann. Siehe [Text-zu-Sprache-Anbieter konfigurieren](/de/self-hosted/configuration/providers#text-zu-sprache) für die Konfigurationsform.
+Wenn kein Anbieter konfiguriert ist, blendet die Personalisierungsseite einen Link zu **Einstellungen → KI-Anbieter** ein, wo eine administrative Person einen hinzufügen kann. Siehe [Text-zu-Sprache-Anbieter konfigurieren](/de/self-hosted/configuration/providers#openai) für die Konfigurationsform.
 
 ## Stoppen und erneut abspielen
 

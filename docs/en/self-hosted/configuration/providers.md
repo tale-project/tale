@@ -215,23 +215,13 @@ cp examples/providers/openrouter.json $TALE_CONFIG_DIR/providers/
 
 Get a key at [openrouter.ai/keys](https://openrouter.ai/keys) and add it through **Settings > Providers > OpenRouter** — the app writes the matching `openrouter.secrets.json` in whichever mode is configured. The committed `examples/providers/*.secrets.json` files are encrypted to the repo's age recipient and are not useful as drop-in templates.
 
-### OpenAI (Whisper for transcription)
+### OpenAI
 
 ```bash
 cp examples/providers/openai.json $TALE_CONFIG_DIR/providers/
 ```
 
-Add your OpenAI key through **Settings > Providers > OpenAI**. The example declares `whisper-1` and `defaults.transcription`, so audio and video chat attachments route through here once a key is set. The end-user view lives at [Chat attachments](/platform/chat/attachments#audio-and-video-transcription).
-
-### Text-to-speech
-
-The bundled `examples/providers/openai-tts.json` declares `gpt-4o-mini-tts` and a default voice mapping, powering [Voice output](/platform/chat/voice-output) in the chat.
-
-```bash
-cp examples/providers/openai-tts.json $TALE_CONFIG_DIR/providers/
-```
-
-Add the OpenAI key via **Settings > Providers > openai-tts** and the chat header's voice toggle starts using the configured provider. Without this file, voice output silently falls back to the browser's built-in `speechSynthesis`.
+Add your OpenAI key once via **Settings > Providers > OpenAI**. The file declares both `whisper-1` (transcription) and `gpt-4o-mini-tts` (text-to-speech) along with `defaults` for each, so audio/video chat attachments route here for transcription and the chat header's [Voice output](/platform/chat/voice-output) toggle starts using OpenAI for synthesis. See [Chat attachments](/platform/chat/attachments#audio-and-video-transcription) for the end-user view. Without this file, voice output silently falls back to the browser's built-in `speechSynthesis`.
 
 TTS-specific fields on a model entry:
 

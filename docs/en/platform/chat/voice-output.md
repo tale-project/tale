@@ -22,7 +22,7 @@ Voice output narrates assistant replies in your interface language. It strips ma
 
 Voice output prefers a server-side text-to-speech provider for quality and consistency. When your organization has not configured one — or when synthesis fails — Tale automatically falls back to the browser's built-in `speechSynthesis` for that sentence. The fallback is per-chunk, so a transient provider error or codec mismatch on one sentence does not break the rest of the reply.
 
-When no provider is configured, the personalization page surfaces a link to **Settings → AI providers**, where an admin can add one. See [Configure a text-to-speech provider](/self-hosted/configuration/providers#text-to-speech) for the configuration shape.
+When no provider is configured, the personalization page surfaces a link to **Settings → AI providers**, where an admin can add one. See [Configure a text-to-speech provider](/self-hosted/configuration/providers#openai) for the configuration shape.
 
 ## Stopping and replaying
 

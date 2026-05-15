@@ -22,7 +22,7 @@ La sortie vocale narre les réponses de l'assistant dans la langue de ton interf
 
 La sortie vocale préfère un fournisseur de synthèse vocale côté serveur, pour la qualité et la cohérence. Si ton organisation n'en a pas configuré — ou si la synthèse échoue — Tale bascule automatiquement sur la `speechSynthesis` intégrée au navigateur pour cette phrase. Le repli est par chunk : une erreur passagère ou un problème de codec sur une phrase ne casse pas le reste de la réponse.
 
-Quand aucun fournisseur n'est configuré, la page Personnalisation affiche un lien vers **Paramètres → Fournisseurs d'IA**, où une personne admin peut en ajouter un. Voir [Configurer un fournisseur de synthèse vocale](/fr/self-hosted/configuration/providers#synth%C3%A8se-vocale) pour la forme de la configuration.
+Quand aucun fournisseur n'est configuré, la page Personnalisation affiche un lien vers **Paramètres → Fournisseurs d'IA**, où une personne admin peut en ajouter un. Voir [Configurer un fournisseur de synthèse vocale](/fr/self-hosted/configuration/providers#openai) pour la forme de la configuration.
 
 ## Arrêter et relire
 
