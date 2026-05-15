@@ -86,3 +86,7 @@ Both admin must-haves benefit from a local provider:
 - **404 on model** — model ID is case-sensitive and must match the name `ollama list` prints.
 - **Empty or very short answers** — default Ollama context window is small. Pull a larger-context variant or override `num_ctx` in the model's `Modelfile`.
 - **API key file format** — if you edit provider files directly, the API-key file must match the configured mode: SOPS-encrypted when `SOPS_AGE_KEY` is set, plaintext JSON otherwise. Setting the key via the UI writes the right form for you; see [Providers — Provider secrets storage](/self-hosted/configuration/providers#provider-secrets-storage).
+
+## Where this fits
+
+Connecting a local provider is the air-gap path: AI inference happens on hardware you control, with no traffic leaving the network. The provider config surfaces are documented exhaustively at [AI providers](/platform/admin/providers) (UI) and [Providers configuration](/self-hosted/configuration/providers) (config files). Once a local provider is wired, every other surface — agents, automations, chat — uses it the same way it would use a hosted provider; the difference is operational, not behavioural.

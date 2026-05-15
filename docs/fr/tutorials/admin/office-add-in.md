@@ -87,4 +87,8 @@ Si Office Agents ne convient pas, deux add-ins plus étroits suivent le même mo
 - **Excel seul** — [LLMExcel](https://github.com/liminityab/LLMExcel) (MIT).
 - **Word seul** — [gptlocalhost](https://gptlocalhost.com) / LocPilot.
 
-La configuration est identique : pointer sur `https://<ton-instance-tale>/api/v1` avec une clé `tale_...` et un slug d’agent en tant que modèle.
+La configuration est identique : pointer sur `https://<ton-instance-tale>/api/v1` avec une clé `tale_...` et un slug d'agent en tant que modèle.
+
+## Où ça s'inscrit
+
+Le tutoriel Office add-in montre comment router du trafic Microsoft 365 vers un agent Tale sans changer le workflow de l'utilisateur. La même surface API compatible OpenAI que l'add-in utilise est documentée à [Référence API](/fr/develop/api-reference) ; l'agent que l'add-in appelle se construit via [Créer un agent](/fr/platform/agents/create) ; la piste d'audit par conversation vit dans l'historique de chat exposé sous [Espace de travail](/fr/platform/workspace/conversations).

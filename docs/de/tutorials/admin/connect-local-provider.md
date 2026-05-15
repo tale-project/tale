@@ -86,3 +86,7 @@ Beide Admin-Muss-Tutorials profitieren von einem lokalen Anbieter:
 - **404 auf Modell** — Modell-ID ist case-sensitive und muss dem entsprechen, was `ollama list` ausgibt.
 - **Leere oder sehr kurze Antworten** — das Default-Kontextfenster von Ollama ist klein. Ziehe eine Variante mit größerem Kontext oder überschreibe `num_ctx` im `Modelfile` des Modells.
 - **API-Schlüsseldateiformat** — wenn du Anbieter-Dateien direkt editierst, muss die API-Schlüssel-Datei zum konfigurierten Modus passen: SOPS-verschlüsselt, wenn `SOPS_AGE_KEY` gesetzt ist, sonst Klartext-JSON. Den Schlüssel über die UI zu setzen schreibt für dich die richtige Form; siehe [KI-Anbieter — Speicherung der Anbieter-Secrets](/de/self-hosted/configuration/providers#speicherung-der-anbieter-secrets).
+
+## Wo das einsetzt
+
+Einen lokalen Anbieter anzuschließen ist der Air-Gap-Pfad: KI-Inferenz läuft auf Hardware, die du kontrollierst, ohne dass Traffic das Netzwerk verlässt. Die Anbieter-Konfigurations-Oberflächen sind unter [KI-Anbieter](/de/platform/admin/providers) (UI) und [Anbieter-Konfiguration](/de/self-hosted/configuration/providers) (Konfigurations-Dateien) erschöpfend dokumentiert. Sobald ein lokaler Anbieter verkabelt ist, nutzt jede andere Oberfläche — Agents, Automatisierungen, Chat — ihn auf dieselbe Weise wie einen gehosteten Anbieter; der Unterschied ist operativ, nicht verhaltensbezogen.

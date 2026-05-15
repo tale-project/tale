@@ -25,3 +25,7 @@ If a step assumes something not listed above, the tutorial spells it out in its 
 ## Working through a tutorial
 
 Tutorials are written to run in order, top to bottom, on a fresh instance. If you skip a section assuming you already have the prerequisite, double-check — the next step often depends on the exact field the skipped section configures. When something fails, the [Execution logs](/platform/automations/execution-logs) page (for automations) and the conversation history (for agents) usually carry enough context to diagnose without going back to the tutorial.
+
+## Where this fits
+
+Tutorials are the worked-example layer of the documentation. They take a real outcome — an Office add-in, an agent that summarises meetings, a script that hits the API — and walk every step needed to reach it. For the conceptual mental model behind each tutorial, the corresponding page under [Platform](/platform) is the reference; for the broader API and SDK surfaces the developer tutorials build on, [Develop](/develop/api-reference) is one tab over.

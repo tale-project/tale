@@ -88,3 +88,7 @@ If Office Agents does not fit, two narrower add-ins follow the same base-URL + A
 - **Word only** — [gptlocalhost](https://gptlocalhost.com) / LocPilot.
 
 Configuration is identical: point them at `https://<your-tale-instance>/api/v1` with a `tale_...` key and an agent slug as the model.
+
+## Where this fits
+
+The Office add-in tutorial shows how to route Microsoft 365 traffic to a Tale agent without changing the user's workflow. The same OpenAI-compatible API surface the add-in uses is documented at [API reference](/develop/api-reference); the agent the add-in calls is built via [Create an agent](/platform/agents/create); the per-conversation audit trail lives in the chat history surfaced under [Workspace](/platform/workspace/conversations).

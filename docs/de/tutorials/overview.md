@@ -25,3 +25,7 @@ Falls ein Schritt etwas voraussetzt, das nicht oben steht, führt das jeweilige 
 ## So arbeitest du ein Tutorial durch
 
 Tutorials sind so geschrieben, dass sie in Reihenfolge laufen, von oben nach unten, auf einer frischen Instanz. Wenn du einen Abschnitt überspringst in der Annahme, du habest die Voraussetzung schon — prüfe doppelt nach, denn der nächste Schritt hängt oft an genau dem Feld, das der übersprungene konfiguriert. Wenn etwas scheitert, tragen die Seite [Ausführungslogs](/de/platform/automations/execution-logs) (für Automatisierungen) und die Konversationshistorie (für Agents) meist genug Kontext, um ohne Rückkehr zum Tutorial zu diagnostizieren.
+
+## Wo das einsetzt
+
+Tutorials sind die Worked-Example-Schicht der Dokumentation. Sie nehmen ein echtes Ergebnis — ein Office-Add-in, einen Agent, der Meetings zusammenfasst, ein Skript, das die API trifft — und führen jeden nötigen Schritt durch. Für das konzeptionelle mentale Modell hinter jedem Tutorial ist die entsprechende Seite unter [Platform](/de/platform) die Referenz; für die breiteren API- und SDK-Oberflächen, auf denen die Entwickler-Tutorials aufbauen, ist [Develop](/de/develop/api-reference) einen Tab weiter.

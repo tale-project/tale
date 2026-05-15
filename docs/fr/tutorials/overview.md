@@ -25,3 +25,7 @@ Si une étape suppose autre chose que ce qui est listé ci-dessus, le tutoriel c
 ## Comment travailler un tutoriel
 
 Les tutoriels sont écrits pour s'exécuter dans l'ordre, du haut vers le bas, sur une instance fraîche. Si tu sautes une section en supposant que tu as déjà le prérequis, vérifie deux fois — l'étape suivante dépend souvent du champ exact que la section sautée configure. Quand quelque chose échoue, la page [Journaux d'exécution](/fr/platform/automations/execution-logs) (pour les automatisations) et l'historique de conversation (pour les agents) suffisent en général à diagnostiquer sans retourner au tutoriel.
+
+## Où ça s'inscrit
+
+Les tutoriels sont la couche d'exemples travaillés de la documentation. Ils prennent un résultat réel — un add-in Office, un agent qui résume des réunions, un script qui appelle l'API — et déroulent chaque étape nécessaire pour y arriver. Pour le modèle mental conceptuel derrière chaque tutoriel, la page correspondante sous [Platform](/fr/platform) est la référence ; pour les surfaces API et SDK plus larges sur lesquelles les tutoriels développeurs reposent, [Develop](/fr/develop/api-reference) est un onglet plus loin.
