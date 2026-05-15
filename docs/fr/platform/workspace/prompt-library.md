@@ -122,3 +122,9 @@ Les mutations sur les prompts sont rate-limitées par utilisateur pour que les o
 ## Suivi d’utilisation
 
 Chaque prompt suit combien de fois il a été utilisé. Le compteur est visible sur la carte et se met à jour à chaque insertion.
+
+## Où ça s'inscrit
+
+La Bibliothèque de prompts est la surface pour le texte réutilisable dans le composer du chat. Elle existe pour la même raison que le contrôle de version : le prompt que tu as écrit la semaine dernière — celui qui a enfin obtenu la bonne réponse — devrait être sauvegardé une fois et atteignable depuis chaque conversation, pas pêché dans une recherche d'historique de chat. Les portées personnelles sont pour les brouillons ; les portées d'équipe pour les workflows partagés ; les portées à l'échelle de l'organisation pour les modèles canoniques vers lesquels toute l'entreprise devrait se tourner.
+
+Pour les prompts qui changent le comportement de l'IA de manière durable plutôt que de simplement encadrer un message, édite les instructions de l'agent dans [Créer un agent](/fr/platform/agents/create) — les instructions sont le prompt qui tourne avant _chaque_ message d'une conversation d'agent, alors qu'un prompt de bibliothèque est le corps d'un seul message.

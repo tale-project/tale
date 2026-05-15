@@ -54,3 +54,9 @@ Les éditions utilisateur sont enregistrées comme nouvelle révision (`editKind
 ## Redimensionner
 
 Fais glisser le bord gauche du panneau pour le redimensionner. Largeur minimale : 320 px ; maximale : 900 px.
+
+## Où ça s'inscrit
+
+Canevas est l'atelier pour les artefacts générés par l'IA. Le chat est là où tu demandes ; Canevas est là où la sortie structurée de l'IA (une maquette HTML, un diagramme Mermaid, un extrait de code) prend sa forme persistante. Sans Canevas, chaque révision réémettrait le document entier dans le flux de chat ; avec Canevas, l'artefact a une identité stable que l'IA peut patcher en place d'un tour à l'autre.
+
+Pour déclencher un artefact, demande à l'IA quelque chose que Canevas peut rendre — un graphique, un diagramme, une petite page HTML, un brief Markdown. Pour modifier un artefact toi-même, ouvre l'éditeur de source et clique **Appliquer** ; l'IA voit la version éditée au tour suivant et peut patcher à partir de là.

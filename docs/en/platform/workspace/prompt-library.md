@@ -3,7 +3,9 @@ title: Prompt library
 description: Save, browse, and share reusable prompt templates across your organization.
 ---
 
-The Prompt Library is a shared collection of reusable prompt templates. Save prompts you use often, organize them by category and tags, and share them with your team or the entire organization. Every edit is captured in version history so you can compare and roll back without losing work.
+The Prompt library is a shared collection of reusable prompt templates. Save the prompts the team uses often, organise them by category and tags, and share them at the right scope (personal, team, or organisation-wide). Every edit is captured in version history so you can compare and roll back without losing work.
+
+This page covers the runtime — browsing, creating, scoping, versioning, restoring. The audience is any role in the product; visibility scopes determine what each role sees. The library is accessible from the composer toolbar in every chat.
 
 ## Browsing prompts
 
@@ -122,3 +124,9 @@ Mutations on prompts are rate-limited per user to keep bulk operations friendly.
 ## Usage tracking
 
 Each prompt tracks how many times it has been used. The usage count is displayed on the prompt card and updates each time someone inserts the prompt into a conversation.
+
+## Where this fits
+
+The Prompt library is the reusable-text surface for the chat composer. It exists for the same reason version control exists: the prompt you wrote last week, the one that finally got the right answer, should be saved once and reachable from every conversation — not pasted from a chat history search. Personal scopes are for drafts; team scopes are for shared workflows; organisation-wide scopes are for canonical templates the whole company should reach for.
+
+For prompts that change the AI's behaviour permanently rather than just framing one message, edit the agent's instructions at [Create an agent](/platform/agents/create) — the instructions are the prompt that runs before _every_ message in an agent's conversation, where a library prompt is the body of one message.

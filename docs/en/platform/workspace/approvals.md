@@ -35,3 +35,9 @@ Some approvals are interactive rather than simple approve/reject decisions:
 
 - **Human input requests** display a form with fields (text, dropdowns, yes/no) that a paused workflow needs you to fill in. Submit your response to resume the workflow.
 - **Location requests** ask for your browser location. Click **Share location** to grant access or deny the request.
+
+## Where this fits
+
+Approvals are the in-the-loop control surface. They exist because some actions — billing operations, mass email, production data writes — should not run autonomously even when the agent has the technical capability. The card pattern is the same whether the request comes from an [agent](/platform/agents/concepts) calling an integration's write operation, an [automation](/platform/automations/concepts) reaching a step gated for review, or an MCP server's tool flagged `requiresApproval: true`.
+
+To configure which integration operations require approval, see [Integrations overview](/platform/integrations/overview). To trigger an approval inside an automation step, see [Workflows](/platform/automations/workflows).

@@ -53,4 +53,10 @@ Chaque bloc est coloré :
 | Modifié  | Jaune   | `~`      | contenu changé, avec diffs en ligne mettant en évidence des mots précis. |
 | Contexte | Gris    | (espace) | texte environnant inchangé, pour référence.                              |
 
-Les blocs modifiés affichent des diffs en ligne quand c’est possible : les parties supprimées apparaissent comme `[-texte-]` et les ajouts comme `{+texte+}`. Si pas de diff en ligne, les anciennes et nouvelles versions apparaissent sur des lignes séparées.
+Les blocs modifiés affichent des diffs en ligne quand c'est possible : les parties supprimées apparaissent comme `[-texte-]` et les ajouts comme `{+texte+}`. Si pas de diff en ligne, les anciennes et nouvelles versions apparaissent sur des lignes séparées.
+
+## Où ça s'inscrit
+
+La comparaison de documents est la surface diff ciblée pour la base de connaissances. Elle existe parce que relire la révision d'un contrat, une mise à jour de politique ou un modèle rafraîchi ne tient pas dans le chat — l'œil a besoin des deux versions visibles à la fois, avec les changements en relief. Le diff est calculé et rendu dans le navigateur ; rien n'est envoyé à l'IA sauf si l'agent de chat est explicitement chargé de résumer le diff ensuite.
+
+Pour comparer deux versions du même document dans le temps, téléverse chaque version comme un fichier séparé dans la [base de connaissances](/fr/platform/workspace/knowledge-base) et lance une comparaison entre les deux.

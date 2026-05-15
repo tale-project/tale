@@ -53,4 +53,10 @@ Each change block is color-coded:
 | Modified | Yellow | `~`     | Content that changed, with inline diffs highlighting specific words |
 | Context  | Gray   | (space) | Unchanged surrounding text for reference                            |
 
+## Where this fits
+
+Document comparison is the targeted diff surface for the knowledge base. It exists because reviewing a contract revision, a policy update, or a refreshed template doesn't fit inside chat — the eye needs both versions visible at once, with the changes highlighted. The diff is computed and rendered in the browser; nothing is sent to the AI unless the chat agent is explicitly asked to summarise the diff afterwards.
+
+To compare two versions of the same document over time, upload each version as a separate file in the [knowledge base](/platform/workspace/knowledge-base) and run a comparison between them.
+
 Modified blocks show inline diffs when available: deleted portions appear as `[-text-]` and added portions as `{+text+}`. When inline diffs are not available, the old and new versions are shown on separate lines.

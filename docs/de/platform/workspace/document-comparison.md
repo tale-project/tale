@@ -54,3 +54,9 @@ Jeder Änderungsblock ist farbcodiert:
 | Kontext     | Grau  | (Leerzeichen) | Unveränderter umgebender Text als Referenz.                             |
 
 Geänderte Blöcke zeigen Inline-Diffs, wenn möglich: gelöschte Teile erscheinen als `[-Text-]` und hinzugefügte als `{+Text+}`. Wenn Inline-Diffs nicht möglich sind, werden alte und neue Version auf getrennten Zeilen angezeigt.
+
+## Wo das einsetzt
+
+Der Dokumentenvergleich ist die zielgerichtete Diff-Oberfläche für die Wissensdatenbank. Er existiert, weil das Review einer Vertragsrevision, eines Richtlinien-Updates oder einer aufgefrischten Vorlage nicht in den Chat passt — das Auge braucht beide Versionen gleichzeitig sichtbar, mit den Änderungen hervorgehoben. Der Diff wird im Browser berechnet und gerendert; nichts geht zusätzlich an die KI, ausser der Chat-Agent wird explizit gebeten, den Diff zusammenzufassen.
+
+Um zwei Versionen desselben Dokuments über die Zeit zu vergleichen, lade jede Version als separate Datei in die [Wissensdatenbank](/de/platform/workspace/knowledge-base) hoch und führ einen Vergleich zwischen ihnen aus.

@@ -35,3 +35,9 @@ Manche Freigaben sind interaktiv statt nur zu bestätigen oder abzulehnen:
 
 - **Human-Input-Anfragen** zeigen ein Formular mit Feldern (Text, Dropdowns, Ja/Nein), das ein pausierter Workflow von dir ausgefüllt haben will. Mit dem Abschicken setzt sich der Workflow fort.
 - **Location-Anfragen** fragen nach deiner Browser-Position. Klicke **Standort teilen**, um den Zugriff zu erlauben, oder lehne die Anfrage ab.
+
+## Wo das einsetzt
+
+Genehmigungen sind die Mensch-in-der-Schleife-Kontrolloberfläche. Sie existieren, weil manche Aktionen — Abrechnungs-Operationen, Massen-E-Mails, Produktivdaten-Schreibvorgänge — auch dann nicht autonom laufen sollten, wenn der Agent die technische Fähigkeit dazu hat. Das Karten-Muster ist dasselbe, egal ob die Anfrage von einem [Agent](/de/platform/agents/concepts) stammt, der eine Schreib-Operation einer Integration aufruft, von einer [Automatisierung](/de/platform/automations/concepts), die einen für Review gesperrten Schritt erreicht, oder von einem MCP-Server-Tool mit `requiresApproval: true`.
+
+Um zu konfigurieren, welche Integrationen-Operationen Genehmigung brauchen, siehe [Integrationen – Überblick](/de/platform/integrations/overview). Um eine Genehmigung in einem Automatisierungs-Schritt auszulösen, siehe [Workflows](/de/platform/automations/workflows).

@@ -35,3 +35,9 @@ Certaines approbations sont interactives plutôt que de simples Approuver/Rejete
 
 - **Demandes d’input humain** affichent un formulaire (textes, menus déroulants, oui/non) que le workflow en pause demande à remplir. Soumets ta réponse pour reprendre.
 - **Demandes de localisation** sollicitent ta position navigateur. Clique **Partager la position** pour autoriser ou refuse.
+
+## Où ça s'inscrit
+
+Les approbations sont la surface de contrôle humain-dans-la-boucle. Elles existent parce que certaines actions — opérations de facturation, envois massifs d'e-mails, écritures sur données de production — ne devraient pas tourner en autonomie même quand l'agent en a la capacité technique. Le motif de carte est le même que la demande vienne d'un [agent](/fr/platform/agents/concepts) appelant une opération d'écriture d'une intégration, d'une [automatisation](/fr/platform/automations/concepts) atteignant une étape verrouillée pour relecture, ou d'un outil de serveur MCP marqué `requiresApproval: true`.
+
+Pour configurer quelles opérations d'intégration exigent une approbation, voir [Intégrations — aperçu](/fr/platform/integrations/overview). Pour déclencher une approbation dans une étape d'automatisation, voir [Workflows](/fr/platform/automations/workflows).

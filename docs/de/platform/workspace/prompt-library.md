@@ -122,3 +122,9 @@ Mutationen auf Prompts sind pro Nutzer rate-limitiert, damit Bulk-Operationen fr
 ## Nutzungs-Zähler
 
 Jeder Prompt verfolgt, wie oft er benutzt wurde. Der Nutzungs-Zähler wird auf der Prompt-Karte angezeigt und aktualisiert sich, sobald jemand den Prompt in eine Konversation einfügt.
+
+## Wo das einsetzt
+
+Die Prompt-Bibliothek ist die Oberfläche für wiederverwendbaren Text im Chat-Composer. Sie existiert aus dem gleichen Grund wie Versionskontrolle: der Prompt, den du letzte Woche geschrieben hast — der endlich die richtige Antwort brachte — sollte einmal gespeichert und aus jeder Konversation erreichbar sein, nicht aus einer Chat-Verlauf-Suche herausgekramt. Persönliche Scopes sind für Entwürfe; Team-Scopes für gemeinsame Arbeitsabläufe; organisationsweite Scopes für kanonische Vorlagen, zu denen die ganze Firma greifen soll.
+
+Für Prompts, die das KI-Verhalten dauerhaft ändern statt nur eine Nachricht rahmen, bearbeite die Anweisungen des Agents unter [Agent erstellen](/de/platform/agents/create) — die Anweisungen sind der Prompt, der vor _jeder_ Nachricht in einer Agent-Konversation läuft, während ein Bibliotheks-Prompt der Körper einer einzelnen Nachricht ist.

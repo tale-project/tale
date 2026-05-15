@@ -54,3 +54,9 @@ User edits are recorded as a new revision (`editKind: 'user'`) so the artifact's
 ## Resizing
 
 Drag the left edge of the Canvas pane to resize it. The pane has a minimum width of 320 pixels and a maximum of 900 pixels.
+
+## Where this fits
+
+Canvas is the workshop pane for AI-generated artifacts. Chat is where you ask; Canvas is where the AI's structured output (an HTML mock-up, a Mermaid diagram, a code snippet) takes its persistent form. Without Canvas, every revision would re-emit the full document into the chat stream; with Canvas, the artifact has a stable identity that the AI can patch in place across turns.
+
+To trigger an artifact, ask the AI for something Canvas can render — a chart, a diagram, a small HTML page, a Markdown brief. To revise an artifact yourself, open the source editor and click **Apply**; the AI sees the edited version on the next turn and can patch from there.

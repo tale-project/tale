@@ -54,3 +54,9 @@ Nutzer-Bearbeitungen werden als neue Revision (`editKind: 'user'`) gespeichert, 
 ## Größe ändern
 
 Ziehe am linken Rand des Canvas-Bereichs, um ihn zu verkleinern oder zu vergrößern. Die Mindestbreite beträgt 320 Pixel, die Höchstbreite 900 Pixel.
+
+## Wo das einsetzt
+
+Canvas ist die Werkstatt-Oberfläche für KI-erzeugte Artefakte. Chat ist, wo du fragst; Canvas ist, wo die strukturierte Ausgabe der KI (ein HTML-Mockup, ein Mermaid-Diagramm, ein Code-Snippet) ihre persistente Form annimmt. Ohne Canvas müsste jede Revision das ganze Dokument neu in den Chat-Stream emittieren; mit Canvas hat das Artefakt eine stabile Identität, die die KI über Runden hinweg an Ort und Stelle patchen kann.
+
+Um ein Artefakt auszulösen, frag die KI nach etwas, das Canvas rendern kann — ein Chart, ein Diagramm, eine kleine HTML-Seite, ein Markdown-Briefing. Um ein Artefakt selbst zu überarbeiten, öffne den Quelltext-Editor und klicke **Anwenden**; die KI sieht die bearbeitete Version im nächsten Schritt und kann von dort weiter patchen.
