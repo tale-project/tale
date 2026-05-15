@@ -13,6 +13,7 @@ WORKDIR /app
 
 COPY package.json bun.lock bunfig.toml ./
 COPY packages/i18n/package.json ./packages/i18n/
+COPY packages/pii/package.json ./packages/pii/
 COPY packages/tale_knowledge/package.json ./packages/tale_knowledge/
 COPY packages/tale_shared/package.json ./packages/tale_shared/
 COPY packages/tale_telemetry/package.json ./packages/tale_telemetry/
