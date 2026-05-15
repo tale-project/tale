@@ -228,6 +228,11 @@ COPY --from=pruner --chown=app:app \
      ./
 COPY --from=pruner --chown=app:app /app/services/platform/convex ./convex
 COPY --from=pruner --chown=app:app /app/services/platform/lib ./lib
+# @tale/pii is the only workspace package reached by `bunx convex deploy`'s
+# bundler at runtime (via convex/governance/* and lib/shared/schemas/governance.ts).
+# Its node_modules entry is a hoisted symlink to ../packages/pii, so the source
+# tree must exist at /app/packages/pii for resolution to succeed.
+COPY --from=pruner --chown=app:app /app/packages/pii ./packages/pii
 COPY --from=pruner --chown=app:app /app/node_modules ./node_modules
 COPY --from=pruner --chown=app:app /app/services/platform/package.json ./
 COPY --from=pruner --chown=app:app /app/services/platform/docker-entrypoint.sh /app/services/platform/generate-admin-key.sh /app/services/platform/reset-owner.sh /app/services/platform/reset-owner.ts /app/services/platform/env.sh ./
