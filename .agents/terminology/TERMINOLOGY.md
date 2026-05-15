@@ -137,7 +137,16 @@ Error messages tell the reader **what happened** and **what to do next**. Same s
 - Name the field or action that failed when it's not obvious from context.
 - Link to recovery if recovery is non-trivial — but most errors don't need a link.
 
-The pattern table — EN, DE, FR forms side by side for the common error shapes — lives at `errorMessagePatterns` in [`GLOSSARY.json`](GLOSSARY.json).
+Common patterns, EN / DE / FR side by side:
+
+| Pattern                     | English                                   | German                                                | French                                           |
+| --------------------------- | ----------------------------------------- | ----------------------------------------------------- | ------------------------------------------------ |
+| Missing required field      | `Enter a valid email address.`            | `Gib eine gültige E-Mail-Adresse ein.`                | `Saisis une adresse de courriel valide.`         |
+| Auth failure                | `Wrong email or password.`                | `Falsche E-Mail oder falsches Passwort.`              | `Adresse de courriel ou mot de passe incorrect.` |
+| Network failure (transient) | `Couldn't reach the server. Try again.`   | `Der Server ist nicht erreichbar. Versuch es erneut.` | `Le serveur est injoignable. Réessaie.`          |
+| Permission denied           | `You don't have permission to do that.`   | `Du hast nicht die nötige Berechtigung.`              | `Tu n'as pas la permission de faire ça.`         |
+| Validation (format)         | `Use letters, numbers, and dashes only.`  | `Nur Buchstaben, Zahlen und Bindestriche.`            | `Lettres, chiffres et tirets uniquement.`        |
+| Quota exceeded              | `You've reached the limit for this plan.` | `Du hast das Limit dieses Plans erreicht.`            | `Tu as atteint la limite de ce plan.`            |
 
 ---
 
@@ -148,7 +157,7 @@ The pattern table — EN, DE, FR forms side by side for the common error shapes 
 - Use `p. ex.` and `c.-à-d.` in French equivalents.
 - Expand an abbreviation on first use in long-form docs (`personally identifiable information (PII)` / `personenbezogene Daten (PII)` / `informations personnelles identifiables (PII)`). In UI labels, assume the reader knows the term from context.
 
-The closed per-locale form list lives at `abbreviations.<locale>` in [`GLOSSARY.json`](GLOSSARY.json).
+The full per-locale list lives in [`GLOSSARY.json`](GLOSSARY.json) under `terms[]` where `category === "abbreviation"`.
 
 ---
 
@@ -247,22 +256,10 @@ The markdown renderer generates heading anchors from slugified heading text. Whe
 
 ## Where things live
 
-This file is doctrine. Concrete words live in [`GLOSSARY.json`](GLOSSARY.json) under:
+The contract is split across three surfaces:
 
-- `enToLocale.<locale>` — UI-label mappings consumed by [`terminology.test.ts`](../../services/docs/tests/terminology.test.ts).
-- `formalPronouns.<locale>` — formal pronouns to flag; consumed by the same test.
-- `translateBucket.<locale>` — Bucket 3 translations enforced by [`loanword.test.ts`](../../services/docs/tests/loanword.test.ts).
-- `establishedLoanwords.<locale>` — Bucket 2 (documentation; absence from `translateBucket` is what keeps them un-flagged).
-- `gitDomainLoanwords.<locale>` — Bucket 2a developer/Git vocabulary.
-- `alwaysEnglish.{brands,acronyms,codeIdentifiers}` — Bucket 1.
-- `roleNames.matrix` — six-role EN/DE/FR mapping.
-- `productVocabulary.{features,knowledgeEntities,technicalVocab,actionVerbs,deploymentVocab}` — canonical concrete forms.
-- `marketingSofteners.<locale>` — closed strike list per locale.
-- `antiPatternExamples.<locale>.<patternKey>` — drift→target pairs for every anti-pattern named in the doctrine.
-- `toastConventions.<locale>` — toast pattern and example list.
-- `errorMessagePatterns` — per-pattern translations.
-- `abbreviations.<locale>` — closed abbreviation form list.
-- `styleConventions.<locale>` — date / number / quote / currency machine-readable rules.
-- `nounGenders.de` — closed noun-gender map for [`grammar-de.test.ts`](../../services/docs/tests/grammar-de.test.ts).
-- `antiPatterns.{shared,de,fr}` — named-anti-pattern catalogue with test-binding metadata.
-- `deCH` — the Swiss override block.
+- **Doctrine + illustrative tables** — `TERMINOLOGY*.md` in this directory. Voice rules, anti-pattern descriptions, drift→target pairs, marketing-softener strike lists, toast conventions, error-message patterns (above), per-locale style rules, and `de-CH` overrides. Read this when you want to understand a rule.
+- **Term lookups** — [`GLOSSARY.json`](GLOSSARY.json), a single flat `terms[]` array with entries of shape `{ key, category, en, de?, fr?, de_ch?, _lintExclude?, _note? }`. Filter by `category` to find features, knowledgeEntities, technicalVocab, actionVerbs, deploymentVocab, role, brand, acronym, codeIdentifier, loanword, gitDomain, translateBucket, or abbreviation. Read this when you want the canonical form of a specific word.
+- **Test inputs** — TypeScript modules under [`services/docs/tests/data/`](../../services/docs/tests/data/). Closed lists the tests consume directly: `formal-pronouns.ts` (the `Sie/vous` denylist consumed by [`terminology.test.ts`](../../services/docs/tests/terminology.test.ts)) and `noun-genders-de.ts` (consumed by [`grammar-de.test.ts`](../../services/docs/tests/grammar-de.test.ts)).
+
+When this doctrine and the glossary disagree, the glossary wins for words; the doctrine wins for rules. When the glossary and the shipped UI disagree, the UI wins — update the glossary in the same PR.

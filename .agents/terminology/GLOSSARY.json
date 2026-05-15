@@ -1,8 +1,6 @@
 {
-  "_note": "Machine-readable projection of the terminology contract. The Markdown files in this directory (TERMINOLOGY*.md) hold the doctrine — voice rules, anti-pattern descriptions, principles. This JSON holds every concrete word, every translation pair, every closed list the doctrine refers to.\n\nFlat structure: every term is one entry in `terms[]` with shape { key, category, en, de?, fr?, de_ch?, _note? }. Locale fields are optional; the loader applies the fallback chain de_ch → de → en and fr → en.\n\nNon-term data (formal-pronoun lists, noun-gender map, style conventions, anti-pattern drift examples, error-message patterns, toast conventions, deCH overrides) stays as separate top-level sections because their shapes don't match the flat term entry.\n\nConsumed by services/docs/tests/. See `_categories` for the meaning of each term's `category` field.",
-
+  "_note": "Machine-readable projection of the term contract. Holds only the flat `terms[]` list and its meta. Test-data lists (formal pronouns, noun-gender map) live in `services/docs/tests/data/` as TypeScript modules. Doctrine that uses tables for illustration (style conventions, marketing softeners, anti-pattern drift→target pairs, toast conventions, error-message patterns, deCH overrides) lives in the TERMINOLOGY*.md files alongside this JSON. The split: term lookup → here; test inputs → tests/data/; doctrine + reference tables → MD.",
   "_fallbackRules": "Each term entry has a required `en` field. Optional locale fields override: `de_ch` falls back to `de`, which falls back to `en`; `fr` falls back to `en`. A term with only `en` set (no `de`, `fr`, `de_ch`) is used unchanged in every locale — typical of brands, acronyms, code identifiers, and established loanwords (`Workflow`, `Dashboard`, `Webhook`).",
-
   "_categories": {
     "brand": "Brand and product names (Tale, Convex, OpenRouter, GitHub). Always English everywhere.",
     "acronym": "Initialisms (AI, LLM, API, MCP). Some have native expansions (AI → KI/IA); the abbreviation itself usually stays English.",
@@ -18,44 +16,162 @@
     "translateBucket": "Bucket 3 — must translate. `de` and `fr` differ from `en`; EN form is rejected in DE/FR prose by `loanword.test.ts`.",
     "abbreviation": "Shorthand forms used in tooltips and tight UI (e.g., z. B., p. ex.). `_note` carries the expansion."
   },
-
   "terms": [
-    { "key": "brand_tale", "category": "brand", "en": "Tale" },
-    { "key": "brand_convex", "category": "brand", "en": "Convex" },
-    { "key": "brand_openrouter", "category": "brand", "en": "OpenRouter" },
-    { "key": "brand_claude", "category": "brand", "en": "Claude" },
-    { "key": "brand_openai", "category": "brand", "en": "OpenAI" },
-    { "key": "brand_anthropic", "category": "brand", "en": "Anthropic" },
-    { "key": "brand_google", "category": "brand", "en": "Google" },
-    { "key": "brand_mistral", "category": "brand", "en": "Mistral" },
-    { "key": "brand_meta", "category": "brand", "en": "Meta" },
-    { "key": "brand_deepseek", "category": "brand", "en": "DeepSeek" },
-    { "key": "brand_moonshot", "category": "brand", "en": "Moonshot" },
-    { "key": "brand_qwen", "category": "brand", "en": "Qwen" },
-    { "key": "brand_github", "category": "brand", "en": "GitHub" },
-    { "key": "brand_slack", "category": "brand", "en": "Slack" },
-    { "key": "brand_gmail", "category": "brand", "en": "Gmail" },
-    { "key": "brand_outlook", "category": "brand", "en": "Outlook" },
-    { "key": "brand_shopify", "category": "brand", "en": "Shopify" },
-    { "key": "brand_microsoft", "category": "brand", "en": "Microsoft" },
-    { "key": "brand_docker", "category": "brand", "en": "Docker" },
-    { "key": "brand_kubernetes", "category": "brand", "en": "Kubernetes" },
-    { "key": "brand_prometheus", "category": "brand", "en": "Prometheus" },
-    { "key": "brand_grafana", "category": "brand", "en": "Grafana" },
-    { "key": "brand_ollama", "category": "brand", "en": "Ollama" },
-    { "key": "brand_vllm", "category": "brand", "en": "vLLM" },
-    { "key": "brand_localai", "category": "brand", "en": "LocalAI" },
-    { "key": "brand_authelia", "category": "brand", "en": "Authelia" },
-    { "key": "brand_authentik", "category": "brand", "en": "Authentik" },
-    { "key": "brand_oauth2proxy", "category": "brand", "en": "oauth2-proxy" },
-    { "key": "brand_meetily", "category": "brand", "en": "Meetily" },
-    { "key": "brand_sentry", "category": "brand", "en": "Sentry" },
+    {
+      "key": "brand_tale",
+      "category": "brand",
+      "en": "Tale"
+    },
+    {
+      "key": "brand_convex",
+      "category": "brand",
+      "en": "Convex"
+    },
+    {
+      "key": "brand_openrouter",
+      "category": "brand",
+      "en": "OpenRouter"
+    },
+    {
+      "key": "brand_claude",
+      "category": "brand",
+      "en": "Claude"
+    },
+    {
+      "key": "brand_openai",
+      "category": "brand",
+      "en": "OpenAI"
+    },
+    {
+      "key": "brand_anthropic",
+      "category": "brand",
+      "en": "Anthropic"
+    },
+    {
+      "key": "brand_google",
+      "category": "brand",
+      "en": "Google"
+    },
+    {
+      "key": "brand_mistral",
+      "category": "brand",
+      "en": "Mistral"
+    },
+    {
+      "key": "brand_meta",
+      "category": "brand",
+      "en": "Meta"
+    },
+    {
+      "key": "brand_deepseek",
+      "category": "brand",
+      "en": "DeepSeek"
+    },
+    {
+      "key": "brand_moonshot",
+      "category": "brand",
+      "en": "Moonshot"
+    },
+    {
+      "key": "brand_qwen",
+      "category": "brand",
+      "en": "Qwen"
+    },
+    {
+      "key": "brand_github",
+      "category": "brand",
+      "en": "GitHub"
+    },
+    {
+      "key": "brand_slack",
+      "category": "brand",
+      "en": "Slack"
+    },
+    {
+      "key": "brand_gmail",
+      "category": "brand",
+      "en": "Gmail"
+    },
+    {
+      "key": "brand_outlook",
+      "category": "brand",
+      "en": "Outlook"
+    },
+    {
+      "key": "brand_shopify",
+      "category": "brand",
+      "en": "Shopify"
+    },
+    {
+      "key": "brand_microsoft",
+      "category": "brand",
+      "en": "Microsoft"
+    },
+    {
+      "key": "brand_docker",
+      "category": "brand",
+      "en": "Docker"
+    },
+    {
+      "key": "brand_kubernetes",
+      "category": "brand",
+      "en": "Kubernetes"
+    },
+    {
+      "key": "brand_prometheus",
+      "category": "brand",
+      "en": "Prometheus"
+    },
+    {
+      "key": "brand_grafana",
+      "category": "brand",
+      "en": "Grafana"
+    },
+    {
+      "key": "brand_ollama",
+      "category": "brand",
+      "en": "Ollama"
+    },
+    {
+      "key": "brand_vllm",
+      "category": "brand",
+      "en": "vLLM"
+    },
+    {
+      "key": "brand_localai",
+      "category": "brand",
+      "en": "LocalAI"
+    },
+    {
+      "key": "brand_authelia",
+      "category": "brand",
+      "en": "Authelia"
+    },
+    {
+      "key": "brand_authentik",
+      "category": "brand",
+      "en": "Authentik"
+    },
+    {
+      "key": "brand_oauth2proxy",
+      "category": "brand",
+      "en": "oauth2-proxy"
+    },
+    {
+      "key": "brand_meetily",
+      "category": "brand",
+      "en": "Meetily"
+    },
+    {
+      "key": "brand_sentry",
+      "category": "brand",
+      "en": "Sentry"
+    },
     {
       "key": "brand_dockerCompose",
       "category": "brand",
       "en": "Docker Compose"
     },
-
     {
       "key": "acronym_ai",
       "category": "acronym",
@@ -64,17 +180,37 @@
       "fr": "IA",
       "_note": "Künstliche Intelligenz / Intelligence artificielle. The acronym itself stays in its native form per locale."
     },
-    { "key": "acronym_llm", "category": "acronym", "en": "LLM" },
-    { "key": "acronym_api", "category": "acronym", "en": "API" },
+    {
+      "key": "acronym_llm",
+      "category": "acronym",
+      "en": "LLM"
+    },
+    {
+      "key": "acronym_api",
+      "category": "acronym",
+      "en": "API"
+    },
     {
       "key": "acronym_mcp",
       "category": "acronym",
       "en": "MCP",
       "_note": "Model Context Protocol. Expand on first use per page."
     },
-    { "key": "acronym_rag", "category": "acronym", "en": "RAG" },
-    { "key": "acronym_oidc", "category": "acronym", "en": "OIDC" },
-    { "key": "acronym_saml", "category": "acronym", "en": "SAML" },
+    {
+      "key": "acronym_rag",
+      "category": "acronym",
+      "en": "RAG"
+    },
+    {
+      "key": "acronym_oidc",
+      "category": "acronym",
+      "en": "OIDC"
+    },
+    {
+      "key": "acronym_saml",
+      "category": "acronym",
+      "en": "SAML"
+    },
     {
       "key": "acronym_pii",
       "category": "acronym",
@@ -82,30 +218,121 @@
       "fr": "DCP",
       "_note": "personally identifiable information / personenbezogene Daten / données à caractère personnel. Expand on first use."
     },
-    { "key": "acronym_sops", "category": "acronym", "en": "SOPS" },
-    { "key": "acronym_tls", "category": "acronym", "en": "TLS" },
-    { "key": "acronym_ssl", "category": "acronym", "en": "SSL" },
-    { "key": "acronym_url", "category": "acronym", "en": "URL" },
-    { "key": "acronym_uri", "category": "acronym", "en": "URI" },
-    { "key": "acronym_http", "category": "acronym", "en": "HTTP" },
-    { "key": "acronym_https", "category": "acronym", "en": "HTTPS" },
-    { "key": "acronym_json", "category": "acronym", "en": "JSON" },
-    { "key": "acronym_yaml", "category": "acronym", "en": "YAML" },
-    { "key": "acronym_xml", "category": "acronym", "en": "XML" },
-    { "key": "acronym_sql", "category": "acronym", "en": "SQL" },
-    { "key": "acronym_cli", "category": "acronym", "en": "CLI" },
-    { "key": "acronym_sdk", "category": "acronym", "en": "SDK" },
-    { "key": "acronym_ide", "category": "acronym", "en": "IDE" },
-    { "key": "acronym_ci", "category": "acronym", "en": "CI" },
-    { "key": "acronym_cd", "category": "acronym", "en": "CD" },
-    { "key": "acronym_saas", "category": "acronym", "en": "SaaS" },
-    { "key": "acronym_vpc", "category": "acronym", "en": "VPC" },
-    { "key": "acronym_rbac", "category": "acronym", "en": "RBAC" },
-    { "key": "acronym_2fa", "category": "acronym", "en": "2FA" },
-    { "key": "acronym_mfa", "category": "acronym", "en": "MFA" },
-    { "key": "acronym_sso", "category": "acronym", "en": "SSO" },
-    { "key": "acronym_totp", "category": "acronym", "en": "TOTP" },
-
+    {
+      "key": "acronym_sops",
+      "category": "acronym",
+      "en": "SOPS"
+    },
+    {
+      "key": "acronym_tls",
+      "category": "acronym",
+      "en": "TLS"
+    },
+    {
+      "key": "acronym_ssl",
+      "category": "acronym",
+      "en": "SSL"
+    },
+    {
+      "key": "acronym_url",
+      "category": "acronym",
+      "en": "URL"
+    },
+    {
+      "key": "acronym_uri",
+      "category": "acronym",
+      "en": "URI"
+    },
+    {
+      "key": "acronym_http",
+      "category": "acronym",
+      "en": "HTTP"
+    },
+    {
+      "key": "acronym_https",
+      "category": "acronym",
+      "en": "HTTPS"
+    },
+    {
+      "key": "acronym_json",
+      "category": "acronym",
+      "en": "JSON"
+    },
+    {
+      "key": "acronym_yaml",
+      "category": "acronym",
+      "en": "YAML"
+    },
+    {
+      "key": "acronym_xml",
+      "category": "acronym",
+      "en": "XML"
+    },
+    {
+      "key": "acronym_sql",
+      "category": "acronym",
+      "en": "SQL"
+    },
+    {
+      "key": "acronym_cli",
+      "category": "acronym",
+      "en": "CLI"
+    },
+    {
+      "key": "acronym_sdk",
+      "category": "acronym",
+      "en": "SDK"
+    },
+    {
+      "key": "acronym_ide",
+      "category": "acronym",
+      "en": "IDE"
+    },
+    {
+      "key": "acronym_ci",
+      "category": "acronym",
+      "en": "CI"
+    },
+    {
+      "key": "acronym_cd",
+      "category": "acronym",
+      "en": "CD"
+    },
+    {
+      "key": "acronym_saas",
+      "category": "acronym",
+      "en": "SaaS"
+    },
+    {
+      "key": "acronym_vpc",
+      "category": "acronym",
+      "en": "VPC"
+    },
+    {
+      "key": "acronym_rbac",
+      "category": "acronym",
+      "en": "RBAC"
+    },
+    {
+      "key": "acronym_2fa",
+      "category": "acronym",
+      "en": "2FA"
+    },
+    {
+      "key": "acronym_mfa",
+      "category": "acronym",
+      "en": "MFA"
+    },
+    {
+      "key": "acronym_sso",
+      "category": "acronym",
+      "en": "SSO"
+    },
+    {
+      "key": "acronym_totp",
+      "category": "acronym",
+      "en": "TOTP"
+    },
     {
       "key": "role_owner",
       "category": "role",
@@ -120,7 +347,11 @@
       "de": "Inhaber",
       "fr": "Propriétaires"
     },
-    { "key": "role_admin", "category": "role", "en": "Admin" },
+    {
+      "key": "role_admin",
+      "category": "role",
+      "en": "Admin"
+    },
     {
       "key": "role_developer",
       "category": "role",
@@ -174,7 +405,6 @@
       "de": "Deaktiviert",
       "fr": "Désactivé"
     },
-
     {
       "key": "feature_agent",
       "category": "feature",
@@ -410,7 +640,6 @@
       "fr": "Indicateur de fonctionnalité",
       "_note": "Hyphenated in DE."
     },
-
     {
       "key": "entity_website",
       "category": "knowledgeEntity",
@@ -495,7 +724,6 @@
       "de": "Ordner",
       "fr": "Dossier"
     },
-
     {
       "key": "tech_token",
       "category": "technicalVocab",
@@ -745,7 +973,6 @@
       "de": "Vordergrund",
       "fr": "Premier plan"
     },
-
     {
       "key": "verb_save",
       "category": "actionVerb",
@@ -939,7 +1166,6 @@
       "fr": "Configurer",
       "_note": "Verb. Noun: `Setup` (EN/DE). FR: `Installer` also acceptable."
     },
-
     {
       "key": "deploy_selfHosted",
       "category": "translateBucket",
@@ -1011,7 +1237,6 @@
       "en": "Branding",
       "_note": "Loanword across locales."
     },
-
     {
       "key": "loan_workflow",
       "category": "loanword",
@@ -1042,8 +1267,16 @@
       "en": "Prompt",
       "_note": "Standard term for AI-prompt input."
     },
-    { "key": "loan_token", "category": "loanword", "en": "Token" },
-    { "key": "loan_server", "category": "loanword", "en": "Server" },
+    {
+      "key": "loan_token",
+      "category": "loanword",
+      "en": "Token"
+    },
+    {
+      "key": "loan_server",
+      "category": "loanword",
+      "en": "Server"
+    },
     {
       "key": "loan_canvas",
       "category": "loanword",
@@ -1075,14 +1308,17 @@
       "en": "Tool",
       "_note": "In product context (`an agent's tools`), `Tool` is the industry term. Use `Werkzeug` / `outil` only in metaphors."
     },
-    { "key": "loan_pipeline", "category": "loanword", "en": "Pipeline" },
+    {
+      "key": "loan_pipeline",
+      "category": "loanword",
+      "en": "Pipeline"
+    },
     {
       "key": "loan_team",
       "category": "loanword",
       "en": "Team",
       "fr": "Équipe"
     },
-
     {
       "key": "git_pullRequest",
       "category": "gitDomain",
@@ -1184,7 +1420,6 @@
       "en": "main",
       "_note": "The default branch name. Don't translate."
     },
-
     {
       "key": "abbr_eg",
       "category": "abbreviation",
@@ -1202,864 +1437,6 @@
       "_note": "that is / das heißt / c'est-à-dire."
     }
   ],
-
-  "formalPronouns": {
-    "_note": "Words that signal the wrong politeness form. Consumed by services/docs/tests/terminology.test.ts (hard-fail). Sentence-initial `Sie` in DE is heuristically allowed because it can be the capitalised third-person plural `sie`.",
-    "de": ["Sie", "Ihnen", "Ihre", "Ihrer", "Ihres", "Ihrem"],
-    "fr": ["vous", "votre", "vos", "Vous", "Votre", "Vos"]
-  },
-
-  "nounGenders": {
-    "_note": "Closed list of high-frequency Tale nouns with their grammatical gender. Consumed by services/docs/tests/grammar-de.test.ts (warn-only) to flag article/adjective gender disagreement. Codes: m = masculine, f = feminine, n = neuter. Add a noun here only after verifying with Duden; ambiguous-gender words (e.g. Code Review) are deliberately omitted.",
-    "de": {
-      "Agent": "m",
-      "Anbieter": "m",
-      "Anfrage": "f",
-      "Anweisung": "f",
-      "Anhang": "m",
-      "Antwort": "f",
-      "Aufbewahrung": "f",
-      "Ausführung": "f",
-      "Berechtigung": "f",
-      "Commit": "m",
-      "Datenbank": "f",
-      "Datei": "f",
-      "Dokument": "n",
-      "Eingabe": "f",
-      "Einstellung": "f",
-      "E-Mail": "f",
-      "Endpoint": "m",
-      "Entwurf": "m",
-      "Genehmigung": "f",
-      "Integration": "f",
-      "Konfiguration": "f",
-      "Konversation": "f",
-      "Kunde": "m",
-      "Lieferant": "m",
-      "Lookup": "m",
-      "Mitglied": "n",
-      "Modell": "n",
-      "Nachricht": "f",
-      "Nutzer": "m",
-      "Ordner": "m",
-      "Plan": "m",
-      "Pipeline": "f",
-      "Produkt": "n",
-      "Provider": "m",
-      "Repository": "n",
-      "Schlüssel": "m",
-      "Schritt": "m",
-      "Server": "m",
-      "Team": "n",
-      "Token": "n",
-      "Tool": "n",
-      "Trigger": "m",
-      "Übersicht": "f",
-      "Vorschau": "f",
-      "Warnung": "f",
-      "Webhook": "m",
-      "Website": "f",
-      "Workflow": "m",
-      "Wissensdatenbank": "f",
-      "Zertifizierung": "f",
-      "Zugriff": "m"
-    }
-  },
-
-  "styleConventions": {
-    "_note": "Per-locale machine-readable formatting rules. Available for future linters and formatters; not currently consumed by tests.",
-    "en": {
-      "pronoun": "you",
-      "quotes": "\"text\"",
-      "apostrophe": "'",
-      "decimalSeparator": ".",
-      "thousandsSeparator": ",",
-      "dateProse": "YYYY-MM-DD or `Month D, YYYY`",
-      "dateCode": "YYYY-MM-DD",
-      "timeProse": "12-hour, lowercase am/pm",
-      "timeCode": "24-hour",
-      "nbspBeforePunctuation": false
-    },
-    "de": {
-      "pronoun": "du",
-      "quotes": "„text\"",
-      "apostrophe": "'",
-      "decimalSeparator": ",",
-      "thousandsSeparator": ". or narrow non-breaking space",
-      "dateProse": "DD.MM.YYYY",
-      "dateCode": "YYYY-MM-DD",
-      "timeProse": "24-hour, 09:00",
-      "timeCode": "24-hour",
-      "nbspBeforePunctuation": false,
-      "compoundHyphenation": "for English loanwords and abbreviations only",
-      "specialCharacter": "ß (use ss in de_ch)"
-    },
-    "de_ch": {
-      "pronoun": "du",
-      "quotes": "«text» or „text\"",
-      "apostrophe": "'",
-      "decimalSeparator": ".",
-      "thousandsSeparator": "' (apostrophe)",
-      "dateProse": "DD.MM.YYYY",
-      "dateCode": "YYYY-MM-DD",
-      "timeProse": "24-hour, 09:00",
-      "timeCode": "24-hour",
-      "specialCharacter": "ss only (no ß)",
-      "currency": "CHF"
-    },
-    "fr": {
-      "pronoun": "tu",
-      "quotes": "« text »",
-      "apostrophe": "' (typographic in docs prose, ASCII in JSON)",
-      "decimalSeparator": ",",
-      "thousandsSeparator": " (narrow non-breaking space)",
-      "dateProse": "DD/MM/YYYY",
-      "dateCode": "YYYY-MM-DD",
-      "timeProse": "24-hour, 09 h 00",
-      "timeCode": "24-hour",
-      "nbspBeforePunctuation": "before :;!?% and inside guillemets"
-    }
-  },
-
-  "marketingSofteners": {
-    "_note": "Words and phrases that mark marketing softening. Strike on sight. The `strike` form is the bad word/phrase; the `fix` field names the replacement (or `delete` when the imperative carries the meaning).",
-    "en": [
-      {
-        "strike": "simply",
-        "fix": "(delete; describe the step without softening)"
-      },
-      {
-        "strike": "easy",
-        "fix": "(delete; let the demonstration carry the claim)"
-      },
-      {
-        "strike": "powerful",
-        "fix": "(delete or replace with concrete capability)"
-      },
-      {
-        "strike": "seamless",
-        "fix": "(delete; describe the missing-step that makes it seamless)"
-      },
-      { "strike": "just", "fix": "(delete)" },
-      { "strike": "please", "fix": "(delete; imperative does the work)" },
-      { "strike": "feel free to", "fix": "(delete)" },
-      {
-        "strike": "discover",
-        "fix": "(replace with `see`, `read`, or `open`)"
-      },
-      { "strike": "unleash", "fix": "(delete)" },
-      { "strike": "effortlessly", "fix": "(delete)" },
-      {
-        "strike": "straightforward",
-        "fix": "(delete; the demonstration shows it)"
-      },
-      {
-        "strike": "intuitive",
-        "fix": "(delete; let the screenshot or walkthrough carry the claim)"
-      }
-    ],
-    "de": [
-      { "strike": "einfach", "fix": "(delete; the demonstration carries it)" },
-      { "strike": "ganz einfach", "fix": "(delete)" },
-      { "strike": "mühelos", "fix": "(delete)" },
-      {
-        "strike": "bequem",
-        "fix": "(delete or describe what makes it convenient)"
-      },
-      { "strike": "praktisch", "fix": "(delete)" },
-      {
-        "strike": "leistungsstark",
-        "fix": "(delete or replace with a concrete capability)"
-      },
-      { "strike": "intuitiv", "fix": "(delete; the screenshot shows it)" },
-      {
-        "strike": "nahtlos",
-        "fix": "(delete; describe the missing-step that makes it seamless)"
-      },
-      { "strike": "bitte", "fix": "(delete; imperative does the work)" },
-      {
-        "strike": "Entdecke",
-        "fix": "(replace with Lies, Öffne, Sieh dir … an)"
-      },
-      {
-        "strike": "Erlebe",
-        "fix": "(delete or replace with the concrete action)"
-      },
-      {
-        "strike": "du wirst sehen, dass",
-        "fix": "(delete; let the reader see)"
-      }
-    ],
-    "fr": [
-      {
-        "strike": "Découvre / Découvrez",
-        "fix": "(replace with Lis, Ouvre, Va voir)"
-      },
-      {
-        "strike": "N'hésite pas à / N'hésitez pas à",
-        "fix": "(delete; imperative does the work)"
-      },
-      { "strike": "tout simplement", "fix": "(delete)" },
-      {
-        "strike": "il te suffit de / il vous suffit de",
-        "fix": "(delete; replace with the imperative)"
-      },
-      { "strike": "simplement", "fix": "(delete)" },
-      { "strike": "facilement", "fix": "(delete)" },
-      { "strike": "en toute simplicité", "fix": "(delete)" },
-      {
-        "strike": "puissant",
-        "fix": "(delete or replace with concrete capability)"
-      },
-      {
-        "strike": "clé en main",
-        "fix": "(delete; describe what's pre-configured)"
-      },
-      {
-        "strike": "profite / profitez de",
-        "fix": "(delete; the demonstration carries it)"
-      },
-      { "strike": "bénéficie / bénéficiez de", "fix": "(delete)" },
-      {
-        "strike": "s'il te plaît / s'il vous plaît",
-        "fix": "(delete; imperative does the work)"
-      }
-    ]
-  },
-
-  "antiPatternExamples": {
-    "_note": "Concrete drift → target pairs for each named anti-pattern. The anti-pattern entries in `antiPatterns` name and describe the failure; this section holds the example pairs reviewers and writers can scan. Format: { drift, target, why? }.",
-    "en": {
-      "firstPersonWe": [
-        {
-          "drift": "We recommend you click Save.",
-          "target": "Click Save. The provider is reachable from agents on the next request."
-        }
-      ],
-      "royalItIs": [
-        { "drift": "It is important to note that…", "target": "(delete)" },
-        {
-          "drift": "It is recommended to run tale deploy.",
-          "target": "Run tale deploy."
-        }
-      ],
-      "nakedCommand": [
-        {
-          "drift": "Click Save.",
-          "target": "Click Save. The provider is reachable from agents on the next request."
-        }
-      ],
-      "hypeSentence": [
-        {
-          "drift": "Tale's powerful automation engine lets you simply discover the seamless way to build workflows.",
-          "target": "Tale's automation engine runs multi-step workflows on schedules, events, and webhooks."
-        }
-      ],
-      "capitalisationDrift": [
-        { "drift": "Knowledge Base", "target": "Knowledge base" },
-        { "drift": "Prompt Library", "target": "Prompt library" },
-        { "drift": "Todo List", "target": "Research plan" }
-      ]
-    },
-    "de": {
-      "passivePresent": [
-        {
-          "drift": "Wird gespeichert…",
-          "target": "Speichert…",
-          "why": "Passive present hides the agent (the system) and adds three characters."
-        },
-        { "drift": "Wird geladen…", "target": "Lädt…" },
-        { "drift": "Wird gelöscht…", "target": "Lösche… or Löscht…" },
-        {
-          "drift": "Wird hinzugefügt…",
-          "target": "Füge hinzu… or Fügt hinzu…"
-        },
-        { "drift": "Wird erstellt…", "target": "Erstellt…" },
-        { "drift": "Wird aktualisiert…", "target": "Aktualisiert…" },
-        { "drift": "Wird gesendet…", "target": "Sende…" },
-        { "drift": "Wird hochgeladen…", "target": "Lade hoch…" },
-        { "drift": "Wird verarbeitet…", "target": "Verarbeite…" }
-      ],
-      "erfolgreichSuffix": [
-        {
-          "drift": "Mitglied erfolgreich aktualisiert",
-          "target": "Mitglied aktualisiert",
-          "why": "The toast is the success signal; erfolgreich is redundant."
-        },
-        {
-          "drift": "Änderungen erfolgreich gespeichert",
-          "target": "Änderungen gespeichert"
-        },
-        { "drift": "Erfolgreich gelöscht", "target": "Gelöscht" },
-        {
-          "drift": "Datei erfolgreich hochgeladen",
-          "target": "Datei hochgeladen"
-        },
-        {
-          "drift": "Profil erfolgreich aktualisiert",
-          "target": "Profil aktualisiert"
-        },
-        {
-          "drift": "{count} Elemente erfolgreich gelöscht",
-          "target": "{count} Elemente gelöscht"
-        }
-      ],
-      "damitOpener": [
-        {
-          "drift": "Damit werden Agents, Workflows und Anbieter entfernt.",
-          "target": "Entfernt Agents, Workflows und Anbieter."
-        },
-        {
-          "drift": "Damit kannst du die Konversation fortsetzen.",
-          "target": "So setzt du die Konversation fort. (or: Setzt du …)"
-        }
-      ],
-      "compoundStack": [
-        {
-          "drift": "Organisationsmitgliederzugriffsverwaltung",
-          "target": "Zugriff auf die Mitglieder der Organisation verwalten"
-        },
-        {
-          "drift": "Workflow-Schritt-Status-Aktualisierungs-Event",
-          "target": "Statusänderung eines Workflow-Schritts"
-        },
-        {
-          "drift": "Kundendokumentablageverzeichnis",
-          "target": "Ablageverzeichnis für Kundendokumente"
-        }
-      ],
-      "calquedIdioms": [
-        {
-          "drift": "Veröffentlichte Zertifizierungsgeschichte",
-          "target": "Veröffentlichte Zertifizierungen",
-          "why": "EN: `Published certification story`."
-        },
-        {
-          "drift": "Vertrauenshaltung",
-          "target": "Unsere Zertifizierungen or Sicherheitslage",
-          "why": "EN: `Trust posture`."
-        },
-        {
-          "drift": "Operative Seite",
-          "target": "Der Betrieb",
-          "why": "EN: `Operational surface`."
-        },
-        {
-          "drift": "Nutzerreise",
-          "target": "Ablauf or Nutzerablauf",
-          "why": "EN: `User journey`."
-        },
-        {
-          "drift": "Datengeschichte",
-          "target": "Daten or Datenverlauf",
-          "why": "EN: `Data story`."
-        },
-        {
-          "drift": "Verkaufsbewegung",
-          "target": "Vertriebsprozess or restructure",
-          "why": "EN: `Sales motion`."
-        },
-        {
-          "drift": "In der Schleife",
-          "target": "Eingebunden",
-          "why": "EN: `In the loop`."
-        },
-        {
-          "drift": "Aus der Box",
-          "target": "Sofort einsatzbereit or describe what's pre-configured",
-          "why": "EN: `Out of the box`."
-        }
-      ],
-      "englishMidSentence": [
-        {
-          "drift": "Öffne den Header der Tabelle.",
-          "target": "Öffne die Kopfzeile der Tabelle."
-        },
-        {
-          "drift": "Ein Beispiel-Workflow für Sales Research.",
-          "target": "Ein Beispiel-Workflow für die Vertriebs-Recherche."
-        },
-        {
-          "drift": "Schicke deinen Request an die API.",
-          "target": "Schicke deine Anfrage an die API."
-        },
-        {
-          "drift": "Konfiguriere den Email-Provider.",
-          "target": "Konfiguriere den E-Mail-Anbieter."
-        },
-        {
-          "drift": "Dieser Agent kümmert sich um Billing-Fragen.",
-          "target": "Dieser Agent kümmert sich um Abrechnungsfragen."
-        },
-        {
-          "drift": "Du kannst die Workflow als Self-hosted laufen lassen.",
-          "target": "Du kannst den Workflow selbst gehostet laufen lassen."
-        },
-        { "drift": "Lade den Draft hoch.", "target": "Lade den Entwurf hoch." },
-        {
-          "drift": "Hänge das Attachment an.",
-          "target": "Hänge den Anhang an."
-        }
-      ],
-      "sieSlips": [
-        {
-          "drift": "Vier Entscheidungen: Sie halten überall.",
-          "target": "Vier Entscheidungen — dieselben Knöpfe halten überall."
-        },
-        {
-          "drift": "Bitte beachten Sie:",
-          "target": "Beachte: (or drop entirely)"
-        },
-        {
-          "drift": "Wenden Sie sich an den Support.",
-          "target": "Wende dich an den Support."
-        }
-      ],
-      "lazyCapitalisation": [
-        { "drift": "email", "target": "E-Mail" },
-        { "drift": "pdf", "target": "PDF" },
-        { "drift": "api", "target": "API" },
-        {
-          "drift": "self-Hosted",
-          "target": "selbst gehostet (in prose) or Self-Hosted (as proper noun)"
-        },
-        { "drift": "selbst Gehostet", "target": "selbst gehostet" }
-      ],
-      "halfTranslatedCompound": [
-        { "drift": "Pull Anfrage", "target": "Pull Request (keep English)" },
-        {
-          "drift": "Code Review-Prozess",
-          "target": "Code Review (drop `-Prozess`)"
-        },
-        {
-          "drift": "Merge-Anfrage",
-          "target": "Pull Request or merge anfragen (verb)"
-        },
-        { "drift": "Branch-Zweig", "target": "Branch" },
-        {
-          "drift": "Knowledge-Datenbank",
-          "target": "Wissensdatenbank (full native compound)"
-        }
-      ],
-      "genderSlip": [
-        {
-          "drift": "einen einmaligen Warnung",
-          "target": "eine einmalige Warnung",
-          "why": "Warnung is feminine — eine einmalige (fem) not einen einmaligen (masc acc)."
-        },
-        {
-          "drift": "dem Anfrage",
-          "target": "der Anfrage",
-          "why": "Anfrage is feminine — der (dat fem) not dem (dat masc/neut)."
-        },
-        {
-          "drift": "einen Konversation",
-          "target": "eine Konversation",
-          "why": "Konversation is feminine."
-        }
-      ]
-    },
-    "fr": {
-      "marketingSoftening": [
-        {
-          "drift": "Découvre comment configurer un agent en toute simplicité.",
-          "target": "Configure un agent."
-        },
-        {
-          "drift": "N'hésite pas à téléverser tes documents.",
-          "target": "Téléverse les documents pertinents."
-        },
-        {
-          "drift": "Il te suffit de cliquer sur **Sauvegarder** pour valider.",
-          "target": "Clique sur **Enregistrer**."
-        },
-        {
-          "drift": "Profite d'une intégration clé en main avec ton fournisseur IA.",
-          "target": "Ajoute un Fournisseur IA et choisis le modèle."
-        },
-        {
-          "drift": "Bénéficie de la puissance de Tale.",
-          "target": "(delete; describe what Tale does)"
-        },
-        { "drift": "Tale te permet simplement de…", "target": "Tale fait X." }
-      ],
-      "stackedNominalPhrases": [
-        {
-          "drift": "Une solution clé en main pour la gestion documentaire intégrée multilingue.",
-          "target": "Une solution qui gère les documents dans plusieurs langues."
-        },
-        {
-          "drift": "Le système de notification d'événements de workflow par webhook personnalisable.",
-          "target": "Des notifications de workflow par webhook, configurables."
-        },
-        {
-          "drift": "L'interface de configuration des règles de routage des fournisseurs.",
-          "target": "L'interface qui configure le routage entre fournisseurs."
-        }
-      ],
-      "vousSlips": [
-        {
-          "drift": "Vous pouvez configurer…",
-          "target": "Tu peux configurer… or Configure…"
-        },
-        {
-          "drift": "N'oubliez pas de…",
-          "target": "N'oublie pas de… or restructure"
-        },
-        { "drift": "Veuillez patienter", "target": "Patiente or Chargement…" },
-        { "drift": "Contactez le support", "target": "Contacte le support" }
-      ],
-      "calquedIdioms": [
-        {
-          "drift": "Histoire de certifications publiée",
-          "target": "Nos certifications publiques",
-          "why": "EN: `Published certification story`."
-        },
-        {
-          "drift": "Posture de confiance",
-          "target": "Nos certifications or Notre posture sécurité",
-          "why": "EN: `Trust posture`."
-        },
-        {
-          "drift": "Surface opérationnelle",
-          "target": "L'exploitation",
-          "why": "EN: `Operational surface`."
-        },
-        {
-          "drift": "Histoire de données",
-          "target": "Données or Trajet des données",
-          "why": "EN: `Data story`."
-        },
-        {
-          "drift": "Dans la boucle",
-          "target": "Impliqué or Au courant",
-          "why": "EN: `In the loop`."
-        }
-      ],
-      "englishMidSentence": [
-        {
-          "drift": "Ouvre le Header du tableau.",
-          "target": "Ouvre l'en-tête du tableau."
-        },
-        {
-          "drift": "Un workflow d'exemple pour Sales Research.",
-          "target": "Un workflow d'exemple pour la recherche commerciale."
-        },
-        {
-          "drift": "Envoie ton Request à l'API.",
-          "target": "Envoie ta requête à l'API."
-        },
-        {
-          "drift": "Configure ton Email Provider.",
-          "target": "Configure ton fournisseur de courriel."
-        },
-        {
-          "drift": "Cet agent gère les questions Billing.",
-          "target": "Cet agent gère les questions de facturation."
-        },
-        {
-          "drift": "Tu peux faire tourner le workflow en Self-hosted.",
-          "target": "Tu peux faire tourner le workflow en auto-hébergé."
-        },
-        { "drift": "Téléverse le Draft.", "target": "Téléverse le brouillon." },
-        {
-          "drift": "Ajoute l'Attachment.",
-          "target": "Ajoute la pièce jointe."
-        },
-        {
-          "drift": "L'équipe Engineering.",
-          "target": "L'équipe d'ingénierie. (job-title contexts may keep `Engineering`)"
-        }
-      ],
-      "lazyCapitalisation": [
-        {
-          "drift": "chat avec L'IA",
-          "target": "Chat avec l'IA (l'IA lowercase with typographic apostrophe)"
-        },
-        {
-          "drift": "dans Le knowledge…",
-          "target": "dans la base de connaissances"
-        },
-        {
-          "drift": "Webhook D'agent",
-          "target": "webhook d'agent or Webhook d'agent (capitalise only first letter)"
-        }
-      ],
-      "wrongApostrophe": [
-        {
-          "drift": "ASCII ' in docs prose: l'équipe",
-          "target": "Typographic ' in docs prose: l'équipe"
-        },
-        {
-          "drift": "Typographic ' in fr.json: l'équipe",
-          "target": "ASCII ' in fr.json: l'équipe"
-        }
-      ],
-      "halfTranslatedCompound": [
-        { "drift": "Pull Demande", "target": "Pull Request (keep English)" },
-        {
-          "drift": "Code Review-Processus",
-          "target": "Code Review (drop `-Processus`)"
-        },
-        { "drift": "Demande de fusion", "target": "Pull Request" },
-        {
-          "drift": "Branche-fork",
-          "target": "Branch or Fork — never both halves"
-        }
-      ]
-    }
-  },
-
-  "toastConventions": {
-    "_note": "State-change confirmation toasts. Past tense / past participle, no period, the noun comes first. Strike the success adverb — the toast IS the success signal.",
-    "en": {
-      "shape": "<Noun> <verb-ed>",
-      "strikeAdverbs": ["Successfully", "successfully"],
-      "examples": [
-        { "shape": "<Noun> <verb-ed>", "example": "Agent saved" },
-        { "shape": "<Noun> <verb-ed>", "example": "Provider deleted" },
-        { "shape": "<Noun> <verb-ed>", "example": "Workflow published" }
-      ]
-    },
-    "de": {
-      "shape": "<Noun> <past-participle>",
-      "strikeAdverbs": ["erfolgreich"],
-      "examples": [
-        { "shape": "<Noun> <past-participle>", "example": "Agent gespeichert" },
-        { "shape": "<Noun> <past-participle>", "example": "Anbieter gelöscht" },
-        {
-          "shape": "<Noun> <past-participle>",
-          "example": "Workflow veröffentlicht"
-        }
-      ]
-    },
-    "fr": {
-      "shape": "<Noun> <past-participle, agreeing>",
-      "strikeAdverbs": ["avec succès"],
-      "examples": [
-        { "shape": "<Noun> <past-participle>", "example": "Agent enregistré" },
-        {
-          "shape": "<Noun> <past-participle>",
-          "example": "Fournisseur supprimé"
-        },
-        { "shape": "<Noun> <past-participle>", "example": "Workflow publié" },
-        {
-          "shape": "<Noun> <past-participle (e)>",
-          "example": "Approbation acceptée (feminine)"
-        }
-      ]
-    }
-  },
-
-  "errorMessagePatterns": [
-    {
-      "pattern": "Missing required field",
-      "en": "Enter a valid email address.",
-      "de": "Gib eine gültige E-Mail-Adresse ein.",
-      "fr": "Saisis une adresse de courriel valide."
-    },
-    {
-      "pattern": "Auth failure",
-      "en": "Wrong email or password.",
-      "de": "Falsche E-Mail oder falsches Passwort.",
-      "fr": "Adresse de courriel ou mot de passe incorrect."
-    },
-    {
-      "pattern": "Network failure (transient)",
-      "en": "Couldn't reach the server. Try again.",
-      "de": "Der Server ist nicht erreichbar. Versuch es erneut.",
-      "fr": "Le serveur est injoignable. Réessaie."
-    },
-    {
-      "pattern": "Permission denied",
-      "en": "You don't have permission to do that.",
-      "de": "Du hast nicht die nötige Berechtigung.",
-      "fr": "Tu n'as pas la permission de faire ça."
-    },
-    {
-      "pattern": "Validation (format)",
-      "en": "Use letters, numbers, and dashes only.",
-      "de": "Nur Buchstaben, Zahlen und Bindestriche.",
-      "fr": "Lettres, chiffres et tirets uniquement."
-    },
-    {
-      "pattern": "Quota exceeded",
-      "en": "You've reached the limit for this plan.",
-      "de": "Du hast das Limit dieses Plans erreicht.",
-      "fr": "Tu as atteint la limite de ce plan."
-    }
-  ],
-
-  "antiPatterns": {
-    "_note": "Named patterns the test suite enforces or that reviewers flag on sight. Documented here for cross-reference; the test logic lives in services/docs/tests/.",
-    "shared": [
-      {
-        "name": "Stub Closing",
-        "test": "closing-paragraph.test.ts",
-        "fix": "Rename closing section; replace bare link list with recap paragraph + contextualised link."
-      },
-      {
-        "name": "Naked List",
-        "test": null,
-        "fix": "Add prose paragraph before list; the heading owns a paragraph, not a list."
-      },
-      {
-        "name": "Marketing Drift",
-        "test": null,
-        "fix": "Strike the marketing softener (simply, easy, powerful, seamless, discover, …)."
-      },
-      {
-        "name": "Status Chatter",
-        "test": null,
-        "fix": "Delete `Updated:`, `New in v1.6:`, `TODO:`, `Note that…`."
-      },
-      {
-        "name": "Stub Page",
-        "test": null,
-        "fix": "Merge with parent or expand."
-      },
-      {
-        "name": "Half-Translated Compound",
-        "test": "review (terminology.test.ts where the half is a known UI-bucket term)",
-        "fix": "Translate the whole compound or keep the whole English form. Never one of each."
-      }
-    ],
-    "de": [
-      {
-        "name": "Passive present (Wird X…)",
-        "test": null,
-        "fix": "Use active verb: Speichert… not Wird gespeichert…"
-      },
-      {
-        "name": "Sentence-final erfolgreich",
-        "test": null,
-        "fix": "Strike erfolgreich from confirmation toasts."
-      },
-      {
-        "name": "Damit-Opener",
-        "test": null,
-        "fix": "Verb-first construction: Entfernt… not Damit werden…"
-      },
-      {
-        "name": "Compound Stack",
-        "test": null,
-        "fix": "Split compounds longer than three roots."
-      },
-      {
-        "name": "Sie-Slip",
-        "test": "terminology.test.ts (formalPronouns)",
-        "fix": "Rewrite to du-form."
-      },
-      {
-        "name": "English noun in prose",
-        "test": "terminology.test.ts (translateBucket)",
-        "fix": "Use the native term from the relevant `terms` entry."
-      },
-      {
-        "name": "Gender Slip",
-        "test": "grammar-de.test.ts (warn-only)",
-        "fix": "Make the article/adjective agree with the noun's gender from `nounGenders.de`."
-      },
-      {
-        "name": "ß/ss mix in base German",
-        "test": null,
-        "fix": "Base German (docs/de/) uses ß. Swiss German (docs/de-CH/) uses ss exclusively. Mixing inside one locale is a bug."
-      }
-    ],
-    "fr": [
-      {
-        "name": "Marketing softening",
-        "test": null,
-        "fix": "Strike Découvre, N'hésite pas à, tout simplement, il te suffit de, clé en main, profite/bénéficie."
-      },
-      {
-        "name": "Stacked nominal phrase",
-        "test": null,
-        "fix": "Replace de-de-de chains with relative clause."
-      },
-      {
-        "name": "Vous-Slip",
-        "test": "terminology.test.ts (formalPronouns)",
-        "fix": "Rewrite to tu-form."
-      },
-      {
-        "name": "English noun in prose",
-        "test": "terminology.test.ts (translateBucket)",
-        "fix": "Use the native term from the relevant `terms` entry."
-      },
-      {
-        "name": "Wrong apostrophe in fr.json",
-        "test": null,
-        "fix": "ASCII ' in JSON; typographic ' only in docs prose."
-      },
-      {
-        "name": "Missing NBSP before colon",
-        "test": null,
-        "fix": "Insert U+00A0 before :;!?% in prose; preserve in JSON."
-      }
-    ]
-  },
-
-  "deCH": {
-    "_note": "Swiss German (de-CH) overrides on top of the German base. Sparse — only what differs. Mechanics: ß → ss substitution everywhere; period as decimal separator; apostrophe as thousands separator; CHF currency.",
-    "spellingDeltas": [
-      { "de": "Straße", "de_ch": "Strasse" },
-      { "de": "Fuß", "de_ch": "Fuss" },
-      { "de": "außerdem", "de_ch": "ausserdem" },
-      { "de": "heißt", "de_ch": "heisst" },
-      { "de": "groß", "de_ch": "gross" },
-      { "de": "schließen", "de_ch": "schliessen" },
-      { "de": "Standardmäßig", "de_ch": "Standardmässig" },
-      { "de": "gemäß", "de_ch": "gemäss" }
-    ],
-    "lexicalOverrides": [
-      {
-        "de": "Bürgersteig",
-        "de_ch": "Trottoir",
-        "whenToOverride": "Unlikely in Tale content"
-      },
-      {
-        "de": "Geldbörse / Brieftasche",
-        "de_ch": "Portemonnaie",
-        "whenToOverride": "Unlikely in Tale content"
-      },
-      {
-        "de": "parken",
-        "de_ch": "parkieren",
-        "whenToOverride": "Rarely applicable"
-      },
-      { "de": "Fußball", "de_ch": "Fussball", "whenToOverride": "ß → ss" }
-    ],
-    "numberFormatting": {
-      "decimalSeparator": ".",
-      "thousandsSeparator": "' (apostrophe)",
-      "currency": "CHF",
-      "currencyPlacement": "before value (CHF 100, not 100 CHF)"
-    },
-    "legalAuthorities": [
-      {
-        "name": "EDÖB",
-        "expansion": "Eidgenössischer Datenschutz- und Öffentlichkeitsbeauftragter",
-        "scope": "Swiss federal data-protection authority"
-      },
-      {
-        "name": "LPD / FADP / DSG",
-        "expansion": "Loi sur la protection des données / Federal Act on Data Protection / Bundesgesetz über den Datenschutz",
-        "scope": "Swiss data-protection act"
-      }
-    ],
-    "doNotOverride": [
-      "Product feature names (Workflow, Dashboard, Canvas, Prompt-Bibliothek)",
-      "Role names (Inhaber, Admin, Entwickler, Redakteur, Mitglied, Deaktiviert)",
-      "Code, command output, environment variable names, CLI flags",
-      "API endpoints, JSON keys, error codes",
-      "External brand names (Tale, Convex, OpenRouter, GitHub)",
-      "Anything inside a code fence",
-      "Translate-bucket terms (Kopfzeile, Anfrage, Anbieter, E-Mail, Hilfe-Center, Abrechnung, Vertriebs-Recherche, Entwurf, Anhang, selbst gehostet)",
-      "Voice rules — du, active verbs, no marketing softening, no sentence-final erfolgreich"
-    ]
-  },
-
-  "version": "4.0.0",
-  "_versionNote": "v4.0.0 — flat `terms[]` structure. Every concrete word lives as one entry with shape { key, category, en, de?, fr?, de_ch?, _note? } and the fallback chain de_ch → de → en, fr → en. Replaces v3's nested productVocabulary / enToLocale / establishedLoanwords / gitDomainLoanwords / alwaysEnglish / roleNames / translateBucket sections. Non-term data (formalPronouns, nounGenders, styleConventions, marketingSofteners, antiPatternExamples, toastConventions, errorMessagePatterns, antiPatterns, deCH) stays as separate sections because their shapes don't match the term entry."
+  "version": "5.0.0",
+  "_versionNote": "v5.0.0 — slim glossary. The JSON holds only term lookup data (terms[]) and category metadata. Test-data lists (formalPronouns, nounGenders) moved to services/docs/tests/data/*.ts; doctrine tables (styleConventions, marketingSofteners, antiPatternExamples, toastConventions, errorMessagePatterns, antiPatterns, deCH) moved back into the TERMINOLOGY*.md files."
 }

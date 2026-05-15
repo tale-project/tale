@@ -71,25 +71,25 @@ These checks fail when the repo is structurally inconsistent — they're the gua
 
 ## The terminology layer (per-locale)
 
-These checks fail when a translated page contradicts the shipped UI or uses the wrong pronoun. They read [`.agents/terminology/GLOSSARY.json`](../terminology/GLOSSARY.json) as their source of truth.
+These checks fail when a translated page contradicts the shipped UI or uses the wrong pronoun. They read [`.agents/terminology/GLOSSARY.json`](../terminology/GLOSSARY.json) (the flat `terms[]` array) and the test-data modules under [`services/docs/tests/data/`](../../services/docs/tests/data/).
 
 ### `terminology.test.ts`
 
 **What it checks.** Two passes over every DE / FR / `de-CH` page:
 
-1. **Formal-pronoun pass.** Rejects `Sie`/`Ihnen`/`Ihre`/`Ihrer`/`Ihres`/`Ihrem` in German and `vous`/`votre`/`vos` in French. (Sentence-initial `Sie` in DE is heuristically allowed because it's often the third-person plural `sie` capitalised — but in practice you should restructure to avoid the ambiguity.)
-2. **UI-term pass.** Rejects English forms from `enToLocale[locale]` where the entry isn't a loanword. Example: `Customers` in a `docs/de/**` page is rejected (the shipped UI says `Kunden`); `Workflow` in a `docs/de/**` page is not flagged (it's an established loanword).
+1. **Formal-pronoun pass.** Rejects `Sie`/`Ihnen`/`Ihre`/`Ihrer`/`Ihres`/`Ihrem` in German and `vous`/`votre`/`vos` in French — sourced from [`tests/data/formal-pronouns.ts`](../../services/docs/tests/data/formal-pronouns.ts). Sentence-initial `Sie` in DE is heuristically allowed because it's often the third-person plural `sie` capitalised; restructure to avoid the ambiguity anyway.
+2. **UI-term pass.** Iterates the `terms[]` array in [`GLOSSARY.json`](../terminology/GLOSSARY.json) and rejects the English form when (a) the entry's `category` is in the enforced set (`feature`, `role`, `knowledgeEntity`, `translateBucket`), (b) the resolved locale form differs from `en`, and (c) the entry doesn't carry `_lintExclude` for this locale. Example: `Customers` in a `docs/de/**` page is rejected (the shipped UI says `Kunden`); `Workflow` is not flagged (`category: "loanword"`, same form in all locales).
 
 **What it catches.** Pronoun slips. UI-label drift between docs and the shipped product. Half-translated sentences (`Öffne **Settings > Members**`).
 
 **How to fix.**
 
 - Pronoun slip: rewrite to the informal form. Read [`TERMINOLOGY_DE.md`](../terminology/TERMINOLOGY_DE.md) §1 or [`TERMINOLOGY_FR.md`](../terminology/TERMINOLOGY_FR.md) §1 for the voice rule.
-- UI-label drift: replace the English noun with the locale's UI form. Grep `services/platform/messages/<locale>.json` for the source of truth. If the UI form has changed, update the terminology files and `GLOSSARY.json` in the same PR.
+- UI-label drift: replace the English noun with the locale form. Grep `services/platform/messages/<locale>.json` for the source of truth. If the UI form has changed, update the relevant `terms[]` entry in `GLOSSARY.json` in the same PR.
 
 ### `loanword.test.ts`
 
-**What it checks.** For every term in [`GLOSSARY.json`](../terminology/GLOSSARY.json) where the locale value differs from `en` (the Bucket-3 translate-must set), the test rejects the English form appearing in the page body (outside code fences, inline-code spans, and link URLs).
+**What it checks.** Narrower variant of `terminology.test.ts`, scoped to `category === "translateBucket"` in [`GLOSSARY.json`](../terminology/GLOSSARY.json). For each Bucket-3 entry, the test rejects the English form appearing in DE/FR/de-CH page bodies (outside code fences, inline-code spans, and link URLs). Useful for the sharper, narrower error message.
 
 **What it catches.** The most common translation failure mode — leaving an English noun in DE/FR prose when a clean native equivalent exists. `Schicke deinen Request an die API.` → bug; should be `Anfrage`. `Configure ton Email Provider.` → bug; should be `fournisseur de courriel`.
 
@@ -97,11 +97,11 @@ These checks fail when a translated page contradicts the shipped UI or uses the 
 
 ### `grammar-de.test.ts` (warn-only)
 
-**What it checks.** Indefinite-article gender agreement for the closed list of high-frequency Tale nouns at `nounGenders.de` in [`GLOSSARY.json`](../terminology/GLOSSARY.json). For each noun with a known gender, the test scans for `einen`/`eine`/`einem`/`einer`/`eines` (with up to two adjectives in between) and flags mismatches.
+**What it checks.** Indefinite-article gender agreement for the closed list of high-frequency Tale nouns at [`tests/data/noun-genders-de.ts`](../../services/docs/tests/data/noun-genders-de.ts). For each noun with a known gender, the test scans for `einen`/`eine`/`einem`/`einer`/`eines` (with up to two adjectives in between) and flags mismatches.
 
 **What it catches.** The class of error the audit caught: `einen einmaligen Warnung` (masculine accusative on a feminine noun) → should be `eine einmalige Warnung`. `dem Anfrage` → should be `der Anfrage`. `einen Konversation` → should be `eine Konversation`.
 
-**How to fix.** Consult the noun-gender map at `nounGenders.de` and rewrite the article + adjective endings to agree. Definite-article cases (`der`/`die`/`das`/`dem`/`den`/`des`) are deliberately out of scope for v1 because they're ambiguous across case+number.
+**How to fix.** Consult the noun-gender map in `noun-genders-de.ts` and rewrite the article + adjective endings to agree. Definite-article cases (`der`/`die`/`das`/`dem`/`den`/`des`) are deliberately out of scope for v1 because they're ambiguous across case+number.
 
 **Status:** warn-only. Promote to hard-fail once the rewrite sweep clears the existing corpus.
 
@@ -190,22 +190,22 @@ The test infrastructure lives at [`services/docs/tests/`](../../services/docs/te
 - `discoverLocales()` — every top-level locale subdirectory under `docs/` (regex `^[a-z]{2}(?:-[A-Z]{2})?$`).
 - `localeOf(relPath)` — the locale of a content-relative path.
 
-Adding a new check is two files: a new `*.test.ts` under `services/docs/tests/`, and (optionally) a new section in `GLOSSARY.json` if the check needs structured input. Follow the pattern of `loanword.test.ts` — read the glossary, walk localised pages, mask code fences and inline code, scan for the pattern, accumulate findings, fail the assertion with a formatted message.
+Adding a new check is two files: a new `*.test.ts` under `services/docs/tests/`, plus structured input. For term-shaped input (English → locale-form mapping), add an entry to `terms[]` in [`GLOSSARY.json`](../terminology/GLOSSARY.json). For input that isn't term-shaped (a closed wordlist, a regex set, a gender map), add a TypeScript module under [`services/docs/tests/data/`](../../services/docs/tests/data/) and import it directly — type-checked, no JSON round-trip. Follow the pattern of `loanword.test.ts` and `grammar-de.test.ts`.
 
-To extend `translateBucket`: add the `{ en, native, rationale }` triple to `GLOSSARY.json` under the right locale, update the corresponding `TERMINOLOGY_<LOCALE>.md` table, and rerun the test. To graduate an entry from `translateBucket` to `enToLocale` (so the existing `terminology.test.ts` catches it instead), move the pair; the two tests are functionally equivalent.
+To extend the Bucket-3 translate-must set: add a new entry to `terms[]` in [`GLOSSARY.json`](../terminology/GLOSSARY.json) with `category: "translateBucket"` and the `de` / `fr` / `de_ch` overrides. Document the rationale in the entry's `_note`.
 
 ---
 
 ## Quick reference — every check on one line
 
-| Test                        | Layer       | What it enforces                                                                           |
-| --------------------------- | ----------- | ------------------------------------------------------------------------------------------ |
-| `navigation-parity.test.ts` | structural  | Nav slugs resolve to real files in en/de/fr.                                               |
-| `frontmatter.test.ts`       | structural  | Every page has `title` and `description`.                                                  |
-| `locale-parity.test.ts`     | structural  | DE/FR mirror the EN heading outline and code-block count.                                  |
-| `readme-parity.test.ts`     | structural  | READMEs in en/de/fr stay structurally in sync.                                             |
-| `terminology.test.ts`       | terminology | Informal pronouns; UI-label terms match the shipped UI per locale.                         |
-| `loanword.test.ts`          | terminology | Translate-bucket English nouns are translated in DE/FR.                                    |
-| `grammar-de.test.ts`        | terminology | German indefinite-article gender agreement on the closed `nounGenders.de` set (warn-only). |
-| `opening-paragraph.test.ts` | prose       | Every page opens with ≥ 2 sentences of prose.                                              |
-| `closing-paragraph.test.ts` | prose       | Every page closes with a real recap, not a `## Next` stub.                                 |
+| Test                        | Layer       | What it enforces                                                                               |
+| --------------------------- | ----------- | ---------------------------------------------------------------------------------------------- |
+| `navigation-parity.test.ts` | structural  | Nav slugs resolve to real files in en/de/fr.                                                   |
+| `frontmatter.test.ts`       | structural  | Every page has `title` and `description`.                                                      |
+| `locale-parity.test.ts`     | structural  | DE/FR mirror the EN heading outline and code-block count.                                      |
+| `readme-parity.test.ts`     | structural  | READMEs in en/de/fr stay structurally in sync.                                                 |
+| `terminology.test.ts`       | terminology | Informal pronouns; UI-label terms match the shipped UI per locale.                             |
+| `loanword.test.ts`          | terminology | Translate-bucket English nouns are translated in DE/FR.                                        |
+| `grammar-de.test.ts`        | terminology | German indefinite-article gender agreement on the closed `noun-genders-de.ts` set (warn-only). |
+| `opening-paragraph.test.ts` | prose       | Every page opens with ≥ 2 sentences of prose.                                                  |
+| `closing-paragraph.test.ts` | prose       | Every page closes with a real recap, not a `## Next` stub.                                     |

@@ -10,15 +10,17 @@ import {
   localeOf,
   walkDocs,
 } from './_helpers';
+import { FORMAL_PRONOUNS } from './data/formal-pronouns';
 
 /**
  * Hard-fail terminology check.
  *
- * Reads the flat `terms[]` array in GLOSSARY.json plus the `formalPronouns`
- * section. For each DE / FR / de-CH page, two passes:
+ * Reads the flat `terms[]` array in GLOSSARY.json (term mappings) plus
+ * `data/formal-pronouns.ts` (test-data, not term-shaped). For each
+ * DE / FR / de-CH page, two passes:
  *
  *   1. Formal-pronoun pass — reject `Sie/Ihnen/...` in DE, `vous/votre/...`
- *      in FR (per `formalPronouns`). Sentence-initial `Sie` in DE is allowed
+ *      in FR (per `FORMAL_PRONOUNS`). Sentence-initial `Sie` in DE is allowed
  *      heuristically because it can be the capitalised third-person plural.
  *   2. UI-term pass — for each term whose locale form differs from `en`,
  *      reject the EN form appearing in the page body.
@@ -40,7 +42,6 @@ type Term = {
 
 type Glossary = {
   terms: Term[];
-  formalPronouns: Record<string, string[]>;
 };
 
 const REPO_ROOT = path.resolve(DOCS_ROOT, '..', '..');
@@ -110,7 +111,7 @@ function checkFormalPronouns(
 ) {
   // de-CH uses the same pronoun rules as de.
   const key = locale === 'de-CH' ? 'de' : locale;
-  const forbidden = GLOSSARY.formalPronouns[key];
+  const forbidden = FORMAL_PRONOUNS[key];
   if (!forbidden) return;
   const stripped = stripCode(text);
   stripped.split('\n').forEach((raw, idx) => {
@@ -206,7 +207,7 @@ const localizedPages = walkDocs().filter(
 describe('docs terminology', () => {
   it('loaded glossary with terms and pronouns', () => {
     expect(GLOSSARY.terms.length).toBeGreaterThan(0);
-    expect(Object.keys(GLOSSARY.formalPronouns).length).toBeGreaterThan(0);
+    expect(Object.keys(FORMAL_PRONOUNS).length).toBeGreaterThan(0);
   });
 
   it('uses informal pronouns and matches shipped UI terms in all locales', () => {

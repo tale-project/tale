@@ -3,13 +3,8 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import {
-  CONTENT_ROOT,
-  DOCS_ROOT,
-  discoverLocales,
-  localeOf,
-  walkDocs,
-} from './_helpers';
+import { CONTENT_ROOT, discoverLocales, localeOf, walkDocs } from './_helpers';
+import { NOUN_GENDERS_DE } from './data/noun-genders-de';
 
 /**
  * Warn-only German gender-agreement check.
@@ -20,30 +15,14 @@ import {
  *
  *   `einen einmaligen [SECURITY]-Warnung`  (masculine accusative on a feminine noun)
  *
- * The closed list of nouns lives in `GLOSSARY.json` under `nounGenders.de`.
- * Indefinite-article mismatches against that list are detectable with a
- * regex; definite-article cases (der/die/das/dem/den/des) are ambiguous
- * across case+number and are deliberately out of scope for v1 of this
- * check.
+ * The closed list of nouns lives in `data/noun-genders-de.ts`. Indefinite-
+ * article mismatches against that list are detectable with a regex; definite-
+ * article cases (der/die/das/dem/den/des) are ambiguous across case+number
+ * and are deliberately out of scope for v1 of this check.
  *
  * Status: warn-only. Promote to hard-fail after the rewrite is in and
  * after a sweep clears the existing corpus.
  */
-
-type Glossary = {
-  nounGenders?: {
-    de?: Record<string, 'm' | 'f' | 'n'>;
-  };
-};
-
-const REPO_ROOT = path.resolve(DOCS_ROOT, '..', '..');
-const glossaryPath = path.join(
-  REPO_ROOT,
-  '.agents',
-  'terminology',
-  'GLOSSARY.json',
-);
-const GLOSSARY: Glossary = JSON.parse(fs.readFileSync(glossaryPath, 'utf8'));
 
 type Finding = {
   file: string;
@@ -126,16 +105,14 @@ const dePages = walkDocs().filter((rel) => {
   return loc === 'de' || loc === 'de-CH';
 });
 
-const nounGenders = GLOSSARY.nounGenders?.de;
+const nounGenders = NOUN_GENDERS_DE;
 
 describe('docs German gender agreement (warn-only)', () => {
-  it('loaded glossary with nounGenders.de', () => {
-    expect(nounGenders).toBeDefined();
-    expect(Object.keys(nounGenders ?? {}).length).toBeGreaterThan(0);
+  it('loaded noun-genders data', () => {
+    expect(Object.keys(nounGenders).length).toBeGreaterThan(0);
   });
 
   it('warns when an indefinite article disagrees with the noun it governs', () => {
-    if (!nounGenders) return;
     const nounAlternation = Object.keys(nounGenders).map(escapeRegex).join('|');
     // Match: indefinite article, optional one or two adjective-like words,
     // then a tracked noun. The adjective gap allows constructs like
