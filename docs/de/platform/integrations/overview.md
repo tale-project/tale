@@ -70,6 +70,12 @@ Es gibt zwei Wege, einen Konnektor zu installieren. Beide enden mit derselben `c
 
 **Als Projekt-Code schreiben.** Ein per `tale init` aufgesetztes Projekt hat ein `integrations/`-Verzeichnis; jedes Unterverzeichnis ist ein Konnektor (`integrations/<slug>/{config.json, connector.ts, icon.svg}`). Die Plattform lädt bei Speichern live nach, das Iterieren ist also wie das Bearbeiten jeder anderen Quelldatei. Das vollständige Dateiformat und die Sandbox-API sind unter [Integration bauen](/de/develop/integrations) dokumentiert; für KI-gestütztes Schreiben im Editor siehe [KI-gestützte Entwicklung](/de/develop/ai-assisted-development).
 
+## MCP-Server
+
+Über `rest_api`- und `sql`-Konnektoren hinaus konsumiert Tale auch externe Model-Context-Protocol-Server. Ein MCP-Server ist ein Drittprozess, der seinen eigenen Tool-Katalog über ein kleines standardisiertes RPC veröffentlicht; Tale registriert den Server einmal, und seine Tools werden Agents zugänglich, neben den Konnektor-Operationen. Siehe [MCP-Server](/de/platform/integrations/mcp-servers) für den Registrierungs-Flow, die drei unterstützten Transporte (`streamable_http`, `sse`, `stdio`), die drei Auth-Modi (`none`, `api_key`, `oauth2`) und die Genehmigungssemantik der entdeckten Tools.
+
+Die mentale Regel: greif zu einem MCP-Server, wenn ein Dritter schon einen für sein Produkt veröffentlicht; greif zu einem Konnektor, wenn du den Wrapper kontrollierst und Tales Lese-/Schreib-Operationsmodell und die Setup-Guide-UX haben willst.
+
 ## Verwandte Verbindungen
 
 Ein paar weitere Punkte stehen unter **Einstellungen > Integrationen** zur besseren Auffindbarkeit, sind aber keine `rest_api`- oder `sql`-Konnektoren — sie haben eigene Konfigurationsoberflächen.

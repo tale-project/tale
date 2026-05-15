@@ -70,6 +70,12 @@ There are two ways to install a connector. Both end up with the same `config.jso
 
 **Author as project code.** A project scaffolded by `tale init` has an `integrations/` directory; each subdirectory is one connector (`integrations/<slug>/{config.json, connector.ts, icon.svg}`). The platform live-reloads on save, so iterating is the same as editing any other source file. The full file format and sandbox API are documented in [Build an integration](/develop/integrations); for AI-assisted authoring inside an editor, see [AI-assisted development](/develop/ai-assisted-development).
 
+## MCP servers
+
+Beyond `rest_api` and `sql` connectors, Tale also consumes external Model Context Protocol servers. An MCP server is a third-party process that exposes its own tool catalogue over a small standardised RPC; Tale registers the server once and its tools become available to agents alongside connector operations. See [MCP servers](/platform/integrations/mcp-servers) for the registration flow, the three supported transports (`streamable_http`, `sse`, `stdio`), the three auth modes (`none`, `api_key`, `oauth2`), and the approval semantics on the discovered tools.
+
+The mental rule: reach for an MCP server when a third party already publishes one for their product; reach for a connector when you control the wrapper and want Tale's read/write operation model and setup-guide UX.
+
 ## Related connections
 
 A few other items live under **Settings > Integrations** for discoverability but are not `rest_api` or `sql` connectors — they have their own configuration surfaces.

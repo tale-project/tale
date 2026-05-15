@@ -109,7 +109,10 @@
         },
         {
           "label": "integrations",
-          "pages": ["platform/integrations/overview"]
+          "pages": [
+            "platform/integrations/overview",
+            "platform/integrations/mcp-servers"
+          ]
         },
         {
           "label": "member",

@@ -70,6 +70,12 @@ Il y a deux façons d’installer un connecteur. Les deux finissent avec le mêm
 
 **Écrire comme code de projet.** Un projet créé par `tale init` possède un dossier `integrations/` ; chaque sous-dossier est un connecteur (`integrations/<slug>/{config.json, connector.ts, icon.svg}`). La plateforme recharge à chaud à la sauvegarde, donc itérer revient à éditer n’importe quelle source. Le format de fichier complet et l’API du sandbox sont documentés dans [Construire une intégration](/fr/develop/integrations) ; pour l’écriture assistée par IA dans l’éditeur, voir [Développement assisté par IA](/fr/develop/ai-assisted-development).
 
+## Serveurs MCP
+
+Au-delà des connecteurs `rest_api` et `sql`, Tale consomme aussi des serveurs Model Context Protocol externes. Un serveur MCP est un processus tiers qui expose son propre catalogue d'outils via un petit RPC standardisé ; Tale enregistre le serveur une fois, et ses outils deviennent disponibles aux agents à côté des opérations de connecteur. Voir [Serveurs MCP](/fr/platform/integrations/mcp-servers) pour le flux d'enregistrement, les trois transports supportés (`streamable_http`, `sse`, `stdio`), les trois modes d'auth (`none`, `api_key`, `oauth2`) et la sémantique d'approbation sur les outils découverts.
+
+La règle mentale : va vers un serveur MCP quand un tiers en publie déjà un pour son produit ; va vers un connecteur quand tu contrôles le wrapper et veux le modèle d'opérations lecture/écriture de Tale et l'UX du guide de configuration.
+
 ## Connexions apparentées
 
 Quelques autres éléments vivent sous **Paramètres > Intégrations** par souci de découvrabilité, mais ne sont pas des connecteurs `rest_api` ou `sql` — ils ont leur propre surface de configuration.
