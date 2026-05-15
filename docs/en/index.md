@@ -1,40 +1,46 @@
 ---
 title: Welcome to Tale
-description: Sovereign AI platform — chat, knowledge, agents, and automations, available as a managed cloud service or fully self-hosted.
+description: Sovereign AI platform — chat over your own documents, build custom agents, run automations, and manage customer conversations, on hardware you control.
+kind: index
 ---
 
-Tale is a sovereign AI platform. You chat with models over your own documents, build custom agents that handle a job, run multi-step automations that work in the background, and manage customer conversations — all with your choice of AI providers and your data pinned to a region you control. The platform ships in two editions, **[Cloud](/cloud)** and **[Self-hosted](/self-hosted)**, and every feature, API, and role is identical between them. Only the operational surface differs: in Cloud we run the stack; in Self-hosted you do.
+Tale is a sovereign AI platform: chat with models over your own documents, build custom agents that handle a job end to end, run multi-step automations in the background, and manage customer conversations from one inbox — with your choice of AI providers and your data pinned to a region you control. The platform ships in two editions, [Cloud](/cloud) and [Self-hosted](/self-hosted), and every feature, API, and role is identical between them. The only thing that differs is who runs the stack.
 
-This page is the front door for both editions and every role. Pick the edition that matches how Tale will be hosted, then jump to the section indexed by what you do day to day.
+This page is the front door for both editions and every role. Pick the edition that matches how Tale gets hosted, then jump to the section indexed by what you do day to day. If you already know your edition and want the feature reference, go straight to [Platform](/platform) — the canonical documentation for every user-visible feature, identical across both editions.
 
-## Choose your edition
+## Choose an edition
 
-If you are still deciding how Tale will be hosted, the two options trade off control for convenience.
+The two editions trade off control for convenience. Both ship the same product; the difference is who operates the infrastructure.
 
-- **[Cloud](/cloud)** — we run the stack, keep it patched, and host your data in Switzerland or the EU. Pick this when you want Tale's capabilities without operating the infrastructure, and when Swiss/EU data residency is enough.
-- **[Self-hosted](/self-hosted)** — you run the Docker Compose bundle on your own VPC, hardware, or air-gapped environment. Pick this when data sovereignty, custom networking, custom models, or a custom build is a hard requirement.
+- **[Cloud](/cloud)** — Tale operates the stack and pins your data to Switzerland or the EU. Pick this when sovereignty means "EU jurisdiction" and not "behind our firewall", and when running infrastructure isn't where the team should spend its hours.
+- **[Self-hosted](/self-hosted)** — install Tale on your own VPC, on-premises hardware, or in an air-gapped environment with a single CLI command. Pick this when data residency means "our datacentre", when network controls have to wrap the whole stack, or when custom models and a custom build are non-negotiable.
 
-If you already know the edition and want the feature reference, go straight to **[Platform](/platform)** — the canonical documentation for every user-visible feature, identical across both editions.
+## Choose a role
 
-## Choose your role
+Tale ships six roles — Owner, Admin, Developer, Editor, Member, and Disabled — each with a distinct permission set. The role-indexed documentation under [Platform](/platform) applies to both editions.
 
-Tale has six roles — Owner, Admin, Developer, Editor, Member, Disabled — each with a distinct permission set. The role-indexed documentation lives under [Platform](/platform) and applies to both editions.
+- **[Member](/platform/member/overview)** — chat with agents, browse the knowledge base, read conversations and approvals others have assigned to you.
+- **[Editor](/platform/editor/overview)** — curate the knowledge base, handle the conversation inbox, approve workflow runs, and maintain the prompt library.
+- **[Developer](/platform/developer/overview)** — build agents, automations, and integrations; manage API keys, webhooks, and structured-data entities.
+- **[Admin](/platform/admin/overview)** — configure members and roles, teams, AI providers, branding, governance policies, and the audit log.
 
-- **[Member](/platform/member/overview)** — read-only end user.
-- **[Editor](/platform/editor/overview)** — content management and approvals.
-- **[Developer](/platform/developer/overview)** — agents, automations, integrations.
-- **[Admin](/platform/admin/overview)** — organisation settings.
-
-If you are integrating Tale with other systems or contributing to the source, **[Develop](/develop/api-reference)** is the section to open — REST API, webhooks, SDK patterns, and contributor workflows all live there.
+If you're integrating Tale with other systems or contributing to the source, [Develop](/develop/api-reference) is the section to open — REST API, webhooks, the integration SDK, and contributor workflows all live there.
 
 ## What makes Tale different
 
-- **Your data, your region.** Cloud pins every tenant to Switzerland or the EU, with explicit subprocessor disclosure. Self-hosted leaves the network entirely, including prompts and document content.
-- **Any model.** OpenAI, Anthropic, Google, Mistral, Meta, or self-hosted models via Ollama, vLLM, or LocalAI — switchable per-agent without migration.
-- **Built for teams.** Six roles from read-only Member up to full Owner, organised into teams with scoped knowledge and access.
-- **Certified.** ISO 27001 and SOC 2 Type II, Swiss-based, GDPR-compliant by default.
+Four properties most teams compare against the alternatives:
 
-## Support and community
+- **Your data, your region.** Cloud pins every tenant to Switzerland or the EU, with explicit subprocessor disclosure and the option to bring your own AI keys. Self-hosted leaves the network entirely — prompts, document content, and embeddings never traverse Tale's infrastructure.
+- **Any model, swappable per agent.** OpenAI, Anthropic, Google, Mistral, Meta, DeepSeek, Moonshot, Qwen — or self-hosted models via Ollama, vLLM, or LocalAI — switchable on a per-agent basis without re-indexing, re-training, or migration.
+- **One product for the whole organisation.** Six roles cover read-only viewers up to org owners, organised into teams with scoped knowledge access. Members chat with agents; editors curate; developers build automations; admins govern.
+- **Compliance you can show your auditor.** ISO 27001 and SOC 2 certified, Swiss-based (Ruler GmbH), GDPR-aligned by default — with audit logs and data subject request tooling built in.
 
-- [GitHub](https://github.com/tale-project/tale) — source code, issues, discussions.
-- [tale.dev](https://tale.dev) — product site and release announcements.
+## Where this gets used
+
+The page-shape contract treats this index as the front door, not a tour. Once you've picked an edition and a role, the meaningful next step is one of:
+
+- [Platform](/platform) — the canonical feature reference, identical across both editions. Start here once you're inside the product.
+- [Cloud onboarding](/cloud) or [Self-hosted install](/self-hosted) — edition-specific setup. Skip this if Tale is already running for you.
+- [Tutorials](/tutorials/overview) — role-indexed worked examples, end to end, on a fresh instance.
+
+For source, issues, and release announcements, [GitHub](https://github.com/tale-project/tale) and [tale.dev](https://tale.dev) are the canonical channels.

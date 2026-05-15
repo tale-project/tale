@@ -1,30 +1,45 @@
 ---
 title: Selbst gehostetes Tale
-description: Tale auf eigener Infrastruktur betreiben — installieren, konfigurieren, betreiben.
+description: Tale auf eigener Infrastruktur betreiben — installieren mit der CLI, konfigurieren mit Umgebungsvariablen, upgraden mit `tale deploy`.
 ---
 
-Die selbst gehostete Edition von Tale läuft in deinem VPC, in deinem Rechenzentrum oder in einer Air-Gap-Umgebung. Du bekommst die gesamte Plattform als Docker-Compose-Bundle, das du mit einem einzigen Befehl (`tale deploy`) aktualisierst. Die Zertifizierungen sind dieselben wie in Cloud — ISO 27001, SOC 2 Type II und DSGVO-Konformität — nur für den Betrieb bist du selbst verantwortlich. Jede nutzerseitige Funktion ist identisch zur gemanagten [Cloud](/de/cloud); dieser Bereich beschreibt ausschliesslich, was beim Betrieb einer eigenen Instanz dazukommt.
+Die selbst gehostete Edition lässt Tale in deinem VPC, deinem Rechenzentrum oder in einer Air-Gap-Umgebung laufen. Du bekommst die vollständige Plattform als Docker-Compose-Bündel, installierst sie mit einem einzigen CLI-Befehl und upgradest mit `tale deploy` — Blue-Green, Zero-Downtime, genau so, wie die [Cloud](/de-CH/cloud)-Edition vorwärtsrollt. Jede nutzerseitige Funktion, die unter [Platform](/de-CH/platform) dokumentiert ist, ist identisch zur Cloud; dieser Bereich behandelt nur, was spezifisch ist für den Betrieb einer eigenen Instanz.
 
-Alles, was Mitglied, Redakteur, Entwickler oder Admin täglich nutzen — Chat, Wissensdatenbank, Agents, Automatisierungen, Organisationsverwaltung, Rollenberechtigungen — liegt unter [Platform](/de/platform) und gilt für beide Editionen. Dieser Bereich richtet sich an Operator:innen, die die Instanz installieren, aktualisieren, überwachen und sichern.
+Dieser Bereich richtet sich an die Person, die installiert, konfiguriert, beobachtet, upgradet und sichert. Endnutzer — Mitglieder, Redakteure, Entwickler, Admins — konsumieren [Platform](/de-CH/platform) direkt; die rollenspezifischen Seiten dort gelten auf beiden Editionen. Die einzigen selbst-hosted-spezifischen Oberflächen sind Installation, Konfigurationsdateien und Umgebungsvariablen, Container-Architektur, Observability, Release-Notes und Authentifizierung mit vertrauenswürdigen HTTP-Kopfzeilen.
 
-## Instanz installieren
+## In diesem Bereich
 
-Starte mit der [selbst gehostet-Übersicht](/de/self-hosted/overview) für Architektur und Services. Danach führt dich der [Installationsleitfaden für Linux-Server](/de/self-hosted/install/linux-server) Schritt für Schritt durch die Einrichtung. TLS, Reverse Proxies und Deployments unter einem Unterpfad sind dort ebenfalls beschrieben.
+Jede Seite steht auf der Ebene einer Betreiber-Entscheidung. Die Form: Titel fett, Gedankenstrich, ein Versprechen in einem Satz.
 
-## Konfigurieren
+- **[Selbst-hosted-Übersicht](/de-CH/self-hosted/overview)** — Betreiber, die die Plattform sondieren. Architektur, die fünf Services, die Datenbank-Wahl und was wo läuft.
+- **[Installation: Quickstart](/de-CH/self-hosted/install/quickstart)** — Erstinstallateure auf Linux/macOS/Windows. Lokale Installation über die `tale`-CLI, Zehn-Minuten-Durchlauf.
+- **[Installation: Linux-Server](/de-CH/self-hosted/install/linux-server)** — Betreiber, die auf einen Produktionsserver deployen. TLS, Reverse-Proxy, Subpath, Härtung.
+- **[Konfiguration: Umgebungsreferenz](/de-CH/self-hosted/configuration/environment-reference)** — jede `TALE_*`-Umgebungsvariable, nach Service gruppiert, mit Voreinstellungen.
+- **[Konfiguration: Anbieter](/de-CH/self-hosted/configuration/providers)** — KI-Anbieter-Konfigurationsdateien: Schema, Felder, Kostenregeln, Gateway-vs.-direkter-Anbieter-Unterscheidung.
+- **[Konfiguration: Aufbewahrung](/de-CH/self-hosted/configuration/retention)** — Aufbewahrungsrichtlinien pro Tabelle und wie sie durchgesetzt werden.
+- **[Authentifizierung](/de-CH/self-hosted/admin/authentication)** — Passwort, Microsoft Entra ID SSO und Integration mit vertrauenswürdigen HTTP-Kopfzeilen über einen vorgelagerten Reverse-Proxy.
+- **[Container-Architektur](/de-CH/self-hosted/operate/container-architecture)** — wie die fünf Services im internen Docker-Netzwerk verbunden sind, wo Ports nach aussen reichen und wie der Blue-Green-Roll aussieht.
+- **[Observability: Betrieb](/de-CH/self-hosted/operate/observability/operations)** — Prometheus-Metriken, Log-Ströme, Health-Probes und was du in deinen Monitoring-Stack verdrahtest.
+- **[Observability: Fehlersuche](/de-CH/self-hosted/operate/observability/troubleshooting)** — die drei oder vier Probleme, die Betreiber wirklich sehen, und wie du sie auf einer laufenden Instanz diagnostizierst.
+- **[Sicherheitshinweise](/de-CH/self-hosted/operate/security/advisories)** — wie Ruler GmbH CVEs veröffentlicht, wie du sie abonnierst und wer für welchen Patch zuständig ist.
+- **[Release-Notes-Format](/de-CH/self-hosted/operate/release-notes/format)** — das kanonische Format für GitHub-Release-Notes; was rein, was raus, wie du sie vor einem Upgrade liest.
 
-- [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference) — jede Umgebungsvariable, die Tale liest, geordnet nach Service.
-- [Aufbewahrung](/de/self-hosted/configuration/retention) — Regeln zur Datenaufbewahrung pro Tabelle.
-- [Authentifizierung](/de/self-hosted/admin/authentication) — Passwort-Login, SSO (Microsoft Entra ID) oder Trusted Kopfzeilen. selbst gehostet-spezifisch, weil über Umgebungsvariablen gesteuert.
+## Installiere deine Instanz
 
-## Betreiben
+Zwei Installationspfade. Wähle den, der zu deiner Umgebung passt.
 
-- [Container-Architektur](/de/self-hosted/operate/container-architecture) — wie die Services zusammenspielen.
-- [Observability](/de/self-hosted/operate/observability/operations) — Metriken, Logs und Health Checks.
-- [Fehlersuche](/de/self-hosted/operate/observability/troubleshooting) — Probleme auf einer laufenden Instanz eingrenzen.
-- [Sicherheitshinweise](/de/self-hosted/operate/security/advisories) — Patch-Verantwortung und CVE-Tracking.
-- [Release Notes](/de/self-hosted/operate/release-notes/format) — wie Release Notes aufgebaut sind, plus Upgrade-Hinweise pro Version.
+- **Lokaler Laptop oder Workstation.** Folge dem [Quickstart](/de-CH/self-hosted/install/quickstart) — `tale init my-project`, `tale start`, im Browser zu `https://localhost`. Am besten zum Evaluieren des Produkts oder für einzelne Entwickler.
+- **Produktiver Linux-Server.** Folge der [Linux-Server-Installation](/de-CH/self-hosted/install/linux-server) — richtet TLS via Caddy ein, konfiguriert einen vorgelagerten Reverse-Proxy, falls einer davor sitzt, und führt durch Subpath-Deployment. Das ist der kanonische Pfad für organisationsweite Nutzung.
 
-## Funktionen und Organisationsverwaltung
+Sobald die Instanz steht, liest jedes Mitglied, jeder Redakteur, jeder Entwickler und jeder Admin, den du einlädst, [Platform](/de-CH/platform); die rollenspezifischen Seiten dort ändern sich zwischen den Editionen nicht.
 
-Funktionsbeschreibungen (Chat, Agents, Automatisierungen, Wissen, Integrationen) und alles zur Organisationsverwaltung (Mitglieder, Rollen, Teams, Branding, Governance, KI-Anbieter, Analytics) stehen unter [Platform](/de/platform). Die rollenbezogenen Endnutzer-Leitfäden liegen ebenfalls dort.
+## Konfigurieren und betreiben
+
+Nach der Installation zählen zwei operative Oberflächen:
+
+- **Konfiguration** — jeder Knopf ist entweder eine Umgebungsvariable oder eine JSON-Konfigurationsdatei unter `TALE_CONFIG_DIR`. Die Referenzseiten unter [Konfiguration](/de-CH/self-hosted/configuration/environment-reference) sind erschöpfend; greif danach, wenn ein Wert angepasst werden muss.
+- **Observability** — Tale exportiert Prometheus-Metriken auf dem Port jedes Service, schreibt strukturierte Logs nach stdout und stellt eine Liveness-/Readiness-Probe auf jedem Container bereit. Die Seite [Betrieb](/de-CH/self-hosted/operate/observability/operations) behandelt, was du scrapen, worauf du alerten und was jede Log-Zeile bedeutet.
+
+## Wo das einsetzt
+
+Selbst gehostet ist der Bereich der Betreiberin. Das Produkt selbst — Chat, Agents, Automatisierungen, Wissen, Integrationen, Admin — lebt einmalig unter [Platform](/de-CH/platform) und liest sich hier identisch. Quer-referenziere die Installationsseiten beim Aufbau der Instanz; greif zur Konfigurationsreferenz, wenn ein Wert angepasst werden muss; greif zu den Betriebsseiten, wenn in Produktion etwas schiefläuft. Für Quellbeiträge und die API ist [Develop](/de-CH/develop/api-reference) einen Bereich weiter.
