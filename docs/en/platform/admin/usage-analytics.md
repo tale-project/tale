@@ -34,7 +34,6 @@ The **Export** button above any chart produces a CSV with the underlying rows, r
 
 Analytics data follows the general retention policy configured under [Governance → Retention](/platform/admin/governance#retention). By default, detailed usage records are kept for 13 months, giving you year-over-year comparisons; aggregated monthly totals are kept indefinitely.
 
-## Related
+## Where this fits
 
-- [Governance](/platform/admin/governance) — set the budgets and limits shown here.
-- [Operations](/self-hosted/operate/observability/operations) — operator-side observability (Prometheus, logs, health).
+Usage analytics is the time-series view of consumption — tokens, costs, runs, by user and team. It pairs with [Governance](/platform/admin/governance), where the budgets and limits that the dashboard is measuring against are set, and with [Operations](/self-hosted/operate/observability/operations) for the operator-side observability stack (Prometheus, logs, health). When a chart trends the wrong way, the action goes back to Governance to tighten the policy.

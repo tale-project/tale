@@ -32,3 +32,7 @@ Teams don't have formal manager roles — permissions are set by the org-level R
 ## External identity providers
 
 When SSO or trusted headers are used, the external IdP is the single source of truth for team membership. Tale reads the teams header on each login and updates the user's team list. See [Authentication](/self-hosted/admin/authentication) for details.
+
+## Where this fits
+
+Teams are the knowledge-and-conversation scoping layer. They don't change roles or permissions — those live on [Members and roles](/platform/admin/members-and-roles). Use teams to decide who sees which documents and which conversation channels by default; reach for roles to decide what each member can do. Most organisations end up with three to ten teams; more becomes hard to maintain.

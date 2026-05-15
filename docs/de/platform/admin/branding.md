@@ -30,3 +30,7 @@ Farben werden als Hex-Codes eingegeben. Die Plattform erzwingt ein Kontrastverh�
 ## Zurücksetzen
 
 Klicke das Reset-Icon neben einem Feld, um es auf den Tale-Standard zurückzusetzen. Zurücksetzen von Anwendungsname und Logo gemeinsam stellt das Standard-Tale-Branding wieder her.
+
+## Wo das einsetzt
+
+Branding ist die oberflächliche Anpassungs-Schicht — Logos, Farben, Namen. Sie ändert, wie Tale sich dem Team und den Empfängern seiner E-Mails präsentiert. Sie ändert **nicht**, was das Produkt tut, welche Modelle verfügbar sind oder welche Rollen es gibt; dafür sind [KI-Anbieter](/de/platform/admin/providers), [Governance](/de/platform/admin/governance) und [Mitglieder und Rollen](/de/platform/admin/members-and-roles) die richtigen Oberflächen. Halte Branding günstig und reversibel.

@@ -32,3 +32,7 @@ Teams haben keine formalen Manager-Rollen — Berechtigungen kommen aus der Orga
 ## Externe Identity Anbieter
 
 Wenn SSO oder Trusted Kopfzeilen genutzt werden, ist der externe IdP die einzige Quelle der Wahrheit für Teams. Tale liest bei jedem Login den Teams-Kopfzeile und aktualisiert die Teams-Liste des Nutzers. Siehe [Authentifizierung](/de/self-hosted/admin/authentication).
+
+## Wo das einsetzt
+
+Teams sind die Wissen-und-Konversationen-Scoping-Schicht. Sie ändern keine Rollen oder Berechtigungen — die leben unter [Mitglieder und Rollen](/de/platform/admin/members-and-roles). Nutze Teams, um zu entscheiden, wer welche Dokumente und welche Konversations-Kanäle standardmäßig sieht; greif zu Rollen, um zu entscheiden, was jedes Mitglied tun darf. Die meisten Organisationen landen bei drei bis zehn Teams; mehr wird schwer zu pflegen.

@@ -49,8 +49,6 @@ Every 2FA action emits a structured audit log entry visible under **Settings > G
 | `2fa_backup_code_failed` | A backup code attempt failed.                              |
 | `2fa_reset_by_admin`     | An Admin reset a member's 2FA from **Settings > Members**. |
 
-## Related
+## Where this fits
 
-- [Authentication](/self-hosted/admin/authentication) — password, SSO, and trusted-headers sign-in.
-- [Members and roles](/platform/admin/members-and-roles) — reset a member's 2FA from the row menu.
-- [Governance](/platform/admin/governance) — set the policy and read the audit log.
+2FA is the second-factor layer on password sign-in. It interacts with two other surfaces: [Authentication](/self-hosted/admin/authentication) decides whether a user signs in via password (where 2FA applies), SSO, or trusted headers (where 2FA is inherited from the upstream IdP); [Members and roles](/platform/admin/members-and-roles) is where Admins reset a member's 2FA when they lose their device. The org-wide policy ("require 2FA on every Admin account") lives at [Governance](/platform/admin/governance).

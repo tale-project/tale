@@ -30,3 +30,7 @@ Colours are entered as hex codes. The platform enforces a 4.5:1 contrast ratio a
 ## Resetting
 
 Click the reset icon next to any field to revert it to the Tale default. Resetting the application name and logo together restores the default Tale branding.
+
+## Where this fits
+
+Branding is the surface-level customisation layer — logos, colours, names. It changes how Tale presents itself to the team and to the people the team's emails reach. It does **not** change what the product does, what models are available, or what roles exist; for that, [AI providers](/platform/admin/providers), [Governance](/platform/admin/governance), and [Members and roles](/platform/admin/members-and-roles) are the surfaces. Keep branding cheap and reversible.

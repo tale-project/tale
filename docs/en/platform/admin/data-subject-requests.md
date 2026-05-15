@@ -77,8 +77,11 @@ This page ships GDPR Art. 17 erasure only. Out of scope (intentional, per the v1
 - Multi-jurisdiction templates (CCPA, LGPD, etc.) — GDPR-only first.
 - AI-driven redaction — Tale erases rather than redacts.
 
-## Related
+## Where this fits
 
-- [Governance overview](/platform/admin/governance) — sibling pages for retention, legal hold, and audit logging.
+Data subject requests are the compliance escape hatch that proves Tale takes the right-to-erasure seriously. They sit next to [Governance](/platform/admin/governance) (retention, legal hold, audit logging) — together those three pages cover the data-lifecycle controls a privacy officer needs to make a defensible argument under GDPR. Reach for this page when a verified data-subject filing arrives; reach for Governance when the question is "what's our retention default?".
+
+External references:
+
 - [GDPR Art. 12 — Transparent information & modalities](https://gdpr-info.eu/art-12-gdpr/)
 - [GDPR Art. 17 — Right to erasure](https://gdpr-info.eu/art-17-gdpr/)

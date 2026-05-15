@@ -29,4 +29,8 @@ Les couleurs sont entrées en codes hex. La plateforme impose un ratio de contra
 
 ## Réinitialiser
 
-Clique l’icône reset à côté d’un champ pour revenir à la valeur Tale par défaut. Réinitialiser nom et logo ensemble restaure l’image de marque Tale par défaut.
+Clique l'icône reset à côté d'un champ pour revenir à la valeur Tale par défaut. Réinitialiser nom et logo ensemble restaure l'image de marque Tale par défaut.
+
+## Où ça s'inscrit
+
+Le branding est la couche de personnalisation de surface — logos, couleurs, noms. Il change la façon dont Tale se présente à l'équipe et aux destinataires de ses courriels. Il ne change **pas** ce que le produit fait, les modèles disponibles ou les rôles existants ; pour cela, [Fournisseurs IA](/fr/platform/admin/providers), [Gouvernance](/fr/platform/admin/governance) et [Membres et rôles](/fr/platform/admin/members-and-roles) sont les surfaces. Garde le branding peu coûteux et réversible.

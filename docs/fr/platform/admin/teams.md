@@ -31,4 +31,8 @@ Les équipes n’ont pas de rôles de manager formels — les permissions vienne
 
 ## Fournisseurs d’identité externes
 
-Quand SSO ou Trusted En-têtes sont utilisés, l’IdP externe est la source unique de vérité pour l’appartenance aux équipes. Tale lit le header des équipes à chaque connexion et met à jour la liste des équipes de l’utilisateur. Voir [Authentification](/fr/self-hosted/admin/authentication).
+Quand SSO ou Trusted En-têtes sont utilisés, l'IdP externe est la source unique de vérité pour l'appartenance aux équipes. Tale lit l'en-tête des équipes à chaque connexion et met à jour la liste des équipes de l'utilisateur. Voir [Authentification](/fr/self-hosted/admin/authentication).
+
+## Où ça s'inscrit
+
+Les équipes sont la couche de cadrage des connaissances et des conversations. Elles ne changent ni les rôles ni les permissions — qui vivent sur [Membres et rôles](/fr/platform/admin/members-and-roles). Utilise les équipes pour décider qui voit quels documents et quels canaux de conversation par défaut ; va vers les rôles pour décider ce que chaque membre peut faire. La plupart des organisations finissent avec trois à dix équipes ; au-delà, la maintenance devient lourde.
