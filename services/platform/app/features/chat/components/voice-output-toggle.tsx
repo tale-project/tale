@@ -3,7 +3,7 @@
 import { Button } from '@tale/ui/button';
 import { useMutation } from 'convex/react';
 import { Volume2, VolumeX } from 'lucide-react';
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { api } from '@/convex/_generated/api';
@@ -17,15 +17,23 @@ interface VoiceOutputToggleProps {
   className?: string;
 }
 
+// Silent 1-frame WAV; played to prime the iOS / Safari user-gesture
+// requirement so a later programmatic `play()` from auto-start doesn't
+// reject with NotAllowedError. Created lazily on first toggle-on.
+const SILENT_WAV =
+  'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+
 /**
  * Tri-state voice-mode toggle for the chat header. Click cycles:
  *   inheriting-default → explicit override (true)
  *                     → explicit override (false)
  *                     → clear override (back to inheriting)
  *
- * The "inheriting" state shows the icon at reduced opacity; explicit
- * overrides are full-opacity so the user can tell at a glance whether
- * this thread differs from their default.
+ * Side effect on enable: primes a hidden `<audio>` element by calling
+ * `play()/pause()` on a silent buffer so the user-gesture token persists
+ * across the async window before the first synthesised chunk arrives.
+ * Without this, iOS Safari and stricter Chromium builds reject the first
+ * autoplay attempt and the indicator stalls in `'blocked'`.
  */
 export function VoiceOutputToggle({
   threadId,
@@ -36,8 +44,39 @@ export function VoiceOutputToggle({
     api.tts.mutations.setThreadVoiceOutputOverride,
   );
   const { t } = useT('chat');
+  const primedRef = useRef(false);
+
+  const primeAudio = useCallback(() => {
+    if (primedRef.current) return;
+    if (typeof window === 'undefined' || typeof Audio === 'undefined') return;
+    try {
+      const el = new Audio(SILENT_WAV);
+      el.muted = true;
+      void el.play().then(
+        () => {
+          el.pause();
+          primedRef.current = true;
+        },
+        () => {
+          // Best-effort; if the browser rejects this silent prime there's
+          // no remedy here — the player hook will surface `'blocked'` and
+          // the user can tap the indicator (a real gesture) to start.
+        },
+      );
+    } catch (err) {
+      console.warn('[tts.toggle] audio prime failed', err);
+    }
+  }, []);
 
   const onClick = useCallback(() => {
+    const willEnable =
+      effective.source !== 'thread'
+        ? !effective.enabled
+        : effective.enabled
+          ? false
+          : null;
+    // Only prime when we're about to flip voice ON for this thread.
+    if (willEnable === true) primeAudio();
     if (effective.source !== 'thread') {
       void setOverride({ threadId, override: !effective.enabled });
       return;
@@ -47,14 +86,21 @@ export function VoiceOutputToggle({
       return;
     }
     void setOverride({ threadId, override: null });
-  }, [effective, setOverride, threadId]);
+  }, [effective, setOverride, threadId, primeAudio]);
 
   const overriding = effective.source === 'thread';
+  // Action-oriented label (M1): tells screen-reader users what activation
+  // will do, not just the current state.
   const tooltip = overriding
     ? effective.enabled
       ? t('voice.voiceOutputOn')
       : t('voice.voiceOutputOff')
     : t('voice.voiceOutputInheritGlobal');
+  // aria-pressed: use `"mixed"` for the inheriting tri-state per ARIA APG
+  // so SR users can distinguish "explicit off" from "inheriting (off)".
+  const ariaPressed: boolean | 'mixed' = overriding
+    ? effective.enabled
+    : 'mixed';
 
   return (
     <Tooltip content={tooltip} side="bottom">
@@ -63,7 +109,7 @@ export function VoiceOutputToggle({
         variant="ghost"
         onClick={onClick}
         aria-label={tooltip}
-        aria-pressed={effective.enabled}
+        aria-pressed={ariaPressed}
         className={cn(!overriding && 'opacity-60', className)}
       >
         {effective.enabled ? (

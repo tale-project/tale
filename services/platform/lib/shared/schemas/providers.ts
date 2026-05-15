@@ -229,9 +229,12 @@ const modelDefinitionSchema = z.object({
       centsPerAudioMinute: z.number().optional(),
       /**
        * For text-to-speech models billed per character of input text
-       * (e.g. OpenAI gpt-4o-mini-tts at $0.015 / 1M chars = 1500).
+       * (e.g. OpenAI tts-1 at $15/M chars = 1500). When the upstream
+       * meter is per-token (e.g. gpt-4o-mini-tts), operators supply a
+       * char-approximation here; the value is used directly by
+       * `estimateTtsCostCents` without conversion.
        */
-      centsPerMillionCharacters: z.number().optional(),
+      centsPerMillionCharacters: z.number().nonnegative().finite().optional(),
     })
     .optional(),
   /**
@@ -250,8 +253,12 @@ const modelDefinitionSchema = z.object({
     .optional(),
   /**
    * Output audio format for TTS models. Defaults to mp3 when omitted.
+   * `pcm` is raw 24 kHz mono int16 — choose only when the client can
+   * play `audio/L16; rate=24000` (most browsers can; some older Safari
+   * cannot). `opus` is served as Ogg-Opus container, supported on
+   * macOS 14+ / iOS 17+ Safari.
    */
-  audioFormat: z.enum(['mp3', 'opus', 'aac', 'flac', 'wav']).optional(),
+  audioFormat: z.enum(['mp3', 'opus', 'aac', 'flac', 'wav', 'pcm']).optional(),
   providerOptions: providerOptionsSchema,
 });
 
@@ -326,6 +333,29 @@ export const providerJsonSchema = z
           code: 'custom',
           message: `defaults.${tag} references model "${modelId}" which lacks the "${tag}" tag`,
           path: ['defaults', tag],
+        });
+      }
+    }
+    // Cross-field check (M5): every model tagged `'text-to-speech'` must
+    // declare at least one voice — `defaultVoice` OR a non-empty
+    // `voicesByLocale` — otherwise `resolveTtsModel` throws `UNKNOWN_VOICE`
+    // at first synthesis and the config bug surfaces only after a user
+    // action. Catching it at config-load time gives operators an
+    // immediate, actionable error.
+    for (const model of data.models) {
+      if (!(model.tags as readonly string[]).includes('text-to-speech')) {
+        continue;
+      }
+      const hasDefault =
+        typeof model.defaultVoice === 'string' && model.defaultVoice.length > 0;
+      const hasMap =
+        model.voicesByLocale !== undefined &&
+        Object.keys(model.voicesByLocale).length > 0;
+      if (!hasDefault && !hasMap) {
+        ctx.addIssue({
+          code: 'custom',
+          message: `model "${model.id}" has the "text-to-speech" tag but no defaultVoice or voicesByLocale entries; resolveTtsModel will fail at synthesis time`,
+          path: ['models', data.models.indexOf(model), 'defaultVoice'],
         });
       }
     }

@@ -223,6 +223,28 @@ cp examples/providers/openai.json $TALE_CONFIG_DIR/providers/
 
 Ajoute ta clé OpenAI via **Paramètres > Fournisseurs IA > OpenAI**. L'exemple déclare `whisper-1` et `defaults.transcription`, donc les pièces jointes audio et vidéo passent par là dès qu'une clé est posée. La vue côté utilisateur final vit sur [Pièces jointes de chat](/fr/platform/chat/attachments#audio-and-video-transcription).
 
+### Synthèse vocale
+
+Le fichier fourni `examples/providers/openai-tts.json` déclare `gpt-4o-mini-tts` et une table de voix par défaut, et alimente la [Sortie vocale](/fr/platform/chat/voice-output) dans le chat.
+
+```bash
+cp examples/providers/openai-tts.json $TALE_CONFIG_DIR/providers/
+```
+
+Ajoute la clé OpenAI via **Paramètres > Fournisseurs IA > openai-tts** et le bouton vocal de l'en-tête de chat commence à utiliser le fournisseur configuré. Sans ce fichier, la sortie vocale bascule silencieusement sur la `speechSynthesis` intégrée au navigateur.
+
+Champs spécifiques à la TTS dans une entrée modèle :
+
+| Champ                            | Rôle                                                                                                                                                                                   |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tags`                           | Doit inclure `"text-to-speech"`. La plateforme vérifie qu'un modèle portant ce tag déclare aussi une voix via `defaultVoice` ou `voicesByLocale`.                                      |
+| `defaultVoice`                   | Voix de repli quand aucune correspondance de locale n'est trouvée.                                                                                                                     |
+| `voicesByLocale`                 | Locale BCP-47 → id de voix. Le résolveur essaie la locale complète, puis la langue de base (`de-CH` → `de`), puis `defaultVoice`.                                                      |
+| `audioFormat`                    | Parmi `mp3` (défaut), `opus`, `aac`, `flac`, `wav`, `pcm`. `mp3` pour la compatibilité navigateur la plus large ; `pcm` pour la latence de décodage la plus basse.                     |
+| `cost.centsPerMillionCharacters` | Tarif de facturation par caractère (par ex. `1500` = $15/M caractères). gpt-4o-mini-tts est facturé au token ; pour ce modèle, fournis une approximation char estimée par l'opérateur. |
+
+L'action applique des limites de débit par utilisateur (`tts:synthesize:user`, 40/min) et par org (`tts:synthesize:org`, 200/min), un plafond dur de 200 chunks par message et une vérification du budget organisation avant chaque synthèse. L'audio synthétisé est gardé en cache dans le stockage Convex pendant environ 7 jours et nettoyé par GC opportuniste depuis le chemin de lecture — aucun cron nécessaire.
+
 ## Backends d'inférence auto-hébergés
 
 Tout serveur qui parle l'API HTTP OpenAI peut être un fournisseur. Ajoute un fichier JSON avec l'URL de base et les modèles que le serveur héberge. Backends courants :

@@ -223,6 +223,28 @@ cp examples/providers/openai.json $TALE_CONFIG_DIR/providers/
 
 Add your OpenAI key through **Settings > Providers > OpenAI**. The example declares `whisper-1` and `defaults.transcription`, so audio and video chat attachments route through here once a key is set. The end-user view lives at [Chat attachments](/platform/chat/attachments#audio-and-video-transcription).
 
+### Text-to-speech
+
+The bundled `examples/providers/openai-tts.json` declares `gpt-4o-mini-tts` and a default voice mapping, powering [Voice output](/platform/chat/voice-output) in the chat.
+
+```bash
+cp examples/providers/openai-tts.json $TALE_CONFIG_DIR/providers/
+```
+
+Add the OpenAI key via **Settings > Providers > openai-tts** and the chat header's voice toggle starts using the configured provider. Without this file, voice output silently falls back to the browser's built-in `speechSynthesis`.
+
+TTS-specific fields on a model entry:
+
+| Field                            | Purpose                                                                                                                                                                     |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tags`                           | Must include `"text-to-speech"`. The platform validates that any model carrying this tag also declares a voice via `defaultVoice` or `voicesByLocale`.                      |
+| `defaultVoice`                   | Fallback voice when no locale match is found.                                                                                                                               |
+| `voicesByLocale`                 | BCP-47 locale → voice id. The resolver tries the full locale, then the base language (`de-CH` → `de`), then `defaultVoice`.                                                 |
+| `audioFormat`                    | One of `mp3` (default), `opus`, `aac`, `flac`, `wav`, `pcm`. Use `mp3` for broadest browser support; `pcm` for lowest decode latency.                                       |
+| `cost.centsPerMillionCharacters` | Per-character billing rate (e.g. `1500` = $15/M chars). OpenAI's gpt-4o-mini-tts meters per token; supply an operator-estimated char-approximation when you use that model. |
+
+The action enforces per-user (`tts:synthesize:user`, 40/min) and per-org (`tts:synthesize:org`, 200/min) rate limits, a 200-chunks-per-message hard cap, and an organization budget check before each synthesis. Synthesised audio is cached in Convex storage for ~7 days and pruned by opportunistic GC from the read path — no cron required.
+
 ## Self-hosted inference backends
 
 Any server that speaks the OpenAI HTTP API can be a provider. Add a JSON file with the base URL and the models the server hosts. Common backends:

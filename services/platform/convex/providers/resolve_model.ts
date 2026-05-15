@@ -42,7 +42,7 @@ export interface ResolvedModelData {
   /** TTS-only: locale → voice mapping. */
   voicesByLocale?: Record<string, string>;
   /** TTS-only: response audio format the provider should return. */
-  audioFormat?: 'mp3' | 'opus' | 'aac' | 'flac' | 'wav';
+  audioFormat?: 'mp3' | 'opus' | 'aac' | 'flac' | 'wav' | 'pcm';
   /**
    * Resolver-merged passthrough (provider-level + model-level, depth-2 merged
    * with model-level winning). Authored as the inner body shape (e.g.
@@ -330,7 +330,7 @@ export async function resolveTranscriptionModel(
 
 export interface ResolvedTtsModel extends ResolvedModelData {
   voice: string;
-  audioFormat: 'mp3' | 'opus' | 'aac' | 'flac' | 'wav';
+  audioFormat: 'mp3' | 'opus' | 'aac' | 'flac' | 'wav' | 'pcm';
 }
 
 /**

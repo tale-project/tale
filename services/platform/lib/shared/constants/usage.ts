@@ -5,8 +5,9 @@
 const DIRECT_API_SLUG = '__direct_api__';
 export const INTEGRATION_SLUG = '__integration__';
 export const TRANSCRIPTION_SLUG = '__transcription__';
+export const TTS_SLUG = '__tts__';
 
-type UsageRowKind = 'llm' | 'integration' | 'transcription';
+type UsageRowKind = 'llm' | 'integration' | 'transcription' | 'tts';
 
 // Subset of usageLedger fields needed to classify a row by kind. Kept
 // intentionally narrow so client and server code can share the helper without
@@ -17,6 +18,7 @@ interface UsageLedgerDiscriminators {
   provider?: string;
   integrationName?: string;
   audioDurationSec?: number;
+  characterCount?: number;
 }
 
 // Classify a usageLedger row by precedence over its natural discriminators.
@@ -25,6 +27,9 @@ interface UsageLedgerDiscriminators {
 export function classifyUsageRow(row: UsageLedgerDiscriminators): UsageRowKind {
   if (row.integrationName !== undefined) return 'integration';
   if (row.audioDurationSec !== undefined) return 'transcription';
+  if (row.characterCount !== undefined && row.agentSlug === TTS_SLUG) {
+    return 'tts';
+  }
   return 'llm';
 }
 
@@ -42,6 +47,8 @@ export function bucketAgentSlug(
       return INTEGRATION_SLUG;
     case 'transcription':
       return TRANSCRIPTION_SLUG;
+    case 'tts':
+      return TTS_SLUG;
     case 'llm':
       return DIRECT_API_SLUG;
   }
@@ -59,12 +66,17 @@ export function isTranscriptionSlug(slug: string): boolean {
   return slug === TRANSCRIPTION_SLUG;
 }
 
+export function isTtsSlug(slug: string): boolean {
+  return slug === TTS_SLUG;
+}
+
 // True for any sentinel slug — used by the UI to suppress drilldown click
 // affordance on rows that don't represent a real agent.
 export function isSyntheticAgentSlug(slug: string): boolean {
   return (
     isDirectApiSlug(slug) ||
     isIntegrationSlug(slug) ||
-    isTranscriptionSlug(slug)
+    isTranscriptionSlug(slug) ||
+    isTtsSlug(slug)
   );
 }

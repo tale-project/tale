@@ -2063,7 +2063,16 @@
       "voiceOutputOff": "Voice output off",
       "voiceOutputInheritGlobal": "Follow default",
       "voiceOutputSpeaking": "Speaking",
-      "voiceOutputStopped": "Stopped"
+      "voiceOutputStopped": "Stopped",
+      "voiceOutputPlay": "Play voice output",
+      "voiceOutputStop": "Stop voice output",
+      "voiceOutputLoading": "Preparing voice…",
+      "voiceOutputBlocked": "Voice playback blocked — tap to play",
+      "voiceOutputError": "Voice output failed",
+      "voiceOutputErrorProvider": "Voice provider not configured — open Settings → AI providers",
+      "voiceOutputErrorRateLimited": "Voice rate limit hit — retrying",
+      "voiceOutputErrorBudget": "Voice budget reached for this period",
+      "voiceOutputErrorTransient": "Voice service unavailable — retrying"
     },
     "searchChat": "Search chat",
     "hideSearch": "Hide search",
@@ -4784,7 +4793,8 @@
       "voiceOutput": {
         "label": "Voice output (default)",
         "description": "When on, new conversations speak assistant replies aloud in your interface language. Each conversation can still toggle voice on or off in the chat header.",
-        "providerUnavailable": "No text-to-speech provider configured. Voice mode will use your browser's built-in speech synthesis."
+        "providerUnavailable": "No text-to-speech provider configured. Voice mode will use your browser's built-in speech synthesis.",
+        "configureProvider": "Configure a provider"
       },
       "memories": {
         "title": "Saved memories",

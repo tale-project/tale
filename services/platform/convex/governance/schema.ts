@@ -123,6 +123,10 @@ export const usageLedgerTable = defineTable({
   // minute of audio rather than per token, so inputTokens/outputTokens are
   // always 0 and costEstimate is derived from audioDurationSec directly.
   audioDurationSec: v.optional(v.number()),
+  // TTS accounting — populated for text-to-speech rows. Billed per character
+  // synthesised; `costEstimate` is derived from characterCount × the
+  // provider's `centsPerMillionCharacters`. inputTokens/outputTokens are 0.
+  characterCount: v.optional(v.number()),
   lifecycleStatus: v.optional(lifecycleStatusValidator),
   statusChangedAt: v.optional(v.number()),
 })

@@ -401,3 +401,69 @@ export const recordTranscriptionUsage = internalMutation({
     return null;
   },
 });
+
+/**
+ * Record a TTS (text-to-speech) synthesis call to the usage ledger. Billed per
+ * character of input rather than per token — `inputTokens`/`outputTokens` stay
+ * at 0 and `characterCount` carries the billable unit. Aggregated per
+ * (org, user, period, team, agent, model) so a streaming reply that produces
+ * many small chunks compresses into a single ledger row per period.
+ */
+export const recordTtsUsage = internalMutation({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+    teamId: v.optional(v.string()),
+    agentSlug: v.string(),
+    model: v.string(),
+    provider: v.string(),
+    characterCount: v.number(),
+    costEstimateCents: v.number(),
+    timestamp: v.number(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const ALL_PERIODS = ['daily', 'weekly', 'monthly'] as const;
+    for (const period of ALL_PERIODS) {
+      const periodKey = buildPeriodKeyFromTimestamp(period, args.timestamp);
+      const existingQuery = ctx.db
+        .query('usageLedger')
+        .withIndex('by_org_user_period_team_agent_model', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .eq('userId', args.userId)
+            .eq('periodKey', periodKey)
+            .eq('teamId', args.teamId)
+            .eq('agentSlug', args.agentSlug)
+            .eq('model', args.model),
+        );
+      const match = await existingQuery.first();
+
+      if (match) {
+        await ctx.db.patch(match._id, {
+          characterCount: (match.characterCount ?? 0) + args.characterCount,
+          costEstimate: match.costEstimate + args.costEstimateCents,
+          requestCount: match.requestCount + 1,
+        });
+      } else {
+        await ctx.db.insert('usageLedger', {
+          organizationId: args.organizationId,
+          userId: args.userId,
+          teamId: args.teamId,
+          periodKey,
+          granularity: period,
+          agentSlug: args.agentSlug,
+          model: args.model,
+          provider: args.provider,
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          costEstimate: args.costEstimateCents,
+          requestCount: 1,
+          characterCount: args.characterCount,
+        });
+      }
+    }
+    return null;
+  },
+});

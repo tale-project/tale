@@ -634,8 +634,6 @@ function MessageBubbleComponent({
                     enabled={voiceMode.enabled && !isUser}
                     messageId={message.id}
                     threadId={message.threadId}
-                    organizationId={organizationId}
-                    text={displayContent}
                     isStreaming={!!isAssistantStreaming}
                   />
                 </>
@@ -688,8 +686,6 @@ function MessageBubbleComponent({
                 enabled={voiceMode.enabled && !isUser}
                 messageId={message.id}
                 threadId={message.threadId}
-                organizationId={organizationId}
-                text={displayContent}
                 isStreaming={!!isAssistantStreaming}
               />
               {onFork && (

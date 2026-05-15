@@ -2063,7 +2063,16 @@
       "voiceOutputOff": "Sortie vocale désactivée",
       "voiceOutputInheritGlobal": "Suivre la valeur par défaut",
       "voiceOutputSpeaking": "Lecture en cours",
-      "voiceOutputStopped": "Arrêté"
+      "voiceOutputStopped": "Arrêté",
+      "voiceOutputPlay": "Lire la sortie vocale",
+      "voiceOutputStop": "Arrêter la sortie vocale",
+      "voiceOutputLoading": "Préparation de la voix…",
+      "voiceOutputBlocked": "Lecture vocale bloquée — touche pour lire",
+      "voiceOutputError": "Échec de la sortie vocale",
+      "voiceOutputErrorProvider": "Fournisseur vocal non configuré — ouvre Paramètres → Fournisseurs d'IA",
+      "voiceOutputErrorRateLimited": "Limite vocale atteinte — nouvelle tentative en cours",
+      "voiceOutputErrorBudget": "Budget vocal épuisé pour cette période",
+      "voiceOutputErrorTransient": "Service vocal indisponible — nouvelle tentative en cours"
     },
     "searchChat": "Rechercher dans le chat",
     "hideSearch": "Masquer la recherche",
@@ -4783,8 +4792,9 @@
       },
       "voiceOutput": {
         "label": "Sortie vocale (par défaut)",
-        "description": "Une fois activée, les nouvelles conversations lisent à voix haute les réponses de l'assistant dans la langue de l'interface. Chaque conversation peut activer ou désactiver la voix séparément depuis son en-tête.",
-        "providerUnavailable": "Aucun fournisseur de synthèse vocale configuré. Le mode vocal utilisera la synthèse intégrée au navigateur."
+        "description": "Quand cette option est activée, les nouvelles conversations te lisent à voix haute les réponses de l'assistant dans la langue de ton interface. Tu peux activer ou désactiver la voix séparément dans chaque conversation depuis son en-tête.",
+        "providerUnavailable": "Aucun fournisseur de synthèse vocale configuré. Le mode vocal utilisera la synthèse intégrée au navigateur.",
+        "configureProvider": "Configurer un fournisseur"
       },
       "memories": {
         "title": "Souvenirs enregistrés",

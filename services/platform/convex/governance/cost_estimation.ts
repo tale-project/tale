@@ -102,3 +102,17 @@ export function estimateTranscriptionCostCents(
   if (!centsPerAudioMinute || audioDurationSec <= 0) return 0;
   return roundCents((audioDurationSec / 60) * centsPerAudioMinute);
 }
+
+/**
+ * Estimate cost in cents for a TTS call billed per character (e.g. OpenAI
+ * `tts-1` at $15/M chars = 1500 cents/M). gpt-4o-mini-tts actually bills per
+ * token; the field is an operator-supplied approximation in that case.
+ * Returns 0 when the provider declares no price.
+ */
+export function estimateTtsCostCents(
+  characterCount: number,
+  centsPerMillionCharacters: number | undefined,
+): number {
+  if (!centsPerMillionCharacters || characterCount <= 0) return 0;
+  return roundCents((characterCount / 1_000_000) * centsPerMillionCharacters);
+}

@@ -12,8 +12,10 @@ import { v } from 'convex/values';
  * chunk in `index` order via a chained `<audio>` element. Failed chunks
  * trigger the browser `speechSynthesis` fallback path on the client.
  *
- * Rows are eligible for opportunistic GC after ~7 days (via the
- * rate-limited `runCleanup` mutation called from the read path).
+ * Rows are eligible for opportunistic GC after ~7 days. Cleanup is triggered
+ * from `getMessageChunks` (the read path) and gated by the `cleanup:tts`
+ * rate-limiter token so it runs at most once per thread per hour regardless
+ * of subscription chatter.
  */
 export const ttsAudioChunksTable = defineTable({
   messageId: v.string(),
@@ -36,4 +38,6 @@ export const ttsAudioChunksTable = defineTable({
   createdAt: v.number(),
 })
   .index('by_message', ['messageId', 'index'])
-  .index('by_thread_age', ['threadId', 'createdAt']);
+  .index('by_thread_age', ['threadId', 'createdAt'])
+  // Org-scoped paging for cascade-delete on org removal and GDPR erasure.
+  .index('by_org_createdAt', ['organizationId', 'createdAt']);

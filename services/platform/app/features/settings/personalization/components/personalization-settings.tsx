@@ -2,6 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
+import { Link } from '@tanstack/react-router';
 import { useAction, useMutation, useQuery } from 'convex/react';
 import { ConvexError } from 'convex/values';
 import { Trash2 } from 'lucide-react';
@@ -284,6 +285,7 @@ function VoiceOutputSection({
       <Switch
         checked={enabled}
         description={t('page.voiceOutput.description')}
+        disabled={providerAvailable === null}
         onCheckedChange={async (next) => {
           try {
             await setVoiceOutput({ organizationId, enabled: next });
@@ -296,9 +298,16 @@ function VoiceOutputSection({
           }
         }}
       />
-      {providerAvailable === false && (
+      {providerAvailable === false && enabled && (
         <Text variant="muted" className="mt-2 text-xs">
-          {t('page.voiceOutput.providerUnavailable')}
+          {t('page.voiceOutput.providerUnavailable')}{' '}
+          <Link
+            to="/dashboard/$id/settings/providers"
+            params={{ id: organizationId }}
+            className="hover:text-foreground underline"
+          >
+            {t('page.voiceOutput.configureProvider')}
+          </Link>
         </Text>
       )}
     </PageSection>

@@ -2061,9 +2061,18 @@
     "voice": {
       "voiceOutputOn": "Sprachausgabe an",
       "voiceOutputOff": "Sprachausgabe aus",
-      "voiceOutputInheritGlobal": "Standard übernehmen",
+      "voiceOutputInheritGlobal": "Folgt Standard",
       "voiceOutputSpeaking": "Spricht",
-      "voiceOutputStopped": "Gestoppt"
+      "voiceOutputStopped": "Gestoppt",
+      "voiceOutputPlay": "Sprachausgabe abspielen",
+      "voiceOutputStop": "Sprachausgabe stoppen",
+      "voiceOutputLoading": "Sprache wird vorbereitet …",
+      "voiceOutputBlocked": "Sprachwiedergabe blockiert — tippe zum Abspielen",
+      "voiceOutputError": "Sprachausgabe fehlgeschlagen",
+      "voiceOutputErrorProvider": "Sprach-Anbieter nicht konfiguriert — öffne Einstellungen → KI-Anbieter",
+      "voiceOutputErrorRateLimited": "Sprach-Limit erreicht — neuer Versuch läuft",
+      "voiceOutputErrorBudget": "Sprach-Budget für diesen Zeitraum aufgebraucht",
+      "voiceOutputErrorTransient": "Sprach-Dienst nicht erreichbar — neuer Versuch läuft"
     },
     "searchChat": "Chat durchsuchen",
     "hideSearch": "Suche ausblenden",
@@ -4783,8 +4792,9 @@
       },
       "voiceOutput": {
         "label": "Sprachausgabe (Standard)",
-        "description": "Wenn aktiviert, werden Antworten in neuen Chats in deiner Oberflächensprache vorgelesen. In jedem Chat kannst du die Sprachausgabe weiterhin separat ein- oder ausschalten.",
-        "providerUnavailable": "Kein Text-to-Speech-Anbieter konfiguriert. Der Sprachmodus nutzt die im Browser eingebaute Sprachausgabe."
+        "description": "Wenn aktiviert, werden Antworten in neuen Chats in deiner Oberflächensprache vorgelesen. Im Chat-Header kannst du die Sprachausgabe weiterhin separat ein- oder ausschalten.",
+        "providerUnavailable": "Kein Text-zu-Sprache-Anbieter konfiguriert. Der Sprachmodus nutzt die im Browser eingebaute Sprachausgabe.",
+        "configureProvider": "Anbieter einrichten"
       },
       "memories": {
         "title": "Gespeicherte Erinnerungen",

@@ -20,6 +20,7 @@ import { useT } from '@/lib/i18n/client';
 import { useBranchContext } from '../context/branch-context';
 import type { ChatItem } from '../hooks/use-merged-chat-items';
 import { usePersonalizationActiveForThread } from '../hooks/use-personalization-active';
+import { VoiceOutputProvider } from '../hooks/voice-output-context';
 import { ApprovalCardRenderer } from './approval-card-renderer';
 import { BranchNavigator } from './branch-navigator';
 import { CollapsibleSystemMessage } from './collapsible-system-message';
@@ -550,72 +551,74 @@ export function ChatMessages({
   const afterItems = lastUserIdx >= 0 ? items.slice(lastUserIdx + 1) : [];
 
   return (
-    <div
-      className="mx-auto flex w-full max-w-(--chat-max-width) flex-col"
-      role="log"
-      aria-live="polite"
-      aria-labelledby={messageHistoryLabelId}
-    >
-      <h2 id={messageHistoryLabelId} className="sr-only">
-        {t('aria.messageHistory')}
-      </h2>
-      <div className="flex flex-col gap-3 pt-6">
-        {(canLoadMore || isLoadingMore) && (
-          <div className="flex justify-center py-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => loadMore(50)}
-              disabled={isLoadingMore}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              {isLoadingMore ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {t('history.loading')}
-                </>
-              ) : (
-                t('loadOlderMessages')
-              )}
-            </Button>
+    <VoiceOutputProvider>
+      <div
+        className="mx-auto flex w-full max-w-(--chat-max-width) flex-col"
+        role="log"
+        aria-live="polite"
+        aria-labelledby={messageHistoryLabelId}
+      >
+        <h2 id={messageHistoryLabelId} className="sr-only">
+          {t('aria.messageHistory')}
+        </h2>
+        <div className="flex flex-col gap-3 pt-6">
+          {(canLoadMore || isLoadingMore) && (
+            <div className="flex justify-center py-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => loadMore(50)}
+                disabled={isLoadingMore}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                {isLoadingMore ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {t('history.loading')}
+                  </>
+                ) : (
+                  t('loadOlderMessages')
+                )}
+              </Button>
+            </div>
+          )}
+
+          {/* Messages before the last user message */}
+          <div className="flex flex-col gap-3">
+            {beforeItems.map((item, i) => renderItemWithDivider(item, i))}
           </div>
-        )}
 
-        {/* Messages before the last user message */}
-        <div className="flex flex-col gap-3">
-          {beforeItems.map((item, i) => renderItemWithDivider(item, i))}
-        </div>
+          {/* Last user message */}
+          {lastUserItem && renderItemWithDivider(lastUserItem, lastUserIdx)}
 
-        {/* Last user message */}
-        {lastUserItem && renderItemWithDivider(lastUserItem, lastUserIdx)}
-
-        {/* Response area: min-height fills viewport so scroll-to-bottom
+          {/* Response area: min-height fills viewport so scroll-to-bottom
             positions the user message at the top. When AI response exceeds
             viewport height, min-height becomes irrelevant. */}
-        <div
-          ref={responseAreaRef}
-          className="flex shrink-0 flex-col gap-3 [overflow-anchor:none]"
-        >
-          {afterItems.map((item, i) =>
-            renderItemWithDivider(item, lastUserIdx + 1 + i),
-          )}
+          <div
+            ref={responseAreaRef}
+            className="flex shrink-0 flex-col gap-3 [overflow-anchor:none]"
+          >
+            {afterItems.map((item, i) =>
+              renderItemWithDivider(item, lastUserIdx + 1 + i),
+            )}
 
-          <div>
-            {isLoading && (
-              <ThinkingAnimation streamingMessage={activeMessage} />
+            <div>
+              {isLoading && (
+                <ThinkingAnimation streamingMessage={activeMessage} />
+              )}
+            </div>
+
+            {activeApproval && (
+              <ApprovalCardRenderer
+                item={activeApproval}
+                organizationId={organizationId}
+                onHumanInputResponseSubmitted={onHumanInputResponseSubmitted}
+                onSendMessage={onSendMessage}
+              />
             )}
           </div>
-
-          {activeApproval && (
-            <ApprovalCardRenderer
-              item={activeApproval}
-              organizationId={organizationId}
-              onHumanInputResponseSubmitted={onHumanInputResponseSubmitted}
-              onSendMessage={onSendMessage}
-            />
-          )}
         </div>
       </div>
-    </div>
+    </VoiceOutputProvider>
   );
 }

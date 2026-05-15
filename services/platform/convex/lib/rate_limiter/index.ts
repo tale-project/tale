@@ -267,6 +267,40 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 1,
     period: HOUR,
   },
+  // Per-thread lazy cleanup of TTS audio chunks. Gates opportunistic GC
+  // triggered from the getMessageChunks read path so storage stays bounded
+  // without a cron — at most one cleanup pass per thread per hour, no matter
+  // how many subscribers re-fire the query in that window.
+  'cleanup:tts': {
+    kind: 'fixed window',
+    rate: 1,
+    period: HOUR,
+  },
+
+  // ============================================
+  // TIER 8: TTS (Token Bucket)
+  // Voice-output synthesis bills per character to upstream provider;
+  // keep abuse bounded even for authenticated users.
+  // ============================================
+  // Per-user bucket: realistic streaming generates ~5-15 chunks per minute;
+  // 60 capacity covers a multi-message session burst, refills at 40/min.
+  'tts:synthesize:user': {
+    kind: 'token bucket',
+    rate: 40,
+    period: MINUTE,
+    capacity: 60,
+    shards: 4,
+  },
+  // Per-org bucket: cushions cross-tenant abuse where one user can't be
+  // pinned. Higher rate than per-user since multiple legitimate members
+  // share it.
+  'tts:synthesize:org': {
+    kind: 'token bucket',
+    rate: 200,
+    period: MINUTE,
+    capacity: 400,
+    shards: 4,
+  },
 
   // ============================================
   // TIER 7: Governance (Fixed Window)

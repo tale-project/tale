@@ -76,4 +76,28 @@ export async function cascadeOnOrgDeleted(
     )
     .collect();
   await Promise.all(prefs.map((p) => ctx.db.delete(p._id)));
+
+  // TTS audio chunks (rows + `_storage` blobs) are org-scoped: a deleted org
+  // must not leave verbatim assistant-voice renderings behind. Thread-cascade
+  // would catch chunks attached to live threads, but an org with orphaned
+  // chunk rows (rare, from past partial failures) still needs sweeping here.
+  const ttsChunks = await ctx.db
+    .query('ttsAudioChunks')
+    .withIndex('by_org_createdAt', (q) =>
+      q.eq('organizationId', organizationId),
+    )
+    .collect();
+  for (const chunk of ttsChunks) {
+    if (chunk.storageId) {
+      try {
+        await ctx.storage.delete(chunk.storageId);
+      } catch (error) {
+        console.warn(
+          `[cascadeOnOrgDeleted] tts storage.delete failed for ${String(chunk.storageId)}:`,
+          error,
+        );
+      }
+    }
+    await ctx.db.delete(chunk._id);
+  }
 }
