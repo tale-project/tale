@@ -7,6 +7,22 @@ description: Kundenkonversationen aus einem zentralen Posteingang verwalten.
 
 Kanal-Anbindungen werden einmalig von einem Entwickler unter [Integrationen – Überblick](/de/platform/integrations/overview) eingerichtet — die E-Mail-Integration liefert diesen Posteingang.
 
+## E-Mail-Kanal anbinden
+
+Damit ein Postfach in den Posteingang einfließt, fügt ein Admin oder Entwickler es einmalig unter **Einstellungen > Integrationen** hinzu. Die Verbindung ist kein `rest_api`-Konnektor — sie hat eine eigene, auf IMAP+SMTP zugeschnittene Konfigurationsoberfläche. Um den Kanal hinzuzufügen, öffne **Einstellungen > Integrationen**, scrolle zum Abschnitt **E-Mail** und trag ein:
+
+| Feld            | Was rein muss                                                                                                |
+| --------------- | ------------------------------------------------------------------------------------------------------------ |
+| Anzeigename     | Der Name, der auf Konversationen aus diesem Postfach angezeigt wird.                                         |
+| Eingang (IMAP)  | Hostname, Port, Verschlüsselung (`SSL/TLS`, `STARTTLS`, `None`), Benutzername, Passwort.                     |
+| Ausgang (SMTP)  | Hostname, Port, Verschlüsselung, Benutzername, Passwort (oft dieselben Anmeldedaten wie IMAP).               |
+| Absenderadresse | Die E-Mail-Adresse, von der Antworten gesendet werden. Muss dem entsprechen, was der SMTP-Server akzeptiert. |
+| Sync-Intervall  | Wie oft Tale neue Mails abruft (Voreinstellung: eine Minute).                                                |
+
+Nach dem Speichern ruft Tale das Postfach im konfigurierten Intervall ab. Eingehende E-Mails werden Konversationen-Threads — jede eindeutige Reply-Kette ist ein Thread; aus der Plattform gesendete Antworten gehen über SMTP raus und werden im Mailclient des Kunden via Standard-`In-Reply-To`-Kopfzeile zurück eingefädelt. Das Postfach bleibt verbunden, bis die Integration entfernt wird; Löschen stoppt die Synchronisation, lässt aber bestehende Threads im Posteingang stehen.
+
+Für OAuth-basierte Mail-Anbieter (Microsoft 365, Gmail) nimm den dedizierten OAuth-Flow in der Integration statt Passwort-Anmeldedaten — IMAP-Passwort-Auth ist bei diesen Anbietern standardmäßig deaktiviert.
+
 ## Konversations-Status
 
 | Status      | Bedeutung                                                                                          |

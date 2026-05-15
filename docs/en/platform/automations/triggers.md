@@ -3,9 +3,9 @@ title: Triggers
 description: How workflows start — schedules, events, webhooks, and manual runs.
 ---
 
-Every workflow needs at least one trigger. The trigger defines _when_ the workflow starts and _what input_ it starts with. A workflow can have multiple triggers of the same or different kinds.
+Every workflow needs at least one trigger. The trigger defines _when_ the workflow starts and _what input_ it starts with. The four kinds — schedule, event, webhook, manual — cover almost every shape of "start the workflow now"; a workflow can have multiple triggers of the same or different kinds (run on a nightly schedule _and_ when a webhook fires).
 
-Triggers are configured on the workflow's **Start** step.
+This page is for the Developer or higher who's wiring an automation up to its trigger. Configuration lives on the workflow's **Start** step.
 
 ## Schedule triggers
 
