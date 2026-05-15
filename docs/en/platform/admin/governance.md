@@ -63,7 +63,15 @@ Open **Settings > Governance > Content safety**. Define categories (for example 
 
 #### PII detection {#pii-detection}
 
-Enable automatic detection and masking (or blocking) of personally identifiable information in messages. Built-in patterns cover email, phone, credit-card and IBAN numbers, US-style addresses, and a few national IDs; custom regex rules let you add internal formats (employee ID, ticket numbers, product SKUs). Each pattern picks its own enforcement mode. Detected PII in attachments goes through the same pipeline as typed messages.
+Enable automatic detection of personally identifiable information in messages. Built-in patterns cover **email, phone, credit-card, IBAN, IP address, SSN, CVC, dates of birth, postal addresses (43 locales), and national IDs / passports** (German Personalausweis, French NIR, Spanish DNI/NIE, Italian Codice Fiscale, Dutch BSN, Polish PESEL, UK National Insurance Number, Canadian SIN, Irish PPS, Indian Aadhaar, Chinese 身份证, Japanese My Number, Korean RRN, and 30+ more). Each ID type uses the canonical checksum (ICAO 9303, Luhn, mod-11, Verhoeff, mod-23) so randomly-shaped strings don't false-positive. Custom regex rules let you add internal formats (employee ID, ticket numbers, product SKUs). Detected PII in attachments goes through the same pipeline as typed messages.
+
+Three enforcement modes:
+
+- **Mask** — replace each match with a fixed placeholder (`[EMAIL]`, `[PHONE]`, …). Recommended for audit logs and stored chat history where the raw value is never needed again. One-way: the original is gone.
+- **Block** — reject the entire message. Recommended when your policy forbids any PII reaching upstream models, full stop.
+- **Tokenize** — replace each match with a stable indexed token (`[EMAIL_1]`, `[PHONE_1]`) and keep a per-message restore mapping. The model sees the tokens; the user sees their original details restored in the response. Recommended for the most natural UX without losing protection. The mapping is held in memory for the round-trip and discarded after — never written to logs.
+
+A built-in **test playground** in Settings → Governance → PII shows the full round-trip live: type any sentence and watch detection → tokenization → mock AI response → restoration in real time. Hover any highlighted span to see its detected type (translated).
 
 #### Moderation provider
 

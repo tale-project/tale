@@ -65,20 +65,6 @@
     "notFoundBackHome": "Zurück zur Doku-Startseite",
     "backToTop": "Nach oben"
   },
-  "languageSwitcher": {
-    "ariaLabel": "Sprache wechseln",
-    "locales": {
-      "en": "English",
-      "de": "Deutsch",
-      "fr": "Français"
-    }
-  },
-  "themeSwitcher": {
-    "ariaLabel": "Design wechseln",
-    "light": "Hell",
-    "dark": "Dunkel",
-    "system": "System"
-  },
   "footer": {
     "product": "Produkt",
     "resources": "Ressourcen",

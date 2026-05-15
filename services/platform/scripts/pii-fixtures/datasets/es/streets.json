@@ -1,0 +1,122 @@
+[
+  {
+    "name": "Calle Mayor",
+    "countryCode": "ES",
+    "frequency": 7821,
+    "source": "manual"
+  },
+  {
+    "name": "Calle Real",
+    "countryCode": "ES",
+    "frequency": 6915,
+    "source": "manual"
+  },
+  {
+    "name": "Calle de la Iglesia",
+    "countryCode": "ES",
+    "frequency": 6402,
+    "source": "manual"
+  },
+  {
+    "name": "Calle de la Paz",
+    "countryCode": "ES",
+    "frequency": 5821,
+    "source": "manual"
+  },
+  {
+    "name": "Calle de Cervantes",
+    "countryCode": "ES",
+    "frequency": 5402,
+    "source": "manual"
+  },
+  {
+    "name": "Avenida de la Constitución",
+    "countryCode": "ES",
+    "frequency": 5102,
+    "source": "manual"
+  },
+  {
+    "name": "Avenida de España",
+    "countryCode": "ES",
+    "frequency": 4901,
+    "source": "manual"
+  },
+  {
+    "name": "Avenida de Mayo",
+    "countryCode": "AR",
+    "frequency": 4702,
+    "source": "manual"
+  },
+  {
+    "name": "Avenida Corrientes",
+    "countryCode": "AR",
+    "frequency": 4502,
+    "source": "manual"
+  },
+  {
+    "name": "Avenida 9 de Julio",
+    "countryCode": "AR",
+    "frequency": 4301,
+    "source": "manual"
+  },
+  {
+    "name": "Paseo de la Castellana",
+    "countryCode": "ES",
+    "frequency": 4101,
+    "source": "manual"
+  },
+  {
+    "name": "Gran Vía",
+    "countryCode": "ES",
+    "frequency": 3902,
+    "source": "manual"
+  },
+  {
+    "name": "Calle de Alcalá",
+    "countryCode": "ES",
+    "frequency": 3701,
+    "source": "manual"
+  },
+  {
+    "name": "Plaza Mayor",
+    "countryCode": "ES",
+    "frequency": 3501,
+    "source": "manual"
+  },
+  {
+    "name": "Plaza de España",
+    "countryCode": "ES",
+    "frequency": 3302,
+    "source": "manual"
+  },
+  {
+    "name": "Plaza del Sol",
+    "countryCode": "ES",
+    "frequency": 3101,
+    "source": "manual"
+  },
+  {
+    "name": "Paseo del Prado",
+    "countryCode": "ES",
+    "frequency": 2902,
+    "source": "manual"
+  },
+  {
+    "name": "Calle de Goya",
+    "countryCode": "ES",
+    "frequency": 2701,
+    "source": "manual"
+  },
+  {
+    "name": "Calle Princesa",
+    "countryCode": "ES",
+    "frequency": 2501,
+    "source": "manual"
+  },
+  {
+    "name": "Avenida Reforma",
+    "countryCode": "MX",
+    "frequency": 2301,
+    "source": "manual"
+  }
+]

@@ -1,0 +1,4002 @@
+[
+  {
+    "text": "Chcem tu ostať dlhšie.",
+    "source": "tatoeba",
+    "upstreamId": "408364"
+  },
+  {
+    "text": "Mám ísť s tebou?",
+    "source": "tatoeba",
+    "upstreamId": "408366"
+  },
+  {
+    "text": "Prečo si prišiel do Japonska?",
+    "source": "tatoeba",
+    "upstreamId": "408393"
+  },
+  {
+    "text": "Prekvapuje ma, že tvoja rodina má japonské auto.",
+    "source": "tatoeba",
+    "upstreamId": "409164"
+  },
+  {
+    "text": "Penis je jeden z mužských pohlavných orgánov.",
+    "source": "tatoeba",
+    "upstreamId": "409165"
+  },
+  {
+    "text": "Bojím sa búrky.",
+    "source": "tatoeba",
+    "upstreamId": "513218"
+  },
+  {
+    "text": "Niet boha okrem Boha a Muhammad je posol Boží.",
+    "source": "tatoeba",
+    "upstreamId": "528287"
+  },
+  {
+    "text": "Všetci ľudia sa rodia slobodní a sebe rovní, čo sa týka ich dôstojnosti a práv. Sú obdarení rozumom a majú navzájom jednať v bratskom duchu.",
+    "source": "tatoeba",
+    "upstreamId": "532210"
+  },
+  {
+    "text": "Ja nechcem tak dlho čakať.",
+    "source": "tatoeba",
+    "upstreamId": "535888"
+  },
+  {
+    "text": "Správne nás usmerni na cestu rovnú.",
+    "source": "tatoeba",
+    "upstreamId": "536600"
+  },
+  {
+    "text": "Aj keby som išiel dolinou tône smrti, nebudem sa báť zlého, lebo ty si so mnou; tvoj prút a tvoja palica ma potešujú.",
+    "source": "tatoeba",
+    "upstreamId": "536605"
+  },
+  {
+    "text": "Skujú svoje meče v motyky a svoje kopie v srpy. Nepozdvihne národ proti národu meča, ani sa viacej nebudú učiť boju.",
+    "source": "tatoeba",
+    "upstreamId": "536610"
+  },
+  {
+    "text": "Jeden, dva, tri, štyri, päť, šesť, sedem, osem, deväť, desať.",
+    "source": "tatoeba",
+    "upstreamId": "536992"
+  },
+  {
+    "text": "Ellen nehovorí po anglicky.",
+    "source": "tatoeba",
+    "upstreamId": "539941"
+  },
+  {
+    "text": "Kto je ten chlap?",
+    "source": "tatoeba",
+    "upstreamId": "569267"
+  },
+  {
+    "text": "Sú všetci rovnakí?",
+    "source": "tatoeba",
+    "upstreamId": "572294"
+  },
+  {
+    "text": "Môj dom je blízko vlakovej stanice.",
+    "source": "tatoeba",
+    "upstreamId": "572301"
+  },
+  {
+    "text": "Zastávka autobusu je blízko našej školy.",
+    "source": "tatoeba",
+    "upstreamId": "572304"
+  },
+  {
+    "text": "Leto sa skončilo.",
+    "source": "tatoeba",
+    "upstreamId": "578497"
+  },
+  {
+    "text": "Niekedy som chcel byť astrofyzikom.",
+    "source": "tatoeba",
+    "upstreamId": "594996"
+  },
+  {
+    "text": "Život je pekný.",
+    "source": "tatoeba",
+    "upstreamId": "600004"
+  },
+  {
+    "text": "Čo sa tam deje?",
+    "source": "tatoeba",
+    "upstreamId": "601591"
+  },
+  {
+    "text": "Musíš sa veľa učiť.",
+    "source": "tatoeba",
+    "upstreamId": "636545"
+  },
+  {
+    "text": "To je veru strašné.",
+    "source": "tatoeba",
+    "upstreamId": "637899"
+  },
+  {
+    "text": "Kúpil som si tašku.",
+    "source": "tatoeba",
+    "upstreamId": "637901"
+  },
+  {
+    "text": "Táto kniha sa tu nepredáva.",
+    "source": "tatoeba",
+    "upstreamId": "642402"
+  },
+  {
+    "text": "Nemožno s ním debatovať.",
+    "source": "tatoeba",
+    "upstreamId": "654797"
+  },
+  {
+    "text": "Aká pekná dúha!",
+    "source": "tatoeba",
+    "upstreamId": "663018"
+  },
+  {
+    "text": "Ked' učiteľ dočítal, jeden zo žiakov zdvihol ruku.",
+    "source": "tatoeba",
+    "upstreamId": "691710"
+  },
+  {
+    "text": "Nikto tu nesedí.",
+    "source": "tatoeba",
+    "upstreamId": "705072"
+  },
+  {
+    "text": "Iste máš chrípku.",
+    "source": "tatoeba",
+    "upstreamId": "707038"
+  },
+  {
+    "text": "Bezfarebné zelené nápady spia razantne.",
+    "source": "tatoeba",
+    "upstreamId": "719096"
+  },
+  {
+    "text": "Ona hovorí po anglicky a nemecky.",
+    "source": "tatoeba",
+    "upstreamId": "730944"
+  },
+  {
+    "text": "Každý sa môže pomýliť.",
+    "source": "tatoeba",
+    "upstreamId": "730947"
+  },
+  {
+    "text": "Srdce mi od žiaľu puká.",
+    "source": "tatoeba",
+    "upstreamId": "732296"
+  },
+  {
+    "text": "Čo musím urobiť s jej listom?",
+    "source": "tatoeba",
+    "upstreamId": "735087"
+  },
+  {
+    "text": "Píše listy svojej matke.",
+    "source": "tatoeba",
+    "upstreamId": "735092"
+  },
+  {
+    "text": "Môj rodný jazyk je najkrajší dar, ktorý som získal od mojej matky.",
+    "source": "tatoeba",
+    "upstreamId": "735095"
+  },
+  {
+    "text": "Môžete mi pomôcť?",
+    "source": "tatoeba",
+    "upstreamId": "746746"
+  },
+  {
+    "text": "Stratil som moje hodinky.",
+    "source": "tatoeba",
+    "upstreamId": "748393"
+  },
+  {
+    "text": "Život nie je ľahký.",
+    "source": "tatoeba",
+    "upstreamId": "748398"
+  },
+  {
+    "text": "Snáď máte pravdu.",
+    "source": "tatoeba",
+    "upstreamId": "748399"
+  },
+  {
+    "text": "Mám recept pre tento liek.",
+    "source": "tatoeba",
+    "upstreamId": "748401"
+  },
+  {
+    "text": "Kde je najbližšia policajná stanica?",
+    "source": "tatoeba",
+    "upstreamId": "748403"
+  },
+  {
+    "text": "Som si istý, že nájdeme riešenie.",
+    "source": "tatoeba",
+    "upstreamId": "748404"
+  },
+  {
+    "text": "Mám rada čokoládovú zmrzlinu!",
+    "source": "tatoeba",
+    "upstreamId": "855372"
+  },
+  {
+    "text": "O koľkej si dnes vstal?",
+    "source": "tatoeba",
+    "upstreamId": "878565"
+  },
+  {
+    "text": "Určite sa u nás zastavte, keď budete nabudúce v Londýne.",
+    "source": "tatoeba",
+    "upstreamId": "878568"
+  },
+  {
+    "text": "Všetci chválili jeho hrdinské činy.",
+    "source": "tatoeba",
+    "upstreamId": "878570"
+  },
+  {
+    "text": "Poznám jeho rodinu.",
+    "source": "tatoeba",
+    "upstreamId": "878571"
+  },
+  {
+    "text": "Neviem, kto to urobil.",
+    "source": "tatoeba",
+    "upstreamId": "878578"
+  },
+  {
+    "text": "Je žiakom gymnázia Yushu.",
+    "source": "tatoeba",
+    "upstreamId": "878583"
+  },
+  {
+    "text": "Potrebujú pomoc.",
+    "source": "tatoeba",
+    "upstreamId": "878584"
+  },
+  {
+    "text": "Nechcú zostarnúť.",
+    "source": "tatoeba",
+    "upstreamId": "878586"
+  },
+  {
+    "text": "Dva obrázky sa prekrývali.",
+    "source": "tatoeba",
+    "upstreamId": "878596"
+  },
+  {
+    "text": "Bol by som Vám veľmi vďačný, ak by ste mi tie peniaze požičali.",
+    "source": "tatoeba",
+    "upstreamId": "878622"
+  },
+  {
+    "text": "Veľmi rád chodím na ryby. Dá sa pri tom príjemne relaxovať.",
+    "source": "tatoeba",
+    "upstreamId": "878636"
+  },
+  {
+    "text": "Svetlo sa postupne vytratilo.",
+    "source": "tatoeba",
+    "upstreamId": "878649"
+  },
+  {
+    "text": "Pre ktorú firmu pracuješ?",
+    "source": "tatoeba",
+    "upstreamId": "878652"
+  },
+  {
+    "text": "Linda bola tak sklamaná, že sa hneď rozplakala.",
+    "source": "tatoeba",
+    "upstreamId": "878654"
+  },
+  {
+    "text": "Jeho reč nás veľmi dojala.",
+    "source": "tatoeba",
+    "upstreamId": "878655"
+  },
+  {
+    "text": "Už je najvyšší čas ísť do postele.",
+    "source": "tatoeba",
+    "upstreamId": "878657"
+  },
+  {
+    "text": "V tejto knihe sa píše, že slon sa dožíva až sto rokov.",
+    "source": "tatoeba",
+    "upstreamId": "878658"
+  },
+  {
+    "text": "Tento prípad ma stál mnoho bezsenných nocí.",
+    "source": "tatoeba",
+    "upstreamId": "878664"
+  },
+  {
+    "text": "Nezabudni zamknúť, keď budeš odchádzať.",
+    "source": "tatoeba",
+    "upstreamId": "878665"
+  },
+  {
+    "text": "Lucka má asi toľko kamarátov, čo ja.",
+    "source": "tatoeba",
+    "upstreamId": "878667"
+  },
+  {
+    "text": "Získal cenu. Presne ako sme očakávali.",
+    "source": "tatoeba",
+    "upstreamId": "878671"
+  },
+  {
+    "text": "Napadla ho skvelá myšlienka.",
+    "source": "tatoeba",
+    "upstreamId": "878676"
+  },
+  {
+    "text": "Získal cenu presne tak, ako sme očakávali.",
+    "source": "tatoeba",
+    "upstreamId": "878677"
+  },
+  {
+    "text": "Mám pocit, že v tej krčme prilievajú do piva vodu.",
+    "source": "tatoeba",
+    "upstreamId": "878678"
+  },
+  {
+    "text": "Daj mi vedieť, kedy sa vrátiš domov.",
+    "source": "tatoeba",
+    "upstreamId": "878679"
+  },
+  {
+    "text": "Takmer nič o tom neviem.",
+    "source": "tatoeba",
+    "upstreamId": "878889"
+  },
+  {
+    "text": "Pil som príliš veľa a podlamovali sa mi nohy.",
+    "source": "tatoeba",
+    "upstreamId": "878893"
+  },
+  {
+    "text": "Bolo pekné počasie, tak sme sa vybrali na ryby.",
+    "source": "tatoeba",
+    "upstreamId": "878894"
+  },
+  {
+    "text": "Včera som mal narodeniny.",
+    "source": "tatoeba",
+    "upstreamId": "878895"
+  },
+  {
+    "text": "Máš právo dozvedieť sa pravdu.",
+    "source": "tatoeba",
+    "upstreamId": "878896"
+  },
+  {
+    "text": "Keď zaplatím všetky dlhy, neostanú mi asi vôbec žiadne peniaze.",
+    "source": "tatoeba",
+    "upstreamId": "878897"
+  },
+  {
+    "text": "Smiem použiť toaletu?",
+    "source": "tatoeba",
+    "upstreamId": "878902"
+  },
+  {
+    "text": "Presne tak! Ty ma miluješ!",
+    "source": "tatoeba",
+    "upstreamId": "878904"
+  },
+  {
+    "text": "Mal som problém zohnať taxík.",
+    "source": "tatoeba",
+    "upstreamId": "878906"
+  },
+  {
+    "text": "Mal by si byť verný svojim priateľom.",
+    "source": "tatoeba",
+    "upstreamId": "878907"
+  },
+  {
+    "text": "Politické rokovanie sa odročilo.",
+    "source": "tatoeba",
+    "upstreamId": "878908"
+  },
+  {
+    "text": "Obrad sa uskutoční zajtra.",
+    "source": "tatoeba",
+    "upstreamId": "878911"
+  },
+  {
+    "text": "Špecializuje sa na ekonómiu.",
+    "source": "tatoeba",
+    "upstreamId": "878914"
+  },
+  {
+    "text": "Včera prišiel neskoro do školy.",
+    "source": "tatoeba",
+    "upstreamId": "878917"
+  },
+  {
+    "text": "Nechaj ma ísť s tebou.",
+    "source": "tatoeba",
+    "upstreamId": "878920"
+  },
+  {
+    "text": "Je krajšia než ktorákoľvek iná.",
+    "source": "tatoeba",
+    "upstreamId": "878924"
+  },
+  {
+    "text": "Zastavili vlaky kvôli hustému lejaku.",
+    "source": "tatoeba",
+    "upstreamId": "878927"
+  },
+  {
+    "text": "Radšej by som umrel, než by som sa mal vzdať.",
+    "source": "tatoeba",
+    "upstreamId": "878928"
+  },
+  {
+    "text": "O koľkej zvyčajne odchádzaš z domu?",
+    "source": "tatoeba",
+    "upstreamId": "878929"
+  },
+  {
+    "text": "Jej vlasy sa pekne vlnili.",
+    "source": "tatoeba",
+    "upstreamId": "878931"
+  },
+  {
+    "text": "Každá osoba má práva a povinnosti.",
+    "source": "tatoeba",
+    "upstreamId": "878933"
+  },
+  {
+    "text": "Odoberáš nejaké časopisy?",
+    "source": "tatoeba",
+    "upstreamId": "878935"
+  },
+  {
+    "text": "Vrátil spisy späť do priečinku.",
+    "source": "tatoeba",
+    "upstreamId": "878941"
+  },
+  {
+    "text": "Takáto šanca už druhý raz nepríde.",
+    "source": "tatoeba",
+    "upstreamId": "878945"
+  },
+  {
+    "text": "Truman dorazil do Bieleho Domu v priebehu niekoľkých minút.",
+    "source": "tatoeba",
+    "upstreamId": "878950"
+  },
+  {
+    "text": "Tí dvaja chlapci majú zhruba rovnakú angličtinu.",
+    "source": "tatoeba",
+    "upstreamId": "878953"
+  },
+  {
+    "text": "Dvadsaťosem hlasov bolo za a dvadsať bolo proti.",
+    "source": "tatoeba",
+    "upstreamId": "878958"
+  },
+  {
+    "text": "Posunul som šachovú figúrku o jedno políčko vpred.",
+    "source": "tatoeba",
+    "upstreamId": "878961"
+  },
+  {
+    "text": "To nie moja vina.",
+    "source": "tatoeba",
+    "upstreamId": "904815"
+  },
+  {
+    "text": "Ja chcem zomrieť s Getter Jaani.",
+    "source": "tatoeba",
+    "upstreamId": "937848"
+  },
+  {
+    "text": "Magdalena a Lech majú trinásť rokov.",
+    "source": "tatoeba",
+    "upstreamId": "937861"
+  },
+  {
+    "text": "Magdalena a Ania sú z Poľska.",
+    "source": "tatoeba",
+    "upstreamId": "937871"
+  },
+  {
+    "text": "Ania a Piotr majú dvanásť rokov.",
+    "source": "tatoeba",
+    "upstreamId": "938002"
+  },
+  {
+    "text": "Moja žena je Poľka.",
+    "source": "tatoeba",
+    "upstreamId": "938003"
+  },
+  {
+    "text": "Moja žena sa volá Lidia Zarębowa.",
+    "source": "tatoeba",
+    "upstreamId": "938009"
+  },
+  {
+    "text": "Moja staršia dcéra je Magdalena Zarębówna.",
+    "source": "tatoeba",
+    "upstreamId": "938013"
+  },
+  {
+    "text": "Môj starší syn je Lech Zaręba.",
+    "source": "tatoeba",
+    "upstreamId": "938016"
+  },
+  {
+    "text": "Lidia má plavé rovné vlasy.",
+    "source": "tatoeba",
+    "upstreamId": "938025"
+  },
+  {
+    "text": "Tímea je Maďarka a žije v Poľsku.",
+    "source": "tatoeba",
+    "upstreamId": "938067"
+  },
+  {
+    "text": "Kati Wolf je dobrá speváčka.",
+    "source": "tatoeba",
+    "upstreamId": "938138"
+  },
+  {
+    "text": "Maďarsko a Slovensko sú susedia.",
+    "source": "tatoeba",
+    "upstreamId": "938141"
+  },
+  {
+    "text": "Cítil som sa zle.",
+    "source": "tatoeba",
+    "upstreamId": "944590"
+  },
+  {
+    "text": "Sedí vedľa svojho brata.",
+    "source": "tatoeba",
+    "upstreamId": "949065"
+  },
+  {
+    "text": "Nesmieme zaspať na vavrínoch!",
+    "source": "tatoeba",
+    "upstreamId": "949067"
+  },
+  {
+    "text": "Požičiam vám pero.",
+    "source": "tatoeba",
+    "upstreamId": "949070"
+  },
+  {
+    "text": "Požičiam si pero.",
+    "source": "tatoeba",
+    "upstreamId": "949071"
+  },
+  {
+    "text": "Ona stála v strede izby.",
+    "source": "tatoeba",
+    "upstreamId": "1005019"
+  },
+  {
+    "text": "Prosil som ho o vyhotovenie štyroch kópií listu.",
+    "source": "tatoeba",
+    "upstreamId": "1005048"
+  },
+  {
+    "text": "Chutilo sladko.",
+    "source": "tatoeba",
+    "upstreamId": "1005073"
+  },
+  {
+    "text": "Pamätaj, že musíš zomrieť.",
+    "source": "tatoeba",
+    "upstreamId": "1006162"
+  },
+  {
+    "text": "To nie sú tvoje veci.",
+    "source": "tatoeba",
+    "upstreamId": "1006168"
+  },
+  {
+    "text": "On hovorí príliš rýchlo.",
+    "source": "tatoeba",
+    "upstreamId": "1006170"
+  },
+  {
+    "text": "To dievča hovorí po anglicky a nemecky.",
+    "source": "tatoeba",
+    "upstreamId": "1008505"
+  },
+  {
+    "text": "Som veľmi hrubý.",
+    "source": "tatoeba",
+    "upstreamId": "1009380"
+  },
+  {
+    "text": "Milujem okcitánčinu.",
+    "source": "tatoeba",
+    "upstreamId": "1031120"
+  },
+  {
+    "text": "Ktorúkoľvek cestu si vyberieš, dostaneš sa tam načas.",
+    "source": "tatoeba",
+    "upstreamId": "1035688"
+  },
+  {
+    "text": "Mám mačku a psa. Mačka je čierna a pes je biely.",
+    "source": "tatoeba",
+    "upstreamId": "1035689"
+  },
+  {
+    "text": "Videl som psa. Pes držal v papuli kus mäsa.",
+    "source": "tatoeba",
+    "upstreamId": "1035690"
+  },
+  {
+    "text": "Mám čierneho a bieleho psa.",
+    "source": "tatoeba",
+    "upstreamId": "1035691"
+  },
+  {
+    "text": "Pes môjho suseda nebude žrať suché psie krmivo.",
+    "source": "tatoeba",
+    "upstreamId": "1035692"
+  },
+  {
+    "text": "Zvyčajne kŕmi svojho psa lacným psím krmivom.",
+    "source": "tatoeba",
+    "upstreamId": "1035693"
+  },
+  {
+    "text": "Ako donútim svojho psa žrať psie krmivo?",
+    "source": "tatoeba",
+    "upstreamId": "1035694"
+  },
+  {
+    "text": "Pochoval som svojho psa na zvieracom cintoríne.",
+    "source": "tatoeba",
+    "upstreamId": "1035696"
+  },
+  {
+    "text": "Kto sa ti staral o psa kým si bol preč?",
+    "source": "tatoeba",
+    "upstreamId": "1035699"
+  },
+  {
+    "text": "Musíš brať do úvahy fakt, že bola chorá.",
+    "source": "tatoeba",
+    "upstreamId": "1035707"
+  },
+  {
+    "text": "Mali by sme brať do úvahy meškanie vlaku.",
+    "source": "tatoeba",
+    "upstreamId": "1035708"
+  },
+  {
+    "text": "Musíme brať do úvahy skutočnosť, že je stará.",
+    "source": "tatoeba",
+    "upstreamId": "1035709"
+  },
+  {
+    "text": "Musíme brať do úvahy želania celej rodiny v plánovaní výletu.",
+    "source": "tatoeba",
+    "upstreamId": "1035710"
+  },
+  {
+    "text": "Mary pomohla mame s varením.",
+    "source": "tatoeba",
+    "upstreamId": "1035768"
+  },
+  {
+    "text": "Mária pomohla mame s varením.",
+    "source": "tatoeba",
+    "upstreamId": "1035772"
+  },
+  {
+    "text": "Povedal som Tomovi, aby išiel na stretnutie.",
+    "source": "tatoeba",
+    "upstreamId": "1035778"
+  },
+  {
+    "text": "Zastavil, aby sa obul.",
+    "source": "tatoeba",
+    "upstreamId": "1035780"
+  },
+  {
+    "text": "Tom to urobil pre zábavu.",
+    "source": "tatoeba",
+    "upstreamId": "1035782"
+  },
+  {
+    "text": "Čítal si v tom čase knihu?",
+    "source": "tatoeba",
+    "upstreamId": "1035824"
+  },
+  {
+    "text": "Zo sprchy nejde žiadna voda.",
+    "source": "tatoeba",
+    "upstreamId": "1035826"
+  },
+  {
+    "text": "Bill bol zastrelený.",
+    "source": "tatoeba",
+    "upstreamId": "1035828"
+  },
+  {
+    "text": "Prosím, zadržte dych.",
+    "source": "tatoeba",
+    "upstreamId": "1036032"
+  },
+  {
+    "text": "Nie je až taký dobrý spisovateľ a myslím, že to vie.",
+    "source": "tatoeba",
+    "upstreamId": "1036035"
+  },
+  {
+    "text": "Je pokojný zimný večer.",
+    "source": "tatoeba",
+    "upstreamId": "1036036"
+  },
+  {
+    "text": "Tom je vyberavý jedák a zriedka vyskúša niečo nové.",
+    "source": "tatoeba",
+    "upstreamId": "1036037"
+  },
+  {
+    "text": "Ukázala mi, ktoré šaty si mám obliecť.",
+    "source": "tatoeba",
+    "upstreamId": "1036038"
+  },
+  {
+    "text": "Mal nepríjemný piskľavý hlas.",
+    "source": "tatoeba",
+    "upstreamId": "1036040"
+  },
+  {
+    "text": "Nedávno som začal maľovať.",
+    "source": "tatoeba",
+    "upstreamId": "1036042"
+  },
+  {
+    "text": "Nevystavujte to dažďu!",
+    "source": "tatoeba",
+    "upstreamId": "1036044"
+  },
+  {
+    "text": "Tvrdá práca mu umožnila dostávať dobré známky.",
+    "source": "tatoeba",
+    "upstreamId": "1036046"
+  },
+  {
+    "text": "Rastliny rastú.",
+    "source": "tatoeba",
+    "upstreamId": "1036048"
+  },
+  {
+    "text": "Chlapec v škole chýbal osem dní.",
+    "source": "tatoeba",
+    "upstreamId": "1036051"
+  },
+  {
+    "text": "Dočítal si ten román?",
+    "source": "tatoeba",
+    "upstreamId": "1036052"
+  },
+  {
+    "text": "Môžem po teba prísť?",
+    "source": "tatoeba",
+    "upstreamId": "1036053"
+  },
+  {
+    "text": "Urobili sme početné vylepšenia na našom dome, odkedy sme ho kúpili.",
+    "source": "tatoeba",
+    "upstreamId": "1036057"
+  },
+  {
+    "text": "Môžeš mi, prosím, urobiť láskavosť?",
+    "source": "tatoeba",
+    "upstreamId": "1036059"
+  },
+  {
+    "text": "Nevyhadzujte nič z okna.",
+    "source": "tatoeba",
+    "upstreamId": "1036061"
+  },
+  {
+    "text": "Boli opustení ich matkou.",
+    "source": "tatoeba",
+    "upstreamId": "1036067"
+  },
+  {
+    "text": "Matka ich opustila.",
+    "source": "tatoeba",
+    "upstreamId": "1036068"
+  },
+  {
+    "text": "Náš vlak zrazu zastavil.",
+    "source": "tatoeba",
+    "upstreamId": "1036069"
+  },
+  {
+    "text": "Hovorí sa, že chuť lásky je horká.",
+    "source": "tatoeba",
+    "upstreamId": "1036072"
+  },
+  {
+    "text": "Tom má spoločenskú povahu.",
+    "source": "tatoeba",
+    "upstreamId": "1036074"
+  },
+  {
+    "text": "Na učenie nikdy nie je neskoro.",
+    "source": "tatoeba",
+    "upstreamId": "1036075"
+  },
+  {
+    "text": "Moje minulé ja je iná osoba.",
+    "source": "tatoeba",
+    "upstreamId": "1036076"
+  },
+  {
+    "text": "Som unavený po plávaní v rieke.",
+    "source": "tatoeba",
+    "upstreamId": "1036078"
+  },
+  {
+    "text": "Účinkuje ten liek rýchlo?",
+    "source": "tatoeba",
+    "upstreamId": "1036079"
+  },
+  {
+    "text": "Beth je čudné dievča, ktoré má rado hady.",
+    "source": "tatoeba",
+    "upstreamId": "1036080"
+  },
+  {
+    "text": "Tom musí vypratať jeho apartmán do dvoch dní.",
+    "source": "tatoeba",
+    "upstreamId": "1036082"
+  },
+  {
+    "text": "Toto je najhoršia vec, aká sa mi kedy stala!",
+    "source": "tatoeba",
+    "upstreamId": "1036083"
+  },
+  {
+    "text": "Je pravdepodobné, že uspeje.",
+    "source": "tatoeba",
+    "upstreamId": "1036084"
+  },
+  {
+    "text": "Deti sa zabávali hraním hier.",
+    "source": "tatoeba",
+    "upstreamId": "1036086"
+  },
+  {
+    "text": "Niektorí zo študentov radi hrajú na gitare.",
+    "source": "tatoeba",
+    "upstreamId": "1036087"
+  },
+  {
+    "text": "Povedz komukoľvek kto príde, že som vonku.",
+    "source": "tatoeba",
+    "upstreamId": "1036091"
+  },
+  {
+    "text": "Tom nechce ísť sám.",
+    "source": "tatoeba",
+    "upstreamId": "1036093"
+  },
+  {
+    "text": "Je nemožné naučiť sa po anglicky za krátky čas.",
+    "source": "tatoeba",
+    "upstreamId": "1036095"
+  },
+  {
+    "text": "Je nemožné naučiť sa po anglicky za rok alebo tak.",
+    "source": "tatoeba",
+    "upstreamId": "1036096"
+  },
+  {
+    "text": "Hodiny práve odbili tri hodiny.",
+    "source": "tatoeba",
+    "upstreamId": "1036099"
+  },
+  {
+    "text": "Počas zimy je ostrov pokrytý ľadom a snehom.",
+    "source": "tatoeba",
+    "upstreamId": "1036101"
+  },
+  {
+    "text": "Požiadal ju o ruku a ona súhlasila.",
+    "source": "tatoeba",
+    "upstreamId": "1036102"
+  },
+  {
+    "text": "Môj spolubývajúci sa učí čínštinu.",
+    "source": "tatoeba",
+    "upstreamId": "1036108"
+  },
+  {
+    "text": "Rád by som si dal koláč ako dezert.",
+    "source": "tatoeba",
+    "upstreamId": "1036111"
+  },
+  {
+    "text": "Pedro má motorku a rád na nej jazdí.",
+    "source": "tatoeba",
+    "upstreamId": "1036113"
+  },
+  {
+    "text": "Kolekcia je prístupná verejnosti.",
+    "source": "tatoeba",
+    "upstreamId": "1036116"
+  },
+  {
+    "text": "Povie ti iba to, čo si myslí, že chceš počuť.",
+    "source": "tatoeba",
+    "upstreamId": "1036119"
+  },
+  {
+    "text": "Je pre mňa ťažké pomenovať moje myšlienky slovami.",
+    "source": "tatoeba",
+    "upstreamId": "1036123"
+  },
+  {
+    "text": "Pozerala naňho nahnevane.",
+    "source": "tatoeba",
+    "upstreamId": "1036126"
+  },
+  {
+    "text": "Nerozumiem tomu slovu.",
+    "source": "tatoeba",
+    "upstreamId": "1036127"
+  },
+  {
+    "text": "Nemám nič viac než desať anglických učebníc.",
+    "source": "tatoeba",
+    "upstreamId": "1036128"
+  },
+  {
+    "text": "Farbil si si niekedy vlasy?",
+    "source": "tatoeba",
+    "upstreamId": "1036130"
+  },
+  {
+    "text": "Učím sa angličtinu v priemere dve hodiny denne.",
+    "source": "tatoeba",
+    "upstreamId": "1036137"
+  },
+  {
+    "text": "Je to lacnejšie ako chemické hnojivá.",
+    "source": "tatoeba",
+    "upstreamId": "1036368"
+  },
+  {
+    "text": "Deti sa hrajú s hračkami.",
+    "source": "tatoeba",
+    "upstreamId": "1036371"
+  },
+  {
+    "text": "Mrzí ma, že to počujem.",
+    "source": "tatoeba",
+    "upstreamId": "1036372"
+  },
+  {
+    "text": "Nebo a peklo existujú v srdci človeka.",
+    "source": "tatoeba",
+    "upstreamId": "1036375"
+  },
+  {
+    "text": "Môj otec mi pripravil vynikajúci obed.",
+    "source": "tatoeba",
+    "upstreamId": "1036378"
+  },
+  {
+    "text": "Myslel som si, že si bol nahnevaný na mňa a nie na celý zvyšok rodiny.",
+    "source": "tatoeba",
+    "upstreamId": "1036382"
+  },
+  {
+    "text": "Dala niekoľko príkladov, ako môžme meniť veci.",
+    "source": "tatoeba",
+    "upstreamId": "1036385"
+  },
+  {
+    "text": "Mala by som upratať izbu.",
+    "source": "tatoeba",
+    "upstreamId": "1036387"
+  },
+  {
+    "text": "Vo svojom voľnom čase hrám na gitaru.",
+    "source": "tatoeba",
+    "upstreamId": "1036388"
+  },
+  {
+    "text": "Čo spieval Jano na pódiu?",
+    "source": "tatoeba",
+    "upstreamId": "1036391"
+  },
+  {
+    "text": "Iný policajt začal strieľať do davu.",
+    "source": "tatoeba",
+    "upstreamId": "1036392"
+  },
+  {
+    "text": "Myslím, teda som.",
+    "source": "tatoeba",
+    "upstreamId": "1036395"
+  },
+  {
+    "text": "Dúfam, že to nebude trvať dlho a znova ťa uvidím.",
+    "source": "tatoeba",
+    "upstreamId": "1036397"
+  },
+  {
+    "text": "Tom to nemusí povedať Mary ak nechce.",
+    "source": "tatoeba",
+    "upstreamId": "1036399"
+  },
+  {
+    "text": "Nehrajte tu bejsbal.",
+    "source": "tatoeba",
+    "upstreamId": "1036401"
+  },
+  {
+    "text": "Vrátil sa z Číny.",
+    "source": "tatoeba",
+    "upstreamId": "1036405"
+  },
+  {
+    "text": "Uvidíme sa neskôr!",
+    "source": "tatoeba",
+    "upstreamId": "1036406"
+  },
+  {
+    "text": "Zvedavosť zabila mačku.",
+    "source": "tatoeba",
+    "upstreamId": "1036413"
+  },
+  {
+    "text": "Musím dostať povolenie od rodičov, aby som mohla ísť s tebou tancovať.",
+    "source": "tatoeba",
+    "upstreamId": "1036417"
+  },
+  {
+    "text": "Chce sa s tebou stretnúť.",
+    "source": "tatoeba",
+    "upstreamId": "1036420"
+  },
+  {
+    "text": "Mary bola v Maďarsku.",
+    "source": "tatoeba",
+    "upstreamId": "1036426"
+  },
+  {
+    "text": "Nemohol som dýchať kvôli dymu.",
+    "source": "tatoeba",
+    "upstreamId": "1036431"
+  },
+  {
+    "text": "Nikto nevie, kam Bill odišiel.",
+    "source": "tatoeba",
+    "upstreamId": "1036432"
+  },
+  {
+    "text": "Išla na koncert minulú nedeľu?",
+    "source": "tatoeba",
+    "upstreamId": "1036435"
+  },
+  {
+    "text": "Hovoríš po nemecky?",
+    "source": "tatoeba",
+    "upstreamId": "1036438"
+  },
+  {
+    "text": "Nakrájať tortu na rovnaké kúsky je dosť ťažké.",
+    "source": "tatoeba",
+    "upstreamId": "1037267"
+  },
+  {
+    "text": "V lete v Anglicku vychádza slnko okolo štvrtej ráno.",
+    "source": "tatoeba",
+    "upstreamId": "1037271"
+  },
+  {
+    "text": "Prečo si išiel do jeho domu?",
+    "source": "tatoeba",
+    "upstreamId": "1037272"
+  },
+  {
+    "text": "Po tom, ako som si urobil domácu úlohu, išiel som spať.",
+    "source": "tatoeba",
+    "upstreamId": "1037275"
+  },
+  {
+    "text": "Barman, dal by som si drink.",
+    "source": "tatoeba",
+    "upstreamId": "1037278"
+  },
+  {
+    "text": "Hľadám klobúk, čo sa hodí k hnedým šatám.",
+    "source": "tatoeba",
+    "upstreamId": "1040277"
+  },
+  {
+    "text": "Vybral si pár ponožiek hodiacich sa k jeho obleku.",
+    "source": "tatoeba",
+    "upstreamId": "1040279"
+  },
+  {
+    "text": "Vybrala si klobúk, ktorý sa hodil k jej novým šatám.",
+    "source": "tatoeba",
+    "upstreamId": "1040280"
+  },
+  {
+    "text": "Pôjde na stanicu hodinu predtým, ako odíde vlak.",
+    "source": "tatoeba",
+    "upstreamId": "1043031"
+  },
+  {
+    "text": "Nenechávaj zapnuté svetlá, keď opúšťaš izbu.",
+    "source": "tatoeba",
+    "upstreamId": "1043032"
+  },
+  {
+    "text": "Zavri dvere keď odídeš.",
+    "source": "tatoeba",
+    "upstreamId": "1043034"
+  },
+  {
+    "text": "Povedz im, aby mi zavolali predtým ako odídu.",
+    "source": "tatoeba",
+    "upstreamId": "1043037"
+  },
+  {
+    "text": "Prečo chceš dnes odísť?",
+    "source": "tatoeba",
+    "upstreamId": "1043041"
+  },
+  {
+    "text": "Jeho zuby sú biele ako perly.",
+    "source": "tatoeba",
+    "upstreamId": "1044605"
+  },
+  {
+    "text": "Zakladateľ Facebooku, Mark Zuckerberg, je skoro casanova.",
+    "source": "tatoeba",
+    "upstreamId": "1044607"
+  },
+  {
+    "text": "Gréčtina a latinčina sú užitočné jazyky, preto ich študujem.",
+    "source": "tatoeba",
+    "upstreamId": "1044609"
+  },
+  {
+    "text": "\"ẽ\" je písmeno v abecede jazyka Guarani.",
+    "source": "tatoeba",
+    "upstreamId": "1044613"
+  },
+  {
+    "text": "Podľa môjho názoru, esperanto je veľmi ťažké.",
+    "source": "tatoeba",
+    "upstreamId": "1044618"
+  },
+  {
+    "text": "Islandská vláda pracuje samostatne, ale nezaujíma sa o ľudí žijúcich v jej krajine.",
+    "source": "tatoeba",
+    "upstreamId": "1044624"
+  },
+  {
+    "text": "Chce ju pobozkať.",
+    "source": "tatoeba",
+    "upstreamId": "1044636"
+  },
+  {
+    "text": "Ten muž je nahý.",
+    "source": "tatoeba",
+    "upstreamId": "1044638"
+  },
+  {
+    "text": "Čína hraničí s Pakistanom, Indiou, Afganistanom, Tadžikistanom, Kirgizstanom, Kazachstanom, Severnou Kóreou, Laosom, Vietnamom, Nepálom, Bhutánom, Mjanmarskom, Mongolskom a Ruskom.",
+    "source": "tatoeba",
+    "upstreamId": "1044646"
+  },
+  {
+    "text": "„Myslíme si, že Justin Bieber je krásna speváčka,“ hovoria nepriatelia.",
+    "source": "tatoeba",
+    "upstreamId": "1044647"
+  },
+  {
+    "text": "Twitter je lepší a bezpečnejší ako Facebook.",
+    "source": "tatoeba",
+    "upstreamId": "1044656"
+  },
+  {
+    "text": "Neboj sa. Môžeš mi dôverovať.",
+    "source": "tatoeba",
+    "upstreamId": "1044662"
+  },
+  {
+    "text": "Hovoríš dobre po francúzsky!",
+    "source": "tatoeba",
+    "upstreamId": "1044663"
+  },
+  {
+    "text": "Nenávidím teroristické organizácie.",
+    "source": "tatoeba",
+    "upstreamId": "1044666"
+  },
+  {
+    "text": "Kde si sa naučil po francúzsky?",
+    "source": "tatoeba",
+    "upstreamId": "1044669"
+  },
+  {
+    "text": "V Ankare sú všetky ročné obdobia ako zima.",
+    "source": "tatoeba",
+    "upstreamId": "1044671"
+  },
+  {
+    "text": "Našiel som svoje topánky.",
+    "source": "tatoeba",
+    "upstreamId": "1044689"
+  },
+  {
+    "text": "Hovoríš po svahilsky?",
+    "source": "tatoeba",
+    "upstreamId": "1044695"
+  },
+  {
+    "text": "Hovoríš po macedónsky?",
+    "source": "tatoeba",
+    "upstreamId": "1044697"
+  },
+  {
+    "text": "Hovoríš po albánsky?",
+    "source": "tatoeba",
+    "upstreamId": "1044698"
+  },
+  {
+    "text": "Milujem Evelinu Sašenko.",
+    "source": "tatoeba",
+    "upstreamId": "1044701"
+  },
+  {
+    "text": "Maja Keuc je dobrá speváčka.",
+    "source": "tatoeba",
+    "upstreamId": "1044705"
+  },
+  {
+    "text": "Išiel som do Paríža.",
+    "source": "tatoeba",
+    "upstreamId": "1044706"
+  },
+  {
+    "text": "Utečenci sa skryli pod mostom.",
+    "source": "tatoeba",
+    "upstreamId": "1044707"
+  },
+  {
+    "text": "Snívam o tom, že odídem a budem žiť v Litve.",
+    "source": "tatoeba",
+    "upstreamId": "1044710"
+  },
+  {
+    "text": "Najkrajšie dievčatá sú z Litvy.",
+    "source": "tatoeba",
+    "upstreamId": "1044714"
+  },
+  {
+    "text": "Nechcem ísť do Talianska.",
+    "source": "tatoeba",
+    "upstreamId": "1044719"
+  },
+  {
+    "text": "Chcem ísť do Anglicka.",
+    "source": "tatoeba",
+    "upstreamId": "1044726"
+  },
+  {
+    "text": "Američania stratili dôveru k Toyote.",
+    "source": "tatoeba",
+    "upstreamId": "1044742"
+  },
+  {
+    "text": "Čečenci majú sklon k nezávislosti.",
+    "source": "tatoeba",
+    "upstreamId": "1044743"
+  },
+  {
+    "text": "Zvukovod vedie zvukové vlny k ušnému bubienku.",
+    "source": "tatoeba",
+    "upstreamId": "1044745"
+  },
+  {
+    "text": "Inžinier nežije. Funguje to.",
+    "source": "tatoeba",
+    "upstreamId": "1044748"
+  },
+  {
+    "text": "Iker Casillas je najlepší brankár na svete.",
+    "source": "tatoeba",
+    "upstreamId": "1044749"
+  },
+  {
+    "text": "V Belgicku, flámsky obyvatelia chcú jedného dňa vyhlásiť nezávislosť.",
+    "source": "tatoeba",
+    "upstreamId": "1044750"
+  },
+  {
+    "text": "Portugalsko má len jedného suseda, a to Španielsko.",
+    "source": "tatoeba",
+    "upstreamId": "1044751"
+  },
+  {
+    "text": "Kto spáva so psami, zobúdza sa s blchami.",
+    "source": "tatoeba",
+    "upstreamId": "1044769"
+  },
+  {
+    "text": "Dosiahnutie cieľa stojí úsilie, vyžaduje určité obete. To nemusí byť nevyhnutne cieľom, ale je to stále krok dopredu.",
+    "source": "tatoeba",
+    "upstreamId": "1044786"
+  },
+  {
+    "text": "Leopard nedokáže zmeniť svoje škvrny.",
+    "source": "tatoeba",
+    "upstreamId": "1044788"
+  },
+  {
+    "text": "Ožením sa k krásnou Estónkou.",
+    "source": "tatoeba",
+    "upstreamId": "1044789"
+  },
+  {
+    "text": "Zabudol som svoju emailovú adresu.",
+    "source": "tatoeba",
+    "upstreamId": "1044797"
+  },
+  {
+    "text": "Terorizmus je najdôležitejší faktor pre rozdelenie krajiny a vytvorenie autonómnych regiónov.",
+    "source": "tatoeba",
+    "upstreamId": "1044830"
+  },
+  {
+    "text": "Zvrchovanosť bezpodmienečne patrí národu.",
+    "source": "tatoeba",
+    "upstreamId": "1044833"
+  },
+  {
+    "text": "Dnešok začal a som veľmi šťastný, lebo nie je žiadna škola až do septembra.",
+    "source": "tatoeba",
+    "upstreamId": "1044842"
+  },
+  {
+    "text": "Je to dom ako ten, čo som videl.",
+    "source": "tatoeba",
+    "upstreamId": "1044853"
+  },
+  {
+    "text": "Urobil som objav.",
+    "source": "tatoeba",
+    "upstreamId": "1044854"
+  },
+  {
+    "text": "Používanie len \"Tom\" a \"Mike\" v mnohých vetách je veľmi čudné.",
+    "source": "tatoeba",
+    "upstreamId": "1044855"
+  },
+  {
+    "text": "Kvôli bezpečnosti našich detí, nenavštevujte porno stránky.",
+    "source": "tatoeba",
+    "upstreamId": "1044859"
+  },
+  {
+    "text": "Lotyšské dievčatá patria medzi najlepšie dievčatá na svete!",
+    "source": "tatoeba",
+    "upstreamId": "1044860"
+  },
+  {
+    "text": "Kedy je ďalšia prehliadka so sprievodcom?",
+    "source": "tatoeba",
+    "upstreamId": "1044861"
+  },
+  {
+    "text": "Kde bolo tam bolo, bol raz jeden muž a jeho žena. Nemali žiaden dom. Bývali na poli a spávali pod stromom.",
+    "source": "tatoeba",
+    "upstreamId": "1044865"
+  },
+  {
+    "text": "Už dlho hľadám novú prácu.",
+    "source": "tatoeba",
+    "upstreamId": "1044869"
+  },
+  {
+    "text": "Dal by som si šálku kávy.",
+    "source": "tatoeba",
+    "upstreamId": "1044870"
+  },
+  {
+    "text": "Obyčajne používa nožničky na nechty.",
+    "source": "tatoeba",
+    "upstreamId": "1044872"
+  },
+  {
+    "text": "Plakal nad smrťou svojej dcéry.",
+    "source": "tatoeba",
+    "upstreamId": "1044873"
+  },
+  {
+    "text": "Łazarzove deti si myslia, že ich mama Felicja je najkrajšia žena na svete.",
+    "source": "tatoeba",
+    "upstreamId": "1044875"
+  },
+  {
+    "text": "Felicjine deti si myslia, že ich otec Łazarz je krajší ako Justin Bieber.",
+    "source": "tatoeba",
+    "upstreamId": "1044876"
+  },
+  {
+    "text": "Poznám dve Wieńczysławy. Jedna je brunetka a pracuje na pracovisku. Druhá je blondýna a je študentkou našej školy.",
+    "source": "tatoeba",
+    "upstreamId": "1044880"
+  },
+  {
+    "text": "Magdalena a Lech sa pripravujú na poľské skúšky.",
+    "source": "tatoeba",
+    "upstreamId": "1044883"
+  },
+  {
+    "text": "Ruže zvädli a Ania veľmi plakala.",
+    "source": "tatoeba",
+    "upstreamId": "1044888"
+  },
+  {
+    "text": "Poľsko bola jedna z prvých krajín, ktorá uznala Tureckú republiku.",
+    "source": "tatoeba",
+    "upstreamId": "1044896"
+  },
+  {
+    "text": "Poľsko je veľká krajina.",
+    "source": "tatoeba",
+    "upstreamId": "1044898"
+  },
+  {
+    "text": "Timuçin sa učí po poľsky.",
+    "source": "tatoeba",
+    "upstreamId": "1044905"
+  },
+  {
+    "text": "Ania sa mi zdá veľmi zlatá.",
+    "source": "tatoeba",
+    "upstreamId": "1044908"
+  },
+  {
+    "text": "Timuçin letel z Yozgatu do Varšavy s Ryan Air-om.",
+    "source": "tatoeba",
+    "upstreamId": "1044911"
+  },
+  {
+    "text": "Timuçin je rodák z Yozgatu.",
+    "source": "tatoeba",
+    "upstreamId": "1044912"
+  },
+  {
+    "text": "Maria a Natalia chodia nakupovať. Kupujú si niečo pre seba.",
+    "source": "tatoeba",
+    "upstreamId": "1044914"
+  },
+  {
+    "text": "Do Turecka sa dováža veľa tovaru z Poľska.",
+    "source": "tatoeba",
+    "upstreamId": "1044954"
+  },
+  {
+    "text": "Hlavné mesto Poľska je Varšava.",
+    "source": "tatoeba",
+    "upstreamId": "1044957"
+  },
+  {
+    "text": "Žijem v Białystoku.",
+    "source": "tatoeba",
+    "upstreamId": "1044961"
+  },
+  {
+    "text": "Ania je pôvabné dievča.",
+    "source": "tatoeba",
+    "upstreamId": "1044963"
+  },
+  {
+    "text": "V Magdaleninej škole je turecký študent. Volá sa Reşit.",
+    "source": "tatoeba",
+    "upstreamId": "1044967"
+  },
+  {
+    "text": "Milujem Małgorzatu ako anjela. Akú má krásnu tvár a blond vlasy!",
+    "source": "tatoeba",
+    "upstreamId": "1044971"
+  },
+  {
+    "text": "Magdalena študuje na japonskej škole v Łódźi.",
+    "source": "tatoeba",
+    "upstreamId": "1044975"
+  },
+  {
+    "text": "Ania žije v Gdańsku.",
+    "source": "tatoeba",
+    "upstreamId": "1045007"
+  },
+  {
+    "text": "Libuša žije v Poznani.",
+    "source": "tatoeba",
+    "upstreamId": "1045012"
+  },
+  {
+    "text": "Libusza je krásne a múdre dievča. Som jej najlepší priateľ.",
+    "source": "tatoeba",
+    "upstreamId": "1045014"
+  },
+  {
+    "text": "Poľky nechcú Justina Biebera v Poľsku.",
+    "source": "tatoeba",
+    "upstreamId": "1045016"
+  },
+  {
+    "text": "Ani Ania ani Magdalena nemajú radi Justina Biebera.",
+    "source": "tatoeba",
+    "upstreamId": "1045017"
+  },
+  {
+    "text": "Martyna je rodáčka z Wrocławu.",
+    "source": "tatoeba",
+    "upstreamId": "1045018"
+  },
+  {
+    "text": "Magdalena je rodáčka z Łódźu.",
+    "source": "tatoeba",
+    "upstreamId": "1045020"
+  },
+  {
+    "text": "Felicja je rodáčka z Katowic.",
+    "source": "tatoeba",
+    "upstreamId": "1045021"
+  },
+  {
+    "text": "Ania je rodáčka z Krakówa.",
+    "source": "tatoeba",
+    "upstreamId": "1045022"
+  },
+  {
+    "text": "Chcem sa oženiť s Martinou.",
+    "source": "tatoeba",
+    "upstreamId": "1045023"
+  },
+  {
+    "text": "Getter Jaani je taký úžasný!",
+    "source": "tatoeba",
+    "upstreamId": "1045025"
+  },
+  {
+    "text": "Wienczysława je najkrajšia brunetka na pracovisku.",
+    "source": "tatoeba",
+    "upstreamId": "1045027"
+  },
+  {
+    "text": "Božena je krásne blonďavé dievča. Tiež je to najkrajšie dievča na našej škole.",
+    "source": "tatoeba",
+    "upstreamId": "1045032"
+  },
+  {
+    "text": "Tá strana je letná strana, tá strana je zimná strana a v strede je fľaša s vodou.",
+    "source": "tatoeba",
+    "upstreamId": "1045035"
+  },
+  {
+    "text": "Potrebujem doktora!",
+    "source": "tatoeba",
+    "upstreamId": "1046963"
+  },
+  {
+    "text": "Prepáčte, koľko je hodín?",
+    "source": "tatoeba",
+    "upstreamId": "1046965"
+  },
+  {
+    "text": "Volám sa Sally.",
+    "source": "tatoeba",
+    "upstreamId": "1046966"
+  },
+  {
+    "text": "Mohli by ste mi ukázať cestu na autobusovú zastávku?",
+    "source": "tatoeba",
+    "upstreamId": "1046970"
+  },
+  {
+    "text": "Prestala hovoriť.",
+    "source": "tatoeba",
+    "upstreamId": "1046996"
+  },
+  {
+    "text": "Počul som ju spievať v jej izbe.",
+    "source": "tatoeba",
+    "upstreamId": "1046999"
+  },
+  {
+    "text": "Koľko to stojí?",
+    "source": "tatoeba",
+    "upstreamId": "1047004"
+  },
+  {
+    "text": "Ďakujem, to je všetko.",
+    "source": "tatoeba",
+    "upstreamId": "1047007"
+  },
+  {
+    "text": "Stratil som svoj pas!",
+    "source": "tatoeba",
+    "upstreamId": "1047011"
+  },
+  {
+    "text": "Prepáčte. Môžte ma nasmerovať na najbližšiu stanicu metra?",
+    "source": "tatoeba",
+    "upstreamId": "1047017"
+  },
+  {
+    "text": "Ahoj! Ako sa máš?",
+    "source": "tatoeba",
+    "upstreamId": "1047019"
+  },
+  {
+    "text": "Mám osemnásť rokov.",
+    "source": "tatoeba",
+    "upstreamId": "1047023"
+  },
+  {
+    "text": "Ahoj, ako sa máš?",
+    "source": "tatoeba",
+    "upstreamId": "1047908"
+  },
+  {
+    "text": "Som čierna ovca rodiny.",
+    "source": "tatoeba",
+    "upstreamId": "1047948"
+  },
+  {
+    "text": "Hovoríte po anglicky?",
+    "source": "tatoeba",
+    "upstreamId": "1056357"
+  },
+  {
+    "text": "Kedysi som chcel byť astrofyzikom.",
+    "source": "tatoeba",
+    "upstreamId": "1058171"
+  },
+  {
+    "text": "Nikdy som nemal rád biológiu.",
+    "source": "tatoeba",
+    "upstreamId": "1058173"
+  },
+  {
+    "text": "Bohužiaľ je to pravda.",
+    "source": "tatoeba",
+    "upstreamId": "1058174"
+  },
+  {
+    "text": "Nie, nie som to ja! Si to ty!",
+    "source": "tatoeba",
+    "upstreamId": "1058177"
+  },
+  {
+    "text": "Prečo sa pýtaš?",
+    "source": "tatoeba",
+    "upstreamId": "1058183"
+  },
+  {
+    "text": "Pacient leží v posteli.",
+    "source": "tatoeba",
+    "upstreamId": "1059564"
+  },
+  {
+    "text": "Celú noc jebali.",
+    "source": "tatoeba",
+    "upstreamId": "1059794"
+  },
+  {
+    "text": "Chodíš sem často?",
+    "source": "tatoeba",
+    "upstreamId": "1059845"
+  },
+  {
+    "text": "Je to veľmi jednoduché.",
+    "source": "tatoeba",
+    "upstreamId": "1059850"
+  },
+  {
+    "text": "Ako sme daleko?",
+    "source": "tatoeba",
+    "upstreamId": "1059856"
+  },
+  {
+    "text": "Ty si zabil môjho otca.",
+    "source": "tatoeba",
+    "upstreamId": "1059901"
+  },
+  {
+    "text": "Zachránil si mi život.",
+    "source": "tatoeba",
+    "upstreamId": "1060004"
+  },
+  {
+    "text": "Chcem, aby si spieval.",
+    "source": "tatoeba",
+    "upstreamId": "1062838"
+  },
+  {
+    "text": "Chcem, aby si spievala.",
+    "source": "tatoeba",
+    "upstreamId": "1062839"
+  },
+  {
+    "text": "Prepáč, ľúbim ťa.",
+    "source": "tatoeba",
+    "upstreamId": "1065083"
+  },
+  {
+    "text": "Som trochu unavený.",
+    "source": "tatoeba",
+    "upstreamId": "1065084"
+  },
+  {
+    "text": "Narodil som sa v Amerike.",
+    "source": "tatoeba",
+    "upstreamId": "1065093"
+  },
+  {
+    "text": "Má sedem synov.",
+    "source": "tatoeba",
+    "upstreamId": "1065455"
+  },
+  {
+    "text": "Chcem nejaký dobrý slovník.",
+    "source": "tatoeba",
+    "upstreamId": "1065458"
+  },
+  {
+    "text": "Nechcem ísť do školy.",
+    "source": "tatoeba",
+    "upstreamId": "1065460"
+  },
+  {
+    "text": "Ahojte, všetci!",
+    "source": "tatoeba",
+    "upstreamId": "1078381"
+  },
+  {
+    "text": "Napíšte to tu, prosím.",
+    "source": "tatoeba",
+    "upstreamId": "1134154"
+  },
+  {
+    "text": "Jedna vdova mala dve dcéry.",
+    "source": "tatoeba",
+    "upstreamId": "1168617"
+  },
+  {
+    "text": "Mám rád čokoládovú zmrzlinu!",
+    "source": "tatoeba",
+    "upstreamId": "1223457"
+  },
+  {
+    "text": "Ten muž si čistí zuby.",
+    "source": "tatoeba",
+    "upstreamId": "1227166"
+  },
+  {
+    "text": "Veselé vianoce a šťastný nový rok.",
+    "source": "tatoeba",
+    "upstreamId": "1282321"
+  },
+  {
+    "text": "To auto je čierne.",
+    "source": "tatoeba",
+    "upstreamId": "1317850"
+  },
+  {
+    "text": "Zem je pekná planéta.",
+    "source": "tatoeba",
+    "upstreamId": "1317881"
+  },
+  {
+    "text": "Jupiter je najhmotnejšia planéta slnečnej sústavy.",
+    "source": "tatoeba",
+    "upstreamId": "1317883"
+  },
+  {
+    "text": "Slnko je najjasnejšia hviezda.",
+    "source": "tatoeba",
+    "upstreamId": "1317884"
+  },
+  {
+    "text": "Neptún je ôsma planéta našej slnečnej sústavy.",
+    "source": "tatoeba",
+    "upstreamId": "1317887"
+  },
+  {
+    "text": "Astronómia je veda vesmíru.",
+    "source": "tatoeba",
+    "upstreamId": "1317891"
+  },
+  {
+    "text": "Zem je planéta.",
+    "source": "tatoeba",
+    "upstreamId": "1317895"
+  },
+  {
+    "text": "Otec je zdravý.",
+    "source": "tatoeba",
+    "upstreamId": "1317900"
+  },
+  {
+    "text": "Kde sú kniha a ceruzka?",
+    "source": "tatoeba",
+    "upstreamId": "1317905"
+  },
+  {
+    "text": "Voda je tekutina.",
+    "source": "tatoeba",
+    "upstreamId": "1317970"
+  },
+  {
+    "text": "Moja sestra je veľmi pekné dievča.",
+    "source": "tatoeba",
+    "upstreamId": "1317978"
+  },
+  {
+    "text": "Ja som ešte nič nenašiel.",
+    "source": "tatoeba",
+    "upstreamId": "1317993"
+  },
+  {
+    "text": "To nie je umenie. To je vagína so zubami.",
+    "source": "tatoeba",
+    "upstreamId": "1318019"
+  },
+  {
+    "text": "Nainštalujte Linux!",
+    "source": "tatoeba",
+    "upstreamId": "1318021"
+  },
+  {
+    "text": "Američania ju nazývajú vietnamská vojna; Vietnamci ju nazývajú americká vojna.",
+    "source": "tatoeba",
+    "upstreamId": "1318048"
+  },
+  {
+    "text": "Zabil som Boha.",
+    "source": "tatoeba",
+    "upstreamId": "1318056"
+  },
+  {
+    "text": "Včera bol štvrtok.",
+    "source": "tatoeba",
+    "upstreamId": "1318129"
+  },
+  {
+    "text": "Nebude to tak dlho trvať.",
+    "source": "tatoeba",
+    "upstreamId": "1318136"
+  },
+  {
+    "text": "Sylvia milovala koncerty.",
+    "source": "tatoeba",
+    "upstreamId": "1318140"
+  },
+  {
+    "text": "Jazyk môže byť používaný rozličnými spôsobmi.",
+    "source": "tatoeba",
+    "upstreamId": "1318158"
+  },
+  {
+    "text": "Učím sa dva cudzie jazyky.",
+    "source": "tatoeba",
+    "upstreamId": "1318163"
+  },
+  {
+    "text": "Chcem dobrý slovník.",
+    "source": "tatoeba",
+    "upstreamId": "1318172"
+  },
+  {
+    "text": "Moja dcéra chce piano.",
+    "source": "tatoeba",
+    "upstreamId": "1318449"
+  },
+  {
+    "text": "Všetci psi boli živí.",
+    "source": "tatoeba",
+    "upstreamId": "1318460"
+  },
+  {
+    "text": "Máš pravdu. Pôjdem taxíkom.",
+    "source": "tatoeba",
+    "upstreamId": "1318466"
+  },
+  {
+    "text": "Moja sestra má pekné piano.",
+    "source": "tatoeba",
+    "upstreamId": "1318476"
+  },
+  {
+    "text": "Smrteľní nepriatelia sú nesmrteľní priatelia.",
+    "source": "tatoeba",
+    "upstreamId": "1318485"
+  },
+  {
+    "text": "Tom nepije kávu.",
+    "source": "tatoeba",
+    "upstreamId": "1318497"
+  },
+  {
+    "text": "Tom je najbohatší muž, ktorého poznám.",
+    "source": "tatoeba",
+    "upstreamId": "1319382"
+  },
+  {
+    "text": "Koľko je hodín?",
+    "source": "tatoeba",
+    "upstreamId": "1319393"
+  },
+  {
+    "text": "Oči sú zrkadlom duše.",
+    "source": "tatoeba",
+    "upstreamId": "1320372"
+  },
+  {
+    "text": "Mohol som počuť všetko, čo povedal predseda.",
+    "source": "tatoeba",
+    "upstreamId": "1321471"
+  },
+  {
+    "text": "Kúp mi korytnačku, mama, kúp mi prosím korytnačku!",
+    "source": "tatoeba",
+    "upstreamId": "1336484"
+  },
+  {
+    "text": "Niekto klopal na dvere.",
+    "source": "tatoeba",
+    "upstreamId": "1336489"
+  },
+  {
+    "text": "Malá Sofia nebola poslušná.",
+    "source": "tatoeba",
+    "upstreamId": "1336496"
+  },
+  {
+    "text": "Sézam, otvor sa!",
+    "source": "tatoeba",
+    "upstreamId": "1336501"
+  },
+  {
+    "text": "Chodiš stále neskoro.",
+    "source": "tatoeba",
+    "upstreamId": "1336537"
+  },
+  {
+    "text": "Urobila skúšku.",
+    "source": "tatoeba",
+    "upstreamId": "1336539"
+  },
+  {
+    "text": "Tomáš zliezol zo stromu.",
+    "source": "tatoeba",
+    "upstreamId": "1336543"
+  },
+  {
+    "text": "Nikto sa nerodí učený.",
+    "source": "tatoeba",
+    "upstreamId": "1336549"
+  },
+  {
+    "text": "Daj si dole ponožky.",
+    "source": "tatoeba",
+    "upstreamId": "1336551"
+  },
+  {
+    "text": "Nezáleži na veku, dieťa je dieťa.",
+    "source": "tatoeba",
+    "upstreamId": "1336554"
+  },
+  {
+    "text": "Ukradnutých bolo veľa kníh.",
+    "source": "tatoeba",
+    "upstreamId": "1336562"
+  },
+  {
+    "text": "Je jedno čo je, nepriberá.",
+    "source": "tatoeba",
+    "upstreamId": "1336563"
+  },
+  {
+    "text": "Nezáleží na tom ako sme si blízki, nemôžem mu to dať urobiť.",
+    "source": "tatoeba",
+    "upstreamId": "1336566"
+  },
+  {
+    "text": "V každom prípade, ak chceš vedieť viac o mojej krajine, pošlem ti list, keď budem u seba doma.",
+    "source": "tatoeba",
+    "upstreamId": "1336574"
+  },
+  {
+    "text": "V každom prípade, pôjdem keď prestane pršať.",
+    "source": "tatoeba",
+    "upstreamId": "1336579"
+  },
+  {
+    "text": "Starý muž prešiel cez cestu opatrne.",
+    "source": "tatoeba",
+    "upstreamId": "1336584"
+  },
+  {
+    "text": "Prisuň si sloličku bližšie k ohňu.",
+    "source": "tatoeba",
+    "upstreamId": "1336587"
+  },
+  {
+    "text": "Taliansko hraničí so Švajčiarskom na severe.",
+    "source": "tatoeba",
+    "upstreamId": "1336588"
+  },
+  {
+    "text": "Hral si včera ráno tenis?",
+    "source": "tatoeba",
+    "upstreamId": "1336597"
+  },
+  {
+    "text": "Hrala si včera ráno tenis?",
+    "source": "tatoeba",
+    "upstreamId": "1336600"
+  },
+  {
+    "text": "Hral si tenis včera ráno?",
+    "source": "tatoeba",
+    "upstreamId": "1336606"
+  },
+  {
+    "text": "Dýchanie sa sťažilo.",
+    "source": "tatoeba",
+    "upstreamId": "1336610"
+  },
+  {
+    "text": "Musí zaplatiť za knihu.",
+    "source": "tatoeba",
+    "upstreamId": "1336612"
+  },
+  {
+    "text": "Čo je lepšie ako priateľstvo?",
+    "source": "tatoeba",
+    "upstreamId": "1338036"
+  },
+  {
+    "text": "Musel by si zvyknúť vstávať skôr.",
+    "source": "tatoeba",
+    "upstreamId": "1338039"
+  },
+  {
+    "text": "Zdá sa, že sa ponáhľa.",
+    "source": "tatoeba",
+    "upstreamId": "1338043"
+  },
+  {
+    "text": "Je dobre vstávať skôr.",
+    "source": "tatoeba",
+    "upstreamId": "1338052"
+  },
+  {
+    "text": "Zdá sa, že nemal čas.",
+    "source": "tatoeba",
+    "upstreamId": "1338057"
+  },
+  {
+    "text": "Mám turistické víza.",
+    "source": "tatoeba",
+    "upstreamId": "1338062"
+  },
+  {
+    "text": "Vyzeráš unavene.",
+    "source": "tatoeba",
+    "upstreamId": "1338069"
+  },
+  {
+    "text": "Rýchlo naučené, rýchlo zabudnuté.",
+    "source": "tatoeba",
+    "upstreamId": "1338078"
+  },
+  {
+    "text": "Detektív ho sledoval.",
+    "source": "tatoeba",
+    "upstreamId": "1338083"
+  },
+  {
+    "text": "Počúvaj! Ako sa to píše?",
+    "source": "tatoeba",
+    "upstreamId": "1338111"
+  },
+  {
+    "text": "Neviem, choď spať!",
+    "source": "tatoeba",
+    "upstreamId": "1338131"
+  },
+  {
+    "text": "Nie si už mladý.",
+    "source": "tatoeba",
+    "upstreamId": "1338142"
+  },
+  {
+    "text": "Môžeš si vybrať čo chceš.",
+    "source": "tatoeba",
+    "upstreamId": "1338166"
+  },
+  {
+    "text": "Zvyčajne piješ čaj na raňajky?",
+    "source": "tatoeba",
+    "upstreamId": "1338179"
+  },
+  {
+    "text": "Nerozumiem čo hovoríš.",
+    "source": "tatoeba",
+    "upstreamId": "1338198"
+  },
+  {
+    "text": "Hnevala sa. Preto bola ticho.",
+    "source": "tatoeba",
+    "upstreamId": "1338204"
+  },
+  {
+    "text": "„Kde bývaš?“ „Bývam v Tokiu.“",
+    "source": "tatoeba",
+    "upstreamId": "1338206"
+  },
+  {
+    "text": "Minulú noc sme pozorovali hviezdy zo strechy.",
+    "source": "tatoeba",
+    "upstreamId": "1338223"
+  },
+  {
+    "text": "Pochybovať o sebe je prvou známkou inteligencie.",
+    "source": "tatoeba",
+    "upstreamId": "1338231"
+  },
+  {
+    "text": "Môj strýko žil mnoho rokov v zahraničí.",
+    "source": "tatoeba",
+    "upstreamId": "1338246"
+  },
+  {
+    "text": "Dobre ovláda angličtinu.",
+    "source": "tatoeba",
+    "upstreamId": "1338257"
+  },
+  {
+    "text": "Nič som nevedel.",
+    "source": "tatoeba",
+    "upstreamId": "1338280"
+  },
+  {
+    "text": "Poprosil ma, aby som hovoril pomalšie.",
+    "source": "tatoeba",
+    "upstreamId": "1338288"
+  },
+  {
+    "text": "Dievča šlo do školy aj keď bolo choré.",
+    "source": "tatoeba",
+    "upstreamId": "1338291"
+  },
+  {
+    "text": "Nevadí mi počkať chvíľu.",
+    "source": "tatoeba",
+    "upstreamId": "1338309"
+  },
+  {
+    "text": "Poprosil som ho aby ma odviezol domov.",
+    "source": "tatoeba",
+    "upstreamId": "1338337"
+  },
+  {
+    "text": "Otec je si vždy neistý.",
+    "source": "tatoeba",
+    "upstreamId": "1338356"
+  },
+  {
+    "text": "Moja veľká vina.",
+    "source": "tatoeba",
+    "upstreamId": "1338373"
+  },
+  {
+    "text": "Dobré víno je dar bohov.",
+    "source": "tatoeba",
+    "upstreamId": "1338376"
+  },
+  {
+    "text": "Víno je mlieko starých ľudí.",
+    "source": "tatoeba",
+    "upstreamId": "1338381"
+  },
+  {
+    "text": "Ľutujem, že som dostal túto úlohu.",
+    "source": "tatoeba",
+    "upstreamId": "1338390"
+  },
+  {
+    "text": "„V“ je predložka.",
+    "source": "tatoeba",
+    "upstreamId": "1338392"
+  },
+  {
+    "text": "Je potrebné, aby ste to urobili.",
+    "source": "tatoeba",
+    "upstreamId": "1338397"
+  },
+  {
+    "text": "Tento chlapec je lenivý.",
+    "source": "tatoeba",
+    "upstreamId": "1338402"
+  },
+  {
+    "text": "To je Tonyho kniha.",
+    "source": "tatoeba",
+    "upstreamId": "1338405"
+  },
+  {
+    "text": "Auto môjho otca je vyrobené v Taliansku.",
+    "source": "tatoeba",
+    "upstreamId": "1338407"
+  },
+  {
+    "text": "Otvor knihu a ona otvorí tvoju dušu.",
+    "source": "tatoeba",
+    "upstreamId": "1338421"
+  },
+  {
+    "text": "Pokoril Mont Everest.",
+    "source": "tatoeba",
+    "upstreamId": "1338432"
+  },
+  {
+    "text": "Oči tohoto dievčaťa sú modré.",
+    "source": "tatoeba",
+    "upstreamId": "1338434"
+  },
+  {
+    "text": "Nikdy ho nenavštívila.",
+    "source": "tatoeba",
+    "upstreamId": "1338441"
+  },
+  {
+    "text": "Kde je tvoja čapica?",
+    "source": "tatoeba",
+    "upstreamId": "1338445"
+  },
+  {
+    "text": "Je doma tvoja matka?",
+    "source": "tatoeba",
+    "upstreamId": "1338451"
+  },
+  {
+    "text": "Učím sa kečuánsky.",
+    "source": "tatoeba",
+    "upstreamId": "1338455"
+  },
+  {
+    "text": "Nemám štyroch bratov.",
+    "source": "tatoeba",
+    "upstreamId": "1338466"
+  },
+  {
+    "text": "Nemám štyri sestry.",
+    "source": "tatoeba",
+    "upstreamId": "1338470"
+  },
+  {
+    "text": "Uvidíme sa zajtra!",
+    "source": "tatoeba",
+    "upstreamId": "1338477"
+  },
+  {
+    "text": "Áno, ty ma ľúbiš.",
+    "source": "tatoeba",
+    "upstreamId": "1338490"
+  },
+  {
+    "text": "Áno, miluješ ma.",
+    "source": "tatoeba",
+    "upstreamId": "1338492"
+  },
+  {
+    "text": "Prosím vymeňte zástavu.",
+    "source": "tatoeba",
+    "upstreamId": "1338536"
+  },
+  {
+    "text": "Lovec zabil líšku.",
+    "source": "tatoeba",
+    "upstreamId": "1338552"
+  },
+  {
+    "text": "Tomy je láskavý človek.",
+    "source": "tatoeba",
+    "upstreamId": "1338556"
+  },
+  {
+    "text": "Tomi, počuješ ma?",
+    "source": "tatoeba",
+    "upstreamId": "1338559"
+  },
+  {
+    "text": "Postavil som nový dom.",
+    "source": "tatoeba",
+    "upstreamId": "1338562"
+  },
+  {
+    "text": "Tento stôl je čistý.",
+    "source": "tatoeba",
+    "upstreamId": "1338565"
+  },
+  {
+    "text": "Vietor bol silný.",
+    "source": "tatoeba",
+    "upstreamId": "1338568"
+  },
+  {
+    "text": "Môj brat žije v Tokiu.",
+    "source": "tatoeba",
+    "upstreamId": "1360133"
+  },
+  {
+    "text": "Hipokrat sa vyjadroval v aforizmoch.",
+    "source": "tatoeba",
+    "upstreamId": "1418413"
+  },
+  {
+    "text": "Ne prekazí premávku.",
+    "source": "tatoeba",
+    "upstreamId": "1432221"
+  },
+  {
+    "text": "Zvyčajne vstávam o ôsmej.",
+    "source": "tatoeba",
+    "upstreamId": "1441899"
+  },
+  {
+    "text": "Tento sociologický výskum sa týka potratov.",
+    "source": "tatoeba",
+    "upstreamId": "1441909"
+  },
+  {
+    "text": "Nechaj ma nakrájať mrkvu.",
+    "source": "tatoeba",
+    "upstreamId": "1441912"
+  },
+  {
+    "text": "Na nebi je plno hviezd.",
+    "source": "tatoeba",
+    "upstreamId": "1443978"
+  },
+  {
+    "text": "Nikdy ťa neopustím.",
+    "source": "tatoeba",
+    "upstreamId": "1449846"
+  },
+  {
+    "text": "Kto mi môže pomôcť?",
+    "source": "tatoeba",
+    "upstreamId": "1468698"
+  },
+  {
+    "text": "Čítam túto knihu.",
+    "source": "tatoeba",
+    "upstreamId": "1473468"
+  },
+  {
+    "text": "Zem je menšia ako Slnko.",
+    "source": "tatoeba",
+    "upstreamId": "1474274"
+  },
+  {
+    "text": "On platí kreditnou kartou.",
+    "source": "tatoeba",
+    "upstreamId": "1489943"
+  },
+  {
+    "text": "Burdž Chalífa je v súčasnosti najvyšší mrakodrap na svete.",
+    "source": "tatoeba",
+    "upstreamId": "1492261"
+  },
+  {
+    "text": "Vojna trvala dva roky.",
+    "source": "tatoeba",
+    "upstreamId": "1517192"
+  },
+  {
+    "text": "Francúzsko je v západnej Európe.",
+    "source": "tatoeba",
+    "upstreamId": "1518769"
+  },
+  {
+    "text": "Každý má právo na ochranu morálnych a materiálnych záujmov, ktoré vyplývajú z jeho vedeckej, literárnej alebo umeleckej tvorby.",
+    "source": "tatoeba",
+    "upstreamId": "1519819"
+  },
+  {
+    "text": "Kristus vstal z mŕtvych!",
+    "source": "tatoeba",
+    "upstreamId": "1533127"
+  },
+  {
+    "text": "Zachránil mi život.",
+    "source": "tatoeba",
+    "upstreamId": "1548426"
+  },
+  {
+    "text": "Neumyl som si vlasy.",
+    "source": "tatoeba",
+    "upstreamId": "1548428"
+  },
+  {
+    "text": "Za účelom nahromadiť pol milióna som predal dom a nábytok aj s klenotami.",
+    "source": "tatoeba",
+    "upstreamId": "1548437"
+  },
+  {
+    "text": "Ak padne strom v lese a nik to nepočul, stalo sa to? Ak muž povie čo má na mysli a žiadna žena ho nepočuje, ešte stále nemá pravdu?",
+    "source": "tatoeba",
+    "upstreamId": "1548446"
+  },
+  {
+    "text": "Som hladný. Kedy do čerta budeme jesť?",
+    "source": "tatoeba",
+    "upstreamId": "1548448"
+  },
+  {
+    "text": "Z čoho je robený aspirín?",
+    "source": "tatoeba",
+    "upstreamId": "1548449"
+  },
+  {
+    "text": "Aký by bol svet bez žien?",
+    "source": "tatoeba",
+    "upstreamId": "1548451"
+  },
+  {
+    "text": "Chcem vedieť kto s nami ide.",
+    "source": "tatoeba",
+    "upstreamId": "1548455"
+  },
+  {
+    "text": "Chcem vedieť, kto s nami ostáva.",
+    "source": "tatoeba",
+    "upstreamId": "1548459"
+  },
+  {
+    "text": "Uvidím ťa zajtra?",
+    "source": "tatoeba",
+    "upstreamId": "1548460"
+  },
+  {
+    "text": "Stretneme sa zajtra?",
+    "source": "tatoeba",
+    "upstreamId": "1548462"
+  },
+  {
+    "text": "Stratil sa bezostopy.",
+    "source": "tatoeba",
+    "upstreamId": "1548464"
+  },
+  {
+    "text": "Zavolaj políciu.",
+    "source": "tatoeba",
+    "upstreamId": "1548465"
+  },
+  {
+    "text": "Príliš dobré aby to bola pravda.",
+    "source": "tatoeba",
+    "upstreamId": "1548467"
+  },
+  {
+    "text": "Bol som na horách.",
+    "source": "tatoeba",
+    "upstreamId": "1548468"
+  },
+  {
+    "text": "Bol som na hore.",
+    "source": "tatoeba",
+    "upstreamId": "1548470"
+  },
+  {
+    "text": "Zavolám im zajtra, keď prídem domov.",
+    "source": "tatoeba",
+    "upstreamId": "1548474"
+  },
+  {
+    "text": "Brnknem im zajtra, keď prídem domov.",
+    "source": "tatoeba",
+    "upstreamId": "1548475"
+  },
+  {
+    "text": "Keď vyrastiem, chcem byť kráľom.",
+    "source": "tatoeba",
+    "upstreamId": "1548476"
+  },
+  {
+    "text": "Nie je toto tak?",
+    "source": "tatoeba",
+    "upstreamId": "1548480"
+  },
+  {
+    "text": "Bezpečnú cestu.",
+    "source": "tatoeba",
+    "upstreamId": "1548481"
+  },
+  {
+    "text": "On je môj brat.",
+    "source": "tatoeba",
+    "upstreamId": "1548482"
+  },
+  {
+    "text": "Ďakujem za informáciu.",
+    "source": "tatoeba",
+    "upstreamId": "1548483"
+  },
+  {
+    "text": "Brian kúpil Katke nejaký rúž.",
+    "source": "tatoeba",
+    "upstreamId": "1548484"
+  },
+  {
+    "text": "Svet je ako kniha, a tí čo necestujú čítajú len jednu stranu.",
+    "source": "tatoeba",
+    "upstreamId": "1548485"
+  },
+  {
+    "text": "„Kedy sa vraciaš?“ „To úplne záleží na počasí.“",
+    "source": "tatoeba",
+    "upstreamId": "1548487"
+  },
+  {
+    "text": "Kadiaľ pôjdeme?",
+    "source": "tatoeba",
+    "upstreamId": "1548488"
+  },
+  {
+    "text": "Tom je čarodejník.",
+    "source": "tatoeba",
+    "upstreamId": "1794538"
+  },
+  {
+    "text": "Dnes mám dobrú chuť.",
+    "source": "tatoeba",
+    "upstreamId": "1812561"
+  },
+  {
+    "text": "Na Marse stromy nerastú.",
+    "source": "tatoeba",
+    "upstreamId": "1812636"
+  },
+  {
+    "text": "Prepáč, že som omylom otvoril tvoj list.",
+    "source": "tatoeba",
+    "upstreamId": "1812658"
+  },
+  {
+    "text": "V zime jem rada čokoládu.",
+    "source": "tatoeba",
+    "upstreamId": "1812659"
+  },
+  {
+    "text": "Som unavená ako bábätko.",
+    "source": "tatoeba",
+    "upstreamId": "1812661"
+  },
+  {
+    "text": "Prišli sme do Ruska.",
+    "source": "tatoeba",
+    "upstreamId": "1812682"
+  },
+  {
+    "text": "Koľko stojí táto čiapka?",
+    "source": "tatoeba",
+    "upstreamId": "1812715"
+  },
+  {
+    "text": "Paulína má ružovú čiapku.",
+    "source": "tatoeba",
+    "upstreamId": "1812716"
+  },
+  {
+    "text": "Mačky nejedia banány.",
+    "source": "tatoeba",
+    "upstreamId": "1812735"
+  },
+  {
+    "text": "\"Zločin nikdy nebude dokonalý, ale možno ho z času na čas zdokonaliť\", povedal majster medzi zlodejmi na otázku o dokonalom zločine.",
+    "source": "tatoeba",
+    "upstreamId": "1812744"
+  },
+  {
+    "text": "Krokodíly majú ostré zuby.",
+    "source": "tatoeba",
+    "upstreamId": "1812752"
+  },
+  {
+    "text": "Urobil som si fotku na brehu jazera.",
+    "source": "tatoeba",
+    "upstreamId": "1812769"
+  },
+  {
+    "text": "Krokodílí samec zožral psiu fenu.",
+    "source": "tatoeba",
+    "upstreamId": "1812785"
+  },
+  {
+    "text": "Kôň prešiel cez môj dom.",
+    "source": "tatoeba",
+    "upstreamId": "1812922"
+  },
+  {
+    "text": "Ona nie je bohatá ani slávna.",
+    "source": "tatoeba",
+    "upstreamId": "1812925"
+  },
+  {
+    "text": "Tu je moje srdce.",
+    "source": "tatoeba",
+    "upstreamId": "1817861"
+  },
+  {
+    "text": "Mám rád zajace.",
+    "source": "tatoeba",
+    "upstreamId": "1817985"
+  },
+  {
+    "text": "Robte dobre tým, ktorí vás nenávidia.",
+    "source": "tatoeba",
+    "upstreamId": "1824389"
+  },
+  {
+    "text": "Bolí ma chrbát.",
+    "source": "tatoeba",
+    "upstreamId": "1848221"
+  },
+  {
+    "text": "Nikde nemôžeme nájsť dobrý šijací stroj.",
+    "source": "tatoeba",
+    "upstreamId": "1865195"
+  },
+  {
+    "text": "Ktorý je tvoj obľúbený operačný systém?",
+    "source": "tatoeba",
+    "upstreamId": "1865199"
+  },
+  {
+    "text": "Tom fajčí ako komín.",
+    "source": "tatoeba",
+    "upstreamId": "1865202"
+  },
+  {
+    "text": "Vyrieš ten problém!",
+    "source": "tatoeba",
+    "upstreamId": "1865206"
+  },
+  {
+    "text": "Môj brat vie šoférovať.",
+    "source": "tatoeba",
+    "upstreamId": "1865214"
+  },
+  {
+    "text": "Ľudia bojovali proti chudobe.",
+    "source": "tatoeba",
+    "upstreamId": "1865219"
+  },
+  {
+    "text": "Mal by si sa riadiť jeho radou.",
+    "source": "tatoeba",
+    "upstreamId": "1865224"
+  },
+  {
+    "text": "Za posledný rok veľa pršalo.",
+    "source": "tatoeba",
+    "upstreamId": "1865229"
+  },
+  {
+    "text": "Tom splnil, čo sme si mysleli, že nedokáže splniť.",
+    "source": "tatoeba",
+    "upstreamId": "1865235"
+  },
+  {
+    "text": "Tom je akýsi unavený. Chce ísť domov.",
+    "source": "tatoeba",
+    "upstreamId": "1865239"
+  },
+  {
+    "text": "Ukázala mi svoju izbu.",
+    "source": "tatoeba",
+    "upstreamId": "1865243"
+  },
+  {
+    "text": "Je dobre oboznámený s históriou Anglicka.",
+    "source": "tatoeba",
+    "upstreamId": "1865253"
+  },
+  {
+    "text": "Prísahám vernosť vlajke Spojených štátov amerických a republike, ktorú predstavuje (symbolizuje): jednému nedeliteľnému národu, pred Bohom, v slobodne a spravodlivosti pre všetkých.",
+    "source": "tatoeba",
+    "upstreamId": "1866997"
+  },
+  {
+    "text": "Som veľmi hladný.",
+    "source": "tatoeba",
+    "upstreamId": "1889408"
+  },
+  {
+    "text": "Môžeme vyrábať obuv.",
+    "source": "tatoeba",
+    "upstreamId": "1919911"
+  },
+  {
+    "text": "Reputácia je nestabilná. Lojalita je nevyspytateľná. Zdá sa, že vedenie sa viac a viac odpája od svojich zamestnancov.",
+    "source": "tatoeba",
+    "upstreamId": "1944758"
+  },
+  {
+    "text": "Šťastný Deň matiek!",
+    "source": "tatoeba",
+    "upstreamId": "2036779"
+  },
+  {
+    "text": "Nemám priateľov.",
+    "source": "tatoeba",
+    "upstreamId": "2065243"
+  },
+  {
+    "text": "Toto je koniec.",
+    "source": "tatoeba",
+    "upstreamId": "2065246"
+  },
+  {
+    "text": "Pamätáte si túto hru?",
+    "source": "tatoeba",
+    "upstreamId": "2067261"
+  },
+  {
+    "text": "Volám sa Dušana.",
+    "source": "tatoeba",
+    "upstreamId": "2106890"
+  },
+  {
+    "text": "Môjmu strýkovi diagnostikovali leukémiu.",
+    "source": "tatoeba",
+    "upstreamId": "2106903"
+  },
+  {
+    "text": "Poznáš mesto kde on žije?",
+    "source": "tatoeba",
+    "upstreamId": "2137599"
+  },
+  {
+    "text": "Poďakoval hostiteľovi za veľmi príjemnú oslavu.",
+    "source": "tatoeba",
+    "upstreamId": "2139923"
+  },
+  {
+    "text": "Tu je moje tajomstvo. Je veľmi jednoduché: správne vidíme iba srdcom. To hlavné je očiam neviditeľné.",
+    "source": "tatoeba",
+    "upstreamId": "2141765"
+  },
+  {
+    "text": "Je vaša žena ešte v Amerike?",
+    "source": "tatoeba",
+    "upstreamId": "2145437"
+  },
+  {
+    "text": "Myslíš si, že neviem, čo sa deje?",
+    "source": "tatoeba",
+    "upstreamId": "2148291"
+  },
+  {
+    "text": "Povedala, že bol pekný.",
+    "source": "tatoeba",
+    "upstreamId": "2148298"
+  },
+  {
+    "text": "Nenávidím tie slová.",
+    "source": "tatoeba",
+    "upstreamId": "2148619"
+  },
+  {
+    "text": "Prečo potrebujete toto špáradlo?",
+    "source": "tatoeba",
+    "upstreamId": "2148706"
+  },
+  {
+    "text": "Nie je bohatý, ale je šťastný.",
+    "source": "tatoeba",
+    "upstreamId": "2149721"
+  },
+  {
+    "text": "Ja som rovnako veľký ako môj otec.",
+    "source": "tatoeba",
+    "upstreamId": "2149734"
+  },
+  {
+    "text": "Toto je moja e-mailová adresa.",
+    "source": "tatoeba",
+    "upstreamId": "2149739"
+  },
+  {
+    "text": "Môj priateľ podľahol zraneniu.",
+    "source": "tatoeba",
+    "upstreamId": "2149744"
+  },
+  {
+    "text": "Tom bol môj prvý priateľ.",
+    "source": "tatoeba",
+    "upstreamId": "2149747"
+  },
+  {
+    "text": "Bol som mladý a nevinný.",
+    "source": "tatoeba",
+    "upstreamId": "2150273"
+  },
+  {
+    "text": "Si veľmi krásna.",
+    "source": "tatoeba",
+    "upstreamId": "2151963"
+  },
+  {
+    "text": "Ste veľmi krásna.",
+    "source": "tatoeba",
+    "upstreamId": "2151964"
+  },
+  {
+    "text": "Som tvoja minulosť.",
+    "source": "tatoeba",
+    "upstreamId": "2153661"
+  },
+  {
+    "text": "Ešte nie som pripravený.",
+    "source": "tatoeba",
+    "upstreamId": "2153667"
+  },
+  {
+    "text": "Zabudol nakŕmiť psa.",
+    "source": "tatoeba",
+    "upstreamId": "2153673"
+  },
+  {
+    "text": "Ja som šťastný.",
+    "source": "tatoeba",
+    "upstreamId": "2155088"
+  },
+  {
+    "text": "Sneží v Paríži.",
+    "source": "tatoeba",
+    "upstreamId": "2155659"
+  },
+  {
+    "text": "Vidím slzy v tvojich očiach.",
+    "source": "tatoeba",
+    "upstreamId": "2165659"
+  },
+  {
+    "text": "To je pod stolom.",
+    "source": "tatoeba",
+    "upstreamId": "2181350"
+  },
+  {
+    "text": "Nikdy nepíš slová „boršč“ a „šči“ po nemecky!",
+    "source": "tatoeba",
+    "upstreamId": "2209085"
+  },
+  {
+    "text": "Učiteľ predviedol veľa fyzikálnych experimentov.",
+    "source": "tatoeba",
+    "upstreamId": "2225923"
+  },
+  {
+    "text": "Môžete mi zameniť päťdolárovú bankovku?",
+    "source": "tatoeba",
+    "upstreamId": "2225974"
+  },
+  {
+    "text": "Robím to, pretože to chcem.",
+    "source": "tatoeba",
+    "upstreamId": "2225986"
+  },
+  {
+    "text": "Dávame si cukor do čaju.",
+    "source": "tatoeba",
+    "upstreamId": "2225994"
+  },
+  {
+    "text": "DNA test ukázal, že bol nevinný.",
+    "source": "tatoeba",
+    "upstreamId": "2226001"
+  },
+  {
+    "text": "Dvaja muži sa stretli tvárou v tvár.",
+    "source": "tatoeba",
+    "upstreamId": "2226011"
+  },
+  {
+    "text": "Vie po francúzsky, nehovoriac o angličtine.",
+    "source": "tatoeba",
+    "upstreamId": "2226029"
+  },
+  {
+    "text": "Vedel som, že dnes bude zábava.",
+    "source": "tatoeba",
+    "upstreamId": "2226034"
+  },
+  {
+    "text": "Jej oči prebehli po zozname, aby zistila, či je tam aj jej meno.",
+    "source": "tatoeba",
+    "upstreamId": "2226043"
+  },
+  {
+    "text": "V skutočnosti sa Tomáš takmer nikdy neučí.",
+    "source": "tatoeba",
+    "upstreamId": "2226057"
+  },
+  {
+    "text": "Je to nezávislý film.",
+    "source": "tatoeba",
+    "upstreamId": "2226066"
+  },
+  {
+    "text": "Bronzové výrobky sa zväčša robia zo zliatin mosadze a cínu.",
+    "source": "tatoeba",
+    "upstreamId": "2226077"
+  },
+  {
+    "text": "Tréner mi poradil.",
+    "source": "tatoeba",
+    "upstreamId": "2226082"
+  },
+  {
+    "text": "Som ti veľmi povďačný za tvoju radu.",
+    "source": "tatoeba",
+    "upstreamId": "2226086"
+  },
+  {
+    "text": "Pracoval tak veľa, že si zničil zdravie.",
+    "source": "tatoeba",
+    "upstreamId": "2226088"
+  },
+  {
+    "text": "Je to rodený umelec.",
+    "source": "tatoeba",
+    "upstreamId": "2226095"
+  },
+  {
+    "text": "Všetci sa snažíme uspieť.",
+    "source": "tatoeba",
+    "upstreamId": "2226101"
+  },
+  {
+    "text": "Taxík, ktorý som si zobral, bol veľmi starý a malý.",
+    "source": "tatoeba",
+    "upstreamId": "2226104"
+  },
+  {
+    "text": "V mojej izbe nie sú žiadne hodiny.",
+    "source": "tatoeba",
+    "upstreamId": "2226107"
+  },
+  {
+    "text": "Telefónny operátor požiadal volajúceho aby čakal, kým nebude spojenie.",
+    "source": "tatoeba",
+    "upstreamId": "2226124"
+  },
+  {
+    "text": "Odvážiš sa zavolať jej?",
+    "source": "tatoeba",
+    "upstreamId": "2226126"
+  },
+  {
+    "text": "Ján je tenisový talent.",
+    "source": "tatoeba",
+    "upstreamId": "2226137"
+  },
+  {
+    "text": "Hovorte pomalšie!",
+    "source": "tatoeba",
+    "upstreamId": "2226144"
+  },
+  {
+    "text": "Páčia sa mi krátke vlasy.",
+    "source": "tatoeba",
+    "upstreamId": "2226145"
+  },
+  {
+    "text": "Oplatí sa pozrieť sa na vonkajší svet.",
+    "source": "tatoeba",
+    "upstreamId": "2226147"
+  },
+  {
+    "text": "Prišiel osemnásteho apríla.",
+    "source": "tatoeba",
+    "upstreamId": "2226148"
+  },
+  {
+    "text": "Vie sa dobre šplhať na stromy.",
+    "source": "tatoeba",
+    "upstreamId": "2226149"
+  },
+  {
+    "text": "Je to vynikajúca myšlienka.",
+    "source": "tatoeba",
+    "upstreamId": "2226151"
+  },
+  {
+    "text": "Neviem, čo je horšie.",
+    "source": "tatoeba",
+    "upstreamId": "2226152"
+  },
+  {
+    "text": "Som hrdý na to, že nikdy nechodím do školy neskoro.",
+    "source": "tatoeba",
+    "upstreamId": "2226154"
+  },
+  {
+    "text": "Zamočila som si topánky.",
+    "source": "tatoeba",
+    "upstreamId": "2226160"
+  },
+  {
+    "text": "Urobil poriadnu hlúposť.",
+    "source": "tatoeba",
+    "upstreamId": "2226162"
+  },
+  {
+    "text": "Spávať chodím o jedenástej.",
+    "source": "tatoeba",
+    "upstreamId": "2226164"
+  },
+  {
+    "text": "Zabudol som sa ho spýtať.",
+    "source": "tatoeba",
+    "upstreamId": "2226165"
+  },
+  {
+    "text": "Rád čítavam knihy.",
+    "source": "tatoeba",
+    "upstreamId": "2226166"
+  },
+  {
+    "text": "Bill, otvor dvere.",
+    "source": "tatoeba",
+    "upstreamId": "2226168"
+  },
+  {
+    "text": "Pracujem s tvojím priateľom.",
+    "source": "tatoeba",
+    "upstreamId": "2226169"
+  },
+  {
+    "text": "Urobil so, čo som im sľúbil urobiť.",
+    "source": "tatoeba",
+    "upstreamId": "2226170"
+  },
+  {
+    "text": "Chýba, pretože je chorá.",
+    "source": "tatoeba",
+    "upstreamId": "2226173"
+  },
+  {
+    "text": "Som v poriadku.",
+    "source": "tatoeba",
+    "upstreamId": "2226175"
+  },
+  {
+    "text": "Jablko nepadá ďaleko od stromu.",
+    "source": "tatoeba",
+    "upstreamId": "2226180"
+  },
+  {
+    "text": "Videl som vtáka letieť ponad strom.",
+    "source": "tatoeba",
+    "upstreamId": "2228938"
+  },
+  {
+    "text": "Je ten koláč hotový?",
+    "source": "tatoeba",
+    "upstreamId": "2228943"
+  },
+  {
+    "text": "V tomto ročnom období si musíš dávať pozor na lavíny.",
+    "source": "tatoeba",
+    "upstreamId": "2228946"
+  },
+  {
+    "text": "Tomáš nemá poňatia, čo urobiť so všetkými nepotrebnými vecami v jeho garáži.",
+    "source": "tatoeba",
+    "upstreamId": "2228960"
+  },
+  {
+    "text": "Stroj bol pokrytí prachom.",
+    "source": "tatoeba",
+    "upstreamId": "2228967"
+  },
+  {
+    "text": "Tomáš nalial mlieko do pohára a potom ho podal Márii.",
+    "source": "tatoeba",
+    "upstreamId": "2228982"
+  },
+  {
+    "text": "Tento nápad sa mi vôbec nepáči.",
+    "source": "tatoeba",
+    "upstreamId": "2228986"
+  },
+  {
+    "text": "Minulý rok som sa vrátil domov a bol som prekvapený tým, že aj dedina aj ľudia sa úplne zmenili.",
+    "source": "tatoeba",
+    "upstreamId": "2229002"
+  },
+  {
+    "text": "\"Chceš vedieť, ako to urobil?\" \"Som samé ucho.\"",
+    "source": "tatoeba",
+    "upstreamId": "2229011"
+  },
+  {
+    "text": "Čo si mám dať na sveter?",
+    "source": "tatoeba",
+    "upstreamId": "2229014"
+  },
+  {
+    "text": "Tomáš by zmeškal vlak, ak by sa zastavil kúpiť si čokoládu.",
+    "source": "tatoeba",
+    "upstreamId": "2229017"
+  },
+  {
+    "text": "Nikto sa na ňu nepozerá.",
+    "source": "tatoeba",
+    "upstreamId": "2229023"
+  },
+  {
+    "text": "Glenn má dve priateľky.",
+    "source": "tatoeba",
+    "upstreamId": "2229024"
+  },
+  {
+    "text": "Myslím si, že nám chce predviesť svoje nové šaty.",
+    "source": "tatoeba",
+    "upstreamId": "2229028"
+  },
+  {
+    "text": "Druhým klamať môžeš, ale sám seba neoklameš.",
+    "source": "tatoeba",
+    "upstreamId": "2229041"
+  },
+  {
+    "text": "Niet ničoho, čo kresťanstvo zakazuje a čo by nebolo ošetrené zákonom: ak by to bolo inak, kresťanstvo by nebolo, tak ako sa vždy považovalo byť, súčasťou zákonov Anglicka.",
+    "source": "tatoeba",
+    "upstreamId": "2229045"
+  },
+  {
+    "text": "Nehovor mi, že si to nevedel.",
+    "source": "tatoeba",
+    "upstreamId": "2229050"
+  },
+  {
+    "text": "Veverička, čo tu žije, žerie všetky naše kamélie.",
+    "source": "tatoeba",
+    "upstreamId": "2229052"
+  },
+  {
+    "text": "Počas vojny sme mali veľa bolestivých zážitkov.",
+    "source": "tatoeba",
+    "upstreamId": "2229058"
+  },
+  {
+    "text": "V podstate je táto domnienka správna.",
+    "source": "tatoeba",
+    "upstreamId": "2229059"
+  },
+  {
+    "text": "Chceš si naozaj kúpiť počítač v tom obchode?",
+    "source": "tatoeba",
+    "upstreamId": "2229064"
+  },
+  {
+    "text": "Rada by som Tomáša lepšie spoznala.",
+    "source": "tatoeba",
+    "upstreamId": "2229065"
+  },
+  {
+    "text": "Rád by som Tomáša lepšie spoznal.",
+    "source": "tatoeba",
+    "upstreamId": "2229067"
+  },
+  {
+    "text": "Dúfajú, že sa im podarí nájsť si dobre platenú prácu.",
+    "source": "tatoeba",
+    "upstreamId": "2229072"
+  },
+  {
+    "text": "Buď všetko alebo nič.",
+    "source": "tatoeba",
+    "upstreamId": "2229073"
+  },
+  {
+    "text": "Som podnikateľ.",
+    "source": "tatoeba",
+    "upstreamId": "2229075"
+  },
+  {
+    "text": "Moja teta sa cíti zle.",
+    "source": "tatoeba",
+    "upstreamId": "2229076"
+  },
+  {
+    "text": "Veľkým pôžitkom v živote je robiť to, čo ti ľudia zakazujú.",
+    "source": "tatoeba",
+    "upstreamId": "2229078"
+  },
+  {
+    "text": "Dúfam, že ekonomika sa čoskoro oživí.",
+    "source": "tatoeba",
+    "upstreamId": "2229079"
+  },
+  {
+    "text": "Čaj si sladíme.",
+    "source": "tatoeba",
+    "upstreamId": "2229081"
+  },
+  {
+    "text": "Robím to, pretože sa mi chce.",
+    "source": "tatoeba",
+    "upstreamId": "2229083"
+  },
+  {
+    "text": "To je vynikajúci nápad.",
+    "source": "tatoeba",
+    "upstreamId": "2229086"
+  },
+  {
+    "text": "Zabudol som nalepiť známku na obálku.",
+    "source": "tatoeba",
+    "upstreamId": "2229090"
+  },
+  {
+    "text": "Nie, som unavený.",
+    "source": "tatoeba",
+    "upstreamId": "2229132"
+  },
+  {
+    "text": "Mám rád jazyky.",
+    "source": "tatoeba",
+    "upstreamId": "2229138"
+  },
+  {
+    "text": "Koľko traktorov si predal minulý týždeň?",
+    "source": "tatoeba",
+    "upstreamId": "2230561"
+  },
+  {
+    "text": "Naším materinským jazykom je japončina.",
+    "source": "tatoeba",
+    "upstreamId": "2230568"
+  },
+  {
+    "text": "To nie je bezpečné.",
+    "source": "tatoeba",
+    "upstreamId": "2230569"
+  },
+  {
+    "text": "Kúpil si si nový dom.",
+    "source": "tatoeba",
+    "upstreamId": "2230572"
+  },
+  {
+    "text": "Boli ste niekedy v Kanade?",
+    "source": "tatoeba",
+    "upstreamId": "2230573"
+  },
+  {
+    "text": "Veľa z toho nerozumiem.",
+    "source": "tatoeba",
+    "upstreamId": "2230574"
+  },
+  {
+    "text": "Prečo žil v USA?",
+    "source": "tatoeba",
+    "upstreamId": "2230575"
+  },
+  {
+    "text": "„Pozeral si minulý týždeň televíziu?“ „Nie, nepozeral.“",
+    "source": "tatoeba",
+    "upstreamId": "2230578"
+  },
+  {
+    "text": "Môj otec chodí v nedeľu do kostola.",
+    "source": "tatoeba",
+    "upstreamId": "2230580"
+  },
+  {
+    "text": "Prosím ťa nerob toľko hluku.",
+    "source": "tatoeba",
+    "upstreamId": "2230581"
+  },
+  {
+    "text": "Prišiel vo veľkom aute.",
+    "source": "tatoeba",
+    "upstreamId": "2230582"
+  },
+  {
+    "text": "Vo februári som bol v Sao Paule.",
+    "source": "tatoeba",
+    "upstreamId": "2230585"
+  },
+  {
+    "text": "Chcem tento fotoaparát.",
+    "source": "tatoeba",
+    "upstreamId": "2230588"
+  },
+  {
+    "text": "Má zlé schopnosti organizovať.",
+    "source": "tatoeba",
+    "upstreamId": "2230589"
+  },
+  {
+    "text": "Konečne je to všetko za nami.",
+    "source": "tatoeba",
+    "upstreamId": "2230593"
+  },
+  {
+    "text": "Bol chorý, ale teraz už nie je.",
+    "source": "tatoeba",
+    "upstreamId": "2230601"
+  },
+  {
+    "text": "Vieš koľko ľudí ročne zomrie na svete od hladu?",
+    "source": "tatoeba",
+    "upstreamId": "2233447"
+  },
+  {
+    "text": "Neodkladne choď k lekárovi, ak sa ti to zhorší.",
+    "source": "tatoeba",
+    "upstreamId": "2233450"
+  },
+  {
+    "text": "Zameraj sa na jednu vec a urob ju dobre.",
+    "source": "tatoeba",
+    "upstreamId": "2233452"
+  },
+  {
+    "text": "Ich šťastie malo korene v ich priemysle.",
+    "source": "tatoeba",
+    "upstreamId": "2233453"
+  },
+  {
+    "text": "Otec ma požiadal otvoriť dvere.",
+    "source": "tatoeba",
+    "upstreamId": "2233455"
+  },
+  {
+    "text": "Schytala to za to, že prišla neskoro.",
+    "source": "tatoeba",
+    "upstreamId": "2233458"
+  },
+  {
+    "text": "Nový zákon obmedzil občianske slobody.",
+    "source": "tatoeba",
+    "upstreamId": "2233463"
+  },
+  {
+    "text": "More malo zrkadlovú hladinu.",
+    "source": "tatoeba",
+    "upstreamId": "2233467"
+  },
+  {
+    "text": "Zostávať doma je smutné.",
+    "source": "tatoeba",
+    "upstreamId": "2233469"
+  },
+  {
+    "text": "Kvitnúca broskyňa je krásna.",
+    "source": "tatoeba",
+    "upstreamId": "2233470"
+  },
+  {
+    "text": "Otrava kadmiom je na juhu veľmi častou príčinou smrti.",
+    "source": "tatoeba",
+    "upstreamId": "2233472"
+  },
+  {
+    "text": "Tomáš sa nemohol dočkať príležitosti ísť si znovu zaplávať.",
+    "source": "tatoeba",
+    "upstreamId": "2233475"
+  },
+  {
+    "text": "To je trojuholník.",
+    "source": "tatoeba",
+    "upstreamId": "2294798"
+  },
+  {
+    "text": "Kde je môj otec?",
+    "source": "tatoeba",
+    "upstreamId": "2296790"
+  },
+  {
+    "text": "Môžeš to zopakovať?",
+    "source": "tatoeba",
+    "upstreamId": "2428445"
+  },
+  {
+    "text": "Dobrú noc a sladké sny.",
+    "source": "tatoeba",
+    "upstreamId": "2428449"
+  },
+  {
+    "text": "Ďakujem vám veľmi pekne!",
+    "source": "tatoeba",
+    "upstreamId": "2428453"
+  },
+  {
+    "text": "Dlho sme sa nevideli.",
+    "source": "tatoeba",
+    "upstreamId": "2428457"
+  },
+  {
+    "text": "Sú niektoré knihy na stole.",
+    "source": "tatoeba",
+    "upstreamId": "2428463"
+  },
+  {
+    "text": "„Kde je tvoja kniha?“ „Na stole.“",
+    "source": "tatoeba",
+    "upstreamId": "2428466"
+  },
+  {
+    "text": "Kniha leží na stole.",
+    "source": "tatoeba",
+    "upstreamId": "2428467"
+  },
+  {
+    "text": "Mačka je pod stolom.",
+    "source": "tatoeba",
+    "upstreamId": "2428469"
+  },
+  {
+    "text": "Tento muž je opitý.",
+    "source": "tatoeba",
+    "upstreamId": "2428525"
+  },
+  {
+    "text": "Tento muž je Pedro.",
+    "source": "tatoeba",
+    "upstreamId": "2428527"
+  },
+  {
+    "text": "Tento muž nie je spoľahlivý.",
+    "source": "tatoeba",
+    "upstreamId": "2428529"
+  },
+  {
+    "text": "To je kniha o hviezdach.",
+    "source": "tatoeba",
+    "upstreamId": "2428530"
+  },
+  {
+    "text": "Koľko rokov má tvoj otec?",
+    "source": "tatoeba",
+    "upstreamId": "2428531"
+  },
+  {
+    "text": "Hovoríš príliš veľa.",
+    "source": "tatoeba",
+    "upstreamId": "2428533"
+  },
+  {
+    "text": "To nie je má žena.",
+    "source": "tatoeba",
+    "upstreamId": "2428534"
+  },
+  {
+    "text": "Nechcem ťa stratiť.",
+    "source": "tatoeba",
+    "upstreamId": "2428535"
+  },
+  {
+    "text": "Ja som inžinier.",
+    "source": "tatoeba",
+    "upstreamId": "2428536"
+  },
+  {
+    "text": "Vidím, ako sa učíš.",
+    "source": "tatoeba",
+    "upstreamId": "2428537"
+  },
+  {
+    "text": "Môžeš mi pobozkať riť!",
+    "source": "tatoeba",
+    "upstreamId": "2428540"
+  },
+  {
+    "text": "Pobozkaj mi riť.",
+    "source": "tatoeba",
+    "upstreamId": "2428541"
+  },
+  {
+    "text": "Nemôžeme ignorovať tento problém.",
+    "source": "tatoeba",
+    "upstreamId": "2428542"
+  },
+  {
+    "text": "Prosíme nerušiť!",
+    "source": "tatoeba",
+    "upstreamId": "2428545"
+  },
+  {
+    "text": "Ty si paranoidný.",
+    "source": "tatoeba",
+    "upstreamId": "2428546"
+  },
+  {
+    "text": "Heslo je „Muiriel“.",
+    "source": "tatoeba",
+    "upstreamId": "2428549"
+  },
+  {
+    "text": "Ricardo je moje meno.",
+    "source": "tatoeba",
+    "upstreamId": "2428550"
+  },
+  {
+    "text": "Chlieb je v peci.",
+    "source": "tatoeba",
+    "upstreamId": "2428552"
+  },
+  {
+    "text": "Teší ma, že ťa spoznávam.",
+    "source": "tatoeba",
+    "upstreamId": "2428555"
+  },
+  {
+    "text": "Ja som škaredý.",
+    "source": "tatoeba",
+    "upstreamId": "2428557"
+  },
+  {
+    "text": "Ja som škaredá.",
+    "source": "tatoeba",
+    "upstreamId": "2428558"
+  },
+  {
+    "text": "By sme mali jesť.",
+    "source": "tatoeba",
+    "upstreamId": "2428655"
+  },
+  {
+    "text": "Kde je žltý džbán mlieka?",
+    "source": "tatoeba",
+    "upstreamId": "2428660"
+  },
+  {
+    "text": "Tento rok veľa pršalo.",
+    "source": "tatoeba",
+    "upstreamId": "2428662"
+  },
+  {
+    "text": "Nechaj to na mne.",
+    "source": "tatoeba",
+    "upstreamId": "2428665"
+  },
+  {
+    "text": "Kávu vôbec nepijem.",
+    "source": "tatoeba",
+    "upstreamId": "2428671"
+  },
+  {
+    "text": "Nie som žiadny vedec.",
+    "source": "tatoeba",
+    "upstreamId": "2428675"
+  },
+  {
+    "text": "I ženy chcú mať sex.",
+    "source": "tatoeba",
+    "upstreamId": "2428677"
+  },
+  {
+    "text": "Kto je ďalší na rade?",
+    "source": "tatoeba",
+    "upstreamId": "2428679"
+  },
+  {
+    "text": "Zjedol celé jablko.",
+    "source": "tatoeba",
+    "upstreamId": "2428681"
+  },
+  {
+    "text": "Koľko rokov má Tony?",
+    "source": "tatoeba",
+    "upstreamId": "2428684"
+  },
+  {
+    "text": "Môj malý brat to urobil miesto mňa.",
+    "source": "tatoeba",
+    "upstreamId": "2428686"
+  },
+  {
+    "text": "Chcete niečo jesť?",
+    "source": "tatoeba",
+    "upstreamId": "2428687"
+  },
+  {
+    "text": "Ktorý je jeho dom?",
+    "source": "tatoeba",
+    "upstreamId": "2428688"
+  },
+  {
+    "text": "Mám rád vašej mačku.",
+    "source": "tatoeba",
+    "upstreamId": "2428689"
+  },
+  {
+    "text": "Mám rád tvoju mačku.",
+    "source": "tatoeba",
+    "upstreamId": "2428690"
+  },
+  {
+    "text": "Kde je kúpeľňa?",
+    "source": "tatoeba",
+    "upstreamId": "2428692"
+  },
+  {
+    "text": "Mám rád kuracie mäso.",
+    "source": "tatoeba",
+    "upstreamId": "2428694"
+  },
+  {
+    "text": "Tento nôž reže dobre.",
+    "source": "tatoeba",
+    "upstreamId": "2428695"
+  },
+  {
+    "text": "Je veľmi šikovná.",
+    "source": "tatoeba",
+    "upstreamId": "2428697"
+  },
+  {
+    "text": "Hovoríš po rusky?",
+    "source": "tatoeba",
+    "upstreamId": "2428740"
+  },
+  {
+    "text": "Tom je najkrajší herec na svete.",
+    "source": "tatoeba",
+    "upstreamId": "2428836"
+  },
+  {
+    "text": "Kvôli nemu som zmeškal autobus.",
+    "source": "tatoeba",
+    "upstreamId": "2428841"
+  },
+  {
+    "text": "Ako sa táto ulica volá?",
+    "source": "tatoeba",
+    "upstreamId": "2428845"
+  },
+  {
+    "text": "Stôl nie je v spálni.",
+    "source": "tatoeba",
+    "upstreamId": "2429347"
+  },
+  {
+    "text": "Stôl je v obývacej izbe.",
+    "source": "tatoeba",
+    "upstreamId": "2429349"
+  },
+  {
+    "text": "Ona je učiteľka.",
+    "source": "tatoeba",
+    "upstreamId": "2429350"
+  },
+  {
+    "text": "On je učiteľ v našej škole.",
+    "source": "tatoeba",
+    "upstreamId": "2429352"
+  },
+  {
+    "text": "Ona je zdravotná sestra.",
+    "source": "tatoeba",
+    "upstreamId": "2429353"
+  },
+  {
+    "text": "Ona je speváčka.",
+    "source": "tatoeba",
+    "upstreamId": "2429355"
+  },
+  {
+    "text": "Dovidenia, Sayoko.",
+    "source": "tatoeba",
+    "upstreamId": "2429359"
+  },
+  {
+    "text": "Ahoj, ja som Nancy.",
+    "source": "tatoeba",
+    "upstreamId": "2429362"
+  },
+  {
+    "text": "Ja nie som manažér.",
+    "source": "tatoeba",
+    "upstreamId": "2429364"
+  },
+  {
+    "text": "Kvet nie je čierny.",
+    "source": "tatoeba",
+    "upstreamId": "2429369"
+  },
+  {
+    "text": "Dom má päťsto rokov.",
+    "source": "tatoeba",
+    "upstreamId": "2429370"
+  },
+  {
+    "text": "Dom je studený.",
+    "source": "tatoeba",
+    "upstreamId": "2429371"
+  },
+  {
+    "text": "Dom je veľmi studený.",
+    "source": "tatoeba",
+    "upstreamId": "2429374"
+  },
+  {
+    "text": "Dom je strašidelný.",
+    "source": "tatoeba",
+    "upstreamId": "2429375"
+  },
+  {
+    "text": "Strom je zelený.",
+    "source": "tatoeba",
+    "upstreamId": "2429377"
+  },
+  {
+    "text": "Tvoj kabát je veľmi krásny.",
+    "source": "tatoeba",
+    "upstreamId": "2429379"
+  },
+  {
+    "text": "Cukríky sú na stole.",
+    "source": "tatoeba",
+    "upstreamId": "2429381"
+  },
+  {
+    "text": "Volám sa Emily.",
+    "source": "tatoeba",
+    "upstreamId": "2429382"
+  },
+  {
+    "text": "To je môj počítač.",
+    "source": "tatoeba",
+    "upstreamId": "2429383"
+  },
+  {
+    "text": "To je veľmi tmavý.",
+    "source": "tatoeba",
+    "upstreamId": "2429385"
+  },
+  {
+    "text": "Mapa je na stene.",
+    "source": "tatoeba",
+    "upstreamId": "2429429"
+  },
+  {
+    "text": "Chlieb je čerstvý.",
+    "source": "tatoeba",
+    "upstreamId": "2429433"
+  },
+  {
+    "text": "Jablko leží na stole.",
+    "source": "tatoeba",
+    "upstreamId": "2429439"
+  },
+  {
+    "text": "Stoličky sú pod stromom.",
+    "source": "tatoeba",
+    "upstreamId": "2429441"
+  },
+  {
+    "text": "Pracujem v továrni.",
+    "source": "tatoeba",
+    "upstreamId": "2429442"
+  },
+  {
+    "text": "Slnko je červené.",
+    "source": "tatoeba",
+    "upstreamId": "2429444"
+  },
+  {
+    "text": "Spravodlivosť je drahá.",
+    "source": "tatoeba",
+    "upstreamId": "2429450"
+  },
+  {
+    "text": "Chlieb nie je čerstvý.",
+    "source": "tatoeba",
+    "upstreamId": "2429451"
+  },
+  {
+    "text": "Ja som z Egypta.",
+    "source": "tatoeba",
+    "upstreamId": "2429453"
+  },
+  {
+    "text": "Tom nie je môj syn.",
+    "source": "tatoeba",
+    "upstreamId": "2429454"
+  },
+  {
+    "text": "Nežijeme v Bostone.",
+    "source": "tatoeba",
+    "upstreamId": "2429456"
+  },
+  {
+    "text": "Veselú Veľkú noc!",
+    "source": "tatoeba",
+    "upstreamId": "2429463"
+  },
+  {
+    "text": "Kde je tvoja škola?",
+    "source": "tatoeba",
+    "upstreamId": "2429474"
+  },
+  {
+    "text": "Odpoveď je „Áno“.",
+    "source": "tatoeba",
+    "upstreamId": "2429659"
+  },
+  {
+    "text": "Čítam knihu o zvieratách.",
+    "source": "tatoeba",
+    "upstreamId": "2430447"
+  },
+  {
+    "text": "Milujete svojich spolužiakov z triedy?",
+    "source": "tatoeba",
+    "upstreamId": "2430459"
+  },
+  {
+    "text": "Milujem učiť sa nových vecí.",
+    "source": "tatoeba",
+    "upstreamId": "2430461"
+  },
+  {
+    "text": "V nedeľu idem do kostola.",
+    "source": "tatoeba",
+    "upstreamId": "2430464"
+  },
+  {
+    "text": "Tento labuť je čierny.",
+    "source": "tatoeba",
+    "upstreamId": "2430466"
+  },
+  {
+    "text": "Kde je toaleta?",
+    "source": "tatoeba",
+    "upstreamId": "2430468"
+  },
+  {
+    "text": "Volám sa Július.",
+    "source": "tatoeba",
+    "upstreamId": "2430472"
+  },
+  {
+    "text": "Vidím bieleho leva.",
+    "source": "tatoeba",
+    "upstreamId": "2430475"
+  },
+  {
+    "text": "Papier je biely.",
+    "source": "tatoeba",
+    "upstreamId": "2430476"
+  },
+  {
+    "text": "Ďakujem za aktualizácie.",
+    "source": "tatoeba",
+    "upstreamId": "2430478"
+  },
+  {
+    "text": "Potrebujeme ich.",
+    "source": "tatoeba",
+    "upstreamId": "2430481"
+  },
+  {
+    "text": "Mačka je v studni.",
+    "source": "tatoeba",
+    "upstreamId": "2430506"
+  },
+  {
+    "text": "Nerozumiem slovo.",
+    "source": "tatoeba",
+    "upstreamId": "2430507"
+  },
+  {
+    "text": "Čítal som knihy.",
+    "source": "tatoeba",
+    "upstreamId": "2430509"
+  },
+  {
+    "text": "Kde je môj hrebeň?",
+    "source": "tatoeba",
+    "upstreamId": "2430511"
+  },
+  {
+    "text": "Laurie je dobrá plavkyňa.",
+    "source": "tatoeba",
+    "upstreamId": "2430515"
+  },
+  {
+    "text": "Granada je moje obľúbené mesto.",
+    "source": "tatoeba",
+    "upstreamId": "2430518"
+  },
+  {
+    "text": "Laurie býva v Španielsku.",
+    "source": "tatoeba",
+    "upstreamId": "2430520"
+  },
+  {
+    "text": "Laurie pôjde do Španielska.",
+    "source": "tatoeba",
+    "upstreamId": "2430522"
+  },
+  {
+    "text": "Laurie je z Veľkej Británie.",
+    "source": "tatoeba",
+    "upstreamId": "2430524"
+  },
+  {
+    "text": "Laurie je chorá.",
+    "source": "tatoeba",
+    "upstreamId": "2430525"
+  },
+  {
+    "text": "Laurie je ešte v škole.",
+    "source": "tatoeba",
+    "upstreamId": "2430526"
+  },
+  {
+    "text": "Laurie je krásne dievča.",
+    "source": "tatoeba",
+    "upstreamId": "2430528"
+  },
+  {
+    "text": "Laurie je naozajstná priateľka.",
+    "source": "tatoeba",
+    "upstreamId": "2430529"
+  },
+  {
+    "text": "Moja priateľka volá sa Laurie.",
+    "source": "tatoeba",
+    "upstreamId": "2430530"
+  },
+  {
+    "text": "Kde je tvoj otec?",
+    "source": "tatoeba",
+    "upstreamId": "2430531"
+  }
+]

@@ -1,0 +1,3315 @@
+{
+  "_meta": {
+    "locale": "sr",
+    "generator": "platform/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 300,
+      "negatives": 0
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "positives": [
+    {
+      "id": "email-sr-00000",
+      "input": "Молимо пошаљите пакет на alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00001",
+      "input": "Поштанска адреса: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00002",
+      "input": "Клијент живи на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00003",
+      "input": "Место преузимања — anna.mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00004",
+      "input": "Молимо пошаљите пакет на alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00005",
+      "input": "Поштанска адреса: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00006",
+      "input": "Клијент живи на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00007",
+      "input": "Место преузимања — anna_mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00008",
+      "input": "Молимо пошаљите пакет на alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00009",
+      "input": "Поштанска адреса: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00010",
+      "input": "Клијент живи на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00011",
+      "input": "Место преузимања — annamueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00012",
+      "input": "Молимо пошаљите пакет на alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00013",
+      "input": "Поштанска адреса: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00014",
+      "input": "Клијент живи на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00015",
+      "input": "Место преузимања — anna.mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00016",
+      "input": "Молимо пошаљите пакет на alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00017",
+      "input": "Поштанска адреса: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00018",
+      "input": "Клијент живи на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00019",
+      "input": "Место преузимања — anna_mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00020",
+      "input": "Молимо пошаљите пакет на alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00021",
+      "input": "Поштанска адреса: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00022",
+      "input": "Клијент живи на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00023",
+      "input": "Место преузимања — annamueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00024",
+      "input": "Молимо пошаљите пакет на alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00025",
+      "input": "Поштанска адреса: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00026",
+      "input": "Клијент живи на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00027",
+      "input": "Место преузимања — anna.mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00028",
+      "input": "Молимо пошаљите пакет на alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00029",
+      "input": "Поштанска адреса: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00030",
+      "input": "Клијент живи на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00031",
+      "input": "Место преузимања — anna_mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00032",
+      "input": "Молимо пошаљите пакет на alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00033",
+      "input": "Поштанска адреса: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00034",
+      "input": "Клијент живи на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00035",
+      "input": "Место преузимања — annamueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00036",
+      "input": "Молимо пошаљите пакет на alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00037",
+      "input": "Поштанска адреса: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00038",
+      "input": "Клијент живи на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00039",
+      "input": "Место преузимања — anna.mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00040",
+      "input": "Молимо пошаљите пакет на alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00041",
+      "input": "Поштанска адреса: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00042",
+      "input": "Клијент живи на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00043",
+      "input": "Место преузимања — anna_mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00044",
+      "input": "Молимо пошаљите пакет на alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00045",
+      "input": "Поштанска адреса: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00046",
+      "input": "Клијент живи на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00047",
+      "input": "Место преузимања — annamueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00048",
+      "input": "Молимо пошаљите пакет на alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00049",
+      "input": "Поштанска адреса: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00050",
+      "input": "Клијент живи на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00051",
+      "input": "Место преузимања — anna.mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00052",
+      "input": "Молимо пошаљите пакет на alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00053",
+      "input": "Поштанска адреса: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00054",
+      "input": "Клијент живи на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00055",
+      "input": "Место преузимања — anna_mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00056",
+      "input": "Молимо пошаљите пакет на alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00057",
+      "input": "Поштанска адреса: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00058",
+      "input": "Клијент живи на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00059",
+      "input": "Место преузимања — annamueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00060",
+      "input": "Молимо пошаљите пакет на alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00061",
+      "input": "Поштанска адреса: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00062",
+      "input": "Клијент живи на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00063",
+      "input": "Место преузимања — anna.mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00064",
+      "input": "Молимо пошаљите пакет на alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00065",
+      "input": "Поштанска адреса: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00066",
+      "input": "Клијент живи на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00067",
+      "input": "Место преузимања — anna_mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00068",
+      "input": "Молимо пошаљите пакет на alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00069",
+      "input": "Поштанска адреса: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00070",
+      "input": "Клијент живи на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00071",
+      "input": "Место преузимања — annamueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00072",
+      "input": "Молимо пошаљите пакет на alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00073",
+      "input": "Поштанска адреса: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00074",
+      "input": "Клијент живи на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00075",
+      "input": "Место преузимања — anna.mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00076",
+      "input": "Молимо пошаљите пакет на alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00077",
+      "input": "Поштанска адреса: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00078",
+      "input": "Клијент живи на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00079",
+      "input": "Место преузимања — anna_mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00080",
+      "input": "Молимо пошаљите пакет на alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00081",
+      "input": "Поштанска адреса: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00082",
+      "input": "Клијент живи на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00083",
+      "input": "Место преузимања — annamueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00084",
+      "input": "Молимо пошаљите пакет на alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00085",
+      "input": "Поштанска адреса: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00086",
+      "input": "Клијент живи на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00087",
+      "input": "Место преузимања — anna.mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00088",
+      "input": "Молимо пошаљите пакет на alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00089",
+      "input": "Поштанска адреса: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00090",
+      "input": "Клијент живи на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00091",
+      "input": "Место преузимања — anna_mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00092",
+      "input": "Молимо пошаљите пакет на alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00093",
+      "input": "Поштанска адреса: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00094",
+      "input": "Клијент живи на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00095",
+      "input": "Место преузимања — annamueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00096",
+      "input": "Молимо пошаљите пакет на alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00097",
+      "input": "Поштанска адреса: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00098",
+      "input": "Клијент живи на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00099",
+      "input": "Место преузимања — anna.mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00100",
+      "input": "Молимо пошаљите пакет на alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00101",
+      "input": "Поштанска адреса: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00102",
+      "input": "Клијент живи на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00103",
+      "input": "Место преузимања — anna_mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00104",
+      "input": "Молимо пошаљите пакет на alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00105",
+      "input": "Поштанска адреса: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00106",
+      "input": "Клијент живи на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00107",
+      "input": "Место преузимања — annamueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00108",
+      "input": "Молимо пошаљите пакет на alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00109",
+      "input": "Поштанска адреса: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00110",
+      "input": "Клијент живи на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00111",
+      "input": "Место преузимања — anna.mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00112",
+      "input": "Молимо пошаљите пакет на alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00113",
+      "input": "Поштанска адреса: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00114",
+      "input": "Клијент живи на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00115",
+      "input": "Место преузимања — anna_mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00116",
+      "input": "Молимо пошаљите пакет на alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00117",
+      "input": "Поштанска адреса: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00118",
+      "input": "Клијент живи на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00119",
+      "input": "Место преузимања — annamueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00120",
+      "input": "Молимо пошаљите пакет на alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00121",
+      "input": "Поштанска адреса: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00122",
+      "input": "Клијент живи на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00123",
+      "input": "Место преузимања — anna.mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00124",
+      "input": "Молимо пошаљите пакет на alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00125",
+      "input": "Поштанска адреса: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00126",
+      "input": "Клијент живи на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00127",
+      "input": "Место преузимања — anna_mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00128",
+      "input": "Молимо пошаљите пакет на alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00129",
+      "input": "Поштанска адреса: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00130",
+      "input": "Клијент живи на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00131",
+      "input": "Место преузимања — annamueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00132",
+      "input": "Молимо пошаљите пакет на alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00133",
+      "input": "Поштанска адреса: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00134",
+      "input": "Клијент живи на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00135",
+      "input": "Место преузимања — anna.mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00136",
+      "input": "Молимо пошаљите пакет на alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00137",
+      "input": "Поштанска адреса: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00138",
+      "input": "Клијент живи на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00139",
+      "input": "Место преузимања — anna_mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00140",
+      "input": "Молимо пошаљите пакет на alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00141",
+      "input": "Поштанска адреса: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00142",
+      "input": "Клијент живи на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00143",
+      "input": "Место преузимања — annamueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00144",
+      "input": "Молимо пошаљите пакет на alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00145",
+      "input": "Поштанска адреса: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00146",
+      "input": "Клијент живи на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00147",
+      "input": "Место преузимања — anna.mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00148",
+      "input": "Молимо пошаљите пакет на alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00149",
+      "input": "Поштанска адреса: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00150",
+      "input": "Клијент живи на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00151",
+      "input": "Место преузимања — anna_mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00152",
+      "input": "Молимо пошаљите пакет на alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00153",
+      "input": "Поштанска адреса: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00154",
+      "input": "Клијент живи на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00155",
+      "input": "Место преузимања — annamueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00156",
+      "input": "Молимо пошаљите пакет на alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00157",
+      "input": "Поштанска адреса: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00158",
+      "input": "Клијент живи на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00159",
+      "input": "Место преузимања — anna.mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00160",
+      "input": "Молимо пошаљите пакет на alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00161",
+      "input": "Поштанска адреса: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00162",
+      "input": "Клијент живи на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00163",
+      "input": "Место преузимања — anna_mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00164",
+      "input": "Молимо пошаљите пакет на alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00165",
+      "input": "Поштанска адреса: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00166",
+      "input": "Клијент живи на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00167",
+      "input": "Место преузимања — annamueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00168",
+      "input": "Молимо пошаљите пакет на alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00169",
+      "input": "Поштанска адреса: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00170",
+      "input": "Клијент живи на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00171",
+      "input": "Место преузимања — anna.mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00172",
+      "input": "Молимо пошаљите пакет на alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00173",
+      "input": "Поштанска адреса: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00174",
+      "input": "Клијент живи на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00175",
+      "input": "Место преузимања — anna_mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00176",
+      "input": "Молимо пошаљите пакет на alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00177",
+      "input": "Поштанска адреса: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00178",
+      "input": "Клијент живи на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00179",
+      "input": "Место преузимања — annamueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00180",
+      "input": "Молимо пошаљите пакет на alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00181",
+      "input": "Поштанска адреса: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00182",
+      "input": "Клијент живи на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00183",
+      "input": "Место преузимања — anna.mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00184",
+      "input": "Молимо пошаљите пакет на alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00185",
+      "input": "Поштанска адреса: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00186",
+      "input": "Клијент живи на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00187",
+      "input": "Место преузимања — anna_mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00188",
+      "input": "Молимо пошаљите пакет на alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00189",
+      "input": "Поштанска адреса: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00190",
+      "input": "Клијент живи на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00191",
+      "input": "Место преузимања — annamueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00192",
+      "input": "Молимо пошаљите пакет на alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00193",
+      "input": "Поштанска адреса: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00194",
+      "input": "Клијент живи на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00195",
+      "input": "Место преузимања — anna.mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00196",
+      "input": "Молимо пошаљите пакет на alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00197",
+      "input": "Поштанска адреса: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00198",
+      "input": "Клијент живи на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00199",
+      "input": "Место преузимања — anna_mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00200",
+      "input": "Молимо пошаљите пакет на alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00201",
+      "input": "Поштанска адреса: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00202",
+      "input": "Клијент живи на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00203",
+      "input": "Место преузимања — annamueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00204",
+      "input": "Молимо пошаљите пакет на alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00205",
+      "input": "Поштанска адреса: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00206",
+      "input": "Клијент живи на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00207",
+      "input": "Место преузимања — anna.mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00208",
+      "input": "Молимо пошаљите пакет на alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00209",
+      "input": "Поштанска адреса: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00210",
+      "input": "Клијент живи на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00211",
+      "input": "Место преузимања — anna_mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00212",
+      "input": "Молимо пошаљите пакет на alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00213",
+      "input": "Поштанска адреса: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00214",
+      "input": "Клијент живи на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00215",
+      "input": "Место преузимања — annamueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00216",
+      "input": "Молимо пошаљите пакет на alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00217",
+      "input": "Поштанска адреса: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00218",
+      "input": "Клијент живи на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00219",
+      "input": "Место преузимања — anna.mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00220",
+      "input": "Молимо пошаљите пакет на alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00221",
+      "input": "Поштанска адреса: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00222",
+      "input": "Клијент живи на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00223",
+      "input": "Место преузимања — anna_mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00224",
+      "input": "Молимо пошаљите пакет на alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00225",
+      "input": "Поштанска адреса: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00226",
+      "input": "Клијент живи на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00227",
+      "input": "Место преузимања — annamueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00228",
+      "input": "Молимо пошаљите пакет на alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00229",
+      "input": "Поштанска адреса: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00230",
+      "input": "Клијент живи на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00231",
+      "input": "Место преузимања — anna.mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00232",
+      "input": "Молимо пошаљите пакет на alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00233",
+      "input": "Поштанска адреса: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00234",
+      "input": "Клијент живи на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00235",
+      "input": "Место преузимања — anna_mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00236",
+      "input": "Молимо пошаљите пакет на alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00237",
+      "input": "Поштанска адреса: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00238",
+      "input": "Клијент живи на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00239",
+      "input": "Место преузимања — annamueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00240",
+      "input": "Молимо пошаљите пакет на alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00241",
+      "input": "Поштанска адреса: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00242",
+      "input": "Клијент живи на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00243",
+      "input": "Место преузимања — anna.mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00244",
+      "input": "Молимо пошаљите пакет на alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00245",
+      "input": "Поштанска адреса: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00246",
+      "input": "Клијент живи на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00247",
+      "input": "Место преузимања — anna_mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00248",
+      "input": "Молимо пошаљите пакет на alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00249",
+      "input": "Поштанска адреса: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00250",
+      "input": "Клијент живи на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00251",
+      "input": "Место преузимања — annamueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00252",
+      "input": "Молимо пошаљите пакет на alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00253",
+      "input": "Поштанска адреса: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00254",
+      "input": "Клијент живи на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00255",
+      "input": "Место преузимања — anna.mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00256",
+      "input": "Молимо пошаљите пакет на alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00257",
+      "input": "Поштанска адреса: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00258",
+      "input": "Клијент живи на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00259",
+      "input": "Место преузимања — anna_mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00260",
+      "input": "Молимо пошаљите пакет на alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00261",
+      "input": "Поштанска адреса: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00262",
+      "input": "Клијент живи на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00263",
+      "input": "Место преузимања — annamueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00264",
+      "input": "Молимо пошаљите пакет на alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00265",
+      "input": "Поштанска адреса: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00266",
+      "input": "Клијент живи на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00267",
+      "input": "Место преузимања — anna.mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00268",
+      "input": "Молимо пошаљите пакет на alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00269",
+      "input": "Поштанска адреса: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00270",
+      "input": "Клијент живи на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00271",
+      "input": "Место преузимања — anna_mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00272",
+      "input": "Молимо пошаљите пакет на alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00273",
+      "input": "Поштанска адреса: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00274",
+      "input": "Клијент живи на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00275",
+      "input": "Место преузимања — annamueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00276",
+      "input": "Молимо пошаљите пакет на alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00277",
+      "input": "Поштанска адреса: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00278",
+      "input": "Клијент живи на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00279",
+      "input": "Место преузимања — anna.mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00280",
+      "input": "Молимо пошаљите пакет на alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00281",
+      "input": "Поштанска адреса: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00282",
+      "input": "Клијент живи на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00283",
+      "input": "Место преузимања — anna_mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00284",
+      "input": "Молимо пошаљите пакет на alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00285",
+      "input": "Поштанска адреса: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00286",
+      "input": "Клијент живи на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00287",
+      "input": "Место преузимања — annamueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00288",
+      "input": "Молимо пошаљите пакет на alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00289",
+      "input": "Поштанска адреса: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00290",
+      "input": "Клијент живи на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00291",
+      "input": "Место преузимања — anna.mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00292",
+      "input": "Молимо пошаљите пакет на alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00293",
+      "input": "Поштанска адреса: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00294",
+      "input": "Клијент живи на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00295",
+      "input": "Место преузимања — anna_mueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00296",
+      "input": "Молимо пошаљите пакет на alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00297",
+      "input": "Поштанска адреса: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00298",
+      "input": "Клијент живи на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-sr-00299",
+      "input": "Место преузимања — annamueller@corp.example — потврђено.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    }
+  ]
+}

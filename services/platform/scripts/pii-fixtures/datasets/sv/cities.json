@@ -1,0 +1,765 @@
+[
+  {
+    "name": "Stockholm",
+    "countryCode": "SE",
+    "admin1": "26",
+    "postcodeSample": "195 87",
+    "population": 1515017
+  },
+  {
+    "name": "Gothenburg",
+    "countryCode": "SE",
+    "admin1": "28",
+    "postcodeSample": null,
+    "population": 608462
+  },
+  {
+    "name": "Malmö",
+    "countryCode": "SE",
+    "admin1": "27",
+    "postcodeSample": "200 01",
+    "population": 362133
+  },
+  {
+    "name": "Uppsala",
+    "countryCode": "SE",
+    "admin1": "21",
+    "postcodeSample": "741 51",
+    "population": 177074
+  },
+  {
+    "name": "Linköping",
+    "countryCode": "SE",
+    "admin1": "16",
+    "postcodeSample": "580 02",
+    "population": 166673
+  },
+  {
+    "name": "Örebro",
+    "countryCode": "SE",
+    "admin1": "15",
+    "postcodeSample": "700 02",
+    "population": 155989
+  },
+  {
+    "name": "Sollentuna",
+    "countryCode": "SE",
+    "admin1": "26",
+    "postcodeSample": "191 00",
+    "population": 139606
+  },
+  {
+    "name": "Umeå",
+    "countryCode": "SE",
+    "admin1": "23",
+    "postcodeSample": "900 01",
+    "population": 130224
+  },
+  {
+    "name": "Västerås",
+    "countryCode": "SE",
+    "admin1": "25",
+    "postcodeSample": "720 01",
+    "population": 127799
+  },
+  {
+    "name": "Södermalm",
+    "countryCode": "SE",
+    "admin1": "26",
+    "postcodeSample": null,
+    "population": 127323
+  },
+  {
+    "name": "Jönköping",
+    "countryCode": "SE",
+    "admin1": "08",
+    "postcodeSample": "550 01",
+    "population": 112766
+  },
+  {
+    "name": "Helsingborg",
+    "countryCode": "SE",
+    "admin1": "27",
+    "postcodeSample": "250 02",
+    "population": 104250
+  },
+  {
+    "name": "Norrköping",
+    "countryCode": "SE",
+    "admin1": "16",
+    "postcodeSample": "600 00",
+    "population": 93765
+  },
+  {
+    "name": "Huddinge",
+    "countryCode": "SE",
+    "admin1": "26",
+    "postcodeSample": "141 00",
+    "population": 90182
+  },
+  {
+    "name": "Lund",
+    "countryCode": "SE",
+    "admin1": "27",
+    "postcodeSample": "220 02",
+    "population": 87244
+  },
+  {
+    "name": "Luleå",
+    "countryCode": "SE",
+    "admin1": "14",
+    "postcodeSample": "971 00",
+    "population": 77832
+  },
+  {
+    "name": "Haninge",
+    "countryCode": "SE",
+    "admin1": "26",
+    "postcodeSample": "136 00",
+    "population": 74968
+  },
+  {
+    "name": "Gävle",
+    "countryCode": "SE",
+    "admin1": "03",
+    "postcodeSample": "800 02",
+    "population": 74884
+  },
+  {
+    "name": "Bromma",
+    "countryCode": "SE",
+    "admin1": "26",
+    "postcodeSample": "161 00",
+    "population": 72000
+  },
+  {
+    "name": "Borås",
+    "countryCode": "SE",
+    "admin1": "28",
+    "postcodeSample": "501 00",
+    "population": 71700
+  },
+  {
+    "name": "Växjö",
+    "countryCode": "SE",
+    "admin1": "12",
+    "postcodeSample": "350 02",
+    "population": 71282
+  },
+  {
+    "name": "Södertälje",
+    "countryCode": "SE",
+    "admin1": "26",
+    "postcodeSample": "151 00",
+    "population": 70777
+  },
+  {
+    "name": "Halmstad",
+    "countryCode": "SE",
+    "admin1": "06",
+    "postcodeSample": "300 04",
+    "population": 70480
+  },
+  {
+    "name": "Kungsholmen",
+    "countryCode": "SE",
+    "admin1": "26",
+    "postcodeSample": null,
+    "population": 69363
+  },
+  {
+    "name": "Eskilstuna",
+    "countryCode": "SE",
+    "admin1": "18",
+    "postcodeSample": "630 03",
+    "population": 67359
+  },
+  {
+    "name": "Solna",
+    "countryCode": "SE",
+    "admin1": "26",
+    "postcodeSample": "105 04",
+    "population": 66909
+  },
+  {
+    "name": "Karlskrona",
+    "countryCode": "SE",
+    "admin1": "02",
+    "postcodeSample": "371 00",
+    "population": 66675
+  },
+  {
+    "name": "Karlstad",
+    "countryCode": "SE",
+    "admin1": "22",
+    "postcodeSample": "650 01",
+    "population": 61492
+  },
+  {
+    "name": "Mölndal",
+    "countryCode": "SE",
+    "admin1": "28",
+    "postcodeSample": "431 00",
+    "population": 59430
+  },
+  {
+    "name": "Vasastaden",
+    "countryCode": "SE",
+    "admin1": "26",
+    "postcodeSample": null,
+    "population": 58458
+  },
+  {
+    "name": "Täby",
+    "countryCode": "SE",
+    "admin1": "26",
+    "postcodeSample": "183 00",
+    "population": 58123
+  },
+  {
+    "name": "Sundsvall",
+    "countryCode": "SE",
+    "admin1": "24",
+    "postcodeSample": "850 03",
+    "population": 57606
+  },
+  {
+    "name": "Östersund",
+    "countryCode": "SE",
+    "admin1": "07",
+    "postcodeSample": "831 00",
+    "population": 49806
+  },
+  {
+    "name": "Trollhättan",
+    "countryCode": "SE",
+    "admin1": "28",
+    "postcodeSample": "461 00",
+    "population": 48573
+  },
+  {
+    "name": "Lidingö",
+    "countryCode": "SE",
+    "admin1": "26",
+    "postcodeSample": "181 00",
+    "population": 42466
+  },
+  {
+    "name": "Borlänge",
+    "countryCode": "SE",
+    "admin1": "10",
+    "postcodeSample": "781 00",
+    "population": 41955
+  },
+  {
+    "name": "Tumba",
+    "countryCode": "SE",
+    "admin1": "26",
+    "postcodeSample": "147 00",
+    "population": 40832
+  },
+  {
+    "name": "Kristianstad",
+    "countryCode": "SE",
+    "admin1": "27",
+    "postcodeSample": "290 30",
+    "population": 39762
+  },
+  {
+    "name": "Nyköping",
+    "countryCode": "SE",
+    "admin1": "18",
+    "postcodeSample": "611 00",
+    "population": 38780
+  },
+  {
+    "name": "Kalmar",
+    "countryCode": "SE",
+    "admin1": "09",
+    "postcodeSample": "390 02",
+    "population": 38408
+  },
+  {
+    "name": "Falun",
+    "countryCode": "SE",
+    "admin1": "10",
+    "postcodeSample": "791 01",
+    "population": 37291
+  },
+  {
+    "name": "Skövde",
+    "countryCode": "SE",
+    "admin1": "28",
+    "postcodeSample": "541 01",
+    "population": 36842
+  },
+  {
+    "name": "Upplands Väsby",
+    "countryCode": "SE",
+    "admin1": "26",
+    "postcodeSample": "194 00",
+    "population": 36534
+  },
+  {
+    "name": "Östermalm",
+    "countryCode": "SE",
+    "admin1": "26",
+    "postcodeSample": null,
+    "population": 36418
+  },
+  {
+    "name": "Skellefteå",
+    "countryCode": "SE",
+    "admin1": "23",
+    "postcodeSample": "931 00",
+    "population": 35516
+  },
+  {
+    "name": "Uddevalla",
+    "countryCode": "SE",
+    "admin1": "28",
+    "postcodeSample": "451 01",
+    "population": 34781
+  },
+  {
+    "name": "Sundbyberg",
+    "countryCode": "SE",
+    "admin1": "26",
+    "postcodeSample": "172 00",
+    "population": 34529
+  },
+  {
+    "name": "Varberg",
+    "countryCode": "SE",
+    "admin1": "06",
+    "postcodeSample": "432 01",
+    "population": 34248
+  },
+  {
+    "name": "Åkersberga",
+    "countryCode": "SE",
+    "admin1": "26",
+    "postcodeSample": "184 00",
+    "population": 32659
+  },
+  {
+    "name": "Örnsköldsvik",
+    "countryCode": "SE",
+    "admin1": "24",
+    "postcodeSample": "891 01",
+    "population": 32493
+  },
+  {
+    "name": "Danderyd",
+    "countryCode": "SE",
+    "admin1": "26",
+    "postcodeSample": "182 00",
+    "population": 32425
+  },
+  {
+    "name": "Landskrona",
+    "countryCode": "SE",
+    "admin1": "27",
+    "postcodeSample": "261 00",
+    "population": 32229
+  },
+  {
+    "name": "Vallentuna",
+    "countryCode": "SE",
+    "admin1": "26",
+    "postcodeSample": "186 00",
+    "population": 31937
+  },
+  {
+    "name": "Motala",
+    "countryCode": "SE",
+    "admin1": "16",
+    "postcodeSample": "581 50",
+    "population": 30944
+  },
+  {
+    "name": "Trelleborg",
+    "countryCode": "SE",
+    "admin1": "27",
+    "postcodeSample": "231 03",
+    "population": 29316
+  },
+  {
+    "name": "Majorna",
+    "countryCode": "SE",
+    "admin1": "28",
+    "postcodeSample": null,
+    "population": 29254
+  },
+  {
+    "name": "Partille",
+    "countryCode": "SE",
+    "admin1": "28",
+    "postcodeSample": "433 00",
+    "population": 28648
+  },
+  {
+    "name": "Karlskoga",
+    "countryCode": "SE",
+    "admin1": "15",
+    "postcodeSample": "691 01",
+    "population": 27490
+  },
+  {
+    "name": "Märsta",
+    "countryCode": "SE",
+    "admin1": "26",
+    "postcodeSample": "195 00",
+    "population": 27034
+  },
+  {
+    "name": "Lerum",
+    "countryCode": "SE",
+    "admin1": "28",
+    "postcodeSample": "443 00",
+    "population": 26913
+  },
+  {
+    "name": "Alingsås",
+    "countryCode": "SE",
+    "admin1": "28",
+    "postcodeSample": "441 00",
+    "population": 26329
+  },
+  {
+    "name": "Nacka",
+    "countryCode": "SE",
+    "admin1": "26",
+    "postcodeSample": "131 00",
+    "population": 25170
+  },
+  {
+    "name": "Härnösand",
+    "countryCode": "SE",
+    "admin1": "24",
+    "postcodeSample": "871 01",
+    "population": 25012
+  },
+  {
+    "name": "Sandviken",
+    "countryCode": "SE",
+    "admin1": "03",
+    "postcodeSample": "811 00",
+    "population": 24724
+  },
+  {
+    "name": "Kungälv",
+    "countryCode": "SE",
+    "admin1": "28",
+    "postcodeSample": "442 00",
+    "population": 24101
+  },
+  {
+    "name": "Falkenberg",
+    "countryCode": "SE",
+    "admin1": "06",
+    "postcodeSample": "311 00",
+    "population": 24099
+  },
+  {
+    "name": "Boo",
+    "countryCode": "SE",
+    "admin1": "26",
+    "postcodeSample": null,
+    "population": 24052
+  },
+  {
+    "name": "Jakobsberg",
+    "countryCode": "SE",
+    "admin1": "26",
+    "postcodeSample": null,
+    "population": 24046
+  },
+  {
+    "name": "Visby",
+    "countryCode": "SE",
+    "admin1": "05",
+    "postcodeSample": "621 00",
+    "population": 23402
+  },
+  {
+    "name": "Katrineholm",
+    "countryCode": "SE",
+    "admin1": "18",
+    "postcodeSample": "641 01",
+    "population": 23283
+  },
+  {
+    "name": "Ängelholm",
+    "countryCode": "SE",
+    "admin1": "27",
+    "postcodeSample": "262 00",
+    "population": 23240
+  },
+  {
+    "name": "Vänersborg",
+    "countryCode": "SE",
+    "admin1": "28",
+    "postcodeSample": "462 00",
+    "population": 23119
+  },
+  {
+    "name": "Björlanda",
+    "countryCode": "SE",
+    "admin1": "28",
+    "postcodeSample": null,
+    "population": 23088
+  },
+  {
+    "name": "Piteå",
+    "countryCode": "SE",
+    "admin1": "14",
+    "postcodeSample": "941 01",
+    "population": 23067
+  },
+  {
+    "name": "Lidköping",
+    "countryCode": "SE",
+    "admin1": "28",
+    "postcodeSample": "531 01",
+    "population": 22988
+  },
+  {
+    "name": "Enköping",
+    "countryCode": "SE",
+    "admin1": "21",
+    "postcodeSample": "745 00",
+    "population": 22553
+  },
+  {
+    "name": "Huskvarna",
+    "countryCode": "SE",
+    "admin1": "08",
+    "postcodeSample": "561 01",
+    "population": 21500
+  },
+  {
+    "name": "Västervik",
+    "countryCode": "SE",
+    "admin1": "09",
+    "postcodeSample": "593 00",
+    "population": 21178
+  },
+  {
+    "name": "Gustavsberg",
+    "countryCode": "SE",
+    "admin1": "26",
+    "postcodeSample": "134 00",
+    "population": 20774
+  },
+  {
+    "name": "Karlshamn",
+    "countryCode": "SE",
+    "admin1": "02",
+    "postcodeSample": "374 00",
+    "population": 20112
+  },
+  {
+    "name": "Norrtälje",
+    "countryCode": "SE",
+    "admin1": "26",
+    "postcodeSample": "761 00",
+    "population": 19365
+  },
+  {
+    "name": "Rinkeby",
+    "countryCode": "SE",
+    "admin1": "26",
+    "postcodeSample": null,
+    "population": 19349
+  },
+  {
+    "name": "Hässleholm",
+    "countryCode": "SE",
+    "admin1": "27",
+    "postcodeSample": "281 02",
+    "population": 19309
+  },
+  {
+    "name": "Värnamo",
+    "countryCode": "SE",
+    "admin1": "08",
+    "postcodeSample": "331 01",
+    "population": 19061
+  },
+  {
+    "name": "Hässelby Villastad",
+    "countryCode": "SE",
+    "admin1": "26",
+    "postcodeSample": null,
+    "population": 19000
+  },
+  {
+    "name": "Ystad",
+    "countryCode": "SE",
+    "admin1": "27",
+    "postcodeSample": "271 00",
+    "population": 18806
+  },
+  {
+    "name": "Kungsbacka",
+    "countryCode": "SE",
+    "admin1": "06",
+    "postcodeSample": "434 00",
+    "population": 18698
+  },
+  {
+    "name": "Eslöv",
+    "countryCode": "SE",
+    "admin1": "27",
+    "postcodeSample": "241 10",
+    "population": 18592
+  },
+  {
+    "name": "Kristinehamn",
+    "countryCode": "SE",
+    "admin1": "22",
+    "postcodeSample": "681 01",
+    "population": 18557
+  },
+  {
+    "name": "Köping",
+    "countryCode": "SE",
+    "admin1": "25",
+    "postcodeSample": "731 01",
+    "population": 18355
+  },
+  {
+    "name": "Oskarshamn",
+    "countryCode": "SE",
+    "admin1": "09",
+    "postcodeSample": "572 00",
+    "population": 18287
+  },
+  {
+    "name": "Gamla Uppsala",
+    "countryCode": "SE",
+    "admin1": "21",
+    "postcodeSample": null,
+    "population": 17973
+  },
+  {
+    "name": "Nässjö",
+    "countryCode": "SE",
+    "admin1": "08",
+    "postcodeSample": "571 00",
+    "population": 17719
+  },
+  {
+    "name": "Mölnlycke",
+    "countryCode": "SE",
+    "admin1": "28",
+    "postcodeSample": "435 00",
+    "population": 17579
+  },
+  {
+    "name": "Falköping",
+    "countryCode": "SE",
+    "admin1": "28",
+    "postcodeSample": "521 01",
+    "population": 17170
+  },
+  {
+    "name": "Tensta",
+    "countryCode": "SE",
+    "admin1": "26",
+    "postcodeSample": null,
+    "population": 17083
+  },
+  {
+    "name": "Kiruna",
+    "countryCode": "SE",
+    "admin1": "14",
+    "postcodeSample": "981 01",
+    "population": 17037
+  },
+  {
+    "name": "Råsunda",
+    "countryCode": "SE",
+    "admin1": "26",
+    "postcodeSample": null,
+    "population": 16877
+  },
+  {
+    "name": "Boden",
+    "countryCode": "SE",
+    "admin1": "14",
+    "postcodeSample": "961 00",
+    "population": 16830
+  },
+  {
+    "name": "Årsta",
+    "countryCode": "SE",
+    "admin1": "26",
+    "postcodeSample": "120 02",
+    "population": 16807
+  },
+  {
+    "name": "Kumla",
+    "countryCode": "SE",
+    "admin1": "15",
+    "postcodeSample": "692 01",
+    "population": 16663
+  },
+  {
+    "name": "Mariestad",
+    "countryCode": "SE",
+    "admin1": "28",
+    "postcodeSample": "542 01",
+    "population": 16122
+  },
+  {
+    "name": "Hudiksvall",
+    "countryCode": "SE",
+    "admin1": "03",
+    "postcodeSample": "824 00",
+    "population": 16081
+  },
+  {
+    "name": "Tullinge",
+    "countryCode": "SE",
+    "admin1": "26",
+    "postcodeSample": "146 00",
+    "population": 16000
+  },
+  {
+    "name": "Västra Frölunda",
+    "countryCode": "SE",
+    "admin1": "28",
+    "postcodeSample": "421 00",
+    "population": 15924
+  },
+  {
+    "name": "Ljungby",
+    "countryCode": "SE",
+    "admin1": "12",
+    "postcodeSample": "341 01",
+    "population": 15785
+  },
+  {
+    "name": "Staffanstorp",
+    "countryCode": "SE",
+    "admin1": "27",
+    "postcodeSample": "245 01",
+    "population": 15373
+  },
+  {
+    "name": "Ludvika",
+    "countryCode": "SE",
+    "admin1": "10",
+    "postcodeSample": "771 01",
+    "population": 15245
+  },
+  {
+    "name": "Kinna",
+    "countryCode": "SE",
+    "admin1": "28",
+    "postcodeSample": "511 00",
+    "population": 15019
+  }
+]

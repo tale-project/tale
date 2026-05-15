@@ -1,0 +1,242 @@
+[
+  {
+    "given": "Müller",
+    "family": "Müller",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "Schmidt",
+    "family": "Schmidt",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "Schneider",
+    "family": "Schneider",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "Fischer",
+    "family": "Fischer",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "Weber",
+    "family": "Weber",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "Meyer",
+    "family": "Meyer",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "Wagner",
+    "family": "Wagner",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "Becker",
+    "family": "Becker",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "Schulz",
+    "family": "Schulz",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "Hoffmann",
+    "family": "Hoffmann",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "Koch",
+    "family": "Koch",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "Richter",
+    "family": "Richter",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "Bauer",
+    "family": "Bauer",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "Klein",
+    "family": "Klein",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "Wolf",
+    "family": "Wolf",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "Schröder",
+    "family": "Schröder",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "Neumann",
+    "family": "Neumann",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "Schwarz",
+    "family": "Schwarz",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "Zimmermann",
+    "family": "Zimmermann",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "Braun",
+    "family": "Braun",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "Krüger",
+    "family": "Krüger",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "Hofmann",
+    "family": "Hofmann",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "Hartmann",
+    "family": "Hartmann",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "Lange",
+    "family": "Lange",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "Schmitt",
+    "family": "Schmitt",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "Werner",
+    "family": "Werner",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "Schmitz",
+    "family": "Schmitz",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "Krause",
+    "family": "Krause",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "Lehmann",
+    "family": "Lehmann",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "Köhler",
+    "family": "Köhler",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "Walter",
+    "family": "Walter",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "König",
+    "family": "König",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "Schubert",
+    "family": "Schubert",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "Mayer",
+    "family": "Mayer",
+    "countryCode": "DE",
+    "source": "manual"
+  },
+  {
+    "given": "Huber",
+    "family": "Huber",
+    "countryCode": "AT",
+    "source": "manual"
+  },
+  {
+    "given": "Gruber",
+    "family": "Gruber",
+    "countryCode": "AT",
+    "source": "manual"
+  },
+  {
+    "given": "Wagner",
+    "family": "Wagner",
+    "countryCode": "AT",
+    "source": "manual"
+  },
+  {
+    "given": "Maier",
+    "family": "Maier",
+    "countryCode": "AT",
+    "source": "manual"
+  },
+  {
+    "given": "Steiner",
+    "family": "Steiner",
+    "countryCode": "AT",
+    "source": "manual"
+  },
+  {
+    "given": "Egger",
+    "family": "Egger",
+    "countryCode": "AT",
+    "source": "manual"
+  }
+]

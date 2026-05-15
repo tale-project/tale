@@ -1,18 +1,27 @@
 import { ConvexError } from 'convex/values';
 
 import {
+  clampMessage,
+  createScrubber,
+  createTokenizer,
+  piiConfigSchema,
+  type FilterOutcome,
+  type GuardrailsDirection,
+  type PiiConfig,
+  type Scrubber,
+  type TokenEntry,
+  type Tokenizer,
+  type TokenizeResult,
+} from '../../lib/pii';
+import {
   chatFilterConfigSchema,
   moderationProviderConfigSchema,
-  piiConfigSchema,
   type ChatFilterConfig,
   type ModerationProviderConfig,
 } from '../../lib/shared/schemas/governance';
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { runChatFilter } from './chat_filter';
-import type { FilterOutcome, GuardrailsDirection } from './filter_outcome';
-import { scrubPii, type PiiConfig } from './pii';
-import { clampMessage } from './regex_safety';
 
 /**
  * Snapshot of all guardrails configs for one sanitize invocation. Callers
@@ -23,7 +32,13 @@ import { clampMessage } from './regex_safety';
  */
 export interface GuardrailsSnapshot {
   chatFilter: NormalizedConfig<ChatFilterConfig> | null;
-  pii: NormalizedConfig<PiiConfig> | null;
+  /**
+   * PII snapshot carries a pre-built `Scrubber` instance, not just the
+   * config. Building the scrubber compiles every regex (composed across
+   * locales) and validates custom patterns — non-trivial work that should
+   * happen at most once per snapshot, not per message.
+   */
+  pii: NormalizedPiiSnapshot | null;
   moderation: NormalizedConfig<ModerationProviderConfig> | null;
 }
 
@@ -32,6 +47,70 @@ export interface NormalizedConfig<T> {
   updatedAt: number;
   enabled: boolean;
   config: T;
+}
+
+export interface NormalizedPiiSnapshot extends NormalizedConfig<PiiConfig> {
+  /**
+   * The scrubber that powers the existing `sanitizeMessage` flow. For
+   * `mode: 'tokenize'` configs the scrubber is built in `'mask'` mode
+   * — it is the **fallback** behaviour when a caller hits the regular
+   * sanitize path without opting into tokenization.
+   */
+  scrubber: Scrubber;
+  /**
+   * Present only when `config.mode === 'tokenize'`. Callers opting into
+   * the round-trip flow (`tokenizePiiMessage` → LLM → `detokenizePii`)
+   * use this; callers using the legacy `sanitizeMessage` get the
+   * mask-mode scrubber above.
+   */
+  tokenizer: Tokenizer | null;
+}
+
+/**
+ * Translate the persisted `PiiConfig` shape (legacy `enabledPatterns: string[]`)
+ * into the new `ScrubberOptions` shape and build both the scrubber and
+ * (when `mode === 'tokenize'`) a parallel tokenizer.
+ *
+ * Done once per snapshot so per-message scrubs only run regex execution,
+ * not pattern compilation.
+ */
+function buildPiiInstancesFromConfig(config: PiiConfig): {
+  scrubber: Scrubber;
+  tokenizer: Tokenizer | null;
+} {
+  // Translate the persisted `enabledPatterns: string[]` shape into the
+  // `ScrubberOptions.patterns` map. Locale-aware patterns (address,
+  // nationalId) get the explicit locale subset from `config.locales`
+  // when present; everything else is a plain boolean toggle.
+  const localeSelector = config.locales ?? '*';
+  const patterns: Record<string, true | { locales: typeof localeSelector }> =
+    {};
+  for (const name of config.enabledPatterns) {
+    patterns[name] =
+      name === 'address' || name === 'nationalId'
+        ? { locales: localeSelector }
+        : true;
+  }
+  // The scrubber's mode is constrained to `'mask' | 'block'`. For
+  // `tokenize` configs the scrubber is built in `mask` mode (so any
+  // legacy caller still gets safe behaviour) and the tokenizer below
+  // becomes the primary execution unit for opt-in round-trip callers.
+  const scrubberMode: 'mask' | 'block' =
+    config.mode === 'block' ? 'block' : 'mask';
+  const scrubber = createScrubber({
+    mode: scrubberMode,
+    patterns,
+    customPatterns: config.customPatterns,
+  });
+  const tokenizer =
+    config.mode === 'tokenize'
+      ? createTokenizer({
+          mode: 'mask',
+          patterns,
+          customPatterns: config.customPatterns,
+        })
+      : null;
+  return { scrubber, tokenizer };
 }
 
 export interface SanitizeMeta {
@@ -207,13 +286,13 @@ function normalizeChatFilter(
   };
 }
 
-function normalizePii(row: unknown): NormalizedConfig<PiiConfig> | null {
+function normalizePii(row: unknown): NormalizedPiiSnapshot | null {
   if (!isRecord(row)) return null;
-  // Legacy rows written by the bespoke `upsertPiiConfig` mutation stored
-  // `enabled` as the top-level column only and never inside `config`. The
-  // current schema requires `enabled` inside `config`, so without this
-  // injection `safeParse` rejects legacy rows and PII silently stops
-  // filtering. Top-level column is authoritative either way.
+  // Bespoke `upsertPiiConfig` rows stored `enabled` only at the top level,
+  // never inside `config`. The current schema requires `enabled` inside
+  // `config`, so without this injection `safeParse` rejects those rows
+  // and PII silently stops filtering. Top-level column is authoritative
+  // either way.
   const rawConfig = isRecord(row['config']) ? row['config'] : {};
   const configWithEnabled = {
     ...rawConfig,
@@ -229,12 +308,78 @@ function normalizePii(row: unknown): NormalizedConfig<PiiConfig> | null {
     );
     return null;
   }
+  const { scrubber, tokenizer } = buildPiiInstancesFromConfig(parsed.data);
   return {
     policyDocId: typeof row['_id'] === 'string' ? row['_id'] : '',
     updatedAt: typeof row['updatedAt'] === 'number' ? row['updatedAt'] : 0,
     enabled: row['enabled'] !== false && parsed.data.enabled,
     config: parsed.data,
+    scrubber,
+    tokenizer,
   };
+}
+
+// -----------------------------------------------------------------------------
+// Tokenize round-trip helpers
+//
+// These are the opt-in entry points for the `mode: 'tokenize'` flow:
+//
+//   1. Call `tokenizePiiMessage(text, snapshot)` before sending to the LLM.
+//      Returns the tokenized text + restore mapping.
+//   2. Forward the tokenized text to the LLM as you normally would.
+//   3. On the response, call `detokenizePiiMessage(responseText, mapping)`
+//      to put the user's original PII back in place before storage /
+//      display.
+//
+// The mapping is the per-message secret. Hold it in memory for the
+// duration of the request — DO NOT persist it long-term. Doing so
+// defeats the point of tokenization (PII would still end up in logs
+// alongside the tokens).
+// -----------------------------------------------------------------------------
+
+/**
+ * Tokenize a user-supplied message ahead of an LLM call.
+ *
+ * Returns `null` when no PII config is active (the caller should
+ * forward the original text). Returns a `TokenizeResult` when the org's
+ * PII mode is `tokenize` and the tokenizer flagged at least one span.
+ *
+ * For `mode: 'mask' | 'block'` configs this returns `null` — callers
+ * stay on the regular `sanitizeMessage` path.
+ */
+export function tokenizePiiMessage(
+  text: string,
+  snapshot: GuardrailsSnapshot,
+): TokenizeResult | null {
+  const pii = snapshot.pii;
+  if (!pii || !pii.enabled || !pii.tokenizer) return null;
+  // Use the same byte clamp as the scrubber path so a 10MB paste can't
+  // trigger pathological detection costs.
+  const { text: clamped } = clampMessage(text);
+  return pii.tokenizer.tokenize(clamped);
+}
+
+/**
+ * Restore tokens in `text` to their original values using `mapping`.
+ *
+ * Tolerant of: LLM moving tokens around, repeating them, wrapping them
+ * in markdown. Tokens not present in `mapping` (e.g. the LLM
+ * hallucinated `[EMAIL_99]`) are left untouched — the caller can decide
+ * to log them as a model anomaly.
+ */
+export function detokenizePiiMessage(
+  text: string,
+  mapping: Record<string, TokenEntry>,
+): string {
+  if (Object.keys(mapping).length === 0) return text;
+  // Inline the detokenize loop; identical to `@/lib/pii`'s `detokenizePii`
+  // but kept inline here to avoid pulling another module into the
+  // Convex bundle for a 4-line function.
+  let out = text;
+  for (const [token, entry] of Object.entries(mapping)) {
+    out = out.split(token).join(entry.value);
+  }
+  return out;
 }
 
 function normalizeModeration(
@@ -388,7 +533,7 @@ export async function sanitizeMessage(
       acc.truncated = true;
       current = clamped;
     }
-    const outcome = scrubPii(clamped, snapshot.pii.config);
+    const outcome = snapshot.pii.scrubber.scrub(clamped);
     if (outcome.kind === 'blocked') {
       accumulate(acc, outcome);
       await flushAudit(ctx, 'pii', 'blocked', direction, runId, meta, acc);

@@ -4,7 +4,13 @@ import type { ToastActionElement, ToastProps } from '@tale/ui/toast';
 import { ReactNode, useEffect, useState } from 'react';
 
 const TOAST_LIMIT = 1;
-const TOAST_REMOVE_DELAY = 1000000;
+// Time to wait between Radix's `open=false` flip and removing the toast from
+// our store. Must outlast Radix's exit animation (~250 ms) but be short
+// enough that a stale `open=false` entry cannot block subsequent ADD_TOAST
+// callers — the previous value (~16 min) caused repeat-fire toasts (e.g.
+// the same PII block firing twice in a row) to never re-show because the
+// dismissed entry remained in state and re-renders saw no change.
+const TOAST_REMOVE_DELAY = 500;
 
 type ToasterToast = ToastProps & {
   id: string;
@@ -144,6 +150,20 @@ export function toast({ ...props }: Toast) {
       toast: { ...updatedToast, id },
     });
   const dismiss = () => dispatch({ type: 'DISMISS_TOAST', toastId: id });
+
+  // Drop every still-mounted toast before adding the new one. Without
+  // this, a dismissed toast that hasn't completed its exit animation
+  // would share the toast list with the new one, and the slice(0, LIMIT)
+  // could either keep the wrong entry (stale dismissed) or animate the
+  // viewport into a flicker. Same-content repeat-fires (PII blocked
+  // twice in a row) now produce a clean unmount/remount cycle.
+  for (const existing of memoryState.toasts) {
+    if (toastTimeouts.has(existing.id)) {
+      clearTimeout(toastTimeouts.get(existing.id));
+      toastTimeouts.delete(existing.id);
+    }
+  }
+  dispatch({ type: 'REMOVE_TOAST' });
 
   dispatch({
     type: 'ADD_TOAST',

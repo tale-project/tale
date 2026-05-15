@@ -1,11 +1,11 @@
-import type { ChatFilterConfig } from '../../../lib/shared/schemas/governance';
 import {
   blocked,
   flagged,
   modified,
   pass,
   type FilterOutcome,
-} from '../filter_outcome';
+} from '../../../lib/pii';
+import type { ChatFilterConfig } from '../../../lib/shared/schemas/governance';
 import { detectViolations } from './detector';
 import { applyEnforcement } from './enforcer';
 

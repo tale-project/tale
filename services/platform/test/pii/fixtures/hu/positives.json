@@ -1,0 +1,3315 @@
+{
+  "_meta": {
+    "locale": "hu",
+    "generator": "platform/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 300,
+      "negatives": 0
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "positives": [
+    {
+      "id": "email-hu-00000",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00001",
+      "input": "Postacím: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00002",
+      "input": "Az ügyfél a marylee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00003",
+      "input": "Átvételi pont — anna.mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00004",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00005",
+      "input": "Postacím: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00006",
+      "input": "Az ügyfél a mary.lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00007",
+      "input": "Átvételi pont — anna_mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00008",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 69
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00009",
+      "input": "Postacím: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00010",
+      "input": "Az ügyfél a mary_lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00011",
+      "input": "Átvételi pont — annamueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00012",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00013",
+      "input": "Postacím: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00014",
+      "input": "Az ügyfél a marylee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00015",
+      "input": "Átvételi pont — anna.mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00016",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00017",
+      "input": "Postacím: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00018",
+      "input": "Az ügyfél a mary.lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00019",
+      "input": "Átvételi pont — anna_mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00020",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 69
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00021",
+      "input": "Postacím: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00022",
+      "input": "Az ügyfél a mary_lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00023",
+      "input": "Átvételi pont — annamueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00024",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00025",
+      "input": "Postacím: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00026",
+      "input": "Az ügyfél a marylee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00027",
+      "input": "Átvételi pont — anna.mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00028",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00029",
+      "input": "Postacím: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00030",
+      "input": "Az ügyfél a mary.lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00031",
+      "input": "Átvételi pont — anna_mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00032",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 69
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00033",
+      "input": "Postacím: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00034",
+      "input": "Az ügyfél a mary_lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00035",
+      "input": "Átvételi pont — annamueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00036",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00037",
+      "input": "Postacím: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00038",
+      "input": "Az ügyfél a marylee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00039",
+      "input": "Átvételi pont — anna.mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00040",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00041",
+      "input": "Postacím: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00042",
+      "input": "Az ügyfél a mary.lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00043",
+      "input": "Átvételi pont — anna_mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00044",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 69
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00045",
+      "input": "Postacím: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00046",
+      "input": "Az ügyfél a mary_lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00047",
+      "input": "Átvételi pont — annamueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00048",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00049",
+      "input": "Postacím: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00050",
+      "input": "Az ügyfél a marylee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00051",
+      "input": "Átvételi pont — anna.mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00052",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00053",
+      "input": "Postacím: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00054",
+      "input": "Az ügyfél a mary.lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00055",
+      "input": "Átvételi pont — anna_mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00056",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 69
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00057",
+      "input": "Postacím: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00058",
+      "input": "Az ügyfél a mary_lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00059",
+      "input": "Átvételi pont — annamueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00060",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00061",
+      "input": "Postacím: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00062",
+      "input": "Az ügyfél a marylee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00063",
+      "input": "Átvételi pont — anna.mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00064",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00065",
+      "input": "Postacím: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00066",
+      "input": "Az ügyfél a mary.lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00067",
+      "input": "Átvételi pont — anna_mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00068",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 69
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00069",
+      "input": "Postacím: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00070",
+      "input": "Az ügyfél a mary_lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00071",
+      "input": "Átvételi pont — annamueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00072",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00073",
+      "input": "Postacím: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00074",
+      "input": "Az ügyfél a marylee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00075",
+      "input": "Átvételi pont — anna.mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00076",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00077",
+      "input": "Postacím: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00078",
+      "input": "Az ügyfél a mary.lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00079",
+      "input": "Átvételi pont — anna_mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00080",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 69
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00081",
+      "input": "Postacím: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00082",
+      "input": "Az ügyfél a mary_lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00083",
+      "input": "Átvételi pont — annamueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00084",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00085",
+      "input": "Postacím: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00086",
+      "input": "Az ügyfél a marylee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00087",
+      "input": "Átvételi pont — anna.mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00088",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00089",
+      "input": "Postacím: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00090",
+      "input": "Az ügyfél a mary.lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00091",
+      "input": "Átvételi pont — anna_mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00092",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 69
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00093",
+      "input": "Postacím: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00094",
+      "input": "Az ügyfél a mary_lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00095",
+      "input": "Átvételi pont — annamueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00096",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00097",
+      "input": "Postacím: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00098",
+      "input": "Az ügyfél a marylee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00099",
+      "input": "Átvételi pont — anna.mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00100",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00101",
+      "input": "Postacím: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00102",
+      "input": "Az ügyfél a mary.lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00103",
+      "input": "Átvételi pont — anna_mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00104",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 69
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00105",
+      "input": "Postacím: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00106",
+      "input": "Az ügyfél a mary_lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00107",
+      "input": "Átvételi pont — annamueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00108",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00109",
+      "input": "Postacím: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00110",
+      "input": "Az ügyfél a marylee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00111",
+      "input": "Átvételi pont — anna.mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00112",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00113",
+      "input": "Postacím: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00114",
+      "input": "Az ügyfél a mary.lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00115",
+      "input": "Átvételi pont — anna_mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00116",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 69
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00117",
+      "input": "Postacím: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00118",
+      "input": "Az ügyfél a mary_lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00119",
+      "input": "Átvételi pont — annamueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00120",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00121",
+      "input": "Postacím: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00122",
+      "input": "Az ügyfél a marylee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00123",
+      "input": "Átvételi pont — anna.mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00124",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00125",
+      "input": "Postacím: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00126",
+      "input": "Az ügyfél a mary.lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00127",
+      "input": "Átvételi pont — anna_mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00128",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 69
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00129",
+      "input": "Postacím: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00130",
+      "input": "Az ügyfél a mary_lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00131",
+      "input": "Átvételi pont — annamueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00132",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00133",
+      "input": "Postacím: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00134",
+      "input": "Az ügyfél a marylee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00135",
+      "input": "Átvételi pont — anna.mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00136",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00137",
+      "input": "Postacím: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00138",
+      "input": "Az ügyfél a mary.lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00139",
+      "input": "Átvételi pont — anna_mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00140",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 69
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00141",
+      "input": "Postacím: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00142",
+      "input": "Az ügyfél a mary_lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00143",
+      "input": "Átvételi pont — annamueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00144",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00145",
+      "input": "Postacím: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00146",
+      "input": "Az ügyfél a marylee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00147",
+      "input": "Átvételi pont — anna.mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00148",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00149",
+      "input": "Postacím: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00150",
+      "input": "Az ügyfél a mary.lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00151",
+      "input": "Átvételi pont — anna_mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00152",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 69
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00153",
+      "input": "Postacím: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00154",
+      "input": "Az ügyfél a mary_lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00155",
+      "input": "Átvételi pont — annamueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00156",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00157",
+      "input": "Postacím: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00158",
+      "input": "Az ügyfél a marylee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00159",
+      "input": "Átvételi pont — anna.mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00160",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00161",
+      "input": "Postacím: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00162",
+      "input": "Az ügyfél a mary.lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00163",
+      "input": "Átvételi pont — anna_mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00164",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 69
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00165",
+      "input": "Postacím: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00166",
+      "input": "Az ügyfél a mary_lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00167",
+      "input": "Átvételi pont — annamueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00168",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00169",
+      "input": "Postacím: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00170",
+      "input": "Az ügyfél a marylee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00171",
+      "input": "Átvételi pont — anna.mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00172",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00173",
+      "input": "Postacím: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00174",
+      "input": "Az ügyfél a mary.lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00175",
+      "input": "Átvételi pont — anna_mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00176",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 69
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00177",
+      "input": "Postacím: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00178",
+      "input": "Az ügyfél a mary_lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00179",
+      "input": "Átvételi pont — annamueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00180",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00181",
+      "input": "Postacím: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00182",
+      "input": "Az ügyfél a marylee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00183",
+      "input": "Átvételi pont — anna.mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00184",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00185",
+      "input": "Postacím: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00186",
+      "input": "Az ügyfél a mary.lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00187",
+      "input": "Átvételi pont — anna_mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00188",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 69
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00189",
+      "input": "Postacím: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00190",
+      "input": "Az ügyfél a mary_lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00191",
+      "input": "Átvételi pont — annamueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00192",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00193",
+      "input": "Postacím: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00194",
+      "input": "Az ügyfél a marylee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00195",
+      "input": "Átvételi pont — anna.mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00196",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00197",
+      "input": "Postacím: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00198",
+      "input": "Az ügyfél a mary.lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00199",
+      "input": "Átvételi pont — anna_mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00200",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 69
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00201",
+      "input": "Postacím: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00202",
+      "input": "Az ügyfél a mary_lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00203",
+      "input": "Átvételi pont — annamueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00204",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00205",
+      "input": "Postacím: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00206",
+      "input": "Az ügyfél a marylee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00207",
+      "input": "Átvételi pont — anna.mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00208",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00209",
+      "input": "Postacím: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00210",
+      "input": "Az ügyfél a mary.lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00211",
+      "input": "Átvételi pont — anna_mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00212",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 69
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00213",
+      "input": "Postacím: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00214",
+      "input": "Az ügyfél a mary_lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00215",
+      "input": "Átvételi pont — annamueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00216",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00217",
+      "input": "Postacím: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00218",
+      "input": "Az ügyfél a marylee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00219",
+      "input": "Átvételi pont — anna.mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00220",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00221",
+      "input": "Postacím: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00222",
+      "input": "Az ügyfél a mary.lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00223",
+      "input": "Átvételi pont — anna_mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00224",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 69
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00225",
+      "input": "Postacím: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00226",
+      "input": "Az ügyfél a mary_lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00227",
+      "input": "Átvételi pont — annamueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00228",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00229",
+      "input": "Postacím: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00230",
+      "input": "Az ügyfél a marylee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00231",
+      "input": "Átvételi pont — anna.mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00232",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00233",
+      "input": "Postacím: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00234",
+      "input": "Az ügyfél a mary.lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00235",
+      "input": "Átvételi pont — anna_mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00236",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 69
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00237",
+      "input": "Postacím: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00238",
+      "input": "Az ügyfél a mary_lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00239",
+      "input": "Átvételi pont — annamueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00240",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00241",
+      "input": "Postacím: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00242",
+      "input": "Az ügyfél a marylee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00243",
+      "input": "Átvételi pont — anna.mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00244",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00245",
+      "input": "Postacím: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00246",
+      "input": "Az ügyfél a mary.lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00247",
+      "input": "Átvételi pont — anna_mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00248",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 69
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00249",
+      "input": "Postacím: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00250",
+      "input": "Az ügyfél a mary_lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00251",
+      "input": "Átvételi pont — annamueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00252",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00253",
+      "input": "Postacím: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00254",
+      "input": "Az ügyfél a marylee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00255",
+      "input": "Átvételi pont — anna.mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00256",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00257",
+      "input": "Postacím: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00258",
+      "input": "Az ügyfél a mary.lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00259",
+      "input": "Átvételi pont — anna_mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00260",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 69
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00261",
+      "input": "Postacím: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00262",
+      "input": "Az ügyfél a mary_lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00263",
+      "input": "Átvételi pont — annamueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00264",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00265",
+      "input": "Postacím: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00266",
+      "input": "Az ügyfél a marylee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00267",
+      "input": "Átvételi pont — anna.mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00268",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00269",
+      "input": "Postacím: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00270",
+      "input": "Az ügyfél a mary.lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00271",
+      "input": "Átvételi pont — anna_mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00272",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 69
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00273",
+      "input": "Postacím: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00274",
+      "input": "Az ügyfél a mary_lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00275",
+      "input": "Átvételi pont — annamueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00276",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00277",
+      "input": "Postacím: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00278",
+      "input": "Az ügyfél a marylee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00279",
+      "input": "Átvételi pont — anna.mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00280",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00281",
+      "input": "Postacím: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00282",
+      "input": "Az ügyfél a mary.lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00283",
+      "input": "Átvételi pont — anna_mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00284",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 69
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00285",
+      "input": "Postacím: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00286",
+      "input": "Az ügyfél a mary_lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00287",
+      "input": "Átvételi pont — annamueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00288",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00289",
+      "input": "Postacím: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00290",
+      "input": "Az ügyfél a marylee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00291",
+      "input": "Átvételi pont — anna.mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00292",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 70
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00293",
+      "input": "Postacím: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00294",
+      "input": "Az ügyfél a mary.lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00295",
+      "input": "Átvételi pont — anna_mueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00296",
+      "input": "Kérjük, küldje el a csomagot a következő címre: alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 48,
+          "end": 69
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00297",
+      "input": "Postacím: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 10,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00298",
+      "input": "Az ügyfél a mary_lee@company.io címen lakik.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-hu-00299",
+      "input": "Átvételi pont — annamueller@corp.example — megerősítve.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    }
+  ]
+}

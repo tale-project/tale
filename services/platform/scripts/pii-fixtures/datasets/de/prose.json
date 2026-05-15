@@ -1,0 +1,4002 @@
+[
+  {
+    "text": "Lass uns etwas versuchen!",
+    "source": "tatoeba",
+    "upstreamId": "77"
+  },
+  {
+    "text": "Ich muss schlafen gehen.",
+    "source": "tatoeba",
+    "upstreamId": "78"
+  },
+  {
+    "text": "Herzlichen Glückwunsch zum Geburtstag, Muiriel!",
+    "source": "tatoeba",
+    "upstreamId": "82"
+  },
+  {
+    "text": "Das Passwort ist \"Muiriel\".",
+    "source": "tatoeba",
+    "upstreamId": "84"
+  },
+  {
+    "text": "Ich werde bald zurück sein.",
+    "source": "tatoeba",
+    "upstreamId": "85"
+  },
+  {
+    "text": "Ich finde keine Worte.",
+    "source": "tatoeba",
+    "upstreamId": "87"
+  },
+  {
+    "text": "Das wird nie enden.",
+    "source": "tatoeba",
+    "upstreamId": "88"
+  },
+  {
+    "text": "Ich weiß einfach nicht, was ich sagen soll.",
+    "source": "tatoeba",
+    "upstreamId": "89"
+  },
+  {
+    "text": "Das war ein böses Kaninchen.",
+    "source": "tatoeba",
+    "upstreamId": "90"
+  },
+  {
+    "text": "Ich war in den Bergen.",
+    "source": "tatoeba",
+    "upstreamId": "91"
+  },
+  {
+    "text": "Ich weiß nicht, ob ich Zeit dazu habe.",
+    "source": "tatoeba",
+    "upstreamId": "93"
+  },
+  {
+    "text": "Aus irgendeinem Grund hat das Mikrofon gerade nicht funktioniert.",
+    "source": "tatoeba",
+    "upstreamId": "94"
+  },
+  {
+    "text": "Letztendlich muss jeder selbst lernen.",
+    "source": "tatoeba",
+    "upstreamId": "95"
+  },
+  {
+    "text": "Die Ausbildung in dieser Welt enttäuscht mich.",
+    "source": "tatoeba",
+    "upstreamId": "96"
+  },
+  {
+    "text": "Zum Lernen sollte man nicht gezwungen werden. Zum Lernen sollte man ermutigt werden.",
+    "source": "tatoeba",
+    "upstreamId": "97"
+  },
+  {
+    "text": "Es ist eine schwere Aufgabe, zwischen \"richtig\" und \"falsch\" zu unterscheiden, aber man muss es tun.",
+    "source": "tatoeba",
+    "upstreamId": "98"
+  },
+  {
+    "text": "Das wird nichts ändern.",
+    "source": "tatoeba",
+    "upstreamId": "99"
+  },
+  {
+    "text": "Es kann sein, dass ich bald aufgebe und stattdessen ein Nickerchen mache.",
+    "source": "tatoeba",
+    "upstreamId": "102"
+  },
+  {
+    "text": "Das liegt daran, dass du nicht allein sein willst.",
+    "source": "tatoeba",
+    "upstreamId": "103"
+  },
+  {
+    "text": "Das wird nicht passieren.",
+    "source": "tatoeba",
+    "upstreamId": "104"
+  },
+  {
+    "text": "Manchmal kann er ein seltsamer Junge sein.",
+    "source": "tatoeba",
+    "upstreamId": "105"
+  },
+  {
+    "text": "Ich werde mir Mühe geben, dich nicht beim Lernen zu stören.",
+    "source": "tatoeba",
+    "upstreamId": "106"
+  },
+  {
+    "text": "Ich kann mich nur fragen, ob es für alle anderen dasselbe ist.",
+    "source": "tatoeba",
+    "upstreamId": "107"
+  },
+  {
+    "text": "Ich vermute, das ist anders, wenn du darüber längerfristig nachdenkst.",
+    "source": "tatoeba",
+    "upstreamId": "108"
+  },
+  {
+    "text": "Mach dir keine Sorgen.",
+    "source": "tatoeba",
+    "upstreamId": "109"
+  },
+  {
+    "text": "Ich vermisse dich.",
+    "source": "tatoeba",
+    "upstreamId": "110"
+  },
+  {
+    "text": "Ich werde sie morgen anrufen, wenn ich zurückkomme.",
+    "source": "tatoeba",
+    "upstreamId": "111"
+  },
+  {
+    "text": "Ich mochte mysteriöse Charaktere schon immer mehr.",
+    "source": "tatoeba",
+    "upstreamId": "112"
+  },
+  {
+    "text": "Du solltest schlafen.",
+    "source": "tatoeba",
+    "upstreamId": "113"
+  },
+  {
+    "text": "Ich sagte ihnen, sie sollen mir ein neues Ticket schicken.",
+    "source": "tatoeba",
+    "upstreamId": "115"
+  },
+  {
+    "text": "Du bist so ungeduldig mit mir.",
+    "source": "tatoeba",
+    "upstreamId": "116"
+  },
+  {
+    "text": "Ich kann so ein Leben nicht leben.",
+    "source": "tatoeba",
+    "upstreamId": "117"
+  },
+  {
+    "text": "Ich wollte mal Astrophysiker werden.",
+    "source": "tatoeba",
+    "upstreamId": "118"
+  },
+  {
+    "text": "Ich mochte Biologie noch nie.",
+    "source": "tatoeba",
+    "upstreamId": "119"
+  },
+  {
+    "text": "Die letzte Person, der ich meine Idee erzählt habe, dachte, ich wäre bekloppt.",
+    "source": "tatoeba",
+    "upstreamId": "120"
+  },
+  {
+    "text": "Wenn die Welt nicht so wäre wie sie jetzt ist, könnte ich jedem vertrauen.",
+    "source": "tatoeba",
+    "upstreamId": "121"
+  },
+  {
+    "text": "Unglücklicherweise stimmt es.",
+    "source": "tatoeba",
+    "upstreamId": "122"
+  },
+  {
+    "text": "Sie sind zu sehr damit beschäftigt, sich gegenseitig zu bekämpfen, als dass sie sich gemeinsamen Idealen widmen könnten.",
+    "source": "tatoeba",
+    "upstreamId": "123"
+  },
+  {
+    "text": "Die meisten Leute denken, ich sei verrückt.",
+    "source": "tatoeba",
+    "upstreamId": "124"
+  },
+  {
+    "text": "Nein, ich bin es nicht, du bist es!",
+    "source": "tatoeba",
+    "upstreamId": "125"
+  },
+  {
+    "text": "Das war mein Satz!",
+    "source": "tatoeba",
+    "upstreamId": "126"
+  },
+  {
+    "text": "Bist du sicher?",
+    "source": "tatoeba",
+    "upstreamId": "128"
+  },
+  {
+    "text": "Dann haben wir ein Problem...",
+    "source": "tatoeba",
+    "upstreamId": "129"
+  },
+  {
+    "text": "Oh, da ist ein Schmetterling!",
+    "source": "tatoeba",
+    "upstreamId": "130"
+  },
+  {
+    "text": "Es überrascht mich nicht.",
+    "source": "tatoeba",
+    "upstreamId": "132"
+  },
+  {
+    "text": "Wenn ich so sein könnte...",
+    "source": "tatoeba",
+    "upstreamId": "133"
+  },
+  {
+    "text": "Aus irgendeinem Grund fühle ich mich nachts lebendiger.",
+    "source": "tatoeba",
+    "upstreamId": "134"
+  },
+  {
+    "text": "Das kommt auf den Zusammenhang an.",
+    "source": "tatoeba",
+    "upstreamId": "135"
+  },
+  {
+    "text": "Willst du mich verdammt nochmal auf den Arm nehmen?!",
+    "source": "tatoeba",
+    "upstreamId": "136"
+  },
+  {
+    "text": "Das ist das Dümmste, was ich je gesagt habe.",
+    "source": "tatoeba",
+    "upstreamId": "137"
+  },
+  {
+    "text": "Ich will nicht erbärmlich sein, ich will cool sein!!",
+    "source": "tatoeba",
+    "upstreamId": "138"
+  },
+  {
+    "text": "Wenn ich groß bin, will ich ein König sein.",
+    "source": "tatoeba",
+    "upstreamId": "139"
+  },
+  {
+    "text": "Es ist wundervoll in Amerika zu sein, wenn man hier ist, um Geld zu verdienen.",
+    "source": "tatoeba",
+    "upstreamId": "140"
+  },
+  {
+    "text": "Ich bin so dick.",
+    "source": "tatoeba",
+    "upstreamId": "141"
+  },
+  {
+    "text": "Ich werde ihn erschießen.",
+    "source": "tatoeba",
+    "upstreamId": "143"
+  },
+  {
+    "text": "Ich bin kein echter Fisch, ich bin nur ein einfaches Plüschtier.",
+    "source": "tatoeba",
+    "upstreamId": "144"
+  },
+  {
+    "text": "Ich sag's ja nur!",
+    "source": "tatoeba",
+    "upstreamId": "145"
+  },
+  {
+    "text": "Wahrscheinlich war es das, was ihre Entscheidung beeinflusst hat.",
+    "source": "tatoeba",
+    "upstreamId": "146"
+  },
+  {
+    "text": "Ich habe mich immer gefragt, wie es wäre, Geschwister zu haben.",
+    "source": "tatoeba",
+    "upstreamId": "147"
+  },
+  {
+    "text": "Das hätte ich gesagt.",
+    "source": "tatoeba",
+    "upstreamId": "148"
+  },
+  {
+    "text": "Es würde ewig dauern, alles zu erklären.",
+    "source": "tatoeba",
+    "upstreamId": "149"
+  },
+  {
+    "text": "Es liegt daran, dass du ein Mädchen bist.",
+    "source": "tatoeba",
+    "upstreamId": "150"
+  },
+  {
+    "text": "Manchmal kann ich es nicht vermeiden, Gefühle zu zeigen.",
+    "source": "tatoeba",
+    "upstreamId": "151"
+  },
+  {
+    "text": "Es ist ein Wort, für das ich gerne einen Ersatz finden würde.",
+    "source": "tatoeba",
+    "upstreamId": "152"
+  },
+  {
+    "text": "Das wäre etwas, das ich programmieren sollte.",
+    "source": "tatoeba",
+    "upstreamId": "153"
+  },
+  {
+    "text": "Ich beabsichtige nicht, selbstsüchtig zu sein.",
+    "source": "tatoeba",
+    "upstreamId": "154"
+  },
+  {
+    "text": "Lass uns über das Schlimmste, das passieren könnte, nachdenken.",
+    "source": "tatoeba",
+    "upstreamId": "155"
+  },
+  {
+    "text": "Wie viele enge Freunde hast du?",
+    "source": "tatoeba",
+    "upstreamId": "156"
+  },
+  {
+    "text": "Ich bin vielleicht asozial, aber das heißt nicht, dass ich nicht mit Leuten rede.",
+    "source": "tatoeba",
+    "upstreamId": "157"
+  },
+  {
+    "text": "Das ist immer so gewesen.",
+    "source": "tatoeba",
+    "upstreamId": "158"
+  },
+  {
+    "text": "Ich denke, es ist am besten, nicht unhöflich zu sein.",
+    "source": "tatoeba",
+    "upstreamId": "159"
+  },
+  {
+    "text": "Man kann immer Zeit finden.",
+    "source": "tatoeba",
+    "upstreamId": "160"
+  },
+  {
+    "text": "Ich wäre unglücklich, aber ich würde keinen Selbstmord begehen.",
+    "source": "tatoeba",
+    "upstreamId": "161"
+  },
+  {
+    "text": "Als ich aufgewacht bin, war ich traurig.",
+    "source": "tatoeba",
+    "upstreamId": "163"
+  },
+  {
+    "text": "Das ist am Ende einigermaßen erklärt.",
+    "source": "tatoeba",
+    "upstreamId": "164"
+  },
+  {
+    "text": "Ich dachte, du würdest gerne neue Sachen lernen.",
+    "source": "tatoeba",
+    "upstreamId": "165"
+  },
+  {
+    "text": "Die meisten Menschen schreiben über ihr Alltagsleben.",
+    "source": "tatoeba",
+    "upstreamId": "166"
+  },
+  {
+    "text": "Wenn ich dir ein Marshmallow schicken könnte, Trang, würde ich es tun.",
+    "source": "tatoeba",
+    "upstreamId": "167"
+  },
+  {
+    "text": "Um das zu tun, musst du Risiken eingehen.",
+    "source": "tatoeba",
+    "upstreamId": "168"
+  },
+  {
+    "text": "Jeder Mensch, der allein ist, ist allein, weil er Angst vor den anderen hat.",
+    "source": "tatoeba",
+    "upstreamId": "169"
+  },
+  {
+    "text": "Warum fragst du?",
+    "source": "tatoeba",
+    "upstreamId": "170"
+  },
+  {
+    "text": "Ich bin kein Künstler. Ich hatte niemals das Zeug dazu.",
+    "source": "tatoeba",
+    "upstreamId": "171"
+  },
+  {
+    "text": "Ich kann es ihr jetzt nicht sagen. Das ist nicht mehr so einfach.",
+    "source": "tatoeba",
+    "upstreamId": "172"
+  },
+  {
+    "text": "Ich bin ein Mensch, der viele Fehler hat, aber diese Fehler können leicht korrigiert werden.",
+    "source": "tatoeba",
+    "upstreamId": "173"
+  },
+  {
+    "text": "Immer, wenn ich etwas finde, das mir gefällt, ist es zu teuer.",
+    "source": "tatoeba",
+    "upstreamId": "174"
+  },
+  {
+    "text": "Wie lange bist du geblieben?",
+    "source": "tatoeba",
+    "upstreamId": "175"
+  },
+  {
+    "text": "Vielleicht wird es für ihn genauso sein.",
+    "source": "tatoeba",
+    "upstreamId": "176"
+  },
+  {
+    "text": "Unschuld ist eine schöne Sache.",
+    "source": "tatoeba",
+    "upstreamId": "177"
+  },
+  {
+    "text": "Die Menschen waren nie dazu gedacht, ewig zu leben.",
+    "source": "tatoeba",
+    "upstreamId": "178"
+  },
+  {
+    "text": "Ich will meine Ideen nicht verlieren, selbst wenn einige von ihnen ein bisschen extrem sind.",
+    "source": "tatoeba",
+    "upstreamId": "179"
+  },
+  {
+    "text": "Ich denke, ich habe dazu eine Theorie.",
+    "source": "tatoeba",
+    "upstreamId": "180"
+  },
+  {
+    "text": "Das macht neugierig.",
+    "source": "tatoeba",
+    "upstreamId": "181"
+  },
+  {
+    "text": "Meinst du gerade, dass du absichtlich deine Schönheit versteckst?",
+    "source": "tatoeba",
+    "upstreamId": "182"
+  },
+  {
+    "text": "Ich habe kein Konto in diesen Foren.",
+    "source": "tatoeba",
+    "upstreamId": "183"
+  },
+  {
+    "text": "Wenn jemand fragen sollte, was die Pointe der Geschichte sei, ich wüsste es wirklich nicht.",
+    "source": "tatoeba",
+    "upstreamId": "184"
+  },
+  {
+    "text": "Ich wusste nicht, woher es kam.",
+    "source": "tatoeba",
+    "upstreamId": "185"
+  },
+  {
+    "text": "Ich denke, dass mein Zusammenleben mit dir deine Lebensweise beeinflusst hat.",
+    "source": "tatoeba",
+    "upstreamId": "186"
+  },
+  {
+    "text": "Dies ist nicht wichtig.",
+    "source": "tatoeba",
+    "upstreamId": "187"
+  },
+  {
+    "text": "Ich möchte es nicht.",
+    "source": "tatoeba",
+    "upstreamId": "188"
+  },
+  {
+    "text": "Sie fragt, wie das möglich ist.",
+    "source": "tatoeba",
+    "upstreamId": "189"
+  },
+  {
+    "text": "Du läufst einfach vor den Problemen des Lebens davon.",
+    "source": "tatoeba",
+    "upstreamId": "190"
+  },
+  {
+    "text": "Wenn du den Liedtext anschaust, bedeutet er nicht wirklich viel.",
+    "source": "tatoeba",
+    "upstreamId": "191"
+  },
+  {
+    "text": "Es gibt da ein Problem, das du nicht siehst.",
+    "source": "tatoeba",
+    "upstreamId": "192"
+  },
+  {
+    "text": "Du kannst das machen!",
+    "source": "tatoeba",
+    "upstreamId": "193"
+  },
+  {
+    "text": "Meinem Physiklehrer ist es egal, wenn ich den Unterricht schwänze.",
+    "source": "tatoeba",
+    "upstreamId": "194"
+  },
+  {
+    "text": "Ich wünschte, ich könnte nach Japan gehen.",
+    "source": "tatoeba",
+    "upstreamId": "195"
+  },
+  {
+    "text": "Ich hasse es, wenn viele Leute da sind.",
+    "source": "tatoeba",
+    "upstreamId": "196"
+  },
+  {
+    "text": "Ich muss ins Bett gehen.",
+    "source": "tatoeba",
+    "upstreamId": "197"
+  },
+  {
+    "text": "Danach gehe ich, aber dann merke ich, dass ich meinen Rucksack vergessen habe.",
+    "source": "tatoeba",
+    "upstreamId": "198"
+  },
+  {
+    "text": "Ich werde dich heute nichts mehr fragen.",
+    "source": "tatoeba",
+    "upstreamId": "199"
+  },
+  {
+    "text": "Nächste Woche wird es vielleicht Frost geben.",
+    "source": "tatoeba",
+    "upstreamId": "200"
+  },
+  {
+    "text": "Obwohl er sich entschuldigt hat, bin ich immer noch wütend.",
+    "source": "tatoeba",
+    "upstreamId": "201"
+  },
+  {
+    "text": "Die Polizei wird euch dazu bringen, die Kugeln zu finden.",
+    "source": "tatoeba",
+    "upstreamId": "202"
+  },
+  {
+    "text": "Danke, dass Sie mir letzten Endes erklärt haben, warum die Leute mich für einen Idioten halten.",
+    "source": "tatoeba",
+    "upstreamId": "203"
+  },
+  {
+    "text": "Das war nicht meine Absicht.",
+    "source": "tatoeba",
+    "upstreamId": "204"
+  },
+  {
+    "text": "Danke für Ihre Erklärung.",
+    "source": "tatoeba",
+    "upstreamId": "205"
+  },
+  {
+    "text": "Theoretisch mache ich gerade Mathe.",
+    "source": "tatoeba",
+    "upstreamId": "206"
+  },
+  {
+    "text": "Wenn du mich nicht so gekannt hast, dann hast du mich einfach gar nicht gekannt.",
+    "source": "tatoeba",
+    "upstreamId": "208"
+  },
+  {
+    "text": "Es hat mir fast Angst gemacht, dich einen ganzen Tag nicht online zu sehen.",
+    "source": "tatoeba",
+    "upstreamId": "209"
+  },
+  {
+    "text": "Ich weiß nicht, was du meinst.",
+    "source": "tatoeba",
+    "upstreamId": "210"
+  },
+  {
+    "text": "Mein Computer muss mir zu etwas nützen.",
+    "source": "tatoeba",
+    "upstreamId": "211"
+  },
+  {
+    "text": "Du wolltest mit mir über Freiheit sprechen?",
+    "source": "tatoeba",
+    "upstreamId": "212"
+  },
+  {
+    "text": "Oh, jetzt ist es wirklich verwirrend...",
+    "source": "tatoeba",
+    "upstreamId": "213"
+  },
+  {
+    "text": "Wenn ich dich erschrecken wollte, würde ich dir erzählen, was ich vor ein paar Wochen geträumt habe.",
+    "source": "tatoeba",
+    "upstreamId": "214"
+  },
+  {
+    "text": "Man kann nicht alles von den Schulen erwarten.",
+    "source": "tatoeba",
+    "upstreamId": "215"
+  },
+  {
+    "text": "Es gibt viele Wörter, die ich nicht verstehe.",
+    "source": "tatoeba",
+    "upstreamId": "216"
+  },
+  {
+    "text": "Ich mag es nicht, wenn Mathematiker, die viel mehr als ich wissen, sich nicht genau ausdrücken können.",
+    "source": "tatoeba",
+    "upstreamId": "217"
+  },
+  {
+    "text": "Du bist nicht wirklich dumm.",
+    "source": "tatoeba",
+    "upstreamId": "218"
+  },
+  {
+    "text": "Ich muss dir eine dumme Frage stellen.",
+    "source": "tatoeba",
+    "upstreamId": "219"
+  },
+  {
+    "text": "Ich weiß nicht, wie ich es beweisen soll, so selbstverständlich wie es ist!",
+    "source": "tatoeba",
+    "upstreamId": "220"
+  },
+  {
+    "text": "Ich hätte nicht gedacht, dass ich eines Tages bei Wikipedia \"Viagra\" nachschauen würde.",
+    "source": "tatoeba",
+    "upstreamId": "221"
+  },
+  {
+    "text": "Kann man das anders ausdrücken?",
+    "source": "tatoeba",
+    "upstreamId": "222"
+  },
+  {
+    "text": "Niemand wird's erfahren.",
+    "source": "tatoeba",
+    "upstreamId": "223"
+  },
+  {
+    "text": "Ich habe eine Lösung gefunden, aber ich habe sie so schnell gefunden, dass es nicht die richtige Lösung sein kann.",
+    "source": "tatoeba",
+    "upstreamId": "224"
+  },
+  {
+    "text": "Das scheint mir interessant!",
+    "source": "tatoeba",
+    "upstreamId": "225"
+  },
+  {
+    "text": "Nur, dass es hier nicht so einfach ist.",
+    "source": "tatoeba",
+    "upstreamId": "226"
+  },
+  {
+    "text": "Ich mag gerne Kerzenlicht.",
+    "source": "tatoeba",
+    "upstreamId": "227"
+  },
+  {
+    "text": "Was hast du geantwortet?",
+    "source": "tatoeba",
+    "upstreamId": "228"
+  },
+  {
+    "text": "Nein, er ist nicht mein neuer Freund.",
+    "source": "tatoeba",
+    "upstreamId": "229"
+  },
+  {
+    "text": "Es ist schade, dass ich nicht abnehmen muss.",
+    "source": "tatoeba",
+    "upstreamId": "230"
+  },
+  {
+    "text": "Hast du nie Unterricht oder was?!",
+    "source": "tatoeba",
+    "upstreamId": "231"
+  },
+  {
+    "text": "Ich werde also Sudoku spielen, anstatt dich weiter zu stören.",
+    "source": "tatoeba",
+    "upstreamId": "232"
+  },
+  {
+    "text": "Wo ist das Problem?",
+    "source": "tatoeba",
+    "upstreamId": "233"
+  },
+  {
+    "text": "Das ist keine große Überraschung, oder?",
+    "source": "tatoeba",
+    "upstreamId": "235"
+  },
+  {
+    "text": "Ich mag dich nicht mehr.",
+    "source": "tatoeba",
+    "upstreamId": "237"
+  },
+  {
+    "text": "Ich bin neugierig.",
+    "source": "tatoeba",
+    "upstreamId": "238"
+  },
+  {
+    "text": "Herzlichen Glückwunsch.",
+    "source": "tatoeba",
+    "upstreamId": "239"
+  },
+  {
+    "text": "Ich will nicht so lange warten.",
+    "source": "tatoeba",
+    "upstreamId": "240"
+  },
+  {
+    "text": "Warum kommst du uns nicht besuchen?",
+    "source": "tatoeba",
+    "upstreamId": "241"
+  },
+  {
+    "text": "Aber die Möglichkeit scheint unwahrscheinlich.",
+    "source": "tatoeba",
+    "upstreamId": "242"
+  },
+  {
+    "text": "Es war eine schlechte Idee, sich abzumelden.",
+    "source": "tatoeba",
+    "upstreamId": "244"
+  },
+  {
+    "text": "Ich weiß nicht mehr, was ich tun soll.",
+    "source": "tatoeba",
+    "upstreamId": "245"
+  },
+  {
+    "text": "Es ist unvermeidbar, dass ich eines Tages nach Frankreich gehe, ich weiß nur nicht, wann.",
+    "source": "tatoeba",
+    "upstreamId": "246"
+  },
+  {
+    "text": "Ich hasse Chemie.",
+    "source": "tatoeba",
+    "upstreamId": "247"
+  },
+  {
+    "text": "Ich wollte nicht, dass das passiert.",
+    "source": "tatoeba",
+    "upstreamId": "248"
+  },
+  {
+    "text": "Du kannst vermutlich erahnen, was indessen passiert.",
+    "source": "tatoeba",
+    "upstreamId": "249"
+  },
+  {
+    "text": "Bevor du dich versiehst, wirst du in der Zeitung sein.",
+    "source": "tatoeba",
+    "upstreamId": "250"
+  },
+  {
+    "text": "Was für andere Optionen habe ich?",
+    "source": "tatoeba",
+    "upstreamId": "251"
+  },
+  {
+    "text": "Ich habe nicht viel von einem Reisenden.",
+    "source": "tatoeba",
+    "upstreamId": "252"
+  },
+  {
+    "text": "Ich habe nichts Besseres zu tun.",
+    "source": "tatoeba",
+    "upstreamId": "253"
+  },
+  {
+    "text": "Ich kann es auch nicht erklären.",
+    "source": "tatoeba",
+    "upstreamId": "254"
+  },
+  {
+    "text": "Es zeigt nur, dass du kein Roboter bist.",
+    "source": "tatoeba",
+    "upstreamId": "257"
+  },
+  {
+    "text": "Wie könnte ich ein Roboter sein? Roboter träumen nicht.",
+    "source": "tatoeba",
+    "upstreamId": "258"
+  },
+  {
+    "text": "\"Daran habe ich nie gedacht\", sagte der alte Mann. \"Was sollen wir tun?\"",
+    "source": "tatoeba",
+    "upstreamId": "259"
+  },
+  {
+    "text": "Das ist nichts, was jeder Beliebige tun kann.",
+    "source": "tatoeba",
+    "upstreamId": "260"
+  },
+  {
+    "text": "Ich weiß nicht, ob ich es noch habe.",
+    "source": "tatoeba",
+    "upstreamId": "261"
+  },
+  {
+    "text": "Was denkst du, was ich gerade gemacht habe?",
+    "source": "tatoeba",
+    "upstreamId": "262"
+  },
+  {
+    "text": "Unterschätze nicht meine Macht!",
+    "source": "tatoeba",
+    "upstreamId": "263"
+  },
+  {
+    "text": "Meine Mutter spricht nicht sehr gut Englisch.",
+    "source": "tatoeba",
+    "upstreamId": "264"
+  },
+  {
+    "text": "Ich spreche nicht gut genug Französisch!",
+    "source": "tatoeba",
+    "upstreamId": "265"
+  },
+  {
+    "text": "Ich fragte mich, ob du heute kommen würdest.",
+    "source": "tatoeba",
+    "upstreamId": "266"
+  },
+  {
+    "text": "Dort liegt das Problem.",
+    "source": "tatoeba",
+    "upstreamId": "267"
+  },
+  {
+    "text": "Wie findest du Nahrung im Weltraum?",
+    "source": "tatoeba",
+    "upstreamId": "268"
+  },
+  {
+    "text": "Ihr müsst nichts tun, außer euch zu vertrauen.",
+    "source": "tatoeba",
+    "upstreamId": "269"
+  },
+  {
+    "text": "Alle wollen dich kennenlernen. Du bist berühmt!",
+    "source": "tatoeba",
+    "upstreamId": "270"
+  },
+  {
+    "text": "Wieso tut dir etwas leid, das du nicht gemacht hast?",
+    "source": "tatoeba",
+    "upstreamId": "271"
+  },
+  {
+    "text": "Ich verabscheue förmliches Schreiben zutiefst!",
+    "source": "tatoeba",
+    "upstreamId": "272"
+  },
+  {
+    "text": "Ausländer machen mich neugierig.",
+    "source": "tatoeba",
+    "upstreamId": "273"
+  },
+  {
+    "text": "Was auch immer ich tue, sie sagt, ich kann es besser.",
+    "source": "tatoeba",
+    "upstreamId": "274"
+  },
+  {
+    "text": "Warum bist du um diese Uhrzeit noch wach?",
+    "source": "tatoeba",
+    "upstreamId": "275"
+  },
+  {
+    "text": "Du wärst überrascht, was man in einer Woche lernen kann.",
+    "source": "tatoeba",
+    "upstreamId": "276"
+  },
+  {
+    "text": "Ich habe niemanden, der mit mir reisen würde.",
+    "source": "tatoeba",
+    "upstreamId": "277"
+  },
+  {
+    "text": "Du bist nicht schnell genug.",
+    "source": "tatoeba",
+    "upstreamId": "278"
+  },
+  {
+    "text": "Das Leben ist hart, aber ich bin härter.",
+    "source": "tatoeba",
+    "upstreamId": "279"
+  },
+  {
+    "text": "Ertragen kann unerträglich sein.",
+    "source": "tatoeba",
+    "upstreamId": "280"
+  },
+  {
+    "text": "Hör auf! Sie fühlt sich dadurch unbehaglich!",
+    "source": "tatoeba",
+    "upstreamId": "281"
+  },
+  {
+    "text": "Nur die Wahrheit ist schön.",
+    "source": "tatoeba",
+    "upstreamId": "282"
+  },
+  {
+    "text": "Morgen wird er auf dem Mond landen.",
+    "source": "tatoeba",
+    "upstreamId": "283"
+  },
+  {
+    "text": "Ich spreche kein Japanisch.",
+    "source": "tatoeba",
+    "upstreamId": "284"
+  },
+  {
+    "text": "Das ist ein Wortspiel.",
+    "source": "tatoeba",
+    "upstreamId": "285"
+  },
+  {
+    "text": "Niemand versteht mich.",
+    "source": "tatoeba",
+    "upstreamId": "286"
+  },
+  {
+    "text": "Ich habe gelernt, ohne sie zu leben.",
+    "source": "tatoeba",
+    "upstreamId": "287"
+  },
+  {
+    "text": "Das bringt nichts mehr, weiter nachzudenken.",
+    "source": "tatoeba",
+    "upstreamId": "288"
+  },
+  {
+    "text": "Mir gehen in diesen Tagen zu viele Dinge durch den Kopf.",
+    "source": "tatoeba",
+    "upstreamId": "289"
+  },
+  {
+    "text": "Ich wollte gerade meine E-Mails abrufen.",
+    "source": "tatoeba",
+    "upstreamId": "290"
+  },
+  {
+    "text": "Musst du wirklich die Frage stellen, um die Antwort zu erfahren?",
+    "source": "tatoeba",
+    "upstreamId": "291"
+  },
+  {
+    "text": "Du kannst nicht von mir erwarten, dass ich immer an alles denke!",
+    "source": "tatoeba",
+    "upstreamId": "292"
+  },
+  {
+    "text": "Ich vermute, dass es hinter jeder Sache, die wir tun müssen, etwas gibt, das wir tun wollen...",
+    "source": "tatoeba",
+    "upstreamId": "293"
+  },
+  {
+    "text": "Du hast wirklich nicht die richtigen Prioritäten!",
+    "source": "tatoeba",
+    "upstreamId": "294"
+  },
+  {
+    "text": "Man darf nicht darauf warten, dass die anderen für einen denken!",
+    "source": "tatoeba",
+    "upstreamId": "295"
+  },
+  {
+    "text": "Du hast nie Zeit für die wichtigen Dinge!",
+    "source": "tatoeba",
+    "upstreamId": "296"
+  },
+  {
+    "text": "Es ist die Mühe nicht wert, so zu tun, als würdest du mich dazu bringen zu glauben, dass ich Dinge glaube, die du nicht glaubst.",
+    "source": "tatoeba",
+    "upstreamId": "297"
+  },
+  {
+    "text": "Das würde zu lange dauern, dir zu erklären, warum das nicht funktionieren wird.",
+    "source": "tatoeba",
+    "upstreamId": "298"
+  },
+  {
+    "text": "Ich bin so blöd... ich versuche, dir Dinge zu erklären, die ich selbst nicht verstehe.",
+    "source": "tatoeba",
+    "upstreamId": "299"
+  },
+  {
+    "text": "Hör auf, mich als einen \"normalen\" Menschen anzusehen!",
+    "source": "tatoeba",
+    "upstreamId": "300"
+  },
+  {
+    "text": "Du könntest zumindest versuchen, ein bisschen höflicher zu sein, auch wenn das nicht in deiner Natur liegt.",
+    "source": "tatoeba",
+    "upstreamId": "301"
+  },
+  {
+    "text": "Es gibt immer Dinge, die ich nie lernen werde, ich habe nicht ewig Zeit.",
+    "source": "tatoeba",
+    "upstreamId": "302"
+  },
+  {
+    "text": "Das ist nicht möglich!",
+    "source": "tatoeba",
+    "upstreamId": "303"
+  },
+  {
+    "text": "Ich wünschte, ich könnte mir mehr aus Noten machen, aber scheinbar habe ich an einem gewissen Punkt in meinem Leben entschieden, dass es nicht mehr so wichtig sei.",
+    "source": "tatoeba",
+    "upstreamId": "304"
+  },
+  {
+    "text": "„Wer rastet, der rostet“ ist ein Sprichwort.",
+    "source": "tatoeba",
+    "upstreamId": "305"
+  },
+  {
+    "text": "Willst du etwas zum Trinken?",
+    "source": "tatoeba",
+    "upstreamId": "306"
+  },
+  {
+    "text": "\"Wer ist es?\" \"Es ist deine Mutter.\"",
+    "source": "tatoeba",
+    "upstreamId": "307"
+  },
+  {
+    "text": "„Wann wirst du zurückkommen?“ – „Das hängt ganz vom Wetter ab.“",
+    "source": "tatoeba",
+    "upstreamId": "308"
+  },
+  {
+    "text": "„Was ist los?“ fragte das kleine weiße Kaninchen.",
+    "source": "tatoeba",
+    "upstreamId": "309"
+  },
+  {
+    "text": "„Was passiert in der Höhle? Ich bin neugierig.“ – „Ich habe keine Ahnung.“",
+    "source": "tatoeba",
+    "upstreamId": "310"
+  },
+  {
+    "text": "\"Was ist dein Wunsch?\", fragte das kleine weiße Kaninchen.",
+    "source": "tatoeba",
+    "upstreamId": "311"
+  },
+  {
+    "text": "Wir müssen lernen, als Brüder zusammen zu leben, oder wir werden als Narren zusammen untergehen.",
+    "source": "tatoeba",
+    "upstreamId": "312"
+  },
+  {
+    "text": "Öh, wie funktioniert das?",
+    "source": "tatoeba",
+    "upstreamId": "313"
+  },
+  {
+    "text": "\"Um die Wahrheit zu sagen, ich habe Höhenangst.\" \"Du bist ein Angsthase!\"",
+    "source": "tatoeba",
+    "upstreamId": "314"
+  },
+  {
+    "text": "\"Vertraue mir\", sagte er.",
+    "source": "tatoeba",
+    "upstreamId": "315"
+  },
+  {
+    "text": "„Danach habe ich gesucht“, erklärte er.",
+    "source": "tatoeba",
+    "upstreamId": "316"
+  },
+  {
+    "text": "„Das sieht ziemlich interessant aus“, sagt Hiroshi.",
+    "source": "tatoeba",
+    "upstreamId": "317"
+  },
+  {
+    "text": "Ihre Kommunikation ist vielleicht viel komplexer als wir dachten.",
+    "source": "tatoeba",
+    "upstreamId": "318"
+  },
+  {
+    "text": "\"Das Telefon klingelt.\" \"Ich geh' dran.\"",
+    "source": "tatoeba",
+    "upstreamId": "319"
+  },
+  {
+    "text": "\"Das ist sehr nett von Ihnen\", antwortete Willie.",
+    "source": "tatoeba",
+    "upstreamId": "320"
+  },
+  {
+    "text": "„Danke für die Hilfe.“ – „Keine Ursache.“",
+    "source": "tatoeba",
+    "upstreamId": "321"
+  },
+  {
+    "text": "Irgendwann werde ich wie der Wind rennen.",
+    "source": "tatoeba",
+    "upstreamId": "322"
+  },
+  {
+    "text": "\"Sie mag Musik.\" \"Ich auch.\"",
+    "source": "tatoeba",
+    "upstreamId": "323"
+  },
+  {
+    "text": "Lass es mich wissen, wenn es irgendetwas gibt, was ich tun kann.",
+    "source": "tatoeba",
+    "upstreamId": "325"
+  },
+  {
+    "text": "Möglicherweise ist das Glück, das uns dort erwartet, überhaupt nicht die Art Glück, die wir uns wünschen würden.",
+    "source": "tatoeba",
+    "upstreamId": "326"
+  },
+  {
+    "text": "Du entscheidest, ob wir dahin gehen oder nicht.",
+    "source": "tatoeba",
+    "upstreamId": "327"
+  },
+  {
+    "text": "Das fängt nicht vor acht Uhr dreißig an.",
+    "source": "tatoeba",
+    "upstreamId": "328"
+  },
+  {
+    "text": "Ich wünsche mir ein Boot, das mich weit weg von hier bringt.",
+    "source": "tatoeba",
+    "upstreamId": "329"
+  },
+  {
+    "text": "„Ich habe Lust, Karten zu spielen.“ – „Ich auch.“",
+    "source": "tatoeba",
+    "upstreamId": "330"
+  },
+  {
+    "text": "\"Sind wir uns nicht schon einmal begegnet?\", fragte der Student.",
+    "source": "tatoeba",
+    "upstreamId": "331"
+  },
+  {
+    "text": "Ein Japaner würde so etwas nie tun.",
+    "source": "tatoeba",
+    "upstreamId": "332"
+  },
+  {
+    "text": "Der Bogenschütze tötete den Hirsch.",
+    "source": "tatoeba",
+    "upstreamId": "334"
+  },
+  {
+    "text": "Der Kommunismus wird nie erreicht werden, solange ich lebe.",
+    "source": "tatoeba",
+    "upstreamId": "335"
+  },
+  {
+    "text": "Der Roggen wurde Arme-Leute-Getreide genannt.",
+    "source": "tatoeba",
+    "upstreamId": "336"
+  },
+  {
+    "text": "Wenn du einen Fehler siehst, dann korrigiere ihn bitte.",
+    "source": "tatoeba",
+    "upstreamId": "338"
+  },
+  {
+    "text": "Lege das Kartenspiel auf den Eichentisch.",
+    "source": "tatoeba",
+    "upstreamId": "339"
+  },
+  {
+    "text": "Die Deutschen sind sehr listig.",
+    "source": "tatoeba",
+    "upstreamId": "340"
+  },
+  {
+    "text": "Wenn man nicht isst, stirbt man.",
+    "source": "tatoeba",
+    "upstreamId": "341"
+  },
+  {
+    "text": "Wie schreibt man \"pretty\"?",
+    "source": "tatoeba",
+    "upstreamId": "342"
+  },
+  {
+    "text": "Wieso gehen wir nicht heim?",
+    "source": "tatoeba",
+    "upstreamId": "343"
+  },
+  {
+    "text": "Es tut mir leid, ich kann nicht lange bleiben.",
+    "source": "tatoeba",
+    "upstreamId": "344"
+  },
+  {
+    "text": "„Wieso gehst du nicht?“ – „Weil ich nicht will.“",
+    "source": "tatoeba",
+    "upstreamId": "346"
+  },
+  {
+    "text": "Eine Million Menschen haben im Krieg ihr Leben verloren.",
+    "source": "tatoeba",
+    "upstreamId": "347"
+  },
+  {
+    "text": "Ich kam vor drei Jahren nach Tokyo und seither habe ich hier gelebt.",
+    "source": "tatoeba",
+    "upstreamId": "348"
+  },
+  {
+    "text": "Ich habe mehr als einen Monat lang in Nagoya gelebt.",
+    "source": "tatoeba",
+    "upstreamId": "349"
+  },
+  {
+    "text": "Es ist überhaupt nicht selten, länger als neunzig Jahre zu leben.",
+    "source": "tatoeba",
+    "upstreamId": "350"
+  },
+  {
+    "text": "Zuerst werde ich ein Schema meiner neuen Website machen.",
+    "source": "tatoeba",
+    "upstreamId": "352"
+  },
+  {
+    "text": "Demokratie ist die schlechteste Regierungsform, abgesehen von allen anderen, die ausprobiert wurden.",
+    "source": "tatoeba",
+    "upstreamId": "354"
+  },
+  {
+    "text": "Wenn man beginnt, seinem Passfoto ähnlich zu sehen, sollte man in den Urlaub fahren.",
+    "source": "tatoeba",
+    "upstreamId": "355"
+  },
+  {
+    "text": "Ich war's nicht, Kommissar!",
+    "source": "tatoeba",
+    "upstreamId": "356"
+  },
+  {
+    "text": "Oh, meine weiße Hose! Sie war neu.",
+    "source": "tatoeba",
+    "upstreamId": "357"
+  },
+  {
+    "text": "Bei so vielen Leuten wurde er natürlich etwas nervös.",
+    "source": "tatoeba",
+    "upstreamId": "358"
+  },
+  {
+    "text": "Beim Verlassen des Bahnhofs sah ich einen Mann.",
+    "source": "tatoeba",
+    "upstreamId": "359"
+  },
+  {
+    "text": "Und niemand hat Ihnen geholfen?",
+    "source": "tatoeba",
+    "upstreamId": "360"
+  },
+  {
+    "text": "Du bist ein Engel!",
+    "source": "tatoeba",
+    "upstreamId": "361"
+  },
+  {
+    "text": "Die Madrilenen sind verrückt.",
+    "source": "tatoeba",
+    "upstreamId": "362"
+  },
+  {
+    "text": "Nun gut, die Nacht ist sehr lang, oder?",
+    "source": "tatoeba",
+    "upstreamId": "363"
+  },
+  {
+    "text": "Du hast Glück gehabt, dass er dich nicht gebissen hat.",
+    "source": "tatoeba",
+    "upstreamId": "364"
+  },
+  {
+    "text": "Hast du mich vermisst?",
+    "source": "tatoeba",
+    "upstreamId": "365"
+  },
+  {
+    "text": "Sind sie alle gleich?",
+    "source": "tatoeba",
+    "upstreamId": "367"
+  },
+  {
+    "text": "Wo sind bitte die Eier?",
+    "source": "tatoeba",
+    "upstreamId": "369"
+  },
+  {
+    "text": "Das ist eine Überraschung.",
+    "source": "tatoeba",
+    "upstreamId": "371"
+  },
+  {
+    "text": "Das ist eine gute Idee!",
+    "source": "tatoeba",
+    "upstreamId": "372"
+  },
+  {
+    "text": "Hin- und Rückfahrt? Nur Hinfahrt.",
+    "source": "tatoeba",
+    "upstreamId": "373"
+  },
+  {
+    "text": "Es ist schade, wenn jemand stirbt.",
+    "source": "tatoeba",
+    "upstreamId": "374"
+  },
+  {
+    "text": "Der Mund blieb ihnen offen stehen.",
+    "source": "tatoeba",
+    "upstreamId": "375"
+  },
+  {
+    "text": "Donnerwetter! Das ist nicht schlecht!",
+    "source": "tatoeba",
+    "upstreamId": "376"
+  },
+  {
+    "text": "Nach der Wäsche in Form bringen.",
+    "source": "tatoeba",
+    "upstreamId": "377"
+  },
+  {
+    "text": "Vor dem Tragen waschen.",
+    "source": "tatoeba",
+    "upstreamId": "378"
+  },
+  {
+    "text": "Nicht öffnen, bevor der Zug hält.",
+    "source": "tatoeba",
+    "upstreamId": "379"
+  },
+  {
+    "text": "Wer im Glashaus sitzt, sollte nicht mit Steinen werfen.",
+    "source": "tatoeba",
+    "upstreamId": "381"
+  },
+  {
+    "text": "Man sagt, Liebe mache blind.",
+    "source": "tatoeba",
+    "upstreamId": "382"
+  },
+  {
+    "text": "Oh, tut mir leid.",
+    "source": "tatoeba",
+    "upstreamId": "383"
+  },
+  {
+    "text": "Mathe ist wie Liebe - eine einfache Idee, aber es kann kompliziert werden.",
+    "source": "tatoeba",
+    "upstreamId": "384"
+  },
+  {
+    "text": "Antworten sind nur dann nützlich, wenn sie neue Fragen aufwerfen.",
+    "source": "tatoeba",
+    "upstreamId": "385"
+  },
+  {
+    "text": "An sich selbst zu zweifeln, ist das erste Zeichen von Intelligenz.",
+    "source": "tatoeba",
+    "upstreamId": "386"
+  },
+  {
+    "text": "Arm ist nicht, wer zu wenig besitzt, sondern, wer zu viel haben möchte.",
+    "source": "tatoeba",
+    "upstreamId": "387"
+  },
+  {
+    "text": "Da du nicht überrascht bist, denke ich, musst du es gewusst haben.",
+    "source": "tatoeba",
+    "upstreamId": "388"
+  },
+  {
+    "text": "Wie lange braucht man bis zum Bahnhof?",
+    "source": "tatoeba",
+    "upstreamId": "389"
+  },
+  {
+    "text": "Das wird eine gute Erinnerung an meine Reise durch die Vereinigten Staaten sein.",
+    "source": "tatoeba",
+    "upstreamId": "390"
+  },
+  {
+    "text": "Entschuldigung, erlauben Sie mir, auf drei Fehler in dem obigen Artikel hinzuweisen.",
+    "source": "tatoeba",
+    "upstreamId": "391"
+  },
+  {
+    "text": "Es ist schwierig, ein Gespräch mit jemandem zu führen, der nur \"Ja\" und \"Nein\" sagt.",
+    "source": "tatoeba",
+    "upstreamId": "393"
+  },
+  {
+    "text": "Sprichst du Italienisch?",
+    "source": "tatoeba",
+    "upstreamId": "394"
+  },
+  {
+    "text": "\"Ich kann bei diesem Lärm nicht denken\", sagte sie auf die Schreibmaschine starrend.",
+    "source": "tatoeba",
+    "upstreamId": "395"
+  },
+  {
+    "text": "Man sagt, dass \"Hamlet\" das interessanteste Stück sei, das je geschrieben wurde.",
+    "source": "tatoeba",
+    "upstreamId": "396"
+  },
+  {
+    "text": "\"Mama, darf ich einen Keks essen?\" \"Nein, darfst du nicht. Man sollte nicht zwischen den Mahlzeiten essen.\"",
+    "source": "tatoeba",
+    "upstreamId": "397"
+  },
+  {
+    "text": "Könnte ich eine Frage stellen?",
+    "source": "tatoeba",
+    "upstreamId": "398"
+  },
+  {
+    "text": "\"Wie fühlst du dich?\", fragte er.",
+    "source": "tatoeba",
+    "upstreamId": "399"
+  },
+  {
+    "text": "Es ist mir unmöglich, es dir zu erklären.",
+    "source": "tatoeba",
+    "upstreamId": "401"
+  },
+  {
+    "text": "Ich möchte nicht mein restliches Leben damit verbringen, es zu bereuen.",
+    "source": "tatoeba",
+    "upstreamId": "402"
+  },
+  {
+    "text": "Es wäre lustig zu sehen, wie die Dinge sich im Lauf der Jahre ändern.",
+    "source": "tatoeba",
+    "upstreamId": "403"
+  },
+  {
+    "text": "Das hätte ich nie gedacht.",
+    "source": "tatoeba",
+    "upstreamId": "404"
+  },
+  {
+    "text": "Die Fantasie hat Auswirkungen auf alle Aspekte in unserem Leben.",
+    "source": "tatoeba",
+    "upstreamId": "405"
+  },
+  {
+    "text": "Du wirst mich eines Tages vergessen.",
+    "source": "tatoeba",
+    "upstreamId": "406"
+  },
+  {
+    "text": "Das ist ziemlich unerwartet.",
+    "source": "tatoeba",
+    "upstreamId": "407"
+  },
+  {
+    "text": "Ich frage mich, wie lange es dauern wird.",
+    "source": "tatoeba",
+    "upstreamId": "408"
+  },
+  {
+    "text": "Ich kann ohne Fernsehen nicht leben.",
+    "source": "tatoeba",
+    "upstreamId": "409"
+  },
+  {
+    "text": "Ich hätte es ohne dich nicht machen können. Danke.",
+    "source": "tatoeba",
+    "upstreamId": "410"
+  },
+  {
+    "text": "Ohne Anstrengung erreicht man nichts.",
+    "source": "tatoeba",
+    "upstreamId": "411"
+  },
+  {
+    "text": "Viele Menschen wandern ziellos durchs Leben.",
+    "source": "tatoeba",
+    "upstreamId": "412"
+  },
+  {
+    "text": "Ein Leben ohne Liebe hat überhaupt keinen Sinn.",
+    "source": "tatoeba",
+    "upstreamId": "413"
+  },
+  {
+    "text": "Lasst es mich wissen, wenn ich irgendwelche Änderungen machen muss.",
+    "source": "tatoeba",
+    "upstreamId": "414"
+  },
+  {
+    "text": "Ich denke, dass Prüfungen die Erziehung ruinieren.",
+    "source": "tatoeba",
+    "upstreamId": "415"
+  },
+  {
+    "text": "Wir können wegen des Lärms nicht schlafen.",
+    "source": "tatoeba",
+    "upstreamId": "416"
+  },
+  {
+    "text": "Hast du ein Kondom?",
+    "source": "tatoeba",
+    "upstreamId": "417"
+  },
+  {
+    "text": "„Eine Katze?“ fragte der alte Mann.",
+    "source": "tatoeba",
+    "upstreamId": "418"
+  },
+  {
+    "text": "Tu, was auch immer er dir befiehlt.",
+    "source": "tatoeba",
+    "upstreamId": "419"
+  },
+  {
+    "text": "Ich habe über zwei Stunden gebraucht, um einige Seiten Englisch zu übersetzen.",
+    "source": "tatoeba",
+    "upstreamId": "421"
+  },
+  {
+    "text": "Könnte ich Fräulein Brown sprechen?",
+    "source": "tatoeba",
+    "upstreamId": "423"
+  },
+  {
+    "text": "\"Ja, Orangensaft bitte\", sagt Mike.",
+    "source": "tatoeba",
+    "upstreamId": "424"
+  },
+  {
+    "text": "\"Ah!\" ist ein Ausruf.",
+    "source": "tatoeba",
+    "upstreamId": "425"
+  },
+  {
+    "text": "Die Verpflichtung zum Schulbesuch wird selten analysiert in der Vielzahl der Werke, die den mannigfaltigen Arten gewidmet sind, bei Kindern den Wunsch zu lernen zu entwickeln.",
+    "source": "tatoeba",
+    "upstreamId": "427"
+  },
+  {
+    "text": "Mann bist du doof! Ich muss dir echt alles erklären!",
+    "source": "tatoeba",
+    "upstreamId": "428"
+  },
+  {
+    "text": "Ich habe ein Hühnchen mit dir zu rupfen.",
+    "source": "tatoeba",
+    "upstreamId": "429"
+  },
+  {
+    "text": "Ist es nötig, dass ich dir Geld gebe?",
+    "source": "tatoeba",
+    "upstreamId": "430"
+  },
+  {
+    "text": "Paris ist die schönste Stadt der Welt.",
+    "source": "tatoeba",
+    "upstreamId": "431"
+  },
+  {
+    "text": "Ich dachte immer, einen Herzanfall zu haben, sei die Art der Natur, dir zu sagen, dass du sterben musst.",
+    "source": "tatoeba",
+    "upstreamId": "432"
+  },
+  {
+    "text": "He, ich habe vielleicht kein Geld, aber ich habe immer noch meinen Stolz.",
+    "source": "tatoeba",
+    "upstreamId": "433"
+  },
+  {
+    "text": "Ich habe einen Traum.",
+    "source": "tatoeba",
+    "upstreamId": "434"
+  },
+  {
+    "text": "Das ist meine Freundin Rachel, wir sind zusammen ins Gymnasium gegangen.",
+    "source": "tatoeba",
+    "upstreamId": "435"
+  },
+  {
+    "text": "Die Lebenshaltungskosten sind drastisch gestiegen.",
+    "source": "tatoeba",
+    "upstreamId": "436"
+  },
+  {
+    "text": "Alles Erfundene ist wahr.",
+    "source": "tatoeba",
+    "upstreamId": "437"
+  },
+  {
+    "text": "Überrascht sein, sich wundern, heißt anfangen, zu verstehen.",
+    "source": "tatoeba",
+    "upstreamId": "438"
+  },
+  {
+    "text": "Zweifellos ist das Universum unendlich.",
+    "source": "tatoeba",
+    "upstreamId": "439"
+  },
+  {
+    "text": "Zur Vollkommenheit fehlte ihr nur ein Fehler.",
+    "source": "tatoeba",
+    "upstreamId": "440"
+  },
+  {
+    "text": "Und doch, auch das Gegenteil ist immer wahr.",
+    "source": "tatoeba",
+    "upstreamId": "441"
+  },
+  {
+    "text": "Wir sehen die Dinge nicht, wie sie sind, sondern wie wir sind.",
+    "source": "tatoeba",
+    "upstreamId": "442"
+  },
+  {
+    "text": "Die Welt ist ein Irrenhaus.",
+    "source": "tatoeba",
+    "upstreamId": "443"
+  },
+  {
+    "text": "Kein Schüler beschwert sich je, Schmerzen im Frontallappen der linken Gehirnhälfte zu haben.",
+    "source": "tatoeba",
+    "upstreamId": "444"
+  },
+  {
+    "text": "Du hast mir die Augen dafür geöffnet, wie es ist, wenn alles gut geht.",
+    "source": "tatoeba",
+    "upstreamId": "445"
+  },
+  {
+    "text": "Du hast mich gefunden, wo sonst niemand gesucht hat.",
+    "source": "tatoeba",
+    "upstreamId": "446"
+  },
+  {
+    "text": "Du bist an meiner Seite, jetzt ist alles gut.",
+    "source": "tatoeba",
+    "upstreamId": "447"
+  },
+  {
+    "text": "Wie, du weißt nicht?!",
+    "source": "tatoeba",
+    "upstreamId": "448"
+  },
+  {
+    "text": "Du siehst dumm aus.",
+    "source": "tatoeba",
+    "upstreamId": "449"
+  },
+  {
+    "text": "Ich denke, ich werde schlafen gehen.",
+    "source": "tatoeba",
+    "upstreamId": "450"
+  },
+  {
+    "text": "Ich muss einkaufen gehen, ich komme in einer Stunde zurück.",
+    "source": "tatoeba",
+    "upstreamId": "451"
+  },
+  {
+    "text": "Ich heiße Jack.",
+    "source": "tatoeba",
+    "upstreamId": "452"
+  },
+  {
+    "text": "Es gefällt mir sehr gut.",
+    "source": "tatoeba",
+    "upstreamId": "453"
+  },
+  {
+    "text": "Sehen wir uns morgen?",
+    "source": "tatoeba",
+    "upstreamId": "454"
+  },
+  {
+    "text": "Wie heißt das auf Italienisch?",
+    "source": "tatoeba",
+    "upstreamId": "455"
+  },
+  {
+    "text": "Ist es weit von hier?",
+    "source": "tatoeba",
+    "upstreamId": "456"
+  },
+  {
+    "text": "Das sind nicht meine Sachen!",
+    "source": "tatoeba",
+    "upstreamId": "457"
+  },
+  {
+    "text": "Danke, das ist alles.",
+    "source": "tatoeba",
+    "upstreamId": "458"
+  },
+  {
+    "text": "Tanzt du mit mir?",
+    "source": "tatoeba",
+    "upstreamId": "459"
+  },
+  {
+    "text": "Wie viel Uhr ist es?",
+    "source": "tatoeba",
+    "upstreamId": "460"
+  },
+  {
+    "text": "Es ist nicht meine Schuld!",
+    "source": "tatoeba",
+    "upstreamId": "464"
+  },
+  {
+    "text": "Ich möchte eine Nacht bleiben.",
+    "source": "tatoeba",
+    "upstreamId": "465"
+  },
+  {
+    "text": "Könnten Sie für mich wählen? Das Telefon hängt zu hoch.",
+    "source": "tatoeba",
+    "upstreamId": "466"
+  },
+  {
+    "text": "Gibt es hier in der Nähe eine Jugendherberge?",
+    "source": "tatoeba",
+    "upstreamId": "467"
+  },
+  {
+    "text": "Wo sind die Duschen?",
+    "source": "tatoeba",
+    "upstreamId": "468"
+  },
+  {
+    "text": "Öffnen Sie den Mund!",
+    "source": "tatoeba",
+    "upstreamId": "469"
+  },
+  {
+    "text": "Ist es schlimm?",
+    "source": "tatoeba",
+    "upstreamId": "470"
+  },
+  {
+    "text": "Ich habe meine Brieftasche verloren.",
+    "source": "tatoeba",
+    "upstreamId": "471"
+  },
+  {
+    "text": "Ich bin einverstanden.",
+    "source": "tatoeba",
+    "upstreamId": "472"
+  },
+  {
+    "text": "Liebe ist nie verschwendet.",
+    "source": "tatoeba",
+    "upstreamId": "473"
+  },
+  {
+    "text": "Leben ist das, was dir zustößt, während du gerade damit beschäftigt bist, andere Pläne zu machen.",
+    "source": "tatoeba",
+    "upstreamId": "474"
+  },
+  {
+    "text": "Nicht wollen ist das Gleiche wie haben.",
+    "source": "tatoeba",
+    "upstreamId": "475"
+  },
+  {
+    "text": "Er ist sehr sexy.",
+    "source": "tatoeba",
+    "upstreamId": "476"
+  },
+  {
+    "text": "Lass mich in Ruhe!",
+    "source": "tatoeba",
+    "upstreamId": "477"
+  },
+  {
+    "text": "„Gib mir bitte das Salz.“ „Hier, nimm.“",
+    "source": "tatoeba",
+    "upstreamId": "478"
+  },
+  {
+    "text": "Es gibt zu viele Dinge zu tun!",
+    "source": "tatoeba",
+    "upstreamId": "479"
+  },
+  {
+    "text": "Wie alt bist du?",
+    "source": "tatoeba",
+    "upstreamId": "480"
+  },
+  {
+    "text": "Los, spiel' mit mir, mir ist so langweilig!",
+    "source": "tatoeba",
+    "upstreamId": "481"
+  },
+  {
+    "text": "Denk nicht mal dran, meine Schokolade zu essen!",
+    "source": "tatoeba",
+    "upstreamId": "482"
+  },
+  {
+    "text": "Hör auf, mich um ein Getränk zu bitten! Geh, hol dir selbst eins.",
+    "source": "tatoeba",
+    "upstreamId": "483"
+  },
+  {
+    "text": "Dank dir habe ich meinen Appetit verloren.",
+    "source": "tatoeba",
+    "upstreamId": "484"
+  },
+  {
+    "text": "Ich habe wirklich das Bedürfnis, jemanden zu schlagen.",
+    "source": "tatoeba",
+    "upstreamId": "485"
+  },
+  {
+    "text": "Das ist so lange her, dass ich mit meiner Familie ins Disneyland gegangen bin.",
+    "source": "tatoeba",
+    "upstreamId": "486"
+  },
+  {
+    "text": "Meine Eltern streiten sich dauernd wegen Kleinigkeiten. Das regt mich so auf!",
+    "source": "tatoeba",
+    "upstreamId": "487"
+  },
+  {
+    "text": "Wenn du dich nicht mit Sonnencreme eincremen willst, ist das deine Sache. Aber beschwer' dich später nicht bei mir, wenn du Sonnenbrand hast.",
+    "source": "tatoeba",
+    "upstreamId": "488"
+  },
+  {
+    "text": "Meine Freunde sagen immer, ich sei zu ruhig, aber meine Familie sagt immer, ich sei zu nervig.",
+    "source": "tatoeba",
+    "upstreamId": "489"
+  },
+  {
+    "text": "Ich hasse diese Spinnen; wegen denen flippe ich jedes Mal aus, wenn ich sauber mache.",
+    "source": "tatoeba",
+    "upstreamId": "490"
+  },
+  {
+    "text": "Zu nervig... Ich kann nicht einmal einen Computer benutzen, ohne Kopfweh zu bekommen!",
+    "source": "tatoeba",
+    "upstreamId": "491"
+  },
+  {
+    "text": "Es ist so heiß, dass man Eier auf den Motorhauben der Autos braten könnte.",
+    "source": "tatoeba",
+    "upstreamId": "492"
+  },
+  {
+    "text": "Wer kennt dieses Problem nicht?!",
+    "source": "tatoeba",
+    "upstreamId": "493"
+  },
+  {
+    "text": "Heute ist es sehr heiß.",
+    "source": "tatoeba",
+    "upstreamId": "494"
+  },
+  {
+    "text": "Es ist niemand gekommen.",
+    "source": "tatoeba",
+    "upstreamId": "495"
+  },
+  {
+    "text": "Ich habe noch nie einen roten Kühlschrank gesehen.",
+    "source": "tatoeba",
+    "upstreamId": "496"
+  },
+  {
+    "text": "Er hat sein Wort gebrochen.",
+    "source": "tatoeba",
+    "upstreamId": "497"
+  },
+  {
+    "text": "Lieber für das gehasst werden, was man ist, als geliebt werden für das, was man nicht ist.",
+    "source": "tatoeba",
+    "upstreamId": "498"
+  },
+  {
+    "text": "Es ist einsam im Sattel, seit das Pferd gestorben ist.",
+    "source": "tatoeba",
+    "upstreamId": "499"
+  },
+  {
+    "text": "Die Mathematik ist der Teil der Wissenschaft, den man weiter betreiben könnte, wenn man morgen aufwachen würde und entdecken würde, dass das Universum weg ist.",
+    "source": "tatoeba",
+    "upstreamId": "500"
+  },
+  {
+    "text": "Meine Augen sind ein Ozean, in dem sich meine Träume spiegeln.",
+    "source": "tatoeba",
+    "upstreamId": "501"
+  },
+  {
+    "text": "Ihr kennt den Satz, wir ernten, was wir säen. Ich habe den Wind gesät und hier ist mein Sturm.",
+    "source": "tatoeba",
+    "upstreamId": "502"
+  },
+  {
+    "text": "Schau mich an, wenn ich mit dir rede!",
+    "source": "tatoeba",
+    "upstreamId": "503"
+  },
+  {
+    "text": "Was wäre die Welt ohne Frauen?",
+    "source": "tatoeba",
+    "upstreamId": "504"
+  },
+  {
+    "text": "Was wäre, wenn du eine Rede halten würdest, und niemand käme?",
+    "source": "tatoeba",
+    "upstreamId": "505"
+  },
+  {
+    "text": "Ich weiß nicht, was ich sagen soll, um dich zu trösten.",
+    "source": "tatoeba",
+    "upstreamId": "506"
+  },
+  {
+    "text": "Er ist nicht mein Typ.",
+    "source": "tatoeba",
+    "upstreamId": "507"
+  },
+  {
+    "text": "Ich versuchte, die Zeit totzuschlagen.",
+    "source": "tatoeba",
+    "upstreamId": "508"
+  },
+  {
+    "text": "Wie bist du auf diese verrückte Idee gekommen?",
+    "source": "tatoeba",
+    "upstreamId": "509"
+  },
+  {
+    "text": "Wer will heiße Schokolade?",
+    "source": "tatoeba",
+    "upstreamId": "511"
+  },
+  {
+    "text": "Sprechen Sie bitte langsamer!",
+    "source": "tatoeba",
+    "upstreamId": "512"
+  },
+  {
+    "text": "Und was werden wir machen?",
+    "source": "tatoeba",
+    "upstreamId": "516"
+  },
+  {
+    "text": "Ich habe Kopfweh.",
+    "source": "tatoeba",
+    "upstreamId": "517"
+  },
+  {
+    "text": "Wo kann man telefonieren?",
+    "source": "tatoeba",
+    "upstreamId": "518"
+  },
+  {
+    "text": "Ich muss zugeben, dass ich schnarche.",
+    "source": "tatoeba",
+    "upstreamId": "519"
+  },
+  {
+    "text": "Heute Abend gehen wir in die Kirche.",
+    "source": "tatoeba",
+    "upstreamId": "520"
+  },
+  {
+    "text": "Wie geht's dir? Hattest du eine gute Reise?",
+    "source": "tatoeba",
+    "upstreamId": "521"
+  },
+  {
+    "text": "Ich fühle mich nicht gut.",
+    "source": "tatoeba",
+    "upstreamId": "522"
+  },
+  {
+    "text": "Rufen Sie die Polizei!",
+    "source": "tatoeba",
+    "upstreamId": "523"
+  },
+  {
+    "text": "Das ist zu teuer!",
+    "source": "tatoeba",
+    "upstreamId": "524"
+  },
+  {
+    "text": "Sie gibt nur vor zu schlafen, deswegen schnarcht sie nicht.",
+    "source": "tatoeba",
+    "upstreamId": "525"
+  },
+  {
+    "text": "Meine Schuhe sind zu klein, ich brauche neue.",
+    "source": "tatoeba",
+    "upstreamId": "526"
+  },
+  {
+    "text": "Hauen wir ab von hier, die Bullen kommen.",
+    "source": "tatoeba",
+    "upstreamId": "527"
+  },
+  {
+    "text": "Fröhliche Weihnachten!",
+    "source": "tatoeba",
+    "upstreamId": "528"
+  },
+  {
+    "text": "Das wäre zu cool, wenn ich zehn Sprachen sprechen könnte!",
+    "source": "tatoeba",
+    "upstreamId": "529"
+  },
+  {
+    "text": "\"Wenn du müde bist, wieso gehst du nicht schlafen?\" \"Weil ich zu früh aufwachen werde, wenn ich jetzt schlafen gehe.\"",
+    "source": "tatoeba",
+    "upstreamId": "530"
+  },
+  {
+    "text": "Du hättest mir zuhören sollen.",
+    "source": "tatoeba",
+    "upstreamId": "531"
+  },
+  {
+    "text": "Das ist ein totales Schlamassel und es geht mir auf die Nerven.",
+    "source": "tatoeba",
+    "upstreamId": "532"
+  },
+  {
+    "text": "Wenn der Körper berührt wird, schicken Rezeptoren in der Haut Nachrichten zum Gehirn und verursachen die Ausschüttung von chemischen Stoffen wie Endorphinen.",
+    "source": "tatoeba",
+    "upstreamId": "533"
+  },
+  {
+    "text": "Was bringt das mit sich?",
+    "source": "tatoeba",
+    "upstreamId": "534"
+  },
+  {
+    "text": "Die Ausgewählten werden umfassende medizinische und psychologische Tests machen müssen.",
+    "source": "tatoeba",
+    "upstreamId": "536"
+  },
+  {
+    "text": "Eine halbe Million Kinder im Niger leidet immer noch an Unterernährung.",
+    "source": "tatoeba",
+    "upstreamId": "537"
+  },
+  {
+    "text": "Es wird fünf bis zehn Jahre dauern, bis die Technologie bereit ist.",
+    "source": "tatoeba",
+    "upstreamId": "538"
+  },
+  {
+    "text": "Fahrräder sind Hilfsmittel für städtische Nachhaltigkeit.",
+    "source": "tatoeba",
+    "upstreamId": "539"
+  },
+  {
+    "text": "Die französische Regierung hat ein Online-Spiel auf den Markt gebracht, das Steuerzahler auffordert, den Staatshaushalt auszugleichen.",
+    "source": "tatoeba",
+    "upstreamId": "540"
+  },
+  {
+    "text": "Er wäre froh, das zu hören.",
+    "source": "tatoeba",
+    "upstreamId": "541"
+  },
+  {
+    "text": "Was glauben Sie ist wahr, obwohl Sie es nicht beweisen können?",
+    "source": "tatoeba",
+    "upstreamId": "542"
+  },
+  {
+    "text": "Computer machen die Leute dumm.",
+    "source": "tatoeba",
+    "upstreamId": "543"
+  },
+  {
+    "text": "Fragt nicht, was sie denken. Fragt, was sie tun.",
+    "source": "tatoeba",
+    "upstreamId": "544"
+  },
+  {
+    "text": "Wenn Sie versuchen, etwas zu beweisen, hilft es zu wissen, dass es wahr ist.",
+    "source": "tatoeba",
+    "upstreamId": "545"
+  },
+  {
+    "text": "Was die Welt verändert, ist Kommunikation, nicht Information.",
+    "source": "tatoeba",
+    "upstreamId": "546"
+  },
+  {
+    "text": "Die meisten wissenschaftlichen Durchbrüche sind nichts anderes als die Entdeckung von etwas Selbstverständlichem.",
+    "source": "tatoeba",
+    "upstreamId": "547"
+  },
+  {
+    "text": "Wenn Sie etwas nicht verstehen, dann, weil Sie sich nicht des Kontextes bewusst sind.",
+    "source": "tatoeba",
+    "upstreamId": "548"
+  },
+  {
+    "text": "Die Vergangenheit kann man nur kennen, nicht ändern. Die Zukunft kann man nur ändern, nicht kennen.",
+    "source": "tatoeba",
+    "upstreamId": "549"
+  },
+  {
+    "text": "Die Schlüsselfrage ist nicht, was ich gewinnen kann, sondern, was ich verlieren kann.",
+    "source": "tatoeba",
+    "upstreamId": "550"
+  },
+  {
+    "text": "Alles, was falsch verstanden werden kann, wird falsch verstanden werden.",
+    "source": "tatoeba",
+    "upstreamId": "551"
+  },
+  {
+    "text": "Jedes Universum, das einfach genug ist, um verstanden zu werden, ist zu einfach, um einen Geist hervorzubringen, der es versteht.",
+    "source": "tatoeba",
+    "upstreamId": "552"
+  },
+  {
+    "text": "Warum ist das Leben so voll mit Leiden?",
+    "source": "tatoeba",
+    "upstreamId": "553"
+  },
+  {
+    "text": "Trotz der Wichtigkeit von Schlaf ist sein Zweck ein Rätsel.",
+    "source": "tatoeba",
+    "upstreamId": "554"
+  },
+  {
+    "text": "Leidenschaft schafft Leiden.",
+    "source": "tatoeba",
+    "upstreamId": "556"
+  },
+  {
+    "text": "Der Zug aus Genf wird in den Bahnhof einfahren.",
+    "source": "tatoeba",
+    "upstreamId": "557"
+  },
+  {
+    "text": "Ich würde ihm gerne ein Geschenk zu seinem Geburtstag machen.",
+    "source": "tatoeba",
+    "upstreamId": "558"
+  },
+  {
+    "text": "Ich sterbe vor Hunger!",
+    "source": "tatoeba",
+    "upstreamId": "559"
+  },
+  {
+    "text": "Hast du Freunde in Antigua?",
+    "source": "tatoeba",
+    "upstreamId": "560"
+  },
+  {
+    "text": "Ich habe so viel Arbeit, dass ich eine Stunde länger bleibe.",
+    "source": "tatoeba",
+    "upstreamId": "562"
+  },
+  {
+    "text": "Ich bin verheiratet und habe zwei Kinder.",
+    "source": "tatoeba",
+    "upstreamId": "563"
+  },
+  {
+    "text": "Er spielt sehr gut Klavier.",
+    "source": "tatoeba",
+    "upstreamId": "564"
+  },
+  {
+    "text": "Ich möchte in Paris studieren.",
+    "source": "tatoeba",
+    "upstreamId": "566"
+  },
+  {
+    "text": "Ihr wisst nicht, wer ich bin.",
+    "source": "tatoeba",
+    "upstreamId": "567"
+  },
+  {
+    "text": "Warum isst du kein Gemüse?",
+    "source": "tatoeba",
+    "upstreamId": "568"
+  },
+  {
+    "text": "Warum gehen Leute ins Kino?",
+    "source": "tatoeba",
+    "upstreamId": "569"
+  },
+  {
+    "text": "Ich ziehe mich aus.",
+    "source": "tatoeba",
+    "upstreamId": "570"
+  },
+  {
+    "text": "Das Auto fuhr gegen die Mauer.",
+    "source": "tatoeba",
+    "upstreamId": "571"
+  },
+  {
+    "text": "Es gibt keine reellen Visionen.",
+    "source": "tatoeba",
+    "upstreamId": "572"
+  },
+  {
+    "text": "Es bringt nichts, mir \"Hallo, wie geht's?\" zu sagen, wenn du sonst nichts zu sagen hast.",
+    "source": "tatoeba",
+    "upstreamId": "573"
+  },
+  {
+    "text": "In einem Wörterbuch wie diesem sollte es mindestens zwei Sätze mit \"Kühlschrank\" geben.",
+    "source": "tatoeba",
+    "upstreamId": "574"
+  },
+  {
+    "text": "Der Kreationismus ist eine Pseudowissenschaft.",
+    "source": "tatoeba",
+    "upstreamId": "575"
+  },
+  {
+    "text": "Der Wind hat sich beruhigt.",
+    "source": "tatoeba",
+    "upstreamId": "576"
+  },
+  {
+    "text": "Ich will nicht um deine Hand anhalten!",
+    "source": "tatoeba",
+    "upstreamId": "578"
+  },
+  {
+    "text": "Gib mir Zeit, dir alles zu geben, was ich habe!",
+    "source": "tatoeba",
+    "upstreamId": "579"
+  },
+  {
+    "text": "Ein Demokrat ist ein freier Bürger, der sich dem Willen der Mehrheit beugt.",
+    "source": "tatoeba",
+    "upstreamId": "580"
+  },
+  {
+    "text": "Rom ist nicht an einem Tage erbaut worden.",
+    "source": "tatoeba",
+    "upstreamId": "583"
+  },
+  {
+    "text": "Keine Antwort ist auch eine.",
+    "source": "tatoeba",
+    "upstreamId": "584"
+  },
+  {
+    "text": "„Bist du fertig?“ – „Im Gegenteil. Ich habe noch nicht einmal begonnen.“",
+    "source": "tatoeba",
+    "upstreamId": "585"
+  },
+  {
+    "text": "\"Guten Morgen\", sagte Tom mit einem Lächeln.",
+    "source": "tatoeba",
+    "upstreamId": "586"
+  },
+  {
+    "text": "Warum sagt man \"Guten Tag!\", wenn der Tag nicht gut ist?",
+    "source": "tatoeba",
+    "upstreamId": "587"
+  },
+  {
+    "text": "Wein ist in Flaschen gefüllte Poesie.",
+    "source": "tatoeba",
+    "upstreamId": "588"
+  },
+  {
+    "text": "Das war der schönste Tag in meinem Leben.",
+    "source": "tatoeba",
+    "upstreamId": "589"
+  },
+  {
+    "text": "Ich verstehe kein Deutsch.",
+    "source": "tatoeba",
+    "upstreamId": "590"
+  },
+  {
+    "text": "Ich habe meine Entscheidung getroffen.",
+    "source": "tatoeba",
+    "upstreamId": "591"
+  },
+  {
+    "text": "Ich gebe dir mein Wort.",
+    "source": "tatoeba",
+    "upstreamId": "592"
+  },
+  {
+    "text": "Du bist die große Liebe meines Lebens.",
+    "source": "tatoeba",
+    "upstreamId": "594"
+  },
+  {
+    "text": "Objektiv sein heißt, nicht zu verraten, zu wem man hält.",
+    "source": "tatoeba",
+    "upstreamId": "595"
+  },
+  {
+    "text": "Wir haben einen Papst.",
+    "source": "tatoeba",
+    "upstreamId": "596"
+  },
+  {
+    "text": "Ein Mathematiker ist ein Mensch, der einen ihm vorgetragenen Gedanken nicht nur sofort begreift, sondern auch erkennt, auf welchem Denkfehler er beruht.",
+    "source": "tatoeba",
+    "upstreamId": "597"
+  },
+  {
+    "text": "Das Ganze ist mehr als die Summe seiner Teile.",
+    "source": "tatoeba",
+    "upstreamId": "598"
+  },
+  {
+    "text": "Die Mathematik ist dem Verlangen nicht abträglich.",
+    "source": "tatoeba",
+    "upstreamId": "599"
+  },
+  {
+    "text": "Eine mathematische Wahrheit ist weder einfach noch kompliziert, sie ist.",
+    "source": "tatoeba",
+    "upstreamId": "600"
+  },
+  {
+    "text": "Mathematiker sind Dichter, nur müssen sie das, was ihre Fantasie schafft, auch beweisen.",
+    "source": "tatoeba",
+    "upstreamId": "601"
+  },
+  {
+    "text": "Die Mathematik ist wie die Logik der Physik.",
+    "source": "tatoeba",
+    "upstreamId": "602"
+  },
+  {
+    "text": "Die Mathematiker sind eine Art Franzosen: redet man zu ihnen, so übersetzen sie es in ihre Sprache, und dann ist es alsobald ganz etwas anders.",
+    "source": "tatoeba",
+    "upstreamId": "603"
+  },
+  {
+    "text": "Ein Experte ist jemand, der die schlimmsten Fehler kennt, die in seinem Gebiet gemacht werden können und weiß, wie man sie vermeidet.",
+    "source": "tatoeba",
+    "upstreamId": "604"
+  },
+  {
+    "text": "Mathe zu machen ist die einzige gesellschaftlich akzeptable Art, sich in der Öffentlichkeit selbstzubefriedigen.",
+    "source": "tatoeba",
+    "upstreamId": "605"
+  },
+  {
+    "text": "Ich denke nicht, also bin ich nicht.",
+    "source": "tatoeba",
+    "upstreamId": "607"
+  },
+  {
+    "text": "Heutzutage wollen wir, dass unsere Kinder ihre eigenen Entscheidungen treffen, aber wir erwarten, dass uns diese Entscheidungen passen.",
+    "source": "tatoeba",
+    "upstreamId": "608"
+  },
+  {
+    "text": "Mach dir keine Sorgen, sei fröhlich!",
+    "source": "tatoeba",
+    "upstreamId": "609"
+  },
+  {
+    "text": "Im Alter von sechs Jahren hatte er gelernt, eine Schreibmaschine zu bedienen und er erklärte dem Lehrer, dass er nicht lernen müsste, mit der Hand zu schreiben.",
+    "source": "tatoeba",
+    "upstreamId": "610"
+  },
+  {
+    "text": "Ich finde Fremdsprachen sehr interessant.",
+    "source": "tatoeba",
+    "upstreamId": "611"
+  },
+  {
+    "text": "Ich lerne nicht gerne unregelmäßige Verben.",
+    "source": "tatoeba",
+    "upstreamId": "612"
+  },
+  {
+    "text": "Nimm ein Buch und lies es!",
+    "source": "tatoeba",
+    "upstreamId": "613"
+  },
+  {
+    "text": "Stell dich dem Leben lächelnd!",
+    "source": "tatoeba",
+    "upstreamId": "614"
+  },
+  {
+    "text": "Die meisten Schulen wurden nicht konzipiert, um die Gesellschaft zu verändern, sondern um sie zu reproduzieren.",
+    "source": "tatoeba",
+    "upstreamId": "615"
+  },
+  {
+    "text": "Du bringst mich zum Träumen.",
+    "source": "tatoeba",
+    "upstreamId": "616"
+  },
+  {
+    "text": "Ich bin außer mir vor Freude.",
+    "source": "tatoeba",
+    "upstreamId": "617"
+  },
+  {
+    "text": "Er ist schon ein Mann.",
+    "source": "tatoeba",
+    "upstreamId": "618"
+  },
+  {
+    "text": "Die Ferien sind jetzt vorbei.",
+    "source": "tatoeba",
+    "upstreamId": "619"
+  },
+  {
+    "text": "Ich habe Angst zu fallen.",
+    "source": "tatoeba",
+    "upstreamId": "620"
+  },
+  {
+    "text": "Abendgarderobe ist erwünscht.",
+    "source": "tatoeba",
+    "upstreamId": "621"
+  },
+  {
+    "text": "Das ist die reine Wahrheit.",
+    "source": "tatoeba",
+    "upstreamId": "622"
+  },
+  {
+    "text": "Wenn ich Leute frage, was sie in Bezug aufs Gymnasium am meisten bedauern, sagen fast alle das Gleiche: dass sie so viel Zeit verschwendet haben.",
+    "source": "tatoeba",
+    "upstreamId": "625"
+  },
+  {
+    "text": "Wenn man nicht machen kann, was man will, macht man, was man kann.",
+    "source": "tatoeba",
+    "upstreamId": "626"
+  },
+  {
+    "text": "Wenn man ihm den kleinen Finger gibt, so nimmt er die ganze Hand.",
+    "source": "tatoeba",
+    "upstreamId": "627"
+  },
+  {
+    "text": "Das hast du absichtlich getan!",
+    "source": "tatoeba",
+    "upstreamId": "629"
+  },
+  {
+    "text": "Du hast ihm nichts gesagt?",
+    "source": "tatoeba",
+    "upstreamId": "630"
+  },
+  {
+    "text": "Du hast mir den Kopf verdreht.",
+    "source": "tatoeba",
+    "upstreamId": "631"
+  },
+  {
+    "text": "Du bist mein Typ.",
+    "source": "tatoeba",
+    "upstreamId": "632"
+  },
+  {
+    "text": "Du bist unwiderstehlich.",
+    "source": "tatoeba",
+    "upstreamId": "633"
+  },
+  {
+    "text": "Könntest du bitte später zurückrufen?",
+    "source": "tatoeba",
+    "upstreamId": "634"
+  },
+  {
+    "text": "Mit wem spreche ich?",
+    "source": "tatoeba",
+    "upstreamId": "635"
+  },
+  {
+    "text": "Ich akzeptiere, aber nur unter einer Bedingung.",
+    "source": "tatoeba",
+    "upstreamId": "636"
+  },
+  {
+    "text": "Lächle jetzt, heul' später!",
+    "source": "tatoeba",
+    "upstreamId": "637"
+  },
+  {
+    "text": "Das Leben ist schön.",
+    "source": "tatoeba",
+    "upstreamId": "638"
+  },
+  {
+    "text": "Verdirb mir nicht mein Vergnügen nach der ganzen Mühe, die ich mir gemacht habe.",
+    "source": "tatoeba",
+    "upstreamId": "639"
+  },
+  {
+    "text": "Es gibt Tage, an denen ich den Eindruck habe, dass mein Gehirn mich im Stich lassen will.",
+    "source": "tatoeba",
+    "upstreamId": "640"
+  },
+  {
+    "text": "Ich kann mir nicht gleichzeitig die Nägel schneiden und bügeln!",
+    "source": "tatoeba",
+    "upstreamId": "641"
+  },
+  {
+    "text": "Ich halte es nicht mehr aus! Ich habe seit drei Tagen nicht mehr geschlafen!",
+    "source": "tatoeba",
+    "upstreamId": "642"
+  },
+  {
+    "text": "Er will nicht, dass du ihm von deinem Sexualleben erzählst.",
+    "source": "tatoeba",
+    "upstreamId": "643"
+  },
+  {
+    "text": "Hast du schon Bananenkuchen gegessen?",
+    "source": "tatoeba",
+    "upstreamId": "644"
+  },
+  {
+    "text": "Warum heiratet man eine Frau, wenn man Männer liebt?",
+    "source": "tatoeba",
+    "upstreamId": "645"
+  },
+  {
+    "text": "Wenn du keine Kinder kriegen kannst, kannst du immer noch welche adoptieren.",
+    "source": "tatoeba",
+    "upstreamId": "646"
+  },
+  {
+    "text": "Was hat dich dazu gebracht, deine Meinung zu ändern?",
+    "source": "tatoeba",
+    "upstreamId": "648"
+  },
+  {
+    "text": "Hey, schau' mal, ein Affe mit drei Köpfen!",
+    "source": "tatoeba",
+    "upstreamId": "649"
+  },
+  {
+    "text": "Es ist schade, dass man Wunder nicht kaufen kann, wie man Kartoffeln kauft.",
+    "source": "tatoeba",
+    "upstreamId": "650"
+  },
+  {
+    "text": "Ich liebe Lasagne.",
+    "source": "tatoeba",
+    "upstreamId": "651"
+  },
+  {
+    "text": "Wenn man weiß, dass etwas Unangenehmes geschehen wird, dass man zum Beispiel zum Zahnarzt oder nach Frankreich gehen wird, dann ist das nicht gut.",
+    "source": "tatoeba",
+    "upstreamId": "652"
+  },
+  {
+    "text": "Primzahlen sind wie das Leben, sie sind völlig logisch, aber es ist unmöglich, Regeln für sie zu finden, selbst wenn man seine ganze Zeit dem Nachdenken darüber widmet.",
+    "source": "tatoeba",
+    "upstreamId": "654"
+  },
+  {
+    "text": "Wenn man eine Augenbraue hochzieht, kann das bedeuten \"Ich habe Lust, mit dir Sex zu haben\", aber auch \"Ich finde, dass das, was du gerade gesagt hast, vollkommen idiotisch ist.\"",
+    "source": "tatoeba",
+    "upstreamId": "655"
+  },
+  {
+    "text": "Das Gehirn ist nur eine komplizierte Maschine.",
+    "source": "tatoeba",
+    "upstreamId": "656"
+  },
+  {
+    "text": "Ein Stundenplan ist ein Ausweis für die Zeit, nur, wenn man keinen Stundenplan hat, ist die Zeit nicht da.",
+    "source": "tatoeba",
+    "upstreamId": "657"
+  },
+  {
+    "text": "Dieses Pinguinbaby ist so niedlich!",
+    "source": "tatoeba",
+    "upstreamId": "658"
+  },
+  {
+    "text": "Ich bin im Krankenhaus. Ich wurde vom Blitz getroffen.",
+    "source": "tatoeba",
+    "upstreamId": "660"
+  },
+  {
+    "text": "Gib die Hoffnung nicht auf, noch ist nicht alles verloren.",
+    "source": "tatoeba",
+    "upstreamId": "661"
+  },
+  {
+    "text": "Seien wir ehrlich, es ist unmöglich. Wir werden es nie schaffen.",
+    "source": "tatoeba",
+    "upstreamId": "662"
+  },
+  {
+    "text": "Was ist ihre größte Inspirationsquelle?",
+    "source": "tatoeba",
+    "upstreamId": "663"
+  },
+  {
+    "text": "Man heiratet nicht jemanden, mit dem man leben kann - man heiratet die Person, ohne die man nicht leben kann.",
+    "source": "tatoeba",
+    "upstreamId": "664"
+  },
+  {
+    "text": "In der Theorie gibt es keinen Unterschied zwischen Theorie und Praxis. Aber in der Praxis gibt es einen.",
+    "source": "tatoeba",
+    "upstreamId": "665"
+  },
+  {
+    "text": "Bleibt nicht im Bett, sofern ihr nicht im Bett Geld verdienen könnt.",
+    "source": "tatoeba",
+    "upstreamId": "666"
+  },
+  {
+    "text": "Es gibt Leute auf der Welt, die so hungrig sind, dass Gott ihnen nicht erscheinen kann, außer in Form von Brot.",
+    "source": "tatoeba",
+    "upstreamId": "667"
+  },
+  {
+    "text": "Alles, was zu dumm ist, um gesagt zu werden, wird gesungen.",
+    "source": "tatoeba",
+    "upstreamId": "668"
+  },
+  {
+    "text": "Es erfordert Weisheit, um Weisheit zu verstehen: die Musik ist nichts, wenn das Publikum taub ist.",
+    "source": "tatoeba",
+    "upstreamId": "669"
+  },
+  {
+    "text": "Ich habe gerade die Briefe nochmal gelesen, die du mir geschickt hast.",
+    "source": "tatoeba",
+    "upstreamId": "670"
+  },
+  {
+    "text": "Ich will nicht in die Schule gehen.",
+    "source": "tatoeba",
+    "upstreamId": "671"
+  },
+  {
+    "text": "Es ist aus zwischen uns, gib mir meinen Ring zurück!",
+    "source": "tatoeba",
+    "upstreamId": "672"
+  },
+  {
+    "text": "Ich hatte vor, heute an den Strand zu gehen, aber dann fing es an zu regnen.",
+    "source": "tatoeba",
+    "upstreamId": "674"
+  },
+  {
+    "text": "Sie ist wirklich intelligent, oder?",
+    "source": "tatoeba",
+    "upstreamId": "675"
+  },
+  {
+    "text": "Eine Meinung ist nur dann schockierend, wenn sie eine Überzeugung ist.",
+    "source": "tatoeba",
+    "upstreamId": "676"
+  },
+  {
+    "text": "Menschen, die lieben, zweifeln an nichts oder zweifeln an allem.",
+    "source": "tatoeba",
+    "upstreamId": "677"
+  },
+  {
+    "text": "Gerechtigkeit ist teuer.",
+    "source": "tatoeba",
+    "upstreamId": "678"
+  },
+  {
+    "text": "Freiheit besteht darin, alles machen zu können, was keinem anderen schadet.",
+    "source": "tatoeba",
+    "upstreamId": "679"
+  },
+  {
+    "text": "Der Langsamste beim Versprechen ist der Treueste beim Einhalten.",
+    "source": "tatoeba",
+    "upstreamId": "680"
+  },
+  {
+    "text": "Ein Kind ist nicht ein Gefäß zum Vollfüllen, sondern ein Feuer zum Anzünden.",
+    "source": "tatoeba",
+    "upstreamId": "681"
+  },
+  {
+    "text": "Jede Meinung ist eine Mischung aus Wahrheit und Irrtum.",
+    "source": "tatoeba",
+    "upstreamId": "682"
+  },
+  {
+    "text": "Das Leben ist eine tödliche, sexuell übertragbare Krankheit.",
+    "source": "tatoeba",
+    "upstreamId": "683"
+  },
+  {
+    "text": "Wenn zwei Menschen immer die gleiche Meinung haben, ist einer von ihnen überflüssig.",
+    "source": "tatoeba",
+    "upstreamId": "684"
+  },
+  {
+    "text": "Unsere Meinung ist eine Idee, die wir haben; unsere Überzeugung eine Idee, die uns hat.",
+    "source": "tatoeba",
+    "upstreamId": "685"
+  },
+  {
+    "text": "Morgen werde ich in der Bibliothek lernen.",
+    "source": "tatoeba",
+    "upstreamId": "686"
+  },
+  {
+    "text": "Gestern bin ich in den Zoo gegangen.",
+    "source": "tatoeba",
+    "upstreamId": "688"
+  },
+  {
+    "text": "Wir haben die Schlacht gewonnen.",
+    "source": "tatoeba",
+    "upstreamId": "689"
+  },
+  {
+    "text": "Hallo? Bist du noch da?",
+    "source": "tatoeba",
+    "upstreamId": "690"
+  },
+  {
+    "text": "Ich mache jeden Tag das Mittagessen.",
+    "source": "tatoeba",
+    "upstreamId": "691"
+  },
+  {
+    "text": "Heute Morgen habe ich ferngesehen.",
+    "source": "tatoeba",
+    "upstreamId": "692"
+  },
+  {
+    "text": "Ich habe während des Essens ein Buch gelesen.",
+    "source": "tatoeba",
+    "upstreamId": "693"
+  },
+  {
+    "text": "Ich habe während der Mittagspause ein wenig geschlafen, weil ich so müde war.",
+    "source": "tatoeba",
+    "upstreamId": "694"
+  },
+  {
+    "text": "Ich habe letzte Woche begonnen, Chinesisch zu lernen.",
+    "source": "tatoeba",
+    "upstreamId": "695"
+  },
+  {
+    "text": "Es ist einfacher, Leute im Internet anzubaggern als auf der Straße.",
+    "source": "tatoeba",
+    "upstreamId": "696"
+  },
+  {
+    "text": "Ich wohne nahe am Meer, also kann ich oft an den Strand gehen.",
+    "source": "tatoeba",
+    "upstreamId": "697"
+  },
+  {
+    "text": "Eines Tages werde ich eine Zuckerwattemaschine kaufen.",
+    "source": "tatoeba",
+    "upstreamId": "698"
+  },
+  {
+    "text": "Es ist praktisch, einen Laptop zu haben.",
+    "source": "tatoeba",
+    "upstreamId": "699"
+  },
+  {
+    "text": "Deine Brille ist auf den Boden gefallen.",
+    "source": "tatoeba",
+    "upstreamId": "700"
+  },
+  {
+    "text": "Wie oft am Tag schaust du dich im Spiegel an?",
+    "source": "tatoeba",
+    "upstreamId": "701"
+  },
+  {
+    "text": "Letztes Jahr sind wir nach London gegangen.",
+    "source": "tatoeba",
+    "upstreamId": "702"
+  },
+  {
+    "text": "Sie will nicht darüber sprechen.",
+    "source": "tatoeba",
+    "upstreamId": "703"
+  },
+  {
+    "text": "Ich habe meine Inspiration verloren.",
+    "source": "tatoeba",
+    "upstreamId": "704"
+  },
+  {
+    "text": "Ich brauche mehr Zeit.",
+    "source": "tatoeba",
+    "upstreamId": "705"
+  },
+  {
+    "text": "Wenn du nichts zu tun hast, schau an deine Zimmerdecke.",
+    "source": "tatoeba",
+    "upstreamId": "706"
+  },
+  {
+    "text": "Das bedeutet nichts!",
+    "source": "tatoeba",
+    "upstreamId": "707"
+  },
+  {
+    "text": "Sei bitte geduldig, das braucht Zeit.",
+    "source": "tatoeba",
+    "upstreamId": "708"
+  },
+  {
+    "text": "Schließ beim Hinausgehen die Türe.",
+    "source": "tatoeba",
+    "upstreamId": "709"
+  },
+  {
+    "text": "Das ist so eine traurige Geschichte.",
+    "source": "tatoeba",
+    "upstreamId": "710"
+  },
+  {
+    "text": "Wenn es keine Lösung gibt, dann gibt es kein Problem.",
+    "source": "tatoeba",
+    "upstreamId": "711"
+  },
+  {
+    "text": "Mein kleiner Bruder sieht fern.",
+    "source": "tatoeba",
+    "upstreamId": "712"
+  },
+  {
+    "text": "Es ist anmaßend von Menschen, anzunehmen, dass unsere Aufgabe ist, zu tun, was nur Gott tun kann.",
+    "source": "tatoeba",
+    "upstreamId": "713"
+  },
+  {
+    "text": "Ein kluger Leser sollte bereit sein, alles abzuwägen, was er liest, einschließlich der anonymen Quellen.",
+    "source": "tatoeba",
+    "upstreamId": "714"
+  },
+  {
+    "text": "Katja leugnete, dass sie eine Anarchistin war, indem sie behauptete, dass sie nur wünschte, Veränderung in unserer Regierung zu machen, nicht, sie zu zerstören.",
+    "source": "tatoeba",
+    "upstreamId": "715"
+  },
+  {
+    "text": "Blindheit ist verantwortlich für eine erschütternde Anzahl von Opfern schlechter Gesundheit, Leiden und Verlust von Würde und Verminderung der Lebensqualität von Menschen in der ganzen Welt.",
+    "source": "tatoeba",
+    "upstreamId": "716"
+  },
+  {
+    "text": "Bildung und Bewegung von Hurrikanen sind unberechenbar, sogar mit unserer modernen Technologie.",
+    "source": "tatoeba",
+    "upstreamId": "717"
+  },
+  {
+    "text": "Wenn man ein Telegramm sendet, ist Kürze unerlässlich, weil einem jedes Wort berechnet wird.",
+    "source": "tatoeba",
+    "upstreamId": "718"
+  },
+  {
+    "text": "David hat ein leidenschaftliches Interesse an Ästhetik - den Eigenschaften, die ein Gemälde, eine Skulptur, eine musikalische Komposition oder ein Gedicht Auge, Ohr oder Geist gefallen lassen.",
+    "source": "tatoeba",
+    "upstreamId": "719"
+  },
+  {
+    "text": "Trotz Trangs regelmäßigen Liebesbeteuerungen hat Spenser immer noch Angst, dass sie irgendwann aufhören wird, ihn zu lieben.",
+    "source": "tatoeba",
+    "upstreamId": "720"
+  },
+  {
+    "text": "Hast du ihn in der Universität getroffen?",
+    "source": "tatoeba",
+    "upstreamId": "721"
+  },
+  {
+    "text": "Aaah!! Mein Computer ist kaputt!",
+    "source": "tatoeba",
+    "upstreamId": "722"
+  },
+  {
+    "text": "Die privaten Colleges und Universitäten der Vereinigten Staaten sind selbstständig.",
+    "source": "tatoeba",
+    "upstreamId": "723"
+  },
+  {
+    "text": "Jedes Mal, wenn ich in ein neues Warcraft-Spiel eintrete, stehe ich einem neuen Team von Gegnern gegenüber.",
+    "source": "tatoeba",
+    "upstreamId": "724"
+  },
+  {
+    "text": "Seit ich weiß, dass die Universität existiert, will ich hingehen.",
+    "source": "tatoeba",
+    "upstreamId": "725"
+  },
+  {
+    "text": "Meine Wahlunlust kommt von meiner Abneigung gegen Politik.",
+    "source": "tatoeba",
+    "upstreamId": "726"
+  },
+  {
+    "text": "Es ist der Aufstieg der Monarchen, der ihre Untertanen vom Aufstand abhält.",
+    "source": "tatoeba",
+    "upstreamId": "727"
+  },
+  {
+    "text": "Sarah war scharfsinnig genug, um zu merken, dass ihre Freunde versuchten, ihr einen Streich zu spielen.",
+    "source": "tatoeba",
+    "upstreamId": "728"
+  },
+  {
+    "text": "Das Orchester macht misstönende Geräusche beim Stimmen.",
+    "source": "tatoeba",
+    "upstreamId": "729"
+  },
+  {
+    "text": "Die Unstimmigkeit zwischen den Geschichten der zwei Unfallbeteiligten war so groß, dass die Behörden Schwierigkeiten hatten, zu entscheiden, welche Seite die Wahrheit erzählte.",
+    "source": "tatoeba",
+    "upstreamId": "730"
+  },
+  {
+    "text": "Ja, das passiert von Zeit zu Zeit.",
+    "source": "tatoeba",
+    "upstreamId": "731"
+  },
+  {
+    "text": "Ich habe große Angst, von denen verschmäht zu werden, für die ich Liebe und Zuneigung empfinde.",
+    "source": "tatoeba",
+    "upstreamId": "732"
+  },
+  {
+    "text": "Die meisten Leute haben große Unlust, früh aufzustehen, selbst wenn sie es müssen.",
+    "source": "tatoeba",
+    "upstreamId": "733"
+  },
+  {
+    "text": "Die meisten Leute wollen nur ihre eigene Wahrheit hören.",
+    "source": "tatoeba",
+    "upstreamId": "734"
+  },
+  {
+    "text": "Das Publikum klatschte den Schauspielern für ihre Leistung Beifall.",
+    "source": "tatoeba",
+    "upstreamId": "735"
+  },
+  {
+    "text": "Es ist gut, Ideale zu haben, findest du nicht?",
+    "source": "tatoeba",
+    "upstreamId": "736"
+  },
+  {
+    "text": "Der Schüler entschloss sich dazu, seine Hausarbeit zu kürzen, indem er alle unnötigen Details strich.",
+    "source": "tatoeba",
+    "upstreamId": "737"
+  },
+  {
+    "text": "Die Menschen in der Welt setzen sich immer für mehr Freiheit und Gleichheit ein.",
+    "source": "tatoeba",
+    "upstreamId": "738"
+  },
+  {
+    "text": "Politiker werden stets getadelt für skandalöses und unangebrachtes Verhalten.",
+    "source": "tatoeba",
+    "upstreamId": "739"
+  },
+  {
+    "text": "Frau Eichler war für ihren Ruf bekannt, streng zu ihren Schülern zu sein.",
+    "source": "tatoeba",
+    "upstreamId": "740"
+  },
+  {
+    "text": "Wenn Sie uns nicht zuhören, werden wir auf Zwang zurückgreifen müssen.",
+    "source": "tatoeba",
+    "upstreamId": "741"
+  },
+  {
+    "text": "Wenn ich Migräne habe, vermindert Aspirin meine Beschwerden nicht.",
+    "source": "tatoeba",
+    "upstreamId": "742"
+  },
+  {
+    "text": "Spensers sarkastische und scherzhafte Bemerkungen werden oft als Zeichen von Doppelwertigkeit missinterpretiert und zu ernst genommen.",
+    "source": "tatoeba",
+    "upstreamId": "743"
+  },
+  {
+    "text": "Für ihn war Hunger ein theoretischer Begriff; er hatte immer genug zu essen.",
+    "source": "tatoeba",
+    "upstreamId": "744"
+  },
+  {
+    "text": "Der verurteilte Drogendealer war gewillt, sich den Behörden zu fügen, um seine Todesstrafe zu einer lebenslänglichen Freiheitsstrafe zu vermindern.",
+    "source": "tatoeba",
+    "upstreamId": "745"
+  },
+  {
+    "text": "Der Irakkrieg ist ein unberechenbares Thema der politischen Debatte; ein falsches Wort und ein Streit könnte sich entzünden.",
+    "source": "tatoeba",
+    "upstreamId": "746"
+  },
+  {
+    "text": "Mein nächster Türnachbar ist ein Virtuose, dessen Geschick am Klavier ihm einen Namen unter den Musikexperten eingebracht hat.",
+    "source": "tatoeba",
+    "upstreamId": "747"
+  },
+  {
+    "text": "Er hatte es satt, die ganze Zeit von Leuten verunglimpft zu werden, die neidisch auf sein Können waren.",
+    "source": "tatoeba",
+    "upstreamId": "748"
+  },
+  {
+    "text": "Sven war so wortreich, dass seine Freunde sich darauf verlegten, ihn ein Plappermaul zu nennen.",
+    "source": "tatoeba",
+    "upstreamId": "749"
+  },
+  {
+    "text": "Sogar Leute, die nicht an die katholische Kirche glauben, verehren den Papst als ein symbolisches Oberhaupt.",
+    "source": "tatoeba",
+    "upstreamId": "750"
+  },
+  {
+    "text": "Unsicher, welchen Freier sie heiraten wollte, schwankte die Prinzessin und nannte einmal den einen, einmal den anderen.",
+    "source": "tatoeba",
+    "upstreamId": "751"
+  },
+  {
+    "text": "Die neulichen Skandale, in die Messdiener und religiöse Oberhäupter verwickelt waren, haben den Glauben, den die Leute in die Kirche haben, unterminiert.",
+    "source": "tatoeba",
+    "upstreamId": "752"
+  },
+  {
+    "text": "Als sich das Flugzeug Turbulenzen näherte, bat der Pilot die Passagiere an Bord des Flugzeugs, ihre Sitzgurte zu schließen.",
+    "source": "tatoeba",
+    "upstreamId": "753"
+  },
+  {
+    "text": "Obwohl sein Aufenthalt in Europa kurzlebig war, fühlte Spenser, dass er vom Reisen mehr über Beziehungen mit anderen Menschen gelernt hatte, als er es im College getan hatte.",
+    "source": "tatoeba",
+    "upstreamId": "754"
+  },
+  {
+    "text": "Jason war ein wortkarges Individuum, daher war es immer eine echte Überraschung, wenn er etwas sagte.",
+    "source": "tatoeba",
+    "upstreamId": "755"
+  },
+  {
+    "text": "Der König war seiner Schmeichler, die ihn beständig anpriesen, müde, also schickte er sie weg.",
+    "source": "tatoeba",
+    "upstreamId": "756"
+  },
+  {
+    "text": "Wenn Spenser nicht weiterhin Sätze hinzufügt und übersetzt, werden die anderen Mitwirkenden ihn sicher übertreffen.",
+    "source": "tatoeba",
+    "upstreamId": "757"
+  },
+  {
+    "text": "In seinen Aufsätzen war immer zu viel Überflüssiges geschrieben.",
+    "source": "tatoeba",
+    "upstreamId": "758"
+  },
+  {
+    "text": "Sein Aufsatz gab nur eine oberflächliche Analyse des Problems, daher war es eine richtige Überraschung für ihn, als er die beste Note in der Klasse bekam.",
+    "source": "tatoeba",
+    "upstreamId": "759"
+  },
+  {
+    "text": "Es kommt darauf an, was du mit an Gott \"glauben\" meinst.",
+    "source": "tatoeba",
+    "upstreamId": "760"
+  },
+  {
+    "text": "Professoren sollten alles im Detail erklären, nicht knapp sein und immer ihren Studenten auftragen, heimzugehen und ihre Bücher zu lesen.",
+    "source": "tatoeba",
+    "upstreamId": "761"
+  },
+  {
+    "text": "Wenn ich keine Antwort gegeben hätte, hätte ich nicht gesprochen.",
+    "source": "tatoeba",
+    "upstreamId": "762"
+  },
+  {
+    "text": "Die Ankläger bei Gericht müssen ihre Klagen erhärten, um einen Verdächtigen als schuldig zu beweisen.",
+    "source": "tatoeba",
+    "upstreamId": "763"
+  },
+  {
+    "text": "Laut einer landesweiten Umfrage in den USA ist es ein geläufiger Glaube, dass Moslems mit Terrorismus verbunden sind.",
+    "source": "tatoeba",
+    "upstreamId": "764"
+  },
+  {
+    "text": "Mein Zimmerkamerad ist verschwenderisch, was das Geldausgeben für Filme betrifft; er kauft sie am Tag, wo sie herauskommen, ohne Rücksicht auf den Preis.",
+    "source": "tatoeba",
+    "upstreamId": "765"
+  },
+  {
+    "text": "Essen und Trinken wurden bei der Hochzeit in solch einem Überfluss serviert, dass Braut und Bräutigam begannen, sich zu fragen, ob sie nicht mehr Gäste einladen hätten sollen.",
+    "source": "tatoeba",
+    "upstreamId": "766"
+  },
+  {
+    "text": "Die Verbreitung der Nutzung des Internets hat eine neue Generation von jungen Leuten hervorgebracht.",
+    "source": "tatoeba",
+    "upstreamId": "767"
+  },
+  {
+    "text": "Meine Freunde sagen, dass ich ein überaus produktiver Schreiber bin, aber ich habe seit Monaten nichts geschrieben.",
+    "source": "tatoeba",
+    "upstreamId": "768"
+  },
+  {
+    "text": "Blinde entwickeln manchmal eine ausgleichende Fähigkeit, die Nähe der Gegenstände um sie herum zu spüren.",
+    "source": "tatoeba",
+    "upstreamId": "769"
+  },
+  {
+    "text": "Ein Geizhals hortet Geld nicht, weil er klug ist, sondern weil er habgierig ist.",
+    "source": "tatoeba",
+    "upstreamId": "770"
+  },
+  {
+    "text": "Als beide Mädchen John sagten, dass sie Gefühle für ihn hatten, wusste der nicht, mit welchem Mädchen er zusammen sein sollte.",
+    "source": "tatoeba",
+    "upstreamId": "771"
+  },
+  {
+    "text": "Sogar jetzt, viele Jahre nach dem Kalten Krieg, ist immer noch viel Verbitterung zwischen Russen und Deutschen, besonders in Gebieten, die einst von der Sowjetunion besetzt waren.",
+    "source": "tatoeba",
+    "upstreamId": "772"
+  },
+  {
+    "text": "Johnson ist ein Einsiedler; er zieht es vor, sich vom Rest der Schüler in unserer Klasse abzusondern.",
+    "source": "tatoeba",
+    "upstreamId": "773"
+  },
+  {
+    "text": "Die Bierflaschen, die ich zu der Party mitbrachte, waren überflüssig; die Familie des Gastgebers besaß eine Bierbrauerei.",
+    "source": "tatoeba",
+    "upstreamId": "774"
+  },
+  {
+    "text": "Die Zeugen waren imstande, die falsche Aussage des Verdächtigen zu widerlegen.",
+    "source": "tatoeba",
+    "upstreamId": "775"
+  },
+  {
+    "text": "Jeanne d'Arc weigerte sich, ihre Überzeugung zu leugnen, dass die Stimme, die sie hörte, von niemand anderem als Gott war.",
+    "source": "tatoeba",
+    "upstreamId": "776"
+  },
+  {
+    "text": "James hatte große Angst, im Unterricht Fehler zu machen und zurechtgewiesen zu werden.",
+    "source": "tatoeba",
+    "upstreamId": "778"
+  },
+  {
+    "text": "Meine Eltern würden meinen Bruder verstoßen, wenn sie herausfänden, dass er schwul ist.",
+    "source": "tatoeba",
+    "upstreamId": "779"
+  },
+  {
+    "text": "Um zu verhindern, dass seine Originalidee kopiert würde, verlegte sich Henry auf Schweigsamkeit.",
+    "source": "tatoeba",
+    "upstreamId": "780"
+  },
+  {
+    "text": "Ich würde gerne meine vorhergehende Erklärung widerrufen.",
+    "source": "tatoeba",
+    "upstreamId": "781"
+  },
+  {
+    "text": "Um sein Publikum für sich zu gewinnen, griff der Redner auf die Anwendung rhetorischer Techniken zurück, die er in seinen Kommunikationskursen gelernt hatte.",
+    "source": "tatoeba",
+    "upstreamId": "782"
+  },
+  {
+    "text": "Tim ist ein großer Fan von satirischen Komödien.",
+    "source": "tatoeba",
+    "upstreamId": "783"
+  },
+  {
+    "text": "Obwohl Alfred penibel beim Erfüllen seiner Aufgaben bei der Arbeit ist, ist er weniger gewissenhaft bei seinen Pflichten zu Hause.",
+    "source": "tatoeba",
+    "upstreamId": "784"
+  },
+  {
+    "text": "Spensers Mutter überprüft oft jeden kleinen Fehler, den er macht.",
+    "source": "tatoeba",
+    "upstreamId": "785"
+  },
+  {
+    "text": "Die Leute sind oft sehr skeptisch gegenüber Dingen, wenn kein glaubwürdiger Beweis gegeben ist.",
+    "source": "tatoeba",
+    "upstreamId": "786"
+  },
+  {
+    "text": "Nach der unheilverkündenden Äußerung des Doktors war es klar, dass er düstere Neuigkeiten für den Patienten hatte.",
+    "source": "tatoeba",
+    "upstreamId": "787"
+  },
+  {
+    "text": "Manchmal hat er Schwierigkeiten, seine Auffassungen gut auszudrücken.",
+    "source": "tatoeba",
+    "upstreamId": "788"
+  },
+  {
+    "text": "Jimmy versuchte, seine Eltern dazu zu kriegen, ihn mit seinen Freunden quer durch das Land fahren zu lassen.",
+    "source": "tatoeba",
+    "upstreamId": "789"
+  },
+  {
+    "text": "Popmusiker kommen durch die Schmeichelei ihrer treuen Fans zur vollen Entfaltung.",
+    "source": "tatoeba",
+    "upstreamId": "790"
+  },
+  {
+    "text": "Wir müssen lernen, Widrigkeiten anmutig zu begegnen.",
+    "source": "tatoeba",
+    "upstreamId": "791"
+  },
+  {
+    "text": "Bill Clinton sprach eine mehrdeutige Sprache, als er gebeten wurde, sein Verhältnis mit Monika Lewinsky zu beschreiben.",
+    "source": "tatoeba",
+    "upstreamId": "792"
+  },
+  {
+    "text": "Er war eine gütiger alter Mann, der sich freiwillig anbot, den Rasen seiner Nachbarn kostenlos zu mähen.",
+    "source": "tatoeba",
+    "upstreamId": "793"
+  },
+  {
+    "text": "Sein strenger Ton und seine laute Stimme täuschten über sein innerliches Zartgefühl und seine liebevolle Wesensart hinweg.",
+    "source": "tatoeba",
+    "upstreamId": "794"
+  },
+  {
+    "text": "Welches Kriterium wendeten Sie an, als Sie diesen Aufsatz als den Sieger auswählten?",
+    "source": "tatoeba",
+    "upstreamId": "795"
+  },
+  {
+    "text": "Trickbetrüger machen sich die Leichtgläubigkeit unerfahrener Geldgeber zu Nutze und betrügen sie um ihr Geld.",
+    "source": "tatoeba",
+    "upstreamId": "796"
+  },
+  {
+    "text": "Ich kann nicht einen Schritt Salsa tanzen.",
+    "source": "tatoeba",
+    "upstreamId": "797"
+  },
+  {
+    "text": "Selbst wenn deine Sätze tatsächlich sinnfrei waren, hast du zumindest das Glück, schöne Sätze bilden zu können.",
+    "source": "tatoeba",
+    "upstreamId": "798"
+  },
+  {
+    "text": "Ich mag meine Arbeit sehr gerne.",
+    "source": "tatoeba",
+    "upstreamId": "799"
+  },
+  {
+    "text": "Ray war bereit, Garys Geschichte zu bestätigen, aber die Polizei war noch immer nicht überzeugt, dass einer von beiden die Wahrheit erzählte.",
+    "source": "tatoeba",
+    "upstreamId": "800"
+  },
+  {
+    "text": "Der Mörder wurde schuldig gesprochen und zu lebenslänglicher Haft verurteilt.",
+    "source": "tatoeba",
+    "upstreamId": "801"
+  },
+  {
+    "text": "Die Einvernehmlichkeit deutet darauf hin, dass wir gegen die vorgeschlagene Idee sind.",
+    "source": "tatoeba",
+    "upstreamId": "802"
+  },
+  {
+    "text": "Ein kleiner Waldbrand kann sich leicht ausbreiten und schnell ein großer Flächenbrand werden.",
+    "source": "tatoeba",
+    "upstreamId": "803"
+  },
+  {
+    "text": "Obwohl er seine Haftstrafe im Gefängnis abgesessen hatte, verzieh die Öffentlichkeit dem Mörder sein Verbrechen nie ganz.",
+    "source": "tatoeba",
+    "upstreamId": "804"
+  },
+  {
+    "text": "Ich finde, Wörter mit präzisen Bedeutungen kann man sich am einfachsten merken.",
+    "source": "tatoeba",
+    "upstreamId": "805"
+  },
+  {
+    "text": "Er war immer noch verärgert über den Unfall, trotz den versöhnlichen Worten seiner Frau.",
+    "source": "tatoeba",
+    "upstreamId": "806"
+  },
+  {
+    "text": "Eine grobe Untersuchung seiner Zähne gab zu erkennen, dass er eine Zahnfleischentzündung hatte.",
+    "source": "tatoeba",
+    "upstreamId": "807"
+  },
+  {
+    "text": "Es war eine Überraschung zu sehen, dass sich die Studenten am Abend des Abschlussballs alle anständig verhielten.",
+    "source": "tatoeba",
+    "upstreamId": "808"
+  },
+  {
+    "text": "Der Zeitungsartikel beschrieb den Angeklagten wie einen Schuldigen, obwohl er erwiesenermaßen unschuldig war.",
+    "source": "tatoeba",
+    "upstreamId": "809"
+  },
+  {
+    "text": "Der Politiker drängte auf eine Reform, indem er die Bestechlichkeit der Regierungsverantwortlichen anprangerte.",
+    "source": "tatoeba",
+    "upstreamId": "810"
+  },
+  {
+    "text": "Die Verderbtheit der Taten des Königs brachte die Leute dazu, zu glauben, dass er nicht mehr als eine Tyrann sei, den man stürzen müsse.",
+    "source": "tatoeba",
+    "upstreamId": "811"
+  },
+  {
+    "text": "Ich habe von dir geträumt.",
+    "source": "tatoeba",
+    "upstreamId": "812"
+  },
+  {
+    "text": "Ich brauche einen neuen Computer.",
+    "source": "tatoeba",
+    "upstreamId": "813"
+  },
+  {
+    "text": "Ich werde nicht verlieren!",
+    "source": "tatoeba",
+    "upstreamId": "814"
+  },
+  {
+    "text": "Ich bin zu spät in die Schule gekommen.",
+    "source": "tatoeba",
+    "upstreamId": "815"
+  },
+  {
+    "text": "Der Unterricht fängt bald wieder an.",
+    "source": "tatoeba",
+    "upstreamId": "816"
+  },
+  {
+    "text": "Ich glaube, ich werde niesen... Gib mir ein Taschentuch.",
+    "source": "tatoeba",
+    "upstreamId": "817"
+  },
+  {
+    "text": "Einen Moment lang habe ich geglaubt, er wäre verrückt geworden.",
+    "source": "tatoeba",
+    "upstreamId": "818"
+  },
+  {
+    "text": "Dieser Tag war nur Zeit- und Geldverschwendung.",
+    "source": "tatoeba",
+    "upstreamId": "819"
+  },
+  {
+    "text": "Das hat mich überrascht, ich wusste nicht, was ich tun sollte.",
+    "source": "tatoeba",
+    "upstreamId": "820"
+  },
+  {
+    "text": "Aber das hast du mir ja nie gesagt!",
+    "source": "tatoeba",
+    "upstreamId": "821"
+  },
+  {
+    "text": "Ich habe das Layout meiner Website geändert.",
+    "source": "tatoeba",
+    "upstreamId": "822"
+  },
+  {
+    "text": "Wenn wir klein sind, kommt uns alles so groß vor.",
+    "source": "tatoeba",
+    "upstreamId": "823"
+  },
+  {
+    "text": "Er wird mich nicht schlagen.",
+    "source": "tatoeba",
+    "upstreamId": "824"
+  },
+  {
+    "text": "Ich muss die Wäsche machen, solange die Sonne noch da ist.",
+    "source": "tatoeba",
+    "upstreamId": "825"
+  },
+  {
+    "text": "Ich bin spazieren gegangen, um Luft zu schnappen.",
+    "source": "tatoeba",
+    "upstreamId": "826"
+  },
+  {
+    "text": "Tut mir leid, ich denke nicht, dass ich können werde.",
+    "source": "tatoeba",
+    "upstreamId": "827"
+  },
+  {
+    "text": "Du hattest eine Menge Zeit.",
+    "source": "tatoeba",
+    "upstreamId": "828"
+  },
+  {
+    "text": "Hör auf, mich zu kritisieren!",
+    "source": "tatoeba",
+    "upstreamId": "829"
+  },
+  {
+    "text": "Los! Sprich mit mir, Trang.",
+    "source": "tatoeba",
+    "upstreamId": "830"
+  },
+  {
+    "text": "Ich bin fast fertig.",
+    "source": "tatoeba",
+    "upstreamId": "831"
+  },
+  {
+    "text": "Nimm den anderen Stuhl!",
+    "source": "tatoeba",
+    "upstreamId": "832"
+  },
+  {
+    "text": "Wie viele Sandwichs sind noch übrig?",
+    "source": "tatoeba",
+    "upstreamId": "833"
+  },
+  {
+    "text": "Ich bin nicht mehr inspiriert.",
+    "source": "tatoeba",
+    "upstreamId": "834"
+  },
+  {
+    "text": "Ich werde mich nicht auf sein Niveau herablassen.",
+    "source": "tatoeba",
+    "upstreamId": "835"
+  },
+  {
+    "text": "Wir konnten den Sonnenuntergang vom Fenster aus sehen.",
+    "source": "tatoeba",
+    "upstreamId": "836"
+  },
+  {
+    "text": "Das macht mich verrückt.",
+    "source": "tatoeba",
+    "upstreamId": "837"
+  },
+  {
+    "text": "Hast du gesagt, ich könne nie gewinnen?",
+    "source": "tatoeba",
+    "upstreamId": "838"
+  },
+  {
+    "text": "Draußen ist es ganz dunkel.",
+    "source": "tatoeba",
+    "upstreamId": "839"
+  },
+  {
+    "text": "Was ist passiert? Überall in der Wohnung ist Wasser.",
+    "source": "tatoeba",
+    "upstreamId": "840"
+  },
+  {
+    "text": "Während der Sommerferien habe ich um Mitternacht Abendessen gegessen.",
+    "source": "tatoeba",
+    "upstreamId": "841"
+  },
+  {
+    "text": "Du kannst deinen Aufsatz jetzt beenden.",
+    "source": "tatoeba",
+    "upstreamId": "842"
+  },
+  {
+    "text": "Du wirst die Dinge sagen und tun, die deine Eltern sagten und taten, selbst wenn du geschworen hast, das nie zu tun.",
+    "source": "tatoeba",
+    "upstreamId": "843"
+  },
+  {
+    "text": "Ich bin am Leben, obwohl ich kein Lebenszeichen gebe.",
+    "source": "tatoeba",
+    "upstreamId": "844"
+  },
+  {
+    "text": "Versuche nie, zu sterben.",
+    "source": "tatoeba",
+    "upstreamId": "845"
+  },
+  {
+    "text": "Das Leben beginnt, wenn man realisiert, wer man wirklich ist.",
+    "source": "tatoeba",
+    "upstreamId": "847"
+  },
+  {
+    "text": "Das Leben beginnt, wenn man entscheidet, was man von ihm erwartet.",
+    "source": "tatoeba",
+    "upstreamId": "848"
+  },
+  {
+    "text": "Das Leben beginnt, wenn man Steuern zahlt.",
+    "source": "tatoeba",
+    "upstreamId": "849"
+  },
+  {
+    "text": "Das, was du nicht hast, ist besser als das, was du hast.",
+    "source": "tatoeba",
+    "upstreamId": "850"
+  },
+  {
+    "text": "Das Leben beginnt, wenn du bereit bist, es zu leben.",
+    "source": "tatoeba",
+    "upstreamId": "851"
+  },
+  {
+    "text": "Es ist nie zu spät zum Lernen.",
+    "source": "tatoeba",
+    "upstreamId": "852"
+  },
+  {
+    "text": "Er erzählte mir seine Lebensgeschichte.",
+    "source": "tatoeba",
+    "upstreamId": "854"
+  },
+  {
+    "text": "Ich habe nie gesagt, ich sei zerbrechlich.",
+    "source": "tatoeba",
+    "upstreamId": "855"
+  },
+  {
+    "text": "Ich frage mich, ob ich für diese Welt gemacht bin.",
+    "source": "tatoeba",
+    "upstreamId": "856"
+  },
+  {
+    "text": "Von was redest du?",
+    "source": "tatoeba",
+    "upstreamId": "857"
+  },
+  {
+    "text": "Ich will ein Bonbon.",
+    "source": "tatoeba",
+    "upstreamId": "858"
+  },
+  {
+    "text": "Ich wusste, es würde heute lustig sein.",
+    "source": "tatoeba",
+    "upstreamId": "859"
+  },
+  {
+    "text": "Das mag wie an den Haaren herbeigezogen erscheinen, aber es ist ein echtes Problem.",
+    "source": "tatoeba",
+    "upstreamId": "861"
+  },
+  {
+    "text": "Wann essen wir? Ich habe Hunger!",
+    "source": "tatoeba",
+    "upstreamId": "863"
+  },
+  {
+    "text": "Ich mag die Schule nicht.",
+    "source": "tatoeba",
+    "upstreamId": "864"
+  },
+  {
+    "text": "Ich habe morgen Unterricht.",
+    "source": "tatoeba",
+    "upstreamId": "865"
+  },
+  {
+    "text": "Ich kann es nicht glauben!",
+    "source": "tatoeba",
+    "upstreamId": "866"
+  },
+  {
+    "text": "„Danke!“ – „Keine Ursache!“",
+    "source": "tatoeba",
+    "upstreamId": "867"
+  },
+  {
+    "text": "Wie spricht man „pronounce“ aus?",
+    "source": "tatoeba",
+    "upstreamId": "868"
+  },
+  {
+    "text": "Der Winter ist meine Lieblingsjahreszeit.",
+    "source": "tatoeba",
+    "upstreamId": "869"
+  },
+  {
+    "text": "Es ist schwierig, großartige Ideen zu haben.",
+    "source": "tatoeba",
+    "upstreamId": "870"
+  },
+  {
+    "text": "Aus welchem Land kommst du?",
+    "source": "tatoeba",
+    "upstreamId": "871"
+  },
+  {
+    "text": "Ich neige dazu, die Bilder anzuschauen, bevor ich den Text lese.",
+    "source": "tatoeba",
+    "upstreamId": "873"
+  },
+  {
+    "text": "Ich habe viel von dir gelernt.",
+    "source": "tatoeba",
+    "upstreamId": "874"
+  },
+  {
+    "text": "Ich habe zwölf Stunden im Zug verbracht.",
+    "source": "tatoeba",
+    "upstreamId": "876"
+  },
+  {
+    "text": "Sie ist an diesem Wochenende krank geworden.",
+    "source": "tatoeba",
+    "upstreamId": "877"
+  },
+  {
+    "text": "Warte mal, jemand klopft an meiner Tür.",
+    "source": "tatoeba",
+    "upstreamId": "878"
+  },
+  {
+    "text": "Er ist reich, er braucht kein Geld!",
+    "source": "tatoeba",
+    "upstreamId": "879"
+  },
+  {
+    "text": "Er schläft wie ein Baby.",
+    "source": "tatoeba",
+    "upstreamId": "880"
+  },
+  {
+    "text": "Sie machen zu viel Lärm, ich kann mich nicht konzentrieren.",
+    "source": "tatoeba",
+    "upstreamId": "881"
+  },
+  {
+    "text": "Ich habe Lust auf eine Massage. Ich muss mich entspannen.",
+    "source": "tatoeba",
+    "upstreamId": "882"
+  },
+  {
+    "text": "Du bist krank, du musst dich ausruhen.",
+    "source": "tatoeba",
+    "upstreamId": "883"
+  },
+  {
+    "text": "Links ist ein Geheimweg.",
+    "source": "tatoeba",
+    "upstreamId": "884"
+  },
+  {
+    "text": "Smith hat jahrelang die Auswirkungen von Schlaf und Schlafmangel auf das Gedächtnis und das Lernen untersucht.",
+    "source": "tatoeba",
+    "upstreamId": "885"
+  },
+  {
+    "text": "Sie fordert das Unmögliche.",
+    "source": "tatoeba",
+    "upstreamId": "886"
+  },
+  {
+    "text": "Er ist spurlos verschwunden.",
+    "source": "tatoeba",
+    "upstreamId": "887"
+  },
+  {
+    "text": "Es kann keinen Fortschritt geben ohne Kommunikation.",
+    "source": "tatoeba",
+    "upstreamId": "888"
+  },
+  {
+    "text": "Ich kann meine Handflächen auf den Boden setzen, ohne meine Knie zu beugen.",
+    "source": "tatoeba",
+    "upstreamId": "889"
+  },
+  {
+    "text": "Jeder würde gerne glauben, dass Träume wahr werden können.",
+    "source": "tatoeba",
+    "upstreamId": "890"
+  },
+  {
+    "text": "Die beste Art, seine Träume zu realisieren, ist, aufzuwachen.",
+    "source": "tatoeba",
+    "upstreamId": "891"
+  },
+  {
+    "text": "Die Welt dreht sich nicht um dich.",
+    "source": "tatoeba",
+    "upstreamId": "892"
+  },
+  {
+    "text": "Die Welt ist voller Dummköpfe.",
+    "source": "tatoeba",
+    "upstreamId": "893"
+  },
+  {
+    "text": "Sagst du gerade, dass mein Leben in Gefahr ist?",
+    "source": "tatoeba",
+    "upstreamId": "894"
+  },
+  {
+    "text": "Hast du eine Vorstellung davon, wie mein Leben aussieht?",
+    "source": "tatoeba",
+    "upstreamId": "895"
+  },
+  {
+    "text": "An diesem Ort herrscht eine geheimnisvolle Stimmung.",
+    "source": "tatoeba",
+    "upstreamId": "896"
+  },
+  {
+    "text": "Ich freue mich darauf, Ihre Gedanken zu diesem Thema zu hören.",
+    "source": "tatoeba",
+    "upstreamId": "897"
+  },
+  {
+    "text": "Und was macht es, wenn ich schwul bin? Ist das ein Verbrechen?",
+    "source": "tatoeba",
+    "upstreamId": "898"
+  },
+  {
+    "text": "Mein Leben ist leer ohne ihn.",
+    "source": "tatoeba",
+    "upstreamId": "899"
+  },
+  {
+    "text": "Ich will nicht durch meine Prüfungen fallen.",
+    "source": "tatoeba",
+    "upstreamId": "900"
+  },
+  {
+    "text": "Meine Mutter hat zwei Flaschen Orangensaft gekauft.",
+    "source": "tatoeba",
+    "upstreamId": "901"
+  },
+  {
+    "text": "Sie trug einen schwarzen Hut.",
+    "source": "tatoeba",
+    "upstreamId": "902"
+  },
+  {
+    "text": "Wir haben Pfannkuchen zum Frühstück gemacht.",
+    "source": "tatoeba",
+    "upstreamId": "903"
+  },
+  {
+    "text": "Was hast du heute zum Mittagessen gegessen?",
+    "source": "tatoeba",
+    "upstreamId": "904"
+  },
+  {
+    "text": "Ich habe den ganzen Nachmittag damit verbracht, mit Freunden zu schwätzen.",
+    "source": "tatoeba",
+    "upstreamId": "905"
+  },
+  {
+    "text": "Ich will unabhängiger sein.",
+    "source": "tatoeba",
+    "upstreamId": "906"
+  },
+  {
+    "text": "Wirst du dort den ganzen Tag stehen bleiben?",
+    "source": "tatoeba",
+    "upstreamId": "907"
+  },
+  {
+    "text": "Ein Kaninchen hat lange Ohren und einen kurzen Schwanz.",
+    "source": "tatoeba",
+    "upstreamId": "908"
+  },
+  {
+    "text": "Mein Herz war voller Freude.",
+    "source": "tatoeba",
+    "upstreamId": "909"
+  },
+  {
+    "text": "Er will schlechte Erinnerungen ausradieren.",
+    "source": "tatoeba",
+    "upstreamId": "910"
+  },
+  {
+    "text": "Sie dürfen Ihr Auto hier nicht parken.",
+    "source": "tatoeba",
+    "upstreamId": "911"
+  },
+  {
+    "text": "Wir müssen ihn dringend ins Krankenhaus bringen, er ist schwer verletzt!",
+    "source": "tatoeba",
+    "upstreamId": "912"
+  },
+  {
+    "text": "Ich werde dein Geheimnis hüten.",
+    "source": "tatoeba",
+    "upstreamId": "913"
+  },
+  {
+    "text": "Ich will dein Gejammer nicht mehr hören.",
+    "source": "tatoeba",
+    "upstreamId": "914"
+  },
+  {
+    "text": "Sag ihnen, dass sie mich anrufen sollen, bevor sie losgehen.",
+    "source": "tatoeba",
+    "upstreamId": "915"
+  },
+  {
+    "text": "So einen ungerechten Vorschlag hättest du ablehnen sollen.",
+    "source": "tatoeba",
+    "upstreamId": "916"
+  },
+  {
+    "text": "Ich habe nicht die Kraft, es weiter zu versuchen.",
+    "source": "tatoeba",
+    "upstreamId": "917"
+  },
+  {
+    "text": "Mathematik ist nicht einfach das Auswendiglernen von Formeln.",
+    "source": "tatoeba",
+    "upstreamId": "918"
+  },
+  {
+    "text": "Ich hatte nicht vor, diesen Eindruck bei dir zu hinterlassen.",
+    "source": "tatoeba",
+    "upstreamId": "919"
+  },
+  {
+    "text": "Ja! Ich habe zweimal hintereinander gewonnen!",
+    "source": "tatoeba",
+    "upstreamId": "920"
+  },
+  {
+    "text": "Ich habe es satt, Fastfood zu essen.",
+    "source": "tatoeba",
+    "upstreamId": "921"
+  },
+  {
+    "text": "Die Zimmer dieses Hotels sind wirklich sehr schlecht schallgedämpft. Ich kann meinen Nachbarn seinen Kaugummi kauen hören!",
+    "source": "tatoeba",
+    "upstreamId": "922"
+  },
+  {
+    "text": "Ich habe es satt, es satt zu haben.",
+    "source": "tatoeba",
+    "upstreamId": "923"
+  },
+  {
+    "text": "Ich kann es gar nicht erwarten, in den Urlaub zu fahren.",
+    "source": "tatoeba",
+    "upstreamId": "924"
+  },
+  {
+    "text": "Das Wesen der Mathematik liegt in ihrer Freiheit.",
+    "source": "tatoeba",
+    "upstreamId": "925"
+  },
+  {
+    "text": "Kannst du dir vorstellen, wie unser Leben ohne Elektrizität aussehen würde?",
+    "source": "tatoeba",
+    "upstreamId": "926"
+  },
+  {
+    "text": "Eins, zwei, drei, vier, fünf, sechs, sieben, acht, neun, zehn.",
+    "source": "tatoeba",
+    "upstreamId": "927"
+  },
+  {
+    "text": "Wo ist die Toilette?",
+    "source": "tatoeba",
+    "upstreamId": "928"
+  },
+  {
+    "text": "Das Wesen der Freiheit liegt in der Mathematik.",
+    "source": "tatoeba",
+    "upstreamId": "929"
+  },
+  {
+    "text": "Seine Geschichte war zu lächerlich, um von irgendjemandem geglaubt zu werden.",
+    "source": "tatoeba",
+    "upstreamId": "930"
+  },
+  {
+    "text": "Wie viele Stunden Schlaf brauchst du?",
+    "source": "tatoeba",
+    "upstreamId": "931"
+  },
+  {
+    "text": "Jeder Mensch ist eine Welt.",
+    "source": "tatoeba",
+    "upstreamId": "932"
+  },
+  {
+    "text": "Wenn es möglich ist, öffne das Fenster nicht, ich habe keine allzu große Lust, Luftzüge in meinem Rücken zu spüren.",
+    "source": "tatoeba",
+    "upstreamId": "934"
+  },
+  {
+    "text": "Ich habe die französische Staatsbürgerschaft, aber ich bin von vietnamesischer Abstammung.",
+    "source": "tatoeba",
+    "upstreamId": "935"
+  },
+  {
+    "text": "Dieser humanitäre Verein sucht Ehrenamtliche, um im Monat Dezember Mahlzeiten an Obdachlose auszuteilen.",
+    "source": "tatoeba",
+    "upstreamId": "936"
+  },
+  {
+    "text": "Es ist sehr frustierend, zu versuchen, seine Brille wiederzufinden, wenn man ohne Brille nichts sieht.",
+    "source": "tatoeba",
+    "upstreamId": "937"
+  },
+  {
+    "text": "Denkst du, dass die Menschen eines Tages den Mond besiedeln werden?",
+    "source": "tatoeba",
+    "upstreamId": "938"
+  },
+  {
+    "text": "Welche berühmten Lieder hättet ihr gerne komponiert, und warum?",
+    "source": "tatoeba",
+    "upstreamId": "939"
+  },
+  {
+    "text": "Ich werde mir eine neue Kamera kaufen, dieses Mal eine digitale.",
+    "source": "tatoeba",
+    "upstreamId": "940"
+  },
+  {
+    "text": "Ich bin verrückt nach dir.",
+    "source": "tatoeba",
+    "upstreamId": "941"
+  },
+  {
+    "text": "Ich weiß nicht, was schlimmer ist.",
+    "source": "tatoeba",
+    "upstreamId": "942"
+  }
+]

@@ -1,0 +1,4065 @@
+{
+  "_meta": {
+    "locale": "id",
+    "generator": "platform/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 0,
+      "negatives": 810
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "negatives": [
+    {
+      "id": "neg-prose-id-00000",
+      "input": "Ibu sedang masak di dapur.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00001",
+      "input": "Mary tidak punya teman bicara, tapi dia tidak merasa kesepian.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00002",
+      "input": "Mary adalah gadis yang enak diajak bicara.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00003",
+      "input": "Mary memutuskan untuk tidak akan menemuinya lagi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00004",
+      "input": "Apakah Mary sudah mulai?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00005",
+      "input": "Mary sangat suka susu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00006",
+      "input": "Mary belum mulai.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00007",
+      "input": "Mary gagal lagi. Meski begitu, dia masih muda.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00008",
+      "input": "Mary selalu membantu pacarnya mengerjakan tugas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00009",
+      "input": "Harga tanah di Jepang mahal sekali.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00010",
+      "input": "Dilihat dari pesawat, pulau itu terlihat indah sekali.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00011",
+      "input": "Pulau itu ada di Jepang sebelah selatan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00012",
+      "input": "Pulau itu ada di Jepang sebelah barat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00013",
+      "input": "Pulau itu tertutup es dan salju selama musim dingin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00014",
+      "input": "Pulau itu ditemukan oleh siapa?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00015",
+      "input": "Pulau itu dihantam topan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00016",
+      "input": "Pulau itu mudah dijangkau dengan perahu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00017",
+      "input": "Pulau itu bagaikan surga bagi anak-anak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00018",
+      "input": "Setiap jengkal pulau telah dijelajahi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00019",
+      "input": "Pulau itu terletak dua mil dari pantai.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00020",
+      "input": "Pulau itu terletak satu mil dari pantai.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00021",
+      "input": "Pulau itu hangat sepanjang tahun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00022",
+      "input": "Pulau itu pernah diperintah Prancis.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00023",
+      "input": "Dua ratus orang meninggal karena kolera tahun lalu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00024",
+      "input": "Tolong perlihatkan yang ini!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00025",
+      "input": "Siapa yang merusak ini?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00026",
+      "input": "Perempuan itu membeli daging ayam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00027",
+      "input": "Perempuan itu suka burung atau bunga.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00028",
+      "input": "Perempuan itu membeli buku tentang burung.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00029",
+      "input": "Apakah dia tahan melakukan perjalanan jauh?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00030",
+      "input": "Perekam itu saya beli di toko ini.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00031",
+      "input": "Masalahnya bukan pada tujuan pendidikan tapi lebih kepada pelaksanaannya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00032",
+      "input": "Masalahnya adalah kita tidak punya cukup uang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00033",
+      "input": "Saya seharusnya membersihkan ruangan itu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00034",
+      "input": "Saya simpati terhadap orang yang terkena penyakit itu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00035",
+      "input": "Dibandingkan rumahnya, rumahku terlihat lebih kecil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00036",
+      "input": "Rumahku menghadap selatan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00037",
+      "input": "Rumahku dekat dengan Menara Tokyo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00038",
+      "input": "Halaman rumahku sempit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00039",
+      "input": "Rumahku berada di seberang jalan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00040",
+      "input": "Rumahku dirancang agar tahan gempa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00041",
+      "input": "Rumahku dekat dengan fasilitas yang nyaman di kota besar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00042",
+      "input": "Keluargaku keluarga besar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00043",
+      "input": "Rumahku di sebelah utara kota.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00044",
+      "input": "Rumahku di samping pohon tinggi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00045",
+      "input": "Rumahku di pinggiran kota.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00046",
+      "input": "Rumahku dekat sekali dengan taman.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00047",
+      "input": "Rumahku lama dan jelek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00048",
+      "input": "Keluargaku keluarga lama.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00049",
+      "input": "Rumahku berada di atas bukit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00050",
+      "input": "Karena rumahku di atas bukit, pemandangannya indah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00051",
+      "input": "Rumahku menghadap laut.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00052",
+      "input": "Rumahku kebakaran.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00053",
+      "input": "Rumahku dekat stasiun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00054",
+      "input": "Rumahku dekat sekali dengan stasiun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00055",
+      "input": "Rumahku dekat stasiun dan nyaman.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00056",
+      "input": "Rumahku agak jauh dari stasiun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00057",
+      "input": "Rumahku dekat dengan pemberhentian bis.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00058",
+      "input": "Rumahku menghadap jalan ramai.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00059",
+      "input": "Rumahku selalu bergetar saat truk lewat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00060",
+      "input": "Rumahku berada di daratan selatan sungai Thames.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00061",
+      "input": "Rumahku tepat di seberang jalan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00062",
+      "input": "Rumahku sedikit masuk dari jalan itu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00063",
+      "input": "Rumahku di pinggiran kota itu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00064",
+      "input": "Rumahku jauh dari sini.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00065",
+      "input": "Rumahku di kampung.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00066",
+      "input": "Rumahku di seberang jembatan itu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00067",
+      "input": "Rumahku mirip dengan rumahmu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00068",
+      "input": "Di sebelah rumahku didirikan bangunan tinggi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00069",
+      "input": "Di belakang rumahku ada kolam kecil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00070",
+      "input": "Di depan rumahku ada danau.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00071",
+      "input": "Di halaman rumahku dulu ada kebun sayur.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00072",
+      "input": "Di depan rumahku ada kantor pos.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00073",
+      "input": "Di depan rumahku ada toko buku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00074",
+      "input": "Di depan rumahku ada toko.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00075",
+      "input": "Di depan rumahku ada pohon besar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00076",
+      "input": "Di depan rumahku ada taman umum.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00077",
+      "input": "Di depan rumahku sedang dibangun sebuah gedung.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00078",
+      "input": "Di depan rumahku ada pohon sakura.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00079",
+      "input": "Di atas rumahku jadi tenang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00080",
+      "input": "Di belakang rumahku hutan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00081",
+      "input": "Di belakang rumahku gereja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00082",
+      "input": "Di dekat rumahku mengalir sungai kecil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00083",
+      "input": "Di dekat rumahku ada taman indah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00084",
+      "input": "Di dekat rumahku ada jalan besar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00085",
+      "input": "Di dekat rumahku ada taman.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00086",
+      "input": "Di dekat rumahku ada sekolah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00087",
+      "input": "Di dekat rumahku ada beberapa toko.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00088",
+      "input": "Di dekat rumahku tidak ada toko.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00089",
+      "input": "Di dekat rumahku ada taman bagus.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00090",
+      "input": "Di dekat rumahku ada apartemen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00091",
+      "input": "Atap rumahku merah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00092",
+      "input": "Kalau mau datang ke rumahku tolong telepon dulu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00093",
+      "input": "Tolong datang ke rumahku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00094",
+      "input": "Bisa datang ke rumah dan main piano?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00095",
+      "input": "Rumahku sudah diasuransikan penuh.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00096",
+      "input": "Di rumahku cuma ada halaman kecil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00097",
+      "input": "Rumahku sudah punya asuransi kebakaran.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00098",
+      "input": "Di rumahku perabotannya sedikit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00099",
+      "input": "Di rumahku memang ada hantunya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00100",
+      "input": "Tutup pintu itu!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00101",
+      "input": "Tangannya terluka waktu jatuh.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00102",
+      "input": "Dia punya sawah luas di Colorado.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00103",
+      "input": "Dia tidak dapat berjalan lagi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00104",
+      "input": "Saya tahu dia tidak dapat bekerja lagi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00105",
+      "input": "Orang yang ingin berbicara denganmu sudah datang di bawah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00106",
+      "input": "Saya senang sekali berjumpa denganmu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00107",
+      "input": "Senang sekali berjumpa dengan anda, Pak Tamori.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00108",
+      "input": "Saya pikir, dia akan senang jika bertemu denganmu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00109",
+      "input": "Saya merasa senang sekali berjumpa dengan anda.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00110",
+      "input": "Boleh minta tolong?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00111",
+      "input": "Aku ingin kamu buat teh untukku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00112",
+      "input": "Saya merasa terhormat bisa berjumpa dengan anda.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00113",
+      "input": "Senang bisa bertemu denganmu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00114",
+      "input": "Saya merasa senang sekali bertemu denganmu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00115",
+      "input": "Senang bertemu denganmu. Saya tunggu kabar darimu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00116",
+      "input": "Tak terpikir bisa berjumpa denganmu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00117",
+      "input": "Saya berharap bisa bertemu denganmu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00118",
+      "input": "Senang bertemu denganmu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00119",
+      "input": "Wanita yang ingin bertemu denganmu sudah datang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00120",
+      "input": "Berapa gaji yang harus kubayar, tergantung pada kemampuanmu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00121",
+      "input": "Tertawa adalah obat paling mujarab.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00122",
+      "input": "Apakah tertawa hanya ada pada manusia?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00123",
+      "input": "Tertawa terbahak-bahak membuat gerahamku serasa mau lepas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00124",
+      "input": "Peraturan seharusnya dipatuhi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00125",
+      "input": "Kita harus taat peraturan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00126",
+      "input": "Penting sekali mematuhi peraturan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00127",
+      "input": "Peraturan mengharuskan setiap warga negara membayar pajak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00128",
+      "input": "Peraturan mengatakan bahwa setiap warga negara sama.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00129",
+      "input": "Awas! Ada truk lewat!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00130",
+      "input": "Hampir saja aku tertabrak mobil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00131",
+      "input": "Kopinya kurang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00132",
+      "input": "Kopi sebagai hidangan penutup.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00133",
+      "input": "Mau kopi atau teh?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00134",
+      "input": "Sebagian orang suka kopi, sebagian lagi suka teh.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00135",
+      "input": "Aku ingin sekali minum kopi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00136",
+      "input": "Aku ingin minum kopi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00137",
+      "input": "Kopinya tumpah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00138",
+      "input": "Jika masih ada sisa kopi tolong berikan padaku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00139",
+      "input": "Saya ingin meminum secangkir kopi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00140",
+      "input": "Ingin minum kopi?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00141",
+      "input": "Gordon tertarik dengan gaya hidup Jepang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00142",
+      "input": "Gordon melamun terus minggu ini.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00143",
+      "input": "Saat kamu memakai jas, biar aku yang membawa tasmu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00144",
+      "input": "Biar kubantu memakai jas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00145",
+      "input": "Lepaskan jasmu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00146",
+      "input": "Sebaiknya kamu pakai jasmu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00147",
+      "input": "Tolong lepas jasmu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00148",
+      "input": "Lepas jasmu dan silakan bersantai.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00149",
+      "input": "Kenapa tidak kau lepas jasmu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00150",
+      "input": "Boleh kubawakan jasmu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00151",
+      "input": "Tolong gantung jasmu!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00152",
+      "input": "Gantung jasmu di penggantung baju.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00153",
+      "input": "Silakan taruh jasmu di bawah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00154",
+      "input": "Boleh kugantungkan jasmu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00155",
+      "input": "Kancing jasku lepas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00156",
+      "input": "Salah satu kancing jasku lepas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00157",
+      "input": "Saya ingin kursi di dekat jasku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00158",
+      "input": "Pelatih itu mengawasi berenangnya para perenang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00159",
+      "input": "Menurut pelatih, Bob adalah perenang bagus.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00160",
+      "input": "Ibunya guru bahasa Inggris.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00161",
+      "input": "Ibunya dulu seorang penyanyi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00162",
+      "input": "Ibunya selalu mengeluh tentang hal itu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00163",
+      "input": "Ayahnya memanggilnya Tom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00164",
+      "input": "Sepertinya ayahnya sedang masuk rumah sakit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00165",
+      "input": "Sepertinya ayahnya sedang di luar negeri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00166",
+      "input": "Hobiku memancing ikan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00167",
+      "input": "Hobiku mengoleksi perangko luar negeri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00168",
+      "input": "Hobiku mendengarkan musik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00169",
+      "input": "Hobiku bermain piano.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00170",
+      "input": "Hobiku mengoleksi koin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00171",
+      "input": "Hobiku mengumpulkan kupu-kupu cantik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00172",
+      "input": "Hobiku bermain gitar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00173",
+      "input": "Hobiku menulis cerita.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00174",
+      "input": "Salah satu hobiku musik klasik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00175",
+      "input": "Salah satu hobiku membuat bunga palsu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00176",
+      "input": "Salah satu hobiku mengumpulkan perangko lama.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00177",
+      "input": "Kecepatan pesawat jauh lebih tinggi daripada helikopter.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00178",
+      "input": "Sudah pesan tempat di pesawat?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00179",
+      "input": "Sepertinya pesawat terlambat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00180",
+      "input": "Pesawat itu sudah tak tampak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00181",
+      "input": "Suara pesawat pun terdengar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00182",
+      "input": "Berkat pesawat, orang dapat melakukan perjalanan jarak jauh dengan cepat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00183",
+      "input": "Salah satu mesin pesawat mati.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00184",
+      "input": "Pak Sato telah naik pesawat dengan selamat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00185",
+      "input": "Saya tertinggal pesawat, bisa naik penerbangan berikutnya?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00186",
+      "input": "Agar tak tertinggal pesawat, saya bergegas ke bandara.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00187",
+      "input": "Saya tak ingin tertinggal pesawat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00188",
+      "input": "Ini adalah pertama kali saya naik pesawat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00189",
+      "input": "Saya tak suka bepergian naik pesawat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00190",
+      "input": "Pernah bepergian naik pesawat?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00191",
+      "input": "Naik pesawat atau kereta?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00192",
+      "input": "Bepergian naik pesawat adalah paling cepat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00193",
+      "input": "Kalau naik pesawat lebih mahal lho!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00194",
+      "input": "Bepergian naik pesawat berapa ongkosnya?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00195",
+      "input": "Bepergian ke Okinawa naik pesawat berapa lama?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00196",
+      "input": "aku hanyalah pengelana, yang mencari kemurnian jiwa",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00197",
+      "input": "Saya menghadiri pesta hanya untuk bersosialisasi",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00198",
+      "input": "Anda jujur mengakui kesalahan Anda",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00199",
+      "input": "Orang Hindu menyembah di kuil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00200",
+      "input": "Tak ada hubungan antara mereka",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00201",
+      "input": "Lakukan, tapi sekarang !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00202",
+      "input": "Menyiapkannya sekaligus.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00203",
+      "input": "Mari kita selesaikan segera.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00204",
+      "input": "Lakukan sekaligus.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00205",
+      "input": "Kita butuh uang untuk melakukan apapun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00206",
+      "input": "Biarkan rasa yang memilih.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00207",
+      "input": "Bersatu kita teguh. Bercerai kita runtuh",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00208",
+      "input": "Bhinneka Tunggal Ika.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00209",
+      "input": "Siapa bersungguh sungguh, dia akan sukses",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00210",
+      "input": "Berlomba - lomba dalam kebaikan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00211",
+      "input": "Dirikanlah shalat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00212",
+      "input": "Bukan itu maksud saya. Sex diskriminasi, diskriminasi perempuan, benar-benar selain itu, pria dan wanita berbeda.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00213",
+      "input": "Peringatan, dilarang cabul.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00214",
+      "input": "Perang datang dan pergi. Tapi prajuritku tetap abadi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00215",
+      "input": "Matang lebih baik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00216",
+      "input": "Iblis menggugat Tuhan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00217",
+      "input": "Kiamat sudah dekat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00218",
+      "input": "Beranak dalam pohon.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00219",
+      "input": "Tuhan adalah kejahatan",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00220",
+      "input": "Tahu sebelum terjadi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00221",
+      "input": "Melihat dengan telinga.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00222",
+      "input": "Baca musiknya, dengar fiksinya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00223",
+      "input": "Saya tidak mengetahui cara penggunaan komputer ini.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00224",
+      "input": "Sangat penting baginya manakah dari keduanya yang lebih indah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00225",
+      "input": "Pria itu bukan hanya bisa berbahasa Inggris tapi juga Bahasa Jerman.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00226",
+      "input": "Tidak dapat dipungkiri keberaniannya patut dikagumi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00227",
+      "input": "Nancy tersenyum bahagia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00228",
+      "input": "Berapa harga dasi ini?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00229",
+      "input": "Opera apakah yang sedang dipertunjukkan di Lincoln Center saat ini?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00230",
+      "input": "Karena itulah dia tidak pergi belajar ke luar negeri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00231",
+      "input": "Yang perlu Anda lakukan hanyalah menandatangani nama Anda di sini.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00232",
+      "input": "Rapat tersebut ditunda hingga Jumat depan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00233",
+      "input": "Dia telah mencoba berbagai cara melangsingkan badan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00234",
+      "input": "Dia memberitahuku bahwa dia akan mengunjungi Nara bulan depan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00235",
+      "input": "Kurangi minum dan tidurlah lebih banyak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00236",
+      "input": "Kami dulu saling bertetangga.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00237",
+      "input": "Pertanyaannya sesulit itu hingga tiada siapapun mampu menjawabnya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00238",
+      "input": "Kita banyak membuang waktu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00239",
+      "input": "Terus jalan lurus hingga tiba di gereja tersebut.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00240",
+      "input": "Tolong kirimkan surat ini pada kesempatan berikutnya ke kantor pos.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00241",
+      "input": "Kameraku tahan air.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00242",
+      "input": "Sudah berapa lama menunggu bus?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00243",
+      "input": "Kereta tersebut terguling.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00244",
+      "input": "Biasanya saya bangun pada pukul enam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00245",
+      "input": "Seperti biasa, Tom terlambat datang ke kelas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00246",
+      "input": "Majalah apapun boleh.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00247",
+      "input": "Saya baik-baik saja, terima kasih.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00248",
+      "input": "\"Terima kasih.\" \"Sama-sama.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00249",
+      "input": "Terima kasih banyak!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00250",
+      "input": "Nama saya Jack.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00251",
+      "input": "Siapa nama Anda?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00252",
+      "input": "Selamat pagi, semuanya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00253",
+      "input": "\"Selamat pagi,\" kata Tom sambil tersenyum.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00254",
+      "input": "Tolong sampaikan salamku kepadanya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00255",
+      "input": "Dia meninggal dunia kemarin siang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00256",
+      "input": "Kami berangkat besok siang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00257",
+      "input": "Selamat tidur, Bu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00258",
+      "input": "Kapan ulang tahunmu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00259",
+      "input": "Besok dia berulang tahun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00260",
+      "input": "Selamat ulang tahun, Muriel!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00261",
+      "input": "Aku suka lasagna.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00262",
+      "input": "Aku cinta kamu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00263",
+      "input": "Jaga dirimu sendiri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00264",
+      "input": "Saya tidak peduli.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00265",
+      "input": "Di Amerika Utara, usaha umumnya berpegang pada prinsip \"pelanggan selalu benar\".",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00266",
+      "input": "Penemuan ini akan tercatat dalam sejarah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00267",
+      "input": "Aku adalah seorang laki-laki tanpa wanita",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00268",
+      "input": "Saya tidak dapat melihat akhir.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00269",
+      "input": "Saya tidak dapat mempercayai itu !",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00270",
+      "input": "Saya mendengar anda, tapi saya tidak dapat melihat anda.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00271",
+      "input": "Saya senang ketika saya membaca.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00272",
+      "input": "Apakah Anda siap?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00273",
+      "input": "Aku berikan kamu kataku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00274",
+      "input": "Kamu dapat beristirahat sampai malam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00275",
+      "input": "Dunia akan tersenyum bahagia tanpa diriku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00276",
+      "input": "Aku tidak dapat hidup tanpa sebuah TV.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00277",
+      "input": "Aku tidak dapat hidup tanpa kamu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00278",
+      "input": "Aku tidak dapat membayangkan hidup tanpa kamu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00279",
+      "input": "Aku tidak dapat melakukannya tanpa bantuan dia(perempuan).",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00280",
+      "input": "Terbakar dengan cinta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00281",
+      "input": "Saya tidak terlalu mengerti apa yang ia(laki-laki) katakan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00282",
+      "input": "Meskipun dia telah tiada, aku tetap mencintainya lebih dari apapun juga.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00283",
+      "input": "Cinta adalah misteri dan penderitaan tanpa batas waktu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00284",
+      "input": "Aku akan memakan kamu anak kecil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00285",
+      "input": "Memberi lebih baik daripada diberi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00286",
+      "input": "Belajar untuk mencintai produk dalam negeri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00287",
+      "input": "Sesuatu yang kecil dapat menyebabkan hal yang besar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00288",
+      "input": "Cinta yang tulus adalah cinta yang tanpa paksaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00289",
+      "input": "Kemanakah kita pergi setelah kita mati ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00290",
+      "input": "Perjodohan adalah suatu bentuk pelanggaran terhadap hak asasi manusia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00291",
+      "input": "Pernikahan yang indah adalah pernikahan yang didasari oleh kasih sayang dan cinta yang tulus.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00292",
+      "input": "Ada gula, ada semut.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00293",
+      "input": "Saya mencoba menjelaskan kepada dia bahwa kami tidak bertanggung jawab atas kesalahannya namun ia menolak mendengar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00294",
+      "input": "Pria ini benar-benar sangat tua.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00295",
+      "input": "Aku memanggil namamu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00296",
+      "input": "Setahu aku, museum itu tutup setiap hari Senin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00297",
+      "input": "Ranjang ini tampak kokoh.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00298",
+      "input": "Kucing yang hilang tersebut masih belum ditemukan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00299",
+      "input": "Bosku dipaksa mengundurkan diri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00300",
+      "input": "Gaya hidup dan keseimbangan makanan yang teratur adalah kunci bagi hidup sehat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00301",
+      "input": "Ibunya mengkhawatirkan anaknya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00302",
+      "input": "Saya lebih memilih berpergian dengan mobil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00303",
+      "input": "Hari ini berawan dan kemungkinan hujan, jadi kita lebih baik tidak pergi berselancar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00304",
+      "input": "Sungguh terima kasih atas bantuannya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00305",
+      "input": "Sikapnya padaku berbeda dari biasanya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00306",
+      "input": "Saya tidak bisa menyetujui proyek ini. Masih banyak hal yang tidak memuaskan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00307",
+      "input": "Kyoto terkenal dengan kuil dan viharanya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00308",
+      "input": "Dapatkah Anda membantu saya mencarikan rumah dengan sebuah taman kecil?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00309",
+      "input": "Makin hari makin dingin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00310",
+      "input": "Saya sama sekali tidak mengerti Bahasa Jerman.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00311",
+      "input": "Ada rekomendasi makanan yang enak?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00312",
+      "input": "Festival sekolah kami diadakan bulan lalu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00313",
+      "input": "Permintaannya wajar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00314",
+      "input": "Mohon tunggu giliran Anda.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00315",
+      "input": "Pria tersebut mengaku bahwa ia merampok wanita tua itu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00316",
+      "input": "Besok dia di rumah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00317",
+      "input": "Dia pasti berhasil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00318",
+      "input": "Tolong tutup pintu di belakangmu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00319",
+      "input": "Bersikap lebih baiklah terhadap anak sendiri!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00320",
+      "input": "Putraku telah masuk sekolah menengah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00321",
+      "input": "Boleh tolong buka pintunya?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00322",
+      "input": "Dia bekerja di pabrik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00323",
+      "input": "Kamu mengambil kunci yang salah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00324",
+      "input": "Aku ingin mengganti ini ke ukuran yang lebih kecil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00325",
+      "input": "Aku melihat dari jendela garasi, terkejut pada apa yang aku lihat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00326",
+      "input": "Saya cinta kamu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00327",
+      "input": "Saya mengecewakan karena dia (laki-laki) tidak hadir",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00328",
+      "input": "Mobil tersebut rusak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00329",
+      "input": "Saya suka semua film yang disutradarai Juzo Itami.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00330",
+      "input": "Yesus dilahirkan Maria.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00331",
+      "input": "Pria yang istrinya telah meninggal dunia disebut seorang duda.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00332",
+      "input": "Tahukah kenapa langit terlihat berwarna biru?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00333",
+      "input": "Baju itu memikat hatinya untuk masuk ke dalam toko",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00334",
+      "input": "Bis itu berhenti dan kami masuk",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00335",
+      "input": "Air dalam tanki tinggal sedikit, mungkin juga habis",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00336",
+      "input": "Mereka memutuskan untuk bermukim di Virginia tahun itu",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00337",
+      "input": "Saya tidak menyangka ia bisa berbuat sekejam itu",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00338",
+      "input": "Kau harus membayar harganya",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00339",
+      "input": "\"Aku ingin buku itu\", katanya pada dirinya sendiri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00340",
+      "input": "Dalam waktu dekat ini kita akan mampu mengobati AIDS",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00341",
+      "input": "Pada pagi saya tiba di sana, saya berjalan-jalan dalam hutan Oak",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00342",
+      "input": "Jika dia bertanya, saya akan berikan. Jika tidak, tidak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00343",
+      "input": "Kami semua bahagia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00344",
+      "input": "Semoga Tuhan memberkatimu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00345",
+      "input": "Pemasukannya berkurang setengah setelah pensiun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00346",
+      "input": "Saya tidak tahu apa arti kata ini.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00347",
+      "input": "Saya suka musik instrumental.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00348",
+      "input": "Rambut anak itu hitam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00349",
+      "input": "Ayahnya makan di sana dua kali seminggu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00350",
+      "input": "Dia membagi dua kuenya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00351",
+      "input": "Saya membaca New York Times.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00352",
+      "input": "Sayang sekali hujan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00353",
+      "input": "Sungai ini bermuara di Pasifik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00354",
+      "input": "Ini sekolah kami.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00355",
+      "input": "Yang coklat punya saya juga.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00356",
+      "input": "Nancy takut anjing.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00357",
+      "input": "Kepala saya masih merasa pusing.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00358",
+      "input": "Apa kamu cukup tidur?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00359",
+      "input": "Saya baru selesai membaca buku itu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00360",
+      "input": "Kemarin pagi sangat dingin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00361",
+      "input": "Dia keluar dari ruangan tanpa mengatakan sepatah kata pun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00362",
+      "input": "Bill membawakan saya buku ini.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00363",
+      "input": "Dia suka bermain tenis.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00364",
+      "input": "Buddhisme bermula dari India.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00365",
+      "input": "Saya mulai malam ini.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00366",
+      "input": "Bagaimana kabar ibumu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00367",
+      "input": "Judy melihat saya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00368",
+      "input": "Kalimat ini benar secara gramatik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00369",
+      "input": "Mohon tunggu sebentar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00370",
+      "input": "Bagaimana kabar Anda?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00371",
+      "input": "Tom bukan anak yang pemalas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00372",
+      "input": "Semua orang dilahirkan merdeka dan mempunyai martabat dan hak-hak yang sama. Mereka dikaruniai akal dan hati nurani dan hendaknya bergaul satu sama lain dalam semangat persaudaraan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00373",
+      "input": "Saya dengar bahwa belajar di pagi hari lebih efektif. Belajar satu jam di pagi hari sama baiknya dengan belajar tiga jam di malam hari.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00374",
+      "input": "Jalur Tokaido berhenti di Tokyo",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00375",
+      "input": "Dia kaya pengalaman.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00376",
+      "input": "Perkataannya telah membuat kesan yang dalam terhadap murid-murid.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00377",
+      "input": "Saya merasa agak tidak enak badan hari ini.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00378",
+      "input": "Kami ingin Anda datang ke pesta kami.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00379",
+      "input": "Dia tidak datang, katanya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00380",
+      "input": "Pria itu tidak datang kata perempuan itu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00381",
+      "input": "Dia memiliki keinginan yang kuat untuk bekerja sebagai seorang penerjemah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00382",
+      "input": "Saya sedang ingin pergi berjalan-jalan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00383",
+      "input": "Saya tidak mengerti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00384",
+      "input": "Sepertinya dia yakin bahwa apa yang dia katakan adalah benar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00385",
+      "input": "Dia mengumpulkan banyak perangko.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00386",
+      "input": "Tiba-tiba lampu padam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00387",
+      "input": "Datang dan temui saya saat Anda memiliki waktu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00388",
+      "input": "Kami berharap agar dia segera kembali.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00389",
+      "input": "Silahkan menghubungi saya kembali nanti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00390",
+      "input": "Saya ingin tahu siapa yang akan datang bersama kita.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00391",
+      "input": "Semua orang dipersilahkan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00392",
+      "input": "Dia menghindar untuk bertemu dengannya dalam perjalanan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00393",
+      "input": "Apakah kamu mengenal mereka?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00394",
+      "input": "Gerbang ditutup pada pukul delapan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00395",
+      "input": "Terima kasih untuk pertolongan Anda.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00396",
+      "input": "Istriku mempunyai kesalahan-kesalahan. Meskipun demikian, aku mencintainya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00397",
+      "input": "Pengetahuan tentang komputer adalah dasar daripada segala ilmu pengetahuan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00398",
+      "input": "Kita harus tetap tenang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00399",
+      "input": "Dia membuat sebuah alasan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00400",
+      "input": "Saya sangat sibuk akhir-akhir ini hingga kepala saya pening. Saya bahkan tidak memiliki waktu untuk menonton video.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00401",
+      "input": "Jikalau barang seorang tiada mau bekerja, jangan ia makan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00402",
+      "input": "Siapa orang itu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00403",
+      "input": "Sudah lama sejak saya mengunjungi nenek saya",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00404",
+      "input": "Dia meminta maaf karena telah menyinggungnya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00405",
+      "input": "Saya sudah mengenalnya sejak kecil",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00406",
+      "input": "Saya yakin saya akan dapat menemukannya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00407",
+      "input": "Saya tidak dapat membantumu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00408",
+      "input": "Sepertinya koper saya telah dicuri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00409",
+      "input": "Apa yang dia katakan di dalam suratnya?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00410",
+      "input": "Mereka tinggal di hotel selama seminggu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00411",
+      "input": "Ibunya sedang menulis surat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00412",
+      "input": "Yoko sedang berada di London saat ini. Dia belajar Bahasa Inggris.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00413",
+      "input": "Saya tidak dapat menerima bahwa istri saya benar-benar sudah meninggal.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00414",
+      "input": "Saya akan bermain tenis.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00415",
+      "input": "Mike tidak ikut berlatih kemarin",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00416",
+      "input": "Saya dapat menemukan rumahnya dengan mudah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00417",
+      "input": "Dapatkah kamu meletakannya di meja?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00418",
+      "input": "Bagaimanapun, saya tidak punya uang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00419",
+      "input": "Intinya adalah ibu terlalu sibuk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00420",
+      "input": "Dia punya masa depan yang cerah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00421",
+      "input": "Apa yang sedang dilakukan Ken?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00422",
+      "input": "Kami mengenalnya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00423",
+      "input": "Kucingku tersayang sudah seminggu hilang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00424",
+      "input": "Angka tujuh terkadang dianggap sebagai angka keberuntungan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00425",
+      "input": "Perusahan Jepang umumnya menyediakan seragam untuk para karyawannya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00426",
+      "input": "Kamu tidak harus pergi kecuali kalau kamu memang mau.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00427",
+      "input": "Saya sering jatuh, tapi saya tidak pernah menyerah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00428",
+      "input": "Tidak memerlukan waktu lama.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00429",
+      "input": "Kurang tidur tidak baik bagi kesehatan anda.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00430",
+      "input": "Kamu tidak melihat apapun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00431",
+      "input": "Saya merasa sedih tanpa alasan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00432",
+      "input": "Hewan dan tumbuhan hidup di planet ini.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00433",
+      "input": "Sudah sepuluh tahun sejak saya meninggalkan kuliah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00434",
+      "input": "Dia naik taksi ke museum.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00435",
+      "input": "Ayo makan siang!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00436",
+      "input": "Saya makan hot dog untuk makan siang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00437",
+      "input": "Dia dapat berenang dengan cepat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00438",
+      "input": "Kota Kibune terletak dekat Kyoto.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00439",
+      "input": "Kamu dapat menghubunginya dengan menelpon nomor ini.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00440",
+      "input": "Dia menyembunyikan kesedihannya dibalik senyum.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00441",
+      "input": "Saya akan menelponmu besok pagi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00442",
+      "input": "Saya sedang makan sebuah apel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00443",
+      "input": "Sepatumu ada di sini.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00444",
+      "input": "Tidak ada bukti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00445",
+      "input": "Dia masih bergantung secara finansial kepada orang tuanya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00446",
+      "input": "Mengapa kamu tidak ikut memancing dengan kami akhir minggu ini, jika kamu tidak sibuk?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00447",
+      "input": "Dia ditemukan terbaring tidak sadar di lantai dapur.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00448",
+      "input": "Ini di luar pertanyaan?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00449",
+      "input": "Ngomong-ngomong,berapa umurmu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00450",
+      "input": "Yang satu merah dan yang lainnya putih.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00451",
+      "input": "Dia pasti sudah berkata bohong.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00452",
+      "input": "Dia menyeberang jalan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00453",
+      "input": "Aku akan mendapat SIM akhir tahun ini.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00454",
+      "input": "Kamu terlihat berbeda hari ini.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00455",
+      "input": "Aku mengatakan ini dari hati.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00456",
+      "input": "Kejujuran bukan jaminan sukses.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00457",
+      "input": "Makanan dan pelayanannya baik sekali.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00458",
+      "input": "Ledakan populasi adalah masalah yang serius.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00459",
+      "input": "Apakah kita diperbolehkan menggunakan lift?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00460",
+      "input": "Dia sepertinya dalam masalah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00461",
+      "input": "Apa pekerjaannya?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00462",
+      "input": "Saya pikir itu ide yang bagus.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00463",
+      "input": "Saya harap saya dapat bertemu anda lagi, segera.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00464",
+      "input": "Hari ini sangat panas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00465",
+      "input": "Saya akan menunggu di sini sampai dia datang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00466",
+      "input": "Dia sedang mendengarkan radio dengan earphone.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00467",
+      "input": "Dia sangat mirip dengan ayahnya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00468",
+      "input": "Dia terpeleset saat sedang menyeberang jalan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00469",
+      "input": "Aku menunjukkan kamarku padanya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00470",
+      "input": "Foto ini mengingatkanku pada masa kecilku",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00471",
+      "input": "Hujan deras selama sekitar setengah jam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00472",
+      "input": "Penyair sering membandingkan kematian dengan tidur.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00473",
+      "input": "Dia tinggal di hutan seorang diri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00474",
+      "input": "Pasangan itu telah berpisah, tidak pernah bertemu lagi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00475",
+      "input": "Saya lelah mendengarkan cerita Ayah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00476",
+      "input": "Kalau memungkinkan, saya akan kembali besok.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00477",
+      "input": "Dia sangat pintar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00478",
+      "input": "Aku tidak tahu artinya kebencian.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00479",
+      "input": "Ini adalah semacam hewan yang tinggal di laut.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00480",
+      "input": "Seberapa tinggi kamu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00481",
+      "input": "Kupu-kupu ini langka di negara kami.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00482",
+      "input": "Jadi kamu menyerah, benar?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00483",
+      "input": "Jangan khawatir",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00484",
+      "input": "Buah segar baik untuk kesehatan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00485",
+      "input": "Saya punya anjing yang dapat berlari dengan cepat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00486",
+      "input": "Semua siswa di kelasku sangat bersahabat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00487",
+      "input": "Tom tidak pernah datang tepat waktu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00488",
+      "input": "Keberatan anda telah dicatat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00489",
+      "input": "Saya lapar karena saya tidak sarapan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00490",
+      "input": "Apakah kamu pernah ke Jepang?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00491",
+      "input": "Mary menolak undangan ke konser.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00492",
+      "input": "Mata uang Eropa melemah terhadap dolar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00493",
+      "input": "Pesawat ini sangat jelek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00494",
+      "input": "Bagaimana cuaca hari ini?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00495",
+      "input": "Saya melakukannya setiap Minggu pagi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00496",
+      "input": "Halo, apa kabar?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00497",
+      "input": "Kamu sudah dari dulu ingin kesana bukan?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00498",
+      "input": "Pertumbuhan bayi ini normal untuk seumurannya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00499",
+      "input": "Dia menulis surat untuk ibunya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00500",
+      "input": "Laki-laki itu mengangkat tangan untuk bertanya",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00501",
+      "input": "Dia membuat penemuan ilmiah penting.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00502",
+      "input": "Dia meninggalkan Paris akhir bulan yang lalu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00503",
+      "input": "Dengan kata lain, dia malas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00504",
+      "input": "Dia mulai merasa sakit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00505",
+      "input": "Ayah saya meninggal dua tahun yang lalu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00506",
+      "input": "Program pajak Presiden Reagan tidak berfungsi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00507",
+      "input": "Dapatkah saya melihat paspor anda?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00508",
+      "input": "Penglihatannya sangat buruk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00509",
+      "input": "Apa kamu mau ikut?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00510",
+      "input": "Bintang yang bersinar di atas sana adalah Jupiter",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00511",
+      "input": "Burung memiliki mata yang tajam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00512",
+      "input": "Pemain yang paling tidak berbakat akan dikeluarkan dari tim.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00513",
+      "input": "Apa yang membuat dia tetap datang ke pesta itu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00514",
+      "input": "Bisakah kita bicara secara pribadi?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00515",
+      "input": "Kenapa tidak dicoba?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00516",
+      "input": "Mereka mengatakan bahwa dia adalah musisi ketika masih muda.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00517",
+      "input": "Kamu ingin pergi?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00518",
+      "input": "Dia disukai teman-temannya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00519",
+      "input": "Kamu mau pergi?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00520",
+      "input": "Dia ngotot mengatakan bahwa analisanya tepat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00521",
+      "input": "Saya akan memberi hadiah sepeda di hari ulang tahunmu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00522",
+      "input": "Adalah penting, di usia berapapun, untuk takut akan Tuhan dan menghormati orang tua.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00523",
+      "input": "Kantornya dekat dengan kantor saya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00524",
+      "input": "Apakah kamu tahu siapa duta besar Inggris untuk Jepang?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00525",
+      "input": "Bill sudah berhenti merokok.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00526",
+      "input": "Semua bayangan kebahagiaannya hilang begitu saja dalam waktu singkat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00527",
+      "input": "Ketika dia kembali ke kamarnya, cincin berliannya telah hilang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00528",
+      "input": "Api telah padam dan ruangan itu menjadi dingin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00529",
+      "input": "Lihat! Buku itu terbakar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00530",
+      "input": "Dia lari menyelamatkan diri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00531",
+      "input": "Seperti ayah, seperti anak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00532",
+      "input": "Bir lokal apa yang paling enak?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00533",
+      "input": "Berikutnya akan ditayangkan berita lokal.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00534",
+      "input": "Dia segera menikah setelah lulus kuliah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00535",
+      "input": "Jika Anda mendaftar di Facebook, informasi pendaftaran akan dikirim ke agen intelejen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00536",
+      "input": "Saya sudah lulus sekolah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00537",
+      "input": "Akhirnya saya lulus SMP.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00538",
+      "input": "Helen lulus SMA tahun lalu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00539",
+      "input": "Apa dia lulus di ujian itu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00540",
+      "input": "Saya harus pergi ke sana demi ayah saya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00541",
+      "input": "Uang itu mungkin akan dibagi dua dengan rata.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00542",
+      "input": "Jumlah penduduk di kota itu semakin tahun semakin berkurang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00543",
+      "input": "Dia adalah wanita dengan kepribadian yang kuat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00544",
+      "input": "Saya mau yang ini.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00545",
+      "input": "Saya mau yang itu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00546",
+      "input": "Saya tidak mengerti kata itu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00547",
+      "input": "Saya tidak mengerti kata ini.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00548",
+      "input": "Semua sekolah tutup pada hari libur itu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00549",
+      "input": "Apa kosa kata itu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00550",
+      "input": "Saya mau bilang kata itu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00551",
+      "input": "Senin depan libur.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00552",
+      "input": "Makanan itu enak sekali.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00553",
+      "input": "Minuman ini sangat enak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00554",
+      "input": "Saya guru bahasa Jepang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00555",
+      "input": "Saya benar-benar suka Bahasa Jepang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00556",
+      "input": "Saya mau beli kamus murah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00557",
+      "input": "Saya tidak mengerti Bahasa Belanda, karena sukar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00558",
+      "input": "Saya belum bisa bicara Bahasa Indonesia dengan lancar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00559",
+      "input": "Saya bisa makan yang ini?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00560",
+      "input": "Boleh saya minta bon?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00561",
+      "input": "Permisi, tetapi kamu bisa bantu saya?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00562",
+      "input": "\"Terima kasih karena kamu tolong saya.\" \"Terima kasih kembali.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00563",
+      "input": "Perubahan iklim global mungkin jadi penyebab punahnya dinosaurus.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00564",
+      "input": "Anak-anak kecil suka dengan buku tentang dinosaurus dan monster.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00565",
+      "input": "Dinosaurus sekarang sudah punah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00566",
+      "input": "Tidak ada yang mengerti aku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00567",
+      "input": "Sejauh yang saya tahu, desas-desus itu tidak benar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00568",
+      "input": "Seberapa pun kerasnya dia mencoba, dia tidak akan berhasil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00569",
+      "input": "Dia menyemangati saya untuk mencoba lagi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00570",
+      "input": "Dia punya sedikit gigi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00571",
+      "input": "Dia tinggal di sebelah rumah saya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00572",
+      "input": "Setelah mendaki Gunung Fuji, saya mendapat inspirasi menulis puisi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00573",
+      "input": "\"Biarkan saya sendiri\", dia berkata dengan marah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00574",
+      "input": "Tidak semua buku yang di atas meja miliki saya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00575",
+      "input": "Lelaki itu jelas mengelabui kami.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00576",
+      "input": "Bagaimana pendapat Anda tentang novel barunya?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00577",
+      "input": "Orang itu meninggal beberapa jam yang lalu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00578",
+      "input": "Dia mengantar koran.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00579",
+      "input": "Apa ada biaya pengiriman?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00580",
+      "input": "Rumah itu dibangun dari batu bata.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00581",
+      "input": "Saya beli buku ini untuk saya, bukan untuk istri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00582",
+      "input": "Berapa orang yang ikut bepergian?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00583",
+      "input": "Mengapa kita tidak pulang?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00584",
+      "input": "Saya pergi ke Bali saat libur musim panas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00585",
+      "input": "John tiba di Jepang kemarin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00586",
+      "input": "Janji adalah janji.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00587",
+      "input": "Ada banyak bangunan tua yang terkenal di Kyoto.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00588",
+      "input": "Saya tidak suka bunga buatan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00589",
+      "input": "Saya menemukan satu dolar di jalan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00590",
+      "input": "Boleh saya pergi denganmu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00591",
+      "input": "Ada masalah yang tidak kamu lihat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00592",
+      "input": "Dia sepertinya tidak menyadari adanya masalah antara saya dan ayah saya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00593",
+      "input": "Dia tidak menyadari kesalahannya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00594",
+      "input": "Sumber dari pernyataan itu, saya tidak tahu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00595",
+      "input": "Cara yang sopan untuk memberi tahu suatu fakta tanpa menyebutkan sumber informasi adalah dengan mengatakan, \"ada kabar burung\".",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00596",
+      "input": "Kedua orang tuanya baik-baik saja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00597",
+      "input": "Seorang wanita, yang suaminya meninggal, disebut janda.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00598",
+      "input": "Arloji saya dicuri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00599",
+      "input": "Saya staf yang paling junior di kantor saya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00600",
+      "input": "Nasihat gratis tidak selalu nasihat yang baik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00601",
+      "input": "\"Aku cinta kamu\" - Saya tidak akan mengucapkan kata semacam itu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00602",
+      "input": "Anjing itu nampaknya sakit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00603",
+      "input": "Gadis itu terkenal bukan karena kecantikannya, tapi karena kebaikannya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00604",
+      "input": "Anak-anak belajar untuk merespon suara yang berima sejak usia kecil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00605",
+      "input": "Silahkan ikuti saya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00606",
+      "input": "Kami makan di restoran mahal atas dan menginap di hotel kelas atas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00607",
+      "input": "Saya suka membaca buku cerita.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00608",
+      "input": "Saya ingin kamu baca buku ini.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00609",
+      "input": "Berikan uangmu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00610",
+      "input": "Mudah didapat, mudah hilang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00611",
+      "input": "Jet itu telah mendarat di Tokyo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00612",
+      "input": "Dia kembali dari Singapura bulan Januari depan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00613",
+      "input": "Buku ini milikmu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00614",
+      "input": "Mereka menyelesaikan proyek itu sesuai dengan jadwal.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00615",
+      "input": "Dia gugup sebelum ujian masuk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00616",
+      "input": "Mengapa kamu gagal di ujian masuk?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00617",
+      "input": "Dia nampaknya akan lulus pada ujian masuk itu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00618",
+      "input": "Dia belajar keras agar dapat lulus di ujian masuk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00619",
+      "input": "Saya sudah jelaskan padanya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00620",
+      "input": "Panas dan terang dibutuhkan untuk eksistensi kita.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00621",
+      "input": "Keluargaku adalah keluarga besar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00622",
+      "input": "Orang Amerika adalah orang yang ramah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00623",
+      "input": "Seperti halnya tubuh perlu olahraga, pikiran juga perlu stimulasi agar tetap sehat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00624",
+      "input": "Apa kamu tinggal dengan orangtuamu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00625",
+      "input": "Apa kamu sedang terburu-buru?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00626",
+      "input": "Kamu kelas berapa?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00627",
+      "input": "Adik perempuan saya sering menangis.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00628",
+      "input": "Para sopir itu mulai berdebat siapa yang salah dalam kecelakaan itu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00629",
+      "input": "Mereka memandang dia seolah-olah pemimpin mereka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00630",
+      "input": "Ini masalah yang harus kamu selesaikan sendiri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00631",
+      "input": "Diam atau kamu akan dikeluarkan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00632",
+      "input": "Dia mirip dengan ibunya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00633",
+      "input": "Saat ini tidak ada lagi yang perlu saya kerjakan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00634",
+      "input": "Malam ini kemungkinan akan turun hujan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00635",
+      "input": "Bisa saya bantu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00636",
+      "input": "Saya juga pergi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00637",
+      "input": "Saya menganggap diamnya mereka sebagai tanda setuju.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00638",
+      "input": "Kamu tertarik pada apa?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00639",
+      "input": "Baiklah. Berapa banyak?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00640",
+      "input": "Dia masih percaya pada kata-katanya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00641",
+      "input": "Tidak ada yang tahu ke mana Bill pergi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00642",
+      "input": "Nama saya Hashimoto.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00643",
+      "input": "Dia belum datang. Dia pasti ketinggalan bis.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00644",
+      "input": "Dia mengalami sedikit kemajuan dalam Bahasa Inggris.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00645",
+      "input": "Wah, pagi ini cepat ya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00646",
+      "input": "Silahkan memperpanjang visa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00647",
+      "input": "Saya sudah kenyang, terima kasih.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00648",
+      "input": "Lebih baik tinggal di rumah daripada pergi keluar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00649",
+      "input": "Saya tidak tahu kenapa kamu tidak menyukainya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00650",
+      "input": "Waktu keberangkatan telah tiba, dan kami pergi sesuai jalan-jalan kami - Saya mati dan kamu hidup. Mana yang lebih baik hanya Tuhan yang tahu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00651",
+      "input": "Buku ini tentang perbintangan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00652",
+      "input": "Saya mendengar dia menyanyikan sebuah lagu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00653",
+      "input": "Apakah kamu pernah dengar lagu itu dinyanyikan dalam Bahasa Perancis?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00654",
+      "input": "Apa ini milikmu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00655",
+      "input": "Mawar ini sangat indah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00656",
+      "input": "Anjing itu dibuat agar menggonggong kepada orang asing.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00657",
+      "input": "Kamu akhirnya sukses mendapatkan pekerjaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00658",
+      "input": "Dia orang yang tidak banyak berbicara, tapi selalu menepati janjinya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00659",
+      "input": "Kamu sebaiknya memperhatikan apa yang dia katakan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00660",
+      "input": "Pemberi kerja kadang-kadang memanfaatkan pekerjanya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00661",
+      "input": "Saya tidak tahu pasti kapan dia tiba.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00662",
+      "input": "Kata ini diturunkan dari Bahasa Jerman.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00663",
+      "input": "Tidak ada mawar yang tidak berduri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00664",
+      "input": "Anak laki-laki itu melompat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00665",
+      "input": "Kudanya melompat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00666",
+      "input": "Anak perempuan itu melompat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00667",
+      "input": "Anjing itu lompat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00668",
+      "input": "Siapa yang sedang membaca?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00669",
+      "input": "Tolong panggil seseorang yang mengerti Bahasa Jepang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00670",
+      "input": "Saya tidak tahu hal itu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00671",
+      "input": "Orang Inggris terbiasa untuk berdiri untuk mengantri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00672",
+      "input": "Orang Jepang dan Inggris biasanya menunggu di pemberhentian bis dengan mengantri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00673",
+      "input": "Jangan lupa untuk bertemu saya di stasiun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00674",
+      "input": "Saya malu telah melakukan hal tersebut.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00675",
+      "input": "Harganya terlalu mahal!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00676",
+      "input": "Bagi saya, tidak ada perbedaan mendasar antara kebudayaan dari kedua negara tersebut.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00677",
+      "input": "Dia membuka surat itu dengan cepat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00678",
+      "input": "Saya sedang belajar Bahasa Inggris sekarang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00679",
+      "input": "Dia memberhentikan mobil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00680",
+      "input": "Seandainya saya tahu alamatnya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00681",
+      "input": "Dan saya tahu kamu tidak melakukannya untuk saya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00682",
+      "input": "Dia belajar Bahasa Inggris.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00683",
+      "input": "Dia lebih tinggi daripada saya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00684",
+      "input": "Beberapa murid datang ke perpustakaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00685",
+      "input": "Dia berduduk di situ dengan mata tertutup.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00686",
+      "input": "Dia sengaja menginjak kaki saya di kereta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00687",
+      "input": "Saya tidak bisa selesai membaca buku tebal ini dalam seminggu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00688",
+      "input": "Abbot membunuh Mary.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00689",
+      "input": "Dia melakukan pekerjaannya sendiri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00690",
+      "input": "Dia jarang pergi ke gereja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00691",
+      "input": "Mata sama tajamnya seperti lidah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00692",
+      "input": "Kita harus memperhatikan rambu-rambu lalu lintas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00693",
+      "input": "Saya perlu seseorang untuk diajak bicara.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00694",
+      "input": "Dia seorang dokter.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00695",
+      "input": "Aku kangen kamu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00696",
+      "input": "Saya rindu Anda.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00697",
+      "input": "Beritahukan semuanya kepada saya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00698",
+      "input": "Kemudian mereka melihat matahari terbit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00699",
+      "input": "Tidak sia-sia pergi ke Pulau Bali karena Anda dapat melihat indahnya matahari terbit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00700",
+      "input": "Kamu sudah membuat keputusan ke belum?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00701",
+      "input": "Ibu saya sedang membuat kue.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00702",
+      "input": "Gratis untuk masyarakat Uni Eropa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00703",
+      "input": "Tetap awasi dia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00704",
+      "input": "Kamu harus berhenti merokok.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00705",
+      "input": "Dengarkan baik-baik maksud perkataan saya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00706",
+      "input": "Rencana itu sedang didiskusikan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00707",
+      "input": "Peter jatuh cinta dengan gadis itu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00708",
+      "input": "Jangan lupa membalas suratnya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00709",
+      "input": "Ini tidak mahal.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00710",
+      "input": "Dia selalu kekurangan uang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00711",
+      "input": "Apa yang dia katakan benar-benar kebohongan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00712",
+      "input": "Anda tidak perlu kuatir dengan hal itu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00713",
+      "input": "Di mana kamu beli baju itu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00714",
+      "input": "Kemarin saya memberikan sambutan untuk pernikahan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00715",
+      "input": "Kematian seorang pria yang berbakat menyedihkan saya, daripada surga rasanya dunia lebih membutuhkan dia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00716",
+      "input": "Begitu tetangga melihat John menjual narkoba, dia melaporkannya ke pihak berwajib.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00717",
+      "input": "Ketika kedua gadis mengutarakan pada John mereka memiliki perasaan terhadapnya, ia kebingungan kepada siapa dirinya sebaiknya berpasangan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00718",
+      "input": "Kamu masih muda.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00719",
+      "input": "Pukulannya tidak bisa begitu jauh karena ada angin yang melawan arah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00720",
+      "input": "Saya pemimpin regu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00721",
+      "input": "Saya tidak memiliki kaitan dengan regu itu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00722",
+      "input": "Bagaimana bisa tercapai simpulan seperti ini?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00723",
+      "input": "Harga saham anjlok ke titik terendah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00724",
+      "input": "Apa ini tempat yang banyak dikunjungi di daerah ini?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00725",
+      "input": "Dulunya ia merokok tetapi sekarang tidak lagi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00726",
+      "input": "Mereka tampak seperti akan menangis.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00727",
+      "input": "Bagi saya, yang mana pun tak masalah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00728",
+      "input": "Emi tampak seperti apa?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00729",
+      "input": "Isyarat ini sangat dikenal di kalangan muda.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00730",
+      "input": "Mari makan malam sebelum ke pertandingan baseball.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00731",
+      "input": "Saya tiba di Tokyo tengah hari.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00732",
+      "input": "Ia membungkukkan badan lalu memungut batu kecil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00733",
+      "input": "Mengemis, meski hanya tiga hari, akan menjadi kebiasaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00734",
+      "input": "Saya tidak tahu cara membeli tiket.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00735",
+      "input": "Ia meminta supaya gajinya dinaikkan lagi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00736",
+      "input": "Ia benar-benar punya selera humor yang rendah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00737",
+      "input": "Diantara yang lainnya, ia yang paling jago berenang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00738",
+      "input": "Harga beras diatur pemerintah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00739",
+      "input": "Tolong beritahu cara penulisan nama Anda.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00740",
+      "input": "Kamu tak akan bisa menyelesaikan tanpa kamus yang bagus.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00741",
+      "input": "Bagus jika kamu memiliki satu diantara dua buku itu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00742",
+      "input": "Setelah tidur nyenyak perasaan menjadi enteng.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00743",
+      "input": "Saya bertanggung jawab atas kegagalan anak saya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00744",
+      "input": "Ia menangis tanpa henti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00745",
+      "input": "Hanya wanita yang diperbolehkan sebagai pelamar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00746",
+      "input": "Ia mandiri secara ekonomi dari orang tuanya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00747",
+      "input": "Anda ingin memesan apa?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00748",
+      "input": "Kereta itu akan melintasi stasiun Motomachi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00749",
+      "input": "Begitu mencoba menanggalkan posisi di angkatan laut, ia merasa kesulitan beradaptasi dengan kehidupan di daratan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00750",
+      "input": "Pengambilan sampah dilakukan tiga kali sepekan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00751",
+      "input": "Bayar pajak? Nggak salah tuh?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00752",
+      "input": "Sejuk di bawah pohon.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00753",
+      "input": "Mobil ini mogok.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00754",
+      "input": "Jangan dekati anjing itu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00755",
+      "input": "Bagaimana Anda bisa saling kenal?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00756",
+      "input": "Jangan merokok, bertenggang rasalah dengan yang lainnya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00757",
+      "input": "Faktanya, manusia tak bisa hidup tanpa tidur.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00758",
+      "input": "Saya selalu ada simpati begitu melihat dirinya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00759",
+      "input": "Mengunjungi benteng itu adalah pengalaman yang bernilai.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00760",
+      "input": "Aku tidak menyukai Alice.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00761",
+      "input": "\"Cepatlah berangkat!\" ia berujar padaku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00762",
+      "input": "Hujan terus turun sejak Ahad.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00763",
+      "input": "Lompatlah setinggi mungkin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00764",
+      "input": "\"Baik\", kata orang itu, \"Saya tidak percaya, tetapi tidak ada salahnya berharap. Saya berharap saya tahu siapa saya.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00765",
+      "input": "\"Kamu menganggap saya orang tolol!\" \"Menganggapmu orang tolol? Saya tidak pernah melakukannya!\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00766",
+      "input": "Baru kemarin saya tahu hal tersebut.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00767",
+      "input": "Mengapa kamu menginginkan mobil tua itu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00768",
+      "input": "Kita tidak bisa pergi karena badai.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00769",
+      "input": "Kita teman sekelas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00770",
+      "input": "Coba lebih baik lagi lain kali.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00771",
+      "input": "Ayah saya sangat tertarik dengan sejarah purbakala.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00772",
+      "input": "Adalah tidak mungkin untuk kembali ke masa lalu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00773",
+      "input": "Saya sangat suka kue yang manis.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00774",
+      "input": "Saya kehabisan uang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00775",
+      "input": "Pak Smith senang dengan keberhasilan anaknya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00776",
+      "input": "Saya bertemu dengannya kemarin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00777",
+      "input": "Saya harus memecatmu bila sering terlambat datang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00778",
+      "input": "Hirosi sedang memotong kayu menjadi papan-papan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00779",
+      "input": "Kamu membutuhkan sedikit keberanian untuk menyatakan cinta padanya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00780",
+      "input": "Dia mengambil pelajaran piano seminggu sekali.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00781",
+      "input": "Saya khawatir akan kesehatanmu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00782",
+      "input": "Mari naik kereta bawah tanah.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00783",
+      "input": "Omong-omong, malam ini ada waktu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00784",
+      "input": "Dari awal, uangnya tidak cukup untuk mendirikan toko pangan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00785",
+      "input": "Dia belum datang juga. Dia pasti ketinggalan bis.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00786",
+      "input": "Masalah ini bermula dari kesalahpahaman.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00787",
+      "input": "Saya kehilangan kepercayaan padanya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00788",
+      "input": "Dia berhasil dalam ujian itu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00789",
+      "input": "Dia sekarang menulis sebuah buku.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00790",
+      "input": "Perjalanan jauh melelahkan saya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00791",
+      "input": "Saya akan mengambil jemuran sebelum hujan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00792",
+      "input": "Kamu harus belajar bahasa Jepang lebih giat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00793",
+      "input": "Saya sering bertemu Pak Sasaki di stasiun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00794",
+      "input": "Mengerti? Kamu harus belajar bahasa asing.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00795",
+      "input": "Ia ingin menjadi insinyur.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00796",
+      "input": "Katakan padanya untuk tidak ikut campur.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00797",
+      "input": "Sistem ekonomi syariah hingga kini belum dipraktekkan di kalangan pesantren.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00798",
+      "input": "Sayangnya, banyak umat Islam yang tak menyadari, mengapa ia beragama Islam. Banyak Muslim yang menjadi Muslim hanya karena orang tua mereka Muslim.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-id-00799",
+      "input": "TNI Angkatan Laut dan Angkatan Laut Korea Selatan (ROKN) sepakat kerja sama penanganan perompakan dan pembajakan, serta beragam kejahatan di laut lainnya.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-id-00000",
+      "input": "Room 304 has the laptops we ordered.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-id-00001",
+      "input": "Bought 5 cookies on the avenue near my office.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-id-00002",
+      "input": "Track #12345 was delivered yesterday.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-id-00003",
+      "input": "I had 5 boxes in storage unit 12.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-id-00004",
+      "input": "Building number 7 was empty.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-id-00005",
+      "input": "Open from January 1990 onwards.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-id-00006",
+      "input": "Floor 3 has the printer.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-id-00007",
+      "input": "Order #98765 is being processed.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-id-00008",
+      "input": "The bus runs every 12 minutes.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-id-00009",
+      "input": "Found 5000 documents in the archive.",
+      "expected": []
+    }
+  ]
+}

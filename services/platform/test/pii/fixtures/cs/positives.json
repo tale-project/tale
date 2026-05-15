@@ -1,0 +1,3315 @@
+{
+  "_meta": {
+    "locale": "cs",
+    "generator": "platform/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 300,
+      "negatives": 0
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "positives": [
+    {
+      "id": "email-cs-00000",
+      "input": "Prosím odešlete balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00001",
+      "input": "Poštovní adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00002",
+      "input": "Zákazník bydlí na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00003",
+      "input": "Místo vyzvednutí — anna.mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00004",
+      "input": "Prosím odešlete balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00005",
+      "input": "Poštovní adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00006",
+      "input": "Zákazník bydlí na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00007",
+      "input": "Místo vyzvednutí — anna_mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00008",
+      "input": "Prosím odešlete balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00009",
+      "input": "Poštovní adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00010",
+      "input": "Zákazník bydlí na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00011",
+      "input": "Místo vyzvednutí — annamueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00012",
+      "input": "Prosím odešlete balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00013",
+      "input": "Poštovní adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00014",
+      "input": "Zákazník bydlí na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00015",
+      "input": "Místo vyzvednutí — anna.mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00016",
+      "input": "Prosím odešlete balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00017",
+      "input": "Poštovní adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00018",
+      "input": "Zákazník bydlí na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00019",
+      "input": "Místo vyzvednutí — anna_mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00020",
+      "input": "Prosím odešlete balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00021",
+      "input": "Poštovní adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00022",
+      "input": "Zákazník bydlí na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00023",
+      "input": "Místo vyzvednutí — annamueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00024",
+      "input": "Prosím odešlete balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00025",
+      "input": "Poštovní adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00026",
+      "input": "Zákazník bydlí na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00027",
+      "input": "Místo vyzvednutí — anna.mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00028",
+      "input": "Prosím odešlete balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00029",
+      "input": "Poštovní adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00030",
+      "input": "Zákazník bydlí na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00031",
+      "input": "Místo vyzvednutí — anna_mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00032",
+      "input": "Prosím odešlete balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00033",
+      "input": "Poštovní adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00034",
+      "input": "Zákazník bydlí na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00035",
+      "input": "Místo vyzvednutí — annamueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00036",
+      "input": "Prosím odešlete balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00037",
+      "input": "Poštovní adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00038",
+      "input": "Zákazník bydlí na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00039",
+      "input": "Místo vyzvednutí — anna.mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00040",
+      "input": "Prosím odešlete balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00041",
+      "input": "Poštovní adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00042",
+      "input": "Zákazník bydlí na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00043",
+      "input": "Místo vyzvednutí — anna_mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00044",
+      "input": "Prosím odešlete balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00045",
+      "input": "Poštovní adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00046",
+      "input": "Zákazník bydlí na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00047",
+      "input": "Místo vyzvednutí — annamueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00048",
+      "input": "Prosím odešlete balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00049",
+      "input": "Poštovní adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00050",
+      "input": "Zákazník bydlí na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00051",
+      "input": "Místo vyzvednutí — anna.mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00052",
+      "input": "Prosím odešlete balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00053",
+      "input": "Poštovní adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00054",
+      "input": "Zákazník bydlí na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00055",
+      "input": "Místo vyzvednutí — anna_mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00056",
+      "input": "Prosím odešlete balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00057",
+      "input": "Poštovní adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00058",
+      "input": "Zákazník bydlí na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00059",
+      "input": "Místo vyzvednutí — annamueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00060",
+      "input": "Prosím odešlete balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00061",
+      "input": "Poštovní adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00062",
+      "input": "Zákazník bydlí na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00063",
+      "input": "Místo vyzvednutí — anna.mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00064",
+      "input": "Prosím odešlete balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00065",
+      "input": "Poštovní adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00066",
+      "input": "Zákazník bydlí na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00067",
+      "input": "Místo vyzvednutí — anna_mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00068",
+      "input": "Prosím odešlete balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00069",
+      "input": "Poštovní adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00070",
+      "input": "Zákazník bydlí na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00071",
+      "input": "Místo vyzvednutí — annamueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00072",
+      "input": "Prosím odešlete balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00073",
+      "input": "Poštovní adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00074",
+      "input": "Zákazník bydlí na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00075",
+      "input": "Místo vyzvednutí — anna.mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00076",
+      "input": "Prosím odešlete balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00077",
+      "input": "Poštovní adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00078",
+      "input": "Zákazník bydlí na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00079",
+      "input": "Místo vyzvednutí — anna_mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00080",
+      "input": "Prosím odešlete balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00081",
+      "input": "Poštovní adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00082",
+      "input": "Zákazník bydlí na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00083",
+      "input": "Místo vyzvednutí — annamueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00084",
+      "input": "Prosím odešlete balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00085",
+      "input": "Poštovní adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00086",
+      "input": "Zákazník bydlí na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00087",
+      "input": "Místo vyzvednutí — anna.mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00088",
+      "input": "Prosím odešlete balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00089",
+      "input": "Poštovní adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00090",
+      "input": "Zákazník bydlí na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00091",
+      "input": "Místo vyzvednutí — anna_mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00092",
+      "input": "Prosím odešlete balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00093",
+      "input": "Poštovní adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00094",
+      "input": "Zákazník bydlí na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00095",
+      "input": "Místo vyzvednutí — annamueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00096",
+      "input": "Prosím odešlete balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00097",
+      "input": "Poštovní adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00098",
+      "input": "Zákazník bydlí na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00099",
+      "input": "Místo vyzvednutí — anna.mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00100",
+      "input": "Prosím odešlete balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00101",
+      "input": "Poštovní adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00102",
+      "input": "Zákazník bydlí na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00103",
+      "input": "Místo vyzvednutí — anna_mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00104",
+      "input": "Prosím odešlete balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00105",
+      "input": "Poštovní adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00106",
+      "input": "Zákazník bydlí na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00107",
+      "input": "Místo vyzvednutí — annamueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00108",
+      "input": "Prosím odešlete balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00109",
+      "input": "Poštovní adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00110",
+      "input": "Zákazník bydlí na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00111",
+      "input": "Místo vyzvednutí — anna.mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00112",
+      "input": "Prosím odešlete balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00113",
+      "input": "Poštovní adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00114",
+      "input": "Zákazník bydlí na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00115",
+      "input": "Místo vyzvednutí — anna_mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00116",
+      "input": "Prosím odešlete balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00117",
+      "input": "Poštovní adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00118",
+      "input": "Zákazník bydlí na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00119",
+      "input": "Místo vyzvednutí — annamueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00120",
+      "input": "Prosím odešlete balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00121",
+      "input": "Poštovní adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00122",
+      "input": "Zákazník bydlí na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00123",
+      "input": "Místo vyzvednutí — anna.mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00124",
+      "input": "Prosím odešlete balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00125",
+      "input": "Poštovní adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00126",
+      "input": "Zákazník bydlí na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00127",
+      "input": "Místo vyzvednutí — anna_mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00128",
+      "input": "Prosím odešlete balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00129",
+      "input": "Poštovní adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00130",
+      "input": "Zákazník bydlí na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00131",
+      "input": "Místo vyzvednutí — annamueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00132",
+      "input": "Prosím odešlete balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00133",
+      "input": "Poštovní adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00134",
+      "input": "Zákazník bydlí na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00135",
+      "input": "Místo vyzvednutí — anna.mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00136",
+      "input": "Prosím odešlete balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00137",
+      "input": "Poštovní adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00138",
+      "input": "Zákazník bydlí na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00139",
+      "input": "Místo vyzvednutí — anna_mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00140",
+      "input": "Prosím odešlete balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00141",
+      "input": "Poštovní adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00142",
+      "input": "Zákazník bydlí na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00143",
+      "input": "Místo vyzvednutí — annamueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00144",
+      "input": "Prosím odešlete balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00145",
+      "input": "Poštovní adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00146",
+      "input": "Zákazník bydlí na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00147",
+      "input": "Místo vyzvednutí — anna.mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00148",
+      "input": "Prosím odešlete balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00149",
+      "input": "Poštovní adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00150",
+      "input": "Zákazník bydlí na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00151",
+      "input": "Místo vyzvednutí — anna_mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00152",
+      "input": "Prosím odešlete balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00153",
+      "input": "Poštovní adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00154",
+      "input": "Zákazník bydlí na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00155",
+      "input": "Místo vyzvednutí — annamueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00156",
+      "input": "Prosím odešlete balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00157",
+      "input": "Poštovní adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00158",
+      "input": "Zákazník bydlí na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00159",
+      "input": "Místo vyzvednutí — anna.mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00160",
+      "input": "Prosím odešlete balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00161",
+      "input": "Poštovní adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00162",
+      "input": "Zákazník bydlí na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00163",
+      "input": "Místo vyzvednutí — anna_mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00164",
+      "input": "Prosím odešlete balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00165",
+      "input": "Poštovní adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00166",
+      "input": "Zákazník bydlí na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00167",
+      "input": "Místo vyzvednutí — annamueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00168",
+      "input": "Prosím odešlete balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00169",
+      "input": "Poštovní adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00170",
+      "input": "Zákazník bydlí na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00171",
+      "input": "Místo vyzvednutí — anna.mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00172",
+      "input": "Prosím odešlete balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00173",
+      "input": "Poštovní adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00174",
+      "input": "Zákazník bydlí na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00175",
+      "input": "Místo vyzvednutí — anna_mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00176",
+      "input": "Prosím odešlete balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00177",
+      "input": "Poštovní adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00178",
+      "input": "Zákazník bydlí na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00179",
+      "input": "Místo vyzvednutí — annamueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00180",
+      "input": "Prosím odešlete balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00181",
+      "input": "Poštovní adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00182",
+      "input": "Zákazník bydlí na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00183",
+      "input": "Místo vyzvednutí — anna.mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00184",
+      "input": "Prosím odešlete balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00185",
+      "input": "Poštovní adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00186",
+      "input": "Zákazník bydlí na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00187",
+      "input": "Místo vyzvednutí — anna_mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00188",
+      "input": "Prosím odešlete balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00189",
+      "input": "Poštovní adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00190",
+      "input": "Zákazník bydlí na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00191",
+      "input": "Místo vyzvednutí — annamueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00192",
+      "input": "Prosím odešlete balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00193",
+      "input": "Poštovní adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00194",
+      "input": "Zákazník bydlí na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00195",
+      "input": "Místo vyzvednutí — anna.mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00196",
+      "input": "Prosím odešlete balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00197",
+      "input": "Poštovní adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00198",
+      "input": "Zákazník bydlí na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00199",
+      "input": "Místo vyzvednutí — anna_mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00200",
+      "input": "Prosím odešlete balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00201",
+      "input": "Poštovní adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00202",
+      "input": "Zákazník bydlí na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00203",
+      "input": "Místo vyzvednutí — annamueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00204",
+      "input": "Prosím odešlete balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00205",
+      "input": "Poštovní adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00206",
+      "input": "Zákazník bydlí na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00207",
+      "input": "Místo vyzvednutí — anna.mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00208",
+      "input": "Prosím odešlete balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00209",
+      "input": "Poštovní adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00210",
+      "input": "Zákazník bydlí na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00211",
+      "input": "Místo vyzvednutí — anna_mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00212",
+      "input": "Prosím odešlete balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00213",
+      "input": "Poštovní adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00214",
+      "input": "Zákazník bydlí na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00215",
+      "input": "Místo vyzvednutí — annamueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00216",
+      "input": "Prosím odešlete balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00217",
+      "input": "Poštovní adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00218",
+      "input": "Zákazník bydlí na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00219",
+      "input": "Místo vyzvednutí — anna.mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00220",
+      "input": "Prosím odešlete balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00221",
+      "input": "Poštovní adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00222",
+      "input": "Zákazník bydlí na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00223",
+      "input": "Místo vyzvednutí — anna_mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00224",
+      "input": "Prosím odešlete balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00225",
+      "input": "Poštovní adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00226",
+      "input": "Zákazník bydlí na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00227",
+      "input": "Místo vyzvednutí — annamueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00228",
+      "input": "Prosím odešlete balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00229",
+      "input": "Poštovní adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00230",
+      "input": "Zákazník bydlí na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00231",
+      "input": "Místo vyzvednutí — anna.mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00232",
+      "input": "Prosím odešlete balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00233",
+      "input": "Poštovní adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00234",
+      "input": "Zákazník bydlí na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00235",
+      "input": "Místo vyzvednutí — anna_mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00236",
+      "input": "Prosím odešlete balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00237",
+      "input": "Poštovní adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00238",
+      "input": "Zákazník bydlí na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00239",
+      "input": "Místo vyzvednutí — annamueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00240",
+      "input": "Prosím odešlete balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00241",
+      "input": "Poštovní adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00242",
+      "input": "Zákazník bydlí na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00243",
+      "input": "Místo vyzvednutí — anna.mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00244",
+      "input": "Prosím odešlete balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00245",
+      "input": "Poštovní adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00246",
+      "input": "Zákazník bydlí na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00247",
+      "input": "Místo vyzvednutí — anna_mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00248",
+      "input": "Prosím odešlete balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00249",
+      "input": "Poštovní adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00250",
+      "input": "Zákazník bydlí na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00251",
+      "input": "Místo vyzvednutí — annamueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00252",
+      "input": "Prosím odešlete balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00253",
+      "input": "Poštovní adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00254",
+      "input": "Zákazník bydlí na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00255",
+      "input": "Místo vyzvednutí — anna.mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00256",
+      "input": "Prosím odešlete balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00257",
+      "input": "Poštovní adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00258",
+      "input": "Zákazník bydlí na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00259",
+      "input": "Místo vyzvednutí — anna_mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00260",
+      "input": "Prosím odešlete balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00261",
+      "input": "Poštovní adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00262",
+      "input": "Zákazník bydlí na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00263",
+      "input": "Místo vyzvednutí — annamueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00264",
+      "input": "Prosím odešlete balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00265",
+      "input": "Poštovní adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00266",
+      "input": "Zákazník bydlí na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00267",
+      "input": "Místo vyzvednutí — anna.mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00268",
+      "input": "Prosím odešlete balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00269",
+      "input": "Poštovní adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00270",
+      "input": "Zákazník bydlí na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00271",
+      "input": "Místo vyzvednutí — anna_mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00272",
+      "input": "Prosím odešlete balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00273",
+      "input": "Poštovní adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00274",
+      "input": "Zákazník bydlí na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00275",
+      "input": "Místo vyzvednutí — annamueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00276",
+      "input": "Prosím odešlete balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00277",
+      "input": "Poštovní adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00278",
+      "input": "Zákazník bydlí na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00279",
+      "input": "Místo vyzvednutí — anna.mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00280",
+      "input": "Prosím odešlete balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00281",
+      "input": "Poštovní adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00282",
+      "input": "Zákazník bydlí na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00283",
+      "input": "Místo vyzvednutí — anna_mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00284",
+      "input": "Prosím odešlete balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00285",
+      "input": "Poštovní adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00286",
+      "input": "Zákazník bydlí na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00287",
+      "input": "Místo vyzvednutí — annamueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00288",
+      "input": "Prosím odešlete balík na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00289",
+      "input": "Poštovní adresa: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00290",
+      "input": "Zákazník bydlí na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00291",
+      "input": "Místo vyzvednutí — anna.mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00292",
+      "input": "Prosím odešlete balík na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00293",
+      "input": "Poštovní adresa: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00294",
+      "input": "Zákazník bydlí na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00295",
+      "input": "Místo vyzvednutí — anna_mueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00296",
+      "input": "Prosím odešlete balík na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00297",
+      "input": "Poštovní adresa: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00298",
+      "input": "Zákazník bydlí na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-cs-00299",
+      "input": "Místo vyzvednutí — annamueller@corp.example — potvrzeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 43
+        }
+      ]
+    }
+  ]
+}

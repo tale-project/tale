@@ -1,0 +1,4065 @@
+{
+  "_meta": {
+    "locale": "vi",
+    "generator": "platform/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 0,
+      "negatives": 810
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "negatives": [
+    {
+      "id": "neg-prose-vi-00000",
+      "input": "Tôi phải đi ngủ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00001",
+      "input": "Bạn đang làm gì đây?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00002",
+      "input": "Chúc mừng sinh nhật, Muiriel!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00003",
+      "input": "Mật mã là \"Muiriel\".",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00004",
+      "input": "Tôi trở lại mau.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00005",
+      "input": "Tôi không biết.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00006",
+      "input": "Tôi hết lời để nói.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00007",
+      "input": "Cái này xẽ không bao giờ chấm giứt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00008",
+      "input": "Tôi không biết nên nói gì cả...",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00009",
+      "input": "Đó là một con thỏ hung ác.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00010",
+      "input": "Tôi từ trên núi xuống.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00011",
+      "input": "Tấm hình này có mới không?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00012",
+      "input": "Rốt cuộc, ai cũng phải tự học thôi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00013",
+      "input": "Sẽ không xảy ra đâu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00014",
+      "input": "Tôi sẽ cố không quấy rầy bạn học hành.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00015",
+      "input": "Toi se goi ho ngay mai.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00016",
+      "input": "Bạn nên đi ngủ đi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00017",
+      "input": "Người trước tôi nói ý kiến với tưởng tôi điên.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00018",
+      "input": "Nếu thế giới không như bây giờ, thì tôi có thể tin ai cũng được.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00019",
+      "input": "Tiếc rằng cái đó là sự thật.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00020",
+      "input": "Phần nhiều người ta nghĩ tôi điên.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00021",
+      "input": "Ô kìa, con bươm bướm!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00022",
+      "input": "Giá mà tôi cũng như vậy...",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00023",
+      "input": "Cái đó tùy thuộc vào văn cảnh.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00024",
+      "input": "Cái đó la một cái điều tào lao nhất tôi noi từ xưa đến giờ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00025",
+      "input": "Sống ở Mỹ rất thích nếu là ở đây để kiếm tiền.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00026",
+      "input": "Tao sẽ bắn hạ nó.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00027",
+      "input": "Cái đó tại vì bạn là đàn bà.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00028",
+      "input": "Tôi không có ý định ích kỷ đâu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00029",
+      "input": "Bạn có bao nhiêu bạn thân?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00030",
+      "input": "Từ xưa đến giờ đả luôn luôn như vậy rồi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00031",
+      "input": "Một người luôn luôn có thể kiếm thêm thì giờ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00032",
+      "input": "Phần nhiều người ta viết về chuyện cuộc đời hàng ngày.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00033",
+      "input": "Nếu tôi có thể gửi Trang một cục marshmallow thì tôi sẽ gửi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00034",
+      "input": "Tôi là người có nhiều thói xấu nhưng những thói xấu này có thể dễ dàng sửa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00035",
+      "input": "Hễ tôi kiếm được cái gì tôi thích thì nó lại đắt quá.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00036",
+      "input": "Có lẽ cũng vậy cho anh ấy luôn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00037",
+      "input": "Cái đó nhìn hấp dẫn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00038",
+      "input": "Thầy vật lý không để ý đến việc lên lớp của tôi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00039",
+      "input": "Tôi ghét những lúc đông người.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00040",
+      "input": "Cảnh sát sẽ bắt bạn tìm ra mấy viên đạn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00041",
+      "input": "Cám ơn chỉ dạy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00042",
+      "input": "Tôi không biết ý của bạn là gì.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00043",
+      "input": "Bạn muốn nói với tôi về sự tự do hả?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00044",
+      "input": "Có nhiều chữ tôi không hiểu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00045",
+      "input": "Tôi cần hỏi một câu hỏi ngớ ngẩn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00046",
+      "input": "Tôi không biết phải trình bày thế nào, bởi vì nó đã quá rõ ràng rồi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00047",
+      "input": "Có thể nói cách khác được không?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00048",
+      "input": "Tôi đã tìm ra cách, nhưng mà tìm ra nhanh thế này thì chắc hẳn đó không phải là cách hay rồi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00049",
+      "input": "Cái này rất là hấp dẫn!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00050",
+      "input": "Nhưng ở đây, không dễ dàng như vậy đâu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00051",
+      "input": "Không, anh ấy không phải bạn trai mới của tôi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00052",
+      "input": "Bạn không bao giờ có lớp hay sao?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00053",
+      "input": "Tôi chỉ còn chờ đợi được thôi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00054",
+      "input": "Tao không thích mày nữa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00055",
+      "input": "Tôi không còn biết phải làm gì nữa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00056",
+      "input": "Tôi cũng không muốn vụ này xảy ra.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00057",
+      "input": "Chắc bạn cũng đoán được cái gì xảy ra mà.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00058",
+      "input": "Tôi còn có sự chọn lựa nào khác nữa?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00059",
+      "input": "Tôi không có gì tốt hơn để làm hết.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00060",
+      "input": "Người nào cũng có cái hay và cái dở của họ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00061",
+      "input": "Không biết là tôi còn không nữa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00062",
+      "input": "Bạn nghĩ tôi đang làm gì?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00063",
+      "input": "Mẹ của tôi không nói tiếng Anh giỏi lắm.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00064",
+      "input": "Làm sao để tìm được thức ăn khi đang ở ngoài không gian?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00065",
+      "input": "Mọi người muốn gặp bạn vì bạn nổi tiếng!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00066",
+      "input": "Tôi rất ghét phải viết theo khuôn mẫu!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00067",
+      "input": "Bạn làm gì mà thức khuya quá vậy?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00068",
+      "input": "Bạn không đủ nhanh.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00069",
+      "input": "Cuộc sống thì khó khăn đấy, nhưng tôi mạnh mẽ hơn nó nhiều.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00070",
+      "input": "Đừng! Mày đang làm cô ấy bực bội đấy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00071",
+      "input": "Chỉ có sự thật là tốt đẹp.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00072",
+      "input": "Tôi không biết nói tiếng Nhật.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00073",
+      "input": "Không ai hiểu được tôi hết.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00074",
+      "input": "Đừng coi tôi như người \"bình thường\"!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00075",
+      "input": "\"Trong hang đang xảy ra chuyện gì vậy? Tôi rất là tò mò.\" \"Tôi cũng không biết nữa.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00076",
+      "input": "Con thỏ trắng và bé hỏi, \"Ước bạn là gì?\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00077",
+      "input": "Ờ... cái đó sao rồi?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00078",
+      "input": "\"Nói thật là tôi rất là sợ độ cao.\" \"Bạn nhát quá!\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00079",
+      "input": "\"Tin tôi đi,\" anh ấy nói.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00080",
+      "input": "\"Đây đúng là thứ mà tôi đang tìm\" anh ta kêu lên.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00081",
+      "input": "Sẽ có một ngày tôi sẽ chạy nhanh như gió.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00082",
+      "input": "Cần gì thì cứ việc nói với tôi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00083",
+      "input": "Nó sẽ không bắt đầu cho tới lúc tám giờ rưỡi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00084",
+      "input": "\"Tôi muốn đánh bài.\" \"Tôi cũng vậy.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00085",
+      "input": "Cộng sản sẽ chẳng bao giờ tồn tại đến đời của tôi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00086",
+      "input": "Làm ơn để bộ bài trên bàn gỗ sồi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00087",
+      "input": "Sao mình không đi về đi?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00088",
+      "input": "Một triệu người đã ngã xuống trong cuộc chiến đó.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00089",
+      "input": "Trong tất cả các loại hình chính phủ, dân chủ là tệ nhất, trừ mọi chính phủ mà đã tồn tại từ xưa đến giờ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00090",
+      "input": "Sếp à, không phải tôi đâu!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00091",
+      "input": "Kìa mấy cái quần trắng của mình! Vẫn còn mới!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00092",
+      "input": "Khi tôi ra khỏi ga xe lửa, tôi gặp một gã đàn ông.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00093",
+      "input": "Đêm cũng dài quá ha?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00094",
+      "input": "Có nhớ tôi không?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00095",
+      "input": "Cám ơn bạn nhiều nghe!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00096",
+      "input": "Vé khứ hồi phải không? Một chiều thôi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00097",
+      "input": "Xếp gọn gàng sau khi giặt xong.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00098",
+      "input": "Giặt trước khi mặc lần đầu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00099",
+      "input": "Đừng mở trước khi xe lửa ngừng lại.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00100",
+      "input": "Ờ, xin lỗi nghe.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00101",
+      "input": "Người nghèo không phải là người có quá ít mà là người muốn quá nhiều.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00102",
+      "input": "Anh có vẻ không bất ngờ nhỉ, chắc anh đã biết cả rồi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00103",
+      "input": "Mất bao nhiêu thời gian để đi từ đay tới ga?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00104",
+      "input": "Cái này sẽ là một kỷ niệm tốt của cuộc du ngoạn xung quanh nước Mỹ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00105",
+      "input": "Rất là khó để nói chuyện với một người luôn luôn trả lời \"Có\" hay \"Không\".",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00106",
+      "input": "\"Má, con có thể ăn một miếng bánh quy được không?\" \"Không. Con không nên ăn giữa bữa ăn.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00107",
+      "input": "\"Bạn thấy sao?\" anh ấy hỏi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00108",
+      "input": "Rất là khó để thành thạo tiếng Pháp trong hai hay ba năm.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00109",
+      "input": "Tôi không thế nào giải nghĩa cho bạn được.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00110",
+      "input": "Tôi không muốn cả đời hối tiếc vì chuyện này.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00111",
+      "input": "Tôi cũng không đoán được.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00112",
+      "input": "Sự tưởng tượng ảnh hưởng đến mọi khía cạnh cuộc sống của chúng ta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00113",
+      "input": "Chúng tôi không ngủ được vì ồn quá.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00114",
+      "input": "Tốt nhất là hãy làm theo mọi thứ anh ấy nói với bạn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00115",
+      "input": "Tôi tốn hơn hai tiếng để dịch vài trang tiếng Anh.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00116",
+      "input": "Đã mười một giờ rồi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00117",
+      "input": "Paris là một thành phố đẹp nhất thế giới.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00118",
+      "input": "Đây là bạn tôi tên Rachel, chúng tôi học trường trung học với nhau.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00119",
+      "input": "Giá sinh hoạt đã nhất loạt tăng.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00120",
+      "input": "Nhưng mà vũ trụ là vô tận.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00121",
+      "input": "Nhưng, sự trái ngược cũng luôn luôn có lý.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00122",
+      "input": "Có em bên cạnh thì bây giờ mọi thứ đều ổn cả rồi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00123",
+      "input": "Ý cậu là cậu không biết hả?!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00124",
+      "input": "Bạn nhìn ngốc quá.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00125",
+      "input": "Tôi đi mua sắm một chút. Một tiếng sau trở lại.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00126",
+      "input": "Trong tiếng Ý cái đó nói thế nào?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00127",
+      "input": "Cám ơn. Thôi nhé.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00128",
+      "input": "Không phải lỗi của tôi!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00129",
+      "input": "Có nhiều thứ để làm quá!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00130",
+      "input": "Đừng nghĩ là ăn sôcôla của tôi được nghe!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00131",
+      "input": "Nhờ ơn của bạn tôi hết còn thèm ăn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00132",
+      "input": "Tôi muốn đấm ai đó cho thỏa thích.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00133",
+      "input": "Ai lại không biết về vấn đề này?!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00134",
+      "input": "Nóng đến nỗi mà có thể luộc trứng trên nóc xe.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00135",
+      "input": "Không ai tới hết.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00136",
+      "input": "Làm ơn nhìn mặt tôi khi nói chuyện!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00137",
+      "input": "Nếu bạn phát biểu nhưng không ai tới thì sao?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00138",
+      "input": "Tôi không hiểu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00139",
+      "input": "Còn chúng tôi làm gì?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00140",
+      "input": "Tôi bị nhức đầu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00141",
+      "input": "Tôi phải nhận là tôi có ngáy...",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00142",
+      "input": "Giày của tôi bé quá, tôi cần đôi mới.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00143",
+      "input": "Mau rời khỏi đây. Cảnh sát tới bây giờ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00144",
+      "input": "Chúc mừng giáng sinh!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00145",
+      "input": "\"Nếu mệt thì ngủ một chút đi?\" \"Bây giờ mà ngủ thì sẽ dậy sớm lắm.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00146",
+      "input": "Nếu muốn chứng minh điều gì thì trước hết phải biết là nó đúng đã.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00147",
+      "input": "Cái gì dễ bị hiểu lầm thì sẽ luôn như vậy thôi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00148",
+      "input": "Tôi đói quá rồi!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00149",
+      "input": "Tôi còn nhiều việc phải làm quá, chắc phải ở lại thêm một tiếng đồng hồ nữa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00150",
+      "input": "Tôi có chồng và hai đứa con.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00151",
+      "input": "Tôi muốn đi du học ở Paris.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00152",
+      "input": "Sao không ăn rau vậy?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00153",
+      "input": "Cái xe đã đụng vô tường.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00154",
+      "input": "Tìm thì sẽ thấy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00155",
+      "input": "\"Xong chưa vậy?\" \"Tôi còn chưa bắt đầu nữa mà.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00156",
+      "input": "\"Chào buổi sáng\" Tom mỉm cười và nói.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00157",
+      "input": "Tôi thấy ngoại ngữ rất thú vị.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00158",
+      "input": "Đối mặt sự sống với một nụ cười!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00159",
+      "input": "Bạn khiến tôi mơ đấy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00160",
+      "input": "Kỳ nghỉ từ đây kết thúc.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00161",
+      "input": "Đầm dạ hội luôn được mong chờ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00162",
+      "input": "Khi tôi hỏi mọi người điều gì khiến họ cảm thấy tiếc nuối khi còn đi học thì phần đông đều trả lời rằng họ đã lãng phí quá nhiều thời gian.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00163",
+      "input": "Bạn cố ý làm phải không!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00164",
+      "input": "Bạn không nói với anh ấy cái gì à?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00165",
+      "input": "Bạn có thể gọi lại được không?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00166",
+      "input": "Tôi đang nói chuyện với ai đây?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00167",
+      "input": "Tôi chấp nhận, nhưng có một điều kiện.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00168",
+      "input": "Có thuyết cho là lý thuyết không khác gì với thực hành, nhưng trong thực hành thì lại có khác.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00169",
+      "input": "Chuyện giữa chúng ta kết thúc rồi. Trả lại tôi chiếc nhẫn!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00170",
+      "input": "Tôi tính đi ra biển chơi nhưng trời lại bắt đầu mưa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00171",
+      "input": "Cô ấy thông minh lắm phải không?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00172",
+      "input": "Công lý rất đắt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00173",
+      "input": "Ngày mai tôi sẽ học ở thư viện.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00174",
+      "input": "Này, này, bạn còn ở đó không?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00175",
+      "input": "Tôi đọc sách lúc ăn cơm.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00176",
+      "input": "\"Đang lúc ăn chưa, tôi ngủ một hồi tại vì mệt quá.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00177",
+      "input": "Tuần trước tôi mới bắt đầu học tiếng Trung quốc.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00178",
+      "input": "Tôi ở gần biển cho nên có nhiều cơ hội đi ra biển chơi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00179",
+      "input": "Chúng mình đi qua London năm vừa rồi",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00180",
+      "input": "Cô ấy không muốn nói về chuyện đấy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00181",
+      "input": "Tôi đã mất hưng.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00182",
+      "input": "Tôi cần thêm thì giờ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00183",
+      "input": "Cái đó không có ý nghĩa gì hết mà!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00184",
+      "input": "Làm ơn kiên nhẫn một chút đi, cái này phải tốn thì giờ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00185",
+      "input": "Không tồn tại vấn đề mà không có giải pháp.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00186",
+      "input": "Rất nhiều người ngại dậy sớm, cho dù họ phải làm điều đó.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00187",
+      "input": "Có lý tưởng là điều tốt... bạn nghĩ sao?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00188",
+      "input": "Lúc máy bay gặp gió xoáy, phi công yêu cầu hành khách thắt dây an toàn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00189",
+      "input": "Tùy theo bạn cách nghĩa sự \"tin\" Chúa là sao.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00190",
+      "input": "Những người tham gia chương trình Maury Povich thường giả vờ rằng người yêu đang lừa dối họ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00191",
+      "input": "Bạn bè tôi nói tôi là người viết nhiều nhưng mấy tháng rồi tôi chưa viết cái gì hêt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00192",
+      "input": "Johnson là người hơi tự kỉ; anh ấy thích tách biệt mình với các học sinh khác trong lớp.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00193",
+      "input": "Tôi muốn lấy lại lời tuyên bố của tôi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00194",
+      "input": "Tim rất thích truyện cười mỉa mai.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00195",
+      "input": "Jimmy cố thuyết phục bố mẹ để anh có thể đi vòng quanh đất nước với bạn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00196",
+      "input": "Một bước Salsa tôi cũng không nhảy được.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00197",
+      "input": "Thằng giết người bị xử tù chung thân.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00198",
+      "input": "Cuộc biểu quyết chỉ ra rằng chúng ta phản đối ý kiến được đưa ra.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00199",
+      "input": "Tôi thấy những từ mà giải thích ngắn gọn thì luôn dễ nhớ nhất.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00200",
+      "input": "Tôi mơ đến bạn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00201",
+      "input": "Tôi không thua đâu!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00202",
+      "input": "Sắp vô tiết rồi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00203",
+      "input": "Nhưng bạn chưa nói tôi về chuyện này mà!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00204",
+      "input": "Tôi phải giặt đồ trong khi trời còn nắng.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00205",
+      "input": "Bạn còn rất nhiều thời gian.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00206",
+      "input": "Thôi nào! Nói chuyện với mình đi Trang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00207",
+      "input": "Tôi sắp xong rồi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00208",
+      "input": "Cái này làm tôi phát điên mất!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00209",
+      "input": "Bạn vừa nói rằng tôi không thể thắng được à?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00210",
+      "input": "Bên ngoài trời rất tối.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00211",
+      "input": "Tôi đã quá già cho thế giới này.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00212",
+      "input": "Không bao giờ trễ quá để học hỏi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00213",
+      "input": "Anh ấy nói với tôi chuyện đời của anh.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00214",
+      "input": "Bạn đang nói cái gì vậy?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00215",
+      "input": "Tôi có lớp ngày mai.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00216",
+      "input": "\"Cám ơn.\" \"Không có chi.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00217",
+      "input": "Bạn đến từ nước nào vậy?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00218",
+      "input": "Chúng tôi đã đi bộ rất nhiều.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00219",
+      "input": "Chờ tí, có ai đang gõ cửa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00220",
+      "input": "Bạn bị ốm rồi, nghỉ ngơi cho nhiều đi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00221",
+      "input": "Ai cũng muốn tin rằng mọi giấc mơ đều có thể trở thành hiện thực.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00222",
+      "input": "Cậu nói rằng tôi đang gặp nguy hiểm đến tính mạng sao?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00223",
+      "input": "Bị gay thì sao? Cái đó cũng là tội à?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00224",
+      "input": "Tôi tốn hết buổi chiều tán chuyện với đám bạn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00225",
+      "input": "Tôi muốn tự lập hơn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00226",
+      "input": "Cậu định đứng đó cả ngày hay sao?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00227",
+      "input": "Thỏ có tai dài và đuôi ngắn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00228",
+      "input": "Tim tôi tràn ngập hạnh phúc.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00229",
+      "input": "Tôi không muốn nghe thêm bất kì lời than vãn nào từ cậu nữa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00230",
+      "input": "Hay quá! Tôi thắng hai lần liền!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00231",
+      "input": "Tôi ngán thức ăn nhanh quá rồi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00232",
+      "input": "Tôi không đợi được tới lúc nghỉ hè.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00233",
+      "input": "Bạn có thể hình dung được cuộc sống sẽ như thế nào nếu không có điện không?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00234",
+      "input": "Một, hai, ba, bốn, năm, sáu, bảy, tám, chín, mười.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00235",
+      "input": "Nhà vệ sinh ở đâu vậy?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00236",
+      "input": "Chuyện của nó tào lao đến nỗi chẳng ai tin được.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00237",
+      "input": "Bạn cần bao nhiêu tiếng đồng hồ để ngủ vậy?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00238",
+      "input": "Bạn thực sự nghĩ rằng con người một ngày nào đó có thể định cư trên Mặt trăng không?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00239",
+      "input": "Tôi không biết cái gì có thể xấu hơn nữa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00240",
+      "input": "Vẻ đẹp chỉ tồn tại trong mắt của những người hiểu được nó.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00241",
+      "input": "Tôi lười làm bài quá.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00242",
+      "input": "Tôi cảm thấy mình rất tự do.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00243",
+      "input": "Tự do không đồng nghĩa với được tự do.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00244",
+      "input": "Em trai tôi rất là tự tin. Ít nhất chính nó nghĩ như vậy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00245",
+      "input": "Không, tôi không cho bạn vào được. Đã nhiều người quá rồi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00246",
+      "input": "Mày làm tao tức quá!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00247",
+      "input": "Chia sẻ đam mê của ai đó chính là sống thật trọn vẹn với nó.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00248",
+      "input": "Cuộc đời không dài nhưng rộng!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00249",
+      "input": "Hồi tôi bằng tuổi cậu, Diêm Vương vẫn còn là một hành tinh.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00250",
+      "input": "Tôi thường tắm vào buổi tối.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00251",
+      "input": "Bạn đã suy nghĩ về vấn đề này hết cả buổi sáng rồi. Đi ăn trưa đi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00252",
+      "input": "Nếu tôi không làm bay giờ thì tôi sẽ không bao giờ làm hết.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00253",
+      "input": "Ngủ ngon. Chúc bạn nhiều giấc mơ đẹp.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00254",
+      "input": "Có lẽ bạn nói đúng, tôi đã quá ích kỷ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00255",
+      "input": "Tôi sắp cạn ý tưởng rồi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00256",
+      "input": "Tôi cần lời chỉ bảo của bạn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00257",
+      "input": "Tôi tình cờ gặp lại người bạn cũ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00258",
+      "input": "Cô ta có đôi lúc tới thăm tôi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00259",
+      "input": "Từ thuở còn nhỏ tôi đã thích phiêu lưu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00260",
+      "input": "Tôi không biết đi đâu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00261",
+      "input": "Mình nên tự lo cho bản thân mình.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00262",
+      "input": "Điểm đầu tiên cần làm rõ là bản thiết kế chỉ mang tính cách thí nghiệm.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00263",
+      "input": "Cho tôi mượn cái gì đấy để cắt sợi dây này.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00264",
+      "input": "Sự thất bại của anh ấy không có liên quan gì tới tôi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00265",
+      "input": "Anh ấy vừa tìm gì đó trong bóng tối.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00266",
+      "input": "Quyển sách này thật là cũ!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00267",
+      "input": "Tôi đã có cơ hội gặp anh ấy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00268",
+      "input": "Anh ấy hôm nay vui vẻ phấn chấn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00269",
+      "input": "Vì hơi bị cảm lạnh, nên tôi đi ngủ sớm.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00270",
+      "input": "Xin hãy giải thích lý do vì sao cô ta đã bị bắt giữ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00271",
+      "input": "John là một thanh niên người Mỹ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00272",
+      "input": "Bản phân tích này đưa ra kết quả sau đây.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00273",
+      "input": "Tôi có một chiếc xe đạp.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00274",
+      "input": "Và anh ta tự xưng mình là thủy thủ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00275",
+      "input": "Em học sinh nhút nhát lẩm bẩm ra câu trả lời.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00276",
+      "input": "Họ đã có một cuộc sống hạnh phúc.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00277",
+      "input": "Bạn không thể uống nước biển vì nó quá mặn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00278",
+      "input": "Sẽ tạnh mưa sớm thôi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00279",
+      "input": "Đừng uống bia trước khi đi ngủ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00280",
+      "input": "Tại sao bạn lại có thể không biết được?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00281",
+      "input": "Tôi quá mệt rồi nên không đi bộ được nữa đâu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00282",
+      "input": "Cửa hàng này chỉ phục vụ học sinh sinh viên.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00283",
+      "input": "Buổi sáng bạn rời khỏi nhà vào lúc mấy giờ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00284",
+      "input": "Nhanh nữa lên, không cậu sẽ bị muộn mất.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00285",
+      "input": "Tôi không hợp với việc làm chân tay.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00286",
+      "input": "Rất nhiều thực vật nở hoa vào mùa Xuân.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00287",
+      "input": "Lời cầu nguyện của tôi đã được đáp lại.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00288",
+      "input": "Tôi biết lái xe ô-tô, nhưng Tom thì không.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00289",
+      "input": "Họ đã đi săn sư tử.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00290",
+      "input": "Lực lượng vũ trang đã thâu tóm toàn bộ lãnh thổ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00291",
+      "input": "Cầu thang hẹp thật!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00292",
+      "input": "Đối với người nước ngoài thì ở Nhật trần nhà khá thấp.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00293",
+      "input": "Tôi ghét những thứ đó.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00294",
+      "input": "Thật ra thì tôi thích ở nhà hơn là đi ra ngoài.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00295",
+      "input": "Cuộc đời tươi đẹp.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00296",
+      "input": "Ông tôi thức dậy sớm.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00297",
+      "input": "KHông gì có thể tả xiết sức hấp dẫn của cô ấy",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00298",
+      "input": "Tôi định sẽ nói với anh sự thật",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00299",
+      "input": "Việc anh ấy thi đậu bằng lái xe làm mọi người rất ngạc nhiên",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00300",
+      "input": "Tôi không thể chịu đựng tiếng ồn này thêm nữa",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00301",
+      "input": "Anh ta kiếm được nhiều tiền hơn mức có thể tiêu hết",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00302",
+      "input": "Anh ta bị thương trong khi làm việc",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00303",
+      "input": "Anh ta gặp tai nạn trong khi làm việc",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00304",
+      "input": "Tiu bendo ne gluecas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00305",
+      "input": "Bạn có thể ăn gì cũng được, miễn là đừng ăn quá nhiều.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00306",
+      "input": "Nếu mà thế giới không như thế này, cái gì tôi cũng tin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00307",
+      "input": "Chúng tôi đã gặp một ông nhà văn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00308",
+      "input": "Anh ấy ngủ say như một đứa bé.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00309",
+      "input": "Tôi định gọi cho cô ấy mà lại quên mất.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00310",
+      "input": "Tôi không muốn uống gì cả.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00311",
+      "input": "Chỉ có những người thất nghiệp mới hẹn hò vào thứ tư.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00312",
+      "input": "Đưa tôi chìa của cái khóa này đi!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00313",
+      "input": "Kính của tôi đâu mất rồi?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00314",
+      "input": "Ai mua bánh mỳ không?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00315",
+      "input": "Hôm nay chúng ta sẽ ăn cơm với thịt gà rán.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00316",
+      "input": "Không, em thích ăn cháo cơ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00317",
+      "input": "Ăn cơm mãi chán lắm rồi!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00318",
+      "input": "Chán cũng phải ăn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00319",
+      "input": "Cơm mẹ nấu ngon lắm đấy!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00320",
+      "input": "Bố bảo nếu mà em không ăn thì bố sẽ đánh đòn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00321",
+      "input": "Em bé khóc rồi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00322",
+      "input": "Sao em ấy lại khóc?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00323",
+      "input": "Ngày mai mẹ sẽ nấu món gì?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00324",
+      "input": "Ngày mai còn xa lắm.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00325",
+      "input": "Em thích con gấu bông màu đen kia kìa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00326",
+      "input": "Con gấu bông màu xanh đẹp hơn chứ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00327",
+      "input": "Buổi triển lãm sẽ được tổ chức vào tháng sau.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00328",
+      "input": "Bác sĩ bảo tôi phải cai thuốc đi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00329",
+      "input": "Mai chúng ta phải đi thi đấy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00330",
+      "input": "Chúc bạn thi tốt nhé!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00331",
+      "input": "Anh đã chuẩn bị xong chưa?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00332",
+      "input": "Một con vịt xòe ra hai cái cánh.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00333",
+      "input": "Con vịt kêu quác quác.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00334",
+      "input": "Đừng làm phiền người ta nữa!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00335",
+      "input": "Cô ấy đã hết kiên nhẫn rồi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00336",
+      "input": "Trời sắp mưa to rồi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00337",
+      "input": "Bộ phim này chán òm!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00338",
+      "input": "Hôm qua anh ta nói dối đấy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00339",
+      "input": "Cậu bé ném đá con ếch.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00340",
+      "input": "Đấy là sách của họ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00341",
+      "input": "Tôi chỉ muốn kiểm tra hòm thư điện tử thôi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00342",
+      "input": "Nenormalas havi la koron dekstraflanke.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00343",
+      "input": "Nếu như câu bạn yêu cầu chưa được dịch, hãy viết nội dung của nó vào khung.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00344",
+      "input": "Tất cả mọi người sinh ra đều được tự do và bình đẳng về nhân phẩm và quyền lợi. Mọi con người đều được tạo hóa ban cho lý trí và lương tâm và cần phải đối xử với nhau trong tình anh em.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00345",
+      "input": "Vậy bạn có quan tâm không?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00346",
+      "input": "Tôi yêu em rất nhiều",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00347",
+      "input": "Bạn bên cạnh tôi thì bây giờ mọi thứ êm xuôi rồi",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00348",
+      "input": "Tôi đi chơi, anh đi không?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00349",
+      "input": "sau hơn hai ngày dầm mình giữa sóng to gió lớn",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00350",
+      "input": "vì sao lại như thế",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00351",
+      "input": "Tốc độ tăng trường kinh tế đang tăng lên",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00352",
+      "input": "Anh làm ngành gì ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00353",
+      "input": "Tôi sắp sinh em bé",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00354",
+      "input": "bạn thật tuyệt vời",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00355",
+      "input": "Tôi biết em là người đã có tuổi, sự khao khát không còn mảnh liệt như trước, đã trãi nghiệm những cảm xúc tột cùng của tình yêu, mọi thứ đối với em giờ chỉ còn trong kí ức.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00356",
+      "input": "Giáo viên của chúng tôi hẳn phải học tiếng Anh rất chăm chỉ khi ông còn là một học sinh trung học.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00357",
+      "input": "Đừng dọa tôi như vậy nữa!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00358",
+      "input": "Tối qua bạn đi ngủ khi nào?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00359",
+      "input": "Mọi thứ bạn phải làm là thực hiện theo lời khuyên của anh ấy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00360",
+      "input": "Cô ấy sẽ được chuyển tới New Zealand.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00361",
+      "input": "Chúng tôi sống ở nông thôn trong suốt mùa hè.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00362",
+      "input": "Tôi đã không đi học ngày hôm qua.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00363",
+      "input": "Anh ấy đang làm việc chăm chỉ để theo kịp những người khác.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00364",
+      "input": "Con mèo đã đuổi sau con chuột.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00365",
+      "input": "Bề mặt của khí cầu không phải là một không gian Euclide, và do đó không thể tuân theo các quy tắc của hình học Euclide.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00366",
+      "input": "Tôi có thể hỏi về gia đình bạn được không?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00367",
+      "input": "Xin lỗi vì đã chậm phúc đáp",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00368",
+      "input": "Lưu ý rằng đối với cùng một câu, nếu bạn cảm thấy có thể có nhiều bản dịch, bạn có thể thêm một số bản dịch đó trong cùng một ngôn ngữ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00369",
+      "input": "Lưu ý rằng đối với cùng một câu, nếu bạn cảm thấy có thể có nhiều bản dịch, bạn có thể thêm một số bản dịch đó với cùng một ngôn ngữ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00370",
+      "input": "Chúng ta phải thực hiện kế hoạch đó.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00371",
+      "input": "Anh ta đến đây vì mục đích gì?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00372",
+      "input": "Miễn sao nó không bị cảm lạnh là được.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00373",
+      "input": "Người đàn ông đã thổi khói vào mặt cô ấy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00374",
+      "input": "Quốc gia bạn ở có nhiều tuyết không?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00375",
+      "input": "Cuối cùng thì Ted đã có thể truyền đạt suy nghĩ của mình bằng tiếng Nhật.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00376",
+      "input": "Tôi đã đến châu Âu trước khi có chiến tranh.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00377",
+      "input": "Một phần trong câu chuyện của ông là sự thật.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00378",
+      "input": "Vui lòng đọc các con số trên đồng hồ đo điện.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00379",
+      "input": "Năm ký tự đầu tiên trong địa chỉ mail của bạn là gì ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00380",
+      "input": "Làm sao để dịch tiếng anh hay nhất",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00381",
+      "input": "Tôi đếm tia sáng những chòm sao như một lời tiên đoán cho tình yêu của mình.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00382",
+      "input": "Con Tàu sẽ rời khỏi Honolulu vào ngày mai",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00383",
+      "input": "Vui lòng đọc các con số trên đồng hồ đo nước.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00384",
+      "input": "Khá ít người có cả hai chiếc xe ô tô.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00385",
+      "input": "Cà phê này có vị khét.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00386",
+      "input": "Này! Bạn đang làm con đường bị tắc nghẽn đấy!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00387",
+      "input": "Tôi nhớ rất rõ những ký ức về thời thơ ấu của mình.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00388",
+      "input": "Anh ấy đã nhận việc phụ trách công ty của cha mình.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00389",
+      "input": "Cô ấy đã ghi chép tên và địa chỉ theo yêu cầu",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00390",
+      "input": "Giấy được làm từ gỗ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00391",
+      "input": "Tiếp theo tôi phải làm gì?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00392",
+      "input": "Ta phải giết ngươi vì đã làm lãng phí thời gian của ta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00393",
+      "input": "Bạn đang lái xe cứ như một kẻ điên vậy!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00394",
+      "input": "Bạn có thể cho tôi một ví dụ không?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00395",
+      "input": "Anh ta có một cơ thể thật đẹp.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00396",
+      "input": "Chúng tôi bị thiếu nước trầm trọng trong mùa hè này.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00397",
+      "input": "Tôi dắt cho đi dạo dọc theo con sông vào mỗi sáng.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00398",
+      "input": "Anh ấy thấp hơn Tom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00399",
+      "input": "Ở Tây Ban Nha, người ta phục vụ ăn trưa vào khoảng hai giờ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00400",
+      "input": "Anh ta sống một mình.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00401",
+      "input": "Chiếc máy bay đã bay sát mặt trước khi nó đâm sầm xuống.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00402",
+      "input": "Tôi đã gặp cô ta tại bữa tiệc.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00403",
+      "input": "Bạn đã đi đến Cairo hayc Alexandria?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00404",
+      "input": "Anh ấy đã đến New York ngay khi nhận được lá thư.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00405",
+      "input": "Các sinh viên dành nhiều thời gian cho việc vui chơi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00406",
+      "input": "Cảm thấy hơi chóng mặt, tôi đã ngồi xuống một lúc.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00407",
+      "input": "Lãng phí tài nguyên thiên nhiên lá một việc làm thật xấu hổ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00408",
+      "input": "Khách sạn này có giá cả khá đắt so với một thị trấn như thế này.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00409",
+      "input": "Cứ lấy bao nhiêu bạn muốn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00410",
+      "input": "Ngay khi nhìn thấy người mẹ, đứa trẻ đã liền nín khóc.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00411",
+      "input": "Mỗi câu văn trong quyển sách này đầu rất quan trọng.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00412",
+      "input": "Ông ấy đã học cách để nhận thức giá trị của văn học.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00413",
+      "input": "Cô ta đã sớm tái hôn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00414",
+      "input": "Bạn có thấy phiền không nếu phải chờ một vài phút?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00415",
+      "input": "Cô ấy đã mua gì ở cửa hàng?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00416",
+      "input": "Tuy chú của tôi không còn trẻ nhưng ông vẫn rất khỏe mạnh.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00417",
+      "input": "Tôi thích ăn dưa hấu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00418",
+      "input": "Tôi có thể tìm một chiếc xe buýt đưa đón cho sân bay ở đâu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00419",
+      "input": "Cô gái đang vẽ tranh ở hàng đầu tiên là cháu gái của tôi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00420",
+      "input": "Tôi đã bị cơn nóng làm ảnh hường.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00421",
+      "input": "Quyển sách này đọc thật thú vị.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00422",
+      "input": "Anh ta hẳn phải mất tự chủ mới cư xử như vậy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00423",
+      "input": "Bạn có cần gí nữa không?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00424",
+      "input": "Bạn có muốn đi không?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00425",
+      "input": "Như tôi đã biết thì anh ta thật sự là một chàng trai tốt bụng.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00426",
+      "input": "Món đồ sứ vô giá đã bị vỡ thành nhiều mảnh.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00427",
+      "input": "Nhìn anh ta như thể đã không ăn gì trong nhiều ngày.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00428",
+      "input": "Báo cáo công tác giám sát khảo sát xây dựng",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00429",
+      "input": "Công cụ tìm kiếm câu đàm thoại Anh Việt",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00430",
+      "input": "Cá không thể sống mà không có nước.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00431",
+      "input": "Ông ta bị buộc phải từ chức thủ tướng.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00432",
+      "input": "Trời rất nóng nên chúng ta không thể đi bộ lâu được.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00433",
+      "input": "Jane không hẳn hoàn toàn là một kẻ xấu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00434",
+      "input": "Một trận động đất lớn đã xảy ra khi tôi mới chỉ mười tuổi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00435",
+      "input": "Tôi xin phép sang trễ",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00436",
+      "input": "Tôi muốn bạn ở lại với tôi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00437",
+      "input": "Vâng, nhiều chuyện lạ đã xảy ra.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00438",
+      "input": "Anh ta đã dành dụm tiền cho chuyến đi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00439",
+      "input": "Dù sao đi nữa, chúng tôi đã điều tra nguyên nhân.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00440",
+      "input": "Tôi có thể ngồi ở đây không?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00441",
+      "input": "Tôi thích đi du lịch một mình.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00442",
+      "input": "Chiếc váy cô ấy mặc khá chật.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00443",
+      "input": "Anh ấy hẳn rất vui khi nghe tin này.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00444",
+      "input": "Tôi tìm đến ông ấy để được giúp đỡ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00445",
+      "input": "Trí nhớ của bạn tốt đấy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00446",
+      "input": "Em gái tôi bảo quản rất tốt mọi thứ mà cô có.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00447",
+      "input": "Tôi đã làm theo quyết định của mình.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00448",
+      "input": "Bạn còn cần gì nữa?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00449",
+      "input": "Trận động đất đã mang đến thảm họa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00450",
+      "input": "Họ đã hỗ trợ cho ông cả vật chất lẫn tinh thần.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00451",
+      "input": "Có một lượng lớn khán giả tại rạp chiếu phim.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00452",
+      "input": "Hẹn mai gặp bạn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00453",
+      "input": "\"Bạn có thể đưa tôi một ít đường không?\" \"Đây này bạn\".",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00454",
+      "input": "Nhiều người nước ngoài có thể đánh giá cao Kabuki.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00455",
+      "input": "Làm ơn hãy nghĩ về nó.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00456",
+      "input": "Vì vậy nhiều người đã qua đời.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00457",
+      "input": "Câu chuyện của ông ấy rất đáng nghe.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00458",
+      "input": "Sáng nay ông ấy đã ngủ quá giờ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00459",
+      "input": "Phạm vi và hình dạng của chúng là không rõ ràng.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00460",
+      "input": "Thời tiết đã ấm lên đột ngột.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00461",
+      "input": "Cha tôi đã phàn nàn về tiếng ồn giao thông.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00462",
+      "input": "Hôm qua, một tên trộm đã đột nhập vào nhà.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00463",
+      "input": "Tôi đánh giá ông là một trong số các nhà soạn nhạc hiện đại nhất tại Nhật Bản.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00464",
+      "input": "Họ làm việc tám giờ một ngày.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00465",
+      "input": "Càng có nhiều người đang di chuyển đến các khu vực đô thị.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00466",
+      "input": "Cô đã bất cẩn để quên chiếc ô trên xe buýt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00467",
+      "input": "Cô ấy đang thưởng ngoạn chuyến đi chơi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00468",
+      "input": "Cứ sáu giờ tôi phải uống thuốc một lần.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00469",
+      "input": "Đừng hỏi những gì họ nghĩ. Hãy hỏi những gì họ làm.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00470",
+      "input": "Chúng tôi chỉ mới có căn cứ đầu tiên.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00471",
+      "input": "Tình trạng của ông sẽ sớm chuyển biến tốt hơn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00472",
+      "input": "Sân bay này tại vịnh Osaka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00473",
+      "input": "Bạn muốn dùng cà phê hay dùng trà?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00474",
+      "input": "Bạn cho vào nhiều tiêu quá đấy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00475",
+      "input": "Chúng ta phải làm gì với nữ phạm nhân này?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00476",
+      "input": "Tôi đã phải mất nhiều ngày để quyết toán sổ sách của công ty.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00477",
+      "input": "Hãy đợi đến khi anh ta trở lại.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00478",
+      "input": "Khi nào mới phát hành quyển tiểu thuyết của ông ấy?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00479",
+      "input": "Chúng ta hãy uống trà và chờ xem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00480",
+      "input": "Chào mọi người.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00481",
+      "input": "Những nhà chính trị gia nên giữ lời hứa của mình",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00482",
+      "input": "Có phải Mary sống cạnh nhà tài xế xe buýt - người đã làm việc với Join không?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00483",
+      "input": "Bạn không được làm điều đó bây giờ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00484",
+      "input": "Bạn nên xem phim này nếu có cơ hội.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00485",
+      "input": "Tiếng sét vang lên ầm ầm.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00486",
+      "input": "Mayuko ăn bánh mì cho bữa sáng.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00487",
+      "input": "Điều tối thiểu bạn nên làm là hãy trả lời tôi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00488",
+      "input": "Tôi muốn đi bơi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00489",
+      "input": "Hãy ra khỏi thành phố này.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00490",
+      "input": "Thứ này không thể tìm ở bất cứ đâu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00491",
+      "input": "Tôi đồng ý phần lớn những điếu anh ấy nói.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00492",
+      "input": "Nhiều loài sẽ bị tuyệt chủng vào cuối thế kỷ này",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00493",
+      "input": "Anh ta đến trễ nửa tiếng, vì thế mọi người bực mình với anh ta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00494",
+      "input": "Anh ta chết trong chiến tranh",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00495",
+      "input": "Cuộc sống bắt đầu khi nào ta quyết định ta trông chờ gì ở cuộc đời.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00496",
+      "input": "Không thể tin chắc về sự giúp đỡ của anh ta",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00497",
+      "input": "Anh ta không có con",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00498",
+      "input": "Tôi đặt tên anh ta là Mike",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00499",
+      "input": "Cả lớp đã chờ giáo viên mới",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00500",
+      "input": "Con mèo ngồi ở trên bàn",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00501",
+      "input": "Chị ấy có đôi mắt xanh",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00502",
+      "input": "Trong bếp có con mèo",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00503",
+      "input": "Anh ta nói rằng anh ta định đánh liều",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00504",
+      "input": "Theo ý anh, chị ấy sẽ làm gì?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00505",
+      "input": "Rốt cuộc, họ đã bắt đầu hiểu sự thật",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00506",
+      "input": "Đó chỉ là lý do để không làm gì.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00507",
+      "input": "Tôi đã học tiếng Pháp thay vì tiếng Đức",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00508",
+      "input": "Tất cả bị xáo lộn",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00509",
+      "input": "Nếu không có sự giúp đỡ của chị ấy, tôi sẽ không hoàn thành được nhiệm vụ của tôi",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00510",
+      "input": "Chị ấy muốn thoát khỏi nếp đơn điệu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00511",
+      "input": "Napoleon đã dẫn quân của mình sang nước Nga",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00512",
+      "input": "Nếu tôi biết rằng bạn ốm, tôi đã đến thăm bạn ở bệnh viện",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00513",
+      "input": "Tôi khâm phục lòng dũng cảm của anh ta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00514",
+      "input": "Bạn có thể đặt nó vào bất cứ nơi nào",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00515",
+      "input": "Bạn tôi gửi cho tôi bức thư hỏi thăm sức khỏe của tôi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00516",
+      "input": "Bạn đang làm gì?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00517",
+      "input": "Tôi không có máy vi tính ở nhà.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00518",
+      "input": "Con ơi, con có biết thế giới được cai trị thiếu thận trọng đến bao nhiêu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00519",
+      "input": "Bác sĩ khuyên tôi đừng làm việc quá nhiều nữa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00520",
+      "input": "Chúng tôi rời nước này hẳn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00521",
+      "input": "Giấc mơ đã trở thành hiện thực.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00522",
+      "input": "Cám ơn bạn đã nuôi con chó hằng ngày.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00523",
+      "input": "Các chính trị gia không bao giờ nói cho chúng ta những ẩn ý của họ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00524",
+      "input": "Mái nhà của chúng tôi bị gió tốc.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00525",
+      "input": "Lẽ ra bạn nên đến sớm hơn một chút.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00526",
+      "input": "Tiếng Hà Lan gọi XXX thế nào?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00527",
+      "input": "Một đa số áp đảo đã bỏ phiếu bãi bỏ hình phạt tàn nhẫn đó.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00528",
+      "input": "Anh ta hãnh diện chưa bao giờ đến trường muộn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00529",
+      "input": "Bạn đã bao giờ đọc cuốn sách này chưa?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00530",
+      "input": "Hôm nay khá nóng.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00531",
+      "input": "Thỉnh thoảng tôi chơi quần vợt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00532",
+      "input": "Những người đi chơi cuốc bộ hãy mang địa bàn để tìm lối đi qua các khu rừng.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00533",
+      "input": "Ngày mai tôi sẽ có lớp học.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00534",
+      "input": "Anh ta dở đó không quá bốn ngày.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00535",
+      "input": "Giẫy cỏ trong vườn là nhiệm vụ của anh ta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00536",
+      "input": "Anh ta bị thương trong tai nạn giao thông.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00537",
+      "input": "Hôm qua tôi đã nhận được một bức thư viết bằng tiếng Anh.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00538",
+      "input": "Phim này thích hợp với trẻ em.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00539",
+      "input": "Tôi bị gãy cánh tay.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00540",
+      "input": "Tên \"Kleopatro\" đã trở thành đồng nghĩa với người đàn bà đẹp.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00541",
+      "input": "Anh ấy làm việc trên những dự án thực sự điên rồ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00542",
+      "input": "Bạn hãy cho tôi một cái bút. \"Cái này sẽ thích hợp không?\" \"Có, nó sẽ thích hợp.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00543",
+      "input": "Máy vi tính không sống lâu hơn đồng hồ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00544",
+      "input": "Đêm đã xuống. Anh nên trở về nhà",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00545",
+      "input": "Kế hoạch của tôi là học ở Úc",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00546",
+      "input": "Ăn vặt giữa các bữa ăn là một thói quen xấu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00547",
+      "input": "Tốt nhất là anh đừng tới đó.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00548",
+      "input": "Lúc hoàng hôn người ta họp tại đây.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00549",
+      "input": "Báo này miễn phí.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00550",
+      "input": "Tôi không tin ở Thượng đế.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00551",
+      "input": "Sau mọi nỗi vất vả của anh ta, lần này anh vẫn thất bại.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00552",
+      "input": "Cha mẹ tôi rất yêu tôi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00553",
+      "input": "Cô gái làm việc ở lò nướng bánh có duyên.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00554",
+      "input": "Cuối bài diễn văn bà ấy nhắc lại từ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00555",
+      "input": "Nơi nào đẹp nhất thế giới?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00556",
+      "input": "Con chó chăn cừu lùa đàn cừu vào bãi chăn thả.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00557",
+      "input": "Chị ấy ngất khi trông thấy máu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00558",
+      "input": "Hôm nay không có mây.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00559",
+      "input": "Britney Spears đang ở đâu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00560",
+      "input": "Tôi định đến gặp anh, nhưng tuần này tôi rất bận.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00561",
+      "input": "Khách sạn này được một kiến trúc sư Nhật Bản thiết kế.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00562",
+      "input": "Anh hãy kéo tay áo phải của anh lên.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00563",
+      "input": "Lẽ ra anh ấy có thể làm điều đó.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00564",
+      "input": "Trên đường đi chúng tôi bị tắc nghẽn giao thông.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00565",
+      "input": "Giáo viên cho chị ấy nhiều thông tin về trường đại học.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00566",
+      "input": "Anh ta chối không can dự vào tội phạm.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00567",
+      "input": "Váy dài là hợp thời trang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00568",
+      "input": "Bà ấy ghét cậu bé.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00569",
+      "input": "Xin lỗi, cho phép tôi chỉ ra ba lỗi trong bài viết trên.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00570",
+      "input": "Bạn có nghe tôi được tất cả không?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00571",
+      "input": "Mọi người sinh ra tự do và bình đẳng về nhân phẩm và quyền lợi. Họ có lý trí và lương tâm, và phải cư xử với nhau trên tinh thần anh em.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00572",
+      "input": "Úc to hơn Nhật Bản khoảng gấp hai mươi lần.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00573",
+      "input": "\"Tôi có thể dùng từ điển của bạn không?\" \"Vâng, xin mời.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00574",
+      "input": "Bill làm công việc bán xe.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00575",
+      "input": "Bill lớn bằng Jack.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00576",
+      "input": "Bill tới trường chậm, như mọi khi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00577",
+      "input": "Bill luôn luôn lương thiện.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00578",
+      "input": "Cũng như bạn, anh ấy mệt mỏi vì công việc của anh ấy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00579",
+      "input": "Sự bi quan của anh ta làm suy sút tinh thần những người xung quanh.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00580",
+      "input": "Anh ta chỉ có thể phê bình những người khác đằng sau lưng.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00581",
+      "input": "Câu chuyện buồn của anh ấy khiến tôi mủi lòng.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00582",
+      "input": "Thái độ thách đố của anh ta khiến thủ trưởng tức giận.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00583",
+      "input": "Điều gì đã xảy ra? Có nước khắp căn hộ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00584",
+      "input": "Vào thế kỷ thứ mười chín nhiều người châu Phi bị bán làm nô lệ sang Hoa Kỳ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00585",
+      "input": "Tính lương thiện của chị ấy không thể nghi ngờ được.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00586",
+      "input": "Anh ở lại Canada bao nhiêu lâu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00587",
+      "input": "Chị ấy mua thịt gà.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00588",
+      "input": "Sự tài trợ của bà ấy là cần thiết cho dự án của chúng ta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00589",
+      "input": "Ông già sống một mình.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00590",
+      "input": "Chúng ta hãy gọi điện thoại.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00591",
+      "input": "Anh ấy đã tập trung vào việc học các giới từ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00592",
+      "input": "Anh ấy dạy cho tôi cách nướng bánh ngọt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00593",
+      "input": "Muối là nguyên liệu nhất thiết phải có để nấu nướng.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00594",
+      "input": "Không khí không thể thiếu cho cuộc sống.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00595",
+      "input": "Và như vậy mọi công dân đều có vai trò không thể thiếu được.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00596",
+      "input": "Phương tiện giao thông không thể thiếu đối với dân ngoại thành.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00597",
+      "input": "Hộ chiếu là một thứ tối cần thiết khi người ta ra nước ngoài.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00598",
+      "input": "Nước tối cần thiết đối với chúng ta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00599",
+      "input": "Sức khỏe tối cần thiết cho hạnh phúc.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00600",
+      "input": "Ông ta là một thành viên không thể thiếu của nhân viên.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00601",
+      "input": "Sự giúp đỡ của bạn rất cần thiết đối với chúng tôi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00602",
+      "input": "Nước không thể thiếu đối với cây cỏ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00603",
+      "input": "Không thể có tiến bộ nếu không có truyền thông.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00604",
+      "input": "Tôi thích toán.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00605",
+      "input": "Tôi sẽ di Luân Đôn sáng mai.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00606",
+      "input": "Tôi không hiểu tiếng Đức.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00607",
+      "input": "Tôn giáo là thuốc phiện của nhân dân.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00608",
+      "input": "Đoàn tầu này đi từ New York tới Boston.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00609",
+      "input": "Ông Tanaka là một trong những người bạn của chúng tôi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00610",
+      "input": "Những sách này là của ai?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00611",
+      "input": "Ở Ha oai người ta có thể tắn biển quanh năm.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00612",
+      "input": "Ông ta không thích hợp là bác sĩ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00613",
+      "input": "Cái này là cái gì?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00614",
+      "input": "Tôi có thể trông thấy cái đó không?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00615",
+      "input": "Chị ấy chắc chắn biết điều đó.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00616",
+      "input": "Lần cuối cùng tôi sang Trung Quốc, tôi đã đi thăm Thượng Hải.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00617",
+      "input": "Tôi bơi giỏi khi còn là một cậu bé.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00618",
+      "input": "Tôi bơi giỏi khi còn là một cậu bé..",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00619",
+      "input": "Bạn phải giữ lời hứa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00620",
+      "input": "Tôi sẵn sàng giúp bạn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00621",
+      "input": "Anh ta là một phóng viên giỏi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00622",
+      "input": "Tôi cho rằng gợi ý của anh ấy đáng được xem xét.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00623",
+      "input": "Tôi e rằng đó không phải là một ý kiến hay.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00624",
+      "input": "Tôi đã gặp khố khăn để kiếm một xe tắc xi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00625",
+      "input": "Anh làm tôi bàng hoàng!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00626",
+      "input": "Chị ấy cho tôi một anbum ảnh làm quà sinh nhật.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00627",
+      "input": "Bà ấy viết truyện ngắn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00628",
+      "input": "Nhà thờ ở ngay bên kia đường.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00629",
+      "input": "Làm điều đó ngay bây giờ thì sẽ tốt hơn cho bạn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00630",
+      "input": "Tôi không có cuốn sách tham khảo tốt nào trong tay.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00631",
+      "input": "Tôi muốn đi cùng với bạn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00632",
+      "input": "Đừng để cửa ngỏ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00633",
+      "input": "Hãy định vị Porto Rico trên bản đồ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00634",
+      "input": "Họ đặt tên anh ấy là Jim.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00635",
+      "input": "Anh ấy đặt tay lên vai tôi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00636",
+      "input": "Maurice Ravel có một chiếc xe đạp đẹp.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00637",
+      "input": "Không phải tất cả mọi thứ trên web đều có thể tìm thấy được qua Google.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00638",
+      "input": "Tôi không nói tiếng Nhật.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00639",
+      "input": "Xin đừng quên vé.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00640",
+      "input": "Làm ơn tính tiền.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00641",
+      "input": "Đến sân bay xa bao nhiêu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00642",
+      "input": "Xe buýt sân bay tới sân bay mất bao nhiêu lâu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00643",
+      "input": "Ra bãi biển đi lối nào?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00644",
+      "input": "Điều gì đã xảy ra tại đây?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00645",
+      "input": "Tôi lên xe buýt số mấy để tới Waikiki?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00646",
+      "input": "Tôi muốn đặt phòng khách sạn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00647",
+      "input": "Làm ơn cho tôi gặp bảo vệ khách sạn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00648",
+      "input": "Thiếu một cái nĩa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00649",
+      "input": "Làm ơn chở tôi tới khách sạn Hilton.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00650",
+      "input": "Xin ông vui lòng cho tôi xem hộ chiếu của ông.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00651",
+      "input": "Thiếu một con dao.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00652",
+      "input": "Xin đừng nói nhanh như vậy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00653",
+      "input": "Tôi xin lỗi, tôi bị lạc đường.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00654",
+      "input": "Ngay quanh góc phố.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00655",
+      "input": "Tôi muốn ba cái loại này.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00656",
+      "input": "Xe buýt sân bay khởi hành từ đâu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00657",
+      "input": "Xin cho biết tên phố này là gì?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00658",
+      "input": "Ông có nói tiếng Nhật không?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00659",
+      "input": "Nhóm máu của ông là nhóm nào?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00660",
+      "input": "Ông cho tôi xem ông đã mua gì.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00661",
+      "input": "Hành lý của tôi bị thiếu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00662",
+      "input": "Tôi sẽ xuống ở chặng đỗ tới.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00663",
+      "input": "Hãy rẽ trái ở góc phố tới.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00664",
+      "input": "Làm ơn cho xem vé.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00665",
+      "input": "Ông phải lên xe buýt này để đi tới bảo tàng.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00666",
+      "input": "Làm ơn cho tôi xem cái khác.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00667",
+      "input": "Tôi muốn có một tách cà phê.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00668",
+      "input": "Làm ơn cho tôi một cốc nước.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00669",
+      "input": "Tôi không có nhiều tiền.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00670",
+      "input": "Tôi từ Singapore đến.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00671",
+      "input": "Tên tôi là Andrea.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00672",
+      "input": "Cái này giá bao nhiêu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00673",
+      "input": "Làm ơn cho mang bữa ăn sáng cho tôi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00674",
+      "input": "Dịch vụ đầu tiên lúc mấy giờ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00675",
+      "input": "Đặc sản nhà hàng của ông là gì?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00676",
+      "input": "Cúc vạn thọ nở cùng với mặt trời.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00677",
+      "input": "Cúc xu xi nở khi mặt trời chiếu sáng.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00678",
+      "input": "Tôi không thể nhìn tấm ảnh này mà không cảm thất rất buồn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00679",
+      "input": "Tôi không thể nhìn tấm ảnh đó mà không cảm thấy rất buồn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00680",
+      "input": "Phòng này yên tĩnh.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00681",
+      "input": "Bây giờ tôi không cần tiền.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00682",
+      "input": "Tôi bị rét cóng thấu xương.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00683",
+      "input": "Tôi không thể đồng ý với bạn về điểm này.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00684",
+      "input": "Chúng ta hãy bắt đầu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00685",
+      "input": "Mời bạn ngồi xuống.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00686",
+      "input": "Bạn làm ơn nói chậm hơn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00687",
+      "input": "Cô ấy hoàn toàn không giống mẹ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00688",
+      "input": "Đó là ngọn núi cao nhất thế giới.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00689",
+      "input": "Tôi muốn biếu cô ấy một tặng phẩm nhân dịp sinh nhật cô.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00690",
+      "input": "Tôi muốn biếu anh ấy một tặng phẩm nhân dịp sinh nhật anh ấy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00691",
+      "input": "Cía đó sẽ chẳng làm chúng tôi giàu hơn, chẳng làm chúng tôi nghèo hơn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00692",
+      "input": "Những phụ nữ thực thụ có những đường nét tròn trặn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00693",
+      "input": "Bạn có cho rằng anh ta giống bố anh ta không?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00694",
+      "input": "Không nghi ngờ gì, bà ấy giàu có.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00695",
+      "input": "Mọi quả bóng đều vàng.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00696",
+      "input": "Anh ấy không thích thể thao. Tôi cũng vậy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00697",
+      "input": "Ông ta vừa nghiêm khắc vừa ân cần.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00698",
+      "input": "Có ít nhất năm người trên đoàn tầu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00699",
+      "input": "Chị ấy có nhiều sách có giá trị.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00700",
+      "input": "Tôi sẽ đưa anh bằng xe hơi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00701",
+      "input": "Marko Zuckerberg ăn cắp của tôi ý tưởng.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00702",
+      "input": "Nghĩa của câu này không rõ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00703",
+      "input": "Thành phố này là nơi sinh của nhiều người nổi tiếng.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00704",
+      "input": "Chị ấy ghi vào giấy những ý tưởng của mình.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00705",
+      "input": "Làm ơn cho tôi một tờ giấy để viết.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00706",
+      "input": "Anh ấy giơ tay cố gắng chặn xe tắc xi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00707",
+      "input": "Chỉ có chị ấy mới có thể sử dụng máy vi tính.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00708",
+      "input": "Tôi ra ngoài để chơi. Bạn có đi cùng tôi không?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00709",
+      "input": "Tôi đến muộn vì trời mưa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00710",
+      "input": "Pho mát là một chất dinh dưỡng, sản xuất từ sữa bò, dê, cừu và các động vật có vú khác.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00711",
+      "input": "Được đằng chân, lân đằng đầu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00712",
+      "input": "Ở Thụy Sĩ, người ta có thể mua bao cao su tại máy bán hàng tự động.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00713",
+      "input": "Ông tôi là người quá tỉ mỉ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00714",
+      "input": "Tôi cũng thích bánh ngọt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00715",
+      "input": "Ở châu Âu có nhiều loại người khác nhau.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00716",
+      "input": "Khi tôi còn nhỏ, tôi luôn luôn dậy sớm.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00717",
+      "input": "Anh ấy báo báo chi tiết về vụ tai nạn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00718",
+      "input": "Nó mười hai tuổi. Nó cao so với tuổi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00719",
+      "input": "Sau khi làm xong anh ấy để bộ dụng cụ của mình sang một bên.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00720",
+      "input": "Tôi mệt, tuy nhiên tôi phải làm xong bài lầm ở nhà của tôi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00721",
+      "input": "Cả tuần anh ấy ốm nằm bẹp trên giường.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00722",
+      "input": "Tôi biết rằng anh đã cố gắng hết sức.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00723",
+      "input": "Chị ấy nói hầu như chị ấy biết tất cả.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00724",
+      "input": "Tôi chơi quần vợt giỏi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00725",
+      "input": "Anh ấy phải rời bỏ làng.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00726",
+      "input": "Bạn có một vài đĩa CD không?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00727",
+      "input": "Xin bạn hãy nhận món quả nhỏ này.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00728",
+      "input": "Mặc dù chị ấy có nhiều điểm yếu tôi vẫn tin ở chị.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00729",
+      "input": "Hằng ngày tôi chơi quần vợt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00730",
+      "input": "Meg chuẩn bị bữa điểm tâm.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00731",
+      "input": "Làm thế nào để tránh những nguy hiểm của Interrnet?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00732",
+      "input": "Chị tôi không phải là người nấu ăn giỏi, tôi cũng vậy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00733",
+      "input": "Chị ấy nhận trách nhiệm về dự án đó.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00734",
+      "input": "Kim sống cùng Ken.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00735",
+      "input": "Tôi là kẻ vô thần.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00736",
+      "input": "Tôi sẽ trở về trước sáu giờ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00737",
+      "input": "Bạn có thể giúp tôi rửa bát đĩa không?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00738",
+      "input": "Chúng ta hãy nghỉ một chút.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00739",
+      "input": "Phố thứ ba bên phải.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00740",
+      "input": "Bạn có kế hoạch ra nước ngoài không?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00741",
+      "input": "Ông hãy để mũ và áo khoác ngoài của ông ở đại sảnh.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00742",
+      "input": "Trời rét như cắt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00743",
+      "input": "Tôi ra thành phố.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00744",
+      "input": "Cô ấy bỏ ra khoảng hai giờ để xem truyền hình.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00745",
+      "input": "Điều đó chỉ cho biết rằng bạn không phải là người máy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00746",
+      "input": "Xin chào , tôi tên là Ken'Saitoo",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00747",
+      "input": "Đây là xe hơi của tôi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00748",
+      "input": "Cái đó bao hàm gì?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00749",
+      "input": "Tôi cho rằng chị ấy từ chối đề nghị của anh ta là rất dễ hiểu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00750",
+      "input": "Chúc nghỉ hè tốt đẹp!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00751",
+      "input": "Chiều nay có thể tuyết sẽ rơi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00752",
+      "input": "Anh ấy xin tôi lời khuyên.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00753",
+      "input": "Mọi quy tắc đều có ngoại lệ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00754",
+      "input": "Tôi gặp khó khăn để thuyết phục chị ấy về những nguy hại của hút thuốc.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00755",
+      "input": "Tôi đã quen chị ấy ở Pháp.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00756",
+      "input": "Cái này rất ngon.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00757",
+      "input": "Marie sẽ giúp chúng ta ngày mai.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00758",
+      "input": "Tôi thích ngôn ngữ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00759",
+      "input": "Dây thừng này chắc, có phải không?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00760",
+      "input": "Không phải trẻ em nào cũng thích táo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00761",
+      "input": "Đây là bạn gái Rachel của tôi, chúng tôi cùng đi đến trường.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00762",
+      "input": "Tôi sẽ cho anh một lời khuyên tốt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00763",
+      "input": "Anh ta bị kết án tử hình.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00764",
+      "input": "Tôi không tin rằng có Thượng đế.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00765",
+      "input": "Tom là một đầu bếp giỏi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00766",
+      "input": "Mắt phải tôi bị một cái gì.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00767",
+      "input": "Tôi vào phòng tôi, tại đó tôi có thể học.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00768",
+      "input": "Người phụ nữ mặc áo vét màu nâu là ai?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00769",
+      "input": "Cái đó không liên quan tới tôi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00770",
+      "input": "Cậu ấy rất trẻ. Cậu ấy trẻ hơn Tom nhiều.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00771",
+      "input": "Anh ấy bị thương ở vai.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00772",
+      "input": "Công việc của chúng ta gần xong rồi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00773",
+      "input": "Làm ơn viết địa chỉ nhà riêng của bạn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00774",
+      "input": "Tôi rất vui được nghe điều đó.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00775",
+      "input": "Tôi nghe thấy một tiếng động không bình thường.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00776",
+      "input": "Bạn hãy làm tất cả những gì anh ta nói.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00777",
+      "input": "Beth phản đối, nhưng mẹ cô nhắc cô về sự béo phì không thể tin được của cô.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00778",
+      "input": "Chúng ta hãy hát và nhảy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00779",
+      "input": "Nếu tôi được nhận vào đại học tôi dự định sẽ học kinh tế học.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00780",
+      "input": "Điều bạn nói với tôi khiến tôi nhớ lại một tục ngữ cũ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00781",
+      "input": "Ông có muốn để lại một lời nhắn cho anh ấy không?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00782",
+      "input": "Hôm đó trời đẹp đến nỗi chúng tôi quyết định làm bữa cơm ngoài trời.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00783",
+      "input": "Bạn hãy mang ô đi, phòng khi trời mưa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00784",
+      "input": "Máy vi tinh luôn luôn được cải tiến.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00785",
+      "input": "Các sinh viên nên tìm cách không đến muộn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00786",
+      "input": "Anh ấy nghèo, nhưng không vay tiền của ai.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00787",
+      "input": "Họ của tôi là Wang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00788",
+      "input": "Anh ta rơi vào một nhóm người không tốt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00789",
+      "input": "Tôi sẽ nhận công việc, với điều kiện bạn sẽ giúp tôi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00790",
+      "input": "Tôi sẽ cần hàng thế kỷ đỏ giải thích tất cả.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00791",
+      "input": "Khi nào phim bắt đầu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00792",
+      "input": "Ai ăn cắp quả tào?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00793",
+      "input": "Hàng thủ công thời nay rất đắt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00794",
+      "input": "Hãy liên kết với những người đáng tin cậy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00795",
+      "input": "Bạn hãy gửi cho tôi bưu ảnh.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00796",
+      "input": "Hãy cho tôi thời gian (để cho bạn tất cả những gì tôi có)!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00797",
+      "input": "\"Ai đó?\" \"Đó là mẹ của bạn.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00798",
+      "input": "Hành động có giá trị hơn từ ngữ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-vi-00799",
+      "input": "Hôm qua tôi mua trâu vẽ bóng.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-vi-00000",
+      "input": "Room 304 has the laptops we ordered.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-vi-00001",
+      "input": "Bought 5 cookies on the avenue near my office.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-vi-00002",
+      "input": "Track #12345 was delivered yesterday.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-vi-00003",
+      "input": "I had 5 boxes in storage unit 12.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-vi-00004",
+      "input": "Building number 7 was empty.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-vi-00005",
+      "input": "Open from January 1990 onwards.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-vi-00006",
+      "input": "Floor 3 has the printer.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-vi-00007",
+      "input": "Order #98765 is being processed.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-vi-00008",
+      "input": "The bus runs every 12 minutes.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-vi-00009",
+      "input": "Found 5000 documents in the archive.",
+      "expected": []
+    }
+  ]
+}

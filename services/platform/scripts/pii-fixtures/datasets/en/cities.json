@@ -1,0 +1,5602 @@
+[
+  {
+    "name": "Johannesburg",
+    "countryCode": "ZA",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 9418183
+  },
+  {
+    "name": "London",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 8961989
+  },
+  {
+    "name": "New York City",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 8804190
+  },
+  {
+    "name": "Sydney",
+    "countryCode": "AU",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 5557233
+  },
+  {
+    "name": "Melbourne",
+    "countryCode": "AU",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 5350705
+  },
+  {
+    "name": "Cape Town",
+    "countryCode": "ZA",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 4772846
+  },
+  {
+    "name": "Los Angeles",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 3820914
+  },
+  {
+    "name": "Durban",
+    "countryCode": "ZA",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 3338026
+  },
+  {
+    "name": "Toronto",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 2794356
+  },
+  {
+    "name": "Brisbane",
+    "countryCode": "AU",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 2780063
+  },
+  {
+    "name": "Brooklyn",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 2736074
+  },
+  {
+    "name": "Chicago",
+    "countryCode": "US",
+    "admin1": "IL",
+    "postcodeSample": null,
+    "population": 2664452
+  },
+  {
+    "name": "Queens",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 2316841
+  },
+  {
+    "name": "Houston",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 2314157
+  },
+  {
+    "name": "Perth",
+    "countryCode": "AU",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 2309338
+  },
+  {
+    "name": "Pretoria",
+    "countryCode": "ZA",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 2112693
+  },
+  {
+    "name": "Montréal",
+    "countryCode": "CA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 1762949
+  },
+  {
+    "name": "Soweto",
+    "countryCode": "ZA",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 1695047
+  },
+  {
+    "name": "Phoenix",
+    "countryCode": "US",
+    "admin1": "AZ",
+    "postcodeSample": null,
+    "population": 1650070
+  },
+  {
+    "name": "Philadelphia",
+    "countryCode": "US",
+    "admin1": "PA",
+    "postcodeSample": null,
+    "population": 1573916
+  },
+  {
+    "name": "Auckland",
+    "countryCode": "NZ",
+    "admin1": "E7",
+    "postcodeSample": null,
+    "population": 1547200
+  },
+  {
+    "name": "San Antonio",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 1526656
+  },
+  {
+    "name": "Manhattan",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 1487536
+  },
+  {
+    "name": "Adelaide",
+    "countryCode": "AU",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 1469163
+  },
+  {
+    "name": "San Diego",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 1404452
+  },
+  {
+    "name": "The Bronx",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 1385108
+  },
+  {
+    "name": "Dallas",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 1326087
+  },
+  {
+    "name": "Calgary",
+    "countryCode": "CA",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 1306784
+  },
+  {
+    "name": "Birmingham",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 1157603
+  },
+  {
+    "name": "Gqeberha",
+    "countryCode": "ZA",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 1050078
+  },
+  {
+    "name": "Dublin",
+    "countryCode": "IE",
+    "admin1": "L",
+    "postcodeSample": null,
+    "population": 1024027
+  },
+  {
+    "name": "Ottawa",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 1017449
+  },
+  {
+    "name": "Edmonton",
+    "countryCode": "CA",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 1010899
+  },
+  {
+    "name": "Jacksonville",
+    "countryCode": "US",
+    "admin1": "FL",
+    "postcodeSample": null,
+    "population": 1009833
+  },
+  {
+    "name": "Fort Worth",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 1008106
+  },
+  {
+    "name": "San Jose",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 997368
+  },
+  {
+    "name": "Austin",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 974447
+  },
+  {
+    "name": "Columbus",
+    "countryCode": "US",
+    "admin1": "OH",
+    "postcodeSample": null,
+    "population": 913175
+  },
+  {
+    "name": "Charlotte",
+    "countryCode": "US",
+    "admin1": "NC",
+    "postcodeSample": null,
+    "population": 911311
+  },
+  {
+    "name": "Indianapolis",
+    "countryCode": "US",
+    "admin1": "IN",
+    "postcodeSample": null,
+    "population": 887642
+  },
+  {
+    "name": "Soshanguve",
+    "countryCode": "ZA",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 872309
+  },
+  {
+    "name": "Pietermaritzburg",
+    "countryCode": "ZA",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 839327
+  },
+  {
+    "name": "San Francisco",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 827526
+  },
+  {
+    "name": "Seattle",
+    "countryCode": "US",
+    "admin1": "WA",
+    "postcodeSample": null,
+    "population": 780995
+  },
+  {
+    "name": "Winnipeg",
+    "countryCode": "CA",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 749607
+  },
+  {
+    "name": "Denver",
+    "countryCode": "US",
+    "admin1": "CO",
+    "postcodeSample": null,
+    "population": 729019
+  },
+  {
+    "name": "Evaton",
+    "countryCode": "ZA",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 725468
+  },
+  {
+    "name": "Mississauga",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 717961
+  },
+  {
+    "name": "Washington",
+    "countryCode": "US",
+    "admin1": "DC",
+    "postcodeSample": null,
+    "population": 689545
+  },
+  {
+    "name": "Nashville",
+    "countryCode": "US",
+    "admin1": "TN",
+    "postcodeSample": null,
+    "population": 689447
+  },
+  {
+    "name": "Oklahoma City",
+    "countryCode": "US",
+    "admin1": "OK",
+    "postcodeSample": null,
+    "population": 681054
+  },
+  {
+    "name": "El Paso",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 678815
+  },
+  {
+    "name": "Vancouver",
+    "countryCode": "CA",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 662248
+  },
+  {
+    "name": "Brampton",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 656480
+  },
+  {
+    "name": "Boston",
+    "countryCode": "US",
+    "admin1": "MA",
+    "postcodeSample": null,
+    "population": 653833
+  },
+  {
+    "name": "Portland",
+    "countryCode": "US",
+    "admin1": "OR",
+    "postcodeSample": null,
+    "population": 652503
+  },
+  {
+    "name": "Detroit",
+    "countryCode": "US",
+    "admin1": "MI",
+    "postcodeSample": null,
+    "population": 645705
+  },
+  {
+    "name": "Las Vegas",
+    "countryCode": "US",
+    "admin1": "NV",
+    "postcodeSample": null,
+    "population": 641903
+  },
+  {
+    "name": "New South Memphis",
+    "countryCode": "US",
+    "admin1": "TN",
+    "postcodeSample": null,
+    "population": 641608
+  },
+  {
+    "name": "Gold Coast",
+    "countryCode": "AU",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 640778
+  },
+  {
+    "name": "Memphis",
+    "countryCode": "US",
+    "admin1": "TN",
+    "postcodeSample": null,
+    "population": 633104
+  },
+  {
+    "name": "Glasgow",
+    "countryCode": "GB",
+    "admin1": "SCT",
+    "postcodeSample": null,
+    "population": 626410
+  },
+  {
+    "name": "Louisville",
+    "countryCode": "US",
+    "admin1": "KY",
+    "postcodeSample": null,
+    "population": 624444
+  },
+  {
+    "name": "Benoni",
+    "countryCode": "ZA",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 605344
+  },
+  {
+    "name": "Baltimore",
+    "countryCode": "US",
+    "admin1": "MD",
+    "postcodeSample": null,
+    "population": 585708
+  },
+  {
+    "name": "South Boston",
+    "countryCode": "US",
+    "admin1": "MA",
+    "postcodeSample": null,
+    "population": 571281
+  },
+  {
+    "name": "Hamilton",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 569353
+  },
+  {
+    "name": "Manchester",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 568996
+  },
+  {
+    "name": "Surrey",
+    "countryCode": "CA",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 568322
+  },
+  {
+    "name": "Albuquerque",
+    "countryCode": "US",
+    "admin1": "NM",
+    "postcodeSample": null,
+    "population": 564559
+  },
+  {
+    "name": "Milwaukee",
+    "countryCode": "US",
+    "admin1": "WI",
+    "postcodeSample": null,
+    "population": 563531
+  },
+  {
+    "name": "Bloemfontein",
+    "countryCode": "ZA",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 556637
+  },
+  {
+    "name": "Sheffield",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 556500
+  },
+  {
+    "name": "Tucson",
+    "countryCode": "US",
+    "admin1": "AZ",
+    "postcodeSample": null,
+    "population": 542629
+  },
+  {
+    "name": "Fresno",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 542107
+  },
+  {
+    "name": "Leeds",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 536280
+  },
+  {
+    "name": "Québec",
+    "countryCode": "CA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 531902
+  },
+  {
+    "name": "Sacramento",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 524943
+  },
+  {
+    "name": "Edinburgh",
+    "countryCode": "GB",
+    "admin1": "SCT",
+    "postcodeSample": null,
+    "population": 514990
+  },
+  {
+    "name": "Thembisa",
+    "countryCode": "ZA",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 511655
+  },
+  {
+    "name": "Atlanta",
+    "countryCode": "US",
+    "admin1": "GA",
+    "postcodeSample": null,
+    "population": 510823
+  },
+  {
+    "name": "Newcastle",
+    "countryCode": "AU",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 508437
+  },
+  {
+    "name": "Liverpool",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 496770
+  },
+  {
+    "name": "Miami",
+    "countryCode": "US",
+    "admin1": "FL",
+    "postcodeSample": null,
+    "population": 487014
+  },
+  {
+    "name": "Omaha",
+    "countryCode": "US",
+    "admin1": "NE",
+    "postcodeSample": null,
+    "population": 486051
+  },
+  {
+    "name": "Raleigh",
+    "countryCode": "US",
+    "admin1": "NC",
+    "postcodeSample": null,
+    "population": 482295
+  },
+  {
+    "name": "Bristol",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 479024
+  },
+  {
+    "name": "East London",
+    "countryCode": "ZA",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 478676
+  },
+  {
+    "name": "Kansas City",
+    "countryCode": "US",
+    "admin1": "MO",
+    "postcodeSample": null,
+    "population": 475378
+  },
+  {
+    "name": "Vereeniging",
+    "countryCode": "ZA",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 474681
+  },
+  {
+    "name": "Long Beach",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 474140
+  },
+  {
+    "name": "Mesa",
+    "countryCode": "US",
+    "admin1": "AZ",
+    "postcodeSample": null,
+    "population": 471825
+  },
+  {
+    "name": "Halifax",
+    "countryCode": "CA",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 471559
+  },
+  {
+    "name": "Staten Island",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 468730
+  },
+  {
+    "name": "Colorado Springs",
+    "countryCode": "US",
+    "admin1": "CO",
+    "postcodeSample": null,
+    "population": 456568
+  },
+  {
+    "name": "Virginia Beach",
+    "countryCode": "US",
+    "admin1": "VA",
+    "postcodeSample": null,
+    "population": 454808
+  },
+  {
+    "name": "Boksburg",
+    "countryCode": "ZA",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 445168
+  },
+  {
+    "name": "Laval",
+    "countryCode": "CA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 438366
+  },
+  {
+    "name": "Welkom",
+    "countryCode": "ZA",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 431944
+  },
+  {
+    "name": "London",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 422324
+  },
+  {
+    "name": "Oakland",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 419267
+  },
+  {
+    "name": "Christchurch",
+    "countryCode": "NZ",
+    "admin1": "E9",
+    "postcodeSample": null,
+    "population": 419200
+  },
+  {
+    "name": "Tampa",
+    "countryCode": "US",
+    "admin1": "FL",
+    "postcodeSample": null,
+    "population": 414547
+  },
+  {
+    "name": "Tulsa",
+    "countryCode": "US",
+    "admin1": "OK",
+    "postcodeSample": null,
+    "population": 413066
+  },
+  {
+    "name": "Minneapolis",
+    "countryCode": "US",
+    "admin1": "MN",
+    "postcodeSample": null,
+    "population": 410939
+  },
+  {
+    "name": "Newcastle",
+    "countryCode": "ZA",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 404838
+  },
+  {
+    "name": "Wichita",
+    "countryCode": "US",
+    "admin1": "KS",
+    "postcodeSample": null,
+    "population": 396119
+  },
+  {
+    "name": "Arlington",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 388125
+  },
+  {
+    "name": "Wellington",
+    "countryCode": "NZ",
+    "admin1": "G2",
+    "postcodeSample": null,
+    "population": 381900
+  },
+  {
+    "name": "Krugersdorp",
+    "countryCode": "ZA",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 378821
+  },
+  {
+    "name": "Rustenburg",
+    "countryCode": "ZA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 373695
+  },
+  {
+    "name": "Bakersfield",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 373640
+  },
+  {
+    "name": "Emalahleni",
+    "countryCode": "ZA",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 373403
+  },
+  {
+    "name": "Cardiff",
+    "countryCode": "GB",
+    "admin1": "WLS",
+    "postcodeSample": null,
+    "population": 372089
+  },
+  {
+    "name": "Leicester",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 368600
+  },
+  {
+    "name": "Canberra",
+    "countryCode": "AU",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 367752
+  },
+  {
+    "name": "Bradford",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 366187
+  },
+  {
+    "name": "Cleveland",
+    "countryCode": "US",
+    "admin1": "OH",
+    "postcodeSample": null,
+    "population": 365379
+  },
+  {
+    "name": "Etobicoke",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 365000
+  },
+  {
+    "name": "New Orleans",
+    "countryCode": "US",
+    "admin1": "LA",
+    "postcodeSample": null,
+    "population": 362701
+  },
+  {
+    "name": "Manukau City",
+    "countryCode": "NZ",
+    "admin1": "E7",
+    "postcodeSample": null,
+    "population": 362000
+  },
+  {
+    "name": "Aurora",
+    "countryCode": "US",
+    "admin1": "CO",
+    "postcodeSample": null,
+    "population": 359407
+  },
+  {
+    "name": "Honolulu",
+    "countryCode": "US",
+    "admin1": "HI",
+    "postcodeSample": null,
+    "population": 350964
+  },
+  {
+    "name": "Anaheim",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 350742
+  },
+  {
+    "name": "Diepsloot",
+    "countryCode": "ZA",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 350000
+  },
+  {
+    "name": "Belfast",
+    "countryCode": "GB",
+    "admin1": "NIR",
+    "postcodeSample": null,
+    "population": 348005
+  },
+  {
+    "name": "Central Coast",
+    "countryCode": "AU",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 346596
+  },
+  {
+    "name": "Sunshine Coast",
+    "countryCode": "AU",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 346522
+  },
+  {
+    "name": "Coventry",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 345324
+  },
+  {
+    "name": "Logan City",
+    "countryCode": "AU",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 345098
+  },
+  {
+    "name": "West Raleigh",
+    "countryCode": "US",
+    "admin1": "NC",
+    "postcodeSample": null,
+    "population": 338759
+  },
+  {
+    "name": "Markham",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 338503
+  },
+  {
+    "name": "Randburg",
+    "countryCode": "ZA",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 337053
+  },
+  {
+    "name": "Orlando",
+    "countryCode": "US",
+    "admin1": "FL",
+    "postcodeSample": null,
+    "population": 334854
+  },
+  {
+    "name": "Brent",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 329100
+  },
+  {
+    "name": "Roodepoort",
+    "countryCode": "ZA",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 326416
+  },
+  {
+    "name": "Birkenhead",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 325264
+  },
+  {
+    "name": "Nottingham",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 323632
+  },
+  {
+    "name": "Vaughan",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 323103
+  },
+  {
+    "name": "Lexington",
+    "countryCode": "US",
+    "admin1": "KY",
+    "postcodeSample": null,
+    "population": 320347
+  },
+  {
+    "name": "Islington",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 319143
+  },
+  {
+    "name": "Reading",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 318014
+  },
+  {
+    "name": "Riverside",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 317261
+  },
+  {
+    "name": "Corpus Christi",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 316239
+  },
+  {
+    "name": "Lexington-Fayette",
+    "countryCode": "US",
+    "admin1": "KY",
+    "postcodeSample": null,
+    "population": 314488
+  },
+  {
+    "name": "Kingston upon Hull",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 314018
+  },
+  {
+    "name": "Preston",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 313332
+  },
+  {
+    "name": "Cincinnati",
+    "countryCode": "US",
+    "admin1": "OH",
+    "postcodeSample": null,
+    "population": 311097
+  },
+  {
+    "name": "Santa Ana",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 310227
+  },
+  {
+    "name": "Botshabelo",
+    "countryCode": "ZA",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 309714
+  },
+  {
+    "name": "Brakpan",
+    "countryCode": "ZA",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 305692
+  },
+  {
+    "name": "Stockton",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 305658
+  },
+  {
+    "name": "Pittsburgh",
+    "countryCode": "US",
+    "admin1": "PA",
+    "postcodeSample": null,
+    "population": 304391
+  },
+  {
+    "name": "Saint Paul",
+    "countryCode": "US",
+    "admin1": "MN",
+    "postcodeSample": null,
+    "population": 303176
+  },
+  {
+    "name": "Swansea",
+    "countryCode": "GB",
+    "admin1": "WLS",
+    "postcodeSample": null,
+    "population": 300352
+  },
+  {
+    "name": "Newcastle upon Tyne",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 300125
+  },
+  {
+    "name": "Gatineau",
+    "countryCode": "CA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 300045
+  },
+  {
+    "name": "Southend-on-Sea",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 295310
+  },
+  {
+    "name": "Lincoln",
+    "countryCode": "US",
+    "admin1": "NE",
+    "postcodeSample": null,
+    "population": 294757
+  },
+  {
+    "name": "Kariega",
+    "countryCode": "ZA",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 291052
+  },
+  {
+    "name": "Victoria",
+    "countryCode": "CA",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 289625
+  },
+  {
+    "name": "Anchorage",
+    "countryCode": "US",
+    "admin1": "AK",
+    "postcodeSample": null,
+    "population": 289600
+  },
+  {
+    "name": "Meads",
+    "countryCode": "US",
+    "admin1": "KY",
+    "postcodeSample": null,
+    "population": 288649
+  },
+  {
+    "name": "Henderson",
+    "countryCode": "US",
+    "admin1": "NV",
+    "postcodeSample": null,
+    "population": 285667
+  },
+  {
+    "name": "Greensboro",
+    "countryCode": "US",
+    "admin1": "NC",
+    "postcodeSample": null,
+    "population": 285342
+  },
+  {
+    "name": "Brighton",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 283870
+  },
+  {
+    "name": "Plano",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 283558
+  },
+  {
+    "name": "Geelong",
+    "countryCode": "AU",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 282809
+  },
+  {
+    "name": "Newark",
+    "countryCode": "US",
+    "admin1": "NJ",
+    "postcodeSample": null,
+    "population": 281944
+  },
+  {
+    "name": "Madison",
+    "countryCode": "US",
+    "admin1": "WI",
+    "postcodeSample": null,
+    "population": 280305
+  },
+  {
+    "name": "Wollongong",
+    "countryCode": "AU",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 280153
+  },
+  {
+    "name": "St. Louis",
+    "countryCode": "US",
+    "admin1": "MO",
+    "postcodeSample": null,
+    "population": 279695
+  },
+  {
+    "name": "South Dublin",
+    "countryCode": "IE",
+    "admin1": "L",
+    "postcodeSample": null,
+    "population": 278749
+  },
+  {
+    "name": "Polokwane",
+    "countryCode": "ZA",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 272461
+  },
+  {
+    "name": "Derby",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 270468
+  },
+  {
+    "name": "Southampton",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 269781
+  },
+  {
+    "name": "Saskatoon",
+    "countryCode": "CA",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 266141
+  },
+  {
+    "name": "Chula Vista",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 265757
+  },
+  {
+    "name": "Toledo",
+    "countryCode": "US",
+    "admin1": "OH",
+    "postcodeSample": null,
+    "population": 265638
+  },
+  {
+    "name": "Jersey City",
+    "countryCode": "US",
+    "admin1": "NJ",
+    "postcodeSample": null,
+    "population": 264290
+  },
+  {
+    "name": "Reno",
+    "countryCode": "US",
+    "admin1": "NV",
+    "postcodeSample": null,
+    "population": 264165
+  },
+  {
+    "name": "Wolverhampton",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 263700
+  },
+  {
+    "name": "Chandler",
+    "countryCode": "US",
+    "admin1": "AZ",
+    "postcodeSample": null,
+    "population": 260828
+  },
+  {
+    "name": "Fort Wayne",
+    "countryCode": "US",
+    "admin1": "IN",
+    "postcodeSample": null,
+    "population": 260326
+  },
+  {
+    "name": "Plymouth",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 260203
+  },
+  {
+    "name": "North Shore",
+    "countryCode": "NZ",
+    "admin1": "E7",
+    "postcodeSample": null,
+    "population": 258697
+  },
+  {
+    "name": "Stoke-on-Trent",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 258366
+  },
+  {
+    "name": "Buffalo",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 258071
+  },
+  {
+    "name": "Durham",
+    "countryCode": "US",
+    "admin1": "NC",
+    "postcodeSample": null,
+    "population": 257636
+  },
+  {
+    "name": "St. Petersburg",
+    "countryCode": "US",
+    "admin1": "FL",
+    "postcodeSample": null,
+    "population": 257083
+  },
+  {
+    "name": "Irvine",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 256927
+  },
+  {
+    "name": "Kitchener",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 256885
+  },
+  {
+    "name": "Milton Keynes",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 256385
+  },
+  {
+    "name": "Laredo",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 256153
+  },
+  {
+    "name": "Germiston",
+    "countryCode": "ZA",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 255863
+  },
+  {
+    "name": "Richards Bay",
+    "countryCode": "ZA",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 252968
+  },
+  {
+    "name": "Hobart",
+    "countryCode": "AU",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 252639
+  },
+  {
+    "name": "Burnaby",
+    "countryCode": "CA",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 249125
+  },
+  {
+    "name": "Lubbock",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 249042
+  },
+  {
+    "name": "City of Westminster",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 247614
+  },
+  {
+    "name": "Gilbert",
+    "countryCode": "US",
+    "admin1": "AZ",
+    "postcodeSample": null,
+    "population": 247542
+  },
+  {
+    "name": "Vanderbijlpark",
+    "countryCode": "ZA",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 246754
+  },
+  {
+    "name": "Northampton",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 245899
+  },
+  {
+    "name": "Tri-Cities",
+    "countryCode": "US",
+    "admin1": "WA",
+    "postcodeSample": null,
+    "population": 244036
+  },
+  {
+    "name": "Winston-Salem",
+    "countryCode": "US",
+    "admin1": "NC",
+    "postcodeSample": null,
+    "population": 241218
+  },
+  {
+    "name": "Glendale",
+    "countryCode": "US",
+    "admin1": "AZ",
+    "postcodeSample": null,
+    "population": 240126
+  },
+  {
+    "name": "Norfolk",
+    "countryCode": "US",
+    "admin1": "VA",
+    "postcodeSample": null,
+    "population": 238005
+  },
+  {
+    "name": "Athlone",
+    "countryCode": "ZA",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 237414
+  },
+  {
+    "name": "Oldham",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 237110
+  },
+  {
+    "name": "Hialeah",
+    "countryCode": "US",
+    "admin1": "FL",
+    "postcodeSample": null,
+    "population": 237069
+  },
+  {
+    "name": "Paarl",
+    "countryCode": "ZA",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 236910
+  },
+  {
+    "name": "Garland",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 236897
+  },
+  {
+    "name": "Scottsdale",
+    "countryCode": "US",
+    "admin1": "AZ",
+    "postcodeSample": null,
+    "population": 236839
+  },
+  {
+    "name": "Irving",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 236607
+  },
+  {
+    "name": "Centurion",
+    "countryCode": "ZA",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 236580
+  },
+  {
+    "name": "Boise",
+    "countryCode": "US",
+    "admin1": "ID",
+    "postcodeSample": null,
+    "population": 235684
+  },
+  {
+    "name": "Chesapeake",
+    "countryCode": "US",
+    "admin1": "VA",
+    "postcodeSample": null,
+    "population": 235429
+  },
+  {
+    "name": "North Las Vegas",
+    "countryCode": "US",
+    "admin1": "NV",
+    "postcodeSample": null,
+    "population": 234807
+  },
+  {
+    "name": "Fremont",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 232206
+  },
+  {
+    "name": "Windsor",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 229660
+  },
+  {
+    "name": "Spokane",
+    "countryCode": "US",
+    "admin1": "WA",
+    "postcodeSample": null,
+    "population": 229447
+  },
+  {
+    "name": "Longueuil",
+    "countryCode": "CA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 229330
+  },
+  {
+    "name": "Bexley",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 228000
+  },
+  {
+    "name": "Baton Rouge",
+    "countryCode": "US",
+    "admin1": "LA",
+    "postcodeSample": null,
+    "population": 227470
+  },
+  {
+    "name": "Klerksdorp",
+    "countryCode": "ZA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 227039
+  },
+  {
+    "name": "Upper West Side",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 226989
+  },
+  {
+    "name": "Richmond",
+    "countryCode": "US",
+    "admin1": "VA",
+    "postcodeSample": null,
+    "population": 226610
+  },
+  {
+    "name": "Regina",
+    "countryCode": "CA",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 226404
+  },
+  {
+    "name": "Somerset West",
+    "countryCode": "ZA",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 225289
+  },
+  {
+    "name": "Luton",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 225262
+  },
+  {
+    "name": "Paradise",
+    "countryCode": "US",
+    "admin1": "NV",
+    "postcodeSample": null,
+    "population": 223167
+  },
+  {
+    "name": "Tacoma",
+    "countryCode": "US",
+    "admin1": "WA",
+    "postcodeSample": null,
+    "population": 222906
+  },
+  {
+    "name": "Barking",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 218534
+  },
+  {
+    "name": "Jamaica",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 216866
+  },
+  {
+    "name": "San Bernardino",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 216108
+  },
+  {
+    "name": "Archway",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 215667
+  },
+  {
+    "name": "Salt Lake City",
+    "countryCode": "US",
+    "admin1": "UT",
+    "postcodeSample": null,
+    "population": 215548
+  },
+  {
+    "name": "Huntsville",
+    "countryCode": "US",
+    "admin1": "AL",
+    "postcodeSample": null,
+    "population": 215006
+  },
+  {
+    "name": "Des Moines",
+    "countryCode": "US",
+    "admin1": "IA",
+    "postcodeSample": null,
+    "population": 214133
+  },
+  {
+    "name": "Oakville",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 213759
+  },
+  {
+    "name": "Fontana",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 212704
+  },
+  {
+    "name": "Modesto",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 211266
+  },
+  {
+    "name": "Richmond",
+    "countryCode": "CA",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 209937
+  },
+  {
+    "name": "Rochester",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 209802
+  },
+  {
+    "name": "Maryvale",
+    "countryCode": "US",
+    "admin1": "AZ",
+    "postcodeSample": null,
+    "population": 208189
+  },
+  {
+    "name": "Portsmouth",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 208100
+  },
+  {
+    "name": "Arlington",
+    "countryCode": "US",
+    "admin1": "VA",
+    "postcodeSample": null,
+    "population": 207627
+  },
+  {
+    "name": "Oxnard",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 207254
+  },
+  {
+    "name": "Columbus",
+    "countryCode": "US",
+    "admin1": "GA",
+    "postcodeSample": null,
+    "population": 206922
+  },
+  {
+    "name": "Worcester",
+    "countryCode": "US",
+    "admin1": "MA",
+    "postcodeSample": null,
+    "population": 206518
+  },
+  {
+    "name": "Mdantsane",
+    "countryCode": "ZA",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 205504
+  },
+  {
+    "name": "Moreno Valley",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 204198
+  },
+  {
+    "name": "Little Rock",
+    "countryCode": "US",
+    "admin1": "AR",
+    "postcodeSample": null,
+    "population": 202591
+  },
+  {
+    "name": "Richmond Hill",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 202022
+  },
+  {
+    "name": "Fayetteville",
+    "countryCode": "US",
+    "admin1": "NC",
+    "postcodeSample": null,
+    "population": 201963
+  },
+  {
+    "name": "Huntington Beach",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 201899
+  },
+  {
+    "name": "Tallahassee",
+    "countryCode": "US",
+    "admin1": "FL",
+    "postcodeSample": null,
+    "population": 201731
+  },
+  {
+    "name": "Swindon",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 201669
+  },
+  {
+    "name": "Townsville",
+    "countryCode": "AU",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 201313
+  },
+  {
+    "name": "Yonkers",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 201116
+  },
+  {
+    "name": "Glendale",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 201020
+  },
+  {
+    "name": "Cypress",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 200839
+  },
+  {
+    "name": "Aurora",
+    "countryCode": "US",
+    "admin1": "IL",
+    "postcodeSample": null,
+    "population": 200661
+  },
+  {
+    "name": "Dudley",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 199059
+  },
+  {
+    "name": "Amarillo",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 198645
+  },
+  {
+    "name": "Aberdeen",
+    "countryCode": "GB",
+    "admin1": "SCT",
+    "postcodeSample": null,
+    "population": 198590
+  },
+  {
+    "name": "Akron",
+    "countryCode": "US",
+    "admin1": "OH",
+    "postcodeSample": null,
+    "population": 197542
+  },
+  {
+    "name": "Vancouver",
+    "countryCode": "US",
+    "admin1": "WA",
+    "postcodeSample": null,
+    "population": 196442
+  },
+  {
+    "name": "Birmingham",
+    "countryCode": "US",
+    "admin1": "AL",
+    "postcodeSample": null,
+    "population": 196357
+  },
+  {
+    "name": "Middelburg",
+    "countryCode": "ZA",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 196263
+  },
+  {
+    "name": "Montgomery",
+    "countryCode": "US",
+    "admin1": "AL",
+    "postcodeSample": null,
+    "population": 195287
+  },
+  {
+    "name": "Grand Rapids",
+    "countryCode": "US",
+    "admin1": "MI",
+    "postcodeSample": null,
+    "population": 195097
+  },
+  {
+    "name": "Hamilton",
+    "countryCode": "NZ",
+    "admin1": "G1",
+    "postcodeSample": null,
+    "population": 192100
+  },
+  {
+    "name": "Peoria",
+    "countryCode": "US",
+    "admin1": "AZ",
+    "postcodeSample": null,
+    "population": 190985
+  },
+  {
+    "name": "Providence",
+    "countryCode": "US",
+    "admin1": "RI",
+    "postcodeSample": null,
+    "population": 190934
+  },
+  {
+    "name": "Knoxville",
+    "countryCode": "US",
+    "admin1": "TN",
+    "postcodeSample": null,
+    "population": 190740
+  },
+  {
+    "name": "Cork",
+    "countryCode": "IE",
+    "admin1": "M",
+    "postcodeSample": null,
+    "population": 190384
+  },
+  {
+    "name": "Sunrise Manor",
+    "countryCode": "US",
+    "admin1": "NV",
+    "postcodeSample": null,
+    "population": 189372
+  },
+  {
+    "name": "George",
+    "countryCode": "ZA",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 188580
+  },
+  {
+    "name": "Grand Prairie",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 187809
+  },
+  {
+    "name": "Sutton",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 187600
+  },
+  {
+    "name": "Shreveport",
+    "countryCode": "US",
+    "admin1": "LA",
+    "postcodeSample": null,
+    "population": 187593
+  },
+  {
+    "name": "Burlington",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 186948
+  },
+  {
+    "name": "Brownsville",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 186738
+  },
+  {
+    "name": "Overland Park",
+    "countryCode": "US",
+    "admin1": "KS",
+    "postcodeSample": null,
+    "population": 186515
+  },
+  {
+    "name": "Springs",
+    "countryCode": "ZA",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 186394
+  },
+  {
+    "name": "Newport News",
+    "countryCode": "US",
+    "admin1": "VA",
+    "postcodeSample": null,
+    "population": 186247
+  },
+  {
+    "name": "Ivory Park",
+    "countryCode": "ZA",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 184383
+  },
+  {
+    "name": "Mobile",
+    "countryCode": "US",
+    "admin1": "AL",
+    "postcodeSample": null,
+    "population": 183289
+  },
+  {
+    "name": "St Helens",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 183200
+  },
+  {
+    "name": "Fort Lauderdale",
+    "countryCode": "US",
+    "admin1": "FL",
+    "postcodeSample": null,
+    "population": 183146
+  },
+  {
+    "name": "Santa Clarita",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 182371
+  },
+  {
+    "name": "Carletonville",
+    "countryCode": "ZA",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 182304
+  },
+  {
+    "name": "Chattanooga",
+    "countryCode": "US",
+    "admin1": "TN",
+    "postcodeSample": null,
+    "population": 181099
+  },
+  {
+    "name": "Nepean",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 180000
+  },
+  {
+    "name": "Alexandra",
+    "countryCode": "ZA",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 179624
+  },
+  {
+    "name": "Ipswich",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 178835
+  },
+  {
+    "name": "East Flatbush",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 178464
+  },
+  {
+    "name": "Spring Valley",
+    "countryCode": "US",
+    "admin1": "NV",
+    "postcodeSample": null,
+    "population": 178395
+  },
+  {
+    "name": "Potchefstroom",
+    "countryCode": "ZA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 178285
+  },
+  {
+    "name": "Santa Rosa",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 178127
+  },
+  {
+    "name": "Eugene",
+    "countryCode": "US",
+    "admin1": "OR",
+    "postcodeSample": null,
+    "population": 176654
+  },
+  {
+    "name": "Tempe",
+    "countryCode": "US",
+    "admin1": "AZ",
+    "postcodeSample": null,
+    "population": 175826
+  },
+  {
+    "name": "Oceanside",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 175691
+  },
+  {
+    "name": "Salem",
+    "countryCode": "US",
+    "admin1": "OR",
+    "postcodeSample": null,
+    "population": 175535
+  },
+  {
+    "name": "Wigan",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 175405
+  },
+  {
+    "name": "Garden Grove",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 175393
+  },
+  {
+    "name": "Oshawa",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 175383
+  },
+  {
+    "name": "Rancho Cucamonga",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 175236
+  },
+  {
+    "name": "Cape Coral",
+    "countryCode": "US",
+    "admin1": "FL",
+    "postcodeSample": null,
+    "population": 175229
+  },
+  {
+    "name": "Croydon",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 173314
+  },
+  {
+    "name": "East New York",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 173198
+  },
+  {
+    "name": "Warrington",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 172330
+  },
+  {
+    "name": "Walsall",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 172141
+  },
+  {
+    "name": "Mansfield",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 171958
+  },
+  {
+    "name": "Sioux Falls",
+    "countryCode": "US",
+    "admin1": "SD",
+    "postcodeSample": null,
+    "population": 171544
+  },
+  {
+    "name": "Ontario",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 171214
+  },
+  {
+    "name": "Fort Collins",
+    "countryCode": "US",
+    "admin1": "CO",
+    "postcodeSample": null,
+    "population": 170924
+  },
+  {
+    "name": "Springfield",
+    "countryCode": "US",
+    "admin1": "MO",
+    "postcodeSample": null,
+    "population": 170188
+  },
+  {
+    "name": "Sunderland",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 170134
+  },
+  {
+    "name": "Ilford",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 168168
+  },
+  {
+    "name": "Hollywood",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 167664
+  },
+  {
+    "name": "Elk Grove",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 166913
+  },
+  {
+    "name": "Clarksville",
+    "countryCode": "US",
+    "admin1": "TN",
+    "postcodeSample": null,
+    "population": 166722
+  },
+  {
+    "name": "Pembroke Pines",
+    "countryCode": "US",
+    "admin1": "FL",
+    "postcodeSample": null,
+    "population": 166611
+  },
+  {
+    "name": "Greater Sudbury",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 166004
+  },
+  {
+    "name": "Deer Valley",
+    "countryCode": "US",
+    "admin1": "AZ",
+    "postcodeSample": null,
+    "population": 165656
+  },
+  {
+    "name": "Murfreesboro",
+    "countryCode": "US",
+    "admin1": "TN",
+    "postcodeSample": null,
+    "population": 165430
+  },
+  {
+    "name": "Mthatha",
+    "countryCode": "ZA",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 164848
+  },
+  {
+    "name": "Slough",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 164793
+  },
+  {
+    "name": "Port Saint Lucie",
+    "countryCode": "US",
+    "admin1": "FL",
+    "postcodeSample": null,
+    "population": 164603
+  },
+  {
+    "name": "Corona",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 164226
+  },
+  {
+    "name": "Bournemouth",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 163600
+  },
+  {
+    "name": "Peterborough",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 163379
+  },
+  {
+    "name": "McKinney",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 162898
+  },
+  {
+    "name": "Oxford",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 162100
+  },
+  {
+    "name": "Newport",
+    "countryCode": "GB",
+    "admin1": "WLS",
+    "postcodeSample": null,
+    "population": 161506
+  },
+  {
+    "name": "KwaDukuza",
+    "countryCode": "ZA",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 161177
+  },
+  {
+    "name": "Lancaster",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 161103
+  },
+  {
+    "name": "Tauranga",
+    "countryCode": "NZ",
+    "admin1": "E8",
+    "postcodeSample": null,
+    "population": 161000
+  },
+  {
+    "name": "Cary",
+    "countryCode": "US",
+    "admin1": "NC",
+    "postcodeSample": null,
+    "population": 159769
+  },
+  {
+    "name": "Alexandria",
+    "countryCode": "US",
+    "admin1": "VA",
+    "postcodeSample": null,
+    "population": 159467
+  },
+  {
+    "name": "Newton",
+    "countryCode": "CA",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 159390
+  },
+  {
+    "name": "Tempe Junction",
+    "countryCode": "US",
+    "admin1": "AZ",
+    "postcodeSample": null,
+    "population": 158368
+  },
+  {
+    "name": "Palmdale",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 158351
+  },
+  {
+    "name": "Hayward",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 158289
+  },
+  {
+    "name": "Salinas",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 157380
+  },
+  {
+    "name": "Enfield Town",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 156858
+  },
+  {
+    "name": "Westonaria",
+    "countryCode": "ZA",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 156831
+  },
+  {
+    "name": "York",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 156135
+  },
+  {
+    "name": "Sunnyvale",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 155805
+  },
+  {
+    "name": "Telford",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 155570
+  },
+  {
+    "name": "Frisco",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 154407
+  },
+  {
+    "name": "Springfield",
+    "countryCode": "US",
+    "admin1": "MA",
+    "postcodeSample": null,
+    "population": 154341
+  },
+  {
+    "name": "East Chattanooga",
+    "countryCode": "US",
+    "admin1": "TN",
+    "postcodeSample": null,
+    "population": 154024
+  },
+  {
+    "name": "Pasadena",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 153784
+  },
+  {
+    "name": "Jackson",
+    "countryCode": "US",
+    "admin1": "MS",
+    "postcodeSample": null,
+    "population": 153701
+  },
+  {
+    "name": "Pomona",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 153266
+  },
+  {
+    "name": "Cairns",
+    "countryCode": "AU",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 153075
+  },
+  {
+    "name": "Kansas City",
+    "countryCode": "US",
+    "admin1": "KS",
+    "postcodeSample": null,
+    "population": 152933
+  },
+  {
+    "name": "Washington Heights",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 152613
+  },
+  {
+    "name": "Lakewood",
+    "countryCode": "US",
+    "admin1": "CO",
+    "postcodeSample": null,
+    "population": 152597
+  },
+  {
+    "name": "Etwatwa",
+    "countryCode": "ZA",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 151866
+  },
+  {
+    "name": "Poole",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 151500
+  },
+  {
+    "name": "Escondido",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 151038
+  },
+  {
+    "name": "Astoria",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 150165
+  },
+  {
+    "name": "Gloucester",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 150012
+  },
+  {
+    "name": "Vryheid",
+    "countryCode": "ZA",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 150012
+  },
+  {
+    "name": "Hollywood",
+    "countryCode": "US",
+    "admin1": "FL",
+    "postcodeSample": null,
+    "population": 149728
+  },
+  {
+    "name": "Burnley",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 149422
+  },
+  {
+    "name": "Borough Park",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 149248
+  },
+  {
+    "name": "Harrow",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 149246
+  },
+  {
+    "name": "Huddersfield",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 149017
+  },
+  {
+    "name": "Saguenay",
+    "countryCode": "CA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 148886
+  },
+  {
+    "name": "Coquitlam",
+    "countryCode": "CA",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 148625
+  },
+  {
+    "name": "Valencia",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 148456
+  },
+  {
+    "name": "Rockford",
+    "countryCode": "US",
+    "admin1": "IL",
+    "postcodeSample": null,
+    "population": 148278
+  },
+  {
+    "name": "Dundee",
+    "countryCode": "GB",
+    "admin1": "SCT",
+    "postcodeSample": null,
+    "population": 148210
+  },
+  {
+    "name": "East Hampton",
+    "countryCode": "US",
+    "admin1": "VA",
+    "postcodeSample": null,
+    "population": 147993
+  },
+  {
+    "name": "Joliet",
+    "countryCode": "US",
+    "admin1": "IL",
+    "postcodeSample": null,
+    "population": 147861
+  },
+  {
+    "name": "Barrie",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 147829
+  },
+  {
+    "name": "Savannah",
+    "countryCode": "US",
+    "admin1": "GA",
+    "postcodeSample": null,
+    "population": 147780
+  },
+  {
+    "name": "Paterson",
+    "countryCode": "US",
+    "admin1": "NJ",
+    "postcodeSample": null,
+    "population": 147754
+  },
+  {
+    "name": "Bridgeport",
+    "countryCode": "US",
+    "admin1": "CT",
+    "postcodeSample": null,
+    "population": 147629
+  },
+  {
+    "name": "Naperville",
+    "countryCode": "US",
+    "admin1": "IL",
+    "postcodeSample": null,
+    "population": 147100
+  },
+  {
+    "name": "Blackburn",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 146521
+  },
+  {
+    "name": "Rosemont–La Petite-Patrie",
+    "countryCode": "CA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 146501
+  },
+  {
+    "name": "Cambridge",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 145674
+  },
+  {
+    "name": "Gainesville",
+    "countryCode": "US",
+    "admin1": "FL",
+    "postcodeSample": null,
+    "population": 145214
+  },
+  {
+    "name": "Blackpool",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 145007
+  },
+  {
+    "name": "Basildon",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 144859
+  },
+  {
+    "name": "Villeray–Saint-Michel–Parc-Extension",
+    "countryCode": "CA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 144814
+  },
+  {
+    "name": "Mesquite",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 144788
+  },
+  {
+    "name": "Kelowna",
+    "countryCode": "CA",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 144576
+  },
+  {
+    "name": "Trois-Rivières",
+    "countryCode": "CA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 144472
+  },
+  {
+    "name": "Syracuse",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 144142
+  },
+  {
+    "name": "Pinetown",
+    "countryCode": "ZA",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 144026
+  },
+  {
+    "name": "Guelph",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 143740
+  },
+  {
+    "name": "Torrance",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 143592
+  },
+  {
+    "name": "Ladysmith",
+    "countryCode": "ZA",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 143446
+  },
+  {
+    "name": "Lévis",
+    "countryCode": "CA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 143414
+  },
+  {
+    "name": "Surprise",
+    "countryCode": "US",
+    "admin1": "AZ",
+    "postcodeSample": null,
+    "population": 143148
+  },
+  {
+    "name": "Norwich",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 143135
+  },
+  {
+    "name": "Mercier–Hochelaga-Maisonneuve",
+    "countryCode": "CA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 142753
+  },
+  {
+    "name": "Middlesbrough",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 142707
+  },
+  {
+    "name": "Metairie Terrace",
+    "countryCode": "US",
+    "admin1": "LA",
+    "postcodeSample": null,
+    "population": 142489
+  },
+  {
+    "name": "eMbalenhle",
+    "countryCode": "ZA",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 142443
+  },
+  {
+    "name": "Columbia",
+    "countryCode": "US",
+    "admin1": "SC",
+    "postcodeSample": null,
+    "population": 142416
+  },
+  {
+    "name": "Pasadena",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 142250
+  },
+  {
+    "name": "Toowoomba",
+    "countryCode": "AU",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 142163
+  },
+  {
+    "name": "Kimberley",
+    "countryCode": "ZA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 142089
+  },
+  {
+    "name": "Abbotsford",
+    "countryCode": "CA",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 141397
+  },
+  {
+    "name": "Bolton",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 141331
+  },
+  {
+    "name": "Orange",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 140992
+  },
+  {
+    "name": "Fullerton",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 140847
+  },
+  {
+    "name": "Killeen",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 140806
+  },
+  {
+    "name": "Nigel",
+    "countryCode": "ZA",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 140644
+  },
+  {
+    "name": "McAllen",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 140269
+  },
+  {
+    "name": "Mpumalanga",
+    "countryCode": "ZA",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 140121
+  },
+  {
+    "name": "Darwin",
+    "countryCode": "AU",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 139902
+  },
+  {
+    "name": "Bellevue",
+    "countryCode": "US",
+    "admin1": "WA",
+    "postcodeSample": null,
+    "population": 139820
+  },
+  {
+    "name": "Stockport",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 139052
+  },
+  {
+    "name": "Whitby",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 138501
+  },
+  {
+    "name": "Metairie",
+    "countryCode": "US",
+    "admin1": "LA",
+    "postcodeSample": null,
+    "population": 138481
+  },
+  {
+    "name": "Bhisho",
+    "countryCode": "ZA",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 137287
+  },
+  {
+    "name": "Hampton",
+    "countryCode": "US",
+    "admin1": "VA",
+    "postcodeSample": null,
+    "population": 137148
+  },
+  {
+    "name": "Miramar",
+    "countryCode": "US",
+    "admin1": "FL",
+    "postcodeSample": null,
+    "population": 137132
+  },
+  {
+    "name": "St. Catharines",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 136803
+  },
+  {
+    "name": "Van Nuys",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 136443
+  },
+  {
+    "name": "West Valley City",
+    "countryCode": "US",
+    "admin1": "UT",
+    "postcodeSample": null,
+    "population": 136208
+  },
+  {
+    "name": "Sasolburg",
+    "countryCode": "ZA",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 135828
+  },
+  {
+    "name": "Dayton",
+    "countryCode": "US",
+    "admin1": "OH",
+    "postcodeSample": null,
+    "population": 135512
+  },
+  {
+    "name": "Ahuntsic-Cartierville",
+    "countryCode": "CA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 135336
+  },
+  {
+    "name": "Le Vieux-Longueuil",
+    "countryCode": "CA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 135218
+  },
+  {
+    "name": "Olathe",
+    "countryCode": "US",
+    "admin1": "KS",
+    "postcodeSample": null,
+    "population": 134305
+  },
+  {
+    "name": "Warren",
+    "countryCode": "US",
+    "admin1": "MI",
+    "postcodeSample": null,
+    "population": 134056
+  },
+  {
+    "name": "Randfontein",
+    "countryCode": "ZA",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 133654
+  },
+  {
+    "name": "Thornton",
+    "countryCode": "US",
+    "admin1": "CO",
+    "postcodeSample": null,
+    "population": 133451
+  },
+  {
+    "name": "High Wycombe",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 133204
+  },
+  {
+    "name": "Carrollton",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 133168
+  },
+  {
+    "name": "Milton",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 132979
+  },
+  {
+    "name": "Dunedin",
+    "countryCode": "NZ",
+    "admin1": "F7",
+    "postcodeSample": null,
+    "population": 132800
+  },
+  {
+    "name": "Charleston",
+    "countryCode": "US",
+    "admin1": "SC",
+    "postcodeSample": null,
+    "population": 132609
+  },
+  {
+    "name": "Langley",
+    "countryCode": "CA",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 132603
+  },
+  {
+    "name": "Midland",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 132524
+  },
+  {
+    "name": "Kingston",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 132485
+  },
+  {
+    "name": "Gloucester",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 132416
+  },
+  {
+    "name": "Waco",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 132356
+  },
+  {
+    "name": "Sterling Heights",
+    "countryCode": "US",
+    "admin1": "MI",
+    "postcodeSample": null,
+    "population": 132052
+  },
+  {
+    "name": "Denton",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 131044
+  },
+  {
+    "name": "Exeter",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 130709
+  },
+  {
+    "name": "Cedar Rapids",
+    "countryCode": "US",
+    "admin1": "IA",
+    "postcodeSample": null,
+    "population": 130405
+  },
+  {
+    "name": "New Haven",
+    "countryCode": "US",
+    "admin1": "CT",
+    "postcodeSample": null,
+    "population": 130322
+  },
+  {
+    "name": "Roseville",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 130269
+  },
+  {
+    "name": "Colchester",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 130245
+  },
+  {
+    "name": "Visalia",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 130104
+  },
+  {
+    "name": "Tottenham",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 130000
+  },
+  {
+    "name": "Cambridge",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 129920
+  },
+  {
+    "name": "Salford",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 129794
+  },
+  {
+    "name": "Coral Springs",
+    "countryCode": "US",
+    "admin1": "FL",
+    "postcodeSample": null,
+    "population": 129485
+  },
+  {
+    "name": "Sherbrooke",
+    "countryCode": "CA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 129447
+  },
+  {
+    "name": "Thousand Oaks",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 129339
+  },
+  {
+    "name": "Columbia",
+    "countryCode": "US",
+    "admin1": "MO",
+    "postcodeSample": null,
+    "population": 129330
+  },
+  {
+    "name": "Elizabeth",
+    "countryCode": "US",
+    "admin1": "NJ",
+    "postcodeSample": null,
+    "population": 129007
+  },
+  {
+    "name": "Stamford",
+    "countryCode": "US",
+    "admin1": "CT",
+    "postcodeSample": null,
+    "population": 128874
+  },
+  {
+    "name": "Concord",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 128667
+  },
+  {
+    "name": "Norman",
+    "countryCode": "US",
+    "admin1": "OK",
+    "postcodeSample": null,
+    "population": 128026
+  },
+  {
+    "name": "Alhambra",
+    "countryCode": "US",
+    "admin1": "AZ",
+    "postcodeSample": null,
+    "population": 127764
+  },
+  {
+    "name": "Newcastle under Lyme",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 127727
+  },
+  {
+    "name": "Worcester",
+    "countryCode": "ZA",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 127597
+  },
+  {
+    "name": "Athens",
+    "countryCode": "US",
+    "admin1": "GA",
+    "postcodeSample": null,
+    "population": 127315
+  },
+  {
+    "name": "Kent",
+    "countryCode": "US",
+    "admin1": "WA",
+    "postcodeSample": null,
+    "population": 126952
+  },
+  {
+    "name": "Simi Valley",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 126788
+  },
+  {
+    "name": "Solihull",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 126577
+  },
+  {
+    "name": "East Los Angeles",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 126496
+  },
+  {
+    "name": "Santa Clara",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 126215
+  },
+  {
+    "name": "Sunset Park",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 126000
+  },
+  {
+    "name": "Topeka",
+    "countryCode": "US",
+    "admin1": "KS",
+    "postcodeSample": null,
+    "population": 125963
+  },
+  {
+    "name": "Orléans",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 125937
+  },
+  {
+    "name": "Watford",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 125707
+  },
+  {
+    "name": "Ntuzuma",
+    "countryCode": "ZA",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 125394
+  },
+  {
+    "name": "Saint Peters",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 125370
+  },
+  {
+    "name": "Abilene",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 125182
+  },
+  {
+    "name": "Ottawa South",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 125090
+  },
+  {
+    "name": "Koreatown",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 124281
+  },
+  {
+    "name": "Crawley",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 124008
+  },
+  {
+    "name": "Sheepshead Bay",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 122534
+  },
+  {
+    "name": "Virginia",
+    "countryCode": "ZA",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 122502
+  },
+  {
+    "name": "Brits",
+    "countryCode": "ZA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 122497
+  },
+  {
+    "name": "Amherst",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 122366
+  },
+  {
+    "name": "Victorville",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 122225
+  },
+  {
+    "name": "Burton upon Trent",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 122199
+  },
+  {
+    "name": "Vallejo",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 121692
+  },
+  {
+    "name": "Mackay",
+    "countryCode": "AU",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 121691
+  },
+  {
+    "name": "Alberton",
+    "countryCode": "ZA",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 121536
+  },
+  {
+    "name": "Lafayette",
+    "countryCode": "US",
+    "admin1": "LA",
+    "postcodeSample": null,
+    "population": 121374
+  },
+  {
+    "name": "Chico",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 121345
+  },
+  {
+    "name": "North Stamford",
+    "countryCode": "US",
+    "admin1": "CT",
+    "postcodeSample": null,
+    "population": 121230
+  },
+  {
+    "name": "Hartford",
+    "countryCode": "US",
+    "admin1": "CT",
+    "postcodeSample": null,
+    "population": 121054
+  },
+  {
+    "name": "Berkeley",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 120972
+  },
+  {
+    "name": "West Palm Beach",
+    "countryCode": "US",
+    "admin1": "FL",
+    "postcodeSample": null,
+    "population": 120932
+  },
+  {
+    "name": "Allentown",
+    "countryCode": "US",
+    "admin1": "PA",
+    "postcodeSample": null,
+    "population": 120207
+  },
+  {
+    "name": "Saint-Louis-de-Terrebonne",
+    "countryCode": "CA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 119944
+  },
+  {
+    "name": "Evansville",
+    "countryCode": "US",
+    "admin1": "IN",
+    "postcodeSample": null,
+    "population": 119943
+  },
+  {
+    "name": "Palm Bay",
+    "countryCode": "US",
+    "admin1": "FL",
+    "postcodeSample": null,
+    "population": 119760
+  },
+  {
+    "name": "Ajax",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 119677
+  },
+  {
+    "name": "Cheltenham",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 118836
+  },
+  {
+    "name": "Queenstown",
+    "countryCode": "ZA",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 118599
+  },
+  {
+    "name": "Fargo",
+    "countryCode": "US",
+    "admin1": "ND",
+    "postcodeSample": null,
+    "population": 118523
+  },
+  {
+    "name": "Saanich",
+    "countryCode": "CA",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 117735
+  },
+  {
+    "name": "Rotherham",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 117618
+  },
+  {
+    "name": "Clearwater",
+    "countryCode": "US",
+    "admin1": "FL",
+    "postcodeSample": null,
+    "population": 117292
+  },
+  {
+    "name": "Independence",
+    "countryCode": "US",
+    "admin1": "MO",
+    "postcodeSample": null,
+    "population": 117255
+  },
+  {
+    "name": "Kroonstad",
+    "countryCode": "ZA",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 117152
+  },
+  {
+    "name": "Billings",
+    "countryCode": "US",
+    "admin1": "MT",
+    "postcodeSample": null,
+    "population": 117116
+  },
+  {
+    "name": "Ann Arbor",
+    "countryCode": "US",
+    "admin1": "MI",
+    "postcodeSample": null,
+    "population": 117070
+  },
+  {
+    "name": "El Monte",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 116732
+  },
+  {
+    "name": "Harlem",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 116345
+  },
+  {
+    "name": "Westminster",
+    "countryCode": "US",
+    "admin1": "CO",
+    "postcodeSample": null,
+    "population": 116317
+  },
+  {
+    "name": "Round Rock",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 115997
+  },
+  {
+    "name": "Wilmington",
+    "countryCode": "US",
+    "admin1": "NC",
+    "postcodeSample": null,
+    "population": 115933
+  },
+  {
+    "name": "East Harlem",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 115921
+  },
+  {
+    "name": "Arvada",
+    "countryCode": "US",
+    "admin1": "CO",
+    "postcodeSample": null,
+    "population": 115368
+  },
+  {
+    "name": "Beaumont",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 115282
+  },
+  {
+    "name": "Provo",
+    "countryCode": "US",
+    "admin1": "UT",
+    "postcodeSample": null,
+    "population": 115162
+  },
+  {
+    "name": "Peoria",
+    "countryCode": "US",
+    "admin1": "IL",
+    "postcodeSample": null,
+    "population": 115070
+  },
+  {
+    "name": "Carlsbad",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 114746
+  },
+  {
+    "name": "Odessa",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 114428
+  },
+  {
+    "name": "Springfield",
+    "countryCode": "US",
+    "admin1": "IL",
+    "postcodeSample": null,
+    "population": 114394
+  },
+  {
+    "name": "Somaroboro",
+    "countryCode": "ZA",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 114369
+  },
+  {
+    "name": "Downey",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 114219
+  },
+  {
+    "name": "Lower Hutt",
+    "countryCode": "NZ",
+    "admin1": "G2",
+    "postcodeSample": null,
+    "population": 114200
+  },
+  {
+    "name": "Rivière-des-Prairies–Pointe-aux-Trembles",
+    "countryCode": "CA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 113868
+  },
+  {
+    "name": "Worthing",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 113866
+  },
+  {
+    "name": "Doncaster",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 113566
+  },
+  {
+    "name": "Elmhurst",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 113364
+  },
+  {
+    "name": "Costa Mesa",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 113204
+  },
+  {
+    "name": "Miami Gardens",
+    "countryCode": "US",
+    "admin1": "FL",
+    "postcodeSample": null,
+    "population": 113187
+  },
+  {
+    "name": "Chesterfield",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 113057
+  },
+  {
+    "name": "North Peoria",
+    "countryCode": "US",
+    "admin1": "IL",
+    "postcodeSample": null,
+    "population": 113004
+  },
+  {
+    "name": "Fairfield",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 112970
+  },
+  {
+    "name": "Hammanskraal",
+    "countryCode": "ZA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 112950
+  },
+  {
+    "name": "City of Port Phillip",
+    "countryCode": "AU",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 112669
+  },
+  {
+    "name": "Lansing",
+    "countryCode": "US",
+    "admin1": "MI",
+    "postcodeSample": null,
+    "population": 112644
+  },
+  {
+    "name": "Bushwick",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 112620
+  },
+  {
+    "name": "Gravesend",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 112229
+  },
+  {
+    "name": "Rochester",
+    "countryCode": "US",
+    "admin1": "MN",
+    "postcodeSample": null,
+    "population": 112225
+  },
+  {
+    "name": "Elgin",
+    "countryCode": "US",
+    "admin1": "IL",
+    "postcodeSample": null,
+    "population": 112111
+  },
+  {
+    "name": "Ballarat",
+    "countryCode": "AU",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 111973
+  },
+  {
+    "name": "West Jordan",
+    "countryCode": "US",
+    "admin1": "UT",
+    "postcodeSample": null,
+    "population": 111946
+  },
+  {
+    "name": "Inglewood",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 111666
+  },
+  {
+    "name": "Terrebonne",
+    "countryCode": "CA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 111575
+  },
+  {
+    "name": "Chelmsford",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 111511
+  },
+  {
+    "name": "Tuscaloosa",
+    "countryCode": "US",
+    "admin1": "AL",
+    "postcodeSample": null,
+    "population": 111338
+  },
+  {
+    "name": "Sainte-Foy",
+    "countryCode": "CA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 111300
+  },
+  {
+    "name": "Mabopane",
+    "countryCode": "ZA",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 110972
+  },
+  {
+    "name": "Richardson",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 110815
+  },
+  {
+    "name": "Lowell",
+    "countryCode": "US",
+    "admin1": "MA",
+    "postcodeSample": null,
+    "population": 110699
+  },
+  {
+    "name": "East Independence",
+    "countryCode": "US",
+    "admin1": "MO",
+    "postcodeSample": null,
+    "population": 110675
+  },
+  {
+    "name": "Gresham",
+    "countryCode": "US",
+    "admin1": "OR",
+    "postcodeSample": null,
+    "population": 110553
+  },
+  {
+    "name": "Antioch",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 110542
+  },
+  {
+    "name": "St. John's",
+    "countryCode": "CA",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 110525
+  },
+  {
+    "name": "Cambridge",
+    "countryCode": "US",
+    "admin1": "MA",
+    "postcodeSample": null,
+    "population": 110402
+  },
+  {
+    "name": "High Point",
+    "countryCode": "US",
+    "admin1": "NC",
+    "postcodeSample": null,
+    "population": 110268
+  },
+  {
+    "name": "Manchester",
+    "countryCode": "US",
+    "admin1": "NH",
+    "postcodeSample": null,
+    "population": 110229
+  },
+  {
+    "name": "Mbombela",
+    "countryCode": "ZA",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 110159
+  },
+  {
+    "name": "Orkney",
+    "countryCode": "ZA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 110052
+  },
+  {
+    "name": "Temecula",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 110003
+  },
+  {
+    "name": "Mendip",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 110000
+  },
+  {
+    "name": "Sutton Coldfield",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 109899
+  },
+  {
+    "name": "Murrieta",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 109830
+  },
+  {
+    "name": "Wakefield",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 109766
+  },
+  {
+    "name": "Centennial",
+    "countryCode": "US",
+    "admin1": "CO",
+    "postcodeSample": null,
+    "population": 109741
+  },
+  {
+    "name": "Richmond",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 109708
+  },
+  {
+    "name": "Corona",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 109698
+  },
+  {
+    "name": "Phalaborwa",
+    "countryCode": "ZA",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 109468
+  },
+  {
+    "name": "Walthamstow",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 109424
+  },
+  {
+    "name": "Pueblo",
+    "countryCode": "US",
+    "admin1": "CO",
+    "postcodeSample": null,
+    "population": 109412
+  },
+  {
+    "name": "Thunder Bay",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 108843
+  },
+  {
+    "name": "Pearland",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 108821
+  },
+  {
+    "name": "Waterbury",
+    "countryCode": "US",
+    "admin1": "CT",
+    "postcodeSample": null,
+    "population": 108802
+  },
+  {
+    "name": "Greeley",
+    "countryCode": "US",
+    "admin1": "CO",
+    "postcodeSample": null,
+    "population": 108795
+  },
+  {
+    "name": "West Covina",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 108484
+  },
+  {
+    "name": "Enterprise",
+    "countryCode": "US",
+    "admin1": "NV",
+    "postcodeSample": null,
+    "population": 108481
+  },
+  {
+    "name": "La Cité-Limoilou",
+    "countryCode": "CA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 108415
+  },
+  {
+    "name": "Dagenham",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 108368
+  },
+  {
+    "name": "North Charleston",
+    "countryCode": "US",
+    "admin1": "SC",
+    "postcodeSample": null,
+    "population": 108304
+  },
+  {
+    "name": "Everett",
+    "countryCode": "US",
+    "admin1": "WA",
+    "postcodeSample": null,
+    "population": 108010
+  },
+  {
+    "name": "College Station",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 107889
+  },
+  {
+    "name": "Pompano Beach",
+    "countryCode": "US",
+    "admin1": "FL",
+    "postcodeSample": null,
+    "population": 107762
+  },
+  {
+    "name": "Basingstoke",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 107642
+  },
+  {
+    "name": "Maidstone",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 107627
+  },
+  {
+    "name": "South Fulton",
+    "countryCode": "US",
+    "admin1": "GA",
+    "postcodeSample": null,
+    "population": 107436
+  },
+  {
+    "name": "Thohoyandou",
+    "countryCode": "ZA",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 107144
+  },
+  {
+    "name": "Norwalk",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 107140
+  },
+  {
+    "name": "Bedford",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 106940
+  },
+  {
+    "name": "Boulder",
+    "countryCode": "US",
+    "admin1": "CO",
+    "postcodeSample": null,
+    "population": 106803
+  },
+  {
+    "name": "Broken Arrow",
+    "countryCode": "US",
+    "admin1": "OK",
+    "postcodeSample": null,
+    "population": 106563
+  },
+  {
+    "name": "Daly City",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 106562
+  },
+  {
+    "name": "Tokoza",
+    "countryCode": "ZA",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 106000
+  },
+  {
+    "name": "Sydney",
+    "countryCode": "CA",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 105968
+  },
+  {
+    "name": "Le Plateau-Mont-Royal",
+    "countryCode": "CA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 105813
+  },
+  {
+    "name": "Sandy Springs",
+    "countryCode": "US",
+    "admin1": "GA",
+    "postcodeSample": null,
+    "population": 105330
+  },
+  {
+    "name": "Burbank",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 105319
+  },
+  {
+    "name": "Green Bay",
+    "countryCode": "US",
+    "admin1": "WI",
+    "postcodeSample": null,
+    "population": 105207
+  },
+  {
+    "name": "Santa Maria",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 105093
+  },
+  {
+    "name": "Universal City",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 105000
+  },
+  {
+    "name": "Waterloo",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 104986
+  },
+  {
+    "name": "Ville-Marie",
+    "countryCode": "CA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 104944
+  },
+  {
+    "name": "Wichita Falls",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 104710
+  },
+  {
+    "name": "Brantford",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 104688
+  },
+  {
+    "name": "Kamloops",
+    "countryCode": "CA",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 104460
+  },
+  {
+    "name": "Lakeland",
+    "countryCode": "US",
+    "admin1": "FL",
+    "postcodeSample": null,
+    "population": 104401
+  },
+  {
+    "name": "Clovis",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 104180
+  },
+  {
+    "name": "Lewisville",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 104039
+  },
+  {
+    "name": "Woking",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 103900
+  },
+  {
+    "name": "Lincoln",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 103813
+  },
+  {
+    "name": "Tyler",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 103700
+  },
+  {
+    "name": "El Cajon",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 103679
+  },
+  {
+    "name": "San Mateo",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 103536
+  },
+  {
+    "name": "Brandon",
+    "countryCode": "US",
+    "admin1": "FL",
+    "postcodeSample": null,
+    "population": 103483
+  },
+  {
+    "name": "Lethbridge",
+    "countryCode": "CA",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 103197
+  },
+  {
+    "name": "Rialto",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 103132
+  },
+  {
+    "name": "West Bromwich",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 103112
+  },
+  {
+    "name": "Bendigo",
+    "countryCode": "AU",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 103034
+  },
+  {
+    "name": "Davenport",
+    "countryCode": "US",
+    "admin1": "IA",
+    "postcodeSample": null,
+    "population": 102582
+  },
+  {
+    "name": "Whalley",
+    "countryCode": "CA",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 102555
+  },
+  {
+    "name": "Edison",
+    "countryCode": "US",
+    "admin1": "NJ",
+    "postcodeSample": null,
+    "population": 102548
+  },
+  {
+    "name": "Hillsboro",
+    "countryCode": "US",
+    "admin1": "OR",
+    "postcodeSample": null,
+    "population": 102347
+  },
+  {
+    "name": "Eastbourne",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 101689
+  },
+  {
+    "name": "Delta",
+    "countryCode": "CA",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 101668
+  },
+  {
+    "name": "Worcester",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 101659
+  },
+  {
+    "name": "Las Cruces",
+    "countryCode": "US",
+    "admin1": "NM",
+    "postcodeSample": null,
+    "population": 101643
+  },
+  {
+    "name": "Bath",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 101557
+  },
+  {
+    "name": "South Bend",
+    "countryCode": "US",
+    "admin1": "IN",
+    "postcodeSample": null,
+    "population": 101516
+  },
+  {
+    "name": "Chilliwack",
+    "countryCode": "CA",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 101491
+  },
+  {
+    "name": "Dartmouth",
+    "countryCode": "CA",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 101343
+  },
+  {
+    "name": "Albany",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 101228
+  },
+  {
+    "name": "Gillingham",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 101187
+  },
+  {
+    "name": "Standerton",
+    "countryCode": "ZA",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 101101
+  },
+  {
+    "name": "Mokopane",
+    "countryCode": "ZA",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 101090
+  },
+  {
+    "name": "New Bedford",
+    "countryCode": "US",
+    "admin1": "MA",
+    "postcodeSample": null,
+    "population": 101079
+  },
+  {
+    "name": "Vista",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 100890
+  },
+  {
+    "name": "Davie",
+    "countryCode": "US",
+    "admin1": "FL",
+    "postcodeSample": null,
+    "population": 100882
+  },
+  {
+    "name": "Red Deer",
+    "countryCode": "CA",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 100844
+  },
+  {
+    "name": "Chinatown",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 100574
+  },
+  {
+    "name": "Ermelo",
+    "countryCode": "ZA",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 100324
+  },
+  {
+    "name": "Renton",
+    "countryCode": "US",
+    "admin1": "WA",
+    "postcodeSample": null,
+    "population": 100242
+  },
+  {
+    "name": "Roanoke",
+    "countryCode": "US",
+    "admin1": "VA",
+    "postcodeSample": null,
+    "population": 100011
+  },
+  {
+    "name": "Becontree",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 100000
+  },
+  {
+    "name": "San Angelo",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 99893
+  },
+  {
+    "name": "Kenosha",
+    "countryCode": "US",
+    "admin1": "WI",
+    "postcodeSample": null,
+    "population": 99858
+  },
+  {
+    "name": "Niagara Falls",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 99818
+  },
+  {
+    "name": "Clinton Township",
+    "countryCode": "US",
+    "admin1": "MI",
+    "postcodeSample": null,
+    "population": 99753
+  },
+  {
+    "name": "Columbia",
+    "countryCode": "US",
+    "admin1": "MD",
+    "postcodeSample": null,
+    "population": 99615
+  },
+  {
+    "name": "Erie",
+    "countryCode": "US",
+    "admin1": "PA",
+    "postcodeSample": null,
+    "population": 99475
+  },
+  {
+    "name": "Portsmouth Heights",
+    "countryCode": "US",
+    "admin1": "VA",
+    "postcodeSample": null,
+    "population": 99049
+  },
+  {
+    "name": "Richmond Hill",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 98984
+  },
+  {
+    "name": "Saint-Laurent",
+    "countryCode": "CA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 98828
+  },
+  {
+    "name": "Alief",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 98725
+  },
+  {
+    "name": "Spring Hill",
+    "countryCode": "US",
+    "admin1": "FL",
+    "postcodeSample": null,
+    "population": 98621
+  },
+  {
+    "name": "Compton",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 98462
+  },
+  {
+    "name": "League City",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 98312
+  },
+  {
+    "name": "Flint",
+    "countryCode": "US",
+    "admin1": "MI",
+    "postcodeSample": null,
+    "population": 98310
+  },
+  {
+    "name": "Allen",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 98143
+  },
+  {
+    "name": "Saint-Jean-sur-Richelieu",
+    "countryCode": "CA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 98036
+  },
+  {
+    "name": "Dorchester",
+    "countryCode": "US",
+    "admin1": "MA",
+    "postcodeSample": null,
+    "population": 97826
+  },
+  {
+    "name": "Rochdale",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 97550
+  },
+  {
+    "name": "Mission Viejo",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 97156
+  },
+  {
+    "name": "Vacaville",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 96803
+  },
+  {
+    "name": "Ventura",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 96769
+  },
+  {
+    "name": "Highlands Ranch",
+    "countryCode": "US",
+    "admin1": "CO",
+    "postcodeSample": null,
+    "population": 96713
+  },
+  {
+    "name": "Lawton",
+    "countryCode": "US",
+    "admin1": "OK",
+    "postcodeSample": null,
+    "population": 96655
+  },
+  {
+    "name": "Beaverton",
+    "countryCode": "US",
+    "admin1": "OR",
+    "postcodeSample": null,
+    "population": 96577
+  },
+  {
+    "name": "South Gate",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 96401
+  },
+  {
+    "name": "Caloundra",
+    "countryCode": "AU",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 96305
+  },
+  {
+    "name": "Stellenbosch",
+    "countryCode": "ZA",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 96228
+  },
+  {
+    "name": "Portsmouth",
+    "countryCode": "US",
+    "admin1": "VA",
+    "postcodeSample": null,
+    "population": 96201
+  },
+  {
+    "name": "Sparks",
+    "countryCode": "US",
+    "admin1": "NV",
+    "postcodeSample": null,
+    "population": 96094
+  },
+  {
+    "name": "Hemel Hempstead",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 95961
+  },
+  {
+    "name": "Yuma",
+    "countryCode": "US",
+    "admin1": "AZ",
+    "postcodeSample": null,
+    "population": 95548
+  },
+  {
+    "name": "Brockton",
+    "countryCode": "US",
+    "admin1": "MA",
+    "postcodeSample": null,
+    "population": 95314
+  },
+  {
+    "name": "Dearborn",
+    "countryCode": "US",
+    "admin1": "MI",
+    "postcodeSample": null,
+    "population": 95171
+  },
+  {
+    "name": "Federal Way",
+    "countryCode": "US",
+    "admin1": "WA",
+    "postcodeSample": null,
+    "population": 95171
+  },
+  {
+    "name": "Lee's Summit",
+    "countryCode": "US",
+    "admin1": "MO",
+    "postcodeSample": null,
+    "population": 95094
+  },
+  {
+    "name": "Asheville",
+    "countryCode": "US",
+    "admin1": "NC",
+    "postcodeSample": null,
+    "population": 95056
+  },
+  {
+    "name": "Kutloanong",
+    "countryCode": "ZA",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 95008
+  },
+  {
+    "name": "Romford",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 95000
+  },
+  {
+    "name": "Spokane Valley",
+    "countryCode": "US",
+    "admin1": "WA",
+    "postcodeSample": null,
+    "population": 94919
+  },
+  {
+    "name": "Fordham",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 94678
+  },
+  {
+    "name": "Livonia",
+    "countryCode": "US",
+    "admin1": "MI",
+    "postcodeSample": null,
+    "population": 94635
+  },
+  {
+    "name": "Roswell",
+    "countryCode": "US",
+    "admin1": "GA",
+    "postcodeSample": null,
+    "population": 94501
+  },
+  {
+    "name": "Orem",
+    "countryCode": "US",
+    "admin1": "UT",
+    "postcodeSample": null,
+    "population": 94457
+  },
+  {
+    "name": "Limerick",
+    "countryCode": "IE",
+    "admin1": "M",
+    "postcodeSample": null,
+    "population": 94192
+  },
+  {
+    "name": "Chomedey",
+    "countryCode": "CA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 94030
+  },
+  {
+    "name": "Fall River",
+    "countryCode": "US",
+    "admin1": "MA",
+    "postcodeSample": null,
+    "population": 94000
+  },
+  {
+    "name": "Hayes",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 93928
+  },
+  {
+    "name": "Lawrence",
+    "countryCode": "US",
+    "admin1": "KS",
+    "postcodeSample": null,
+    "population": 93917
+  },
+  {
+    "name": "The Woodlands",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 93847
+  },
+  {
+    "name": "West Albany",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 93794
+  },
+  {
+    "name": "Yakima",
+    "countryCode": "US",
+    "admin1": "WA",
+    "postcodeSample": null,
+    "population": 93701
+  },
+  {
+    "name": "Quincy",
+    "countryCode": "US",
+    "admin1": "MA",
+    "postcodeSample": null,
+    "population": 93618
+  },
+  {
+    "name": "Flatbush",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 93361
+  },
+  {
+    "name": "Harlow",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 93300
+  },
+  {
+    "name": "Hesperia",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 93295
+  },
+  {
+    "name": "Carson",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 93281
+  },
+  {
+    "name": "Boca Raton",
+    "countryCode": "US",
+    "admin1": "FL",
+    "postcodeSample": null,
+    "population": 93235
+  },
+  {
+    "name": "Santa Monica",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 93220
+  },
+  {
+    "name": "Stilfontein",
+    "countryCode": "ZA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 93110
+  },
+  {
+    "name": "Qonce",
+    "countryCode": "ZA",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 93072
+  },
+  {
+    "name": "San Marcos",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 92931
+  },
+  {
+    "name": "Hastings",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 92855
+  },
+  {
+    "name": "Boyle Heights",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 92785
+  },
+  {
+    "name": "High Peak",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 92666
+  },
+  {
+    "name": "Plantation",
+    "countryCode": "US",
+    "admin1": "FL",
+    "postcodeSample": null,
+    "population": 92560
+  },
+  {
+    "name": "Lynn",
+    "countryCode": "US",
+    "admin1": "MA",
+    "postcodeSample": null,
+    "population": 92457
+  },
+  {
+    "name": "Darlington",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 92363
+  },
+  {
+    "name": "Miami Beach",
+    "countryCode": "US",
+    "admin1": "FL",
+    "postcodeSample": null,
+    "population": 92312
+  },
+  {
+    "name": "Arden-Arcade",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 92186
+  },
+  {
+    "name": "Westminster",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 92114
+  },
+  {
+    "name": "Longmont",
+    "countryCode": "US",
+    "admin1": "CO",
+    "postcodeSample": null,
+    "population": 92088
+  },
+  {
+    "name": "Delmas",
+    "countryCode": "ZA",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 92046
+  },
+  {
+    "name": "Santa Barbara",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 91842
+  },
+  {
+    "name": "Stevenage",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 91774
+  },
+  {
+    "name": "Pickering",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 91771
+  },
+  {
+    "name": "Southport",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 91703
+  },
+  {
+    "name": "Redding",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 91582
+  },
+  {
+    "name": "Grahamstown",
+    "countryCode": "ZA",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 91548
+  },
+  {
+    "name": "Macon",
+    "countryCode": "US",
+    "admin1": "GA",
+    "postcodeSample": null,
+    "population": 91351
+  },
+  {
+    "name": "Bethlehem",
+    "countryCode": "ZA",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 91075
+  },
+  {
+    "name": "Newmarket",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 91034
+  },
+  {
+    "name": "Launceston",
+    "countryCode": "AU",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 90953
+  },
+  {
+    "name": "Ga-Rankuwa",
+    "countryCode": "ZA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 90945
+  },
+  {
+    "name": "Meridian",
+    "countryCode": "US",
+    "admin1": "ID",
+    "postcodeSample": null,
+    "population": 90739
+  },
+  {
+    "name": "San Leandro",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 90712
+  },
+  {
+    "name": "Greenville",
+    "countryCode": "US",
+    "admin1": "NC",
+    "postcodeSample": null,
+    "population": 90597
+  },
+  {
+    "name": "Chester",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 90524
+  },
+  {
+    "name": "Nanaimo",
+    "countryCode": "CA",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 90504
+  },
+  {
+    "name": "Palmerston North",
+    "countryCode": "NZ",
+    "admin1": "F3",
+    "postcodeSample": null,
+    "population": 90500
+  },
+  {
+    "name": "Mandurah",
+    "countryCode": "AU",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 90306
+  },
+  {
+    "name": "Bela Bela",
+    "countryCode": "ZA",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 90210
+  },
+  {
+    "name": "New Plymouth",
+    "countryCode": "NZ",
+    "admin1": "F9",
+    "postcodeSample": null,
+    "population": 90100
+  },
+  {
+    "name": "Edmond",
+    "countryCode": "US",
+    "admin1": "OK",
+    "postcodeSample": null,
+    "population": 90092
+  },
+  {
+    "name": "Wembley",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 90045
+  },
+  {
+    "name": "Airdrie",
+    "countryCode": "CA",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 90044
+  },
+  {
+    "name": "Kanata",
+    "countryCode": "CA",
+    "admin1": "08",
+    "postcodeSample": null,
+    "population": 90000
+  },
+  {
+    "name": "Chinatown",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 90000
+  },
+  {
+    "name": "Nampa",
+    "countryCode": "US",
+    "admin1": "ID",
+    "postcodeSample": null,
+    "population": 89839
+  },
+  {
+    "name": "Grays",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 89755
+  },
+  {
+    "name": "Trenton",
+    "countryCode": "US",
+    "admin1": "NJ",
+    "postcodeSample": null,
+    "population": 89620
+  },
+  {
+    "name": "Maitland",
+    "countryCode": "AU",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 89597
+  },
+  {
+    "name": "Sandy Hills",
+    "countryCode": "US",
+    "admin1": "UT",
+    "postcodeSample": null,
+    "population": 89575
+  },
+  {
+    "name": "Tuggeranong Administrative District",
+    "countryCode": "AU",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 89461
+  },
+  {
+    "name": "Harrogate",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 89060
+  },
+  {
+    "name": "Hartlepool",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 88855
+  },
+  {
+    "name": "Newton",
+    "countryCode": "US",
+    "admin1": "MA",
+    "postcodeSample": null,
+    "population": 88817
+  },
+  {
+    "name": "Nuneaton",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 88813
+  },
+  {
+    "name": "Toms River",
+    "countryCode": "US",
+    "admin1": "NJ",
+    "postcodeSample": null,
+    "population": 88791
+  },
+  {
+    "name": "Carmel",
+    "countryCode": "US",
+    "admin1": "IN",
+    "postcodeSample": null,
+    "population": 88713
+  },
+  {
+    "name": "Norwalk",
+    "countryCode": "US",
+    "admin1": "CT",
+    "postcodeSample": null,
+    "population": 88485
+  },
+  {
+    "name": "Waukegan",
+    "countryCode": "US",
+    "admin1": "IL",
+    "postcodeSample": null,
+    "population": 88475
+  },
+  {
+    "name": "Deltona",
+    "countryCode": "US",
+    "admin1": "FL",
+    "postcodeSample": null,
+    "population": 88474
+  },
+  {
+    "name": "La Haute-Saint-Charles",
+    "countryCode": "CA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 88460
+  },
+  {
+    "name": "Hawthorne",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 88451
+  },
+  {
+    "name": "Hastings",
+    "countryCode": "NZ",
+    "admin1": "F2",
+    "postcodeSample": null,
+    "population": 88300
+  },
+  {
+    "name": "Fort Smith",
+    "countryCode": "US",
+    "admin1": "AR",
+    "postcodeSample": null,
+    "population": 88194
+  },
+  {
+    "name": "North Vancouver",
+    "countryCode": "CA",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 88168
+  },
+  {
+    "name": "Suffolk",
+    "countryCode": "US",
+    "admin1": "VA",
+    "postcodeSample": null,
+    "population": 88161
+  },
+  {
+    "name": "Sugar Land",
+    "countryCode": "US",
+    "admin1": "TX",
+    "postcodeSample": null,
+    "population": 88156
+  },
+  {
+    "name": "Livermore",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 88126
+  },
+  {
+    "name": "Nashua",
+    "countryCode": "US",
+    "admin1": "NH",
+    "postcodeSample": null,
+    "population": 87970
+  },
+  {
+    "name": "Reading",
+    "countryCode": "US",
+    "admin1": "PA",
+    "postcodeSample": null,
+    "population": 87879
+  },
+  {
+    "name": "Redditch",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 87847
+  },
+  {
+    "name": "Concord",
+    "countryCode": "US",
+    "admin1": "NC",
+    "postcodeSample": null,
+    "population": 87696
+  },
+  {
+    "name": "Indio",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 87533
+  },
+  {
+    "name": "Rio Rancho",
+    "countryCode": "US",
+    "admin1": "NM",
+    "postcodeSample": null,
+    "population": 87521
+  },
+  {
+    "name": "Enchanted Hills",
+    "countryCode": "US",
+    "admin1": "NM",
+    "postcodeSample": null,
+    "population": 87521
+  },
+  {
+    "name": "Santa Fe",
+    "countryCode": "US",
+    "admin1": "NM",
+    "postcodeSample": null,
+    "population": 87505
+  },
+  {
+    "name": "Sandy",
+    "countryCode": "US",
+    "admin1": "UT",
+    "postcodeSample": null,
+    "population": 87461
+  },
+  {
+    "name": "Whittier",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 87438
+  },
+  {
+    "name": "Midrand",
+    "countryCode": "ZA",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 87387
+  },
+  {
+    "name": "Canarsie",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 87366
+  },
+  {
+    "name": "Kirkland",
+    "countryCode": "US",
+    "admin1": "WA",
+    "postcodeSample": null,
+    "population": 87281
+  },
+  {
+    "name": "Menifee",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 87174
+  },
+  {
+    "name": "Fulham",
+    "countryCode": "GB",
+    "admin1": "ENG",
+    "postcodeSample": null,
+    "population": 87161
+  },
+  {
+    "name": "Londonderry County Borough",
+    "countryCode": "GB",
+    "admin1": "NIR",
+    "postcodeSample": null,
+    "population": 87153
+  },
+  {
+    "name": "Newport Beach",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 87127
+  },
+  {
+    "name": "Tracy",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 87075
+  },
+  {
+    "name": "Citrus Heights",
+    "countryCode": "US",
+    "admin1": "CA",
+    "postcodeSample": null,
+    "population": 87056
+  },
+  {
+    "name": "Bend",
+    "countryCode": "US",
+    "admin1": "OR",
+    "postcodeSample": null,
+    "population": 87014
+  },
+  {
+    "name": "Montréal-Nord",
+    "countryCode": "CA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 86857
+  },
+  {
+    "name": "Louis Trichardt",
+    "countryCode": "ZA",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 86854
+  },
+  {
+    "name": "Canton",
+    "countryCode": "US",
+    "admin1": "MI",
+    "postcodeSample": null,
+    "population": 86825
+  },
+  {
+    "name": "Lehigh Acres",
+    "countryCode": "US",
+    "admin1": "FL",
+    "postcodeSample": null,
+    "population": 86784
+  },
+  {
+    "name": "Greenburgh",
+    "countryCode": "US",
+    "admin1": "NY",
+    "postcodeSample": null,
+    "population": 86764
+  },
+  {
+    "name": "Bloomington",
+    "countryCode": "US",
+    "admin1": "MN",
+    "postcodeSample": null,
+    "population": 86435
+  },
+  {
+    "name": "West Town",
+    "countryCode": "US",
+    "admin1": "IL",
+    "postcodeSample": null,
+    "population": 86429
+  },
+  {
+    "name": "Germantown",
+    "countryCode": "US",
+    "admin1": "MD",
+    "postcodeSample": null,
+    "population": 86395
+  },
+  {
+    "name": "Le Sud-Ouest",
+    "countryCode": "CA",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 86347
+  },
+  {
+    "name": "Clifton",
+    "countryCode": "US",
+    "admin1": "NJ",
+    "postcodeSample": null,
+    "population": 86334
+  }
+]

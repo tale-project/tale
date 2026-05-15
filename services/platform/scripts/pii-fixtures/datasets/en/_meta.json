@@ -1,0 +1,30 @@
+{
+  "locale": "en",
+  "sources": {
+    "streets": {
+      "url": "https://download.geofabrik.de/north-america/us-latest.osm.pbf",
+      "version": "2026-01-01",
+      "spdx": "ODbL-1.0",
+      "attribution": "© OpenStreetMap contributors"
+    },
+    "cities": {
+      "url": "https://download.geonames.org/export/dump/cities15000.zip",
+      "version": "2026-02-15",
+      "spdx": "CC-BY-4.0",
+      "attribution": "© GeoNames"
+    },
+    "prose": {
+      "url": "https://downloads.tatoeba.org/exports/sentences.csv",
+      "version": "2026-01-01",
+      "spdx": "CC-BY-2.0-FR",
+      "attribution": "© Tatoeba project"
+    },
+    "names": {
+      "url": "https://www.ssa.gov/oact/babynames/limits.html",
+      "version": "2024",
+      "spdx": "CC0-1.0",
+      "attribution": "US Social Security Administration"
+    }
+  },
+  "generatedAt": "2026-05-14T00:00:00Z"
+}

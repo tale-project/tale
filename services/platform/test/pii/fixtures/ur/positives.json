@@ -1,0 +1,3315 @@
+{
+  "_meta": {
+    "locale": "ur",
+    "generator": "platform/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 300,
+      "negatives": 0
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "positives": [
+    {
+      "id": "email-ur-00000",
+      "input": "براہ کرم پارسل alex.smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00001",
+      "input": "ڈاک کا پتہ: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00002",
+      "input": "گاہک marylee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00003",
+      "input": "وصولی کا مقام — anna.mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00004",
+      "input": "براہ کرم پارسل alex_smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00005",
+      "input": "ڈاک کا پتہ: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00006",
+      "input": "گاہک mary.lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00007",
+      "input": "وصولی کا مقام — anna_mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00008",
+      "input": "براہ کرم پارسل alexsmith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00009",
+      "input": "ڈاک کا پتہ: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00010",
+      "input": "گاہک mary_lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00011",
+      "input": "وصولی کا مقام — annamueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00012",
+      "input": "براہ کرم پارسل alex.smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00013",
+      "input": "ڈاک کا پتہ: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00014",
+      "input": "گاہک marylee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00015",
+      "input": "وصولی کا مقام — anna.mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00016",
+      "input": "براہ کرم پارسل alex_smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00017",
+      "input": "ڈاک کا پتہ: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00018",
+      "input": "گاہک mary.lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00019",
+      "input": "وصولی کا مقام — anna_mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00020",
+      "input": "براہ کرم پارسل alexsmith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00021",
+      "input": "ڈاک کا پتہ: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00022",
+      "input": "گاہک mary_lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00023",
+      "input": "وصولی کا مقام — annamueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00024",
+      "input": "براہ کرم پارسل alex.smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00025",
+      "input": "ڈاک کا پتہ: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00026",
+      "input": "گاہک marylee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00027",
+      "input": "وصولی کا مقام — anna.mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00028",
+      "input": "براہ کرم پارسل alex_smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00029",
+      "input": "ڈاک کا پتہ: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00030",
+      "input": "گاہک mary.lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00031",
+      "input": "وصولی کا مقام — anna_mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00032",
+      "input": "براہ کرم پارسل alexsmith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00033",
+      "input": "ڈاک کا پتہ: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00034",
+      "input": "گاہک mary_lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00035",
+      "input": "وصولی کا مقام — annamueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00036",
+      "input": "براہ کرم پارسل alex.smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00037",
+      "input": "ڈاک کا پتہ: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00038",
+      "input": "گاہک marylee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00039",
+      "input": "وصولی کا مقام — anna.mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00040",
+      "input": "براہ کرم پارسل alex_smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00041",
+      "input": "ڈاک کا پتہ: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00042",
+      "input": "گاہک mary.lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00043",
+      "input": "وصولی کا مقام — anna_mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00044",
+      "input": "براہ کرم پارسل alexsmith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00045",
+      "input": "ڈاک کا پتہ: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00046",
+      "input": "گاہک mary_lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00047",
+      "input": "وصولی کا مقام — annamueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00048",
+      "input": "براہ کرم پارسل alex.smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00049",
+      "input": "ڈاک کا پتہ: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00050",
+      "input": "گاہک marylee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00051",
+      "input": "وصولی کا مقام — anna.mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00052",
+      "input": "براہ کرم پارسل alex_smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00053",
+      "input": "ڈاک کا پتہ: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00054",
+      "input": "گاہک mary.lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00055",
+      "input": "وصولی کا مقام — anna_mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00056",
+      "input": "براہ کرم پارسل alexsmith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00057",
+      "input": "ڈاک کا پتہ: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00058",
+      "input": "گاہک mary_lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00059",
+      "input": "وصولی کا مقام — annamueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00060",
+      "input": "براہ کرم پارسل alex.smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00061",
+      "input": "ڈاک کا پتہ: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00062",
+      "input": "گاہک marylee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00063",
+      "input": "وصولی کا مقام — anna.mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00064",
+      "input": "براہ کرم پارسل alex_smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00065",
+      "input": "ڈاک کا پتہ: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00066",
+      "input": "گاہک mary.lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00067",
+      "input": "وصولی کا مقام — anna_mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00068",
+      "input": "براہ کرم پارسل alexsmith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00069",
+      "input": "ڈاک کا پتہ: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00070",
+      "input": "گاہک mary_lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00071",
+      "input": "وصولی کا مقام — annamueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00072",
+      "input": "براہ کرم پارسل alex.smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00073",
+      "input": "ڈاک کا پتہ: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00074",
+      "input": "گاہک marylee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00075",
+      "input": "وصولی کا مقام — anna.mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00076",
+      "input": "براہ کرم پارسل alex_smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00077",
+      "input": "ڈاک کا پتہ: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00078",
+      "input": "گاہک mary.lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00079",
+      "input": "وصولی کا مقام — anna_mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00080",
+      "input": "براہ کرم پارسل alexsmith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00081",
+      "input": "ڈاک کا پتہ: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00082",
+      "input": "گاہک mary_lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00083",
+      "input": "وصولی کا مقام — annamueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00084",
+      "input": "براہ کرم پارسل alex.smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00085",
+      "input": "ڈاک کا پتہ: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00086",
+      "input": "گاہک marylee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00087",
+      "input": "وصولی کا مقام — anna.mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00088",
+      "input": "براہ کرم پارسل alex_smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00089",
+      "input": "ڈاک کا پتہ: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00090",
+      "input": "گاہک mary.lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00091",
+      "input": "وصولی کا مقام — anna_mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00092",
+      "input": "براہ کرم پارسل alexsmith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00093",
+      "input": "ڈاک کا پتہ: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00094",
+      "input": "گاہک mary_lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00095",
+      "input": "وصولی کا مقام — annamueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00096",
+      "input": "براہ کرم پارسل alex.smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00097",
+      "input": "ڈاک کا پتہ: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00098",
+      "input": "گاہک marylee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00099",
+      "input": "وصولی کا مقام — anna.mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00100",
+      "input": "براہ کرم پارسل alex_smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00101",
+      "input": "ڈاک کا پتہ: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00102",
+      "input": "گاہک mary.lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00103",
+      "input": "وصولی کا مقام — anna_mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00104",
+      "input": "براہ کرم پارسل alexsmith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00105",
+      "input": "ڈاک کا پتہ: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00106",
+      "input": "گاہک mary_lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00107",
+      "input": "وصولی کا مقام — annamueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00108",
+      "input": "براہ کرم پارسل alex.smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00109",
+      "input": "ڈاک کا پتہ: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00110",
+      "input": "گاہک marylee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00111",
+      "input": "وصولی کا مقام — anna.mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00112",
+      "input": "براہ کرم پارسل alex_smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00113",
+      "input": "ڈاک کا پتہ: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00114",
+      "input": "گاہک mary.lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00115",
+      "input": "وصولی کا مقام — anna_mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00116",
+      "input": "براہ کرم پارسل alexsmith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00117",
+      "input": "ڈاک کا پتہ: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00118",
+      "input": "گاہک mary_lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00119",
+      "input": "وصولی کا مقام — annamueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00120",
+      "input": "براہ کرم پارسل alex.smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00121",
+      "input": "ڈاک کا پتہ: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00122",
+      "input": "گاہک marylee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00123",
+      "input": "وصولی کا مقام — anna.mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00124",
+      "input": "براہ کرم پارسل alex_smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00125",
+      "input": "ڈاک کا پتہ: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00126",
+      "input": "گاہک mary.lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00127",
+      "input": "وصولی کا مقام — anna_mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00128",
+      "input": "براہ کرم پارسل alexsmith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00129",
+      "input": "ڈاک کا پتہ: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00130",
+      "input": "گاہک mary_lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00131",
+      "input": "وصولی کا مقام — annamueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00132",
+      "input": "براہ کرم پارسل alex.smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00133",
+      "input": "ڈاک کا پتہ: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00134",
+      "input": "گاہک marylee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00135",
+      "input": "وصولی کا مقام — anna.mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00136",
+      "input": "براہ کرم پارسل alex_smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00137",
+      "input": "ڈاک کا پتہ: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00138",
+      "input": "گاہک mary.lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00139",
+      "input": "وصولی کا مقام — anna_mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00140",
+      "input": "براہ کرم پارسل alexsmith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00141",
+      "input": "ڈاک کا پتہ: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00142",
+      "input": "گاہک mary_lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00143",
+      "input": "وصولی کا مقام — annamueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00144",
+      "input": "براہ کرم پارسل alex.smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00145",
+      "input": "ڈاک کا پتہ: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00146",
+      "input": "گاہک marylee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00147",
+      "input": "وصولی کا مقام — anna.mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00148",
+      "input": "براہ کرم پارسل alex_smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00149",
+      "input": "ڈاک کا پتہ: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00150",
+      "input": "گاہک mary.lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00151",
+      "input": "وصولی کا مقام — anna_mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00152",
+      "input": "براہ کرم پارسل alexsmith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00153",
+      "input": "ڈاک کا پتہ: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00154",
+      "input": "گاہک mary_lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00155",
+      "input": "وصولی کا مقام — annamueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00156",
+      "input": "براہ کرم پارسل alex.smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00157",
+      "input": "ڈاک کا پتہ: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00158",
+      "input": "گاہک marylee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00159",
+      "input": "وصولی کا مقام — anna.mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00160",
+      "input": "براہ کرم پارسل alex_smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00161",
+      "input": "ڈاک کا پتہ: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00162",
+      "input": "گاہک mary.lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00163",
+      "input": "وصولی کا مقام — anna_mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00164",
+      "input": "براہ کرم پارسل alexsmith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00165",
+      "input": "ڈاک کا پتہ: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00166",
+      "input": "گاہک mary_lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00167",
+      "input": "وصولی کا مقام — annamueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00168",
+      "input": "براہ کرم پارسل alex.smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00169",
+      "input": "ڈاک کا پتہ: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00170",
+      "input": "گاہک marylee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00171",
+      "input": "وصولی کا مقام — anna.mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00172",
+      "input": "براہ کرم پارسل alex_smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00173",
+      "input": "ڈاک کا پتہ: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00174",
+      "input": "گاہک mary.lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00175",
+      "input": "وصولی کا مقام — anna_mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00176",
+      "input": "براہ کرم پارسل alexsmith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00177",
+      "input": "ڈاک کا پتہ: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00178",
+      "input": "گاہک mary_lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00179",
+      "input": "وصولی کا مقام — annamueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00180",
+      "input": "براہ کرم پارسل alex.smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00181",
+      "input": "ڈاک کا پتہ: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00182",
+      "input": "گاہک marylee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00183",
+      "input": "وصولی کا مقام — anna.mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00184",
+      "input": "براہ کرم پارسل alex_smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00185",
+      "input": "ڈاک کا پتہ: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00186",
+      "input": "گاہک mary.lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00187",
+      "input": "وصولی کا مقام — anna_mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00188",
+      "input": "براہ کرم پارسل alexsmith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00189",
+      "input": "ڈاک کا پتہ: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00190",
+      "input": "گاہک mary_lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00191",
+      "input": "وصولی کا مقام — annamueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00192",
+      "input": "براہ کرم پارسل alex.smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00193",
+      "input": "ڈاک کا پتہ: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00194",
+      "input": "گاہک marylee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00195",
+      "input": "وصولی کا مقام — anna.mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00196",
+      "input": "براہ کرم پارسل alex_smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00197",
+      "input": "ڈاک کا پتہ: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00198",
+      "input": "گاہک mary.lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00199",
+      "input": "وصولی کا مقام — anna_mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00200",
+      "input": "براہ کرم پارسل alexsmith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00201",
+      "input": "ڈاک کا پتہ: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00202",
+      "input": "گاہک mary_lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00203",
+      "input": "وصولی کا مقام — annamueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00204",
+      "input": "براہ کرم پارسل alex.smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00205",
+      "input": "ڈاک کا پتہ: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00206",
+      "input": "گاہک marylee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00207",
+      "input": "وصولی کا مقام — anna.mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00208",
+      "input": "براہ کرم پارسل alex_smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00209",
+      "input": "ڈاک کا پتہ: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00210",
+      "input": "گاہک mary.lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00211",
+      "input": "وصولی کا مقام — anna_mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00212",
+      "input": "براہ کرم پارسل alexsmith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00213",
+      "input": "ڈاک کا پتہ: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00214",
+      "input": "گاہک mary_lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00215",
+      "input": "وصولی کا مقام — annamueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00216",
+      "input": "براہ کرم پارسل alex.smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00217",
+      "input": "ڈاک کا پتہ: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00218",
+      "input": "گاہک marylee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00219",
+      "input": "وصولی کا مقام — anna.mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00220",
+      "input": "براہ کرم پارسل alex_smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00221",
+      "input": "ڈاک کا پتہ: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00222",
+      "input": "گاہک mary.lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00223",
+      "input": "وصولی کا مقام — anna_mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00224",
+      "input": "براہ کرم پارسل alexsmith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00225",
+      "input": "ڈاک کا پتہ: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00226",
+      "input": "گاہک mary_lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00227",
+      "input": "وصولی کا مقام — annamueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00228",
+      "input": "براہ کرم پارسل alex.smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00229",
+      "input": "ڈاک کا پتہ: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00230",
+      "input": "گاہک marylee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00231",
+      "input": "وصولی کا مقام — anna.mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00232",
+      "input": "براہ کرم پارسل alex_smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00233",
+      "input": "ڈاک کا پتہ: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00234",
+      "input": "گاہک mary.lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00235",
+      "input": "وصولی کا مقام — anna_mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00236",
+      "input": "براہ کرم پارسل alexsmith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00237",
+      "input": "ڈاک کا پتہ: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00238",
+      "input": "گاہک mary_lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00239",
+      "input": "وصولی کا مقام — annamueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00240",
+      "input": "براہ کرم پارسل alex.smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00241",
+      "input": "ڈاک کا پتہ: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00242",
+      "input": "گاہک marylee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00243",
+      "input": "وصولی کا مقام — anna.mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00244",
+      "input": "براہ کرم پارسل alex_smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00245",
+      "input": "ڈاک کا پتہ: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00246",
+      "input": "گاہک mary.lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00247",
+      "input": "وصولی کا مقام — anna_mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00248",
+      "input": "براہ کرم پارسل alexsmith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00249",
+      "input": "ڈاک کا پتہ: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00250",
+      "input": "گاہک mary_lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00251",
+      "input": "وصولی کا مقام — annamueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00252",
+      "input": "براہ کرم پارسل alex.smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00253",
+      "input": "ڈاک کا پتہ: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00254",
+      "input": "گاہک marylee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00255",
+      "input": "وصولی کا مقام — anna.mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00256",
+      "input": "براہ کرم پارسل alex_smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00257",
+      "input": "ڈاک کا پتہ: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00258",
+      "input": "گاہک mary.lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00259",
+      "input": "وصولی کا مقام — anna_mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00260",
+      "input": "براہ کرم پارسل alexsmith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00261",
+      "input": "ڈاک کا پتہ: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00262",
+      "input": "گاہک mary_lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00263",
+      "input": "وصولی کا مقام — annamueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00264",
+      "input": "براہ کرم پارسل alex.smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00265",
+      "input": "ڈاک کا پتہ: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00266",
+      "input": "گاہک marylee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00267",
+      "input": "وصولی کا مقام — anna.mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00268",
+      "input": "براہ کرم پارسل alex_smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00269",
+      "input": "ڈاک کا پتہ: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00270",
+      "input": "گاہک mary.lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00271",
+      "input": "وصولی کا مقام — anna_mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00272",
+      "input": "براہ کرم پارسل alexsmith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00273",
+      "input": "ڈاک کا پتہ: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00274",
+      "input": "گاہک mary_lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00275",
+      "input": "وصولی کا مقام — annamueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00276",
+      "input": "براہ کرم پارسل alex.smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00277",
+      "input": "ڈاک کا پتہ: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00278",
+      "input": "گاہک marylee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00279",
+      "input": "وصولی کا مقام — anna.mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00280",
+      "input": "براہ کرم پارسل alex_smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00281",
+      "input": "ڈاک کا پتہ: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00282",
+      "input": "گاہک mary.lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00283",
+      "input": "وصولی کا مقام — anna_mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00284",
+      "input": "براہ کرم پارسل alexsmith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00285",
+      "input": "ڈاک کا پتہ: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00286",
+      "input": "گاہک mary_lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00287",
+      "input": "وصولی کا مقام — annamueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00288",
+      "input": "براہ کرم پارسل alex.smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00289",
+      "input": "ڈاک کا پتہ: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00290",
+      "input": "گاہک marylee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00291",
+      "input": "وصولی کا مقام — anna.mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00292",
+      "input": "براہ کرم پارسل alex_smith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00293",
+      "input": "ڈاک کا پتہ: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00294",
+      "input": "گاہک mary.lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00295",
+      "input": "وصولی کا مقام — anna_mueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00296",
+      "input": "براہ کرم پارسل alexsmith@example.com پر بھیجیں۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00297",
+      "input": "ڈاک کا پتہ: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 12,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00298",
+      "input": "گاہک mary_lee@company.io میں رہتا ہے۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ur-00299",
+      "input": "وصولی کا مقام — annamueller@corp.example — تصدیق شدہ۔",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 16,
+          "end": 40
+        }
+      ]
+    }
+  ]
+}

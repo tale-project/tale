@@ -1,0 +1,4065 @@
+{
+  "_meta": {
+    "locale": "hu",
+    "generator": "platform/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 0,
+      "negatives": 810
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "negatives": [
+    {
+      "id": "neg-prose-hu-00000",
+      "input": "Ez nem lep meg.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00001",
+      "input": "Minden emberi lény szabadon születik és egyenlő méltósága és joga van. Az emberek, ésszel és lelkiismerettel bírván, egymással szemben testvéri szellemben kell hogy viseltessenek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00002",
+      "input": "Köszönöm szépen!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00003",
+      "input": "Ez tényleg szörnyű.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00004",
+      "input": "Vettem egy táskát.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00005",
+      "input": "Van nálad egy ceruza?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00006",
+      "input": "Ha ő jön, én is megyek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00007",
+      "input": "Ne állj mindig az ő oldalára!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00008",
+      "input": "Ön nincs bejelentkezve.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00009",
+      "input": "Egy jó szótárat akarok.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00010",
+      "input": "Nem akarok iskolába menni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00011",
+      "input": "Egyszer teszek az életemben jó dolgot... és teljesen hiába.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00012",
+      "input": "Nem beszélek japánul.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00013",
+      "input": "Mennem kell aludni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00014",
+      "input": "Jim még mindig nem jött meg?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00015",
+      "input": "Boldog születésnapot, Muiriel!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00016",
+      "input": "Muiriel húsz éves.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00017",
+      "input": "A jelszó: Muiriel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00018",
+      "input": "Nem találok rá szavakat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00019",
+      "input": "Ez egy mostani fénykép?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00020",
+      "input": "Nem tudom, hogy tudok-e időt szakítani rá.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00021",
+      "input": "A hegyekben jártam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00022",
+      "input": "Holnapra hazaérek, és felhívom őket.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00023",
+      "input": "Nem tudok így élni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00024",
+      "input": "Sajnálatos, de igaz.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00025",
+      "input": "Biztos vagy benne?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00026",
+      "input": "Ezt most viccnek szántad?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00027",
+      "input": "Ekkora butaságot még életemben nem mondtam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00028",
+      "input": "Egy, kettő, három, négy, öt, hat, hét, nyolc, kilenc, tíz.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00029",
+      "input": "A beteg ágyban fekszik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00030",
+      "input": "Finom ez a sütemény.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00031",
+      "input": "Jacknek hívnak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00032",
+      "input": "Olaszország nagyon szép ország.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00033",
+      "input": "Ma nagyon meleg van.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00034",
+      "input": "- Köszönöm. - Nincs mit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00035",
+      "input": "Hol van a klozett?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00036",
+      "input": "Ezek az emberek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00037",
+      "input": "- Köszönöm. - Szívesen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00038",
+      "input": "Beszél ön japánul?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00039",
+      "input": "Boldog születésnapot!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00040",
+      "input": "Jöttem, láttam, győztem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00041",
+      "input": "Az, aki nemrég még azt hitte, hogy irányít, mozdulatlan fekszik egy faládában; s a hátramaradók, belátván, hogy hasznát többé nem vehetik, elégetik a kemencében.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00042",
+      "input": "Lengyel, magyar – két jó barát, együtt harcol, s issza borát.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00043",
+      "input": "Ha megmondta volna nekem az igazat, most nem lennék ideges.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00044",
+      "input": "A rendőrségnek sikerült megtalálni a bűnözőt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00045",
+      "input": "A gyermekek lecsúsztak a padról.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00046",
+      "input": "A lány segített apjának a kerti munkában.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00047",
+      "input": "Tudod-e, ki fedezte fel a távírót?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00048",
+      "input": "A háború alatt Amerika megpróbálta megállítani az Angliával folytatott kereskedelmet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00049",
+      "input": "Aludni kell mennem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00050",
+      "input": "Mivel foglalkozol?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00051",
+      "input": "Megédesítjük a teánkat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00052",
+      "input": "Itt várom meg a nővéremet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00053",
+      "input": "Ez egy nem várt dolog.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00054",
+      "input": "Rögtön visszajövök!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00055",
+      "input": "Ennek soha sem lesz vége.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00056",
+      "input": "Nem tudom, hogy mit is mondjak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00057",
+      "input": "Ez egy gonosz nyúl volt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00058",
+      "input": "Valamiért nem működött a mikrofon.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00059",
+      "input": "Magunknak kell mindent megtanulni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00060",
+      "input": "Az oktatás ezen a világon kiábrándít engem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00061",
+      "input": "Nehéz választani a jó és rossz között, de a dolgunkat tennünk kell.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00062",
+      "input": "Ez nem változtat semmit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00063",
+      "input": "Lehet, hogy hamarosan feladom, inkább szunyókálok egyet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00064",
+      "input": "Az eszperantóul beszélő emberek elvileg mindig legalább kétnyelvűek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00065",
+      "input": "Ez nem fog megtörténni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00066",
+      "input": "Megteszek mindent, hogy ne zavarjalak a tanulásban.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00067",
+      "input": "Egyre inkább kedvelem a rejtélyes személyiségeket.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00068",
+      "input": "Aludnod kellene.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00069",
+      "input": "Azt mondtam nekik, hogy küldjenek másik jegyet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00070",
+      "input": "Nem tudom, mikor ment férjhez.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00071",
+      "input": "Valaki ellopta az utazási csekkjeimet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00072",
+      "input": "Valamikor asztrofizikus akartam lenni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00073",
+      "input": "Sohasem kedveltem a biológiát.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00074",
+      "input": "A legtöbb ember azt hiszi, hogy őrült vagyok.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00075",
+      "input": "Nem, nem én vagyok, hanem te!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00076",
+      "input": "Ez az én válaszom!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00077",
+      "input": "Van itt egy probléma...",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00078",
+      "input": "Ó, itt van egy pillangó!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00079",
+      "input": "Ha ilyen lehetnék...",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00080",
+      "input": "Ha olyan lehetnék, mint...",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00081",
+      "input": "Ha nagy leszek, király akarok lenni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00082",
+      "input": "Olyan kövér vagyok.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00083",
+      "input": "Azért, mert lány vagy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00084",
+      "input": "Lehetnék boldogtalan, de nem lennék öngyilkos.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00085",
+      "input": "Miért kérdezed?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00086",
+      "input": "Meddig maradtál?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00087",
+      "input": "Nem tudtam, honnan jött.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00088",
+      "input": "Hol van itt probléma?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00089",
+      "input": "Ne tekints rám többé úgy, mint egy „normális” személyre!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00090",
+      "input": "Amit feltaláltak, mind igaz.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00091",
+      "input": "Meglepődni, csodálkozni, - ez a megértés kezdete.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00092",
+      "input": "A világegyetem kétségtelenül végtelen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00093",
+      "input": "A tökéletessége csak egy hibán múlt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00094",
+      "input": "A hajó tegnap áthaladt az Egyenlítőn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00095",
+      "input": "És mégis, az ellenkezője is mindig igaz.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00096",
+      "input": "Nem úgy látjuk a dolgokat, mint amilyenek, hanem úgy, amilyenek mi vagyunk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00097",
+      "input": "A világ egy őrültek háza.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00098",
+      "input": "A szerelem sohasem pazarlás.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00099",
+      "input": "Tegyük ismertté az eszperantót!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00100",
+      "input": "Zamenhof, a tervezett eszperantó nyelv kezdeményezője, szemorvos volt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00101",
+      "input": "Az eszperantóban a hangsúly mindig az utolsó előtti szótagra esik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00102",
+      "input": "Mióta tanulsz eszperantóul?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00103",
+      "input": "Az eszperantó nélkül biztosan nem tudtam volna egy pekingi családnál étkezni, Lengyelországban a barátommal síelni, Belgrádban a barátnőmnél lakni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00104",
+      "input": "Elkezdtem eszperantóul tanulni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00105",
+      "input": "Az eszperantó egy tervezett, nemzetközi nyelv.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00106",
+      "input": "Az eszperantóban a melléknév a-val végződik. A többes számot j-vel képezzük.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00107",
+      "input": "Zamenhof, a tervezett eszperantó nyelv megalkotója, szemorvos volt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00108",
+      "input": "Az élet az, ami megtörténik veled, miközben más tervekkel foglalkozol.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00109",
+      "input": "Külföldi vagyok.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00110",
+      "input": "Nem kevesebbet, mint száz dollárt fizettem ezért a tollért.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00111",
+      "input": "Nem kívánni ugyanaz, mint birtokolni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00112",
+      "input": "Boldog karácsonyi ünnepeket!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00113",
+      "input": "Róma sem egy nap alatt épült fel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00114",
+      "input": "Melyik országból jöttél?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00115",
+      "input": "Rögtön visszajövök.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00116",
+      "input": "A tanulást nem kényszeríteni, hanem bátorítani kell.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00117",
+      "input": "Lehet, hogy nemsokára feladom, inkább szunyókálok egyet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00118",
+      "input": "Ez azért van, mert nem akarsz egyedül lenni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00119",
+      "input": "Néha különös fiúnak látszik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00120",
+      "input": "Csak kérdezem magamban, hogy ez mindenki másnak ugyanaz-e.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00121",
+      "input": "Feltételezem, hogy ez a dolog másnak tűnik, ha sokáig gondolkodol rajta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00122",
+      "input": "Olyan türelmetlen vagy velem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00123",
+      "input": "Az utolsó személy, akinek elmondtam az ötletemet, őrültnek tartott.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00124",
+      "input": "Ha a világ nem olyan lenne, mint most, akkor mindenkiben bízhatnék.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00125",
+      "input": "Túlságosan elfoglaltak az egymás elleni küzdelemmel ahhoz, hogy közös eszméknek szenteljék magukat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00126",
+      "input": "Valamiért éjjel élénkebbnek érzem magam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00127",
+      "input": "Ez a szövegkörnyezettől függ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00128",
+      "input": "Ez a konteksztustól függ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00129",
+      "input": "Nem szánalmas, hanem közkedvelt akarok lenni!!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00130",
+      "input": "Csodálatos dolog Amerikában lenni, ha azért vagy itt, hogy pénzt keressél.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00131",
+      "input": "Földrengés bármikor előfordulhat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00132",
+      "input": "Nem vagyok igazi hal, csupán csak egy plüss.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00133",
+      "input": "Csak úgy mondom!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00134",
+      "input": "Valószínűleg ez volt az, ami befolyásolta döntésüket.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00135",
+      "input": "Mindig érdekelt, milyen volna, ha lennének testvéreim.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00136",
+      "input": "Ezt mondtam volna.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00137",
+      "input": "Sokáig tartana mindent megmagyarázni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00138",
+      "input": "Néha nem tudom elkerülni, hogy érzelmeimet kimutassam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00139",
+      "input": "Van egy szó, mely helyett szeretnék másikat találni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00140",
+      "input": "Ez olyasmi lenne, amit be kellene programoznom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00141",
+      "input": "Nincs szándékomban, hogy önző legyek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00142",
+      "input": "Gondoljunk a legrosszabbra, ami megtörténhet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00143",
+      "input": "Hány közeli barátod van?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00144",
+      "input": "Talán antiszociális vagyok, de ez nem jelenti azt, hogy nem beszélek az emberekkel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00145",
+      "input": "Ez mindig így volt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00146",
+      "input": "Azt hiszem, az a legjobb, ha nem vagyunk udvariatlanok.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00147",
+      "input": "Mindig lehet időnk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00148",
+      "input": "Rögtön el kell kezdened.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00149",
+      "input": "Otthon reggelizel?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00150",
+      "input": "Nem kellett volna ilyesmit tenned.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00151",
+      "input": "Fél pohár sör után látott evéshez.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00152",
+      "input": "Fáj a hátsó felem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00153",
+      "input": "Hol van a tejes tea?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00154",
+      "input": "Jó hírt hoztunk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00155",
+      "input": "Soha sem álmodtam ilyen csendes helyről ebben a zajos városban.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00156",
+      "input": "Amikor gimnáziumba jártam, minden reggel hatkor keltem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00157",
+      "input": "Amikor felébredtem, szomorú voltam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00158",
+      "input": "Ez végül többé-kevésbé magyarázatot nyert.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00159",
+      "input": "Azt gondoltam, hogy szívesen tanulnál új dolgokat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00160",
+      "input": "A legtöbb ember a mindennapi életéről ír.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00161",
+      "input": "Trang, ha küldhetnék neked egy kis édességet, megtenném.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00162",
+      "input": "Hogy ezt megtedd, kockázatot kell vállalnod.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00163",
+      "input": "Minden magányos ember azért van egyedül, mert fél másoktól.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00164",
+      "input": "Nem vagyok művész. Nem volt ehhez tehetségem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00165",
+      "input": "Ezt most nem tudom neki elmondani. A dolog már nem olyan egyszerű.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00166",
+      "input": "Ember vagyok, sok hibával, de ezek a hibák könnyen javíthatók.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00167",
+      "input": "Mindig, amikor egy nekem tetsző dolgot találok, az túl drága.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00168",
+      "input": "Talán ez az ő számára pontosan ugyanaz lesz.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00169",
+      "input": "Az ártatlanság szép dolog.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00170",
+      "input": "Az embert nem teremtették örök életűnek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00171",
+      "input": "Nem akarom elveszíteni eszméimet még akkor sem, ha közöttük túlzók is vannak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00172",
+      "input": "Azt hiszem, hogy van erről egy elméletem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00173",
+      "input": "Terjesszük az eszperantót!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00174",
+      "input": "Ő a legjobb barátom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00175",
+      "input": "Alig hallom őt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00176",
+      "input": "Ne kötelezd el magadat!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00177",
+      "input": "Engedelmeskedned kell szüleidnek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00178",
+      "input": "Túl későn vettem észre, hogy kihagytam előadásom legfontosabb részét.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00179",
+      "input": "Alig hallom a hölgyet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00180",
+      "input": "Otthon levelet írtam a szüleimnek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00181",
+      "input": "Levelet írtam otthon lévő szüleimnek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00182",
+      "input": "Egész reggel ezen a problémán töröd a fejedet. Tarts szünetet, menj ebédelni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00183",
+      "input": "Ha most nem teszem meg, akkor soha.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00184",
+      "input": "Nem minden, amit a szemünkkel látunk, kell, hogy igaz legyen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00185",
+      "input": "Akarsz neki üzenetet hagyni?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00186",
+      "input": "A háború nem elkerülhetetlen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00187",
+      "input": "Állj fel, amikor hozzád beszélek!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00188",
+      "input": "Láttam, mikor bement a szobába.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00189",
+      "input": "Kezdődik a film.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00190",
+      "input": "A film olyan unalmas volt, hogy a nézők egymás után távoztak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00191",
+      "input": "Mikor van a nyitvatartási idő?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00192",
+      "input": "Beszéltem az eladóinkkal.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00193",
+      "input": "Ez a legnagyobb szálloda ebben a városban.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00194",
+      "input": "Száz szál piros rózsát küldenék tenéked.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00195",
+      "input": "Több üzletben is kérdeztem ezt a könyvet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00196",
+      "input": "Sikerült megérteni egymást.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00197",
+      "input": "Innen csak néhány lépés.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00198",
+      "input": "Ugye Smith úr nem beszél angolul?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00199",
+      "input": "A kerékpár csikorgott és megállt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00200",
+      "input": "A motorkerékpárok olcsók.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00201",
+      "input": "Ne feledd, hogy holnap reggel találkozunk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00202",
+      "input": "Rábízhatod magadat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00203",
+      "input": "Megbízhatsz benne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00204",
+      "input": "Hirtelen halott anyámra gondoltam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00205",
+      "input": "Ezt látnod kellene!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00206",
+      "input": "Ha elmondta volna az igazat, most nem haragudnék.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00207",
+      "input": "Ez kíváncsivá tesz.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00208",
+      "input": "Azt akarod mondani, hogy szándékosan elrejted szépségedet?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00209",
+      "input": "Nem jelentkeztem be ezeken a fórumokon.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00210",
+      "input": "Ha valaki megkérdezné, hogy mi a történet csattanója, én bizony nem tudom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00211",
+      "input": "Azt hiszem, hogy veled való együttélésem befolyásolta életmódodat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00212",
+      "input": "Ez nem tetszett nekem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00213",
+      "input": "Azt kérdezi, ez hogyan lehetséges.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00214",
+      "input": "Te egyszerűen elfutsz az élet problémái elől.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00215",
+      "input": "Ha a dal szövegét figyeled, az valójában nem sokat jelent.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00216",
+      "input": "Van itt egy probléma, amit nem látsz.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00217",
+      "input": "Ezt meg tudod tenni!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00218",
+      "input": "A fizikatanáromnak mindegy, hogy járok-e az órákra.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00219",
+      "input": "Szeretném, ha elmehetnék Japánba.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00220",
+      "input": "Nem szeretem a tömeget.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00221",
+      "input": "Le kell feküdnöm.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00222",
+      "input": "A játék sokakat lelkesített.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00223",
+      "input": "Miután elmentem, eszembe jutott, hogy náluk felejtettem a hátizsákomat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00224",
+      "input": "Ma már nem kérdezlek többet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00225",
+      "input": "A jövő héten talán fagyni fog.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00226",
+      "input": "Télapónak öltözött, hogy tetsszék a gyermekeinek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00227",
+      "input": "Van egy barátom, aki Angliában él.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00228",
+      "input": "Köszönöm szépen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00229",
+      "input": "Melyik ér többet, az idő vagy a pénz?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00230",
+      "input": "A kísérlet igazolta az elméletét.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00231",
+      "input": "Nem akarok olyan soká várni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00232",
+      "input": "Mennél rosszabb, annál jobb.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00233",
+      "input": "Szeretem a természetet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00234",
+      "input": "Egy millió dolláros kárpótlást kapott.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00235",
+      "input": "Három évig éltem Sasayamában.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00236",
+      "input": "Európában Elbrusz a legmagasabb hegy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00237",
+      "input": "Ön írta ezt a riportot?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00238",
+      "input": "Bár bocsánatot kért, én még mindig dühös vagyok.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00239",
+      "input": "A rendőrség rá fog venni benneteket, hogy megtaláljátok a golyókat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00240",
+      "input": "Köszönöm, hogy végre megmagyarázta, miért tartanak engem az emberek idiótának.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00241",
+      "input": "Nem volt szándékomban.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00242",
+      "input": "Köszönöm a magyarázatát.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00243",
+      "input": "Elméletileg matematikával foglalkozom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00244",
+      "input": "Ha nem így ismertél, akkor egyáltalán nem ismertél.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00245",
+      "input": "Majdnem megijesztett, hogy egész nap nem láttalak az interneten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00246",
+      "input": "Nem tudom, mi a véleményed.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00247",
+      "input": "Kell, hogy a számítógépem jó legyen valamire.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00248",
+      "input": "A szabadságról akartál velem beszélni?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00249",
+      "input": "Ó, ez most tényleg zavaros...",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00250",
+      "input": "Ha meg akarnálak ijeszteni, elmesélném neked, hogy mit álmodtam néhány héttel ezelőtt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00251",
+      "input": "Nem lehet mindent az iskoláktól várni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00252",
+      "input": "Sok szó van, amit nem értek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00253",
+      "input": "Nem szeretem, amikor a matematikusok, akik nálam jóval többet tudnak, nem tudják pontosan kifejezni magukat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00254",
+      "input": "Tényleg nem vagy ostoba.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00255",
+      "input": "Egy buta kérdést kell neked feltennem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00256",
+      "input": "Nem tudom, hogyan bizonyítsam, hiszen teljesen nyilvánvaló.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00257",
+      "input": "A főnöknek jó véleménye van a munkádról.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00258",
+      "input": "A kertet magas fal vette körül.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00259",
+      "input": "Hírnevet kell szereznünk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00260",
+      "input": "El fogom fogadni a javaslatodat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00261",
+      "input": "Ne érintsd az üveget.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00262",
+      "input": "Előzetes tapasztalatai után érdeklődtek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00263",
+      "input": "Tevékenységünknek a probléma megoldását kell céloznia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00264",
+      "input": "Még korai erről beszélni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00265",
+      "input": "Nem is tudom, mikor megyek vissza.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00266",
+      "input": "Nagyjából egyidősek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00267",
+      "input": "Francia vagyok.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00268",
+      "input": "Ennek a cipőnek már kampec.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00269",
+      "input": "Pénzügyileg a feleségétől függ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00270",
+      "input": "Narancslét kérek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00271",
+      "input": "Ha így van, akkor nincs is itt semmi probléma, úgy-e?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00272",
+      "input": "Fordító vagyok.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00273",
+      "input": "Nagyon szeretne balerina lenni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00274",
+      "input": "Egyáltalán nem probléma, igaz?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00275",
+      "input": "Csukd be a szemedet, és számolj tízig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00276",
+      "input": "A váza a padlóra esett és eltört.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00277",
+      "input": "A nagybátyám Londonban él.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00278",
+      "input": "A férfit az egész faluban jól ismerik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00279",
+      "input": "Addig üsd a vasat, amíg meleg.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00280",
+      "input": "Kellemes hangja van.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00281",
+      "input": "Ne hagyd bekapcsolva a televíziót!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00282",
+      "input": "Mondhatjuk másképp is?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00283",
+      "input": "Kifejezhetjük másképp is?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00284",
+      "input": "Senki sem fogja tudni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00285",
+      "input": "Találtam egy megoldást, de olyan gyorsan, hogy az nem is lehet az igazi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00286",
+      "input": "Ez érdekesnek tűnik nekem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00287",
+      "input": "Szeretem a gyertyafényt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00288",
+      "input": "Nem, ő nem az új barátom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00289",
+      "input": "Kár, hogy nem kell lefogynom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00290",
+      "input": "Akkor inkább sodoku-t játszom, ahelyett, hogy tovább zavarjalak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00291",
+      "input": "Ez nem nagy meglepetés, ugye?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00292",
+      "input": "Kíváncsi vagyok.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00293",
+      "input": "Már nem szeretlek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00294",
+      "input": "Szívből gratulálok!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00295",
+      "input": "Miért nem jössz meglátogatni bennünket?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00296",
+      "input": "Már nem tudom, hogy mit tegyek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00297",
+      "input": "Elkerülhetetlen, hogy valamelyik napon Franciaországba menjek, csak azt nem tudom, hogy mikor.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00298",
+      "input": "Gyűlölöm a kémiát.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00299",
+      "input": "Nem akartam, hogy ez történjen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00300",
+      "input": "Van más választásom?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00301",
+      "input": "Mielőtt felocsúdol, benne leszel az újságban.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00302",
+      "input": "Nem vagyok nagy utazó.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00303",
+      "input": "Nincs jobb tennivalóm.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00304",
+      "input": "El sem tudom magyarázni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00305",
+      "input": "Ez csak azt mutatja, hogy nem vagy egy robot.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00306",
+      "input": "Hogyan lehetnék robot? A robotok nem álmodnak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00307",
+      "input": "- Erre sohasem gondoltam - mondta az öregember. - Mit tegyünk?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00308",
+      "input": "Ez nem olyan dolog, amit bárki meg tud tenni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00309",
+      "input": "Ő nem figyel a tanárra.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00310",
+      "input": "Ő intelligensebb, mint a többiek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00311",
+      "input": "Angliát megszállták a dánok.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00312",
+      "input": "Jártál már külföldön?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00313",
+      "input": "Állj fel, ha hozzád beszélek!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00314",
+      "input": "Te egy angyal vagy!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00315",
+      "input": "A madridiak őrültek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00316",
+      "input": "Jól van, az éjszaka elég hosszú, ugye?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00317",
+      "input": "Álljatok fel, ha hozzátok beszélek!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00318",
+      "input": "Szerencséd volt, hogy nem harapott meg.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00319",
+      "input": "Álljon fel, ha magához beszélek!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00320",
+      "input": "Álljanak fel, ha magukhoz beszélek!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00321",
+      "input": "Hiányoztam neked?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00322",
+      "input": "Nem tudom, hogy még megvan-e.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00323",
+      "input": "Mit gondolsz, mit csináltam éppen?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00324",
+      "input": "Ne becsüld alá az erőmet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00325",
+      "input": "Anyám nem beszél nagyon jól angolul.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00326",
+      "input": "Nem beszélek elég jól franciául!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00327",
+      "input": "Hol találsz táplálékot a világűrben?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00328",
+      "input": "Mindenki találkozni akar veled, híres vagy!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00329",
+      "input": "Miért sajnálsz valamit, amit nem tettél meg?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00330",
+      "input": "Mélységesen utálom a formális írást!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00331",
+      "input": "Nenszi fél a kutyáktól.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00332",
+      "input": "Az egyik könyvesboltban vett egy angolkönyvet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00333",
+      "input": "Ha mondasz valamit, én mindig a saját szájam íze szerint csinálom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00334",
+      "input": "A zöldet kéred vagy a kéket?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00335",
+      "input": "Szerintem jó táncosnő.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00336",
+      "input": "Megírta egy híres költő életrajzát.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00337",
+      "input": "Az ott egy arckép Bobról a falnál.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00338",
+      "input": "A férfi megijesztette a kisgyerekeket.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00339",
+      "input": "Olyan gyorsan futott, hogy teljesen kifulladt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00340",
+      "input": "Úgy tűnik, ő ismeri Annát.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00341",
+      "input": "Két sört kérek!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00342",
+      "input": "A Nozomi az összes közül a leggyorsabb vonat Japánban.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00343",
+      "input": "Jó csapatkapitány lesz belőle.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00344",
+      "input": "Gyakran játszottam baseball-t, amikor fiatal voltam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00345",
+      "input": "A külföldiek kíváncsivá tesznek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00346",
+      "input": "Bármit teszek, azt mondja, hogy jobban is meg tudom csinálni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00347",
+      "input": "Miért vagy még ébren ilyen későn?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00348",
+      "input": "Senki sem akar velem utazni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00349",
+      "input": "Nem vagy elég gyors.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00350",
+      "input": "Az élet kemény, de én keményebb vagyok.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00351",
+      "input": "Tűrhetetlen lehet valamit eltűrni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00352",
+      "input": "A szabadságért fizetni kell.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00353",
+      "input": "Kövesd az orvos tanácsát.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00354",
+      "input": "Tanulsz angolul?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00355",
+      "input": "Hagyd abba! Kellemetlenül érzi magát emiatt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00356",
+      "input": "Csak az igazság szép.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00357",
+      "input": "Holnap leszáll a Holdra.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00358",
+      "input": "Ez egy szójáték.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00359",
+      "input": "Senki sem ért meg engem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00360",
+      "input": "Megtanultam nélküle élni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00361",
+      "input": "Mostanában túl sok dolog jár a fejemben.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00362",
+      "input": "Éppen le akartam hívni az elektronikus postámat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00363",
+      "input": "Valóban fel kell tenned a kérdést ahhoz, hogy megtudd a választ?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00364",
+      "input": "Nem várhatod el tőlem, hogy mindig mindenre gondoljak!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00365",
+      "input": "Feltételezem, hogy minden mögött, amit meg kell tennünk, van valami, amit meg akarunk tenni...",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00366",
+      "input": "Igazán nincsenek jó prioritásaid!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00367",
+      "input": "Soha sincsen időd a fontos dolgokra!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00368",
+      "input": "Sokáig tartana elmagyarázni neked, hogy ez miért nem fog működni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00369",
+      "input": "Megtaláltad a kontaktlencsédet?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00370",
+      "input": "Olyan buta vagyok... Megpróbálok elmagyarázni neked olyan dolgokat, amelyeket magam sem értek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00371",
+      "input": "A kutya kimúlt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00372",
+      "input": "A nagybátyád megengedte, hogy vezesd az autóját?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00373",
+      "input": "Bárcsak tudnám a címét!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00374",
+      "input": "Mit mondott? Meg tudná ismételni?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00375",
+      "input": "Ön filozófus, nemde?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00376",
+      "input": "Mit gondol erről?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00377",
+      "input": "Mit gondolsz erről?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00378",
+      "input": "Három gyermek játszott a parkban.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00379",
+      "input": "Énekeljünk egy vidám dalt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00380",
+      "input": "A boldog iskolaévek már elmúltak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00381",
+      "input": "Hideg van ott, habár nyár van.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00382",
+      "input": "Mindenki szereti az udvarias embereket.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00383",
+      "input": "Milyen messze van az iskola, ahova jársz?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00384",
+      "input": "Hagyd abba a macerálást. El vagyok foglalva.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00385",
+      "input": "Tegnap elvesztettem a karórámat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00386",
+      "input": "Rá kellene nevelni a gyerekeket, hogy ne hazudjanak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00387",
+      "input": "Nagyon kedves tőled, hogy segítesz nekem megcsinálni a házi feladatokat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00388",
+      "input": "Hallok egy kutyát ugatni az erdőben.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00389",
+      "input": "Melyik a kedvenc mondatod?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00390",
+      "input": "Ellen nem beszél angolul.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00391",
+      "input": "Legközelebb korábban jövök.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00392",
+      "input": "Ugyanolyan idős, mint én.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00393",
+      "input": "Szeretnék beváltani egy utazási csekket.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00394",
+      "input": "Hány könyvet olvasol el havonta?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00395",
+      "input": "Aki mer, az nyer.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00396",
+      "input": "Olyan becsületes, hogy mindenki megbízik benne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00397",
+      "input": "Először találkozom vele.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00398",
+      "input": "Nara tetszik nekem, különösen ősszel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00399",
+      "input": "Legalább megpróbálhatnál kissé udvariasabb lenni, még akkor is, ha nem ilyen a természeted.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00400",
+      "input": "Nem éri meg a fáradságot, hogy úgy tegyünk, mintha elhitetnéd velem, hogy olyan dolgokat hiszek, amelyeket te nem hiszel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00401",
+      "input": "Mindig vannak olyan dolgok, amelyeket sohasem fogok megtanulni, nem rendelkezem az örökkévalósággal.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00402",
+      "input": "Ez nem lehetséges!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00403",
+      "input": "Szeretnél valamit inni?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00404",
+      "input": "„A gördülő kő nem lesz mohos” egy közmondás.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00405",
+      "input": "- Ki az? - Az édesanyád.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00406",
+      "input": "- Mikor jössz vissza? - Ez teljesen az időjárástól függ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00407",
+      "input": "- Mi van? - kérdezte a kis, fehér nyuszi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00408",
+      "input": "- Mi történik a barlangban? Kíváncsi vagyok. - Fogalmam sincsen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00409",
+      "input": "- Mi a kívánságod? - kérdezte a kis, fehér nyuszi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00410",
+      "input": "Meg kell tanulnunk testvérként együtt élni, vagy őrültként együtt veszünk el.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00411",
+      "input": "Hm... Hogy működik ez?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00412",
+      "input": "- Bízzál bennem - mondta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00413",
+      "input": "- Ezt keresgéltem! - kiáltott fel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00414",
+      "input": "- Ez elég érdekesnek látszik - mondja Hiroshi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00415",
+      "input": "A kommunikációjuk talán sokkal bonyolultabb, mint ahogy gondoltuk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00416",
+      "input": "- Cseng a telefon. - Felveszem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00417",
+      "input": "- Ez nagyon kedves öntől - válaszolta Willie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00418",
+      "input": "- Köszönöm a segítséget. - Nincs mit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00419",
+      "input": "Valamikor úgy futok majd, mint a szél.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00420",
+      "input": "- Ő szereti a zenét. - Én is.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00421",
+      "input": "Tudasd velem, ha van valami, amit tehetek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00422",
+      "input": "Te döntöd el, hogy odamegyünk-e, vagy sem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00423",
+      "input": "Nem kezdődik fél kilenc előtt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00424",
+      "input": "Egy csónakot akarok, mely messzire visz innen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00425",
+      "input": "- Kedvem van kártyázni. - Nekem is.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00426",
+      "input": "- Nem találkoztunk már valamikor? - kérdezte a hallgató.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00427",
+      "input": "Egy japán sohase tenne ilyesmit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00428",
+      "input": "Az íjász megölte a szarvast.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00429",
+      "input": "Az én életemben a kommunizmus sohasem valósul meg.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00430",
+      "input": "Nekem úgy látszik, hogy gazdag volt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00431",
+      "input": "Ezzel a vonattal kétszer gyorsabban odaérsz.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00432",
+      "input": "A rozsot a szegény emberek gabonájának hívták.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00433",
+      "input": "Kérlek, ha látsz egy hibát, javítsd ki.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00434",
+      "input": "Tedd a kártyapaklit a tölgyasztalra.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00435",
+      "input": "A németek nagyon furfangosak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00436",
+      "input": "Ha nem eszünk, meghalunk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00437",
+      "input": "Hogyan írják azt, hogy pretty?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00438",
+      "input": "Ken baseballjátékos szeretne lenni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00439",
+      "input": "A szobában állt egy zongora, azon viszont senki nem játszott.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00440",
+      "input": "Egyre kevesebb időm van az olvasásra.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00441",
+      "input": "Mikor mész vissza Japánba?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00442",
+      "input": "Fogkefével fogat mosok.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00443",
+      "input": "A meleg és a fény elengedhetetlen életben maradásunkhoz.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00444",
+      "input": "Kivágott egy képet a könyvből.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00445",
+      "input": "Nem engedhetünk a terrorista követeléseknek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00446",
+      "input": "A híres énekes öngyilkosságot követett el.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00447",
+      "input": "Sokkal több a víz a tóban, mint előtte volt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00448",
+      "input": "Az eszperantó nyelv elterjesztését leginkább az segíti, ha nyíltan és szabatosan használják a nyelvet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00449",
+      "input": "Az autóbuszon gyakran szóba elegyedek vele.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00450",
+      "input": "A kávét cukor nélkül szereti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00451",
+      "input": "Megmutatta hogyan kell gitáron játszani.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00452",
+      "input": "Elmondott egy érdekes történetet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00453",
+      "input": "Amint a fiú meglátott, elfutott.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00454",
+      "input": "Nem áll módomban új autót venni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00455",
+      "input": "Ezeket a gyógyszereket napi háromszor kell szedni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00456",
+      "input": "A barátaim meghívtak vacsorázni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00457",
+      "input": "Sok barátja amerikai.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00458",
+      "input": "Rosszul érzi magát a barátnőm.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00459",
+      "input": "A szüleim kínaiak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00460",
+      "input": "Kínaiul beszél.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00461",
+      "input": "Kínaiul tanulunk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00462",
+      "input": "Beszél ön kínaiul?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00463",
+      "input": "Három fényképezőgépem van.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00464",
+      "input": "Tom szeret úszni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00465",
+      "input": "Néha összefutok vele a klubban.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00466",
+      "input": "Beszédem van veled.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00467",
+      "input": "Egyedül élt az erdőben.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00468",
+      "input": "Kína és Japán sokban különbözik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00469",
+      "input": "Rögtön összebarátkoztunk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00470",
+      "input": "Nem hallottam semmit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00471",
+      "input": "Linda szereti a csokoládét.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00472",
+      "input": "Amikor két erő összecsap, aki tud, harcoljon. Aki nem harcol, az védekezzen. Aki nem védekezik, az meneküljön. Aki nem menekül el, az adja meg magát. Akik magukat nem adták meg, azoknak a halál jár.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00473",
+      "input": "Most változtattam meg a profilképemet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00474",
+      "input": "Erre nagyon nagy a hideg.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00475",
+      "input": "Saját szememmel láttam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00476",
+      "input": "Az idő gyógyít.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00477",
+      "input": "Az esetleges hibákat javítsd ki.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00478",
+      "input": "Miért nem megyünk haza?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00479",
+      "input": "Sajnálom, nem tudok sokáig maradni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00480",
+      "input": "- Miért nem mész? - Mert nem akarok.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00481",
+      "input": "Egymillió ember vesztette életét a háborúban.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00482",
+      "input": "Három éve jöttem Tokióba és azóta itt élek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00483",
+      "input": "Több mint egy hónapig éltem Nagoyában.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00484",
+      "input": "Egyáltalán nem ritka, ha valaki kilencven évnél tovább él.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00485",
+      "input": "Te nem tudod, mennyire szeretlek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00486",
+      "input": "Itt vagyok csak miattad.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00487",
+      "input": "Itt vagyok miattad, szerelmem!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00488",
+      "input": "Én szomorú vagyok nélküled.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00489",
+      "input": "Megőrülök érted!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00490",
+      "input": "Hová mész, őrült vándor?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00491",
+      "input": "Azok a magyar lányok nagyon szépek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00492",
+      "input": "A halál nem válogatós, mindenkit utolér.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00493",
+      "input": "Fáradt vagyok a betegség és a munka miatt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00494",
+      "input": "Úgy megzabálnálak téged!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00495",
+      "input": "Mit szeretsz hát, különös idegen?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00496",
+      "input": "Sikerkönyv lett az új regénye.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00497",
+      "input": "Nagy bajban vagyok.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00498",
+      "input": "Beszél németül?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00499",
+      "input": "A győzelmet vagy a vereséget nem csak a hadsereg mérete dönti el.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00500",
+      "input": "A kakaó nagyon keserű lehet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00501",
+      "input": "Ha szeretnéd, megtanítalak sakkozni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00502",
+      "input": "Doktor úr, fáj a hasam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00503",
+      "input": "Este tizenegykor megyek aludni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00504",
+      "input": "Kérem, várjon fél órát.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00505",
+      "input": "Elég idős vagy ahhoz, hogy magad is tudjad.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00506",
+      "input": "Használhatnám a ceruzádat?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00507",
+      "input": "A késnek éles pengéje van.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00508",
+      "input": "Azt az autót vettem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00509",
+      "input": "Szabaduljon meg attól a sok régi újságpapírtól.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00510",
+      "input": "Az első randevúnknál elővette a telefonját, hogy üzenetet írjon valakinek. El sem akartam hinni!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00511",
+      "input": "Lassan haladtunk befelé a jéghideg vízben.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00512",
+      "input": "Rengeteg ember volt a parkban.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00513",
+      "input": "Szeretem az almát.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00514",
+      "input": "Ideje ágyba bújnom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00515",
+      "input": "Elesett, és megsértette a lábát.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00516",
+      "input": "A nővérem tíz centiméterrel magasabb mint én.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00517",
+      "input": "Errefele nyáron is hideg van.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00518",
+      "input": "Ekkor, a legidősebb lány megszólalt -Cukrot akarok!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00519",
+      "input": "Nyáron a turisták elárasztották a várost.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00520",
+      "input": "Vérzik az orrod.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00521",
+      "input": "Betörik a súlyunk alatt a jég.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00522",
+      "input": "A csokoládét kakaóbabból készítik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00523",
+      "input": "Tehetséges a festészetben.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00524",
+      "input": "Önnek melyek a kedvenc virágai?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00525",
+      "input": "Mi a vércsoportod?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00526",
+      "input": "A víz fogyasztásra alkalmatlan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00527",
+      "input": "Hogy ejti ki a nevét?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00528",
+      "input": "Vajon miért késik?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00529",
+      "input": "Ha madár lennék, hozzád repülnék.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00530",
+      "input": "A boldogságtól szárnyalok.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00531",
+      "input": "Szeretnék időpontot kérni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00532",
+      "input": "Bármi is történjék, soha ne add fel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00533",
+      "input": "Kiolvastad a regényt?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00534",
+      "input": "Nyissa meg a piros színnel bekarikázott fájlt a szövegszerkesztőben.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00535",
+      "input": "Évek kellenek, amíg elsajátítunk egy nyelvet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00536",
+      "input": "Nem beszéli a nyelvünket.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00537",
+      "input": "Nem értettem, mit mondott.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00538",
+      "input": "Ő tartja az úszás rekordját.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00539",
+      "input": "Ne zavard. Könyvet olvas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00540",
+      "input": "Ha sietsz, még elérheted a vonatot.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00541",
+      "input": "Kétségbe volt esve férje halálakor.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00542",
+      "input": "Megmostad a fogad?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00543",
+      "input": "Nagyon rosszul érzem magam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00544",
+      "input": "Hidat emeltek a folyó fölé.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00545",
+      "input": "Van fiútestvéred?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00546",
+      "input": "Nővérem titkárnőként dolgozik a bankban.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00547",
+      "input": "Húszezernél is több amerikai válik gyilkosság áldozatává minden évben.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00548",
+      "input": "Nem igazán megy az úszás.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00549",
+      "input": "Hiroko teljesen egyedül ült ott.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00550",
+      "input": "A szeme elárulta félelmét.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00551",
+      "input": "Egy órát vártam a barátodra.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00552",
+      "input": "Japánban sok a földrengés.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00553",
+      "input": "Az egész csak egy félreértés.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00554",
+      "input": "Fáradt vagyok és pihenésre vágyom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00555",
+      "input": "Több könyve van, mint amennyit valaha is el tud olvasni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00556",
+      "input": "Holnap esős idő lesz?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00557",
+      "input": "Meghosszabbodnak a nappalok.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00558",
+      "input": "A szobájában játszik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00559",
+      "input": "A helyedben elfogadnám az ajánlatát.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00560",
+      "input": "Fél a kutyáktól.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00561",
+      "input": "Szerbiában nagyon lassan haladnak a vonatok.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00562",
+      "input": "A birka ad nekünk gyapjút.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00563",
+      "input": "Ezt az ablakot törte be Jack tegnap.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00564",
+      "input": "Mi a helyzet a halpiacon?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00565",
+      "input": "Szeretem a romantikus regényeket.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00566",
+      "input": "Charles Moore létrehozta a Forth programnyelvet, amely a számítógép teljesítményét nem korlátozta amellett, hogy a programozó hatékonyságán hivatott javítani.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00567",
+      "input": "Naponta lejár teniszedzésekre iskola után.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00568",
+      "input": "Köszönöm a szép képeslapot.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00569",
+      "input": "Mindig viszek magammal egy üveg ásványvizet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00570",
+      "input": "Még egy korsó sört, legyen szíves.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00571",
+      "input": "Ne felejtsd el, hogy el kell készítenünk a házi feladatunkat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00572",
+      "input": "Kérem, lekapcsolná a rádiót?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00573",
+      "input": "Édesapám ezen a hétvégén jön haza.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00574",
+      "input": "A kenyér lisztből és vízből készül, amelyet gyakran dolgoznak össze élesztővel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00575",
+      "input": "A tó legmélyebb része itt van.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00576",
+      "input": "Ki törte be az ablakot?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00577",
+      "input": "Carole három éve tanul spanyolul.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00578",
+      "input": "Megbukott a vizsgán.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00579",
+      "input": "Ne használd tovább azt a szót a férfiakra, hogy csinos.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00580",
+      "input": "Szabad vagy délután?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00581",
+      "input": "Megadná a címét?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00582",
+      "input": "Ne kritizálj engem!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00583",
+      "input": "Megint elvesztette az esernyőjét.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00584",
+      "input": "Amíg elmegy vásárolni, a gyermekei magukra maradnak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00585",
+      "input": "A világ tele van hülyékkel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00586",
+      "input": "Ritkán reggelizik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00587",
+      "input": "Hatvanon túl jár.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00588",
+      "input": "Bezárkózott a szobájába.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00589",
+      "input": "Ő egy nagyon jó tanárnő.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00590",
+      "input": "Mi? Megetted a medve-csokoládémat?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00591",
+      "input": "Most nyáron sokkal kevesebb a csapadék a szokásosnál.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00592",
+      "input": "A kulcs az asztalon van.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00593",
+      "input": "Mosógép híján a ruhák a mosodába mennek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00594",
+      "input": "Ideje indulni az iskolába.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00595",
+      "input": "Ki vigyáz a gyermekekre?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00596",
+      "input": "A vonat eltűnt a távolban.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00597",
+      "input": "Kiszáradt a szám.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00598",
+      "input": "Ez a betegség gyógyíthatatlan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00599",
+      "input": "Az állatokat ne etesse.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00600",
+      "input": "Elébb kivel beszéltél?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00601",
+      "input": "Kérlek, bocsáss meg.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00602",
+      "input": "Bárki is legyen a könyv szerzője, az csakis egy nagyszerű író lehet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00603",
+      "input": "Megtelt a lány szeme könnyekkel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00604",
+      "input": "Hasonlít az édesanyjára.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00605",
+      "input": "Kapsz egy nyaklevest!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00606",
+      "input": "Minden ló állat, de nem minden állat ló.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00607",
+      "input": "Ebben rengeteg szó ismeretlen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00608",
+      "input": "A földrengésben sokan otthonaikat vesztették el.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00609",
+      "input": "Jövő szombaton be szeretnélek mutatni a szüleimnek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00610",
+      "input": "Holnap vasárnap.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00611",
+      "input": "Jack nem engedhet meg magának egy új biciklit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00612",
+      "input": "Később megbeszéljük a problémát.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00613",
+      "input": "Szökési kísérlete sikeresnek bizonyult.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00614",
+      "input": "Ezt nehezen hiszem el.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00615",
+      "input": "Tom dühös a gyermekeire.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00616",
+      "input": "Lefekvés előtt tudd meg, hogy hol találni a vészkijáratot a hotelben.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00617",
+      "input": "A repülőtéren megpróbáltalak felhívni, de egyetlen pénzes telefonfülke sem működött.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00618",
+      "input": "Nem csoda, hogy olyan mérges.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00619",
+      "input": "A csésze kávéja után belekezdett.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00620",
+      "input": "Szeret édesapja sikeres autókereskedésével dicsekedni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00621",
+      "input": "Ha megtehetném, világkörüli útra mennék.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00622",
+      "input": "Az orvos szigorú diétát írt elő neki.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00623",
+      "input": "A előadóterem külső falát ellepték a foltok, amit feltehetőleg a savas eső okozott.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00624",
+      "input": "Az iskola közelében lakunk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00625",
+      "input": "Isten megteremtette a világot.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00626",
+      "input": "A japánok többsége sötét hajú.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00627",
+      "input": "Betegség miatt hiányzik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00628",
+      "input": "Mivel nagyon szimpatikus nekem, szeretek vele dolgozni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00629",
+      "input": "Ennek a gyógyszernek nincsenek mellékhatásai.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00630",
+      "input": "Elváltak, és soha nem látták egymást.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00631",
+      "input": "A köd ma olyan sűrű, akárcsak egy tál borsóleves.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00632",
+      "input": "Törölték a nevét a felsorolásból.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00633",
+      "input": "Hármat kérek belőle.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00634",
+      "input": "A felhő elhaladt a hold előtt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00635",
+      "input": "Láthatom jövő hétfőn?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00636",
+      "input": "Gyakorlat teszi a mestert.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00637",
+      "input": "Mennyiért tisztítják a kabátot?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00638",
+      "input": "Miután elmentek, a part közelében egy lelket sem lehetett találni, a város ciprusaival teljesen halott, a parton még hallani a tenger zúgását, ahogy az a partnak ütközik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00639",
+      "input": "A táskáját teletömte almával.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00640",
+      "input": "Nem kell az adatoknak hinni. Távol áll mind a valóságtól.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00641",
+      "input": "A teába kevés cukrot és tejet tett.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00642",
+      "input": "Egyre nagyobb divat külföldön üdülni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00643",
+      "input": "Nem is tudok és nem is hallottam róla semmit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00644",
+      "input": "Nem bírom tovább ezt a nőszemélyt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00645",
+      "input": "Üljünk le arra a padra.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00646",
+      "input": "Nem bírtam magam visszatartani a nevetéstől, amikor megláttam, hogyan táncol.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00647",
+      "input": "Hallottam, hogy egy meleg papot tettek meg püspöknek, de kiderült, hogy csak kacsa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00648",
+      "input": "Sokan kapva kapnának az alkalmon, hogy New York legyen az otthonuk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00649",
+      "input": "Előlépett a függönyök mögül.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00650",
+      "input": "Az út a domb mentén halad körbe.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00651",
+      "input": "A város nyugati részében él.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00652",
+      "input": "A lényeg, hogy semmit nem tanultál tőle.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00653",
+      "input": "Beismerte, hogy ellopta az aranyat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00654",
+      "input": "A tükör szilánkjai szétszóródtak a földön.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00655",
+      "input": "Erről a dombról belátni az egész várost.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00656",
+      "input": "Messze vagyunk még a céltól.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00657",
+      "input": "Ne vedd a szívedre!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00658",
+      "input": "Benéztem a könyvesboltba, és vettem egy érdekes könyvet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00659",
+      "input": "Bill mindig elküldte a születésnapi ajándékát édesanyjának.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00660",
+      "input": "Az út párhuzamosan fut a folyóval.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00661",
+      "input": "Munka után sétálni mentünk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00662",
+      "input": "Keresne nekem egy ügyvédet?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00663",
+      "input": "A története felevenítette a boldog gyermekkorunkat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00664",
+      "input": "Édesapám néha magával vitt az irodájába.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00665",
+      "input": "Megöröklöm édesapám üzletét.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00666",
+      "input": "Keress fel holnap, rendben?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00667",
+      "input": "Éhes kiskutya ugat az utcán.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00668",
+      "input": "Régen volt, amikor utoljára láttam önt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00669",
+      "input": "Párizsba ment művészetet tanulni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00670",
+      "input": "Furcsa, hogy semmit nem tudsz erről.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00671",
+      "input": "Elvetette az ötletet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00672",
+      "input": "Mindenki ismerte ezt a dalt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00673",
+      "input": "Jót tesz nekünk, ha megértünk más kultúrákat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00674",
+      "input": "Maradj önmagad, ne akarj más lenni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00675",
+      "input": "A csekket a mai napon kell befizetni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00676",
+      "input": "Ha megkéred, eljön.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00677",
+      "input": "Nem hagyok soha semmit félben.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00678",
+      "input": "Lucy felkeresett három napja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00679",
+      "input": "Bárcsak veled tarthatnék az estre.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00680",
+      "input": "Vett neki egy kutyát.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00681",
+      "input": "Szörnyű álom gyötört tegnap éjjel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00682",
+      "input": "Minden eddigi fáradozásom hiábavaló.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00683",
+      "input": "Erről a könyvről meséltem neked.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00684",
+      "input": "Meg sem köszöni, bármit tehetek én érte.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00685",
+      "input": "Megkérnélek valamire.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00686",
+      "input": "Ma én is álmos vagyok.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00687",
+      "input": "Mindenben a legtöbbet kell nyújtani mindenkinek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00688",
+      "input": "Egy tanár nem lehet elfogult egyik vagy másik diákjával szemben.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00689",
+      "input": "Hol kaphatok telefonkártyát?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00690",
+      "input": "Soha nem veszíti el a reményt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00691",
+      "input": "Hölgyeim és uraim, megkezdjük a vetítést.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00692",
+      "input": "Gyermekek csúszkáltak a jégen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00693",
+      "input": "Nem habozott visszajönni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00694",
+      "input": "Megvitattuk a jövőre vonatkozó terveinket.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00695",
+      "input": "Három hónapja épült a házunk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00696",
+      "input": "Őt most választották az iskola igazgatójává.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00697",
+      "input": "A következő állomáson szálljon át.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00698",
+      "input": "Miért nem próbál meg jó benyomást kelteni?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00699",
+      "input": "Eldöntötte, hogy nem tér vissza szülőhazájába.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00700",
+      "input": "Nem tudom megoldani a problémát, túl nehéz nekem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00701",
+      "input": "Egy igaz barátra találtam benne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00702",
+      "input": "A lányok egymagukban ültek, mindkettő a másik felé nézett.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00703",
+      "input": "Tudod, hogy mi történhetett?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00704",
+      "input": "A gepárd képes elérni az óránkénti hetven mérföldes sebességet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00705",
+      "input": "Elsőre senki nem hitt nekem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00706",
+      "input": "Azonkívül, hogy nagyon hideg egy nap volt, még esett is.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00707",
+      "input": "Kész a reggeli!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00708",
+      "input": "Kérem, itt töltse ki az űrlapot.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00709",
+      "input": "Én a kutyákat, de a nővérem a macskákat szereti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00710",
+      "input": "A férfi felállt, és belekezdett az énekbe.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00711",
+      "input": "Az autóbalesetben elvesztette az emlékezetét.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00712",
+      "input": "Minden gyermek külön szobát kapott.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00713",
+      "input": "Remélem, végül nem én kerülök ki vesztesen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00714",
+      "input": "Ön a szerzője ennek a könyvnek?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00715",
+      "input": "Reggelire főleg gyümölcsöt eszem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00716",
+      "input": "Mikor indul az autóbusz a repülőtérre?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00717",
+      "input": "Kate autóbusszal ment haza.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00718",
+      "input": "Már olvasta a könyvet?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00719",
+      "input": "Többször jártam ott.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00720",
+      "input": "A nagybátyám több évet élt kint külföldön.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00721",
+      "input": "Vele akartam menni, de annyi dolgom volt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00722",
+      "input": "Remélem, minden összejön neki a kialakult helyzetben.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00723",
+      "input": "Akarom, hogy lássátok egymást.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00724",
+      "input": "Nem válaszolt a kérdésemre.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00725",
+      "input": "Nem emlékszem a nevére.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00726",
+      "input": "Tavaly nyugdíjba vonultam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00727",
+      "input": "Kaptam tőle egy rotringbelet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00728",
+      "input": "Éjfél után felébredtünk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00729",
+      "input": "Egy fiú felém futott.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00730",
+      "input": "Az úszócsapat tagja vagyok.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00731",
+      "input": "Ember tervez, Isten végez.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00732",
+      "input": "Május ötödikén van a születésnapja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00733",
+      "input": "Koreába szeretnék látogatni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00734",
+      "input": "Holnap repülök Hanoiba.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00735",
+      "input": "Hogy nevezik Európa legmagasabb hegyét?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00736",
+      "input": "Satoru ötünk közül a leggyorsabb futó.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00737",
+      "input": "Ez az újság ingyenes.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00738",
+      "input": "Maradj csöndben!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00739",
+      "input": "Ittunk egy sócsút a karaoke bárban.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00740",
+      "input": "Tessék, megérkezett a vonat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00741",
+      "input": "Fordítsa le a mondatot angolra.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00742",
+      "input": "Ebben a boltban több édesség kapható, mint a másikban.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00743",
+      "input": "Napról napra csak szebb lesz.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00744",
+      "input": "Mindig ellenszegül főnökével.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00745",
+      "input": "Édesanyám megterítette az asztalt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00746",
+      "input": "A vezetéknevem Wan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00747",
+      "input": "A baba még nem tud járni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00748",
+      "input": "A fiam kereste a zoknija másik felét.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00749",
+      "input": "Ő egy valódi zseni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00750",
+      "input": "Nem lehetett látni csillagot az égen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00751",
+      "input": "Én vasárnap nem megyek iskolába.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00752",
+      "input": "Jó napot kívánok! Hogy van?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00753",
+      "input": "A bal oldalon nyílik egy rejtett átjáró.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00754",
+      "input": "Tegnap édesapámnak segítettem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00755",
+      "input": "Különben is, már rég megbocsátottam neked.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00756",
+      "input": "Épp zuhanyoztam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00757",
+      "input": "A gyermek a macskát simogatja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00758",
+      "input": "A világ egy könyv. Aki nem utazik, csak egy lapját olvasta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00759",
+      "input": "Egy tea mellett beszélgetett velem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00760",
+      "input": "Dicsekszik, hogy hat nyelven tud beszélni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00761",
+      "input": "Az ifjú házasok kéz a kézben jártak.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00762",
+      "input": "A méhek virágról virágra repültek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00763",
+      "input": "Örömében és szégyenében fülig elvörösödött.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00764",
+      "input": "El kezdett folyni az orrodból a vér.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00765",
+      "input": "Felkiáltott a fájdalomtól.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00766",
+      "input": "Megfáztam, és lázam van.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00767",
+      "input": "A postai rablást fényes nappal követte el a rabló.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00768",
+      "input": "El kell végeznem a mosást, amíg jó az idő.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00769",
+      "input": "Elhízol, ha nem mozogsz többet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00770",
+      "input": "Sok szerencsét a versenyekhez.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00771",
+      "input": "A bogár még mindig életben van.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00772",
+      "input": "Ki nem állhatom a pókokat. Kiborulok miattuk minden takarításkor.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00773",
+      "input": "A hidegtől a lyukas fogamba belenyilall a fájdalom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00774",
+      "input": "A szerelem veszedelem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00775",
+      "input": "Tudsz mindig forrón csókolni?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00776",
+      "input": "Imádlak én kis boszim.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00777",
+      "input": "A nagyapám korán kel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00778",
+      "input": "Szeretnék pár szót veled váltani.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00779",
+      "input": "Mit parancsol: teát vagy kávét?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00780",
+      "input": "Mely ételek tartalmazzák a legtöbb kalóriát?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00781",
+      "input": "Ki kellene az állatokat engedned a ketrecükből.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00782",
+      "input": "Majdnem elkésett az iskolából.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00783",
+      "input": "Félretesz tíz dollárt minden héten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00784",
+      "input": "Aljasabb, mint hinnéd.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00785",
+      "input": "A szobám tele van veszélyekkel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00786",
+      "input": "Valamin agyalsz.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00787",
+      "input": "Próbál leszokni a dohányzásról.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00788",
+      "input": "Történelmi dokumentumokban keres utána, hogy fényt derítsen a rejtély titkára.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00789",
+      "input": "Az édesapám olyan kopasz, akár egy biliárd golyó.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00790",
+      "input": "Ilyenkor zsúfolt a metró.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00791",
+      "input": "A lift hirtelen megállt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00792",
+      "input": "Milyen szerepet tölt be az Internet az oktatásban?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00793",
+      "input": "Tom egész éjjel csak beszélt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00794",
+      "input": "Tom egész éjjel jártatta a bagólesőjét.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00795",
+      "input": "Ez a zene mindenkinek az idegeire megy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00796",
+      "input": "Ez az időjárás rossz hatással van a közérzetedre.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00797",
+      "input": "Annyit ígérj, amit be tudsz tartani!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00798",
+      "input": "Elsírta magát örömében, amikor értesült róla, hogy a fia túlélte a légikatasztrófát.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-hu-00799",
+      "input": "Ne vedd az észrevételeit szó szerint.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-hu-00000",
+      "input": "Room 304 has the laptops we ordered.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-hu-00001",
+      "input": "Bought 5 cookies on the avenue near my office.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-hu-00002",
+      "input": "Track #12345 was delivered yesterday.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-hu-00003",
+      "input": "I had 5 boxes in storage unit 12.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-hu-00004",
+      "input": "Building number 7 was empty.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-hu-00005",
+      "input": "Open from January 1990 onwards.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-hu-00006",
+      "input": "Floor 3 has the printer.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-hu-00007",
+      "input": "Order #98765 is being processed.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-hu-00008",
+      "input": "The bus runs every 12 minutes.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-hu-00009",
+      "input": "Found 5000 documents in the archive.",
+      "expected": []
+    }
+  ]
+}

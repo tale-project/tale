@@ -32,6 +32,7 @@
     "./i18n/init": "./src/i18n/init.ts",
     "./i18n/init-service": "./src/i18n/init-service.ts",
     "./i18n/locales": "./src/i18n/locales.ts",
+    "./i18n/messages": "./src/i18n/messages.ts",
     "./i18n/provider": "./src/i18n/provider.tsx",
     "./i18n/regional-bundles": "./src/i18n/regional-bundles.ts",
     "./i18n/sync": "./src/i18n/sync.tsx",

@@ -1,0 +1,2543 @@
+[
+  {
+    "name": "Warsaw",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": null,
+    "population": 1702139
+  },
+  {
+    "name": "Kraków",
+    "countryCode": "PL",
+    "admin1": "77",
+    "postcodeSample": "30-001",
+    "population": 804237
+  },
+  {
+    "name": "Wrocław",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": "50-001",
+    "population": 672545
+  },
+  {
+    "name": "Łódź",
+    "countryCode": "PL",
+    "admin1": "74",
+    "postcodeSample": "90-001",
+    "population": 645693
+  },
+  {
+    "name": "Poznań",
+    "countryCode": "PL",
+    "admin1": "86",
+    "postcodeSample": "21-413",
+    "population": 536151
+  },
+  {
+    "name": "Gdańsk",
+    "countryCode": "PL",
+    "admin1": "82",
+    "postcodeSample": "80-001",
+    "population": 487371
+  },
+  {
+    "name": "Szczecin",
+    "countryCode": "PL",
+    "admin1": "87",
+    "postcodeSample": "87-860",
+    "population": 395513
+  },
+  {
+    "name": "Lublin",
+    "countryCode": "PL",
+    "admin1": "75",
+    "postcodeSample": "20-001",
+    "population": 336339
+  },
+  {
+    "name": "Bydgoszcz",
+    "countryCode": "PL",
+    "admin1": "73",
+    "postcodeSample": "85-000",
+    "population": 330038
+  },
+  {
+    "name": "Białystok",
+    "countryCode": "PL",
+    "admin1": "81",
+    "postcodeSample": "22-540",
+    "population": 295683
+  },
+  {
+    "name": "Katowice",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "40-001",
+    "population": 286960
+  },
+  {
+    "name": "Gdynia",
+    "countryCode": "PL",
+    "admin1": "82",
+    "postcodeSample": "80-008",
+    "population": 257000
+  },
+  {
+    "name": "Częstochowa",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "42-130",
+    "population": 248125
+  },
+  {
+    "name": "Sosnowiec",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "95-010",
+    "population": 227295
+  },
+  {
+    "name": "Radom",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "26-600",
+    "population": 226794
+  },
+  {
+    "name": "Mokotów",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": null,
+    "population": 217683
+  },
+  {
+    "name": "Gliwice",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "44-100",
+    "population": 198835
+  },
+  {
+    "name": "Rzeszów",
+    "countryCode": "PL",
+    "admin1": "80",
+    "postcodeSample": "35-212",
+    "population": 198317
+  },
+  {
+    "name": "Toruń",
+    "countryCode": "PL",
+    "admin1": "73",
+    "postcodeSample": "87-100",
+    "population": 196935
+  },
+  {
+    "name": "Kielce",
+    "countryCode": "PL",
+    "admin1": "84",
+    "postcodeSample": "25-558",
+    "population": 192468
+  },
+  {
+    "name": "Zabrze",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "41-800",
+    "population": 192177
+  },
+  {
+    "name": "Bytom",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "41-900",
+    "population": 189186
+  },
+  {
+    "name": "Praga Południe",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": null,
+    "population": 179836
+  },
+  {
+    "name": "Bielsko-Biala",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": null,
+    "population": 176515
+  },
+  {
+    "name": "Olsztyn",
+    "countryCode": "PL",
+    "admin1": "85",
+    "postcodeSample": "42-256",
+    "population": 169793
+  },
+  {
+    "name": "Ursynów",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "26-903",
+    "population": 149775
+  },
+  {
+    "name": "Ruda Śląska",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "41-700",
+    "population": 146189
+  },
+  {
+    "name": "Rybnik",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "99-150",
+    "population": 142510
+  },
+  {
+    "name": "Wola",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "87-620",
+    "population": 140958
+  },
+  {
+    "name": "Bielany",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "59-430",
+    "population": 131910
+  },
+  {
+    "name": "Tychy",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "43-100",
+    "population": 130000
+  },
+  {
+    "name": "Białołeka",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": null,
+    "population": 129106
+  },
+  {
+    "name": "Opole",
+    "countryCode": "PL",
+    "admin1": "79",
+    "postcodeSample": "95-045",
+    "population": 127676
+  },
+  {
+    "name": "Elbląg",
+    "countryCode": "PL",
+    "admin1": "85",
+    "postcodeSample": "82-300",
+    "population": 127558
+  },
+  {
+    "name": "Płock",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "09-400",
+    "population": 127474
+  },
+  {
+    "name": "Wałbrzych",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": "58-206",
+    "population": 127431
+  },
+  {
+    "name": "Targówek",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": null,
+    "population": 124279
+  },
+  {
+    "name": "Bemowo",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": null,
+    "population": 123932
+  },
+  {
+    "name": "Włocławek",
+    "countryCode": "PL",
+    "admin1": "73",
+    "postcodeSample": "87-800",
+    "population": 120339
+  },
+  {
+    "name": "Zielona Góra",
+    "countryCode": "PL",
+    "admin1": "76",
+    "postcodeSample": "95-020",
+    "population": 118433
+  },
+  {
+    "name": "Tarnów",
+    "countryCode": "PL",
+    "admin1": "77",
+    "postcodeSample": "57-200",
+    "population": 117799
+  },
+  {
+    "name": "Dąbrowa Górnicza",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "41-300",
+    "population": 116971
+  },
+  {
+    "name": "Gorzów Wielkopolski",
+    "countryCode": "PL",
+    "admin1": "76",
+    "postcodeSample": "66-400",
+    "population": 114567
+  },
+  {
+    "name": "Chorzów",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "37-560",
+    "population": 113430
+  },
+  {
+    "name": "Kalisz",
+    "countryCode": "PL",
+    "admin1": "86",
+    "postcodeSample": "06-461",
+    "population": 108759
+  },
+  {
+    "name": "Koszalin",
+    "countryCode": "PL",
+    "admin1": "87",
+    "postcodeSample": "75-001",
+    "population": 107450
+  },
+  {
+    "name": "Legnica",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": "52-220",
+    "population": 106033
+  },
+  {
+    "name": "Śródmieście",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": null,
+    "population": 99950
+  },
+  {
+    "name": "Śródmieście",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": null,
+    "population": 99088
+  },
+  {
+    "name": "Słupsk",
+    "countryCode": "PL",
+    "admin1": "82",
+    "postcodeSample": "76-200",
+    "population": 98608
+  },
+  {
+    "name": "Jaworzno",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "46-325",
+    "population": 96541
+  },
+  {
+    "name": "Jastrzębie Zdrój",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": null,
+    "population": 95813
+  },
+  {
+    "name": "Psie Pole",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": "63-270",
+    "population": 95615
+  },
+  {
+    "name": "Praga Północ",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": null,
+    "population": 93192
+  },
+  {
+    "name": "Grudziądz",
+    "countryCode": "PL",
+    "admin1": "73",
+    "postcodeSample": "86-300",
+    "population": 92552
+  },
+  {
+    "name": "Nowy Sącz",
+    "countryCode": "PL",
+    "admin1": "77",
+    "postcodeSample": "33-300",
+    "population": 84376
+  },
+  {
+    "name": "Ochota",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": null,
+    "population": 82774
+  },
+  {
+    "name": "Konin",
+    "countryCode": "PL",
+    "admin1": "86",
+    "postcodeSample": "95-200",
+    "population": 81258
+  },
+  {
+    "name": "Piotrków Trybunalski",
+    "countryCode": "PL",
+    "admin1": "74",
+    "postcodeSample": "97-300",
+    "population": 80128
+  },
+  {
+    "name": "Inowrocław",
+    "countryCode": "PL",
+    "admin1": "73",
+    "postcodeSample": "88-100",
+    "population": 77597
+  },
+  {
+    "name": "Lubin",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": "56-300",
+    "population": 77532
+  },
+  {
+    "name": "Jelenia Góra",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": "58-500",
+    "population": 77366
+  },
+  {
+    "name": "Wawer",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": null,
+    "population": 77205
+  },
+  {
+    "name": "Siedlce",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "59-300",
+    "population": 77185
+  },
+  {
+    "name": "Piła",
+    "countryCode": "PL",
+    "admin1": "86",
+    "postcodeSample": "89-520",
+    "population": 75532
+  },
+  {
+    "name": "Ostrowiec Świętokrzyski",
+    "countryCode": "PL",
+    "admin1": "84",
+    "postcodeSample": "27-400",
+    "population": 73989
+  },
+  {
+    "name": "Siemianowice Śląskie",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "40-151",
+    "population": 73121
+  },
+  {
+    "name": "Ostrów Wielkopolski",
+    "countryCode": "PL",
+    "admin1": "86",
+    "postcodeSample": "63-400",
+    "population": 72898
+  },
+  {
+    "name": "Mysłowice",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "41-400",
+    "population": 72124
+  },
+  {
+    "name": "Stargard",
+    "countryCode": "PL",
+    "admin1": "87",
+    "postcodeSample": "73-102",
+    "population": 71224
+  },
+  {
+    "name": "Pabianice",
+    "countryCode": "PL",
+    "admin1": "74",
+    "postcodeSample": "92-200",
+    "population": 70542
+  },
+  {
+    "name": "Gniezno",
+    "countryCode": "PL",
+    "admin1": "86",
+    "postcodeSample": "61-200",
+    "population": 70269
+  },
+  {
+    "name": "Fordon",
+    "countryCode": "PL",
+    "admin1": "73",
+    "postcodeSample": null,
+    "population": 70000
+  },
+  {
+    "name": "Suwałki",
+    "countryCode": "PL",
+    "admin1": "81",
+    "postcodeSample": "16-400",
+    "population": 69222
+  },
+  {
+    "name": "Tomaszów Mazowiecki",
+    "countryCode": "PL",
+    "admin1": "74",
+    "postcodeSample": "97-200",
+    "population": 67197
+  },
+  {
+    "name": "Przemyśl",
+    "countryCode": "PL",
+    "admin1": "80",
+    "postcodeSample": "37-700",
+    "population": 67013
+  },
+  {
+    "name": "Stalowa Wola",
+    "countryCode": "PL",
+    "admin1": "80",
+    "postcodeSample": "37-450",
+    "population": 66495
+  },
+  {
+    "name": "Zamość",
+    "countryCode": "PL",
+    "admin1": "75",
+    "postcodeSample": "89-200",
+    "population": 66034
+  },
+  {
+    "name": "Kędzierzyn-Koźle",
+    "countryCode": "PL",
+    "admin1": "79",
+    "postcodeSample": "47-200",
+    "population": 65636
+  },
+  {
+    "name": "Głogów",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": "67-200",
+    "population": 65400
+  },
+  {
+    "name": "Wrzeszcz",
+    "countryCode": "PL",
+    "admin1": "82",
+    "postcodeSample": null,
+    "population": 65000
+  },
+  {
+    "name": "Leszno",
+    "countryCode": "PL",
+    "admin1": "86",
+    "postcodeSample": "99-300",
+    "population": 63565
+  },
+  {
+    "name": "Żory",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "44-240",
+    "population": 63174
+  },
+  {
+    "name": "Bełchatów",
+    "countryCode": "PL",
+    "admin1": "74",
+    "postcodeSample": "97-400",
+    "population": 62896
+  },
+  {
+    "name": "Łomża",
+    "countryCode": "PL",
+    "admin1": "81",
+    "postcodeSample": "18-400",
+    "population": 62019
+  },
+  {
+    "name": "Tarnowskie Góry",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "42-069",
+    "population": 60938
+  },
+  {
+    "name": "Świdnica",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": "58-100",
+    "population": 60351
+  },
+  {
+    "name": "Chełm",
+    "countryCode": "PL",
+    "admin1": "75",
+    "postcodeSample": "50-305",
+    "population": 60231
+  },
+  {
+    "name": "Tczew",
+    "countryCode": "PL",
+    "admin1": "82",
+    "postcodeSample": "83-110",
+    "population": 60133
+  },
+  {
+    "name": "Piekary Śląskie",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "41-940",
+    "population": 59757
+  },
+  {
+    "name": "Mielec",
+    "countryCode": "PL",
+    "admin1": "80",
+    "postcodeSample": "38-300",
+    "population": 59509
+  },
+  {
+    "name": "Racibórz",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "47-400",
+    "population": 58464
+  },
+  {
+    "name": "Będzin",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "56-416",
+    "population": 58236
+  },
+  {
+    "name": "Zgierz",
+    "countryCode": "PL",
+    "admin1": "74",
+    "postcodeSample": "90-100",
+    "population": 58036
+  },
+  {
+    "name": "Biała Podlaska",
+    "countryCode": "PL",
+    "admin1": "75",
+    "postcodeSample": "21-500",
+    "population": 57541
+  },
+  {
+    "name": "Ełk",
+    "countryCode": "PL",
+    "admin1": "85",
+    "postcodeSample": "19-300",
+    "population": 55769
+  },
+  {
+    "name": "Świętochłowice",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "41-600",
+    "population": 55600
+  },
+  {
+    "name": "Pruszków",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "98-160",
+    "population": 55371
+  },
+  {
+    "name": "Ostrołęka",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "98-338",
+    "population": 53740
+  },
+  {
+    "name": "Starachowice",
+    "countryCode": "PL",
+    "admin1": "84",
+    "postcodeSample": "27-200",
+    "population": 53739
+  },
+  {
+    "name": "Zawiercie",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "42-400",
+    "population": 53159
+  },
+  {
+    "name": "Żoliborz",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": null,
+    "population": 50934
+  },
+  {
+    "name": "Legionowo",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "05-101",
+    "population": 50786
+  },
+  {
+    "name": "Tarnobrzeg",
+    "countryCode": "PL",
+    "admin1": "80",
+    "postcodeSample": "39-400",
+    "population": 50459
+  },
+  {
+    "name": "Puławy",
+    "countryCode": "PL",
+    "admin1": "75",
+    "postcodeSample": "24-100",
+    "population": 49759
+  },
+  {
+    "name": "Wodzisław Śląski",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "44-300",
+    "population": 49521
+  },
+  {
+    "name": "Skarżysko-Kamienna",
+    "countryCode": "PL",
+    "admin1": "84",
+    "postcodeSample": "26-100",
+    "population": 49410
+  },
+  {
+    "name": "Skierniewice",
+    "countryCode": "PL",
+    "admin1": "74",
+    "postcodeSample": "96-100",
+    "population": 49042
+  },
+  {
+    "name": "Kutno",
+    "countryCode": "PL",
+    "admin1": "74",
+    "postcodeSample": "99-300",
+    "population": 48323
+  },
+  {
+    "name": "Krosno",
+    "countryCode": "PL",
+    "admin1": "80",
+    "postcodeSample": "97-350",
+    "population": 47784
+  },
+  {
+    "name": "Dębica",
+    "countryCode": "PL",
+    "admin1": "80",
+    "postcodeSample": "21-102",
+    "population": 47366
+  },
+  {
+    "name": "Ursus",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": null,
+    "population": 47285
+  },
+  {
+    "name": "Nysa",
+    "countryCode": "PL",
+    "admin1": "79",
+    "postcodeSample": "48-300",
+    "population": 47283
+  },
+  {
+    "name": "Starogard Gdański",
+    "countryCode": "PL",
+    "admin1": "82",
+    "postcodeSample": "83-200",
+    "population": 47272
+  },
+  {
+    "name": "Wejherowo",
+    "countryCode": "PL",
+    "admin1": "82",
+    "postcodeSample": "84-200",
+    "population": 46820
+  },
+  {
+    "name": "Ciechanów",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "56-209",
+    "population": 46438
+  },
+  {
+    "name": "Rumia",
+    "countryCode": "PL",
+    "admin1": "82",
+    "postcodeSample": "84-230",
+    "population": 44791
+  },
+  {
+    "name": "Radomsko",
+    "countryCode": "PL",
+    "admin1": "74",
+    "postcodeSample": "97-500",
+    "population": 44700
+  },
+  {
+    "name": "Zduńska Wola",
+    "countryCode": "PL",
+    "admin1": "74",
+    "postcodeSample": "98-200",
+    "population": 44515
+  },
+  {
+    "name": "Sieradz",
+    "countryCode": "PL",
+    "admin1": "74",
+    "postcodeSample": "98-200",
+    "population": 44436
+  },
+  {
+    "name": "Kołobrzeg",
+    "countryCode": "PL",
+    "admin1": "87",
+    "postcodeSample": "78-100",
+    "population": 44377
+  },
+  {
+    "name": "Rejon placu Świętego Macieja",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": null,
+    "population": 44090
+  },
+  {
+    "name": "Otwock",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "05-400",
+    "population": 43388
+  },
+  {
+    "name": "Bieńczyce",
+    "countryCode": "PL",
+    "admin1": "77",
+    "postcodeSample": "72-200",
+    "population": 42633
+  },
+  {
+    "name": "Żyrardów",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "96-300",
+    "population": 41179
+  },
+  {
+    "name": "Świnoujście",
+    "countryCode": "PL",
+    "admin1": "87",
+    "postcodeSample": "72-600",
+    "population": 40919
+  },
+  {
+    "name": "Bolesławiec",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": "59-700",
+    "population": 40682
+  },
+  {
+    "name": "Nowa Sól",
+    "countryCode": "PL",
+    "admin1": "76",
+    "postcodeSample": "67-100",
+    "population": 40354
+  },
+  {
+    "name": "Świdnik",
+    "countryCode": "PL",
+    "admin1": "75",
+    "postcodeSample": "58-410",
+    "population": 40050
+  },
+  {
+    "name": "Chrzanów",
+    "countryCode": "PL",
+    "admin1": "77",
+    "postcodeSample": "55-040",
+    "population": 39973
+  },
+  {
+    "name": "Knurów",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "34-434",
+    "population": 39744
+  },
+  {
+    "name": "Sanok",
+    "countryCode": "PL",
+    "admin1": "80",
+    "postcodeSample": "38-500",
+    "population": 39684
+  },
+  {
+    "name": "Mikołów",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "43-190",
+    "population": 38821
+  },
+  {
+    "name": "Chojnice",
+    "countryCode": "PL",
+    "admin1": "82",
+    "postcodeSample": "89-600",
+    "population": 38789
+  },
+  {
+    "name": "Żary",
+    "countryCode": "PL",
+    "admin1": "76",
+    "postcodeSample": "97-438",
+    "population": 38779
+  },
+  {
+    "name": "Szczecinek",
+    "countryCode": "PL",
+    "admin1": "87",
+    "postcodeSample": "78-400",
+    "population": 38496
+  },
+  {
+    "name": "Sochaczew",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "96-500",
+    "population": 38267
+  },
+  {
+    "name": "Brzeg",
+    "countryCode": "PL",
+    "admin1": "79",
+    "postcodeSample": "99-235",
+    "population": 38259
+  },
+  {
+    "name": "Jasło",
+    "countryCode": "PL",
+    "admin1": "80",
+    "postcodeSample": "38-200",
+    "population": 37851
+  },
+  {
+    "name": "Olkusz",
+    "countryCode": "PL",
+    "admin1": "77",
+    "postcodeSample": "32-300",
+    "population": 37744
+  },
+  {
+    "name": "Kwidzyn",
+    "countryCode": "PL",
+    "admin1": "82",
+    "postcodeSample": "82-500",
+    "population": 37601
+  },
+  {
+    "name": "Mińsk Mazowiecki",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "05-300",
+    "population": 37027
+  },
+  {
+    "name": "Oleśnica",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": "56-400",
+    "population": 36956
+  },
+  {
+    "name": "Malbork",
+    "countryCode": "PL",
+    "admin1": "82",
+    "postcodeSample": "83-322",
+    "population": 36709
+  },
+  {
+    "name": "Wołomin",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "05-200",
+    "population": 36592
+  },
+  {
+    "name": "Piaseczno",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "87-603",
+    "population": 36278
+  },
+  {
+    "name": "Włochy",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "46-146",
+    "population": 36276
+  },
+  {
+    "name": "Kraśnik",
+    "countryCode": "PL",
+    "admin1": "75",
+    "postcodeSample": "23-200",
+    "population": 35834
+  },
+  {
+    "name": "Cieszyn",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "22-425",
+    "population": 35586
+  },
+  {
+    "name": "Jarosław",
+    "countryCode": "PL",
+    "admin1": "80",
+    "postcodeSample": "55-340",
+    "population": 35475
+  },
+  {
+    "name": "Lębork",
+    "countryCode": "PL",
+    "admin1": "82",
+    "postcodeSample": "84-300",
+    "population": 35161
+  },
+  {
+    "name": "Sopot",
+    "countryCode": "PL",
+    "admin1": "82",
+    "postcodeSample": "81-702",
+    "population": 35049
+  },
+  {
+    "name": "Czechowice-Dziedzice",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "43-500",
+    "population": 34703
+  },
+  {
+    "name": "Police",
+    "countryCode": "PL",
+    "admin1": "87",
+    "postcodeSample": "56-320",
+    "population": 34350
+  },
+  {
+    "name": "Czeladź",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "41-250",
+    "population": 34308
+  },
+  {
+    "name": "Oświęcim",
+    "countryCode": "PL",
+    "admin1": "77",
+    "postcodeSample": "32-600",
+    "population": 34170
+  },
+  {
+    "name": "Dzierżoniów",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": "58-200",
+    "population": 34168
+  },
+  {
+    "name": "Nowy Targ",
+    "countryCode": "PL",
+    "admin1": "77",
+    "postcodeSample": "34-400",
+    "population": 33763
+  },
+  {
+    "name": "Ostróda",
+    "countryCode": "PL",
+    "admin1": "85",
+    "postcodeSample": "14-100",
+    "population": 33524
+  },
+  {
+    "name": "Myszków",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "42-300",
+    "population": 33273
+  },
+  {
+    "name": "Zgorzelec",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": "59-900",
+    "population": 33247
+  },
+  {
+    "name": "Oława",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": "55-200",
+    "population": 33029
+  },
+  {
+    "name": "Iława",
+    "countryCode": "PL",
+    "admin1": "85",
+    "postcodeSample": "48-300",
+    "population": 32557
+  },
+  {
+    "name": "Żywiec",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "34-300",
+    "population": 32132
+  },
+  {
+    "name": "Karłowice-Różanka",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": null,
+    "population": 31813
+  },
+  {
+    "name": "Pilczyce-Kozanów-Popowice Północne",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": null,
+    "population": 31320
+  },
+  {
+    "name": "Ołbin",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": null,
+    "population": 31216
+  },
+  {
+    "name": "Chełm",
+    "countryCode": "PL",
+    "admin1": "82",
+    "postcodeSample": "50-305",
+    "population": 30743
+  },
+  {
+    "name": "Łuków",
+    "countryCode": "PL",
+    "admin1": "75",
+    "postcodeSample": "21-400",
+    "population": 30465
+  },
+  {
+    "name": "Śrem",
+    "countryCode": "PL",
+    "admin1": "86",
+    "postcodeSample": "59-180",
+    "population": 30404
+  },
+  {
+    "name": "Kabaty",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": null,
+    "population": 30000
+  },
+  {
+    "name": "Giżycko",
+    "countryCode": "PL",
+    "admin1": "85",
+    "postcodeSample": "11-500",
+    "population": 29972
+  },
+  {
+    "name": "Ujeścisko-Łostowice",
+    "countryCode": "PL",
+    "admin1": "82",
+    "postcodeSample": null,
+    "population": 29845
+  },
+  {
+    "name": "Łowicz",
+    "countryCode": "PL",
+    "admin1": "74",
+    "postcodeSample": "99-400",
+    "population": 29809
+  },
+  {
+    "name": "Augustów",
+    "countryCode": "PL",
+    "admin1": "81",
+    "postcodeSample": "59-430",
+    "population": 29752
+  },
+  {
+    "name": "Psie Pole Zawidawie",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": null,
+    "population": 29606
+  },
+  {
+    "name": "Turek",
+    "countryCode": "PL",
+    "admin1": "86",
+    "postcodeSample": "05-306",
+    "population": 29533
+  },
+  {
+    "name": "Mława",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "06-500",
+    "population": 29398
+  },
+  {
+    "name": "Bielawa",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": "58-260",
+    "population": 29232
+  },
+  {
+    "name": "Krotoszyn",
+    "countryCode": "PL",
+    "admin1": "86",
+    "postcodeSample": "88-220",
+    "population": 29231
+  },
+  {
+    "name": "Bochnia",
+    "countryCode": "PL",
+    "admin1": "77",
+    "postcodeSample": "32-700",
+    "population": 29184
+  },
+  {
+    "name": "Swarzędz",
+    "countryCode": "PL",
+    "admin1": "86",
+    "postcodeSample": "62-020",
+    "population": 29010
+  },
+  {
+    "name": "Grzegórzki",
+    "countryCode": "PL",
+    "admin1": "77",
+    "postcodeSample": "13-100",
+    "population": 28960
+  },
+  {
+    "name": "Czerwionka-Leszczyny",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "44-230",
+    "population": 28740
+  },
+  {
+    "name": "Września",
+    "countryCode": "PL",
+    "admin1": "86",
+    "postcodeSample": "09-204",
+    "population": 28703
+  },
+  {
+    "name": "Gorlice",
+    "countryCode": "PL",
+    "admin1": "77",
+    "postcodeSample": "33-300",
+    "population": 28609
+  },
+  {
+    "name": "Gierłoż",
+    "countryCode": "PL",
+    "admin1": "85",
+    "postcodeSample": "11-400",
+    "population": 28351
+  },
+  {
+    "name": "Nowy Dwór Mazowiecki",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "05-100",
+    "population": 27633
+  },
+  {
+    "name": "Kętrzyn",
+    "countryCode": "PL",
+    "admin1": "85",
+    "postcodeSample": "11-400",
+    "population": 27478
+  },
+  {
+    "name": "Brodnica",
+    "countryCode": "PL",
+    "admin1": "73",
+    "postcodeSample": "87-300",
+    "population": 27341
+  },
+  {
+    "name": "Zakopane",
+    "countryCode": "PL",
+    "admin1": "77",
+    "postcodeSample": "34-500",
+    "population": 27266
+  },
+  {
+    "name": "Piecki-Migowo",
+    "countryCode": "PL",
+    "admin1": "82",
+    "postcodeSample": null,
+    "population": 27173
+  },
+  {
+    "name": "Rejon placu Grunwaldzkiego",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": null,
+    "population": 27030
+  },
+  {
+    "name": "Biłgoraj",
+    "countryCode": "PL",
+    "admin1": "75",
+    "postcodeSample": "23-400",
+    "population": 26987
+  },
+  {
+    "name": "Grodzisk Mazowiecki",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "05-825",
+    "population": 26684
+  },
+  {
+    "name": "Wyszków",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "59-916",
+    "population": 26500
+  },
+  {
+    "name": "Bielsk Podlaski",
+    "countryCode": "PL",
+    "admin1": "81",
+    "postcodeSample": "17-100",
+    "population": 26493
+  },
+  {
+    "name": "Luboń",
+    "countryCode": "PL",
+    "admin1": "86",
+    "postcodeSample": "77-130",
+    "population": 26431
+  },
+  {
+    "name": "Szczytno",
+    "countryCode": "PL",
+    "admin1": "85",
+    "postcodeSample": "87-850",
+    "population": 26044
+  },
+  {
+    "name": "Kluczbork",
+    "countryCode": "PL",
+    "admin1": "79",
+    "postcodeSample": "46-200",
+    "population": 25978
+  },
+  {
+    "name": "Wałcz",
+    "countryCode": "PL",
+    "admin1": "87",
+    "postcodeSample": "78-600",
+    "population": 25971
+  },
+  {
+    "name": "Świecie",
+    "countryCode": "PL",
+    "admin1": "73",
+    "postcodeSample": "59-820",
+    "population": 25843
+  },
+  {
+    "name": "Żagań",
+    "countryCode": "PL",
+    "admin1": "76",
+    "postcodeSample": "68-100",
+    "population": 25731
+  },
+  {
+    "name": "Kłodzko",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": "57-300",
+    "population": 25717
+  },
+  {
+    "name": "Wągrowiec",
+    "countryCode": "PL",
+    "admin1": "86",
+    "postcodeSample": "62-100",
+    "population": 25648
+  },
+  {
+    "name": "Jarocin",
+    "countryCode": "PL",
+    "admin1": "86",
+    "postcodeSample": "09-130",
+    "population": 25582
+  },
+  {
+    "name": "Pszczyna",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "43-100",
+    "population": 25288
+  },
+  {
+    "name": "Sandomierz",
+    "countryCode": "PL",
+    "admin1": "84",
+    "postcodeSample": "27-600",
+    "population": 25087
+  },
+  {
+    "name": "Nowa Ruda",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": "57-400",
+    "population": 24753
+  },
+  {
+    "name": "Gądów-Popowice Południowe",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": null,
+    "population": 24508
+  },
+  {
+    "name": "Białogard",
+    "countryCode": "PL",
+    "admin1": "87",
+    "postcodeSample": "78-200",
+    "population": 24368
+  },
+  {
+    "name": "Przymorze Wielkie",
+    "countryCode": "PL",
+    "admin1": "82",
+    "postcodeSample": null,
+    "population": 24368
+  },
+  {
+    "name": "Osiedle Powstańców Śląskich",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": null,
+    "population": 24329
+  },
+  {
+    "name": "Kościan",
+    "countryCode": "PL",
+    "admin1": "86",
+    "postcodeSample": "64-000",
+    "population": 24096
+  },
+  {
+    "name": "Jawor",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": "56-210",
+    "population": 23865
+  },
+  {
+    "name": "Lubliniec",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "42-700",
+    "population": 23784
+  },
+  {
+    "name": "Skawina",
+    "countryCode": "PL",
+    "admin1": "77",
+    "postcodeSample": "30-050",
+    "population": 23647
+  },
+  {
+    "name": "Pruszcz Gdański",
+    "countryCode": "PL",
+    "admin1": "82",
+    "postcodeSample": "83-000",
+    "population": 23618
+  },
+  {
+    "name": "Koło",
+    "countryCode": "PL",
+    "admin1": "86",
+    "postcodeSample": "97-330",
+    "population": 23493
+  },
+  {
+    "name": "Bartoszyce",
+    "countryCode": "PL",
+    "admin1": "85",
+    "postcodeSample": "11-200",
+    "population": 23482
+  },
+  {
+    "name": "Ząbki",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "95-061",
+    "population": 23473
+  },
+  {
+    "name": "Środmieście",
+    "countryCode": "PL",
+    "admin1": "82",
+    "postcodeSample": null,
+    "population": 23364
+  },
+  {
+    "name": "Prudnik",
+    "countryCode": "PL",
+    "admin1": "79",
+    "postcodeSample": "48-200",
+    "population": 23343
+  },
+  {
+    "name": "Kościerzyna",
+    "countryCode": "PL",
+    "admin1": "82",
+    "postcodeSample": "82-400",
+    "population": 23327
+  },
+  {
+    "name": "Piastów",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "08-430",
+    "population": 23290
+  },
+  {
+    "name": "Świebodzice",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": "58-160",
+    "population": 23228
+  },
+  {
+    "name": "Marki",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "97-403",
+    "population": 23177
+  },
+  {
+    "name": "Nadodrze",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": null,
+    "population": 23177
+  },
+  {
+    "name": "Zambrów",
+    "countryCode": "PL",
+    "admin1": "81",
+    "postcodeSample": "18-300",
+    "population": 22857
+  },
+  {
+    "name": "Lubartów",
+    "countryCode": "PL",
+    "admin1": "75",
+    "postcodeSample": "21-100",
+    "population": 22839
+  },
+  {
+    "name": "Grajewo",
+    "countryCode": "PL",
+    "admin1": "81",
+    "postcodeSample": "19-200",
+    "population": 22803
+  },
+  {
+    "name": "Drzetowo-Grabowo",
+    "countryCode": "PL",
+    "admin1": "87",
+    "postcodeSample": null,
+    "population": 22655
+  },
+  {
+    "name": "Ostrów Mazowiecka",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "07-300",
+    "population": 22653
+  },
+  {
+    "name": "Opoczno",
+    "countryCode": "PL",
+    "admin1": "74",
+    "postcodeSample": "26-300",
+    "population": 22592
+  },
+  {
+    "name": "Goleniów",
+    "countryCode": "PL",
+    "admin1": "87",
+    "postcodeSample": "72-100",
+    "population": 22505
+  },
+  {
+    "name": "Lubań",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": "59-800",
+    "population": 22245
+  },
+  {
+    "name": "Płońsk",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "00-100",
+    "population": 22217
+  },
+  {
+    "name": "Hajnówka",
+    "countryCode": "PL",
+    "admin1": "81",
+    "postcodeSample": "17-200",
+    "population": 22157
+  },
+  {
+    "name": "Łaziska Górne",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "43-170",
+    "population": 21983
+  },
+  {
+    "name": "Mrągowo",
+    "countryCode": "PL",
+    "admin1": "85",
+    "postcodeSample": "11-700",
+    "population": 21965
+  },
+  {
+    "name": "Andrychów",
+    "countryCode": "PL",
+    "admin1": "77",
+    "postcodeSample": "34-120",
+    "population": 21954
+  },
+  {
+    "name": "Rembertów",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "05-555",
+    "population": 21893
+  },
+  {
+    "name": "Rydułtowy",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "44-280",
+    "population": 21887
+  },
+  {
+    "name": "Gajowice",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": "44-187",
+    "population": 21781
+  },
+  {
+    "name": "Świebodzin",
+    "countryCode": "PL",
+    "admin1": "76",
+    "postcodeSample": "66-200",
+    "population": 21757
+  },
+  {
+    "name": "Środa Wielkopolska",
+    "countryCode": "PL",
+    "admin1": "86",
+    "postcodeSample": "63-000",
+    "population": 21757
+  },
+  {
+    "name": "Kamienna Góra",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": "58-400",
+    "population": 21743
+  },
+  {
+    "name": "Łęczna",
+    "countryCode": "PL",
+    "admin1": "75",
+    "postcodeSample": "21-010",
+    "population": 21719
+  },
+  {
+    "name": "Wrzeszcz Dolny",
+    "countryCode": "PL",
+    "admin1": "82",
+    "postcodeSample": null,
+    "population": 21648
+  },
+  {
+    "name": "Wieluń",
+    "countryCode": "PL",
+    "admin1": "74",
+    "postcodeSample": "98-300",
+    "population": 21624
+  },
+  {
+    "name": "Polkowice",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": "59-100",
+    "population": 21565
+  },
+  {
+    "name": "Rawicz",
+    "countryCode": "PL",
+    "admin1": "86",
+    "postcodeSample": "97-403",
+    "population": 21380
+  },
+  {
+    "name": "Gryfino",
+    "countryCode": "PL",
+    "admin1": "87",
+    "postcodeSample": "74-100",
+    "population": 21270
+  },
+  {
+    "name": "Krzyki-Partynice",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": null,
+    "population": 21233
+  },
+  {
+    "name": "Działdowo",
+    "countryCode": "PL",
+    "admin1": "85",
+    "postcodeSample": "13-200",
+    "population": 21127
+  },
+  {
+    "name": "Wrzeszcz Górny",
+    "countryCode": "PL",
+    "admin1": "82",
+    "postcodeSample": null,
+    "population": 20810
+  },
+  {
+    "name": "Gostyń",
+    "countryCode": "PL",
+    "admin1": "86",
+    "postcodeSample": "59-180",
+    "population": 20771
+  },
+  {
+    "name": "Końskie",
+    "countryCode": "PL",
+    "admin1": "84",
+    "postcodeSample": "36-204",
+    "population": 20756
+  },
+  {
+    "name": "Rejon ulicy Traugutta",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": null,
+    "population": 20617
+  },
+  {
+    "name": "Ozorków",
+    "countryCode": "PL",
+    "admin1": "74",
+    "postcodeSample": "95-035",
+    "population": 20608
+  },
+  {
+    "name": "Chełmno",
+    "countryCode": "PL",
+    "admin1": "73",
+    "postcodeSample": "86-200",
+    "population": 20576
+  },
+  {
+    "name": "Przedmieście Oławskie",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": null,
+    "population": 20316
+  },
+  {
+    "name": "Aleksandrów Łódzki",
+    "countryCode": "PL",
+    "admin1": "74",
+    "postcodeSample": "95-069",
+    "population": 20292
+  },
+  {
+    "name": "Tomaszów Lubelski",
+    "countryCode": "PL",
+    "admin1": "75",
+    "postcodeSample": "22-600",
+    "population": 20261
+  },
+  {
+    "name": "Strzelce Opolskie",
+    "countryCode": "PL",
+    "admin1": "79",
+    "postcodeSample": "47-100",
+    "population": 20241
+  },
+  {
+    "name": "Wesoła",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "32-090",
+    "population": 20000
+  },
+  {
+    "name": "Pionki",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "26-270",
+    "population": 19966
+  },
+  {
+    "name": "Biskupin-Sępolno-Dąbie-Bartoszowice",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": null,
+    "population": 19951
+  },
+  {
+    "name": "Orunia Górna-Gdańsk Południe",
+    "countryCode": "PL",
+    "admin1": "82",
+    "postcodeSample": null,
+    "population": 19807
+  },
+  {
+    "name": "Chodzież",
+    "countryCode": "PL",
+    "admin1": "86",
+    "postcodeSample": "64-800",
+    "population": 19776
+  },
+  {
+    "name": "Bieruń",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "41-155",
+    "population": 19659
+  },
+  {
+    "name": "Nakło nad Notecią",
+    "countryCode": "PL",
+    "admin1": "73",
+    "postcodeSample": "89-100",
+    "population": 19565
+  },
+  {
+    "name": "Krasnystaw",
+    "countryCode": "PL",
+    "admin1": "75",
+    "postcodeSample": "22-300",
+    "population": 19532
+  },
+  {
+    "name": "Kęty",
+    "countryCode": "PL",
+    "admin1": "77",
+    "postcodeSample": "31-650",
+    "population": 19249
+  },
+  {
+    "name": "Wadowice",
+    "countryCode": "PL",
+    "admin1": "77",
+    "postcodeSample": "34-100",
+    "population": 19238
+  },
+  {
+    "name": "Pisz",
+    "countryCode": "PL",
+    "admin1": "85",
+    "postcodeSample": "12-200",
+    "population": 19232
+  },
+  {
+    "name": "Gaj",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": "87-404",
+    "population": 19136
+  },
+  {
+    "name": "Sokółka",
+    "countryCode": "PL",
+    "admin1": "81",
+    "postcodeSample": "07-140",
+    "population": 19079
+  },
+  {
+    "name": "Osiedle Kosmonautów",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": null,
+    "population": 19048
+  },
+  {
+    "name": "Pułtusk",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "06-100",
+    "population": 19039
+  },
+  {
+    "name": "Pyskowice",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "59-500",
+    "population": 19018
+  },
+  {
+    "name": "Gostynin",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "09-500",
+    "population": 18976
+  },
+  {
+    "name": "Sierpc",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "09-200",
+    "population": 18866
+  },
+  {
+    "name": "Trzebinia",
+    "countryCode": "PL",
+    "admin1": "77",
+    "postcodeSample": "32-540",
+    "population": 18828
+  },
+  {
+    "name": "Huby",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": "97-340",
+    "population": 18727
+  },
+  {
+    "name": "Wieliczka",
+    "countryCode": "PL",
+    "admin1": "77",
+    "postcodeSample": "32-020",
+    "population": 18677
+  },
+  {
+    "name": "Międzyrzecz",
+    "countryCode": "PL",
+    "admin1": "76",
+    "postcodeSample": "66-000",
+    "population": 18669
+  },
+  {
+    "name": "Hrubieszów",
+    "countryCode": "PL",
+    "admin1": "75",
+    "postcodeSample": "22-500",
+    "population": 18605
+  },
+  {
+    "name": "Szamotuły",
+    "countryCode": "PL",
+    "admin1": "86",
+    "postcodeSample": "64-500",
+    "population": 18588
+  },
+  {
+    "name": "Łask",
+    "countryCode": "PL",
+    "admin1": "74",
+    "postcodeSample": "98-100",
+    "population": 18577
+  },
+  {
+    "name": "Szczepin",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": null,
+    "population": 18488
+  },
+  {
+    "name": "Orzesze",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "43-180",
+    "population": 18438
+  },
+  {
+    "name": "Sulejówek",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "05-070",
+    "population": 18414
+  },
+  {
+    "name": "Złotów",
+    "countryCode": "PL",
+    "admin1": "86",
+    "postcodeSample": "55-106",
+    "population": 18395
+  },
+  {
+    "name": "Braniewo",
+    "countryCode": "PL",
+    "admin1": "85",
+    "postcodeSample": "14-500",
+    "population": 18356
+  },
+  {
+    "name": "Konstantynów Łódzki",
+    "countryCode": "PL",
+    "admin1": "74",
+    "postcodeSample": "95-050",
+    "population": 18335
+  },
+  {
+    "name": "Krapkowice",
+    "countryCode": "PL",
+    "admin1": "79",
+    "postcodeSample": "47-300",
+    "population": 18275
+  },
+  {
+    "name": "Łańcut",
+    "countryCode": "PL",
+    "admin1": "80",
+    "postcodeSample": "37-100",
+    "population": 18266
+  },
+  {
+    "name": "Sokołów Podlaski",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "08-300",
+    "population": 18241
+  },
+  {
+    "name": "Reda",
+    "countryCode": "PL",
+    "admin1": "82",
+    "postcodeSample": "84-240",
+    "population": 18116
+  },
+  {
+    "name": "Sulechów",
+    "countryCode": "PL",
+    "admin1": "76",
+    "postcodeSample": "66-100",
+    "population": 18055
+  },
+  {
+    "name": "Oborniki",
+    "countryCode": "PL",
+    "admin1": "86",
+    "postcodeSample": "64-600",
+    "population": 17915
+  },
+  {
+    "name": "Józefów",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "97-400",
+    "population": 17910
+  },
+  {
+    "name": "Libiąż",
+    "countryCode": "PL",
+    "admin1": "77",
+    "postcodeSample": "32-500",
+    "population": 17834
+  },
+  {
+    "name": "Kostrzyn nad Odrą",
+    "countryCode": "PL",
+    "admin1": "76",
+    "postcodeSample": "66-470",
+    "population": 17778
+  },
+  {
+    "name": "Dęblin",
+    "countryCode": "PL",
+    "admin1": "75",
+    "postcodeSample": "08-530",
+    "population": 17775
+  },
+  {
+    "name": "Rawa Mazowiecka",
+    "countryCode": "PL",
+    "admin1": "74",
+    "postcodeSample": "96-200",
+    "population": 17770
+  },
+  {
+    "name": "Myślenice",
+    "countryCode": "PL",
+    "admin1": "77",
+    "postcodeSample": "32-400",
+    "population": 17686
+  },
+  {
+    "name": "Kobyłka",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "05-230",
+    "population": 17659
+  },
+  {
+    "name": "Pleszew",
+    "countryCode": "PL",
+    "admin1": "86",
+    "postcodeSample": "63-300",
+    "population": 17640
+  },
+  {
+    "name": "Słubice",
+    "countryCode": "PL",
+    "admin1": "76",
+    "postcodeSample": "69-100",
+    "population": 17567
+  },
+  {
+    "name": "Zielonka",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "59-940",
+    "population": 17518
+  },
+  {
+    "name": "Radlin",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "24-350",
+    "population": 17479
+  },
+  {
+    "name": "Radzionków",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "41-922",
+    "population": 17167
+  },
+  {
+    "name": "Międzyrzec Podlaski",
+    "countryCode": "PL",
+    "admin1": "75",
+    "postcodeSample": "21-560",
+    "population": 17158
+  },
+  {
+    "name": "Busko-Zdrój",
+    "countryCode": "PL",
+    "admin1": "84",
+    "postcodeSample": "28-100",
+    "population": 17095
+  },
+  {
+    "name": "Kozienice",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "26-900",
+    "population": 17075
+  },
+  {
+    "name": "Trzcianka",
+    "countryCode": "PL",
+    "admin1": "86",
+    "postcodeSample": "87-605",
+    "population": 16914
+  },
+  {
+    "name": "Brzesko",
+    "countryCode": "PL",
+    "admin1": "77",
+    "postcodeSample": "32-800",
+    "population": 16866
+  },
+  {
+    "name": "Jędrzejów",
+    "countryCode": "PL",
+    "admin1": "84",
+    "postcodeSample": "49-200",
+    "population": 16792
+  },
+  {
+    "name": "Boguszów-Gorce",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": "58-370",
+    "population": 16726
+  },
+  {
+    "name": "Bytów",
+    "countryCode": "PL",
+    "admin1": "82",
+    "postcodeSample": "77-100",
+    "population": 16724
+  },
+  {
+    "name": "Gryfice",
+    "countryCode": "PL",
+    "admin1": "87",
+    "postcodeSample": "72-300",
+    "population": 16720
+  },
+  {
+    "name": "Przasnysz",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "06-300",
+    "population": 16718
+  },
+  {
+    "name": "Nowogard",
+    "countryCode": "PL",
+    "admin1": "87",
+    "postcodeSample": "72-200",
+    "population": 16703
+  },
+  {
+    "name": "Gubin",
+    "countryCode": "PL",
+    "admin1": "76",
+    "postcodeSample": "66-620",
+    "population": 16629
+  },
+  {
+    "name": "Rypin",
+    "countryCode": "PL",
+    "admin1": "73",
+    "postcodeSample": "87-500",
+    "population": 16589
+  },
+  {
+    "name": "Konstancin-Jeziorna",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "05-510",
+    "population": 16548
+  },
+  {
+    "name": "Lidzbark Warmiński",
+    "countryCode": "PL",
+    "admin1": "85",
+    "postcodeSample": "11-100",
+    "population": 16540
+  },
+  {
+    "name": "Bogatynia",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": "59-916",
+    "population": 16460
+  },
+  {
+    "name": "Łapy",
+    "countryCode": "PL",
+    "admin1": "81",
+    "postcodeSample": "18-100",
+    "population": 16434
+  },
+  {
+    "name": "Namysłów",
+    "countryCode": "PL",
+    "admin1": "79",
+    "postcodeSample": "46-100",
+    "population": 16376
+  },
+  {
+    "name": "Lędziny",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "46-053",
+    "population": 16305
+  },
+  {
+    "name": "Ustka",
+    "countryCode": "PL",
+    "admin1": "82",
+    "postcodeSample": "76-270",
+    "population": 16250
+  },
+  {
+    "name": "Staszów",
+    "countryCode": "PL",
+    "admin1": "84",
+    "postcodeSample": "26-900",
+    "population": 16137
+  },
+  {
+    "name": "Strzegom",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": "58-150",
+    "population": 16106
+  },
+  {
+    "name": "Radzyń Podlaski",
+    "countryCode": "PL",
+    "admin1": "75",
+    "postcodeSample": "21-300",
+    "population": 16071
+  },
+  {
+    "name": "Świerczewo",
+    "countryCode": "PL",
+    "admin1": "87",
+    "postcodeSample": "72-200",
+    "population": 16034
+  },
+  {
+    "name": "Osowa",
+    "countryCode": "PL",
+    "admin1": "82",
+    "postcodeSample": "98-405",
+    "population": 16021
+  },
+  {
+    "name": "Olecko",
+    "countryCode": "PL",
+    "admin1": "85",
+    "postcodeSample": "19-400",
+    "population": 15923
+  },
+  {
+    "name": "Garwolin",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "08-400",
+    "population": 15912
+  },
+  {
+    "name": "Kozanów",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": null,
+    "population": 15901
+  },
+  {
+    "name": "Przeworsk",
+    "countryCode": "PL",
+    "admin1": "80",
+    "postcodeSample": "37-200",
+    "population": 15805
+  },
+  {
+    "name": "Milanówek",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "05-822",
+    "population": 15784
+  },
+  {
+    "name": "Różanka-Polanka",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": null,
+    "population": 15746
+  },
+  {
+    "name": "Choszczno",
+    "countryCode": "PL",
+    "admin1": "87",
+    "postcodeSample": "73-200",
+    "population": 15733
+  },
+  {
+    "name": "Świdwin",
+    "countryCode": "PL",
+    "admin1": "87",
+    "postcodeSample": "78-300",
+    "population": 15725
+  },
+  {
+    "name": "Ustroń",
+    "countryCode": "PL",
+    "admin1": "83",
+    "postcodeSample": "88-420",
+    "population": 15637
+  },
+  {
+    "name": "Nisko",
+    "countryCode": "PL",
+    "admin1": "80",
+    "postcodeSample": "37-400",
+    "population": 15573
+  },
+  {
+    "name": "Złotoryja",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": "59-500",
+    "population": 15564
+  },
+  {
+    "name": "Łęczyca",
+    "countryCode": "PL",
+    "admin1": "74",
+    "postcodeSample": "56-209",
+    "population": 15528
+  },
+  {
+    "name": "Siemiatycze",
+    "countryCode": "PL",
+    "admin1": "81",
+    "postcodeSample": "17-300",
+    "population": 15421
+  },
+  {
+    "name": "Chełmża",
+    "countryCode": "PL",
+    "admin1": "73",
+    "postcodeSample": "87-140",
+    "population": 15403
+  },
+  {
+    "name": "Jelcz Laskowice",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": null,
+    "population": 15340
+  },
+  {
+    "name": "Łomianki",
+    "countryCode": "PL",
+    "admin1": "78",
+    "postcodeSample": "05-092",
+    "population": 15315
+  },
+  {
+    "name": "Jelcz",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": null,
+    "population": 15308
+  },
+  {
+    "name": "Ropczyce",
+    "countryCode": "PL",
+    "admin1": "80",
+    "postcodeSample": "39-100",
+    "population": 15279
+  },
+  {
+    "name": "Nowy Tomyśl",
+    "countryCode": "PL",
+    "admin1": "86",
+    "postcodeSample": "64-300",
+    "population": 15179
+  },
+  {
+    "name": "Solec Kujawski",
+    "countryCode": "PL",
+    "admin1": "73",
+    "postcodeSample": "86-050",
+    "population": 15125
+  },
+  {
+    "name": "Głuchołazy",
+    "countryCode": "PL",
+    "admin1": "79",
+    "postcodeSample": "48-340",
+    "population": 15120
+  },
+  {
+    "name": "Głowno",
+    "countryCode": "PL",
+    "admin1": "74",
+    "postcodeSample": "95-015",
+    "population": 15103
+  },
+  {
+    "name": "Ząbkowice Śląskie",
+    "countryCode": "PL",
+    "admin1": "72",
+    "postcodeSample": "57-200",
+    "population": 15004
+  },
+  {
+    "name": "Kartuzy",
+    "countryCode": "PL",
+    "admin1": "82",
+    "postcodeSample": "83-300",
+    "population": 15002
+  }
+]

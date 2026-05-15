@@ -1,0 +1,4002 @@
+[
+  {
+    "text": "خیلی ها از تبلیغات فریب خوردند.",
+    "source": "tatoeba",
+    "upstreamId": "401635"
+  },
+  {
+    "text": "جمعیت زیادی از مردم در جشن حاضر بودند.",
+    "source": "tatoeba",
+    "upstreamId": "401637"
+  },
+  {
+    "text": "شمار زیادی از مردم از سرتاسر کشور آمده اند.",
+    "source": "tatoeba",
+    "upstreamId": "401640"
+  },
+  {
+    "text": "خیلی ها در صف منتظر بودند.",
+    "source": "tatoeba",
+    "upstreamId": "401648"
+  },
+  {
+    "text": "خیلی ها به من پیشنهاد رفتن به تعطیلات را داده اند.",
+    "source": "tatoeba",
+    "upstreamId": "401659"
+  },
+  {
+    "text": "من و او(زن) هم سن هستیم.",
+    "source": "tatoeba",
+    "upstreamId": "401977"
+  },
+  {
+    "text": "جان و بت هم سن هستند.",
+    "source": "tatoeba",
+    "upstreamId": "401978"
+  },
+  {
+    "text": "من به اندازه ی اون پیر(بزرگ) هستم.",
+    "source": "tatoeba",
+    "upstreamId": "401979"
+  },
+  {
+    "text": "او مرا نادیده گرفت حتی زمانی که مرا در خیابان دید.",
+    "source": "tatoeba",
+    "upstreamId": "401980"
+  },
+  {
+    "text": "او وانمود کرد که مرا نمی شنود.",
+    "source": "tatoeba",
+    "upstreamId": "401981"
+  },
+  {
+    "text": "او وانمود کرد که صدای ریئسش را نمی شنود.",
+    "source": "tatoeba",
+    "upstreamId": "401982"
+  },
+  {
+    "text": "مگ آدم پر حرفی است.",
+    "source": "tatoeba",
+    "upstreamId": "402861"
+  },
+  {
+    "text": "مگ هم قد کن است.",
+    "source": "tatoeba",
+    "upstreamId": "402862"
+  },
+  {
+    "text": "کفش های مگ کوچک شده اند.",
+    "source": "tatoeba",
+    "upstreamId": "402863"
+  },
+  {
+    "text": "من مگ را دیدم که خبرها را به من گفت.",
+    "source": "tatoeba",
+    "upstreamId": "402864"
+  },
+  {
+    "text": "دکتر خوبی کسی است که به راهنمایی های خودش عمل کند.",
+    "source": "tatoeba",
+    "upstreamId": "402865"
+  },
+  {
+    "text": "شما مسئول نتیجه اش هستید.",
+    "source": "tatoeba",
+    "upstreamId": "505638"
+  },
+  {
+    "text": "سلام حالت چطوره؟",
+    "source": "tatoeba",
+    "upstreamId": "505651"
+  },
+  {
+    "text": "من دوست دارم زندگى كنم",
+    "source": "tatoeba",
+    "upstreamId": "505767"
+  },
+  {
+    "text": "من فردا هرات ميرم",
+    "source": "tatoeba",
+    "upstreamId": "505905"
+  },
+  {
+    "text": "به نظر من اين زندگي ارزش ندارد كه انسان دروغ بگويد.",
+    "source": "tatoeba",
+    "upstreamId": "506063"
+  },
+  {
+    "text": "تمام افراد بشر آزاد زاده می‌شوند و از لحاظ حيثيت و كرامت و حقوق با هم برابراند. همگی دارای عقل و وجدان هستند و بايد با يكديگر با روحيه ای برادرانه رفتار كنند.",
+    "source": "tatoeba",
+    "upstreamId": "506110"
+  },
+  {
+    "text": "من امروز با مامانم رفتم پارک",
+    "source": "tatoeba",
+    "upstreamId": "506605"
+  },
+  {
+    "text": "من تا به حال چیزی مانند این ندیدم.",
+    "source": "tatoeba",
+    "upstreamId": "506683"
+  },
+  {
+    "text": "خواهرت الان چه کار می کند؟",
+    "source": "tatoeba",
+    "upstreamId": "506686"
+  },
+  {
+    "text": "فردا یکشنبه است.",
+    "source": "tatoeba",
+    "upstreamId": "506687"
+  },
+  {
+    "text": "من و تونی دیروز با هم بازی کردیم.",
+    "source": "tatoeba",
+    "upstreamId": "506688"
+  },
+  {
+    "text": "ما دو بچه داریم.",
+    "source": "tatoeba",
+    "upstreamId": "506690"
+  },
+  {
+    "text": "من یک نامه از دوستم دریافت کردم.",
+    "source": "tatoeba",
+    "upstreamId": "506691"
+  },
+  {
+    "text": "من دیروز آمدم اینجا.",
+    "source": "tatoeba",
+    "upstreamId": "506692"
+  },
+  {
+    "text": "چین بزرگتر از ژاپن است.",
+    "source": "tatoeba",
+    "upstreamId": "506693"
+  },
+  {
+    "text": "از دیدنتون خوشحال شدم.",
+    "source": "tatoeba",
+    "upstreamId": "506698"
+  },
+  {
+    "text": "سلام حال شما چطوره",
+    "source": "tatoeba",
+    "upstreamId": "506700"
+  },
+  {
+    "text": "مطمئنا او مرد فقیری است با این حال، او شاد است.",
+    "source": "tatoeba",
+    "upstreamId": "506736"
+  },
+  {
+    "text": "من بی درنگ به او تلفن کردم.",
+    "source": "tatoeba",
+    "upstreamId": "506747"
+  },
+  {
+    "text": "سلام حال شماچطوره",
+    "source": "tatoeba",
+    "upstreamId": "507812"
+  },
+  {
+    "text": "من نمی توانم به حرفهایش اعتماد کنم.",
+    "source": "tatoeba",
+    "upstreamId": "507940"
+  },
+  {
+    "text": "یک دوست واقعی همانند پرنده ای کم نظیر است.",
+    "source": "tatoeba",
+    "upstreamId": "507959"
+  },
+  {
+    "text": "من نگران هستم، که نتوانم در موقع مقرر آن را درست کنم.",
+    "source": "tatoeba",
+    "upstreamId": "507962"
+  },
+  {
+    "text": "آنها تازه آمده اند.",
+    "source": "tatoeba",
+    "upstreamId": "507963"
+  },
+  {
+    "text": "این حقیقت که او دغل کار است، بر کسی پنهان نیست.",
+    "source": "tatoeba",
+    "upstreamId": "507968"
+  },
+  {
+    "text": "کار نه تنها به خاطر عواید اقتصادی مانند درآمد مهم است، بلکه به جهت نیازهای اجتماعی وروانی مانند احساس انجام کاری مثبت برای جامعه، نیز مهم است.",
+    "source": "tatoeba",
+    "upstreamId": "507972"
+  },
+  {
+    "text": "این لغت نامه ی من است.",
+    "source": "tatoeba",
+    "upstreamId": "507973"
+  },
+  {
+    "text": "من هیچ برادری ندارم.",
+    "source": "tatoeba",
+    "upstreamId": "507974"
+  },
+  {
+    "text": "سلام، حالت خوب است؟",
+    "source": "tatoeba",
+    "upstreamId": "508013"
+  },
+  {
+    "text": "او سعی کرد یک چادر پیدا کند اما نتوانست آنچه را که می خواست بیابد",
+    "source": "tatoeba",
+    "upstreamId": "509105"
+  },
+  {
+    "text": "جشن تولدش فردا عصر برگزار میشه",
+    "source": "tatoeba",
+    "upstreamId": "509106"
+  },
+  {
+    "text": "مشکلی نظیر این را تصور کنید: فرض کنید اتومبیل برادرتان تصادف کرده است",
+    "source": "tatoeba",
+    "upstreamId": "509115"
+  },
+  {
+    "text": "گفت یک ماه پیش او را دیده",
+    "source": "tatoeba",
+    "upstreamId": "509132"
+  },
+  {
+    "text": "آنها تنها کسانی هستند که حقیقت را می دانند.",
+    "source": "tatoeba",
+    "upstreamId": "509426"
+  },
+  {
+    "text": "یک کاپیتان مسئول کشتی و خدمه آن است.",
+    "source": "tatoeba",
+    "upstreamId": "509580"
+  },
+  {
+    "text": "ابتدا از او خوشم نمی آمد ولی حالا چرا.",
+    "source": "tatoeba",
+    "upstreamId": "509585"
+  },
+  {
+    "text": "تشخیص دادن تو از برادرت دشوار است.",
+    "source": "tatoeba",
+    "upstreamId": "509650"
+  },
+  {
+    "text": "من هوشیاری ام را از دست دادم.",
+    "source": "tatoeba",
+    "upstreamId": "509653"
+  },
+  {
+    "text": "من ملاقات با آن مرد را در کمبریج به خاطر می آورم.",
+    "source": "tatoeba",
+    "upstreamId": "509660"
+  },
+  {
+    "text": "میای خونه ما سارا؟",
+    "source": "tatoeba",
+    "upstreamId": "509716"
+  },
+  {
+    "text": "salam ,omid ke khvb bashi",
+    "source": "tatoeba",
+    "upstreamId": "509719"
+  },
+  {
+    "text": "من یک دوست در نیمبوز داشتم به اسم",
+    "source": "tatoeba",
+    "upstreamId": "509744"
+  },
+  {
+    "text": "ایستگاه اتوبوس کجاست؟",
+    "source": "tatoeba",
+    "upstreamId": "509797"
+  },
+  {
+    "text": "آن به من ربطی ندارد",
+    "source": "tatoeba",
+    "upstreamId": "509933"
+  },
+  {
+    "text": "این به من ربطی ندارد",
+    "source": "tatoeba",
+    "upstreamId": "509945"
+  },
+  {
+    "text": "این به من مربوط نیست.",
+    "source": "tatoeba",
+    "upstreamId": "509958"
+  },
+  {
+    "text": "حقوق آب، شاخه ای از حقوق است که به مالکیت، کنترل و بهره برداری از آب بعنوان یک منبع می پردازد.",
+    "source": "tatoeba",
+    "upstreamId": "510293"
+  },
+  {
+    "text": "من عاشق تو هستم",
+    "source": "tatoeba",
+    "upstreamId": "510397"
+  },
+  {
+    "text": "بیشتر از این ماندن وقت تلف کردن است.",
+    "source": "tatoeba",
+    "upstreamId": "510451"
+  },
+  {
+    "text": "من فکر می کنم که او(دختر) یک رقصنده خوب است.",
+    "source": "tatoeba",
+    "upstreamId": "510453"
+  },
+  {
+    "text": "آیا تکالیفت را انجام داده بودی؟",
+    "source": "tatoeba",
+    "upstreamId": "510454"
+  },
+  {
+    "text": "سال پیش من تصمیم گرفته بودم که به ژاپن بیایم",
+    "source": "tatoeba",
+    "upstreamId": "510456"
+  },
+  {
+    "text": "مادر بزرگم نمی تواند خیلی خوب ببیند.",
+    "source": "tatoeba",
+    "upstreamId": "510458"
+  },
+  {
+    "text": "دوستش یک خواننده است.",
+    "source": "tatoeba",
+    "upstreamId": "510459"
+  },
+  {
+    "text": "آیا فکر میکنی که روش درس دادن من اشتباه است؟",
+    "source": "tatoeba",
+    "upstreamId": "510464"
+  },
+  {
+    "text": "ما همگی با تو موافقیم.",
+    "source": "tatoeba",
+    "upstreamId": "510466"
+  },
+  {
+    "text": "من کشیدن سیگار و مصرف الکل را متوقف کردم.",
+    "source": "tatoeba",
+    "upstreamId": "510471"
+  },
+  {
+    "text": "این خودکارها مال او(پسر) هستند.",
+    "source": "tatoeba",
+    "upstreamId": "510474"
+  },
+  {
+    "text": "ای کاش (تام) برادر کوچکتر من بود.",
+    "source": "tatoeba",
+    "upstreamId": "510480"
+  },
+  {
+    "text": "هلن در حیاط در حال بازی کردن است.",
+    "source": "tatoeba",
+    "upstreamId": "510483"
+  },
+  {
+    "text": "آخرین باری که من از درخت بالا رفتم را به یاد نمی آورم.",
+    "source": "tatoeba",
+    "upstreamId": "510485"
+  },
+  {
+    "text": "من گیج شده ام.حالا چکار باید بکنم؟",
+    "source": "tatoeba",
+    "upstreamId": "510487"
+  },
+  {
+    "text": "او(پسر) یکی از معروفترین خوانندگان در ژاپن است.",
+    "source": "tatoeba",
+    "upstreamId": "510488"
+  },
+  {
+    "text": "هر چیزی که اینجاست مال من است.",
+    "source": "tatoeba",
+    "upstreamId": "510494"
+  },
+  {
+    "text": "او بهتر از من شنا می کند.",
+    "source": "tatoeba",
+    "upstreamId": "510505"
+  },
+  {
+    "text": "در یک زمان برای دو چیز تلاش نکن.",
+    "source": "tatoeba",
+    "upstreamId": "510507"
+  },
+  {
+    "text": "چون او مریض بود, او نتوانست به مهمانی برود.",
+    "source": "tatoeba",
+    "upstreamId": "510509"
+  },
+  {
+    "text": "من از خواهر بیمارم مراقبت کردم.",
+    "source": "tatoeba",
+    "upstreamId": "510512"
+  },
+  {
+    "text": "من این چاپگر رادیروز خریدم.",
+    "source": "tatoeba",
+    "upstreamId": "510513"
+  },
+  {
+    "text": "پشت سرت را نگاه کن!",
+    "source": "tatoeba",
+    "upstreamId": "510514"
+  },
+  {
+    "text": "او(دختر) عاشق تام است، نه من",
+    "source": "tatoeba",
+    "upstreamId": "510542"
+  },
+  {
+    "text": "او برای مقاومت کردن خیلی پیر است.",
+    "source": "tatoeba",
+    "upstreamId": "510545"
+  },
+  {
+    "text": "یک تشکر بزرگ برای کمک شما.",
+    "source": "tatoeba",
+    "upstreamId": "510548"
+  },
+  {
+    "text": "او برای سه هفته در نیویورک ماند",
+    "source": "tatoeba",
+    "upstreamId": "510551"
+  },
+  {
+    "text": "همه بچه ها سیب را دوست ندارند.",
+    "source": "tatoeba",
+    "upstreamId": "510553"
+  },
+  {
+    "text": "آن کودک از آب ترسی ندارد.",
+    "source": "tatoeba",
+    "upstreamId": "510556"
+  },
+  {
+    "text": "دارو ها مزه تلخی دارند.",
+    "source": "tatoeba",
+    "upstreamId": "510557"
+  },
+  {
+    "text": "سلام خوبی؟ چه خبر؟",
+    "source": "tatoeba",
+    "upstreamId": "510558"
+  },
+  {
+    "text": "آیا میدانی که برج توکیو کجاست؟",
+    "source": "tatoeba",
+    "upstreamId": "510559"
+  },
+  {
+    "text": "برادر من میخواهد که روزی به ماه برود.",
+    "source": "tatoeba",
+    "upstreamId": "510561"
+  },
+  {
+    "text": "آن واقعاً ترسناک است.",
+    "source": "tatoeba",
+    "upstreamId": "510563"
+  },
+  {
+    "text": "اتفاقی اخبار را شنیدم.",
+    "source": "tatoeba",
+    "upstreamId": "510566"
+  },
+  {
+    "text": "کودکان آن چیزی را که والدینشان به آنها می گویند باور خواهند کرد.",
+    "source": "tatoeba",
+    "upstreamId": "510572"
+  },
+  {
+    "text": "یک خط راست بکش.",
+    "source": "tatoeba",
+    "upstreamId": "510577"
+  },
+  {
+    "text": "جمعیت این کشور در حال کم شدن است.",
+    "source": "tatoeba",
+    "upstreamId": "510582"
+  },
+  {
+    "text": "ما برای امنیت آنها نگرانیم.",
+    "source": "tatoeba",
+    "upstreamId": "510584"
+  },
+  {
+    "text": "او بر روی کاناپه خوابید، با چشمانی بسته.",
+    "source": "tatoeba",
+    "upstreamId": "510586"
+  },
+  {
+    "text": "هوای اینجا در حال سرد شدن است و من واقعاً آن را دوست ندارم.",
+    "source": "tatoeba",
+    "upstreamId": "510591"
+  },
+  {
+    "text": "به این ساختمان نگاه کن.آیا آن یک معبد است؟",
+    "source": "tatoeba",
+    "upstreamId": "510594"
+  },
+  {
+    "text": "ما باید کلاسمان را تمیز کنیم.",
+    "source": "tatoeba",
+    "upstreamId": "510596"
+  },
+  {
+    "text": "تلوزیون را تماشا نکن.",
+    "source": "tatoeba",
+    "upstreamId": "510601"
+  },
+  {
+    "text": "او برای همیشه عاشق او خواهد بود.",
+    "source": "tatoeba",
+    "upstreamId": "510604"
+  },
+  {
+    "text": "من سیگار کشیدن را شش ماه پیش متوقف کردم.",
+    "source": "tatoeba",
+    "upstreamId": "510606"
+  },
+  {
+    "text": "من به توکیو رفتم تا این کتاب را بخرم.",
+    "source": "tatoeba",
+    "upstreamId": "510607"
+  },
+  {
+    "text": "من فکر می کنم که یک فیلم بیشتر از یک کتاب سرگرم کننده است.",
+    "source": "tatoeba",
+    "upstreamId": "510625"
+  },
+  {
+    "text": "بیش از اندازه کیک نخور.",
+    "source": "tatoeba",
+    "upstreamId": "510626"
+  },
+  {
+    "text": "از آن موقع به بعد ما او را ندیدیم.",
+    "source": "tatoeba",
+    "upstreamId": "510628"
+  },
+  {
+    "text": "برای او غیر ممکن است که آن را تا یک ساعت دیگر تمام کند.",
+    "source": "tatoeba",
+    "upstreamId": "510634"
+  },
+  {
+    "text": "تا قبل ار این هرگز از او چیزی نشنیده بودم.",
+    "source": "tatoeba",
+    "upstreamId": "510635"
+  },
+  {
+    "text": "صبح نهم فوریه بود که من به لندن رسیدم.",
+    "source": "tatoeba",
+    "upstreamId": "510638"
+  },
+  {
+    "text": "عمو باب ما را برای نهار دعوت کرد.",
+    "source": "tatoeba",
+    "upstreamId": "510640"
+  },
+  {
+    "text": "اه، کارت تلفن در حال تمام شدن است...تو را نیم ساعت دیگر می بینم.",
+    "source": "tatoeba",
+    "upstreamId": "510645"
+  },
+  {
+    "text": "او برای حقوق کم من به من غر می زد.",
+    "source": "tatoeba",
+    "upstreamId": "510648"
+  },
+  {
+    "text": "در شهر یک معبد خیلی قدیمی وجود دارد.",
+    "source": "tatoeba",
+    "upstreamId": "510649"
+  },
+  {
+    "text": "من در ساعت هفت به مدرسه می روم.",
+    "source": "tatoeba",
+    "upstreamId": "510651"
+  },
+  {
+    "text": "من شما را دوست دارم",
+    "source": "tatoeba",
+    "upstreamId": "510662"
+  },
+  {
+    "text": "من از شما نفرت دارم",
+    "source": "tatoeba",
+    "upstreamId": "510666"
+  },
+  {
+    "text": "من به کمک نیاز دارم",
+    "source": "tatoeba",
+    "upstreamId": "510677"
+  },
+  {
+    "text": "همه بايد به محيط زيست احترام بگذاريم.",
+    "source": "tatoeba",
+    "upstreamId": "511206"
+  },
+  {
+    "text": "لطفا براي رفت و آمد در شهر از مترو استفاده كنيد.",
+    "source": "tatoeba",
+    "upstreamId": "511208"
+  },
+  {
+    "text": "اين سگ مرده است.",
+    "source": "tatoeba",
+    "upstreamId": "511212"
+  },
+  {
+    "text": "آيا شما كتاب سفارش داديد؟",
+    "source": "tatoeba",
+    "upstreamId": "511230"
+  },
+  {
+    "text": "من نبايد اين كار را انجام مي‌دادم.",
+    "source": "tatoeba",
+    "upstreamId": "511243"
+  },
+  {
+    "text": "اجازه بدهيد من اين كار را انجام بدهم.",
+    "source": "tatoeba",
+    "upstreamId": "511249"
+  },
+  {
+    "text": "باران صبحگاهي مسافر را متوقف نكرد.",
+    "source": "tatoeba",
+    "upstreamId": "511250"
+  },
+  {
+    "text": "می خواهم یک کتاب بخرم.",
+    "source": "tatoeba",
+    "upstreamId": "512533"
+  },
+  {
+    "text": "آیا روزی خواهد شد تا سقوطشان را ببینیم؟",
+    "source": "tatoeba",
+    "upstreamId": "512885"
+  },
+  {
+    "text": "امیدواریم قبل از آنکه هوا تاریک شود به قله برسیم.",
+    "source": "tatoeba",
+    "upstreamId": "512902"
+  },
+  {
+    "text": "پدر من همیشه مرا به مدرسه می رساند وقتی که من کوچک بودم.",
+    "source": "tatoeba",
+    "upstreamId": "512947"
+  },
+  {
+    "text": "سلام به همه بچه های خوب ایرانی.",
+    "source": "tatoeba",
+    "upstreamId": "513039"
+  },
+  {
+    "text": "من عاشق این سایت هستم",
+    "source": "tatoeba",
+    "upstreamId": "513144"
+  },
+  {
+    "text": "او در خیابان به جلو و عقب گام بر می داشت.",
+    "source": "tatoeba",
+    "upstreamId": "513612"
+  },
+  {
+    "text": "من خداناباور هستم.",
+    "source": "tatoeba",
+    "upstreamId": "513619"
+  },
+  {
+    "text": "من از رطیل های بزرگ سیاه پشمالو می ترسم.",
+    "source": "tatoeba",
+    "upstreamId": "513723"
+  },
+  {
+    "text": "من فقط نمی دانم چه بگویم.",
+    "source": "tatoeba",
+    "upstreamId": "513737"
+  },
+  {
+    "text": "آموزش در جهان من را نا امید کرده است.",
+    "source": "tatoeba",
+    "upstreamId": "513749"
+  },
+  {
+    "text": "زنده باد زبان فارسی!",
+    "source": "tatoeba",
+    "upstreamId": "513903"
+  },
+  {
+    "text": "یک فنجان چای دوست داری",
+    "source": "tatoeba",
+    "upstreamId": "514511"
+  },
+  {
+    "text": "هر جا که بروی، من دنبالت می آیم.",
+    "source": "tatoeba",
+    "upstreamId": "518697"
+  },
+  {
+    "text": "ما باید این مشکل را حل کنیم.",
+    "source": "tatoeba",
+    "upstreamId": "518714"
+  },
+  {
+    "text": "مردم از شمشیرهای خود گاوآهن و از نیزه های خود ارّه می سازند. قومی به روی قوم دیگر شمشیر نمی کشد و برای جنگ و خونریزی آماده نمی شود.",
+    "source": "tatoeba",
+    "upstreamId": "521639"
+  },
+  {
+    "text": "و آنان‌ شمشیرهای‌ خود را به‌ گاو آهن‌ و نیزه‌های‌ خویش‌ را به‌ اره‌ تبدیل‌ خواهند كرد. قوم‌های‌ دنیا دیگر در فكر جنگ‌ با یكدیگر نخواهند بود.",
+    "source": "tatoeba",
+    "upstreamId": "521640"
+  },
+  {
+    "text": "و ایشان‌ شمشیرهای‌ خود را برای‌ گاوآهن‌ و نیزه‌های‌ خویش‌ را برای‌ ارّه‌ها خواهند شكست‌ و امّتی‌ بر امّتی‌ شمشیر نخواهد كشید و بار دیگر جنگ‌ را نخواهند آموخت‌.",
+    "source": "tatoeba",
+    "upstreamId": "521641"
+  },
+  {
+    "text": "فکر کنم که سویت شرت قرمز را بپوشم.",
+    "source": "tatoeba",
+    "upstreamId": "523319"
+  },
+  {
+    "text": "به نظرمی رسد ذات نیک اونقش التیام دهنده ی مشکلات خانواده را تحقق می بخشد.",
+    "source": "tatoeba",
+    "upstreamId": "523323"
+  },
+  {
+    "text": "و ایشان از شمشیرهایشان گاوآهن و از نیزه هایشان اره های نجاری ساختند:نه ملتی بر دیگر ملت شمشیر خواهد کشید ونه آنها بیش از این،جنگ کردن خواهند آموخت.",
+    "source": "tatoeba",
+    "upstreamId": "528847"
+  },
+  {
+    "text": "من سکوت او را به رضایت تعبیر می کنم.",
+    "source": "tatoeba",
+    "upstreamId": "528863"
+  },
+  {
+    "text": "سلام،حال شما چه طور است؟",
+    "source": "tatoeba",
+    "upstreamId": "528889"
+  },
+  {
+    "text": "سلام، حالت چه طوره؟",
+    "source": "tatoeba",
+    "upstreamId": "528896"
+  },
+  {
+    "text": "پدر من مهندس الکترونیک است.",
+    "source": "tatoeba",
+    "upstreamId": "528900"
+  },
+  {
+    "text": "انسان تنها حیوانی است که می تواند بخندد.",
+    "source": "tatoeba",
+    "upstreamId": "528906"
+  },
+  {
+    "text": "من اینجا غریبه ام.",
+    "source": "tatoeba",
+    "upstreamId": "528908"
+  },
+  {
+    "text": "من تور ماهیگیری ام را به درون دریا انداختم.",
+    "source": "tatoeba",
+    "upstreamId": "529206"
+  },
+  {
+    "text": "چون‌ در وادی‌ سایة‌ موت‌ نیز راه‌ روم‌ از بدی‌ نخواهم‌ ترسید زیرا تو با من‌ هستی‌؛ عصا و چوب ‌دستی‌ تو مرا تسلی‌ خواهد داد.",
+    "source": "tatoeba",
+    "upstreamId": "532016"
+  },
+  {
+    "text": "حتّی هنگام گذشتن از درّه تاریک مرگ از چیزی نمی ترسم، زیرا تو همراه من هستی. عصا و چوبدستی تو مرا حمایت خواهد کرد.",
+    "source": "tatoeba",
+    "upstreamId": "532023"
+  },
+  {
+    "text": "ما را به راه راست هدايت كن.",
+    "source": "tatoeba",
+    "upstreamId": "532946"
+  },
+  {
+    "text": "ما را به راه راست هدايت فرما.",
+    "source": "tatoeba",
+    "upstreamId": "532947"
+  },
+  {
+    "text": "زمین یکی از سیارات است",
+    "source": "tatoeba",
+    "upstreamId": "535043"
+  },
+  {
+    "text": "سر و صدا ایجاد نکن, من دارم مطالعه می کنم",
+    "source": "tatoeba",
+    "upstreamId": "535048"
+  },
+  {
+    "text": "زندانی زیر شکنجه مرد.",
+    "source": "tatoeba",
+    "upstreamId": "535052"
+  },
+  {
+    "text": "لطفا اسم و آدرست را در این فرم پرکن",
+    "source": "tatoeba",
+    "upstreamId": "535075"
+  },
+  {
+    "text": "آنها از مرز عبور کرده و داخل اسپانیا شدند.",
+    "source": "tatoeba",
+    "upstreamId": "536002"
+  },
+  {
+    "text": "او به ندرت یا هیچ گاه قبل از یازده به رختخواب می رود.",
+    "source": "tatoeba",
+    "upstreamId": "536012"
+  },
+  {
+    "text": "بار دیگر نخواهند گفت‌ كه‌ پدران‌ انگور ترش‌ خوردند و دندان‌ پسران‌ كند گردید.",
+    "source": "tatoeba",
+    "upstreamId": "537989"
+  },
+  {
+    "text": "او نگران گربه ها است.",
+    "source": "tatoeba",
+    "upstreamId": "538570"
+  },
+  {
+    "text": "آن قدر سرم شلوغ است که نمی توانم بروم.",
+    "source": "tatoeba",
+    "upstreamId": "538582"
+  },
+  {
+    "text": "آنجا هم،گربه های روی مریخ هستند.",
+    "source": "tatoeba",
+    "upstreamId": "538602"
+  },
+  {
+    "text": "او به ایتالیا رفت به قصد خواندن موسیقی.",
+    "source": "tatoeba",
+    "upstreamId": "538608"
+  },
+  {
+    "text": "همه اش تنها یک سوء تفاهم بزرگ است.",
+    "source": "tatoeba",
+    "upstreamId": "538628"
+  },
+  {
+    "text": "این برنامه قابلیت دانلود و آپلود، هر دو را دارد.",
+    "source": "tatoeba",
+    "upstreamId": "538635"
+  },
+  {
+    "text": "من در برگشت این اطراف را به تو نشان خواهم داد.",
+    "source": "tatoeba",
+    "upstreamId": "538644"
+  },
+  {
+    "text": "در این بازار اگر سودی است با درویش خرسند است،خدایا منعمم گردان به درویشی و خرسندی.",
+    "source": "tatoeba",
+    "upstreamId": "539093"
+  },
+  {
+    "text": "من به شدت تلاش مي كنم كه زبان انگليسي ياد بگيرم",
+    "source": "tatoeba",
+    "upstreamId": "540241"
+  },
+  {
+    "text": "وقتی که من به اداره رسیدم کلی کار داشتم که انتظار من را می کشید.من همانند مرغی که سرش را بریدند به این طرف آن طرف می دویدم.",
+    "source": "tatoeba",
+    "upstreamId": "544462"
+  },
+  {
+    "text": "نام او گاهی از ذهنم می پرد.",
+    "source": "tatoeba",
+    "upstreamId": "544467"
+  },
+  {
+    "text": "من سالها بود که او را ندیده بودم.",
+    "source": "tatoeba",
+    "upstreamId": "544468"
+  },
+  {
+    "text": "من ژاپنی صحبت نمی‌کنم.",
+    "source": "tatoeba",
+    "upstreamId": "554314"
+  },
+  {
+    "text": "هیچکس مرا درک نمی‌کند.",
+    "source": "tatoeba",
+    "upstreamId": "554316"
+  },
+  {
+    "text": "یاد گرفتم که بدون او زندگی کنم.",
+    "source": "tatoeba",
+    "upstreamId": "554317"
+  },
+  {
+    "text": "فکر کردن دیگر فایده‌ای ندارد.",
+    "source": "tatoeba",
+    "upstreamId": "554320"
+  },
+  {
+    "text": "این روزها افکار زیادی در سر دارم.",
+    "source": "tatoeba",
+    "upstreamId": "554321"
+  },
+  {
+    "text": "فقط می‌خواستم ایمیلم را چک کنم.",
+    "source": "tatoeba",
+    "upstreamId": "554322"
+  },
+  {
+    "text": "میخواهم با شما ملاقات داشته باشم",
+    "source": "tatoeba",
+    "upstreamId": "554336"
+  },
+  {
+    "text": "آیا برای فهمیدن جواب حتماً باید سؤال بپرسی؟",
+    "source": "tatoeba",
+    "upstreamId": "554343"
+  },
+  {
+    "text": "نباید همیشه انتظار داشته باشی که من فکر همه چیز را بکنم!",
+    "source": "tatoeba",
+    "upstreamId": "554344"
+  },
+  {
+    "text": "به نظر من، در ورای هر چیزی که مجبور به انجام دادنش هستیم، چیزی هست که مایل به انجام آن هستیم…",
+    "source": "tatoeba",
+    "upstreamId": "554346"
+  },
+  {
+    "text": "شما واقعاً واجد اولویت‌های مناسب نیستید!",
+    "source": "tatoeba",
+    "upstreamId": "554347"
+  },
+  {
+    "text": "انتظار نداشته باشید که دیگران به جای شما فکر کنند!",
+    "source": "tatoeba",
+    "upstreamId": "554348"
+  },
+  {
+    "text": "تو هیچگاه برای چیزهای مهم وقت نداری!",
+    "source": "tatoeba",
+    "upstreamId": "554349"
+  },
+  {
+    "text": "لطفاً تصویر تلویزیون را تنظیم کنید.",
+    "source": "tatoeba",
+    "upstreamId": "554353"
+  },
+  {
+    "text": "کمیته او را به عنوان رئیس انتخاب کرد.",
+    "source": "tatoeba",
+    "upstreamId": "554356"
+  },
+  {
+    "text": "اسمش را فراموش کرده‌ام.",
+    "source": "tatoeba",
+    "upstreamId": "554362"
+  },
+  {
+    "text": "به عبارت دیگر، او آدم تنبلی است.",
+    "source": "tatoeba",
+    "upstreamId": "554364"
+  },
+  {
+    "text": "به طور خلاصه، به این مرد نباید اعتماد کرد.",
+    "source": "tatoeba",
+    "upstreamId": "554366"
+  },
+  {
+    "text": "فراموش نکن که یک تمبر روی نامه‌ات بچسبانی.",
+    "source": "tatoeba",
+    "upstreamId": "554368"
+  },
+  {
+    "text": "آن کلبه‌ی قدیمی فقط یک تخت داشت. بنا بر این، به نوبت روی آن می‌خوابیدیم.",
+    "source": "tatoeba",
+    "upstreamId": "554376"
+  },
+  {
+    "text": "آنچه را می‌خواهید، بخوانید.",
+    "source": "tatoeba",
+    "upstreamId": "554382"
+  },
+  {
+    "text": "به زودی بهار می‌شود.",
+    "source": "tatoeba",
+    "upstreamId": "554384"
+  },
+  {
+    "text": "قرار است بچه‌دار شویم.",
+    "source": "tatoeba",
+    "upstreamId": "554385"
+  },
+  {
+    "text": "پاپ‌کورن هر چه بیشتر بخوری، بیشتر می‌خواهی.",
+    "source": "tatoeba",
+    "upstreamId": "554393"
+  },
+  {
+    "text": "از دیدگاه کیت، او بیش از حد کار می‌کند.",
+    "source": "tatoeba",
+    "upstreamId": "554394"
+  },
+  {
+    "text": "مواجهه‌ی مؤثر با مسئله‌ی رقابت بخش مهمی از زندگی محسوب می‌شود.",
+    "source": "tatoeba",
+    "upstreamId": "554395"
+  },
+  {
+    "text": "هانری برای اینکه ایده‌ی اصیلش کپی‌برداری نشود، به خاموشی فرو رفت.",
+    "source": "tatoeba",
+    "upstreamId": "554398"
+  },
+  {
+    "text": "آنها دیگر هرگز همدیگر را ندیدند.",
+    "source": "tatoeba",
+    "upstreamId": "554399"
+  },
+  {
+    "text": "تفاوت یک روستا و یک شهر در چیست؟",
+    "source": "tatoeba",
+    "upstreamId": "554401"
+  },
+  {
+    "text": "آنچه را به تو می‌گوید، باور نکن.",
+    "source": "tatoeba",
+    "upstreamId": "554402"
+  },
+  {
+    "text": "دیدم که مادرم کیک را پنهان کرد.",
+    "source": "tatoeba",
+    "upstreamId": "554403"
+  },
+  {
+    "text": "لطف می‌کنید با ما بیایید؟",
+    "source": "tatoeba",
+    "upstreamId": "554405"
+  },
+  {
+    "text": "انگار سرما خورده‌ام.",
+    "source": "tatoeba",
+    "upstreamId": "554406"
+  },
+  {
+    "text": "او بینی‌اش را روی پنجره فشار داد.",
+    "source": "tatoeba",
+    "upstreamId": "554407"
+  },
+  {
+    "text": "وقتی دیگران صحبت می‌کنند، حرفشان را قطع نکنید.",
+    "source": "tatoeba",
+    "upstreamId": "554408"
+  },
+  {
+    "text": "یک سال تمام طول کشید تا سلامتی‌ام را باز یابم.",
+    "source": "tatoeba",
+    "upstreamId": "554409"
+  },
+  {
+    "text": "امروز صبح به سگ غذا دادی؟",
+    "source": "tatoeba",
+    "upstreamId": "554411"
+  },
+  {
+    "text": "دو سوم کارمندان این شرکت مهندس‌اند.",
+    "source": "tatoeba",
+    "upstreamId": "554423"
+  },
+  {
+    "text": "لوسی اهل آمریکا است.",
+    "source": "tatoeba",
+    "upstreamId": "554424"
+  },
+  {
+    "text": "او از آن پرونده‌ی قتل خارج شد.",
+    "source": "tatoeba",
+    "upstreamId": "554426"
+  },
+  {
+    "text": "بومرنگ در حالی که در هوا سوت می‌کشید، به حرکت در آمد.",
+    "source": "tatoeba",
+    "upstreamId": "554427"
+  },
+  {
+    "text": "اگر نتوانی به وعده‌ات عمل کنی، چه عذری خواهی آورد؟",
+    "source": "tatoeba",
+    "upstreamId": "554428"
+  },
+  {
+    "text": "در حالی که هنوز در بستر بودم، گفتم به دیدنم بیاید.",
+    "source": "tatoeba",
+    "upstreamId": "554431"
+  },
+  {
+    "text": "در سوپرمارکت به دنبال او گشتم.",
+    "source": "tatoeba",
+    "upstreamId": "554432"
+  },
+  {
+    "text": "او چشم‌های سیاه براقی داشت.",
+    "source": "tatoeba",
+    "upstreamId": "554433"
+  },
+  {
+    "text": "جلوی ایستگاه به یک دوست قدیمی برخورد کردم.",
+    "source": "tatoeba",
+    "upstreamId": "554434"
+  },
+  {
+    "text": "سه سال دنبال یک کارگردان خوب می‌گشتم، ولی کسی را پیدا نکردم.",
+    "source": "tatoeba",
+    "upstreamId": "554435"
+  },
+  {
+    "text": "از لطف شما سپاس",
+    "source": "tatoeba",
+    "upstreamId": "558996"
+  },
+  {
+    "text": "من ترا دوست دارم.",
+    "source": "tatoeba",
+    "upstreamId": "559032"
+  },
+  {
+    "text": "شما نمی خواهید که با من صحبت کنید",
+    "source": "tatoeba",
+    "upstreamId": "560364"
+  },
+  {
+    "text": "آنها به آن دهکده نیو آمستردام می گویند.",
+    "source": "tatoeba",
+    "upstreamId": "561456"
+  },
+  {
+    "text": "تمام راهها به رم ختم می شود.",
+    "source": "tatoeba",
+    "upstreamId": "561466"
+  },
+  {
+    "text": "بعد از اینکه چنین حرفی به رئیسم گفتم مطمئن شدم که کارم را از دست می دهم.",
+    "source": "tatoeba",
+    "upstreamId": "561470"
+  },
+  {
+    "text": "خونریزی بند نمی آید.",
+    "source": "tatoeba",
+    "upstreamId": "561472"
+  },
+  {
+    "text": "آیا طولانی خواهد شد؟",
+    "source": "tatoeba",
+    "upstreamId": "561473"
+  },
+  {
+    "text": "مواظب باش که سرما نخوری.",
+    "source": "tatoeba",
+    "upstreamId": "561474"
+  },
+  {
+    "text": "من همیشه زمستان ها سرما می خورم.",
+    "source": "tatoeba",
+    "upstreamId": "561475"
+  },
+  {
+    "text": "این را توضیح بده.",
+    "source": "tatoeba",
+    "upstreamId": "561478"
+  },
+  {
+    "text": "او در رفاه زندگی می کند.",
+    "source": "tatoeba",
+    "upstreamId": "561482"
+  },
+  {
+    "text": "هتلی که ما در آن اقامت داشتیم،بسیار راحت بود.",
+    "source": "tatoeba",
+    "upstreamId": "561483"
+  },
+  {
+    "text": "من می خواهم در آسایش زندگی کنم.",
+    "source": "tatoeba",
+    "upstreamId": "561484"
+  },
+  {
+    "text": "جان یک ببر را کشت و به دو شیر شلیک کرد.",
+    "source": "tatoeba",
+    "upstreamId": "561488"
+  },
+  {
+    "text": "شما متأهلید یا مجرد؟",
+    "source": "tatoeba",
+    "upstreamId": "561493"
+  },
+  {
+    "text": "این مزاحمت چه بود؟",
+    "source": "tatoeba",
+    "upstreamId": "561507"
+  },
+  {
+    "text": "خطوط قرمز روی نقشه راه آهن را نشان میدهند.",
+    "source": "tatoeba",
+    "upstreamId": "561513"
+  },
+  {
+    "text": "اگر به من پول قرض بدهی،من بیشتر نسبت به تو وفادار خواهم شد.",
+    "source": "tatoeba",
+    "upstreamId": "563912"
+  },
+  {
+    "text": "کار و شغل تو باید قبل از خانواده ات قرار گیرد.",
+    "source": "tatoeba",
+    "upstreamId": "563927"
+  },
+  {
+    "text": "ما به این نتیجه رسیدیم که باید به او کمک کنیم.",
+    "source": "tatoeba",
+    "upstreamId": "563939"
+  },
+  {
+    "text": "من پدرت را می شناسم.",
+    "source": "tatoeba",
+    "upstreamId": "563950"
+  },
+  {
+    "text": "کارها همیشه به این قرار بود.",
+    "source": "tatoeba",
+    "upstreamId": "563961"
+  },
+  {
+    "text": "هیچ حرفی نتواتست او را متقاعد کند.",
+    "source": "tatoeba",
+    "upstreamId": "563989"
+  },
+  {
+    "text": "هیچ حرفی نتوانست او را برانگیزد.",
+    "source": "tatoeba",
+    "upstreamId": "563996"
+  },
+  {
+    "text": "او همیشه چترش را گم می کند.",
+    "source": "tatoeba",
+    "upstreamId": "564011"
+  },
+  {
+    "text": "الآن تقریبا زمانی است که قطار می رسد.",
+    "source": "tatoeba",
+    "upstreamId": "564183"
+  },
+  {
+    "text": "آیا نوشیدنی می خواهی؟",
+    "source": "tatoeba",
+    "upstreamId": "564186"
+  },
+  {
+    "text": "او به کنار رفت تا آن خانم رد شود.",
+    "source": "tatoeba",
+    "upstreamId": "564188"
+  },
+  {
+    "text": "ببخشید،من نمی دانستم تو همچنان اینجا بودی.",
+    "source": "tatoeba",
+    "upstreamId": "564207"
+  },
+  {
+    "text": "من دارم به بانک می روم.",
+    "source": "tatoeba",
+    "upstreamId": "564217"
+  },
+  {
+    "text": "او شروع به صحبت کردن با سگ کرد.",
+    "source": "tatoeba",
+    "upstreamId": "566325"
+  },
+  {
+    "text": "این که تنها ترجمه ی موجود است،دور از ذهن من بود.",
+    "source": "tatoeba",
+    "upstreamId": "566326"
+  },
+  {
+    "text": "علی انسان خوب است.",
+    "source": "tatoeba",
+    "upstreamId": "566754"
+  },
+  {
+    "text": "شما جریمه خواهید شد اگر ماشین را جلوی آتش نشانی پارک کنید.",
+    "source": "tatoeba",
+    "upstreamId": "579359"
+  },
+  {
+    "text": "برای من مشکل است که از پس این مورد بر آیم.",
+    "source": "tatoeba",
+    "upstreamId": "586990"
+  },
+  {
+    "text": "می خواهم برایت یک دست لباس جدید درست کنم.",
+    "source": "tatoeba",
+    "upstreamId": "586991"
+  },
+  {
+    "text": "این را به قلبت نزدیک نگاه ندار.",
+    "source": "tatoeba",
+    "upstreamId": "586992"
+  },
+  {
+    "text": "قلبت می زند،زنده وتپنده.",
+    "source": "tatoeba",
+    "upstreamId": "586993"
+  },
+  {
+    "text": "پلیس او را آزاد کرد.",
+    "source": "tatoeba",
+    "upstreamId": "586994"
+  },
+  {
+    "text": "آنها دیوانه ی موسیقی جازند.",
+    "source": "tatoeba",
+    "upstreamId": "586995"
+  },
+  {
+    "text": "از اینکه صدایت را بشنوم خوشحال می شوم.",
+    "source": "tatoeba",
+    "upstreamId": "586996"
+  },
+  {
+    "text": "پدرم به مدت یک سال بیکار بوده است.",
+    "source": "tatoeba",
+    "upstreamId": "588430"
+  },
+  {
+    "text": "من خیلی تحت تأثیر کار تو قرار گرفتم.",
+    "source": "tatoeba",
+    "upstreamId": "588433"
+  },
+  {
+    "text": "او در به پایان رساندن کار سهمی داشت.",
+    "source": "tatoeba",
+    "upstreamId": "588436"
+  },
+  {
+    "text": "او نقشی در به پایان رساندن کار داشت.",
+    "source": "tatoeba",
+    "upstreamId": "588437"
+  },
+  {
+    "text": "من از تو مراقبت خواهم کرد..",
+    "source": "tatoeba",
+    "upstreamId": "588439"
+  },
+  {
+    "text": "من هر روز می دوم.",
+    "source": "tatoeba",
+    "upstreamId": "588519"
+  },
+  {
+    "text": "من دانش آموز نیستم.",
+    "source": "tatoeba",
+    "upstreamId": "588524"
+  },
+  {
+    "text": "من تقاضایت را می پذیرم.",
+    "source": "tatoeba",
+    "upstreamId": "588530"
+  },
+  {
+    "text": "او با احتیاط از کشته شدن رهایی یافت.",
+    "source": "tatoeba",
+    "upstreamId": "588545"
+  },
+  {
+    "text": "ستاره های بسیاری در آسمان می درخشیدند.",
+    "source": "tatoeba",
+    "upstreamId": "588578"
+  },
+  {
+    "text": "هر وقت می خواهی بگیر.",
+    "source": "tatoeba",
+    "upstreamId": "588583"
+  },
+  {
+    "text": "او آهنگسازهای موسیقی کلاسیک را دوست دارد مانند بتهون و باخ.",
+    "source": "tatoeba",
+    "upstreamId": "588593"
+  },
+  {
+    "text": "قبلا او را دیده بودی؟",
+    "source": "tatoeba",
+    "upstreamId": "588600"
+  },
+  {
+    "text": "عجله کن! دیرمان می شود.",
+    "source": "tatoeba",
+    "upstreamId": "588605"
+  },
+  {
+    "text": "آیا ساعتت درست است؟",
+    "source": "tatoeba",
+    "upstreamId": "588612"
+  },
+  {
+    "text": "بیا با ما برویم.",
+    "source": "tatoeba",
+    "upstreamId": "588624"
+  },
+  {
+    "text": "دارد برف می آید.",
+    "source": "tatoeba",
+    "upstreamId": "588633"
+  },
+  {
+    "text": "دارد برف می بارد.",
+    "source": "tatoeba",
+    "upstreamId": "588634"
+  },
+  {
+    "text": "او همیشه محافظه کاری اش را به نمایش می گذارد.",
+    "source": "tatoeba",
+    "upstreamId": "588641"
+  },
+  {
+    "text": "او همیشه ترسو بودنش را نشان می دهد.",
+    "source": "tatoeba",
+    "upstreamId": "588642"
+  },
+  {
+    "text": "تو با گذشت زمان این را خواهی فهمید.",
+    "source": "tatoeba",
+    "upstreamId": "588643"
+  },
+  {
+    "text": "یک روباه دوبار در یک دام نمی افتد.",
+    "source": "tatoeba",
+    "upstreamId": "588644"
+  },
+  {
+    "text": "این را بیمه کن،لطفا.",
+    "source": "tatoeba",
+    "upstreamId": "588647"
+  },
+  {
+    "text": "اینجا در پارک بچه های زیادی هستند.",
+    "source": "tatoeba",
+    "upstreamId": "588819"
+  },
+  {
+    "text": "طولانی زیر آفتاب نایست.",
+    "source": "tatoeba",
+    "upstreamId": "597980"
+  },
+  {
+    "text": "اینکه جنایت رو به افزایش است،نمی تواند انکار شود.",
+    "source": "tatoeba",
+    "upstreamId": "597981"
+  },
+  {
+    "text": "او می تواند ژاپنی صحبت کند.",
+    "source": "tatoeba",
+    "upstreamId": "598021"
+  },
+  {
+    "text": "شما اینجا تمام مشخصه های جستجوی پیشرفته را فرا می گیرید.",
+    "source": "tatoeba",
+    "upstreamId": "598029"
+  },
+  {
+    "text": "لطفاً بلندتر، من نمی توانم خوب بشنوم.",
+    "source": "tatoeba",
+    "upstreamId": "608500"
+  },
+  {
+    "text": "مدتی است که ایمیل های خیلی عجیبی دریافت می کنم.",
+    "source": "tatoeba",
+    "upstreamId": "608504"
+  },
+  {
+    "text": "نمی دانم چرا ایمیل های شما را قدری دیر دریافت می کنم!",
+    "source": "tatoeba",
+    "upstreamId": "608505"
+  },
+  {
+    "text": "برای باغچه مان درختچه ها را به بوته ها ترجیح می دهم.",
+    "source": "tatoeba",
+    "upstreamId": "608506"
+  },
+  {
+    "text": "هیچ کسی نمی تواند نامه او را بفهمد!",
+    "source": "tatoeba",
+    "upstreamId": "608507"
+  },
+  {
+    "text": "بین خانه های ما فاصله زیادی است.",
+    "source": "tatoeba",
+    "upstreamId": "608508"
+  },
+  {
+    "text": "سوخت های فسیلی علت اصلی گرم شدن زمین است.",
+    "source": "tatoeba",
+    "upstreamId": "608510"
+  },
+  {
+    "text": "بیائید پیش من (اگر نه) من خواهم آمد پیش شما.",
+    "source": "tatoeba",
+    "upstreamId": "608511"
+  },
+  {
+    "text": "هنوز ایمیل شما را دریافت نکردم. آیا احتمالاً آدرس مرا اشتباه تایپ کردید؟",
+    "source": "tatoeba",
+    "upstreamId": "608514"
+  },
+  {
+    "text": "وقتی که بارانی به این قشنگی می بارد، من به یاد خودمان دو تا در چند سال قبل می افتم.",
+    "source": "tatoeba",
+    "upstreamId": "608517"
+  },
+  {
+    "text": "زود رفتن به محل کار کمک زیادی برای داشتن یک روز خوب می کند.",
+    "source": "tatoeba",
+    "upstreamId": "608520"
+  },
+  {
+    "text": "هنگامی که به خانه رسیدید، لطفاً به من تلفن یزنید.",
+    "source": "tatoeba",
+    "upstreamId": "608521"
+  },
+  {
+    "text": "آن روغن باعث سر شدن زمین و افتادن او شد.",
+    "source": "tatoeba",
+    "upstreamId": "608525"
+  },
+  {
+    "text": "برای ایجاد کارهای جدید فناوری نوین کمک بسیار زیادی می کند.",
+    "source": "tatoeba",
+    "upstreamId": "608547"
+  },
+  {
+    "text": "جان از بیل ماهرتر است.",
+    "source": "tatoeba",
+    "upstreamId": "610650"
+  },
+  {
+    "text": "محبوب ترین ورزش در آمریکا کدام است؟",
+    "source": "tatoeba",
+    "upstreamId": "610655"
+  },
+  {
+    "text": "کیت سعی می کند نوک پا راه برود.",
+    "source": "tatoeba",
+    "upstreamId": "610658"
+  },
+  {
+    "text": "به جای بیرون رفتن، تمام روز را در خانه ماند.",
+    "source": "tatoeba",
+    "upstreamId": "610662"
+  },
+  {
+    "text": "ده خانه طعمه آتش شدند.",
+    "source": "tatoeba",
+    "upstreamId": "610664"
+  },
+  {
+    "text": "خشکی بخش کوچک تر سطح کره زمین را اشغال می کند.",
+    "source": "tatoeba",
+    "upstreamId": "610665"
+  },
+  {
+    "text": "این پیانو از چوبی با رنگ روشن و زیبا ساخته شده است.",
+    "source": "tatoeba",
+    "upstreamId": "610666"
+  },
+  {
+    "text": "قاتل هنوز دستگیر نشده است.",
+    "source": "tatoeba",
+    "upstreamId": "610668"
+  },
+  {
+    "text": "سگ بیچاره توسظ شیرها تکه تکه شده بود.",
+    "source": "tatoeba",
+    "upstreamId": "610669"
+  },
+  {
+    "text": "تام موتور را روشن کرد.",
+    "source": "tatoeba",
+    "upstreamId": "610670"
+  },
+  {
+    "text": "او ترک تحصیل کرد.",
+    "source": "tatoeba",
+    "upstreamId": "610672"
+  },
+  {
+    "text": "آن پادشاه سال ها بر آن سرزمین حکومت کرد.",
+    "source": "tatoeba",
+    "upstreamId": "610675"
+  },
+  {
+    "text": "وقتی صحبت می کنم، حرفم را قطع نکنید.",
+    "source": "tatoeba",
+    "upstreamId": "610678"
+  },
+  {
+    "text": "در حالی که تلویزیون می دیدم، خوابم برد.",
+    "source": "tatoeba",
+    "upstreamId": "610683"
+  },
+  {
+    "text": "تیم شما از تیم ما قوی تر است.",
+    "source": "tatoeba",
+    "upstreamId": "610686"
+  },
+  {
+    "text": "من سیب را بر پرتقال ترجیح می دهم.",
+    "source": "tatoeba",
+    "upstreamId": "610689"
+  },
+  {
+    "text": "او هفت سال پیش به ژاپن آمد.",
+    "source": "tatoeba",
+    "upstreamId": "610690"
+  },
+  {
+    "text": "او یکی از همسایگان من است.",
+    "source": "tatoeba",
+    "upstreamId": "610692"
+  },
+  {
+    "text": "من هم همینطور فکر می کنم.",
+    "source": "tatoeba",
+    "upstreamId": "610694"
+  },
+  {
+    "text": "او در هفده سالگی ازدواج کرد.",
+    "source": "tatoeba",
+    "upstreamId": "610695"
+  },
+  {
+    "text": "سلام، حالتان چطور است؟",
+    "source": "tatoeba",
+    "upstreamId": "610696"
+  },
+  {
+    "text": "سربازان به این خطر عادت کرده اند.",
+    "source": "tatoeba",
+    "upstreamId": "610697"
+  },
+  {
+    "text": "من به مشوت شما احتیاج دارم.",
+    "source": "tatoeba",
+    "upstreamId": "610698"
+  },
+  {
+    "text": "بهای چیزهای غیرمنقول در طول ماه های متعددی ثابت ماند.",
+    "source": "tatoeba",
+    "upstreamId": "610699"
+  },
+  {
+    "text": "من هرگز دیگر او را نخواهم دید.",
+    "source": "tatoeba",
+    "upstreamId": "610700"
+  },
+  {
+    "text": "او در همین حوالی زندگی می کند.",
+    "source": "tatoeba",
+    "upstreamId": "610701"
+  },
+  {
+    "text": "از این امر اطمینان حاصل کنید که همه فایل ها را نگه داشتید.",
+    "source": "tatoeba",
+    "upstreamId": "610702"
+  },
+  {
+    "text": "من سگی را دیدم.",
+    "source": "tatoeba",
+    "upstreamId": "610705"
+  },
+  {
+    "text": "سال هاست که گوشت نخورده ایم.",
+    "source": "tatoeba",
+    "upstreamId": "610706"
+  },
+  {
+    "text": "باید با مادرم کمک کنم.",
+    "source": "tatoeba",
+    "upstreamId": "610707"
+  },
+  {
+    "text": "او وقت اش را با آشپزی کردن در تمام طول بعد از ظهر گذراند.",
+    "source": "tatoeba",
+    "upstreamId": "610708"
+  },
+  {
+    "text": "او زندگی اش را وقف کمک به معلولین کرد.",
+    "source": "tatoeba",
+    "upstreamId": "610709"
+  },
+  {
+    "text": "ترافیک سنگینی در آن راه وجود دارد.",
+    "source": "tatoeba",
+    "upstreamId": "610710"
+  },
+  {
+    "text": "من هرگز ناخن هایم را شب کوتاه نمی کنم.",
+    "source": "tatoeba",
+    "upstreamId": "610711"
+  },
+  {
+    "text": "دیگر ساعت نه شده است.",
+    "source": "tatoeba",
+    "upstreamId": "610712"
+  },
+  {
+    "text": "هلن کلر نابینا، ناشنوا و لال بود.",
+    "source": "tatoeba",
+    "upstreamId": "610716"
+  },
+  {
+    "text": "آیا می توانید بازی خوبی به من توصیه کنید؟",
+    "source": "tatoeba",
+    "upstreamId": "610718"
+  },
+  {
+    "text": "سقف خانه قرمز است.",
+    "source": "tatoeba",
+    "upstreamId": "612425"
+  },
+  {
+    "text": "چند سی دی دارید؟",
+    "source": "tatoeba",
+    "upstreamId": "612443"
+  },
+  {
+    "text": "او فکر می کند که یک جاسوس در میان ما وجود دارد.",
+    "source": "tatoeba",
+    "upstreamId": "612527"
+  },
+  {
+    "text": "آنها فکر می کنند که او برای این کار مناسب نیست.",
+    "source": "tatoeba",
+    "upstreamId": "612564"
+  },
+  {
+    "text": "این دیدار بسیار طولانی بود.",
+    "source": "tatoeba",
+    "upstreamId": "613637"
+  },
+  {
+    "text": "این رادیو کار نمی کند.",
+    "source": "tatoeba",
+    "upstreamId": "613648"
+  },
+  {
+    "text": "این آشپزخانه من است.",
+    "source": "tatoeba",
+    "upstreamId": "613663"
+  },
+  {
+    "text": "آیا اتفاقاً شما می دانید که او کجا زندگی می کند؟",
+    "source": "tatoeba",
+    "upstreamId": "616454"
+  },
+  {
+    "text": "من کتابی در باره حیوانات خواندم.",
+    "source": "tatoeba",
+    "upstreamId": "616456"
+  },
+  {
+    "text": "من میتوانم از میان رودخانه شنا کنم.",
+    "source": "tatoeba",
+    "upstreamId": "616458"
+  },
+  {
+    "text": "در کارهای من دخالت نکنید!",
+    "source": "tatoeba",
+    "upstreamId": "616460"
+  },
+  {
+    "text": "او حرفی را که در مورد وی گفته بود، پس گرفت.",
+    "source": "tatoeba",
+    "upstreamId": "616462"
+  },
+  {
+    "text": "آیا از آن شخص خوشتان می آید؟",
+    "source": "tatoeba",
+    "upstreamId": "616463"
+  },
+  {
+    "text": "فردا برای اولین بار با هواپیما پرواز خواهم کرد، باورکردنی نیست، نه؟",
+    "source": "tatoeba",
+    "upstreamId": "616465"
+  },
+  {
+    "text": "او در تعمیر کردن ساعت به من کمک کرد.",
+    "source": "tatoeba",
+    "upstreamId": "616466"
+  },
+  {
+    "text": "امروز سوم اکتبر است.",
+    "source": "tatoeba",
+    "upstreamId": "616469"
+  },
+  {
+    "text": "همه او را دوست دارند.",
+    "source": "tatoeba",
+    "upstreamId": "616470"
+  },
+  {
+    "text": "او به ساعت اش نگاه کرد.",
+    "source": "tatoeba",
+    "upstreamId": "616471"
+  },
+  {
+    "text": "بیل از این واقعیت که پدرش دخانیات استعمال می کند خوشش نمی آید.",
+    "source": "tatoeba",
+    "upstreamId": "616475"
+  },
+  {
+    "text": "ظاهراً ایشان تصادف کرده اند.",
+    "source": "tatoeba",
+    "upstreamId": "616531"
+  },
+  {
+    "text": "معنی آن واژه چیست؟",
+    "source": "tatoeba",
+    "upstreamId": "616648"
+  },
+  {
+    "text": "همه آنها از شوخی های اوبه خنده افتادند.",
+    "source": "tatoeba",
+    "upstreamId": "616652"
+  },
+  {
+    "text": "تام و فرانک دوستان خوبی هستند.",
+    "source": "tatoeba",
+    "upstreamId": "616654"
+  },
+  {
+    "text": "آن پیرمرد زندگی اش را با مستمری اش می گذراند.",
+    "source": "tatoeba",
+    "upstreamId": "621354"
+  },
+  {
+    "text": "آن پیرمرد انبوهی از آدم ها را به وسیله موسیقی اش دور خود جذب کرد.",
+    "source": "tatoeba",
+    "upstreamId": "621355"
+  },
+  {
+    "text": "پیرمرد عروسکی را به او هدیه داد.",
+    "source": "tatoeba",
+    "upstreamId": "621356"
+  },
+  {
+    "text": "پیرمرد غمگین به نظر می رسد.",
+    "source": "tatoeba",
+    "upstreamId": "621357"
+  },
+  {
+    "text": "یک چشم پیرمرد نابینا است.",
+    "source": "tatoeba",
+    "upstreamId": "621358"
+  },
+  {
+    "text": "اکنون دو هفته گذشته، و من شما را ندیدم.",
+    "source": "tatoeba",
+    "upstreamId": "621397"
+  },
+  {
+    "text": "یک بار او را در بازار دیدم.",
+    "source": "tatoeba",
+    "upstreamId": "621398"
+  },
+  {
+    "text": "در طول چهار روز اخیر مستمراً باران باریده است.",
+    "source": "tatoeba",
+    "upstreamId": "621401"
+  },
+  {
+    "text": "پریروز خیلی سرد بود.",
+    "source": "tatoeba",
+    "upstreamId": "621403"
+  },
+  {
+    "text": "لطفاً پسفردا برای ناهار بیائید خانه ما!",
+    "source": "tatoeba",
+    "upstreamId": "621404"
+  },
+  {
+    "text": "فرداشب مهمان خواهیم داشت.",
+    "source": "tatoeba",
+    "upstreamId": "621405"
+  },
+  {
+    "text": "آن پارک از خانه ما خیلی دور است.",
+    "source": "tatoeba",
+    "upstreamId": "621406"
+  },
+  {
+    "text": "او آدم خیلی دمدمی ای است.",
+    "source": "tatoeba",
+    "upstreamId": "621407"
+  },
+  {
+    "text": "باتری ماشین من دیگر کهنه است، باید از یک نو استفاده کنم.",
+    "source": "tatoeba",
+    "upstreamId": "621481"
+  },
+  {
+    "text": "عمر آن گونه باتری ها حدود سه سال است.",
+    "source": "tatoeba",
+    "upstreamId": "621483"
+  },
+  {
+    "text": "از آنجا که باتری ساعت من بسیار کوچک است؛ خودم نمی توانم آن را تعویض کنم.",
+    "source": "tatoeba",
+    "upstreamId": "621489"
+  },
+  {
+    "text": "باید باتری رادیوی پورتابل ام را عوض کنم.",
+    "source": "tatoeba",
+    "upstreamId": "621495"
+  },
+  {
+    "text": "باتری تلفن همراه من دیگر خوب کار نمی کند.",
+    "source": "tatoeba",
+    "upstreamId": "621497"
+  },
+  {
+    "text": "تا کنون من چنین سیلابی ندیده بودم.",
+    "source": "tatoeba",
+    "upstreamId": "621502"
+  },
+  {
+    "text": "بزرگ ترین پروژه شما چیست؟",
+    "source": "tatoeba",
+    "upstreamId": "621504"
+  },
+  {
+    "text": "اگر از من می پرسید، من موافق آن نیستم.",
+    "source": "tatoeba",
+    "upstreamId": "621506"
+  },
+  {
+    "text": "برای راه افتادن الآن بیش از اندازه دیر است.",
+    "source": "tatoeba",
+    "upstreamId": "621507"
+  },
+  {
+    "text": "هرقدر سعی می کنم، نمی توانم او را متقاعد سازم.",
+    "source": "tatoeba",
+    "upstreamId": "621509"
+  },
+  {
+    "text": "غذا خوردن در رستوران محل کار برایم بسیار خوشایند است.",
+    "source": "tatoeba",
+    "upstreamId": "621511"
+  },
+  {
+    "text": "من نمی دانم که چطور آن مبلغ را به شما بپردازم.",
+    "source": "tatoeba",
+    "upstreamId": "621512"
+  },
+  {
+    "text": "هرقدر ساعات بیشتری کار می کنم، حقوق ساعتی خالصم کمتر می شود.",
+    "source": "tatoeba",
+    "upstreamId": "621513"
+  },
+  {
+    "text": "یک زمانی او خیلی با جنب و جوش بود، ولی حالا نه.",
+    "source": "tatoeba",
+    "upstreamId": "621515"
+  },
+  {
+    "text": "او شخص با جنب و جوش زیادی است.",
+    "source": "tatoeba",
+    "upstreamId": "621519"
+  },
+  {
+    "text": "کجایتان درد دارد؟",
+    "source": "tatoeba",
+    "upstreamId": "621521"
+  },
+  {
+    "text": "آیا تحمل دردهای دیگران انسان را اذیت می کند؟",
+    "source": "tatoeba",
+    "upstreamId": "621525"
+  },
+  {
+    "text": "چرا دندانپزشکان بیشترین خودکشی را انجام میدهند؟",
+    "source": "tatoeba",
+    "upstreamId": "621527"
+  },
+  {
+    "text": "سالی چند بار نزد دندانپزشک می روید؟",
+    "source": "tatoeba",
+    "upstreamId": "621530"
+  },
+  {
+    "text": "تاکنون من دندانپزشکی با مهارت او ندیده ام.",
+    "source": "tatoeba",
+    "upstreamId": "621533"
+  },
+  {
+    "text": "او دندانپزشک بسیار ماهری است.",
+    "source": "tatoeba",
+    "upstreamId": "621534"
+  },
+  {
+    "text": "آیا دندانپزشک خوبی می شناسید؟",
+    "source": "tatoeba",
+    "upstreamId": "621535"
+  },
+  {
+    "text": "کسی که می داند، نمی گوید؛ کسی که می گوید، نمی داند.",
+    "source": "tatoeba",
+    "upstreamId": "622574"
+  },
+  {
+    "text": "سرزندگی مطلوب در شهر کوچک من محسوس نیست.",
+    "source": "tatoeba",
+    "upstreamId": "622575"
+  },
+  {
+    "text": "شهرهای کوچک تر از ابرشهرها قابل اقامت ترند.",
+    "source": "tatoeba",
+    "upstreamId": "622576"
+  },
+  {
+    "text": "مشکل شهرهای خیلی متراکم، آلودگی هواست که در اتر ترافیک بیش از اندازه به وجود می آید.",
+    "source": "tatoeba",
+    "upstreamId": "622577"
+  },
+  {
+    "text": "آیا شهری که ساکن آن هستید، خیلی متراکم است؟",
+    "source": "tatoeba",
+    "upstreamId": "622578"
+  },
+  {
+    "text": "آیا فاصله ی بین خانه شما و بازار قابل پیاده روی است؟",
+    "source": "tatoeba",
+    "upstreamId": "622579"
+  },
+  {
+    "text": "من واقعاً نمی توانم آن را ترجمه کنم، متن خیلی سختی است.",
+    "source": "tatoeba",
+    "upstreamId": "622580"
+  },
+  {
+    "text": "من امروز بعد از ظهر از ساعت یک و نیم تا سه و نیم آزاد خواهم بود.",
+    "source": "tatoeba",
+    "upstreamId": "622582"
+  },
+  {
+    "text": "نائل شدن به ارتباطی دوطرفه و خوب با انسان ها سهل ممتنع است.",
+    "source": "tatoeba",
+    "upstreamId": "622584"
+  },
+  {
+    "text": "رسیدن به ارتباطی متقابل و خوب هم خیلی آسان است و هم خیلی مشکل.",
+    "source": "tatoeba",
+    "upstreamId": "622588"
+  },
+  {
+    "text": "خیلی سعی می کنم رابطه ام را با او بهبود بخشم.",
+    "source": "tatoeba",
+    "upstreamId": "622590"
+  },
+  {
+    "text": "هر دوی شما می دانستید که چنین رابطه ای نمی توانست برای مدتی طولانی ادامه پیدا کند.",
+    "source": "tatoeba",
+    "upstreamId": "622592"
+  },
+  {
+    "text": "می ترسم، که در ترجمه من بخشی از معنی متن اصلی از دست رفته باشد.",
+    "source": "tatoeba",
+    "upstreamId": "622593"
+  },
+  {
+    "text": "نمی دانم چطور آن جمله را صحیح ترجمه کنم.",
+    "source": "tatoeba",
+    "upstreamId": "622594"
+  },
+  {
+    "text": "هر چه موضوع علمی تر باشد، امکان تعابیر مختلف از آن کمتر می شود.",
+    "source": "tatoeba",
+    "upstreamId": "622595"
+  },
+  {
+    "text": "تعبیر شما از آن جمله با تعبیر من بسیار متفاوت است.",
+    "source": "tatoeba",
+    "upstreamId": "622598"
+  },
+  {
+    "text": "تقریباً هر جمله ای می تواند به انحای گوناگونی تعبیر گردد.",
+    "source": "tatoeba",
+    "upstreamId": "622600"
+  },
+  {
+    "text": "حتی گذشتن زمان هم هنوز نتوانسته است به او کمک زیادی بکند.",
+    "source": "tatoeba",
+    "upstreamId": "622602"
+  },
+  {
+    "text": "از فردا می توانیم با هم برویم به محل کار.",
+    "source": "tatoeba",
+    "upstreamId": "622605"
+  },
+  {
+    "text": "سوالات او نشان می دهد که موضوع را خیلی خوب متوجه می شود.",
+    "source": "tatoeba",
+    "upstreamId": "622608"
+  },
+  {
+    "text": "من واقعاً از سوالات دقیق شما لذت می برم.",
+    "source": "tatoeba",
+    "upstreamId": "622612"
+  },
+  {
+    "text": "جملات او خیلی مستحکم اند، هیج کلمه ای را نمی توانید به آنها اضافه کنید یا از آنها کم کنید.",
+    "source": "tatoeba",
+    "upstreamId": "622617"
+  },
+  {
+    "text": "آیا امروز آزادید تا برای نوشیدن قهوه با هم دیگر نزد من بیائید؟",
+    "source": "tatoeba",
+    "upstreamId": "622621"
+  },
+  {
+    "text": "هر وقتی که آن کتاب شعر را می بینم یاد شما و صحبت هایمان درباره آن شاعر می افتم.",
+    "source": "tatoeba",
+    "upstreamId": "622622"
+  },
+  {
+    "text": "آیا می توانیم فردا جلسه ای در مورد آن داشته باشیم؟",
+    "source": "tatoeba",
+    "upstreamId": "622624"
+  },
+  {
+    "text": "در مکالمات من فقط پاسخگو هستم، نمی توانم موضوعی را مطرح سازم.",
+    "source": "tatoeba",
+    "upstreamId": "622625"
+  },
+  {
+    "text": "من نمی توانم با افراد جدید سر صحبت را باز کنم.",
+    "source": "tatoeba",
+    "upstreamId": "622626"
+  },
+  {
+    "text": "اگر بتوانید کسی را وادار به سوال کردن کنید، بر مکالمه در جهت پیشبرد آن به سوی هدف تان مسلط هستید.",
+    "source": "tatoeba",
+    "upstreamId": "622627"
+  },
+  {
+    "text": "گاهی اوقات سوالات بیشتر از پاسخ ها به ما اطلاعات می دهند.",
+    "source": "tatoeba",
+    "upstreamId": "622629"
+  },
+  {
+    "text": "سوالات او اطلاعات زیادی را درموردش به من می دهد.",
+    "source": "tatoeba",
+    "upstreamId": "622633"
+  },
+  {
+    "text": "سوالات او نشانگر این است که فردی با دقت است.",
+    "source": "tatoeba",
+    "upstreamId": "622635"
+  },
+  {
+    "text": "واقعاً دلم برای شما تنگ شده، کی می توانیم همذیگر را ببینیم؟",
+    "source": "tatoeba",
+    "upstreamId": "622640"
+  },
+  {
+    "text": "داشتن هدفی ناخوب بهتر از فقدان هدف است.",
+    "source": "tatoeba",
+    "upstreamId": "622643"
+  },
+  {
+    "text": "به نظر من بی هدفی زندگی انسان را تباه می کند.",
+    "source": "tatoeba",
+    "upstreamId": "622647"
+  },
+  {
+    "text": "به نظر من، بی ماموریتی زندگی انسان را بیهوده می سازد.",
+    "source": "tatoeba",
+    "upstreamId": "622649"
+  },
+  {
+    "text": "ماموریت شما در زندگی چیست؟ آیا آن را می دانید؟",
+    "source": "tatoeba",
+    "upstreamId": "622651"
+  },
+  {
+    "text": "انسان فقط هنگامی موانع را می بیند که نگاهش را از هدفش بر دارد.",
+    "source": "tatoeba",
+    "upstreamId": "622667"
+  },
+  {
+    "text": "اگر نمی دانید هدف تان چیست، هیچگاه نمی توانید به آن برسید.",
+    "source": "tatoeba",
+    "upstreamId": "622668"
+  },
+  {
+    "text": "من به او گفته ام که نمی توانم در این سفر همراهی اش کنم.",
+    "source": "tatoeba",
+    "upstreamId": "622669"
+  },
+  {
+    "text": "لطفاً اطاقت را مرتب کن، چون امروز مهمان داریم.",
+    "source": "tatoeba",
+    "upstreamId": "622670"
+  },
+  {
+    "text": "آیا می توانید آن کتاب را برایم از کتبخانه مرکزی به امانت بگیرید؟",
+    "source": "tatoeba",
+    "upstreamId": "622671"
+  },
+  {
+    "text": "من عضو کتبخانه مرکزی شهر کوچک مان هستم.",
+    "source": "tatoeba",
+    "upstreamId": "622672"
+  },
+  {
+    "text": "آیا شما عضو کتبخانه محلی تان هستید؟",
+    "source": "tatoeba",
+    "upstreamId": "622673"
+  },
+  {
+    "text": "گذرنامه من از آغاز سال آینده اعتبارش تمام می شود.",
+    "source": "tatoeba",
+    "upstreamId": "622676"
+  },
+  {
+    "text": "اعتبار گذرنامه‌ی شما تا چه زمانی است؟",
+    "source": "tatoeba",
+    "upstreamId": "622679"
+  },
+  {
+    "text": "خیلی دوست داشتم به آن سفر بروم، ولی با تاسف فراوان نمی‌توانم.",
+    "source": "tatoeba",
+    "upstreamId": "622680"
+  },
+  {
+    "text": "مشکلات را به بوته‌ی فراموشی نسپار، حل‌شان کن!",
+    "source": "tatoeba",
+    "upstreamId": "622682"
+  },
+  {
+    "text": "باید مشکلات را حل کنید، به‌جای فراموش کردن آنها!",
+    "source": "tatoeba",
+    "upstreamId": "622684"
+  },
+  {
+    "text": "به نظر من، آغاز کردن سفر در صبح زود، مسافرت را دلچسب می‌کند.",
+    "source": "tatoeba",
+    "upstreamId": "622932"
+  },
+  {
+    "text": "نمی‌دانم چرا دیگر نمی‌توانم آه و ناله‌ی دیگران را تحمل کنم؟",
+    "source": "tatoeba",
+    "upstreamId": "622943"
+  },
+  {
+    "text": "واقعاً خسته شدم، آخر هفته باید یک جائی بروم، هر جا که شده!",
+    "source": "tatoeba",
+    "upstreamId": "622993"
+  },
+  {
+    "text": "اسم برادرتان را فراموش کردم، نامش چیست؟",
+    "source": "tatoeba",
+    "upstreamId": "622995"
+  },
+  {
+    "text": "لطفاً فردا زودتر بیائید، چون کار زیادی خواهیم داشت.",
+    "source": "tatoeba",
+    "upstreamId": "622996"
+  },
+  {
+    "text": "دیگر باید وسائل گرم کننده را از غروب روشن کنید.",
+    "source": "tatoeba",
+    "upstreamId": "622999"
+  },
+  {
+    "text": "در حال حاضر، ظهرها هوا خیلی خوشایند است.",
+    "source": "tatoeba",
+    "upstreamId": "623001"
+  },
+  {
+    "text": "صبح خیلی سرد بود.",
+    "source": "tatoeba",
+    "upstreamId": "623002"
+  },
+  {
+    "text": "هوا دیگر سرد شده، باید لباس گرم‌تری بپوشید.",
+    "source": "tatoeba",
+    "upstreamId": "623017"
+  },
+  {
+    "text": "نه تنها اکنون، بلکه همیشه من به پدر و مادر گرامی‌یادم می‌اندیشم.",
+    "source": "tatoeba",
+    "upstreamId": "623021"
+  },
+  {
+    "text": "حقوق کیفری ، که همچنین بعنوان حقوق جزا نیز شناخته می شود، مستلزم تعقیب کیفری فعلی است که بعنوان جرم طبقه بندی شده است.",
+    "source": "tatoeba",
+    "upstreamId": "624364"
+  },
+  {
+    "text": "به نطر روانشناسان کسانی که نمی توانند از تنهائی لذت ببرند، سالم نیستند.",
+    "source": "tatoeba",
+    "upstreamId": "624441"
+  },
+  {
+    "text": "چه هنگامی شما فقدان تنهائی را احساس می کنید؟",
+    "source": "tatoeba",
+    "upstreamId": "624449"
+  },
+  {
+    "text": "او مایل نیست پس از ازدست دادن همسرش به تنهائی اش خاتمه ببخشد.",
+    "source": "tatoeba",
+    "upstreamId": "624457"
+  },
+  {
+    "text": "نگران کنده ترین مشغله فکری او تنها شدن احتمالی اش در یک زمان است.",
+    "source": "tatoeba",
+    "upstreamId": "624465"
+  },
+  {
+    "text": "همه مایلند او را پس از از دست دادن همسرش از تنهائی درآورند.",
+    "source": "tatoeba",
+    "upstreamId": "624467"
+  },
+  {
+    "text": "من احساس می کنم که او تنهاست، هرچند همیشه با گروهی از دوستان و آشنایان است.",
+    "source": "tatoeba",
+    "upstreamId": "624472"
+  },
+  {
+    "text": "تازه الآن معنی واقعی حرف همیشگی او را دریافتم.",
+    "source": "tatoeba",
+    "upstreamId": "624475"
+  },
+  {
+    "text": "امیدوارم که او بالاخره یک وقتی حرف برحق مرا دریابد.",
+    "source": "tatoeba",
+    "upstreamId": "624480"
+  },
+  {
+    "text": "تمام ملل برای مرگ قهرمانانشان سوگواری می کنند.",
+    "source": "tatoeba",
+    "upstreamId": "624483"
+  },
+  {
+    "text": "آیا شما واقعاً وضع برخورد او را در این مورد تصدیق می کنید؟!",
+    "source": "tatoeba",
+    "upstreamId": "624485"
+  },
+  {
+    "text": "من واقعاً انتظار چنین وضع برخوردی را از شما در رابطه با او نداشتم!",
+    "source": "tatoeba",
+    "upstreamId": "624488"
+  },
+  {
+    "text": "اگر کمی آرام تر انجامش دهی، کار سریع تر پیش می رود.",
+    "source": "tatoeba",
+    "upstreamId": "624496"
+  },
+  {
+    "text": "هر چه زمان بیشتری می گذرد، من بیشتر متوجه می شوم که حق با اوست.",
+    "source": "tatoeba",
+    "upstreamId": "624497"
+  },
+  {
+    "text": "تا کنون من مردی را مانند او ندیدم.",
+    "source": "tatoeba",
+    "upstreamId": "624499"
+  },
+  {
+    "text": "هیچ چیزی به اندازه ی غذایی که درست می کنی خوشمزه نیست.",
+    "source": "tatoeba",
+    "upstreamId": "624505"
+  },
+  {
+    "text": "او بسیار امین و خیرخواه است.",
+    "source": "tatoeba",
+    "upstreamId": "624527"
+  },
+  {
+    "text": "کاش من یک جوان بودم.",
+    "source": "tatoeba",
+    "upstreamId": "624529"
+  },
+  {
+    "text": "همه خود را نزد او راحت احساس می کنند.",
+    "source": "tatoeba",
+    "upstreamId": "624542"
+  },
+  {
+    "text": "نیک به من ده دلار را برگرداند.",
+    "source": "tatoeba",
+    "upstreamId": "624543"
+  },
+  {
+    "text": "ببخشید که شما را دیر دعوت می کنم.",
+    "source": "tatoeba",
+    "upstreamId": "624556"
+  },
+  {
+    "text": "هرچند او را خیلی دیر دعوت کردم، با این وجود او بسیار لطف کرد و به جشن کوچک ما آمد.",
+    "source": "tatoeba",
+    "upstreamId": "624571"
+  },
+  {
+    "text": "او تو را درک نمی کند.",
+    "source": "tatoeba",
+    "upstreamId": "624590"
+  },
+  {
+    "text": "چه کسی پیانو می نوازد؟",
+    "source": "tatoeba",
+    "upstreamId": "624620"
+  },
+  {
+    "text": "بیشتر از یک هفته بود که سرما خوردگی ام طول کشید.",
+    "source": "tatoeba",
+    "upstreamId": "624622"
+  },
+  {
+    "text": "در چه ساعتی کلاست تمام می شود؟",
+    "source": "tatoeba",
+    "upstreamId": "624628"
+  },
+  {
+    "text": "به هیچ ترتیبی نمی توانم جدس یزنم که آیا او دعوت مرا قبول خواهد کرد، یا نه!",
+    "source": "tatoeba",
+    "upstreamId": "624707"
+  },
+  {
+    "text": "لطفاً شما او را از طرف من دعوت کنید، اگر مطمئن هستسد، که بی این ترتیب ناراحت نمی شود.",
+    "source": "tatoeba",
+    "upstreamId": "624709"
+  },
+  {
+    "text": "آخرین باری که با یکدیگر به کافی شاپ رفتیم، سه ماه پیش بود.",
+    "source": "tatoeba",
+    "upstreamId": "624712"
+  },
+  {
+    "text": "آیا این امکان برایتان وجود ندارد که آن دیدار را کسل کنید، و درعوض نزد من بیائید؟",
+    "source": "tatoeba",
+    "upstreamId": "624718"
+  },
+  {
+    "text": "تا جائی که من می توانم به خاطر بیاورم، او هیچگاه انسان غمگینی نیوده است.",
+    "source": "tatoeba",
+    "upstreamId": "624720"
+  },
+  {
+    "text": "او بدجوری سرما خورده است، و امشب نمی تواند بیاید.",
+    "source": "tatoeba",
+    "upstreamId": "624722"
+  },
+  {
+    "text": "اوقات خوبی در آنجا داشته باشید!",
+    "source": "tatoeba",
+    "upstreamId": "624724"
+  },
+  {
+    "text": "تا زمانی که آنجا می مانید، خوش بگذرانید.",
+    "source": "tatoeba",
+    "upstreamId": "624726"
+  },
+  {
+    "text": "به خاطر می آورم که ملکه را ملاقات کردم.",
+    "source": "tatoeba",
+    "upstreamId": "625915"
+  },
+  {
+    "text": "گاهی روزهای تعطیل سبب خستگی من می شوند.",
+    "source": "tatoeba",
+    "upstreamId": "625920"
+  },
+  {
+    "text": "من تعطیلات خیلی طولانی را دوست ندارم.",
+    "source": "tatoeba",
+    "upstreamId": "625922"
+  },
+  {
+    "text": "من تعطیلات زیاد و کوتاه را بر تعطیلات اندک و طولانی ترجیح می دهم.",
+    "source": "tatoeba",
+    "upstreamId": "625924"
+  },
+  {
+    "text": "خداحافظ تا پس از تعطیلات!",
+    "source": "tatoeba",
+    "upstreamId": "625926"
+  },
+  {
+    "text": "همانقدر که پیش از تعطیلات خوشحالم، همانقدر پس از آن ناراحتم.",
+    "source": "tatoeba",
+    "upstreamId": "625928"
+  },
+  {
+    "text": "من در طول تعطیلات اخیر با او آشنا شدم.",
+    "source": "tatoeba",
+    "upstreamId": "625930"
+  },
+  {
+    "text": "من فکر می کنم که شما او را با من آشنا کردید.",
+    "source": "tatoeba",
+    "upstreamId": "625932"
+  },
+  {
+    "text": "مدت مدیدی است که او را می شناسم، بسیار قابل اطمینان است.",
+    "source": "tatoeba",
+    "upstreamId": "625934"
+  },
+  {
+    "text": "از هیچ کسی شناخت عمیقی نمی توانید به دست آورید، زیرا شناخت عمیق خود شما نیز ممکن نیست.",
+    "source": "tatoeba",
+    "upstreamId": "625936"
+  },
+  {
+    "text": "اگر شما بتوانید خودتان را بشناسید، امکان این وجود دارد تا دیگران را نیز بشناسید.",
+    "source": "tatoeba",
+    "upstreamId": "625941"
+  },
+  {
+    "text": "وقتی که شما خودتان را نمی توانید بشناسید، چطور انتظار دارید تا به شناخت دیگران نائل آئید؟",
+    "source": "tatoeba",
+    "upstreamId": "625948"
+  },
+  {
+    "text": "در طول بیش از ده سال با او همکاری کرده ام، ولی هنوز او را بخوبی نمی شناسم.",
+    "source": "tatoeba",
+    "upstreamId": "625957"
+  },
+  {
+    "text": "امروز تمایل زیادی به دیدن شما دارم، آیا امکان این برای شما وجود دارد؟",
+    "source": "tatoeba",
+    "upstreamId": "625961"
+  },
+  {
+    "text": "هر آخرهفته من باید به طبیعت بروم، اگر نه، هفته بدی را پس از آن تجربه خواهم کرد.",
+    "source": "tatoeba",
+    "upstreamId": "625968"
+  },
+  {
+    "text": "هرگاه که بیمار می شوم، تمایلی به در خانه ماندن ندارم، چرا که این امر سبب طولانی تر شدن کسالتم می شود.",
+    "source": "tatoeba",
+    "upstreamId": "625971"
+  },
+  {
+    "text": "چیزی را که خوب است نخرید، چیزی را بخرید که احتیاج دارید.",
+    "source": "tatoeba",
+    "upstreamId": "625974"
+  },
+  {
+    "text": "من خرید هفتگی را بر خرید روزانه ترجیح می دهم.",
+    "source": "tatoeba",
+    "upstreamId": "625979"
+  },
+  {
+    "text": "برای خرید هفتگی راحت، باید اتومبیل داشته باشید.",
+    "source": "tatoeba",
+    "upstreamId": "625981"
+  },
+  {
+    "text": "تسلیت از صمیم قلب!",
+    "source": "tatoeba",
+    "upstreamId": "629048"
+  },
+  {
+    "text": "لطفاً تسلیت مرا بپذیرید!",
+    "source": "tatoeba",
+    "upstreamId": "629052"
+  },
+  {
+    "text": "همسر او فوت کرده، ما برای عرض تسلیت می رویم به خانه اش.",
+    "source": "tatoeba",
+    "upstreamId": "629061"
+  },
+  {
+    "text": "همسر درگذشته او، انسان خیلی خوبی بود.",
+    "source": "tatoeba",
+    "upstreamId": "629063"
+  },
+  {
+    "text": "فرد درگذشته را من از مدت ها پیش می شناختم.",
+    "source": "tatoeba",
+    "upstreamId": "629070"
+  },
+  {
+    "text": "بسیاری از همکاران نامه تسلیت برایم ارسال کردند.",
+    "source": "tatoeba",
+    "upstreamId": "629079"
+  },
+  {
+    "text": "صاحبان عزا در ته سالن ایستاده اند.",
+    "source": "tatoeba",
+    "upstreamId": "629111"
+  },
+  {
+    "text": "تسلیت گویندگاه چندتا چندتا وارد می شدند.",
+    "source": "tatoeba",
+    "upstreamId": "629116"
+  },
+  {
+    "text": "همین الآن او از خارج بازگشت.",
+    "source": "tatoeba",
+    "upstreamId": "629131"
+  },
+  {
+    "text": "پس از بازگشت از خارج، انگار او جوان تر شده است.",
+    "source": "tatoeba",
+    "upstreamId": "629136"
+  },
+  {
+    "text": "پس از غیبتی چنین طولانی، دلم برای دیدن مجدد شما واقعاً تنگ شده بود.",
+    "source": "tatoeba",
+    "upstreamId": "629142"
+  },
+  {
+    "text": "با چنین تغذیه ای او سبب چاقی بیشتر روز به روز پسرش می شود.",
+    "source": "tatoeba",
+    "upstreamId": "629144"
+  },
+  {
+    "text": "علی رغم شرایط حاضر، آنها واقعاً خوب کار می کنند.",
+    "source": "tatoeba",
+    "upstreamId": "629146"
+  },
+  {
+    "text": "او برخلاف پدرش، درآمد واقعاً زیادی دارد.",
+    "source": "tatoeba",
+    "upstreamId": "629151"
+  },
+  {
+    "text": "او مانند میلیاردرها زندگی می کند، هرچند از تمول زیادی بهرده ندارد.",
+    "source": "tatoeba",
+    "upstreamId": "629154"
+  },
+  {
+    "text": "او مانند فقرا زندگی می کند، هرچند فردی بسیار ثروتمند است.",
+    "source": "tatoeba",
+    "upstreamId": "629157"
+  },
+  {
+    "text": "تا پیش از چند سال قبل او خیلی ضعیف و لاغر یود، اما حالا خیلی قوی و به اندازه کافی فربه است.",
+    "source": "tatoeba",
+    "upstreamId": "629165"
+  },
+  {
+    "text": "من نمی دانم علت موفقیت ناگهانی او چیست.",
+    "source": "tatoeba",
+    "upstreamId": "629171"
+  },
+  {
+    "text": "به خاطر رفتارها و وضع برخوردهای خوب او، همه احترام عمیقی برای او قائل اند.",
+    "source": "tatoeba",
+    "upstreamId": "629176"
+  },
+  {
+    "text": "علت وجودی محترم بودن او، مسلماً دارائی اش نیست، چرا که به هیچ عنوان فرد ثروتمندی به شمار نمی آید.",
+    "source": "tatoeba",
+    "upstreamId": "629191"
+  },
+  {
+    "text": "پرندگان، یکی پس از دیگری به سوی آن درخت کهنسال پرواز کردند و بر روی آن نشستند.",
+    "source": "tatoeba",
+    "upstreamId": "629204"
+  },
+  {
+    "text": "علاوه بر رفتار خوبش، ظاهرش نیز انسان را جذب می کند.",
+    "source": "tatoeba",
+    "upstreamId": "629207"
+  },
+  {
+    "text": "امروز کارهای فراوانی دارم.",
+    "source": "tatoeba",
+    "upstreamId": "630052"
+  },
+  {
+    "text": "پس از کلاس به رستورانی برای صرف غذا با هم دیگر برویم!",
+    "source": "tatoeba",
+    "upstreamId": "630057"
+  },
+  {
+    "text": "این کتاب را از کتابخانه مرکزی امانت گرفته ام.",
+    "source": "tatoeba",
+    "upstreamId": "630059"
+  },
+  {
+    "text": "پس از مطالعه کامل کتاب، لصفاً نظرتان را راجع به آن به من بگوئید.",
+    "source": "tatoeba",
+    "upstreamId": "630061"
+  },
+  {
+    "text": "تا کنون رمانی به باورپذیری آن نخوانده بودم.",
+    "source": "tatoeba",
+    "upstreamId": "630064"
+  },
+  {
+    "text": "علاقه فراوانی به معام مان دارم.",
+    "source": "tatoeba",
+    "upstreamId": "630066"
+  },
+  {
+    "text": "او معلمی است هم پردانش و هم صادق.",
+    "source": "tatoeba",
+    "upstreamId": "630071"
+  },
+  {
+    "text": "شما هم انسانی مهمان نواز و هم دست و دل بازی هستید.",
+    "source": "tatoeba",
+    "upstreamId": "630074"
+  },
+  {
+    "text": "دوباره خواندن کتاب ها را بر دوباره دیدن فیلم ها ترجیح می دهم.",
+    "source": "tatoeba",
+    "upstreamId": "630077"
+  },
+  {
+    "text": "چرا شما همیشه پاسخ پیام های اینترنتی من را دیر می دهید؟",
+    "source": "tatoeba",
+    "upstreamId": "630082"
+  },
+  {
+    "text": "هر جا که هم اکنون هستید، اوقات خیلی خوشی را برای تان آرزو می کنم!",
+    "source": "tatoeba",
+    "upstreamId": "630087"
+  },
+  {
+    "text": "دیروز در این موقع، در آن سینما بودیم.",
+    "source": "tatoeba",
+    "upstreamId": "630091"
+  },
+  {
+    "text": "فردا، در این زمان، کنار دریا خواهیم بود.",
+    "source": "tatoeba",
+    "upstreamId": "630095"
+  },
+  {
+    "text": "هیچگاه زندگی یکسان نمی ماند.",
+    "source": "tatoeba",
+    "upstreamId": "630097"
+  },
+  {
+    "text": "خدا را شکر، که حال تان خوب است!",
+    "source": "tatoeba",
+    "upstreamId": "630099"
+  },
+  {
+    "text": "من داشتم نگران تان می شدم، که خوشبختانه با من تماس گرفتید.",
+    "source": "tatoeba",
+    "upstreamId": "630104"
+  },
+  {
+    "text": "هنگامی که در خارج از کشور بودم، عموی شما را ملاقات کردم.",
+    "source": "tatoeba",
+    "upstreamId": "630108"
+  },
+  {
+    "text": "خوشبختانه زخم من به سرعت در حال ناپدید شدن است.",
+    "source": "tatoeba",
+    "upstreamId": "630111"
+  },
+  {
+    "text": "بهتر است که زخم تان را دست نزنید.",
+    "source": "tatoeba",
+    "upstreamId": "630118"
+  },
+  {
+    "text": "چطور به این سرعت رسیدید؟!",
+    "source": "tatoeba",
+    "upstreamId": "630127"
+  },
+  {
+    "text": "چطور توانستید فردی به مهمی او را نادیده بگیرید؟!",
+    "source": "tatoeba",
+    "upstreamId": "630131"
+  },
+  {
+    "text": "هر چقدر فکر می کنم، نمی توانم هیچگونه خصوصیت بدی در او بیابم.",
+    "source": "tatoeba",
+    "upstreamId": "630142"
+  },
+  {
+    "text": "هنگامی که پرکارم، زمان با سرعت بسیار زیادی می گذرد.",
+    "source": "tatoeba",
+    "upstreamId": "630150"
+  },
+  {
+    "text": "در طول ماه اخیر، خیلی مشغول به کارهای متفاوت بودم.",
+    "source": "tatoeba",
+    "upstreamId": "630154"
+  },
+  {
+    "text": "در طول نشست اخیرمان، به تفصیل راجع به آن بحث کردیم، خاطرتان نیست؟",
+    "source": "tatoeba",
+    "upstreamId": "630158"
+  },
+  {
+    "text": "در حالی که از اتوبوس پیاده می شد، با صدای بلند با من خداحافظی کرد.",
+    "source": "tatoeba",
+    "upstreamId": "630161"
+  },
+  {
+    "text": "گفته های او هیچگاه برایم تکراری نیست.",
+    "source": "tatoeba",
+    "upstreamId": "630169"
+  },
+  {
+    "text": "همه می دانند که او هر کاری را که درواقع می توانست، برای فرزندانش انجام داده است.",
+    "source": "tatoeba",
+    "upstreamId": "630170"
+  },
+  {
+    "text": "دیگر وقت ناهار است، برویم به سوی سالن غذاخوری.",
+    "source": "tatoeba",
+    "upstreamId": "630175"
+  },
+  {
+    "text": "لطفاً این ظرف را محکم نگه دارید، چون خیلی قدیمی و گران است.",
+    "source": "tatoeba",
+    "upstreamId": "631538"
+  },
+  {
+    "text": "صدمات ناشی از آمد وشد جاده ای یکی از مشکلات عمده ی سلامت عمومی است و منجر به مرگ ومیر می شود.",
+    "source": "tatoeba",
+    "upstreamId": "631539"
+  },
+  {
+    "text": "آیا لطف می کنید فرمول سالاد اختراعی تان را به من بگوئید؟",
+    "source": "tatoeba",
+    "upstreamId": "631542"
+  },
+  {
+    "text": "من خیلی علاقه دارم تمام جزئیات زندگی شما را بدانم.",
+    "source": "tatoeba",
+    "upstreamId": "631545"
+  },
+  {
+    "text": "همیشه پس از ناهار دوست دارم شیرینی بخورم.",
+    "source": "tatoeba",
+    "upstreamId": "631732"
+  },
+  {
+    "text": "همیشه پس از خوردن شیرینیجات دندان هایم را مسواک می زنم.",
+    "source": "tatoeba",
+    "upstreamId": "631733"
+  },
+  {
+    "text": "آیا دیروز روز بین المللی دوستان خوب بود؟",
+    "source": "tatoeba",
+    "upstreamId": "631735"
+  },
+  {
+    "text": "از بین تمامی دوستان من، او صمیمی ترین است.",
+    "source": "tatoeba",
+    "upstreamId": "631747"
+  },
+  {
+    "text": "او بهترین دوست من است.",
+    "source": "tatoeba",
+    "upstreamId": "631750"
+  },
+  {
+    "text": "نشست ما کوتاه و مفید بود.",
+    "source": "tatoeba",
+    "upstreamId": "631792"
+  },
+  {
+    "text": "ما همایشی کاملاً مثمر داشتیم.",
+    "source": "tatoeba",
+    "upstreamId": "631794"
+  },
+  {
+    "text": "مسافرت ما بدون حضور شما خوب نخواهد بود.",
+    "source": "tatoeba",
+    "upstreamId": "631802"
+  },
+  {
+    "text": "تا هنگاهی که شما را نبینم، نمی توانم مسئله را به اطلاع تان برسانم.",
+    "source": "tatoeba",
+    "upstreamId": "631808"
+  },
+  {
+    "text": "فکر مکنم او با من آشتی کرده است؛ رفتارش این را نشان می دهد.",
+    "source": "tatoeba",
+    "upstreamId": "631811"
+  },
+  {
+    "text": "در دیدارها او همیشه هم دست میدهد با من، هم مرا می بوسد.",
+    "source": "tatoeba",
+    "upstreamId": "631823"
+  },
+  {
+    "text": "خیلی دوست داشتم همه چیز را در مورد شما بدانم.",
+    "source": "tatoeba",
+    "upstreamId": "631931"
+  },
+  {
+    "text": "از هنگامی که بیشتر با او آشنا شدم، عثیده ام درباره او کاملاً تغییر کرده است.",
+    "source": "tatoeba",
+    "upstreamId": "632628"
+  },
+  {
+    "text": "هرچه بیشتر ارا بشناسید، بیشتر از او خوشتان می آید.",
+    "source": "tatoeba",
+    "upstreamId": "632633"
+  },
+  {
+    "text": "در رای گیری، رای او ممتنع بود.",
+    "source": "tatoeba",
+    "upstreamId": "632639"
+  },
+  {
+    "text": "آیا فردا به خاطر آلودگی هوا تعطیل خواهد بود؟",
+    "source": "tatoeba",
+    "upstreamId": "632647"
+  },
+  {
+    "text": "فردا فقط سازمان های دولتی به خاطر آلودگی هوا تعطیل خواهد بود.",
+    "source": "tatoeba",
+    "upstreamId": "632657"
+  },
+  {
+    "text": "ببخشید، متوجه معنی جمله تان نشدم، لطف می کنید بیشتر توضیح دهید؟",
+    "source": "tatoeba",
+    "upstreamId": "632669"
+  },
+  {
+    "text": "او از سنین کودکی دوست داشت خلبان شود، و شد.",
+    "source": "tatoeba",
+    "upstreamId": "632676"
+  },
+  {
+    "text": "من همیشه دوست داشتم معلم شوم، ولی این اتفاق نیفتاد.",
+    "source": "tatoeba",
+    "upstreamId": "632692"
+  },
+  {
+    "text": "در این ساعت ترافیک سنگین است، بنابر این به موقع نخواهیم رسید.",
+    "source": "tatoeba",
+    "upstreamId": "632702"
+  },
+  {
+    "text": "او خیلی خوب از انسان عکس می گیرد.",
+    "source": "tatoeba",
+    "upstreamId": "632708"
+  },
+  {
+    "text": "عکس های او واقعاً زیباست.",
+    "source": "tatoeba",
+    "upstreamId": "632711"
+  },
+  {
+    "text": "برخی اوقات آرزو می کنید، که آدم های دیگری با شما هم رای بودند به جای آنهائی که هم اکنون هستند!",
+    "source": "tatoeba",
+    "upstreamId": "632728"
+  },
+  {
+    "text": "اگر می توانستم بار دیگر زندگی کنم، دوست داشتم در قرون بعدی زندگی کنم.",
+    "source": "tatoeba",
+    "upstreamId": "632736"
+  },
+  {
+    "text": "من خیلی بیشتر احساس آرامش می کردم.",
+    "source": "tatoeba",
+    "upstreamId": "632903"
+  },
+  {
+    "text": "ديروز ما حرف نمى زديم.",
+    "source": "tatoeba",
+    "upstreamId": "633922"
+  },
+  {
+    "text": "همسر من دکتر است.",
+    "source": "tatoeba",
+    "upstreamId": "634897"
+  },
+  {
+    "text": "هر زمان این تصویر را می بینم، به یادر پدرم می افتم.",
+    "source": "tatoeba",
+    "upstreamId": "634898"
+  },
+  {
+    "text": "هر کتابی را که می خوانی، با دقت بخوان.",
+    "source": "tatoeba",
+    "upstreamId": "634899"
+  },
+  {
+    "text": "او توسط پلیس دستگیر شد.",
+    "source": "tatoeba",
+    "upstreamId": "634900"
+  },
+  {
+    "text": "او دستش را بالا برد تا تاکسی را متوقف کند.",
+    "source": "tatoeba",
+    "upstreamId": "634901"
+  },
+  {
+    "text": "اتاق کوچک نیست.",
+    "source": "tatoeba",
+    "upstreamId": "634902"
+  },
+  {
+    "text": "من نمی توانستم این کار را بکنم اما برای کمک به او انجام دادم.",
+    "source": "tatoeba",
+    "upstreamId": "634903"
+  },
+  {
+    "text": "بگذار از کنار کلیسا بگذریم.",
+    "source": "tatoeba",
+    "upstreamId": "634904"
+  },
+  {
+    "text": "میگوئل از او نمی ترسید و خیلی کنجکاو بود.",
+    "source": "tatoeba",
+    "upstreamId": "634905"
+  },
+  {
+    "text": "پدر من به ندرت یکشنبه های بیرون می رود.",
+    "source": "tatoeba",
+    "upstreamId": "634906"
+  },
+  {
+    "text": "تعداد زیادی از مهمانان خارجی بودند.",
+    "source": "tatoeba",
+    "upstreamId": "634907"
+  },
+  {
+    "text": "من به آنجا رفتم چون می خواستم.",
+    "source": "tatoeba",
+    "upstreamId": "634908"
+  },
+  {
+    "text": "محافظان رئیس جمهور در مقابل ورودی مستقر شده اند.",
+    "source": "tatoeba",
+    "upstreamId": "634909"
+  },
+  {
+    "text": "اگر افرادی مفقودالاثر هستند، لطفا نام آنها را برای من بفرستید.",
+    "source": "tatoeba",
+    "upstreamId": "634910"
+  },
+  {
+    "text": "می خواهم دو مساله را مورد بررسی قرار دهم.",
+    "source": "tatoeba",
+    "upstreamId": "634911"
+  },
+  {
+    "text": "آخر هفته اخیر برای من ملالت آور بود.",
+    "source": "tatoeba",
+    "upstreamId": "637854"
+  },
+  {
+    "text": "دیروز در افتتاحیه یک نمایشگاه نقاشی شرکت کردم.",
+    "source": "tatoeba",
+    "upstreamId": "637857"
+  },
+  {
+    "text": "آیا اتفاقی افتاده است؟",
+    "source": "tatoeba",
+    "upstreamId": "637893"
+  },
+  {
+    "text": "دلیلی برای ناراحت بوئنتان نمی یابم.",
+    "source": "tatoeba",
+    "upstreamId": "637895"
+  },
+  {
+    "text": "در واقع من خیلی خوشحالم.",
+    "source": "tatoeba",
+    "upstreamId": "637897"
+  },
+  {
+    "text": "آخرین باری، که شما را دیدم، یک بچه بودید.",
+    "source": "tatoeba",
+    "upstreamId": "637900"
+  },
+  {
+    "text": "طبق یک ضرب المثل ترکی: روزها آرام، ولی سالها مانند باد می گذرند!",
+    "source": "tatoeba",
+    "upstreamId": "637905"
+  },
+  {
+    "text": "آن طور که من او را می شناسم، او به هیچ وجه کمک شما را نخواهد پذیرفت.",
+    "source": "tatoeba",
+    "upstreamId": "637908"
+  },
+  {
+    "text": "او هر دو زبان را کاملاً به یک اندازه می داند.",
+    "source": "tatoeba",
+    "upstreamId": "637913"
+  },
+  {
+    "text": "او بهتر از برادرش زبان بیگانه را می داند.",
+    "source": "tatoeba",
+    "upstreamId": "637915"
+  },
+  {
+    "text": "او کند، ولی صحیح تایپ می کند.",
+    "source": "tatoeba",
+    "upstreamId": "637918"
+  },
+  {
+    "text": "از سنین کودکی تا به حال او را ندیده بودم.",
+    "source": "tatoeba",
+    "upstreamId": "637922"
+  },
+  {
+    "text": "او علاقه عجیبی به مطالعه اشعار دارد.",
+    "source": "tatoeba",
+    "upstreamId": "637927"
+  },
+  {
+    "text": "شما هیچگاه از امروز لذت نمی برید، یا غم دیروز را می خورید، یا نگران فردائید!",
+    "source": "tatoeba",
+    "upstreamId": "637937"
+  },
+  {
+    "text": "آیا شما می توانید کیک بپذید؟",
+    "source": "tatoeba",
+    "upstreamId": "637942"
+  },
+  {
+    "text": "لطفاً سبزیجات را زیاد نپزید!",
+    "source": "tatoeba",
+    "upstreamId": "637945"
+  },
+  {
+    "text": "امشب غذائی را برایتان می پزم که از همه غذاها بیشتر دوست دارید.",
+    "source": "tatoeba",
+    "upstreamId": "637948"
+  },
+  {
+    "text": "بیش از دو هفته ست، که برنج نخورده ام.",
+    "source": "tatoeba",
+    "upstreamId": "637953"
+  },
+  {
+    "text": "برنج انسان را چاق می کند، زیاد نخورید!",
+    "source": "tatoeba",
+    "upstreamId": "637956"
+  },
+  {
+    "text": "اگر شما بتوانید او را وادار سازید تا عضو کتابخانه شود، من به شما جایزه با ارزشی خواهم داد.",
+    "source": "tatoeba",
+    "upstreamId": "637961"
+  },
+  {
+    "text": "عضویت او را ملغی ساختند، زیرا شهریه اش را به موقع نپرداخت.",
+    "source": "tatoeba",
+    "upstreamId": "637964"
+  },
+  {
+    "text": "عضو شدن در این کتابخانه بسیار آسان است.",
+    "source": "tatoeba",
+    "upstreamId": "637968"
+  },
+  {
+    "text": "به او دیگر کتاب امانت نمی دهند، چرا که عضویت اش به اتمام رسیده است.",
+    "source": "tatoeba",
+    "upstreamId": "637972"
+  },
+  {
+    "text": "او دوباره بدون خداحافظی رفت!",
+    "source": "tatoeba",
+    "upstreamId": "637976"
+  },
+  {
+    "text": "او همیشه فراموش می کند موقع رفتن با انسان خداحافظی کند.",
+    "source": "tatoeba",
+    "upstreamId": "637979"
+  },
+  {
+    "text": "من تلویزیون نگاه می کنم.",
+    "source": "tatoeba",
+    "upstreamId": "639997"
+  },
+  {
+    "text": "آن فیل به باغ وحش برده شد.",
+    "source": "tatoeba",
+    "upstreamId": "639998"
+  },
+  {
+    "text": "بچه گریه می کند.",
+    "source": "tatoeba",
+    "upstreamId": "639999"
+  },
+  {
+    "text": "رئیس جمهور کجاست؟",
+    "source": "tatoeba",
+    "upstreamId": "640000"
+  },
+  {
+    "text": "والدینم مرا درک نمی کنند.",
+    "source": "tatoeba",
+    "upstreamId": "640105"
+  },
+  {
+    "text": "گل ها بوی خوبی می دهند.",
+    "source": "tatoeba",
+    "upstreamId": "640108"
+  },
+  {
+    "text": "او از توکیو به من زنگ زد.",
+    "source": "tatoeba",
+    "upstreamId": "640121"
+  },
+  {
+    "text": "او ترتیب کارها را داده تا او را به یک بیمارستان خوب ببرد.",
+    "source": "tatoeba",
+    "upstreamId": "640133"
+  },
+  {
+    "text": "من یک جفت دستکش خریدم.",
+    "source": "tatoeba",
+    "upstreamId": "640137"
+  },
+  {
+    "text": "مادر کیک را به سه قسمت تقسیم کرد.",
+    "source": "tatoeba",
+    "upstreamId": "640139"
+  },
+  {
+    "text": "سفر کردن به گذشته مسئله ای غیر ممکن تلقی شده است.",
+    "source": "tatoeba",
+    "upstreamId": "640142"
+  },
+  {
+    "text": "آیا آنها در آن فروشگاه دفتر می فروشند؟",
+    "source": "tatoeba",
+    "upstreamId": "640145"
+  },
+  {
+    "text": "شیر ضد مسمومیت است.",
+    "source": "tatoeba",
+    "upstreamId": "640562"
+  },
+  {
+    "text": "هر روز دست کم دو لیوان شیر بنوشید.",
+    "source": "tatoeba",
+    "upstreamId": "640564"
+  },
+  {
+    "text": "نوشیدن شیر گرم، پیش از به تختخواب رفتن واقعاً برای خواب خوب کمک می کند.",
+    "source": "tatoeba",
+    "upstreamId": "640571"
+  },
+  {
+    "text": "هرچه شب زودتر به تخت خواب بروم، صبح زودتر از نخت خواب در می آیم.",
+    "source": "tatoeba",
+    "upstreamId": "640576"
+  },
+  {
+    "text": "ترجیح می دهم، اگر ممکن باشد صبح زود بیدار شوم.",
+    "source": "tatoeba",
+    "upstreamId": "640580"
+  },
+  {
+    "text": "واقعاً سختم است صبح ها بیدارتان کنم!",
+    "source": "tatoeba",
+    "upstreamId": "640593"
+  },
+  {
+    "text": "وقتی سن تان کمتر بود، صبح ها راحت تر بیدار می شدید.",
+    "source": "tatoeba",
+    "upstreamId": "640597"
+  },
+  {
+    "text": "کارهای انرژی بر خواب انسان را بهبود می بخشند.",
+    "source": "tatoeba",
+    "upstreamId": "640599"
+  },
+  {
+    "text": "هنگامی که خواب شب ام کم است، انرژی کافی برای کارهایم ندارم.",
+    "source": "tatoeba",
+    "upstreamId": "640606"
+  },
+  {
+    "text": "هنگامی که شب زیاد غذا می خورم، خواب های بد می بینم.",
+    "source": "tatoeba",
+    "upstreamId": "640619"
+  },
+  {
+    "text": "خیلی دوست داشتم امروز شما را ببینم، اما کارم نگذاشت.",
+    "source": "tatoeba",
+    "upstreamId": "640622"
+  },
+  {
+    "text": "من هرگز نمی توانم از دیگران کار بکشم، همیشه ترجیح می دهم همه کار ها را خودم انجام دهم.",
+    "source": "tatoeba",
+    "upstreamId": "640624"
+  },
+  {
+    "text": "اگر او بتواند بیاید، من هم پیش تان خواهم آمد.",
+    "source": "tatoeba",
+    "upstreamId": "640630"
+  },
+  {
+    "text": "هیچ چیزی نمی تواند جای زمان را بگیرد.",
+    "source": "tatoeba",
+    "upstreamId": "640634"
+  },
+  {
+    "text": "من امروز چند بار به شما تلفن زدم، ولی جواب ندادید.",
+    "source": "tatoeba",
+    "upstreamId": "640638"
+  },
+  {
+    "text": "او همیشه تلفن همراه اش را گم می کند.",
+    "source": "tatoeba",
+    "upstreamId": "640641"
+  },
+  {
+    "text": "شاید تلفن همراه تان را در خانه جا گذاشته اید.",
+    "source": "tatoeba",
+    "upstreamId": "640644"
+  },
+  {
+    "text": "هنگامی که تلفن همراه ام پیشم نیست، راحت ترم!",
+    "source": "tatoeba",
+    "upstreamId": "640647"
+  },
+  {
+    "text": "امروز حتماً تلفن همراه تان را به همراه خود داشته باشید، شاید احتیاج پیدا کنم با شما صحبت کنم.",
+    "source": "tatoeba",
+    "upstreamId": "640653"
+  },
+  {
+    "text": "من واقعاً ناراحتم، که امشب نمی توانم بیابم پیش شما.",
+    "source": "tatoeba",
+    "upstreamId": "640656"
+  },
+  {
+    "text": "لطفاً کاری را که دوست دارید انجام دهید، من نمی خواهم برنامه شما را تغییر دهم.",
+    "source": "tatoeba",
+    "upstreamId": "640662"
+  },
+  {
+    "text": "من پیش او خواهم رفت، چه شما بیائید، چه نه.",
+    "source": "tatoeba",
+    "upstreamId": "640666"
+  },
+  {
+    "text": "زمان نشان خواهد داد کدامیک از ما بر حقیم.",
+    "source": "tatoeba",
+    "upstreamId": "640669"
+  },
+  {
+    "text": "من قبلاً یک بعدی فکر می کردم، ولی حالا جند بعدی، اگر نه چندین بعدی.",
+    "source": "tatoeba",
+    "upstreamId": "640674"
+  },
+  {
+    "text": "هر چه سن انسان بیشتر می شود، فهیم تر می گردد.",
+    "source": "tatoeba",
+    "upstreamId": "640679"
+  },
+  {
+    "text": "هر چه سن انسان بالاتر می رود، درک او بیشتر می گردد.",
+    "source": "tatoeba",
+    "upstreamId": "640680"
+  },
+  {
+    "text": "عصر حاضر را تساهل بیشتر، و تعصب کمتر متمایز می نماید.",
+    "source": "tatoeba",
+    "upstreamId": "640685"
+  },
+  {
+    "text": "دنیا در جهت خوبی در حرکت است، اگر انسان از کمی دورتر به حرکت آن بنگرد.",
+    "source": "tatoeba",
+    "upstreamId": "640700"
+  },
+  {
+    "text": "امنیدوارم که همه چیز باعث بهبود جهان و بشریت گردد.",
+    "source": "tatoeba",
+    "upstreamId": "640710"
+  },
+  {
+    "text": "دو پروفسور فیزیک ایرانی ترور شدند.",
+    "source": "tatoeba",
+    "upstreamId": "640856"
+  },
+  {
+    "text": "او از من شروع کرد.",
+    "source": "tatoeba",
+    "upstreamId": "641195"
+  },
+  {
+    "text": "قطار سرعت گرفت.",
+    "source": "tatoeba",
+    "upstreamId": "641197"
+  },
+  {
+    "text": "این اتاق برای چندین منظور استفاده می شود.",
+    "source": "tatoeba",
+    "upstreamId": "641198"
+  },
+  {
+    "text": "چند تا خواهر داری؟",
+    "source": "tatoeba",
+    "upstreamId": "641199"
+  },
+  {
+    "text": "امروز هوا بیش از حد آلوده است.",
+    "source": "tatoeba",
+    "upstreamId": "642758"
+  },
+  {
+    "text": "دیروز هوا آلودگی کمتری داشت.",
+    "source": "tatoeba",
+    "upstreamId": "642762"
+  },
+  {
+    "text": "پیش بینی می کنند که فردا هوا آلودگی کمتری خواهد داشت.",
+    "source": "tatoeba",
+    "upstreamId": "642765"
+  },
+  {
+    "text": "خودروهای گازسوز کمتر از خودروهای بنزینی هوا را آلوده می کنند.",
+    "source": "tatoeba",
+    "upstreamId": "642772"
+  },
+  {
+    "text": "شهرها مراکز آلوده کننده هوا هستند.",
+    "source": "tatoeba",
+    "upstreamId": "642775"
+  },
+  {
+    "text": "شهرها باعث ایجاد پدیده ای می شوند تحت عنوان جزیره حرارت شهری، که سبب آلودگی هوا می گردد.",
+    "source": "tatoeba",
+    "upstreamId": "642784"
+  },
+  {
+    "text": "هر چقدر محیط مصنوعی وسیع تر باشد، همانقدر جزیره حرارت شهری بزرگ تر است، و همانقدر هوا آلوده تر است.",
+    "source": "tatoeba",
+    "upstreamId": "642788"
+  },
+  {
+    "text": "بام های سبز از تاثیر جزیره حرارت شهری می کاهند.",
+    "source": "tatoeba",
+    "upstreamId": "642793"
+  },
+  {
+    "text": "بام های سبز یا بازتابنده از تاثیر جزیره حرارت شهری می کاهند.",
+    "source": "tatoeba",
+    "upstreamId": "642800"
+  },
+  {
+    "text": "بام های سرد یا بازتابنده کم هزینه تر از بام های سبز هستند.",
+    "source": "tatoeba",
+    "upstreamId": "642805"
+  },
+  {
+    "text": "دیوارهای سبز از تاثیر جزیره حرارت شهری می کاهند، و درنتیجه سبب کاهش آلودگی هوا می شوند.",
+    "source": "tatoeba",
+    "upstreamId": "642811"
+  },
+  {
+    "text": "آلوده کننده ترین عامل هوا خودروها هستند.",
+    "source": "tatoeba",
+    "upstreamId": "642817"
+  },
+  {
+    "text": "مثل همیشه، کیکو یک لبخند خوشایند به ما نشان داد.",
+    "source": "tatoeba",
+    "upstreamId": "644117"
+  },
+  {
+    "text": "به منظور برگشتن به مکان اصلی ام... دیروز آن گزارش را به توکیو ارسال کردم.",
+    "source": "tatoeba",
+    "upstreamId": "644121"
+  },
+  {
+    "text": "او را برای عمل جراحی ببر.",
+    "source": "tatoeba",
+    "upstreamId": "644126"
+  },
+  {
+    "text": "الآن ساعت ازدحام و شلوغی در توکیو است.",
+    "source": "tatoeba",
+    "upstreamId": "644127"
+  },
+  {
+    "text": "یونانی ها گاهی ماهی بسیار می خورند.",
+    "source": "tatoeba",
+    "upstreamId": "644128"
+  },
+  {
+    "text": "جک به انگلیسی صحبت می کند.",
+    "source": "tatoeba",
+    "upstreamId": "644131"
+  },
+  {
+    "text": "میگو به دسته ی حیوانات دریایی تعلق دارد.",
+    "source": "tatoeba",
+    "upstreamId": "644133"
+  },
+  {
+    "text": "ناگهان باران باریدن گرفت.",
+    "source": "tatoeba",
+    "upstreamId": "644139"
+  },
+  {
+    "text": "از زمانی که او در آشپزخانه افتاد، عقل سالم نداشته است.",
+    "source": "tatoeba",
+    "upstreamId": "644142"
+  },
+  {
+    "text": "به حرفش گوش نکن.",
+    "source": "tatoeba",
+    "upstreamId": "644144"
+  },
+  {
+    "text": "من فکر می کنم که او درست می گوید.",
+    "source": "tatoeba",
+    "upstreamId": "644146"
+  },
+  {
+    "text": "همه چیز طبق برنامه است.",
+    "source": "tatoeba",
+    "upstreamId": "644150"
+  },
+  {
+    "text": "او برای فندک دست به جیبش برد.",
+    "source": "tatoeba",
+    "upstreamId": "644154"
+  },
+  {
+    "text": "همه ی پلیس ها شجاع نیستند.",
+    "source": "tatoeba",
+    "upstreamId": "644156"
+  },
+  {
+    "text": "رنگ دوست داشتنی من قرمز است.",
+    "source": "tatoeba",
+    "upstreamId": "644161"
+  },
+  {
+    "text": "آیا خسته نیستی؟",
+    "source": "tatoeba",
+    "upstreamId": "644162"
+  },
+  {
+    "text": "تحقیقات شروع می شود.",
+    "source": "tatoeba",
+    "upstreamId": "644165"
+  },
+  {
+    "text": "من بیش از این نمی توانم به شما کمک کنم.",
+    "source": "tatoeba",
+    "upstreamId": "644279"
+  },
+  {
+    "text": "در هرجائی هم آدم های خوب پیدا می شوند هم آدم های بد.",
+    "source": "tatoeba",
+    "upstreamId": "644283"
+  },
+  {
+    "text": "هر از گاهی به یاد روزهای پر از شادمانی گذشته مان می افتم.",
+    "source": "tatoeba",
+    "upstreamId": "645242"
+  },
+  {
+    "text": "دیشب جشن کوچکی در خانه داشتیم.",
+    "source": "tatoeba",
+    "upstreamId": "645376"
+  },
+  {
+    "text": "دوست داشتم، که شما هم در جشن دیشب ما بودید.",
+    "source": "tatoeba",
+    "upstreamId": "645394"
+  },
+  {
+    "text": "هرقدر سعی می کنم، نمی توانم تصور کنم که دنیا با یک زیان بین المللی مشترک چگونه خواهد بود.",
+    "source": "tatoeba",
+    "upstreamId": "645399"
+  },
+  {
+    "text": "شماره تلفن من دوباره تغییر کرده است.",
+    "source": "tatoeba",
+    "upstreamId": "645405"
+  },
+  {
+    "text": "شماره تلفن جدید شما چیست؟",
+    "source": "tatoeba",
+    "upstreamId": "645408"
+  },
+  {
+    "text": "الآن با حداکثر سرعتی که می توانم، مشغول تایپ کردنم.",
+    "source": "tatoeba",
+    "upstreamId": "645416"
+  },
+  {
+    "text": "من عاشق این گفته تاگور هستم، که: در خواب زندگی را شادمانی دیدم، پس از بیداری آن را خدمت کردن یافتم؛ بنابر این نتیجه گیری کردم که خدمت کردن شادمانی است.",
+    "source": "tatoeba",
+    "upstreamId": "645424"
+  },
+  {
+    "text": "من وقت کافی در اختیار دارم، اما نمی دانم چرا خوب از آن استفاده نمی کنم.",
+    "source": "tatoeba",
+    "upstreamId": "645442"
+  },
+  {
+    "text": "من همیشه از بهره گیری از روایت های جدید برنامه های رایانه ای استقبال می کنم.",
+    "source": "tatoeba",
+    "upstreamId": "645449"
+  },
+  {
+    "text": "تقریباً تمامی خصوصیات انسانی دارای دو حد متضاد هستند، به عنوان مثال: ترس و احتیاط، شجاعت و حماقت، و غیره.",
+    "source": "tatoeba",
+    "upstreamId": "645464"
+  },
+  {
+    "text": "من دیگر به این نکته رسیده ام، که: حتی زمانی که راجع به جیزی اطمینان دارم، همچنان احتمال اشتباه کردن هست.",
+    "source": "tatoeba",
+    "upstreamId": "645467"
+  },
+  {
+    "text": "من دیگر خودم را شناخته ام: اگر برای چند دقیقه در مقابل به خواب رفتن مقاومت کنم، به کلی از بین می رود.",
+    "source": "tatoeba",
+    "upstreamId": "645472"
+  },
+  {
+    "text": "هنگامی که جوان تر بودم، صبر کمتری داشتم.",
+    "source": "tatoeba",
+    "upstreamId": "645475"
+  },
+  {
+    "text": "جوانی به دل و خلق و خو بستگی دارد، نه به سن و سال.",
+    "source": "tatoeba",
+    "upstreamId": "645479"
+  },
+  {
+    "text": "اگر هم اکنون اینجا، در کنار من بودید، من بسیار خوشحال تر بودم.",
+    "source": "tatoeba",
+    "upstreamId": "645481"
+  },
+  {
+    "text": "شاید دوست داشتن از دوست داشته شدن مهم تر باشد، من نمی دانم.",
+    "source": "tatoeba",
+    "upstreamId": "645483"
+  },
+  {
+    "text": "عشق ایده آل، عشق متقابل است.",
+    "source": "tatoeba",
+    "upstreamId": "645487"
+  },
+  {
+    "text": "بنابر مقاله ای در یک شماره قدیمی مجله کنتاکتو، فراگیری از دست دادن خیلی خیلی مهم است.",
+    "source": "tatoeba",
+    "upstreamId": "645489"
+  },
+  {
+    "text": "انسان باید همیشه آماده از دست دادن هر چیزی باشد.",
+    "source": "tatoeba",
+    "upstreamId": "645491"
+  },
+  {
+    "text": "هرگونه از دست دادنی می تواند گونه ای به دست آوردن باشد.",
+    "source": "tatoeba",
+    "upstreamId": "645493"
+  },
+  {
+    "text": "هر باختی می تواند گونه ای برد محسوب شود.",
+    "source": "tatoeba",
+    "upstreamId": "645494"
+  },
+  {
+    "text": "هرگز نمی توانید مطمئن باشید که از دست دادن یک چیز در نهایت به نفع یا ضرر شماست.",
+    "source": "tatoeba",
+    "upstreamId": "645496"
+  },
+  {
+    "text": "گاهی یک باخت یک برد است، اگر انسان درست موضوع را درک کند.",
+    "source": "tatoeba",
+    "upstreamId": "645498"
+  },
+  {
+    "text": "گاهی یک برد یک باخت است، اگر انسان درست موضوع را درک کند.",
+    "source": "tatoeba",
+    "upstreamId": "645500"
+  },
+  {
+    "text": "باخت یا برد را ذهن ما تصمیم می گیرد، اگر نه، در جهان خارج وجود ندارند.",
+    "source": "tatoeba",
+    "upstreamId": "645502"
+  },
+  {
+    "text": "امروز هوا خیلی خوب است.",
+    "source": "tatoeba",
+    "upstreamId": "646899"
+  },
+  {
+    "text": "امروز هوا از دیروز خیلی بهتر است.",
+    "source": "tatoeba",
+    "upstreamId": "646901"
+  },
+  {
+    "text": "دیروز باران زیادی بارید.",
+    "source": "tatoeba",
+    "upstreamId": "646907"
+  },
+  {
+    "text": "نم نم باران مستمر دیشب برای ما در پارک بسیار خوشایند بود.",
+    "source": "tatoeba",
+    "upstreamId": "646912"
+  },
+  {
+    "text": "خیلی مشتاقم امروز ببینمتان.",
+    "source": "tatoeba",
+    "upstreamId": "647134"
+  },
+  {
+    "text": "آن قابلمه بزرگ روی میز آشپزخانه است.",
+    "source": "tatoeba",
+    "upstreamId": "647451"
+  },
+  {
+    "text": "گاهی انتظار کشیدن چقدر سخت است!",
+    "source": "tatoeba",
+    "upstreamId": "647466"
+  },
+  {
+    "text": "پس از آن همه کار طولانی، حالا استراحت خیلی خوشایند است.",
+    "source": "tatoeba",
+    "upstreamId": "647470"
+  },
+  {
+    "text": "پس از آنهمه انتظار طولانی، آخر نتوانستم شما را ببینم.",
+    "source": "tatoeba",
+    "upstreamId": "647474"
+  },
+  {
+    "text": "امیدوارم به زودی دوباره شما را ببینم.",
+    "source": "tatoeba",
+    "upstreamId": "647477"
+  },
+  {
+    "text": "دیدار ما بسیار کوتاه بود - با کمال تاسف!",
+    "source": "tatoeba",
+    "upstreamId": "647485"
+  },
+  {
+    "text": "در دیدار بعدی مان، بیشتر راجع به خودمان صحبت خواهیم کرد.",
+    "source": "tatoeba",
+    "upstreamId": "647491"
+  },
+  {
+    "text": "هنگامی که بچه بودم، خانه مان بزرگ تر از اکنون به نظر می رسید.",
+    "source": "tatoeba",
+    "upstreamId": "647499"
+  },
+  {
+    "text": "هرگونه تغییری در انسان، تنها در طول مدت نسبتاً طولانی ای اتفاق می افتد.",
+    "source": "tatoeba",
+    "upstreamId": "647507"
+  },
+  {
+    "text": "تغییرات انسان ممکن است، اما تنها به کندی و پس از زمانی طولانی.",
+    "source": "tatoeba",
+    "upstreamId": "647519"
+  },
+  {
+    "text": "تغییرات آدم ها آنقدر کند است، که انسان نمی تواند متوجه آنها شود.",
+    "source": "tatoeba",
+    "upstreamId": "647539"
+  },
+  {
+    "text": "در برخی از موارد، عدم تغییر مشکل تر از تغییر کردن است.",
+    "source": "tatoeba",
+    "upstreamId": "647553"
+  },
+  {
+    "text": "نه، نمی توانم این گفته شما را باور کنم.",
+    "source": "tatoeba",
+    "upstreamId": "647561"
+  },
+  {
+    "text": "او خیلی سعی کرد صحبتش را قابل قبول جلوه دهد، اما موفق نشد.",
+    "source": "tatoeba",
+    "upstreamId": "647568"
+  },
+  {
+    "text": "دندان های اسب پیشکشی را نمی شمارند.",
+    "source": "tatoeba",
+    "upstreamId": "647577"
+  },
+  {
+    "text": "اسب پیشکشی را به دندانش نگاه نمی کنند.",
+    "source": "tatoeba",
+    "upstreamId": "647612"
+  },
+  {
+    "text": "زنده باد سحرخیزی!",
+    "source": "tatoeba",
+    "upstreamId": "650114"
+  },
+  {
+    "text": "سحرخیز بااش تا کامروا باشی!",
+    "source": "tatoeba",
+    "upstreamId": "650115"
+  },
+  {
+    "text": "هرگز صیح به این زودی بیدار نبوده ام.",
+    "source": "tatoeba",
+    "upstreamId": "650117"
+  },
+  {
+    "text": "صبح زود بیدارتان خواهم کرد، خوب است؟",
+    "source": "tatoeba",
+    "upstreamId": "650119"
+  },
+  {
+    "text": "لطفاً مرا صبح زود بیدار کنید!",
+    "source": "tatoeba",
+    "upstreamId": "650121"
+  },
+  {
+    "text": "امروز صبح خیلی زود بیدار شدم.",
+    "source": "tatoeba",
+    "upstreamId": "650125"
+  },
+  {
+    "text": "هنگامی که صبح زود بیدار می شوم، روز بهتری را تجربه می کنم، شما هم همین طور؟",
+    "source": "tatoeba",
+    "upstreamId": "650127"
+  },
+  {
+    "text": "فردا صبح زود برای کوه نوردی بیدار شویم، موافقید؟",
+    "source": "tatoeba",
+    "upstreamId": "650129"
+  },
+  {
+    "text": "اگر برای کوه نوردی دیر راه بیفتیم، به خاطر آفتاب بیش از اندازه گرم مان خواهد شد.",
+    "source": "tatoeba",
+    "upstreamId": "650131"
+  },
+  {
+    "text": "حتی زمانی که هوا گرم است، در طول کوه نوردی انسان گرمش می شود.",
+    "source": "tatoeba",
+    "upstreamId": "650134"
+  },
+  {
+    "text": "برنامه مان این آخر هنته کوه نوردی به سوی قله ای بسیار مرتفع است.",
+    "source": "tatoeba",
+    "upstreamId": "650137"
+  },
+  {
+    "text": "تاکنون با کوه نوردی به هیچ قله بسیار مرتفعی نرسیده ام.",
+    "source": "tatoeba",
+    "upstreamId": "650140"
+  },
+  {
+    "text": "او تاکنون قله های بسیار مرتفع زیادی را فتح کرده است.",
+    "source": "tatoeba",
+    "upstreamId": "650142"
+  },
+  {
+    "text": "کوه نوردی می تواند صبر و تحمل را به انسان بیاموزد.",
+    "source": "tatoeba",
+    "upstreamId": "650146"
+  },
+  {
+    "text": "هنگام کوه نوردی تنهائی، انسان می تواند به خوبی به مراقبه بپردازد.",
+    "source": "tatoeba",
+    "upstreamId": "650150"
+  },
+  {
+    "text": "هنگامی که به تنهائی مشغول کوه نوردی هستم، قادرم به خوبی مراقبه کنم.",
+    "source": "tatoeba",
+    "upstreamId": "650153"
+  },
+  {
+    "text": "گاهی دوشت دارم به تنهائی کوه نوردی کنم، بقیه اوقات دسته جمعی.",
+    "source": "tatoeba",
+    "upstreamId": "650156"
+  },
+  {
+    "text": "شعر حافظ چنین می گوید: \"جریده رو، که گذرگاه عافیت تنگ است!\"",
+    "source": "tatoeba",
+    "upstreamId": "650159"
+  },
+  {
+    "text": "شعر حافظ می گوید: \"از صدای سخن عشق ندیدم خوش تر!\"",
+    "source": "tatoeba",
+    "upstreamId": "650166"
+  },
+  {
+    "text": "آیا فیلم خوبی می شناسید؟",
+    "source": "tatoeba",
+    "upstreamId": "650212"
+  },
+  {
+    "text": "آیا اخیراً قیلم خوبی دیده اید؟",
+    "source": "tatoeba",
+    "upstreamId": "650216"
+  },
+  {
+    "text": "اخیراً یک فیلم عالی دیدم.",
+    "source": "tatoeba",
+    "upstreamId": "650217"
+  },
+  {
+    "text": "نام فیلمی، که از همه بیشتر دوست دارید چیست؟",
+    "source": "tatoeba",
+    "upstreamId": "650221"
+  },
+  {
+    "text": "نام فیلمی، که دیشب دیدیم چیست؟",
+    "source": "tatoeba",
+    "upstreamId": "650222"
+  },
+  {
+    "text": "تقریباً هفته ای یک فیلم سینمائی می بینم.",
+    "source": "tatoeba",
+    "upstreamId": "650225"
+  },
+  {
+    "text": "من فیلم های سینمائی را به فیلم های مستند ترجیح می دهم.",
+    "source": "tatoeba",
+    "upstreamId": "650227"
+  },
+  {
+    "text": "نه، هنوز نروید.",
+    "source": "tatoeba",
+    "upstreamId": "650228"
+  },
+  {
+    "text": "او داستان غمگینی را برایم تعریف کرد.",
+    "source": "tatoeba",
+    "upstreamId": "650229"
+  },
+  {
+    "text": "دزدی برای سرقت پول وارد خانه شده بود.",
+    "source": "tatoeba",
+    "upstreamId": "650231"
+  },
+  {
+    "text": "اگر آب نباشد، گیاهان می میرند.",
+    "source": "tatoeba",
+    "upstreamId": "650232"
+  },
+  {
+    "text": "دیروز بیمار بودم.",
+    "source": "tatoeba",
+    "upstreamId": "650233"
+  },
+  {
+    "text": "دیروز کسالت داشتم.",
+    "source": "tatoeba",
+    "upstreamId": "650234"
+  },
+  {
+    "text": "دیروز مریض بودم.",
+    "source": "tatoeba",
+    "upstreamId": "650236"
+  },
+  {
+    "text": "سالن همایش همین الآن اشغال شد.",
+    "source": "tatoeba",
+    "upstreamId": "650237"
+  },
+  {
+    "text": "خانواده من هر زمستان به اسکی می روند.",
+    "source": "tatoeba",
+    "upstreamId": "650238"
+  }
+]

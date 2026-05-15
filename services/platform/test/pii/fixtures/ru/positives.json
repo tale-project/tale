@@ -1,0 +1,3359 @@
+{
+  "_meta": {
+    "locale": "ru",
+    "generator": "platform/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 304,
+      "negatives": 0
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "positives": [
+    {
+      "id": "email-ru-00000",
+      "input": "Доставить по адресу alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00001",
+      "input": "Адрес: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00002",
+      "input": "Клиент проживает по адресу marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00003",
+      "input": "Корреспонденцию отправлять на anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00004",
+      "input": "Почтовый адрес — alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00005",
+      "input": "Доставить по адресу johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00006",
+      "input": "Адрес: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00007",
+      "input": "Клиент проживает по адресу anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 52
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00008",
+      "input": "Корреспонденцию отправлять на alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00009",
+      "input": "Почтовый адрес — john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00010",
+      "input": "Доставить по адресу mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00011",
+      "input": "Адрес: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00012",
+      "input": "Клиент проживает по адресу alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00013",
+      "input": "Корреспонденцию отправлять на john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00014",
+      "input": "Почтовый адрес — marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00015",
+      "input": "Доставить по адресу anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00016",
+      "input": "Адрес: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00017",
+      "input": "Клиент проживает по адресу johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00018",
+      "input": "Корреспонденцию отправлять на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00019",
+      "input": "Почтовый адрес — anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00020",
+      "input": "Доставить по адресу alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00021",
+      "input": "Адрес: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00022",
+      "input": "Клиент проживает по адресу mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00023",
+      "input": "Корреспонденцию отправлять на annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00024",
+      "input": "Почтовый адрес — alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00025",
+      "input": "Доставить по адресу john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00026",
+      "input": "Адрес: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00027",
+      "input": "Клиент проживает по адресу anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 52
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00028",
+      "input": "Корреспонденцию отправлять на alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 52
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00029",
+      "input": "Почтовый адрес — johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00030",
+      "input": "Доставить по адресу mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00031",
+      "input": "Адрес: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00032",
+      "input": "Клиент проживает по адресу alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00033",
+      "input": "Корреспонденцию отправлять на john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00034",
+      "input": "Почтовый адрес — mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00035",
+      "input": "Доставить по адресу annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00036",
+      "input": "Адрес: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00037",
+      "input": "Клиент проживает по адресу john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00038",
+      "input": "Корреспонденцию отправлять на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00039",
+      "input": "Почтовый адрес — anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00040",
+      "input": "Доставить по адресу alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00041",
+      "input": "Адрес: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00042",
+      "input": "Клиент проживает по адресу mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00043",
+      "input": "Корреспонденцию отправлять на anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00044",
+      "input": "Почтовый адрес — alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00045",
+      "input": "Доставить по адресу john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00046",
+      "input": "Адрес: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00047",
+      "input": "Клиент проживает по адресу annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00048",
+      "input": "Корреспонденцию отправлять на alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 52
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00049",
+      "input": "Почтовый адрес — john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00050",
+      "input": "Доставить по адресу marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00051",
+      "input": "Адрес: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00052",
+      "input": "Клиент проживает по адресу alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00053",
+      "input": "Корреспонденцию отправлять на johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00054",
+      "input": "Почтовый адрес — mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00055",
+      "input": "Доставить по адресу anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00056",
+      "input": "Адрес: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00057",
+      "input": "Клиент проживает по адресу john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00058",
+      "input": "Корреспонденцию отправлять на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00059",
+      "input": "Почтовый адрес — annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00060",
+      "input": "Доставить по адресу alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00061",
+      "input": "Адрес: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00062",
+      "input": "Клиент проживает по адресу marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00063",
+      "input": "Корреспонденцию отправлять на anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00064",
+      "input": "Почтовый адрес — alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00065",
+      "input": "Доставить по адресу johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00066",
+      "input": "Адрес: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00067",
+      "input": "Клиент проживает по адресу anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 52
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00068",
+      "input": "Корреспонденцию отправлять на alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00069",
+      "input": "Почтовый адрес — john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00070",
+      "input": "Доставить по адресу mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00071",
+      "input": "Адрес: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00072",
+      "input": "Клиент проживает по адресу alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00073",
+      "input": "Корреспонденцию отправлять на john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00074",
+      "input": "Почтовый адрес — marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00075",
+      "input": "Доставить по адресу anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00076",
+      "input": "Адрес: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00077",
+      "input": "Клиент проживает по адресу johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00078",
+      "input": "Корреспонденцию отправлять на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00079",
+      "input": "Почтовый адрес — anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00080",
+      "input": "Доставить по адресу alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00081",
+      "input": "Адрес: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00082",
+      "input": "Клиент проживает по адресу mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00083",
+      "input": "Корреспонденцию отправлять на annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00084",
+      "input": "Почтовый адрес — alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00085",
+      "input": "Доставить по адресу john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00086",
+      "input": "Адрес: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00087",
+      "input": "Клиент проживает по адресу anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 52
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00088",
+      "input": "Корреспонденцию отправлять на alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 52
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00089",
+      "input": "Почтовый адрес — johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00090",
+      "input": "Доставить по адресу mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00091",
+      "input": "Адрес: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00092",
+      "input": "Клиент проживает по адресу alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00093",
+      "input": "Корреспонденцию отправлять на john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00094",
+      "input": "Почтовый адрес — mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00095",
+      "input": "Доставить по адресу annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00096",
+      "input": "Адрес: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00097",
+      "input": "Клиент проживает по адресу john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00098",
+      "input": "Корреспонденцию отправлять на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00099",
+      "input": "Почтовый адрес — anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00100",
+      "input": "Доставить по адресу alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00101",
+      "input": "Адрес: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00102",
+      "input": "Клиент проживает по адресу mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00103",
+      "input": "Корреспонденцию отправлять на anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00104",
+      "input": "Почтовый адрес — alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00105",
+      "input": "Доставить по адресу john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00106",
+      "input": "Адрес: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00107",
+      "input": "Клиент проживает по адресу annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00108",
+      "input": "Корреспонденцию отправлять на alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 52
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00109",
+      "input": "Почтовый адрес — john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00110",
+      "input": "Доставить по адресу marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00111",
+      "input": "Адрес: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00112",
+      "input": "Клиент проживает по адресу alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00113",
+      "input": "Корреспонденцию отправлять на johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00114",
+      "input": "Почтовый адрес — mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00115",
+      "input": "Доставить по адресу anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00116",
+      "input": "Адрес: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00117",
+      "input": "Клиент проживает по адресу john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00118",
+      "input": "Корреспонденцию отправлять на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00119",
+      "input": "Почтовый адрес — annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00120",
+      "input": "Доставить по адресу alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00121",
+      "input": "Адрес: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00122",
+      "input": "Клиент проживает по адресу marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00123",
+      "input": "Корреспонденцию отправлять на anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00124",
+      "input": "Почтовый адрес — alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00125",
+      "input": "Доставить по адресу johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00126",
+      "input": "Адрес: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00127",
+      "input": "Клиент проживает по адресу anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 52
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00128",
+      "input": "Корреспонденцию отправлять на alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00129",
+      "input": "Почтовый адрес — john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00130",
+      "input": "Доставить по адресу mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00131",
+      "input": "Адрес: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00132",
+      "input": "Клиент проживает по адресу alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00133",
+      "input": "Корреспонденцию отправлять на john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00134",
+      "input": "Почтовый адрес — marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00135",
+      "input": "Доставить по адресу anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00136",
+      "input": "Адрес: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00137",
+      "input": "Клиент проживает по адресу johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00138",
+      "input": "Корреспонденцию отправлять на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00139",
+      "input": "Почтовый адрес — anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00140",
+      "input": "Доставить по адресу alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00141",
+      "input": "Адрес: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00142",
+      "input": "Клиент проживает по адресу mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00143",
+      "input": "Корреспонденцию отправлять на annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00144",
+      "input": "Почтовый адрес — alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00145",
+      "input": "Доставить по адресу john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00146",
+      "input": "Адрес: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00147",
+      "input": "Клиент проживает по адресу anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 52
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00148",
+      "input": "Корреспонденцию отправлять на alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 52
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00149",
+      "input": "Почтовый адрес — johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00150",
+      "input": "Доставить по адресу mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00151",
+      "input": "Адрес: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00152",
+      "input": "Клиент проживает по адресу alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00153",
+      "input": "Корреспонденцию отправлять на john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00154",
+      "input": "Почтовый адрес — mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00155",
+      "input": "Доставить по адресу annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00156",
+      "input": "Адрес: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00157",
+      "input": "Клиент проживает по адресу john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00158",
+      "input": "Корреспонденцию отправлять на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00159",
+      "input": "Почтовый адрес — anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00160",
+      "input": "Доставить по адресу alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00161",
+      "input": "Адрес: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00162",
+      "input": "Клиент проживает по адресу mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00163",
+      "input": "Корреспонденцию отправлять на anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00164",
+      "input": "Почтовый адрес — alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00165",
+      "input": "Доставить по адресу john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00166",
+      "input": "Адрес: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00167",
+      "input": "Клиент проживает по адресу annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00168",
+      "input": "Корреспонденцию отправлять на alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 52
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00169",
+      "input": "Почтовый адрес — john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00170",
+      "input": "Доставить по адресу marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00171",
+      "input": "Адрес: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00172",
+      "input": "Клиент проживает по адресу alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00173",
+      "input": "Корреспонденцию отправлять на johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00174",
+      "input": "Почтовый адрес — mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00175",
+      "input": "Доставить по адресу anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00176",
+      "input": "Адрес: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00177",
+      "input": "Клиент проживает по адресу john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00178",
+      "input": "Корреспонденцию отправлять на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00179",
+      "input": "Почтовый адрес — annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00180",
+      "input": "Доставить по адресу alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00181",
+      "input": "Адрес: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00182",
+      "input": "Клиент проживает по адресу marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00183",
+      "input": "Корреспонденцию отправлять на anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00184",
+      "input": "Почтовый адрес — alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00185",
+      "input": "Доставить по адресу johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00186",
+      "input": "Адрес: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00187",
+      "input": "Клиент проживает по адресу anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 52
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00188",
+      "input": "Корреспонденцию отправлять на alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00189",
+      "input": "Почтовый адрес — john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00190",
+      "input": "Доставить по адресу mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00191",
+      "input": "Адрес: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00192",
+      "input": "Клиент проживает по адресу alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00193",
+      "input": "Корреспонденцию отправлять на john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00194",
+      "input": "Почтовый адрес — marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00195",
+      "input": "Доставить по адресу anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00196",
+      "input": "Адрес: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00197",
+      "input": "Клиент проживает по адресу johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00198",
+      "input": "Корреспонденцию отправлять на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00199",
+      "input": "Почтовый адрес — anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00200",
+      "input": "Доставить по адресу alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00201",
+      "input": "Адрес: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00202",
+      "input": "Клиент проживает по адресу mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00203",
+      "input": "Корреспонденцию отправлять на annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00204",
+      "input": "Почтовый адрес — alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00205",
+      "input": "Доставить по адресу john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00206",
+      "input": "Адрес: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00207",
+      "input": "Клиент проживает по адресу anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 52
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00208",
+      "input": "Корреспонденцию отправлять на alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 52
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00209",
+      "input": "Почтовый адрес — johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00210",
+      "input": "Доставить по адресу mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00211",
+      "input": "Адрес: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00212",
+      "input": "Клиент проживает по адресу alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00213",
+      "input": "Корреспонденцию отправлять на john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00214",
+      "input": "Почтовый адрес — mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00215",
+      "input": "Доставить по адресу annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00216",
+      "input": "Адрес: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00217",
+      "input": "Клиент проживает по адресу john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00218",
+      "input": "Корреспонденцию отправлять на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00219",
+      "input": "Почтовый адрес — anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00220",
+      "input": "Доставить по адресу alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00221",
+      "input": "Адрес: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00222",
+      "input": "Клиент проживает по адресу mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00223",
+      "input": "Корреспонденцию отправлять на anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00224",
+      "input": "Почтовый адрес — alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00225",
+      "input": "Доставить по адресу john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00226",
+      "input": "Адрес: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00227",
+      "input": "Клиент проживает по адресу annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00228",
+      "input": "Корреспонденцию отправлять на alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 52
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00229",
+      "input": "Почтовый адрес — john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00230",
+      "input": "Доставить по адресу marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00231",
+      "input": "Адрес: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00232",
+      "input": "Клиент проживает по адресу alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00233",
+      "input": "Корреспонденцию отправлять на johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00234",
+      "input": "Почтовый адрес — mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00235",
+      "input": "Доставить по адресу anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00236",
+      "input": "Адрес: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00237",
+      "input": "Клиент проживает по адресу john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00238",
+      "input": "Корреспонденцию отправлять на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00239",
+      "input": "Почтовый адрес — annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00240",
+      "input": "Доставить по адресу alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00241",
+      "input": "Адрес: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00242",
+      "input": "Клиент проживает по адресу marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00243",
+      "input": "Корреспонденцию отправлять на anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00244",
+      "input": "Почтовый адрес — alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00245",
+      "input": "Доставить по адресу johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00246",
+      "input": "Адрес: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00247",
+      "input": "Клиент проживает по адресу anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 52
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00248",
+      "input": "Корреспонденцию отправлять на alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00249",
+      "input": "Почтовый адрес — john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00250",
+      "input": "Доставить по адресу mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00251",
+      "input": "Адрес: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00252",
+      "input": "Клиент проживает по адресу alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00253",
+      "input": "Корреспонденцию отправлять на john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00254",
+      "input": "Почтовый адрес — marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00255",
+      "input": "Доставить по адресу anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00256",
+      "input": "Адрес: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00257",
+      "input": "Клиент проживает по адресу johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00258",
+      "input": "Корреспонденцию отправлять на mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00259",
+      "input": "Почтовый адрес — anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00260",
+      "input": "Доставить по адресу alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00261",
+      "input": "Адрес: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00262",
+      "input": "Клиент проживает по адресу mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00263",
+      "input": "Корреспонденцию отправлять на annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 54
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00264",
+      "input": "Почтовый адрес — alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00265",
+      "input": "Доставить по адресу john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00266",
+      "input": "Адрес: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00267",
+      "input": "Клиент проживает по адресу anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 52
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00268",
+      "input": "Корреспонденцию отправлять на alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 52
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00269",
+      "input": "Почтовый адрес — johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00270",
+      "input": "Доставить по адресу mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00271",
+      "input": "Адрес: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00272",
+      "input": "Клиент проживает по адресу alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00273",
+      "input": "Корреспонденцию отправлять на john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00274",
+      "input": "Почтовый адрес — mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00275",
+      "input": "Доставить по адресу annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00276",
+      "input": "Адрес: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00277",
+      "input": "Клиент проживает по адресу john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00278",
+      "input": "Корреспонденцию отправлять на marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00279",
+      "input": "Почтовый адрес — anna.mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00280",
+      "input": "Доставить по адресу alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00281",
+      "input": "Адрес: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00282",
+      "input": "Клиент проживает по адресу mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00283",
+      "input": "Корреспонденцию отправлять на anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 55
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00284",
+      "input": "Почтовый адрес — alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00285",
+      "input": "Доставить по адресу john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00286",
+      "input": "Адрес: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00287",
+      "input": "Клиент проживает по адресу annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00288",
+      "input": "Корреспонденцию отправлять на alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 52
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00289",
+      "input": "Почтовый адрес — john_doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00290",
+      "input": "Доставить по адресу marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00291",
+      "input": "Адрес: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00292",
+      "input": "Клиент проживает по адресу alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00293",
+      "input": "Корреспонденцию отправлять на johndoe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 47
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00294",
+      "input": "Почтовый адрес — mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00295",
+      "input": "Доставить по адресу anna_mueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 20,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00296",
+      "input": "Адрес: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00297",
+      "input": "Клиент проживает по адресу john.doe@mail.test.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 45
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00298",
+      "input": "Корреспонденцию отправлять на mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 30,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-ru-00299",
+      "input": "Почтовый адрес — annamueller@corp.example.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "manual-ru-dob-001",
+      "input": "родился 15 сентября 1987 года",
+      "expected": [
+        {
+          "pattern": "dateOfBirth",
+          "start": 8,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "manual-ru-dob-002",
+      "input": "дата рождения: 28 марта 1998",
+      "expected": [
+        {
+          "pattern": "dateOfBirth",
+          "start": 15,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "manual-ru-email-001",
+      "input": "электронная почта: ivanov@example.ru",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "manual-ru-phone-001",
+      "input": "телефон: +7 495 123 4567",
+      "expected": [
+        {
+          "pattern": "phone",
+          "start": 9,
+          "end": 24
+        }
+      ]
+    }
+  ]
+}

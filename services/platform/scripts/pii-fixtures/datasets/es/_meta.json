@@ -1,0 +1,24 @@
+{
+  "locale": "es",
+  "sources": {
+    "streets": {
+      "url": "manual",
+      "version": "2026-05-14",
+      "spdx": "CC0-1.0",
+      "attribution": "Curated list of common Spanish street prefixes"
+    },
+    "cities": {
+      "url": "https://download.geonames.org/export/dump/cities15000.zip",
+      "version": "2026-04-13",
+      "spdx": "CC-BY-4.0",
+      "attribution": "© GeoNames"
+    },
+    "prose": {
+      "url": "https://downloads.tatoeba.org/exports/sentences.tar.bz2",
+      "version": "2026-05-14",
+      "spdx": "CC-BY-2.0-FR",
+      "attribution": "© Tatoeba project"
+    }
+  },
+  "generatedAt": "2026-05-14T00:00:00Z"
+}

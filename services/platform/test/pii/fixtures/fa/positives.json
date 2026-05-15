@@ -1,0 +1,3425 @@
+{
+  "_meta": {
+    "locale": "fa",
+    "generator": "platform/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 310,
+      "negatives": 0
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "positives": [
+    {
+      "id": "addr-fa-00000",
+      "input": "لطفا به خیابان ولیعصر 123 تهران 1411713114 ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "address",
+          "start": 8,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "addr-fa-00001",
+      "input": "آدرس: خیابان آزادی 45 تهران 1419833114",
+      "expected": [
+        {
+          "pattern": "address",
+          "start": 6,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "addr-fa-00002",
+      "input": "محل اقامت مشتری: خیابان امام 78 اصفهان 8137954111",
+      "expected": [
+        {
+          "pattern": "address",
+          "start": 17,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "addr-fa-00003",
+      "input": "آدرس پستی: خیابان فردوسی 33 مشهد 9134673111",
+      "expected": [
+        {
+          "pattern": "address",
+          "start": 11,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "addr-fa-00004",
+      "input": "محل تحویل: خیابان انقلاب 12 شیراز 7146771511",
+      "expected": [
+        {
+          "pattern": "address",
+          "start": 11,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "addr-fa-00005",
+      "input": "لطفا به خیابان جمهوری 56 تبریز 5147953111 ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "address",
+          "start": 8,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "addr-fa-00006",
+      "input": "آدرس: خیابان آیت الله 17 کرج 3134791111",
+      "expected": [
+        {
+          "pattern": "address",
+          "start": 6,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "addr-fa-00007",
+      "input": "محل اقامت مشتری: خیابان شهید بهشتی 5 قم 3714678111",
+      "expected": [
+        {
+          "pattern": "address",
+          "start": 17,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "addr-fa-00008",
+      "input": "آدرس پستی: خیابان توحید 22 اهواز 6135815111",
+      "expected": [
+        {
+          "pattern": "address",
+          "start": 11,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "addr-fa-00009",
+      "input": "محل تحویل: خیابان شاپور 89 رشت 4143816111",
+      "expected": [
+        {
+          "pattern": "address",
+          "start": 11,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00000",
+      "input": "لطفا به alex.smith@example.com ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00001",
+      "input": "آدرس: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00002",
+      "input": "محل اقامت مشتری: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00003",
+      "input": "آدرس پستی: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00004",
+      "input": "محل تحویل: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00005",
+      "input": "لطفا به johndoe@mail.test ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00006",
+      "input": "آدرس: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00007",
+      "input": "محل اقامت مشتری: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00008",
+      "input": "آدرس پستی: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00009",
+      "input": "محل تحویل: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00010",
+      "input": "لطفا به mary_lee@company.io ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00011",
+      "input": "آدرس: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00012",
+      "input": "محل اقامت مشتری: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00013",
+      "input": "آدرس پستی: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00014",
+      "input": "محل تحویل: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00015",
+      "input": "لطفا به anna.mueller@corp.example ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00016",
+      "input": "آدرس: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00017",
+      "input": "محل اقامت مشتری: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00018",
+      "input": "آدرس پستی: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00019",
+      "input": "محل تحویل: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00020",
+      "input": "لطفا به alexsmith@example.com ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00021",
+      "input": "آدرس: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00022",
+      "input": "محل اقامت مشتری: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00023",
+      "input": "آدرس پستی: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00024",
+      "input": "محل تحویل: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00025",
+      "input": "لطفا به john_doe@mail.test ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00026",
+      "input": "آدرس: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00027",
+      "input": "محل اقامت مشتری: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00028",
+      "input": "آدرس پستی: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00029",
+      "input": "محل تحویل: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00030",
+      "input": "لطفا به mary.lee@company.io ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00031",
+      "input": "آدرس: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00032",
+      "input": "محل اقامت مشتری: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00033",
+      "input": "آدرس پستی: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00034",
+      "input": "محل تحویل: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00035",
+      "input": "لطفا به annamueller@corp.example ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00036",
+      "input": "آدرس: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00037",
+      "input": "محل اقامت مشتری: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00038",
+      "input": "آدرس پستی: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00039",
+      "input": "محل تحویل: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00040",
+      "input": "لطفا به alex_smith@example.com ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00041",
+      "input": "آدرس: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00042",
+      "input": "محل اقامت مشتری: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00043",
+      "input": "آدرس پستی: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00044",
+      "input": "محل تحویل: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00045",
+      "input": "لطفا به john.doe@mail.test ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00046",
+      "input": "آدرس: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00047",
+      "input": "محل اقامت مشتری: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00048",
+      "input": "آدرس پستی: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00049",
+      "input": "محل تحویل: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00050",
+      "input": "لطفا به marylee@company.io ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00051",
+      "input": "آدرس: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00052",
+      "input": "محل اقامت مشتری: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00053",
+      "input": "آدرس پستی: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00054",
+      "input": "محل تحویل: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00055",
+      "input": "لطفا به anna_mueller@corp.example ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00056",
+      "input": "آدرس: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00057",
+      "input": "محل اقامت مشتری: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00058",
+      "input": "آدرس پستی: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00059",
+      "input": "محل تحویل: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00060",
+      "input": "لطفا به alex.smith@example.com ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00061",
+      "input": "آدرس: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00062",
+      "input": "محل اقامت مشتری: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00063",
+      "input": "آدرس پستی: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00064",
+      "input": "محل تحویل: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00065",
+      "input": "لطفا به johndoe@mail.test ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00066",
+      "input": "آدرس: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00067",
+      "input": "محل اقامت مشتری: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00068",
+      "input": "آدرس پستی: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00069",
+      "input": "محل تحویل: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00070",
+      "input": "لطفا به mary_lee@company.io ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00071",
+      "input": "آدرس: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00072",
+      "input": "محل اقامت مشتری: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00073",
+      "input": "آدرس پستی: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00074",
+      "input": "محل تحویل: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00075",
+      "input": "لطفا به anna.mueller@corp.example ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00076",
+      "input": "آدرس: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00077",
+      "input": "محل اقامت مشتری: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00078",
+      "input": "آدرس پستی: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00079",
+      "input": "محل تحویل: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00080",
+      "input": "لطفا به alexsmith@example.com ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00081",
+      "input": "آدرس: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00082",
+      "input": "محل اقامت مشتری: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00083",
+      "input": "آدرس پستی: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00084",
+      "input": "محل تحویل: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00085",
+      "input": "لطفا به john_doe@mail.test ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00086",
+      "input": "آدرس: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00087",
+      "input": "محل اقامت مشتری: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00088",
+      "input": "آدرس پستی: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00089",
+      "input": "محل تحویل: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00090",
+      "input": "لطفا به mary.lee@company.io ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00091",
+      "input": "آدرس: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00092",
+      "input": "محل اقامت مشتری: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00093",
+      "input": "آدرس پستی: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00094",
+      "input": "محل تحویل: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00095",
+      "input": "لطفا به annamueller@corp.example ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00096",
+      "input": "آدرس: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00097",
+      "input": "محل اقامت مشتری: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00098",
+      "input": "آدرس پستی: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00099",
+      "input": "محل تحویل: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00100",
+      "input": "لطفا به alex_smith@example.com ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00101",
+      "input": "آدرس: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00102",
+      "input": "محل اقامت مشتری: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00103",
+      "input": "آدرس پستی: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00104",
+      "input": "محل تحویل: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00105",
+      "input": "لطفا به john.doe@mail.test ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00106",
+      "input": "آدرس: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00107",
+      "input": "محل اقامت مشتری: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00108",
+      "input": "آدرس پستی: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00109",
+      "input": "محل تحویل: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00110",
+      "input": "لطفا به marylee@company.io ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00111",
+      "input": "آدرس: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00112",
+      "input": "محل اقامت مشتری: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00113",
+      "input": "آدرس پستی: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00114",
+      "input": "محل تحویل: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00115",
+      "input": "لطفا به anna_mueller@corp.example ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00116",
+      "input": "آدرس: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00117",
+      "input": "محل اقامت مشتری: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00118",
+      "input": "آدرس پستی: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00119",
+      "input": "محل تحویل: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00120",
+      "input": "لطفا به alex.smith@example.com ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00121",
+      "input": "آدرس: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00122",
+      "input": "محل اقامت مشتری: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00123",
+      "input": "آدرس پستی: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00124",
+      "input": "محل تحویل: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00125",
+      "input": "لطفا به johndoe@mail.test ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00126",
+      "input": "آدرس: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00127",
+      "input": "محل اقامت مشتری: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00128",
+      "input": "آدرس پستی: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00129",
+      "input": "محل تحویل: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00130",
+      "input": "لطفا به mary_lee@company.io ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00131",
+      "input": "آدرس: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00132",
+      "input": "محل اقامت مشتری: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00133",
+      "input": "آدرس پستی: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00134",
+      "input": "محل تحویل: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00135",
+      "input": "لطفا به anna.mueller@corp.example ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00136",
+      "input": "آدرس: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00137",
+      "input": "محل اقامت مشتری: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00138",
+      "input": "آدرس پستی: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00139",
+      "input": "محل تحویل: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00140",
+      "input": "لطفا به alexsmith@example.com ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00141",
+      "input": "آدرس: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00142",
+      "input": "محل اقامت مشتری: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00143",
+      "input": "آدرس پستی: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00144",
+      "input": "محل تحویل: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00145",
+      "input": "لطفا به john_doe@mail.test ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00146",
+      "input": "آدرس: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00147",
+      "input": "محل اقامت مشتری: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00148",
+      "input": "آدرس پستی: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00149",
+      "input": "محل تحویل: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00150",
+      "input": "لطفا به mary.lee@company.io ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00151",
+      "input": "آدرس: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00152",
+      "input": "محل اقامت مشتری: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00153",
+      "input": "آدرس پستی: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00154",
+      "input": "محل تحویل: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00155",
+      "input": "لطفا به annamueller@corp.example ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00156",
+      "input": "آدرس: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00157",
+      "input": "محل اقامت مشتری: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00158",
+      "input": "آدرس پستی: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00159",
+      "input": "محل تحویل: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00160",
+      "input": "لطفا به alex_smith@example.com ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00161",
+      "input": "آدرس: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00162",
+      "input": "محل اقامت مشتری: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00163",
+      "input": "آدرس پستی: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00164",
+      "input": "محل تحویل: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00165",
+      "input": "لطفا به john.doe@mail.test ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00166",
+      "input": "آدرس: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00167",
+      "input": "محل اقامت مشتری: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00168",
+      "input": "آدرس پستی: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00169",
+      "input": "محل تحویل: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00170",
+      "input": "لطفا به marylee@company.io ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00171",
+      "input": "آدرس: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00172",
+      "input": "محل اقامت مشتری: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00173",
+      "input": "آدرس پستی: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00174",
+      "input": "محل تحویل: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00175",
+      "input": "لطفا به anna_mueller@corp.example ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00176",
+      "input": "آدرس: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00177",
+      "input": "محل اقامت مشتری: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00178",
+      "input": "آدرس پستی: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00179",
+      "input": "محل تحویل: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00180",
+      "input": "لطفا به alex.smith@example.com ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00181",
+      "input": "آدرس: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00182",
+      "input": "محل اقامت مشتری: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00183",
+      "input": "آدرس پستی: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00184",
+      "input": "محل تحویل: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00185",
+      "input": "لطفا به johndoe@mail.test ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00186",
+      "input": "آدرس: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00187",
+      "input": "محل اقامت مشتری: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00188",
+      "input": "آدرس پستی: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00189",
+      "input": "محل تحویل: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00190",
+      "input": "لطفا به mary_lee@company.io ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00191",
+      "input": "آدرس: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00192",
+      "input": "محل اقامت مشتری: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00193",
+      "input": "آدرس پستی: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00194",
+      "input": "محل تحویل: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00195",
+      "input": "لطفا به anna.mueller@corp.example ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00196",
+      "input": "آدرس: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00197",
+      "input": "محل اقامت مشتری: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00198",
+      "input": "آدرس پستی: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00199",
+      "input": "محل تحویل: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00200",
+      "input": "لطفا به alexsmith@example.com ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00201",
+      "input": "آدرس: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00202",
+      "input": "محل اقامت مشتری: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00203",
+      "input": "آدرس پستی: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00204",
+      "input": "محل تحویل: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00205",
+      "input": "لطفا به john_doe@mail.test ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00206",
+      "input": "آدرس: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00207",
+      "input": "محل اقامت مشتری: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00208",
+      "input": "آدرس پستی: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00209",
+      "input": "محل تحویل: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00210",
+      "input": "لطفا به mary.lee@company.io ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00211",
+      "input": "آدرس: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00212",
+      "input": "محل اقامت مشتری: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00213",
+      "input": "آدرس پستی: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00214",
+      "input": "محل تحویل: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00215",
+      "input": "لطفا به annamueller@corp.example ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00216",
+      "input": "آدرس: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00217",
+      "input": "محل اقامت مشتری: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00218",
+      "input": "آدرس پستی: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00219",
+      "input": "محل تحویل: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00220",
+      "input": "لطفا به alex_smith@example.com ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00221",
+      "input": "آدرس: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00222",
+      "input": "محل اقامت مشتری: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00223",
+      "input": "آدرس پستی: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00224",
+      "input": "محل تحویل: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00225",
+      "input": "لطفا به john.doe@mail.test ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00226",
+      "input": "آدرس: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00227",
+      "input": "محل اقامت مشتری: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00228",
+      "input": "آدرس پستی: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00229",
+      "input": "محل تحویل: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00230",
+      "input": "لطفا به marylee@company.io ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00231",
+      "input": "آدرس: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00232",
+      "input": "محل اقامت مشتری: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00233",
+      "input": "آدرس پستی: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00234",
+      "input": "محل تحویل: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00235",
+      "input": "لطفا به anna_mueller@corp.example ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00236",
+      "input": "آدرس: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00237",
+      "input": "محل اقامت مشتری: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00238",
+      "input": "آدرس پستی: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00239",
+      "input": "محل تحویل: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00240",
+      "input": "لطفا به alex.smith@example.com ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00241",
+      "input": "آدرس: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00242",
+      "input": "محل اقامت مشتری: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00243",
+      "input": "آدرس پستی: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00244",
+      "input": "محل تحویل: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00245",
+      "input": "لطفا به johndoe@mail.test ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00246",
+      "input": "آدرس: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00247",
+      "input": "محل اقامت مشتری: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00248",
+      "input": "آدرس پستی: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00249",
+      "input": "محل تحویل: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00250",
+      "input": "لطفا به mary_lee@company.io ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00251",
+      "input": "آدرس: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00252",
+      "input": "محل اقامت مشتری: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00253",
+      "input": "آدرس پستی: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00254",
+      "input": "محل تحویل: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00255",
+      "input": "لطفا به anna.mueller@corp.example ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00256",
+      "input": "آدرس: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00257",
+      "input": "محل اقامت مشتری: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00258",
+      "input": "آدرس پستی: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00259",
+      "input": "محل تحویل: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00260",
+      "input": "لطفا به alexsmith@example.com ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00261",
+      "input": "آدرس: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00262",
+      "input": "محل اقامت مشتری: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00263",
+      "input": "آدرس پستی: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00264",
+      "input": "محل تحویل: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00265",
+      "input": "لطفا به john_doe@mail.test ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00266",
+      "input": "آدرس: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00267",
+      "input": "محل اقامت مشتری: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00268",
+      "input": "آدرس پستی: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00269",
+      "input": "محل تحویل: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00270",
+      "input": "لطفا به mary.lee@company.io ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00271",
+      "input": "آدرس: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00272",
+      "input": "محل اقامت مشتری: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00273",
+      "input": "آدرس پستی: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00274",
+      "input": "محل تحویل: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00275",
+      "input": "لطفا به annamueller@corp.example ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00276",
+      "input": "آدرس: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00277",
+      "input": "محل اقامت مشتری: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00278",
+      "input": "آدرس پستی: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00279",
+      "input": "محل تحویل: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00280",
+      "input": "لطفا به alex_smith@example.com ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00281",
+      "input": "آدرس: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00282",
+      "input": "محل اقامت مشتری: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00283",
+      "input": "آدرس پستی: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00284",
+      "input": "محل تحویل: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00285",
+      "input": "لطفا به john.doe@mail.test ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00286",
+      "input": "آدرس: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00287",
+      "input": "محل اقامت مشتری: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 41
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00288",
+      "input": "آدرس پستی: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00289",
+      "input": "محل تحویل: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00290",
+      "input": "لطفا به marylee@company.io ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00291",
+      "input": "آدرس: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00292",
+      "input": "محل اقامت مشتری: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00293",
+      "input": "آدرس پستی: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00294",
+      "input": "محل تحویل: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00295",
+      "input": "لطفا به anna_mueller@corp.example ارسال کنید.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00296",
+      "input": "آدرس: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00297",
+      "input": "محل اقامت مشتری: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 17,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00298",
+      "input": "آدرس پستی: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fa-00299",
+      "input": "محل تحویل: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 11,
+          "end": 35
+        }
+      ]
+    }
+  ]
+}

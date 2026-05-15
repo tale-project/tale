@@ -1,0 +1,5602 @@
+[
+  {
+    "name": "Paris",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 2138551
+  },
+  {
+    "name": "Brussels",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 1019022
+  },
+  {
+    "name": "Marseille",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 877215
+  },
+  {
+    "name": "Antwerpen",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 529247
+  },
+  {
+    "name": "Lyon",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 520774
+  },
+  {
+    "name": "Toulouse",
+    "countryCode": "FR",
+    "admin1": "76",
+    "postcodeSample": null,
+    "population": 511684
+  },
+  {
+    "name": "Zürich",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 415367
+  },
+  {
+    "name": "Nice",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 342669
+  },
+  {
+    "name": "Nantes",
+    "countryCode": "FR",
+    "admin1": "52",
+    "postcodeSample": null,
+    "population": 325070
+  },
+  {
+    "name": "Marne La Vallée",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 318325
+  },
+  {
+    "name": "Strasbourg",
+    "countryCode": "FR",
+    "admin1": "44",
+    "postcodeSample": null,
+    "population": 274845
+  },
+  {
+    "name": "Bordeaux",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 265328
+  },
+  {
+    "name": "Gent",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 265086
+  },
+  {
+    "name": "Montpellier",
+    "countryCode": "FR",
+    "admin1": "76",
+    "postcodeSample": null,
+    "population": 248252
+  },
+  {
+    "name": "Lille",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 238695
+  },
+  {
+    "name": "Paris 15 Vaugirard",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 229713
+  },
+  {
+    "name": "Rennes",
+    "countryCode": "FR",
+    "admin1": "53",
+    "postcodeSample": null,
+    "population": 227830
+  },
+  {
+    "name": "Genève",
+    "countryCode": "CH",
+    "admin1": "GE",
+    "postcodeSample": null,
+    "population": 201741
+  },
+  {
+    "name": "Charleroi",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 200132
+  },
+  {
+    "name": "Reims",
+    "countryCode": "FR",
+    "admin1": "44",
+    "postcodeSample": null,
+    "population": 196565
+  },
+  {
+    "name": "Liège",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 195278
+  },
+  {
+    "name": "Le Havre",
+    "countryCode": "FR",
+    "admin1": "28",
+    "postcodeSample": null,
+    "population": 185972
+  },
+  {
+    "name": "Paris 20 Ménilmontant",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 185140
+  },
+  {
+    "name": "Cergy-Pontoise",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 183430
+  },
+  {
+    "name": "Paris 18 Buttes-Montmartre",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 183127
+  },
+  {
+    "name": "Paris 13 Gobelins",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 181271
+  },
+  {
+    "name": "Paris 19 Buttes-Chaumont",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 178691
+  },
+  {
+    "name": "Paris 13e Arrondissement",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 177833
+  },
+  {
+    "name": "Basel",
+    "countryCode": "CH",
+    "admin1": "BS",
+    "postcodeSample": null,
+    "population": 177595
+  },
+  {
+    "name": "Saint-Étienne",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 176280
+  },
+  {
+    "name": "Toulon",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 168701
+  },
+  {
+    "name": "Angers",
+    "countryCode": "FR",
+    "admin1": "52",
+    "postcodeSample": null,
+    "population": 168279
+  },
+  {
+    "name": "Anderlecht",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 160553
+  },
+  {
+    "name": "Dijon",
+    "countryCode": "FR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 159941
+  },
+  {
+    "name": "Paris 16 Passy",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 159386
+  },
+  {
+    "name": "Paris 17 Batignolles-Monceau",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 159212
+  },
+  {
+    "name": "Grenoble",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 158552
+  },
+  {
+    "name": "Nîmes",
+    "countryCode": "FR",
+    "admin1": "76",
+    "postcodeSample": null,
+    "population": 148236
+  },
+  {
+    "name": "Clermont-Ferrand",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 147865
+  },
+  {
+    "name": "Aix-en-Provence",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 146821
+  },
+  {
+    "name": "Saint-Quentin-en-Yvelines",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 146598
+  },
+  {
+    "name": "Brest",
+    "countryCode": "FR",
+    "admin1": "53",
+    "postcodeSample": null,
+    "population": 144899
+  },
+  {
+    "name": "Le Mans",
+    "countryCode": "FR",
+    "admin1": "52",
+    "postcodeSample": null,
+    "population": 144515
+  },
+  {
+    "name": "Paris 11e Arrondissement",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 144292
+  },
+  {
+    "name": "Amiens",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 143086
+  },
+  {
+    "name": "Tours",
+    "countryCode": "FR",
+    "admin1": "24",
+    "postcodeSample": null,
+    "population": 141621
+  },
+  {
+    "name": "Limoges",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 141176
+  },
+  {
+    "name": "Paris 12e Arrondissement",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 140311
+  },
+  {
+    "name": "Lausanne",
+    "countryCode": "CH",
+    "admin1": "VD",
+    "postcodeSample": null,
+    "population": 139111
+  },
+  {
+    "name": "Paris 11 Popincourt",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 138170
+  },
+  {
+    "name": "Paris 12 Reuilly",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 138024
+  },
+  {
+    "name": "Paris 14 Observatoire",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 136455
+  },
+  {
+    "name": "Schaerbeek",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 132761
+  },
+  {
+    "name": "Villeurbanne",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 131445
+  },
+  {
+    "name": "Besançon",
+    "countryCode": "FR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 128426
+  },
+  {
+    "name": "Metz",
+    "countryCode": "FR",
+    "admin1": "44",
+    "postcodeSample": null,
+    "population": 123914
+  },
+  {
+    "name": "Bern",
+    "countryCode": "CH",
+    "admin1": "BE",
+    "postcodeSample": null,
+    "population": 121631
+  },
+  {
+    "name": "Brugge",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 118509
+  },
+  {
+    "name": "Orléans",
+    "countryCode": "FR",
+    "admin1": "24",
+    "postcodeSample": null,
+    "population": 116344
+  },
+  {
+    "name": "Rouen",
+    "countryCode": "FR",
+    "admin1": "28",
+    "postcodeSample": null,
+    "population": 116331
+  },
+  {
+    "name": "Winterthur",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 111840
+  },
+  {
+    "name": "Mulhouse",
+    "countryCode": "FR",
+    "admin1": "44",
+    "postcodeSample": null,
+    "population": 111430
+  },
+  {
+    "name": "Montreuil",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 111240
+  },
+  {
+    "name": "Namur",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 110939
+  },
+  {
+    "name": "Perpignan",
+    "countryCode": "FR",
+    "admin1": "76",
+    "postcodeSample": null,
+    "population": 110706
+  },
+  {
+    "name": "Caen",
+    "countryCode": "FR",
+    "admin1": "28",
+    "postcodeSample": null,
+    "population": 110624
+  },
+  {
+    "name": "Boulogne-Billancourt",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 108782
+  },
+  {
+    "name": "Nancy",
+    "countryCode": "FR",
+    "admin1": "44",
+    "postcodeSample": null,
+    "population": 105058
+  },
+  {
+    "name": "Lyon 03",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 102725
+  },
+  {
+    "name": "Argenteuil",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 101475
+  },
+  {
+    "name": "Leuven",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 101032
+  },
+  {
+    "name": "Roubaix",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 99507
+  },
+  {
+    "name": "Tourcoing",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 99160
+  },
+  {
+    "name": "Molenbeek-Saint-Jean",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 97037
+  },
+  {
+    "name": "Saint-Denis",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 96128
+  },
+  {
+    "name": "Mons",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 95299
+  },
+  {
+    "name": "Avignon",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 89769
+  },
+  {
+    "name": "Marseille 13",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 89316
+  },
+  {
+    "name": "Asnières-sur-Seine",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 86742
+  },
+  {
+    "name": "Nanterre",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 86719
+  },
+  {
+    "name": "Ixelles",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 86671
+  },
+  {
+    "name": "Lyon 08",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 86154
+  },
+  {
+    "name": "Poitiers",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 85960
+  },
+  {
+    "name": "Versailles",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 85416
+  },
+  {
+    "name": "Courbevoie",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 85158
+  },
+  {
+    "name": "Créteil",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 84833
+  },
+  {
+    "name": "Paris 10 Entrepôt",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 83873
+  },
+  {
+    "name": "Paris 10e Arrondissement",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 83459
+  },
+  {
+    "name": "Uccle",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 82929
+  },
+  {
+    "name": "Pau",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 82697
+  },
+  {
+    "name": "Lyon 07",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 82573
+  },
+  {
+    "name": "Colombes",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 82300
+  },
+  {
+    "name": "Luzern",
+    "countryCode": "CH",
+    "admin1": "LU",
+    "postcodeSample": null,
+    "population": 81691
+  },
+  {
+    "name": "Vitry-sur-Seine",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 81001
+  },
+  {
+    "name": "Aulnay-sous-Bois",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 80615
+  },
+  {
+    "name": "Marseille 08",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 78837
+  },
+  {
+    "name": "Deurne",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 78747
+  },
+  {
+    "name": "Marseille 15",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 77770
+  },
+  {
+    "name": "Hasselt",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 77651
+  },
+  {
+    "name": "Aalst",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 77534
+  },
+  {
+    "name": "Mechelen",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 77530
+  },
+  {
+    "name": "Marseille 09",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 76868
+  },
+  {
+    "name": "La Rochelle",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 76810
+  },
+  {
+    "name": "Champigny-sur-Marne",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 76726
+  },
+  {
+    "name": "Luxembourg",
+    "countryCode": "LU",
+    "admin1": "LU",
+    "postcodeSample": null,
+    "population": 76684
+  },
+  {
+    "name": "La Louvière",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 76668
+  },
+  {
+    "name": "Rueil-Malmaison",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 76616
+  },
+  {
+    "name": "Antibes",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 76393
+  },
+  {
+    "name": "Sankt Gallen",
+    "countryCode": "CH",
+    "admin1": "SG",
+    "postcodeSample": null,
+    "population": 75833
+  },
+  {
+    "name": "Gare",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 75580
+  },
+  {
+    "name": "Saint-Maur-des-Fossés",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 75402
+  },
+  {
+    "name": "Cannes",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 74545
+  },
+  {
+    "name": "Calais",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 74433
+  },
+  {
+    "name": "Béziers",
+    "countryCode": "FR",
+    "admin1": "76",
+    "postcodeSample": null,
+    "population": 74081
+  },
+  {
+    "name": "Kortrijk",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 73879
+  },
+  {
+    "name": "Dunkerque",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 71287
+  },
+  {
+    "name": "Aubervilliers",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 70914
+  },
+  {
+    "name": "Mérignac",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 69791
+  },
+  {
+    "name": "Tournai",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 69554
+  },
+  {
+    "name": "Ostend",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 69011
+  },
+  {
+    "name": "Sint-Niklaas",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 69010
+  },
+  {
+    "name": "Bourges",
+    "countryCode": "FR",
+    "admin1": "24",
+    "postcodeSample": null,
+    "population": 67987
+  },
+  {
+    "name": "Saint-Nazaire",
+    "countryCode": "FR",
+    "admin1": "52",
+    "postcodeSample": null,
+    "population": 67054
+  },
+  {
+    "name": "Colmar",
+    "countryCode": "FR",
+    "admin1": "44",
+    "postcodeSample": null,
+    "population": 65405
+  },
+  {
+    "name": "Maison Blanche",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 64302
+  },
+  {
+    "name": "Valence",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 63864
+  },
+  {
+    "name": "Quimper",
+    "countryCode": "FR",
+    "admin1": "53",
+    "postcodeSample": null,
+    "population": 63849
+  },
+  {
+    "name": "Genk",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 63666
+  },
+  {
+    "name": "Lugano",
+    "countryCode": "CH",
+    "admin1": "TI",
+    "postcodeSample": null,
+    "population": 63185
+  },
+  {
+    "name": "Drancy",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 62488
+  },
+  {
+    "name": "Noisy-le-Grand",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 62420
+  },
+  {
+    "name": "Villeneuve-d'Ascq",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 62400
+  },
+  {
+    "name": "La Seyne-sur-Mer",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 62330
+  },
+  {
+    "name": "Levallois-Perret",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 62178
+  },
+  {
+    "name": "Marseille 14",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 61920
+  },
+  {
+    "name": "Picpus",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 61920
+  },
+  {
+    "name": "Chambéry",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 61640
+  },
+  {
+    "name": "Issy-les-Moulineaux",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 61447
+  },
+  {
+    "name": "Neuilly-sur-Seine",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 61300
+  },
+  {
+    "name": "Troyes",
+    "countryCode": "FR",
+    "admin1": "44",
+    "postcodeSample": null,
+    "population": 60785
+  },
+  {
+    "name": "Seraing",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 60737
+  },
+  {
+    "name": "Juan-les-Pins",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 60000
+  },
+  {
+    "name": "Antony",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 59845
+  },
+  {
+    "name": "La Roche-sur-Yon",
+    "countryCode": "FR",
+    "admin1": "52",
+    "postcodeSample": null,
+    "population": 59410
+  },
+  {
+    "name": "Marseille 12",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 58734
+  },
+  {
+    "name": "Lorient",
+    "countryCode": "FR",
+    "admin1": "53",
+    "postcodeSample": null,
+    "population": 58112
+  },
+  {
+    "name": "Sarcelles",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 57979
+  },
+  {
+    "name": "Pessac",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 57944
+  },
+  {
+    "name": "Ivry-sur-Seine",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 57897
+  },
+  {
+    "name": "Évreux",
+    "countryCode": "FR",
+    "admin1": "28",
+    "postcodeSample": null,
+    "population": 57795
+  },
+  {
+    "name": "Vénissieux",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 57584
+  },
+  {
+    "name": "Cergy",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 57576
+  },
+  {
+    "name": "Clichy",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 57467
+  },
+  {
+    "name": "Paris 09 Opéra",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 57271
+  },
+  {
+    "name": "Marseille 11",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 56792
+  },
+  {
+    "name": "Woluwe-Saint-Lambert",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 56584
+  },
+  {
+    "name": "Forest",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 56254
+  },
+  {
+    "name": "Roeselare",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 56016
+  },
+  {
+    "name": "Saint-Quentin",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 55407
+  },
+  {
+    "name": "Paris 05 Panthéon",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 55252
+  },
+  {
+    "name": "Biel/Bienne",
+    "countryCode": "CH",
+    "admin1": "BE",
+    "postcodeSample": null,
+    "population": 55120
+  },
+  {
+    "name": "Niort",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 54660
+  },
+  {
+    "name": "Belfort",
+    "countryCode": "FR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 54562
+  },
+  {
+    "name": "Ajaccio",
+    "countryCode": "FR",
+    "admin1": "94",
+    "postcodeSample": null,
+    "population": 54364
+  },
+  {
+    "name": "Zürich (Kreis 11)",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 54260
+  },
+  {
+    "name": "Vannes",
+    "countryCode": "FR",
+    "admin1": "53",
+    "postcodeSample": null,
+    "population": 54020
+  },
+  {
+    "name": "Sartrouville",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 53980
+  },
+  {
+    "name": "Maisons-Alfort",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 53964
+  },
+  {
+    "name": "Meaux",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 53811
+  },
+  {
+    "name": "Blois",
+    "countryCode": "FR",
+    "admin1": "24",
+    "postcodeSample": null,
+    "population": 53660
+  },
+  {
+    "name": "Brive-la-Gaillarde",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 53466
+  },
+  {
+    "name": "Arles",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 53431
+  },
+  {
+    "name": "Beauvais",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 53393
+  },
+  {
+    "name": "Châteauroux",
+    "countryCode": "FR",
+    "admin1": "24",
+    "postcodeSample": null,
+    "population": 53301
+  },
+  {
+    "name": "Cholet",
+    "countryCode": "FR",
+    "admin1": "52",
+    "postcodeSample": null,
+    "population": 53160
+  },
+  {
+    "name": "Fréjus",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 53098
+  },
+  {
+    "name": "Pantin",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 52922
+  },
+  {
+    "name": "Lyon 06",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 52862
+  },
+  {
+    "name": "Verviers",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 52824
+  },
+  {
+    "name": "Saint-Brieuc",
+    "countryCode": "FR",
+    "admin1": "53",
+    "postcodeSample": null,
+    "population": 52774
+  },
+  {
+    "name": "Jette",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 52490
+  },
+  {
+    "name": "Montauban",
+    "countryCode": "FR",
+    "admin1": "76",
+    "postcodeSample": null,
+    "population": 52434
+  },
+  {
+    "name": "Charleville-Mézières",
+    "countryCode": "FR",
+    "admin1": "44",
+    "postcodeSample": null,
+    "population": 52415
+  },
+  {
+    "name": "Albi",
+    "countryCode": "FR",
+    "admin1": "76",
+    "postcodeSample": null,
+    "population": 52409
+  },
+  {
+    "name": "Tarbes",
+    "countryCode": "FR",
+    "admin1": "76",
+    "postcodeSample": null,
+    "population": 52106
+  },
+  {
+    "name": "Fontenay-sous-Bois",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 52075
+  },
+  {
+    "name": "Mouscron",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 52069
+  },
+  {
+    "name": "Lyon 09",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 51983
+  },
+  {
+    "name": "Évry",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 51900
+  },
+  {
+    "name": "Clamart",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 51400
+  },
+  {
+    "name": "Marseille 10",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 51299
+  },
+  {
+    "name": "Châlons-en-Champagne",
+    "countryCode": "FR",
+    "admin1": "44",
+    "postcodeSample": null,
+    "population": 51257
+  },
+  {
+    "name": "Narbonne",
+    "countryCode": "FR",
+    "admin1": "76",
+    "postcodeSample": null,
+    "population": 50776
+  },
+  {
+    "name": "Saint-Malo",
+    "countryCode": "FR",
+    "admin1": "53",
+    "postcodeSample": null,
+    "population": 50676
+  },
+  {
+    "name": "Laval",
+    "countryCode": "FR",
+    "admin1": "52",
+    "postcodeSample": null,
+    "population": 50489
+  },
+  {
+    "name": "Hyères",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 50487
+  },
+  {
+    "name": "Saint-Gilles",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 50221
+  },
+  {
+    "name": "Lyon 05",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 49664
+  },
+  {
+    "name": "Carcassonne",
+    "countryCode": "FR",
+    "admin1": "76",
+    "postcodeSample": null,
+    "population": 49600
+  },
+  {
+    "name": "Angoulême",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 49468
+  },
+  {
+    "name": "Annecy",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 49232
+  },
+  {
+    "name": "Etterbeek",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 48344
+  },
+  {
+    "name": "Bondy",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 48268
+  },
+  {
+    "name": "Le Blanc-Mesnil",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 48077
+  },
+  {
+    "name": "Villejuif",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 48048
+  },
+  {
+    "name": "Paris 07 Palais-Bourbon",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 48015
+  },
+  {
+    "name": "Grasse",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 47581
+  },
+  {
+    "name": "Sevran",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 47334
+  },
+  {
+    "name": "Castres",
+    "countryCode": "FR",
+    "admin1": "76",
+    "postcodeSample": null,
+    "population": 47275
+  },
+  {
+    "name": "Chalon-sur-Saône",
+    "countryCode": "FR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 47251
+  },
+  {
+    "name": "Marseille 04",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 47193
+  },
+  {
+    "name": "Arras",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 47052
+  },
+  {
+    "name": "Boulogne-sur-Mer",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 47013
+  },
+  {
+    "name": "Chelles",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 46947
+  },
+  {
+    "name": "Cagnes-sur-Mer",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 46923
+  },
+  {
+    "name": "Saint-Herblain",
+    "countryCode": "FR",
+    "admin1": "52",
+    "postcodeSample": null,
+    "population": 46898
+  },
+  {
+    "name": "Douai",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 46531
+  },
+  {
+    "name": "Épinay-sur-Seine",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 46145
+  },
+  {
+    "name": "Borgerhout",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 46087
+  },
+  {
+    "name": "Zürich (Kreis 3)",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 46018
+  },
+  {
+    "name": "Vincennes",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 45923
+  },
+  {
+    "name": "Roquette",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 45842
+  },
+  {
+    "name": "Martigues",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 45749
+  },
+  {
+    "name": "Dendermonde",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 45673
+  },
+  {
+    "name": "Marseille 03",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 45414
+  },
+  {
+    "name": "Bourg-en-Bresse",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 45340
+  },
+  {
+    "name": "Beveren",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 45179
+  },
+  {
+    "name": "Bobigny",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 44962
+  },
+  {
+    "name": "Montluçon",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 44960
+  },
+  {
+    "name": "Zürich (Kreis 9)",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 44878
+  },
+  {
+    "name": "Aubagne",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 44844
+  },
+  {
+    "name": "Valenciennes",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 44821
+  },
+  {
+    "name": "Suresnes",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 44697
+  },
+  {
+    "name": "Meudon",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 44652
+  },
+  {
+    "name": "Marseille 05",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 44583
+  },
+  {
+    "name": "Merksem",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 44435
+  },
+  {
+    "name": "Bayonne",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 44396
+  },
+  {
+    "name": "Istres",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 44373
+  },
+  {
+    "name": "Thionville",
+    "countryCode": "FR",
+    "admin1": "44",
+    "postcodeSample": null,
+    "population": 44311
+  },
+  {
+    "name": "Mantes-la-Jolie",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 44263
+  },
+  {
+    "name": "Compiègne",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 44243
+  },
+  {
+    "name": "Turnhout",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 44000
+  },
+  {
+    "name": "Nevers",
+    "countryCode": "FR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 43988
+  },
+  {
+    "name": "Chartres",
+    "countryCode": "FR",
+    "admin1": "24",
+    "postcodeSample": null,
+    "population": 43838
+  },
+  {
+    "name": "Thun",
+    "countryCode": "CH",
+    "admin1": "BE",
+    "postcodeSample": null,
+    "population": 43723
+  },
+  {
+    "name": "Berchem",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 43511
+  },
+  {
+    "name": "Marseille 06",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 43360
+  },
+  {
+    "name": "Le Cannet",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 43353
+  },
+  {
+    "name": "Bellinzona",
+    "countryCode": "CH",
+    "admin1": "TI",
+    "postcodeSample": null,
+    "population": 43220
+  },
+  {
+    "name": "Wattrelos",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 42826
+  },
+  {
+    "name": "Caluire-et-Cuire",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 42763
+  },
+  {
+    "name": "Gap",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 42715
+  },
+  {
+    "name": "Talence",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 42579
+  },
+  {
+    "name": "Alès",
+    "countryCode": "FR",
+    "admin1": "76",
+    "postcodeSample": null,
+    "population": 42410
+  },
+  {
+    "name": "Gennevilliers",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 42294
+  },
+  {
+    "name": "Köniz",
+    "countryCode": "CH",
+    "admin1": "BE",
+    "postcodeSample": null,
+    "population": 41784
+  },
+  {
+    "name": "Evere",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 41667
+  },
+  {
+    "name": "Saint-Priest",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 41641
+  },
+  {
+    "name": "Rosny-sous-Bois",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 41627
+  },
+  {
+    "name": "Auxerre",
+    "countryCode": "FR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 41516
+  },
+  {
+    "name": "Lokeren",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 41438
+  },
+  {
+    "name": "Wilrijk",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 41403
+  },
+  {
+    "name": "Salon-de-Provence",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 41397
+  },
+  {
+    "name": "Saint-Germain-en-Laye",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 41142
+  },
+  {
+    "name": "Bastia",
+    "countryCode": "FR",
+    "admin1": "94",
+    "postcodeSample": null,
+    "population": 41001
+  },
+  {
+    "name": "Beringen",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 40930
+  },
+  {
+    "name": "Marseille 01",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 40919
+  },
+  {
+    "name": "Sète",
+    "countryCode": "FR",
+    "admin1": "76",
+    "postcodeSample": null,
+    "population": 40736
+  },
+  {
+    "name": "Anglet",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 40658
+  },
+  {
+    "name": "Puteaux",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 40646
+  },
+  {
+    "name": "Corbeil-Essonnes",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 40527
+  },
+  {
+    "name": "Paris 06 Luxembourg",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 40389
+  },
+  {
+    "name": "Garges-lès-Gonesse",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 39847
+  },
+  {
+    "name": "Roanne",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 39840
+  },
+  {
+    "name": "Savigny-sur-Orge",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 39698
+  },
+  {
+    "name": "Livry-Gargan",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 39518
+  },
+  {
+    "name": "Épinal",
+    "countryCode": "FR",
+    "admin1": "44",
+    "postcodeSample": null,
+    "population": 39518
+  },
+  {
+    "name": "Dilbeek",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 39482
+  },
+  {
+    "name": "Saint-Ouen",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 39353
+  },
+  {
+    "name": "Rezé",
+    "countryCode": "FR",
+    "admin1": "52",
+    "postcodeSample": null,
+    "population": 39248
+  },
+  {
+    "name": "Montigny-le-Bretonneux",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 39063
+  },
+  {
+    "name": "Noisy-le-Sec",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 38955
+  },
+  {
+    "name": "Melun",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 38953
+  },
+  {
+    "name": "Bagneux",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 38900
+  },
+  {
+    "name": "Massy",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 38768
+  },
+  {
+    "name": "Haguenau",
+    "countryCode": "FR",
+    "admin1": "44",
+    "postcodeSample": null,
+    "population": 38721
+  },
+  {
+    "name": "Montrouge",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 38708
+  },
+  {
+    "name": "Marcq-en-Barœul",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 38629
+  },
+  {
+    "name": "Vitrolles",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 38591
+  },
+  {
+    "name": "Draguignan",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 38573
+  },
+  {
+    "name": "Fribourg",
+    "countryCode": "CH",
+    "admin1": "FR",
+    "postcodeSample": null,
+    "population": 38365
+  },
+  {
+    "name": "Lens",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 38265
+  },
+  {
+    "name": "Gagny",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 38134
+  },
+  {
+    "name": "Saint-Chamond",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 38014
+  },
+  {
+    "name": "La Chaux-de-Fonds",
+    "countryCode": "CH",
+    "admin1": "NE",
+    "postcodeSample": null,
+    "population": 37942
+  },
+  {
+    "name": "Heist-op-den-Berg",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 37873
+  },
+  {
+    "name": "Sint-Truiden",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 37859
+  },
+  {
+    "name": "Bron",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 37825
+  },
+  {
+    "name": "Braine-l'Alleud",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 37512
+  },
+  {
+    "name": "Vaulx-en-Velin",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 37489
+  },
+  {
+    "name": "Joué-lès-Tours",
+    "countryCode": "FR",
+    "admin1": "24",
+    "postcodeSample": null,
+    "population": 37466
+  },
+  {
+    "name": "Alfortville",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 37290
+  },
+  {
+    "name": "La Courneuve",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 37287
+  },
+  {
+    "name": "Châtellerault",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 37210
+  },
+  {
+    "name": "Villepinte",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 37114
+  },
+  {
+    "name": "Brasschaat",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 37040
+  },
+  {
+    "name": "Grimbergen",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 37000
+  },
+  {
+    "name": "Vilvoorde",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 36955
+  },
+  {
+    "name": "Esch-sur-Alzette",
+    "countryCode": "LU",
+    "admin1": "ES",
+    "postcodeSample": null,
+    "population": 36625
+  },
+  {
+    "name": "Schaffhausen",
+    "countryCode": "CH",
+    "admin1": "SH",
+    "postcodeSample": null,
+    "population": 36587
+  },
+  {
+    "name": "Herstal",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 36503
+  },
+  {
+    "name": "Cambrai",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 36492
+  },
+  {
+    "name": "Poissy",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 36431
+  },
+  {
+    "name": "Conflans-Sainte-Honorine",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 36358
+  },
+  {
+    "name": "Sainte-Marguerite",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 36345
+  },
+  {
+    "name": "Bel-Air",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 36279
+  },
+  {
+    "name": "Maasmechelen",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 36251
+  },
+  {
+    "name": "Zürich (Kreis 10)",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 36216
+  },
+  {
+    "name": "Mont-de-Marsan",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 36205
+  },
+  {
+    "name": "Plaisir",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 36121
+  },
+  {
+    "name": "Lyon 04",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 36064
+  },
+  {
+    "name": "Marseille 07",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 35981
+  },
+  {
+    "name": "Waregem",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 35896
+  },
+  {
+    "name": "Marignane",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 35873
+  },
+  {
+    "name": "Dieppe",
+    "countryCode": "FR",
+    "admin1": "28",
+    "postcodeSample": null,
+    "population": 35707
+  },
+  {
+    "name": "Montélimar",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 35637
+  },
+  {
+    "name": "Tremblay-en-France",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 35591
+  },
+  {
+    "name": "Choisy-le-Roi",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 35590
+  },
+  {
+    "name": "Saint-Martin-d'Hères",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 35528
+  },
+  {
+    "name": "Mâcon",
+    "countryCode": "FR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 35484
+  },
+  {
+    "name": "Chur",
+    "countryCode": "CH",
+    "admin1": "GR",
+    "postcodeSample": null,
+    "population": 35373
+  },
+  {
+    "name": "Paris 08 Élysée",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 35317
+  },
+  {
+    "name": "Châtelet",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 35238
+  },
+  {
+    "name": "Ieper",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 35089
+  },
+  {
+    "name": "Romans-sur-Isère",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 35002
+  },
+  {
+    "name": "Saint-Raphaël",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 34918
+  },
+  {
+    "name": "Pontault-Combault",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 34798
+  },
+  {
+    "name": "Ninove",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 34795
+  },
+  {
+    "name": "Six-Fours-les-Plages",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 34779
+  },
+  {
+    "name": "Rapperswil",
+    "countryCode": "CH",
+    "admin1": "SG",
+    "postcodeSample": null,
+    "population": 34776
+  },
+  {
+    "name": "Périgueux",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 34770
+  },
+  {
+    "name": "Aurillac",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 34724
+  },
+  {
+    "name": "Uster",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 34715
+  },
+  {
+    "name": "Sitten",
+    "countryCode": "CH",
+    "admin1": "VS",
+    "postcodeSample": null,
+    "population": 34708
+  },
+  {
+    "name": "Geel",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 34697
+  },
+  {
+    "name": "Halle",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 34479
+  },
+  {
+    "name": "Neuilly-sur-Marne",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 34465
+  },
+  {
+    "name": "Hoboken",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 34443
+  },
+  {
+    "name": "Liévin",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 34370
+  },
+  {
+    "name": "Agen",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 34367
+  },
+  {
+    "name": "Wavre",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 34305
+  },
+  {
+    "name": "Franconville",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 34284
+  },
+  {
+    "name": "Auderghem",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 33984
+  },
+  {
+    "name": "Zürich (Kreis 7)",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 33820
+  },
+  {
+    "name": "Knokke-Heist",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 33781
+  },
+  {
+    "name": "Sainte-Geneviève-des-Bois",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 33689
+  },
+  {
+    "name": "Maubeuge",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 33684
+  },
+  {
+    "name": "Schoten",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 33622
+  },
+  {
+    "name": "Bagnolet",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 33504
+  },
+  {
+    "name": "Neuchâtel",
+    "countryCode": "CH",
+    "admin1": "NE",
+    "postcodeSample": null,
+    "population": 33475
+  },
+  {
+    "name": "Lier",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 33272
+  },
+  {
+    "name": "Saumur",
+    "countryCode": "FR",
+    "admin1": "52",
+    "postcodeSample": null,
+    "population": 33229
+  },
+  {
+    "name": "Biarritz",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 33188
+  },
+  {
+    "name": "La Ciotat",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 33113
+  },
+  {
+    "name": "Échirolles",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 33088
+  },
+  {
+    "name": "Villefranche-sur-Saône",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 32994
+  },
+  {
+    "name": "Monaco",
+    "countryCode": "MC",
+    "admin1": "00",
+    "postcodeSample": null,
+    "population": 32965
+  },
+  {
+    "name": "Châtenay-Malabry",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 32715
+  },
+  {
+    "name": "Mol",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 32659
+  },
+  {
+    "name": "Stains",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 32601
+  },
+  {
+    "name": "Châtillon",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 32383
+  },
+  {
+    "name": "Vienne",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 32293
+  },
+  {
+    "name": "Schiltigheim",
+    "countryCode": "FR",
+    "admin1": "44",
+    "postcodeSample": null,
+    "population": 32289
+  },
+  {
+    "name": "Paris 03 Temple",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 32179
+  },
+  {
+    "name": "Les Mureaux",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 32134
+  },
+  {
+    "name": "Sint-Amandsberg",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 32115
+  },
+  {
+    "name": "Binche",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 32030
+  },
+  {
+    "name": "Le Perreux-sur-Marne",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 32015
+  },
+  {
+    "name": "Lommel",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 31993
+  },
+  {
+    "name": "Guyancourt",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 31989
+  },
+  {
+    "name": "Palaiseau",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 31987
+  },
+  {
+    "name": "Saint-Dizier",
+    "countryCode": "FR",
+    "admin1": "44",
+    "postcodeSample": null,
+    "population": 31918
+  },
+  {
+    "name": "Menen",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 31916
+  },
+  {
+    "name": "Oudenaarde",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 31866
+  },
+  {
+    "name": "Creil",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 31863
+  },
+  {
+    "name": "Vandœuvre-lès-Nancy",
+    "countryCode": "FR",
+    "admin1": "44",
+    "postcodeSample": null,
+    "population": 31785
+  },
+  {
+    "name": "Tienen",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 31743
+  },
+  {
+    "name": "Thonon-les-Bains",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 31684
+  },
+  {
+    "name": "Evergem",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 31615
+  },
+  {
+    "name": "Béthune",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 31568
+  },
+  {
+    "name": "Colomiers",
+    "countryCode": "FR",
+    "admin1": "76",
+    "postcodeSample": null,
+    "population": 31363
+  },
+  {
+    "name": "Lyon 02",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 31303
+  },
+  {
+    "name": "Folie Méricourt",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 31299
+  },
+  {
+    "name": "Nogent-sur-Marne",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 31236
+  },
+  {
+    "name": "Athis-Mons",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 31225
+  },
+  {
+    "name": "Viry-Châtillon",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 31131
+  },
+  {
+    "name": "Houilles",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 31121
+  },
+  {
+    "name": "Soissons",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 31100
+  },
+  {
+    "name": "Dreux",
+    "countryCode": "FR",
+    "admin1": "24",
+    "postcodeSample": null,
+    "population": 31058
+  },
+  {
+    "name": "Heusden",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 31017
+  },
+  {
+    "name": "Wevelgem",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 30954
+  },
+  {
+    "name": "Emmen",
+    "countryCode": "CH",
+    "admin1": "LU",
+    "postcodeSample": null,
+    "population": 30926
+  },
+  {
+    "name": "Charenton-le-Pont",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 30910
+  },
+  {
+    "name": "Villeneuve-Saint-Georges",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 30881
+  },
+  {
+    "name": "Élancourt",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 30831
+  },
+  {
+    "name": "Geraardsbergen",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 30807
+  },
+  {
+    "name": "Saint-Ambroise",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 30802
+  },
+  {
+    "name": "Alençon",
+    "countryCode": "FR",
+    "admin1": "28",
+    "postcodeSample": null,
+    "population": 30786
+  },
+  {
+    "name": "Sotteville-lès-Rouen",
+    "countryCode": "FR",
+    "admin1": "28",
+    "postcodeSample": null,
+    "population": 30619
+  },
+  {
+    "name": "Zug",
+    "countryCode": "CH",
+    "admin1": "ZG",
+    "postcodeSample": null,
+    "population": 30542
+  },
+  {
+    "name": "Orange",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 30530
+  },
+  {
+    "name": "Sint-Pieters-Leeuw",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 30446
+  },
+  {
+    "name": "Villenave-d'Ornon",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 30347
+  },
+  {
+    "name": "Pontoise",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 30290
+  },
+  {
+    "name": "Villiers-sur-Marne",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 30252
+  },
+  {
+    "name": "Kessel-Lo",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 30215
+  },
+  {
+    "name": "Blauwput",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 30215
+  },
+  {
+    "name": "Yverdon-les-Bains",
+    "countryCode": "CH",
+    "admin1": "VD",
+    "postcodeSample": null,
+    "population": 30157
+  },
+  {
+    "name": "Chatou",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 30091
+  },
+  {
+    "name": "Vernier",
+    "countryCode": "CH",
+    "admin1": "GE",
+    "postcodeSample": null,
+    "population": 30086
+  },
+  {
+    "name": "Houthalen",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 30050
+  },
+  {
+    "name": "Helchteren",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 30050
+  },
+  {
+    "name": "Goussainville",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 30047
+  },
+  {
+    "name": "Zürich (Kreis 6)",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 29951
+  },
+  {
+    "name": "Lomme",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 29892
+  },
+  {
+    "name": "Vierzon",
+    "countryCode": "FR",
+    "admin1": "24",
+    "postcodeSample": null,
+    "population": 29876
+  },
+  {
+    "name": "Tongeren",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 29816
+  },
+  {
+    "name": "Deinze",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 29815
+  },
+  {
+    "name": "Waterloo",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 29778
+  },
+  {
+    "name": "Saint-Médard-en-Jalles",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 29742
+  },
+  {
+    "name": "Thiais",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 29724
+  },
+  {
+    "name": "Carpentras",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 29709
+  },
+  {
+    "name": "L'Haÿ-les-Roses",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 29703
+  },
+  {
+    "name": "Menton",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 29649
+  },
+  {
+    "name": "Lyon 01",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 29641
+  },
+  {
+    "name": "Bilzen",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 29622
+  },
+  {
+    "name": "Louvain-la-Neuve",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 29521
+  },
+  {
+    "name": "Saint-Laurent-du-Var",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 29516
+  },
+  {
+    "name": "Saintes",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 29512
+  },
+  {
+    "name": "Courcelles",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 29473
+  },
+  {
+    "name": "Rochefort",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 29427
+  },
+  {
+    "name": "Malakoff",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 29420
+  },
+  {
+    "name": "Draveil",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 29316
+  },
+  {
+    "name": "Saint-Leu",
+    "countryCode": "FR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 29278
+  },
+  {
+    "name": "Saint-Sébastien-sur-Loire",
+    "countryCode": "FR",
+    "admin1": "52",
+    "postcodeSample": null,
+    "population": 29238
+  },
+  {
+    "name": "Zürich (Kreis 2)",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 29215
+  },
+  {
+    "name": "Le Chesnay",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 29154
+  },
+  {
+    "name": "Tournefeuille",
+    "countryCode": "FR",
+    "admin1": "76",
+    "postcodeSample": null,
+    "population": 29124
+  },
+  {
+    "name": "Clichy-sous-Bois",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 29062
+  },
+  {
+    "name": "Asse",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 28985
+  },
+  {
+    "name": "Chaumont",
+    "countryCode": "FR",
+    "admin1": "44",
+    "postcodeSample": null,
+    "population": 28981
+  },
+  {
+    "name": "Saint-Étienne-du-Rouvray",
+    "countryCode": "FR",
+    "admin1": "28",
+    "postcodeSample": null,
+    "population": 28953
+  },
+  {
+    "name": "Meyzieu",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 28929
+  },
+  {
+    "name": "Yerres",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 28897
+  },
+  {
+    "name": "Montbéliard",
+    "countryCode": "FR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 28865
+  },
+  {
+    "name": "Saint-Cloud",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 28839
+  },
+  {
+    "name": "Sens",
+    "countryCode": "FR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 28700
+  },
+  {
+    "name": "Laon",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 28688
+  },
+  {
+    "name": "Lambersart",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 28613
+  },
+  {
+    "name": "Trappes",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 28367
+  },
+  {
+    "name": "Rodez",
+    "countryCode": "FR",
+    "admin1": "76",
+    "postcodeSample": null,
+    "population": 28337
+  },
+  {
+    "name": "Bergerac",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 28317
+  },
+  {
+    "name": "Zürich (Kreis 9) / Altstetten",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 28307
+  },
+  {
+    "name": "Annemasse",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 28275
+  },
+  {
+    "name": "La Garde",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 28257
+  },
+  {
+    "name": "Zürich (Kreis 12)",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 28189
+  },
+  {
+    "name": "Zaventem",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 28188
+  },
+  {
+    "name": "Ermont",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 28117
+  },
+  {
+    "name": "Rillieux-la-Pape",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 28076
+  },
+  {
+    "name": "Villemomble",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 28001
+  },
+  {
+    "name": "Pierrefitte-sur-Seine",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 27914
+  },
+  {
+    "name": "Le Kremlin-Bicêtre",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 27867
+  },
+  {
+    "name": "Champs-sur-Marne",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 27776
+  },
+  {
+    "name": "Aarschot",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 27656
+  },
+  {
+    "name": "Aix-les-Bains",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 27651
+  },
+  {
+    "name": "Bezons",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 27570
+  },
+  {
+    "name": "Saint-Josse-ten-Noode",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 27366
+  },
+  {
+    "name": "Paris 04 Hôtel-de-Ville",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 27332
+  },
+  {
+    "name": "Ans",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 27297
+  },
+  {
+    "name": "Lancy",
+    "countryCode": "CH",
+    "admin1": "GE",
+    "postcodeSample": null,
+    "population": 27291
+  },
+  {
+    "name": "Vallauris",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 27286
+  },
+  {
+    "name": "Zürich (Kreis 4) / Aussersihl",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 27273
+  },
+  {
+    "name": "Taverny",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 27271
+  },
+  {
+    "name": "Illkirch-Graffenstaden",
+    "countryCode": "FR",
+    "admin1": "44",
+    "postcodeSample": null,
+    "population": 27261
+  },
+  {
+    "name": "La Teste-de-Buch",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 27253
+  },
+  {
+    "name": "Épernay",
+    "countryCode": "FR",
+    "admin1": "44",
+    "postcodeSample": null,
+    "population": 27082
+  },
+  {
+    "name": "Villiers-le-Bel",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 27028
+  },
+  {
+    "name": "Vichy",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 27019
+  },
+  {
+    "name": "Hôpital Saint-Louis",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 26926
+  },
+  {
+    "name": "Sannois",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 26869
+  },
+  {
+    "name": "Gonesse",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 26758
+  },
+  {
+    "name": "Vigneux-sur-Seine",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 26692
+  },
+  {
+    "name": "Cavaillon",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 26689
+  },
+  {
+    "name": "Ath",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 26681
+  },
+  {
+    "name": "Rambouillet",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 26674
+  },
+  {
+    "name": "Cherbourg",
+    "countryCode": "FR",
+    "admin1": "28",
+    "postcodeSample": null,
+    "population": 26655
+  },
+  {
+    "name": "Armentières",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 26646
+  },
+  {
+    "name": "Lunel",
+    "countryCode": "FR",
+    "admin1": "76",
+    "postcodeSample": null,
+    "population": 26588
+  },
+  {
+    "name": "Cachan",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 26540
+  },
+  {
+    "name": "Le Grand-Quevilly",
+    "countryCode": "FR",
+    "admin1": "28",
+    "postcodeSample": null,
+    "population": 26522
+  },
+  {
+    "name": "Abbeville",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 26461
+  },
+  {
+    "name": "Kapellen",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 26410
+  },
+  {
+    "name": "La Garenne-Colombes",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 26385
+  },
+  {
+    "name": "Izegem",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 26382
+  },
+  {
+    "name": "Montigny-lès-Metz",
+    "countryCode": "FR",
+    "admin1": "44",
+    "postcodeSample": null,
+    "population": 26369
+  },
+  {
+    "name": "Quinze-Vingts",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 26265
+  },
+  {
+    "name": "Arlon",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 26179
+  },
+  {
+    "name": "Vanves",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 26068
+  },
+  {
+    "name": "Temse",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 26054
+  },
+  {
+    "name": "Vernon",
+    "countryCode": "FR",
+    "admin1": "28",
+    "postcodeSample": null,
+    "population": 26037
+  },
+  {
+    "name": "Montreux",
+    "countryCode": "CH",
+    "admin1": "VD",
+    "postcodeSample": null,
+    "population": 25984
+  },
+  {
+    "name": "Harelbeke",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 25978
+  },
+  {
+    "name": "Savigny-le-Temple",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 25925
+  },
+  {
+    "name": "Herentals",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 25912
+  },
+  {
+    "name": "Dole",
+    "countryCode": "FR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 25878
+  },
+  {
+    "name": "Villeneuve-sur-Lot",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 25869
+  },
+  {
+    "name": "Les Ulis",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 25785
+  },
+  {
+    "name": "Marseille 02",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 25779
+  },
+  {
+    "name": "Oyonnax",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 25697
+  },
+  {
+    "name": "Frauenfeld",
+    "countryCode": "CH",
+    "admin1": "TG",
+    "postcodeSample": null,
+    "population": 25607
+  },
+  {
+    "name": "Oullins",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 25592
+  },
+  {
+    "name": "Le Creusot",
+    "countryCode": "FR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 25590
+  },
+  {
+    "name": "Hénin-Beaumont",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 25371
+  },
+  {
+    "name": "Orvault",
+    "countryCode": "FR",
+    "admin1": "52",
+    "postcodeSample": null,
+    "population": 25338
+  },
+  {
+    "name": "Maaseik",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 25201
+  },
+  {
+    "name": "Coudekerque-Branche",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 25201
+  },
+  {
+    "name": "Berchem-Sainte-Agathe",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 25162
+  },
+  {
+    "name": "Watermael-Boitsfort",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 25157
+  },
+  {
+    "name": "Herblay-sur-Seine",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 25153
+  },
+  {
+    "name": "Flémalle-Haute",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 25144
+  },
+  {
+    "name": "Ris-Orangis",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 25082
+  },
+  {
+    "name": "Sucy-en-Brie",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 25014
+  },
+  {
+    "name": "Kriens",
+    "countryCode": "CH",
+    "admin1": "LU",
+    "postcodeSample": null,
+    "population": 25010
+  },
+  {
+    "name": "Grigny",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 24940
+  },
+  {
+    "name": "Soignies",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 24869
+  },
+  {
+    "name": "Ganshoren",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 24859
+  },
+  {
+    "name": "Fresnes",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 24803
+  },
+  {
+    "name": "Romainville",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 24772
+  },
+  {
+    "name": "Lanaken",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 24771
+  },
+  {
+    "name": "Wetzikon",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 24764
+  },
+  {
+    "name": "Fontenay-aux-Roses",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 24680
+  },
+  {
+    "name": "Décines-Charpieu",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 24674
+  },
+  {
+    "name": "Saint-Dié-des-Vosges",
+    "countryCode": "FR",
+    "admin1": "44",
+    "postcodeSample": null,
+    "population": 24628
+  },
+  {
+    "name": "Fontaine",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 24588
+  },
+  {
+    "name": "Mortsel",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 24525
+  },
+  {
+    "name": "Jumet",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 24510
+  },
+  {
+    "name": "Auch",
+    "countryCode": "FR",
+    "admin1": "76",
+    "postcodeSample": null,
+    "population": 24494
+  },
+  {
+    "name": "Bruay-la-Buissière",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 24474
+  },
+  {
+    "name": "Lisieux",
+    "countryCode": "FR",
+    "admin1": "28",
+    "postcodeSample": null,
+    "population": 24473
+  },
+  {
+    "name": "Sarreguemines",
+    "countryCode": "FR",
+    "admin1": "44",
+    "postcodeSample": null,
+    "population": 24446
+  },
+  {
+    "name": "Zottegem",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 24434
+  },
+  {
+    "name": "Torcy",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 24386
+  },
+  {
+    "name": "Gradignan",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 24385
+  },
+  {
+    "name": "Lanester",
+    "countryCode": "FR",
+    "admin1": "53",
+    "postcodeSample": null,
+    "population": 24352
+  },
+  {
+    "name": "Brétigny-sur-Orge",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 24317
+  },
+  {
+    "name": "Muret",
+    "countryCode": "FR",
+    "admin1": "76",
+    "postcodeSample": null,
+    "population": 24313
+  },
+  {
+    "name": "Bois-Colombes",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 24300
+  },
+  {
+    "name": "Blagnac",
+    "countryCode": "FR",
+    "admin1": "76",
+    "postcodeSample": null,
+    "population": 24263
+  },
+  {
+    "name": "Hérouville-Saint-Clair",
+    "countryCode": "FR",
+    "admin1": "28",
+    "postcodeSample": null,
+    "population": 24258
+  },
+  {
+    "name": "Libourne",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 24240
+  },
+  {
+    "name": "Le Bouscat",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 24232
+  },
+  {
+    "name": "Ronse",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 24204
+  },
+  {
+    "name": "Miramas",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 24173
+  },
+  {
+    "name": "Beaune",
+    "countryCode": "FR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 24162
+  },
+  {
+    "name": "Nivelles",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 24149
+  },
+  {
+    "name": "Eaubonne",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 24096
+  },
+  {
+    "name": "Brunoy",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 24096
+  },
+  {
+    "name": "Andenne",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 24055
+  },
+  {
+    "name": "Wil",
+    "countryCode": "CH",
+    "admin1": "SG",
+    "postcodeSample": null,
+    "population": 23955
+  },
+  {
+    "name": "Villeparisis",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 23931
+  },
+  {
+    "name": "Montfermeil",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 23829
+  },
+  {
+    "name": "Sèvres",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 23724
+  },
+  {
+    "name": "Fougères",
+    "countryCode": "FR",
+    "admin1": "53",
+    "postcodeSample": null,
+    "population": 23719
+  },
+  {
+    "name": "Marcinelle",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 23696
+  },
+  {
+    "name": "Saint-Pol-sur-Mer",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 23635
+  },
+  {
+    "name": "Oupeye",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 23594
+  },
+  {
+    "name": "La Madeleine",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 23572
+  },
+  {
+    "name": "Wondelgem",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 23546
+  },
+  {
+    "name": "Gif-sur-Yvette",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 23541
+  },
+  {
+    "name": "Bègles",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 23504
+  },
+  {
+    "name": "Overijse",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 23486
+  },
+  {
+    "name": "Bulle",
+    "countryCode": "CH",
+    "admin1": "FR",
+    "postcodeSample": null,
+    "population": 23438
+  },
+  {
+    "name": "Zwevegem",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 23358
+  },
+  {
+    "name": "Cahors",
+    "countryCode": "FR",
+    "admin1": "76",
+    "postcodeSample": null,
+    "population": 23331
+  },
+  {
+    "name": "Millau",
+    "countryCode": "FR",
+    "admin1": "76",
+    "postcodeSample": null,
+    "population": 23307
+  },
+  {
+    "name": "Hazebrouck",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 23307
+  },
+  {
+    "name": "Ekeren",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 23300
+  },
+  {
+    "name": "Heverlee",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 23278
+  },
+  {
+    "name": "Beersel",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 23228
+  },
+  {
+    "name": "Grande-Synthe",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 23213
+  },
+  {
+    "name": "La Valette-du-Var",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 23134
+  },
+  {
+    "name": "Moulins",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 23095
+  },
+  {
+    "name": "Mont-Saint-Aignan",
+    "countryCode": "FR",
+    "admin1": "28",
+    "postcodeSample": null,
+    "population": 23078
+  },
+  {
+    "name": "Étampes",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 23012
+  },
+  {
+    "name": "Mons-en-Barœul",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 23006
+  },
+  {
+    "name": "Agde",
+    "countryCode": "FR",
+    "admin1": "76",
+    "postcodeSample": null,
+    "population": 23001
+  },
+  {
+    "name": "Saint-Ouen-l'Aumône",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 22977
+  },
+  {
+    "name": "Wetteren",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 22930
+  },
+  {
+    "name": "Vertou",
+    "countryCode": "FR",
+    "admin1": "52",
+    "postcodeSample": null,
+    "population": 22921
+  },
+  {
+    "name": "Hamme",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 22891
+  },
+  {
+    "name": "Montgeron",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 22843
+  },
+  {
+    "name": "Willebroek",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 22808
+  },
+  {
+    "name": "Maisons-Laffitte",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 22772
+  },
+  {
+    "name": "Le Puy-en-Velay",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 22718
+  },
+  {
+    "name": "Le Petit-Quevilly",
+    "countryCode": "FR",
+    "admin1": "28",
+    "postcodeSample": null,
+    "population": 22691
+  },
+  {
+    "name": "Horgen",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 22662
+  },
+  {
+    "name": "Lormont",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 22636
+  },
+  {
+    "name": "Olivet",
+    "countryCode": "FR",
+    "admin1": "24",
+    "postcodeSample": null,
+    "population": 22604
+  },
+  {
+    "name": "Saint-Nicolas",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 22586
+  },
+  {
+    "name": "Westerlo",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 22579
+  },
+  {
+    "name": "Ozoir-la-Ferrière",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 22530
+  },
+  {
+    "name": "Diest",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 22516
+  },
+  {
+    "name": "Le Plessis-Robinson",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 22510
+  },
+  {
+    "name": "Saint-Ghislain",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 22500
+  },
+  {
+    "name": "Cenon",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 22393
+  },
+  {
+    "name": "Combs-la-Ville",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 22322
+  },
+  {
+    "name": "Dax",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 22305
+  },
+  {
+    "name": "Frontignan",
+    "countryCode": "FR",
+    "admin1": "76",
+    "postcodeSample": null,
+    "population": 22251
+  },
+  {
+    "name": "Manage",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 22196
+  },
+  {
+    "name": "Voiron",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 22114
+  },
+  {
+    "name": "Loos",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 22107
+  },
+  {
+    "name": "Maldegem",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 22092
+  },
+  {
+    "name": "Fleurus",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 22080
+  },
+  {
+    "name": "Le Mée-sur-Seine",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 22058
+  },
+  {
+    "name": "Villeneuve-la-Garenne",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 22036
+  },
+  {
+    "name": "Fécamp",
+    "countryCode": "FR",
+    "admin1": "28",
+    "postcodeSample": null,
+    "population": 22003
+  },
+  {
+    "name": "Kreuzlingen",
+    "countryCode": "CH",
+    "admin1": "TG",
+    "postcodeSample": null,
+    "population": 21997
+  },
+  {
+    "name": "Koekelberg",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 21984
+  },
+  {
+    "name": "Cormeilles-en-Parisis",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 21973
+  },
+  {
+    "name": "Zedelgem",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 21968
+  },
+  {
+    "name": "Koksijde",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 21957
+  },
+  {
+    "name": "Sainte-Foy-lès-Lyon",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 21893
+  },
+  {
+    "name": "Edegem",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 21839
+  },
+  {
+    "name": "Verdun",
+    "countryCode": "FR",
+    "admin1": "44",
+    "postcodeSample": null,
+    "population": 21798
+  },
+  {
+    "name": "Vélizy-Villacoublay",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 21741
+  },
+  {
+    "name": "Saint-Lô",
+    "countryCode": "FR",
+    "admin1": "28",
+    "postcodeSample": null,
+    "population": 21722
+  },
+  {
+    "name": "Gembloux",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 21676
+  },
+  {
+    "name": "Achères",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 21660
+  },
+  {
+    "name": "Rixensart",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 21616
+  },
+  {
+    "name": "Lunéville",
+    "countryCode": "FR",
+    "admin1": "44",
+    "postcodeSample": null,
+    "population": 21582
+  },
+  {
+    "name": "Deuil-la-Barre",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 21560
+  },
+  {
+    "name": "Opfikon",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 21554
+  },
+  {
+    "name": "La Celle-Saint-Cloud",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 21539
+  },
+  {
+    "name": "Annecy-le-Vieux",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 21521
+  },
+  {
+    "name": "Sceaux",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 21511
+  },
+  {
+    "name": "Aarau",
+    "countryCode": "CH",
+    "admin1": "AG",
+    "postcodeSample": null,
+    "population": 21503
+  },
+  {
+    "name": "Oostkamp",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 21489
+  },
+  {
+    "name": "Lannion",
+    "countryCode": "FR",
+    "admin1": "53",
+    "postcodeSample": null,
+    "population": 21473
+  },
+  {
+    "name": "Denain",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 21412
+  },
+  {
+    "name": "Allauch",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 21406
+  },
+  {
+    "name": "Concarneau",
+    "countryCode": "FR",
+    "admin1": "53",
+    "postcodeSample": null,
+    "population": 21397
+  },
+  {
+    "name": "Eysines",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 21394
+  },
+  {
+    "name": "Croix",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 21361
+  },
+  {
+    "name": "Forbach",
+    "countryCode": "FR",
+    "admin1": "44",
+    "postcodeSample": null,
+    "population": 21358
+  },
+  {
+    "name": "Manosque",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 21351
+  },
+  {
+    "name": "Saint-Mandé",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 21261
+  },
+  {
+    "name": "Plaine du Var",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 21228
+  },
+  {
+    "name": "Montmorency",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 21156
+  },
+  {
+    "name": "Porte Saint-Martin",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 21154
+  },
+  {
+    "name": "Gardanne",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 21140
+  },
+  {
+    "name": "Les Lilas",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 21124
+  },
+  {
+    "name": "Zemst",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 21096
+  },
+  {
+    "name": "Fleury-les-Aubrais",
+    "countryCode": "FR",
+    "admin1": "24",
+    "postcodeSample": null,
+    "population": 21085
+  },
+  {
+    "name": "Dammarie-les-Lys",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 21066
+  },
+  {
+    "name": "Grivegnée",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 21057
+  },
+  {
+    "name": "Zürich (Kreis 3) / Sihlfeld",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 20977
+  },
+  {
+    "name": "Chaudfontaine",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 20960
+  },
+  {
+    "name": "Roissy-en-Brie",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 20933
+  },
+  {
+    "name": "Renens",
+    "countryCode": "CH",
+    "admin1": "VD",
+    "postcodeSample": null,
+    "population": 20927
+  },
+  {
+    "name": "Dietikon",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 20893
+  },
+  {
+    "name": "Saint-Genis-Laval",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 20883
+  },
+  {
+    "name": "Saint-Louis",
+    "countryCode": "FR",
+    "admin1": "44",
+    "postcodeSample": null,
+    "population": 20871
+  },
+  {
+    "name": "Cognac",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 20868
+  },
+  {
+    "name": "Saint-Michel-sur-Orge",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 20824
+  },
+  {
+    "name": "Nijlen",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 20792
+  },
+  {
+    "name": "Longjumeau",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 20771
+  },
+  {
+    "name": "Bressuire",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 20743
+  },
+  {
+    "name": "Vauréal",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 20699
+  },
+  {
+    "name": "Lons-le-Saunier",
+    "countryCode": "FR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 20678
+  },
+  {
+    "name": "Ploemeur",
+    "countryCode": "FR",
+    "admin1": "53",
+    "postcodeSample": null,
+    "population": 20652
+  },
+  {
+    "name": "Lagny-sur-Marne",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 20649
+  },
+  {
+    "name": "Tervuren",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 20623
+  },
+  {
+    "name": "Sedan",
+    "countryCode": "FR",
+    "admin1": "44",
+    "postcodeSample": null,
+    "population": 20620
+  },
+  {
+    "name": "Frameries",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 20598
+  },
+  {
+    "name": "Baar",
+    "countryCode": "CH",
+    "admin1": "ZG",
+    "postcodeSample": null,
+    "population": 20546
+  },
+  {
+    "name": "Orly",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 20528
+  },
+  {
+    "name": "Bülach",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 20443
+  },
+  {
+    "name": "Schilde",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 20373
+  },
+  {
+    "name": "Saint-Vincent de Paul",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 20336
+  },
+  {
+    "name": "Pontarlier",
+    "countryCode": "FR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 20313
+  },
+  {
+    "name": "Chamalières",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 20298
+  },
+  {
+    "name": "Kontich",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 20290
+  },
+  {
+    "name": "Meylan",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 20267
+  },
+  {
+    "name": "Zele",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 20236
+  },
+  {
+    "name": "Montceau-les-Mines",
+    "countryCode": "FR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 20221
+  },
+  {
+    "name": "Halluin",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 20171
+  },
+  {
+    "name": "Riom",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 20142
+  },
+  {
+    "name": "Braine-le-Comte",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 20133
+  },
+  {
+    "name": "Chevilly-Larue",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 20125
+  },
+  {
+    "name": "Croulebarbe",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 20062
+  },
+  {
+    "name": "Boussu",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 20058
+  },
+  {
+    "name": "Zürich (Kreis 6) / Unterstrass",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 20045
+  },
+  {
+    "name": "Gilly",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 20043
+  },
+  {
+    "name": "Riehen",
+    "countryCode": "CH",
+    "admin1": "BS",
+    "postcodeSample": null,
+    "population": 20000
+  },
+  {
+    "name": "La Defense",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 20000
+  },
+  {
+    "name": "Bornem",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 19997
+  },
+  {
+    "name": "Sainte-Marguerite",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 19997
+  },
+  {
+    "name": "Balen",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 19978
+  },
+  {
+    "name": "Huy",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 19973
+  },
+  {
+    "name": "Colfontaine",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 19964
+  },
+  {
+    "name": "Romorantin-Lanthenay",
+    "countryCode": "FR",
+    "admin1": "24",
+    "postcodeSample": null,
+    "population": 19953
+  },
+  {
+    "name": "Mantes-la-Ville",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 19947
+  },
+  {
+    "name": "Pertuis",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 19926
+  },
+  {
+    "name": "Zonhoven",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 19922
+  },
+  {
+    "name": "Morsang-sur-Orge",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 19917
+  },
+  {
+    "name": "Vesoul",
+    "countryCode": "FR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 19892
+  },
+  {
+    "name": "Vevey",
+    "countryCode": "CH",
+    "admin1": "VD",
+    "postcodeSample": null,
+    "population": 19891
+  },
+  {
+    "name": "Dübendorf",
+    "countryCode": "CH",
+    "admin1": "ZH",
+    "postcodeSample": null,
+    "population": 19882
+  },
+  {
+    "name": "Saint-Jean-de-Braye",
+    "countryCode": "FR",
+    "admin1": "24",
+    "postcodeSample": null,
+    "population": 19874
+  },
+  {
+    "name": "Les Pennes-Mirabeau",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 19871
+  },
+  {
+    "name": "Paris 02 Bourse",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 19847
+  },
+  {
+    "name": "Cluses",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 19789
+  },
+  {
+    "name": "Assebroek",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 19772
+  },
+  {
+    "name": "Meyrin",
+    "countryCode": "CH",
+    "admin1": "GE",
+    "postcodeSample": null,
+    "population": 19772
+  },
+  {
+    "name": "Bourg-lès-Valence",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 19770
+  },
+  {
+    "name": "Villefontaine",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 19749
+  },
+  {
+    "name": "Saint-Gratien",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 19737
+  },
+  {
+    "name": "Les Pavillons-sous-Bois",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 19730
+  },
+  {
+    "name": "Fontainebleau",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 19717
+  },
+  {
+    "name": "Hem",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 19699
+  },
+  {
+    "name": "Lochristi",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 19696
+  },
+  {
+    "name": "Nogent-sur-Oise",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 19690
+  },
+  {
+    "name": "Jambes",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 19658
+  },
+  {
+    "name": "Bagnols-sur-Cèze",
+    "countryCode": "FR",
+    "admin1": "76",
+    "postcodeSample": null,
+    "population": 19640
+  },
+  {
+    "name": "Poperinge",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 19537
+  },
+  {
+    "name": "Sint-Katelijne-Waver",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 19487
+  },
+  {
+    "name": "Couëron",
+    "countryCode": "FR",
+    "admin1": "52",
+    "postcodeSample": null,
+    "population": 19466
+  },
+  {
+    "name": "Écully",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 19437
+  },
+  {
+    "name": "Cran-Gevrier",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 19354
+  },
+  {
+    "name": "Carouge",
+    "countryCode": "CH",
+    "admin1": "GE",
+    "postcodeSample": null,
+    "population": 19344
+  },
+  {
+    "name": "Baden",
+    "countryCode": "CH",
+    "admin1": "AG",
+    "postcodeSample": null,
+    "population": 19340
+  },
+  {
+    "name": "Sint-Andries",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 19336
+  },
+  {
+    "name": "Wasquehal",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 19320
+  },
+  {
+    "name": "Tielt",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 19299
+  },
+  {
+    "name": "Mandelieu-la-Napoule",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 19292
+  },
+  {
+    "name": "Vendôme",
+    "countryCode": "FR",
+    "admin1": "24",
+    "postcodeSample": null,
+    "population": 19226
+  },
+  {
+    "name": "Louviers",
+    "countryCode": "FR",
+    "admin1": "28",
+    "postcodeSample": null,
+    "population": 19220
+  },
+  {
+    "name": "Herent",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 19218
+  },
+  {
+    "name": "Reinach",
+    "countryCode": "CH",
+    "admin1": "BL",
+    "postcodeSample": null,
+    "population": 19216
+  },
+  {
+    "name": "Gujan-Mestras",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 19184
+  },
+  {
+    "name": "Sanary-sur-Mer",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 19166
+  },
+  {
+    "name": "Senlis",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 19160
+  },
+  {
+    "name": "Eeklo",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 19116
+  },
+  {
+    "name": "Albertville",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 19113
+  },
+  {
+    "name": "Limeil-Brévannes",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 19104
+  },
+  {
+    "name": "Jouy-le-Moutier",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 19087
+  },
+  {
+    "name": "Marmande",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 19069
+  },
+  {
+    "name": "Royan",
+    "countryCode": "FR",
+    "admin1": "75",
+    "postcodeSample": null,
+    "population": 19017
+  },
+  {
+    "name": "Maurepas",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 19009
+  },
+  {
+    "name": "Digne-les-Bains",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 18986
+  },
+  {
+    "name": "Mougins",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 18973
+  },
+  {
+    "name": "Challans",
+    "countryCode": "FR",
+    "admin1": "52",
+    "postcodeSample": null,
+    "population": 18947
+  },
+  {
+    "name": "Sélestat",
+    "countryCode": "FR",
+    "admin1": "44",
+    "postcodeSample": null,
+    "population": 18941
+  },
+  {
+    "name": "Torhout",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 18933
+  },
+  {
+    "name": "Garches",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 18930
+  },
+  {
+    "name": "Chilly-Mazarin",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 18870
+  },
+  {
+    "name": "Bourg-la-Reine",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 18870
+  },
+  {
+    "name": "Équeurdreville-Hainneville",
+    "countryCode": "FR",
+    "admin1": "28",
+    "postcodeSample": null,
+    "population": 18862
+  },
+  {
+    "name": "Cournon-d'Auvergne",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 18848
+  },
+  {
+    "name": "Aalter",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 18802
+  },
+  {
+    "name": "Montignies-sur-Sambre",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 18765
+  },
+  {
+    "name": "Saint-Roch",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 18764
+  },
+  {
+    "name": "Chaville",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 18735
+  },
+  {
+    "name": "Neuilly-Plaisance",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 18725
+  },
+  {
+    "name": "Bonneuil-sur-Marne",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 18723
+  },
+  {
+    "name": "Sorgues",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 18681
+  },
+  {
+    "name": "Vence",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 18668
+  },
+  {
+    "name": "Saint-Barthélémy",
+    "countryCode": "FR",
+    "admin1": "93",
+    "postcodeSample": null,
+    "population": 18655
+  },
+  {
+    "name": "Le Plessis-Trévise",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 18618
+  },
+  {
+    "name": "Bar-le-Duc",
+    "countryCode": "FR",
+    "admin1": "44",
+    "postcodeSample": null,
+    "population": 18595
+  },
+  {
+    "name": "Seynod",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 18590
+  },
+  {
+    "name": "Mitry-Mory",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 18562
+  },
+  {
+    "name": "Carvin",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 18561
+  },
+  {
+    "name": "Limay",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 18559
+  },
+  {
+    "name": "La Flèche",
+    "countryCode": "FR",
+    "admin1": "52",
+    "postcodeSample": null,
+    "population": 18536
+  },
+  {
+    "name": "Hoogstraten",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 18524
+  },
+  {
+    "name": "Plaisance-du-Touch",
+    "countryCode": "FR",
+    "admin1": "76",
+    "postcodeSample": null,
+    "population": 18501
+  },
+  {
+    "name": "Meise",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 18497
+  },
+  {
+    "name": "Quaregnon",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 18491
+  },
+  {
+    "name": "La Chapelle-sur-Erdre",
+    "countryCode": "FR",
+    "admin1": "52",
+    "postcodeSample": null,
+    "population": 18481
+  },
+  {
+    "name": "Avion",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 18470
+  },
+  {
+    "name": "Annonay",
+    "countryCode": "FR",
+    "admin1": "84",
+    "postcodeSample": null,
+    "population": 18423
+  },
+  {
+    "name": "Olten",
+    "countryCode": "CH",
+    "admin1": "SO",
+    "postcodeSample": null,
+    "population": 18362
+  },
+  {
+    "name": "Ronchin",
+    "countryCode": "FR",
+    "admin1": "32",
+    "postcodeSample": null,
+    "population": 18331
+  },
+  {
+    "name": "Mauguio",
+    "countryCode": "FR",
+    "admin1": "76",
+    "postcodeSample": null,
+    "population": 18320
+  },
+  {
+    "name": "Chennevières-sur-Marne",
+    "countryCode": "FR",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 18314
+  },
+  {
+    "name": "Martigny-Ville",
+    "countryCode": "CH",
+    "admin1": "VS",
+    "postcodeSample": null,
+    "population": 18301
+  },
+  {
+    "name": "Autun",
+    "countryCode": "FR",
+    "admin1": "27",
+    "postcodeSample": null,
+    "population": 18283
+  },
+  {
+    "name": "Saint-Avold",
+    "countryCode": "FR",
+    "admin1": "44",
+    "postcodeSample": null,
+    "population": 18281
+  },
+  {
+    "name": "Tourlaville",
+    "countryCode": "FR",
+    "admin1": "28",
+    "postcodeSample": null,
+    "population": 18273
+  }
+]

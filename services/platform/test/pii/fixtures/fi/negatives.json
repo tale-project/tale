@@ -1,0 +1,4065 @@
+{
+  "_meta": {
+    "locale": "fi",
+    "generator": "platform/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 0,
+      "negatives": 810
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "negatives": [
+    {
+      "id": "neg-prose-fi-00000",
+      "input": "Hänen äänensä kävi hermoilleni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00001",
+      "input": "Lue mittarin lukema.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00002",
+      "input": "Sillä maalla on yhteinen raja kahden muun maan kanssa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00003",
+      "input": "Imuroin pölyt lattialta pölynimurilla.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00004",
+      "input": "Kuulin sen suoraan naapuriltani.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00005",
+      "input": "Isoisä alkoi käydä vanhaksi, joten hän jäi eläkkeelle.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00006",
+      "input": "Tytön kasvot kalpenivat hänen kuullessaan pojan sanat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00007",
+      "input": "Heinäkuun kymmenentenä avaamme Sapporoon sivuliikkeen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00008",
+      "input": "Elämänkerran kirjoittamisessa on vaikeaa se, että se on puoliksi dokumentointia ja puoliksi taidetta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00009",
+      "input": "Perjantai-iltana kolme miestä saapui herra Whiten hotellille ja pyysi yösijaa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00010",
+      "input": "Isäni työskentelee insinöörinä siinä tehtaassa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00011",
+      "input": "Se laulaja oli parhaimmillaan tuon laulun aikaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00012",
+      "input": "Tuuli puhalsi sateen suoraan kasvoilleni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00013",
+      "input": "Hän huomasi soutuveneen kaukaisuudessa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00014",
+      "input": "Sinä taidat olla aivan heikkona ruokaan, vai kuinka?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00015",
+      "input": "Aina kun olen hänen lähellään, hermostun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00016",
+      "input": "En pärjää päivääkään ilman tätä sanakirjaa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00017",
+      "input": "En ole voinut käydä koulussa viikkoon.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00018",
+      "input": "Kokeillaanpa jotakin!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00019",
+      "input": "Minun täytyy mennä nukkumaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00020",
+      "input": "Hän halveksii alempiin yhteiskuntaluokkiin kuuluvia ihmisiä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00021",
+      "input": "Hänellä on etunaan hyvä ulkonäkö.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00022",
+      "input": "Hän on kymmenen lapsen äiti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00023",
+      "input": "Hän aikoo tehdä vielä yhden asuunsa sopivan puseron.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00024",
+      "input": "Hän on luonnostaan kiltti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00025",
+      "input": "Hän on luonnostaan heikko.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00026",
+      "input": "Hänen virallinen tittelinsä on ympäristöviraston pääjohtaja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00027",
+      "input": "Hän menee silloin tällöin työasioissa Tokioon.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00028",
+      "input": "Hän soitti Tokiosta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00029",
+      "input": "Hän oli murheen murtama.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00030",
+      "input": "Tupakointi vahingoittaa keuhkojasi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00031",
+      "input": "Sinun ei pitäisi mennä ulos nyt. Miksei?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00032",
+      "input": "Hauskanpito on ohi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00033",
+      "input": "Mahtaako kuolema yksin olla ainoa vapautus?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00034",
+      "input": "Ei näytä siltä, että tuota maata tarvitsee avustaa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00035",
+      "input": "Tämä vatsakipu on sietämätön.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00036",
+      "input": "Purkka tarttui kengänpohjaani.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00037",
+      "input": "En saa sitä laulua pois päästäni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00038",
+      "input": "Meidän täytyy odottaa häntä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00039",
+      "input": "Hänet erotettiin virastaan, koska hän oli laiskuri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00040",
+      "input": "Jonain päivänä sinä tiedät totuuden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00041",
+      "input": "Tämä on minun laukkuni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00042",
+      "input": "Se on minun laukkuni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00043",
+      "input": "Minulla ei ole mitään salattavaa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00044",
+      "input": "Hän aloitti maailmanympärimatkansa purjeveneellään.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00045",
+      "input": "Hän aloitti maailmanympäripurjehduksensa purjeveneellä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00046",
+      "input": "Ei tulosta ilman tuskaa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00047",
+      "input": "Minulla on hirvittävät tuskat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00048",
+      "input": "Mihin hampaaseen sattuu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00049",
+      "input": "Mihin kohtaan sinua sattuu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00050",
+      "input": "Mitä sinä teit kamerallesi?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00051",
+      "input": "Hän nojasi seinään.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00052",
+      "input": "Sopimus tulee voimaan tänä yönä kello kaksitoista.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00053",
+      "input": "Se laki ei ole enää voimassa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00054",
+      "input": "Sinun täytyy luvata, että pidät lupauksesi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00055",
+      "input": "Sinun täytyy vannoa, että pidät lupauksesi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00056",
+      "input": "Meidän suunnitelmassamme on paljon hyviä puolia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00057",
+      "input": "Hän pitää autoista todella paljon, mutta hänen pikkuveljensä sitä vastoin vihaa niitä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00058",
+      "input": "Hän rakastaa autoja kun taas hänen veljensä vihaa niitä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00059",
+      "input": "Nukuin tänään iltapäivällä kello yhdestä kello neljään.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00060",
+      "input": "Nukuin kello yhdestä kello neljään tänään iltapäivällä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00061",
+      "input": "Tuo mekko sopii sinulle hyvin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00062",
+      "input": "Tuo mekko sopii sinulle erittäin hyvin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00063",
+      "input": "Olin silloin Kanadassa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00064",
+      "input": "Siihen aikaan olin Kanadassa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00065",
+      "input": "Katsoin pelin alusta loppuun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00066",
+      "input": "En ollut koskaan aikaisemmin nähnyt pandaa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00067",
+      "input": "Mikä on Suomen pääkaupunki?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00068",
+      "input": "Norjan ja Suomen kaltaisissa maissa on talvisin paljon lunta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00069",
+      "input": "Tuo laiva on matkalla Suomeen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00070",
+      "input": "Me vastustamme sotaa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00071",
+      "input": "Rauta on kovaa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00072",
+      "input": "Rauta on paljon hyödyllisempää kuin kulta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00073",
+      "input": "Rauta on kaikista hyödyllisin metalli.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00074",
+      "input": "Kolmesta koirasta yksi on uros ja kaksi muuta narttuja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00075",
+      "input": "Minulla on kolme koiraa, joista yksi on uros ja kaksi muuta narttuja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00076",
+      "input": "Koira hyppäsi tuolin yli.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00077",
+      "input": "Koiran turkki on niin sanotusti sen villapaita.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00078",
+      "input": "Koirien tuominen kielletty.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00079",
+      "input": "Koiran uskollisuus panee ihailemaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00080",
+      "input": "Haluan kissan koiran sijasta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00081",
+      "input": "Sinun täytyy pitää koirastasi huolta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00082",
+      "input": "Pelkkä vilaus koirasta saa hänet pelkäämään.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00083",
+      "input": "Annathan koiralle ruokaa joka päivä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00084",
+      "input": "Järven läpimitta on kolme mailia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00085",
+      "input": "Järvi on syvin tässä lähiseuduilla.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00086",
+      "input": "Järvi on syvin täällä päin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00087",
+      "input": "Hän tyhjensi lasinsa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00088",
+      "input": "Hän joi lasinsa tyhjäksi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00089",
+      "input": "Hän hiippaili talon ympäri takaovelle.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00090",
+      "input": "Hän kuiskasi minulle salaa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00091",
+      "input": "Hän selvitteli totuutta väsymättömästi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00092",
+      "input": "Hän kertoi hauskan jutun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00093",
+      "input": "Hän on luonteeltaan humoristinen tyyppi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00094",
+      "input": "Hän söi suihinsa koko aterian.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00095",
+      "input": "Hän ei ole kerjäläistä kummempi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00096",
+      "input": "Hän lupasi minulle, että hän tulee tänne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00097",
+      "input": "Minulla ei ole sen tapauksen kanssa mitään tekemistä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00098",
+      "input": "Hän puhui kodittomien puolesta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00099",
+      "input": "Minun kelloni mukaan kello on nyt neljä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00100",
+      "input": "Tiikeri karkasi eläintarhasta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00101",
+      "input": "Kun katson televisiota, tulen heti uniseksi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00102",
+      "input": "Katselin televisiota ja nukahdin vahingossa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00103",
+      "input": "Teen läksyt sen jälkeen kun olen katsonut televisiota.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00104",
+      "input": "Kun katsoo televisiota tai kuuntelee radiota, sieltä kuuluva musiikki on usein peräisin Afrikasta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00105",
+      "input": "Laittaisitko television päälle?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00106",
+      "input": "Haittaako sinua jos laitan television päälle?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00107",
+      "input": "Sopiiko, että laitan television päälle?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00108",
+      "input": "Laita televisio päälle.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00109",
+      "input": "Älä jätä televisiota päälle!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00110",
+      "input": "Hän oli huolimaton ja meni nukkumaan televisio päällä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00111",
+      "input": "Tässä koulussa on kirjoilla useita ulkomaalaisia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00112",
+      "input": "Hän on aina täynnä omia asioitaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00113",
+      "input": "Hänen päänsä on aina täynnä hänen omia asioitaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00114",
+      "input": "Oudon näköistä naista luultiin noidaksi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00115",
+      "input": "Tapaammeko huomenna?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00116",
+      "input": "Minulla on paha olo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00117",
+      "input": "Kuka rikkoi ikkunan? Kerro totuus.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00118",
+      "input": "Ilman sinun apuasi en olisi onnistunut.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00119",
+      "input": "Arvasin hänen olevan neljäkymmentävuotias.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00120",
+      "input": "Ostin hänelle nuken.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00121",
+      "input": "Tuuli kaatoi puun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00122",
+      "input": "Ovi aukeaa painamalla tätä nappia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00123",
+      "input": "Hänen elämänsä oli rankkaa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00124",
+      "input": "Kumpi puoli on lyöntivuorossa?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00125",
+      "input": "En enää kestä tätä särkynyttä sydäntäni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00126",
+      "input": "Hän lähti yhtäkkiä huoneesta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00127",
+      "input": "Vain jäävuoren huippu näkyy vedenpinnan yläpuolella.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00128",
+      "input": "Hänestä tuli kuuluisa näyttelijä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00129",
+      "input": "Keskustelimme mitä meidän pitäisi tehdä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00130",
+      "input": "Turpa kiinni ja kuuntele penikka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00131",
+      "input": "Kuinka pian mekko on valmis?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00132",
+      "input": "Täten julistan olympialaiset avatuksi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00133",
+      "input": "Vanhempani kielsivät minua tapaamasta Tomia uudestaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00134",
+      "input": "Uimaan oppiminen on helppoa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00135",
+      "input": "Toivotaan joka tapauksessa parasta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00136",
+      "input": "Hän tulee hyvin toimeen työntekijöidensä kanssa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00137",
+      "input": "Ruuasta löytyi kolerabakteeria.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00138",
+      "input": "Sinä olet ihminen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00139",
+      "input": "Kuukausi on lopuillaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00140",
+      "input": "Hän käyttäytyy kuin Nelson tänä iltana.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00141",
+      "input": "Olen pers'aukinen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00142",
+      "input": "Rahani ovat lopussa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00143",
+      "input": "Kissa nukkuu sohvalla.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00144",
+      "input": "Täällä me nousimme Alaskaan lähtevään laivaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00145",
+      "input": "Ellemme olisi joutuneet onnettomuuteen olisimme olleet ajoissa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00146",
+      "input": "He nousivat lentokoneeseen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00147",
+      "input": "Olisi hyvä jos osaisit laulaa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00148",
+      "input": "Toisitko kirjasi alas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00149",
+      "input": "Opiskelijoiden on tarkoitus opiskella ahkerasti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00150",
+      "input": "Vientiteollisuus ei voi hyvin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00151",
+      "input": "Älä laiskottele, käytä kanji-merkkejä jotka sinulle on opetettu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00152",
+      "input": "Hinnat tippuivat yhtäkkiä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00153",
+      "input": "Sinun täytyy olla idiootti!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00154",
+      "input": "Hän meni töihin, vaikka hänellä oli flunssa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00155",
+      "input": "Hän satutti kätensä kaatuessaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00156",
+      "input": "Totta puhuen, hänen puheensa ovat aina tylsiä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00157",
+      "input": "Hän heitti monta kirjettä roskiin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00158",
+      "input": "Hän luultavasti epäonnistuu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00159",
+      "input": "Kun pääsin hänen talolleen, hänet oli jo viety pois.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00160",
+      "input": "Tämä kaupunki on kuollut.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00161",
+      "input": "Tämä kaupunki on tylsä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00162",
+      "input": "Olin täysin tietämätön tapahtuneesta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00163",
+      "input": "Saisinko puhelinnumerosi?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00164",
+      "input": "Sinun olisi parempi olla hiljaa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00165",
+      "input": "Hän oli jälleen poissa koulusta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00166",
+      "input": "Isoisäni on edelleen terve fyysisesti ja psyykkisesti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00167",
+      "input": "Kumpikin maa aloitti rauhanneuvottelut.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00168",
+      "input": "Hän kirjoittaa kauniita runoja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00169",
+      "input": "Hänen miehensä suorittaa kolmen vuoden vankeustuomiota.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00170",
+      "input": "En ymmärtänyt mitä hän tarkoitti sanoessaan \"megafeps\".",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00171",
+      "input": "Hän maksoi sen itse.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00172",
+      "input": "Missä voisimme soittaa?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00173",
+      "input": "Jaoin huoneen veljeni kanssa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00174",
+      "input": "Keitän sinulle teetä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00175",
+      "input": "Olisiko minun pitänyt pyytää lupaasi?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00176",
+      "input": "Tulkoon mitä tahansa, minä olen valmis.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00177",
+      "input": "Tämä on sinulle.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00178",
+      "input": "Ehkä hän ei muista syntymäpäivääni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00179",
+      "input": "Mitä tekisit, jos tapaisit miehen toiselta planeetalta?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00180",
+      "input": "Paul soitti juuri äsken.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00181",
+      "input": "Vanhempani eivät sallineet minun menevän ulos poikien kanssa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00182",
+      "input": "Kuten hänen isänsä, hän omistaa useita kirjoja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00183",
+      "input": "Olisiko sinulla hetki aikaa?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00184",
+      "input": "Ostin kameran kolmellakymmenellä dollarilla.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00185",
+      "input": "Ruoka ei sopinut ihmisille eikä eläimille.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00186",
+      "input": "Farkut on loppuunmyyty.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00187",
+      "input": "Hän eli onnellisen elämän.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00188",
+      "input": "Tunnetko ketään näistä pojista tässä huoneessa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00189",
+      "input": "En pidä hänestä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00190",
+      "input": "Olemme ihmisiä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00191",
+      "input": "Emme ajatelleet hintaa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00192",
+      "input": "Sairastuin varmasti flunssaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00193",
+      "input": "Lääkäri on hyvä auktoriteetti lasten sairauksien suhteen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00194",
+      "input": "Runoilija ilmaisi palavat tunteensa rakastamaansa naista kohtaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00195",
+      "input": "Minulla oli vaikeuksia löytää hänen taloaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00196",
+      "input": "Minkälainen mielikuva sinulla on Amerikasta?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00197",
+      "input": "He ovat kaikki viattomia lapsia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00198",
+      "input": "Hän on räjähtämäisillään vihasta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00199",
+      "input": "Opiskelijoiden pitäisi opiskella ahkerasti, mutta myös löytää aikaa aktiiviseen sosiaalielämään.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00200",
+      "input": "Vaihdoimme katseita.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00201",
+      "input": "Kadun menoani sinne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00202",
+      "input": "Sinä olet todella taitava neulomaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00203",
+      "input": "Hänen äitinsä näyttää hänen isosiskoltaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00204",
+      "input": "Lehmät ovat pyhiä monille ihmisille Intiassa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00205",
+      "input": "Mary väitti, että laukku oli lahja hänen mieheltään.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00206",
+      "input": "Kenillä on kaksi kissaa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00207",
+      "input": "Hänen äitinsä oli Kennedyn perheestä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00208",
+      "input": "Hän saavutti tavoitteensa taidokkaasti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00209",
+      "input": "Hän pitää hyytelöstä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00210",
+      "input": "Hän eksyi sarjakuvan maailmaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00211",
+      "input": "Eli, sinun olisi pitänyt ottaa vastuu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00212",
+      "input": "\"Ajattelen vain toivettani,\" vastasi pieni musta jänis.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00213",
+      "input": "He pitivät häntä epäpätevänä tätä työtä varten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00214",
+      "input": "Hän on tänään todella kiltti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00215",
+      "input": "Tämän takia hän menestyi pop-laulajana.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00216",
+      "input": "Hän poltti lounaan jälkeen sikarin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00217",
+      "input": "Oloni parani, kun peseydyin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00218",
+      "input": "Erehdyin pahoin pitäessäni häntä rehellisenä miehenä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00219",
+      "input": "Pidän kävelytyylistäsi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00220",
+      "input": "Ikinä ei ole satanut näin paljon lunta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00221",
+      "input": "Hän on minua kolme vuotta nuorempi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00222",
+      "input": "En voi ajatella ketään muuta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00223",
+      "input": "Tämähän on hieno talo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00224",
+      "input": "Annan hänelle toisen mahdollisuuden vain tämän kerran.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00225",
+      "input": "Tätä väriä sanotaan \"keskiyön siniseksi\".",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00226",
+      "input": "Tein Annille nuken.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00227",
+      "input": "Hänen talonsa on sillan toisella puolella.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00228",
+      "input": "Tehokkaat työkoneet korvasivat miestyövoiman.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00229",
+      "input": "Älä tee liikaa töitä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00230",
+      "input": "Kysyin häneltä miksi hän on niin surullinen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00231",
+      "input": "Heidän lähtönsä viivästyi lumisateen takia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00232",
+      "input": "Opit nopeasti pitämään paikallisesta ruuasta ja juomasta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00233",
+      "input": "Huhu osoittautui valheeksi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00234",
+      "input": "Yritä päättää nopeasti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00235",
+      "input": "Toivon, että olisin ollut kiltimpi sitä tyttöä kohtaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00236",
+      "input": "Voisitko auttaa hetken?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00237",
+      "input": "Poliisit tulivat heti kuultuaan pistoolin laukauksen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00238",
+      "input": "Hän asuu keskellä maaseutua.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00239",
+      "input": "Hitler ajoi Saksan sotaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00240",
+      "input": "Hänen ainoa huolensa on hänen lapsiensa hyvinvointi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00241",
+      "input": "Haluaisin tulla Picassoksi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00242",
+      "input": "Mitä vittua siitä?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00243",
+      "input": "Maailma on minulle velkaa joten painu vittuun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00244",
+      "input": "Esimerkiksi Suomessa ja Norjassa sataa paljon lunta talvisin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00245",
+      "input": "Voinko juoda alkoholia?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00246",
+      "input": "Juotko alkoholia?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00247",
+      "input": "Älä juo alkoholia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00248",
+      "input": "Minä en juo alkoholia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00249",
+      "input": "Hän ei koskaan juo alkoholia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00250",
+      "input": "Hän on absolutisti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00251",
+      "input": "Hän on alkoholisti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00252",
+      "input": "Milloin voidaan sanoa, että henkilöllä on alkoholiongelma?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00253",
+      "input": "\"Isäni ei juo alkoholia.\" \"Ei minunkaan isäni.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00254",
+      "input": "Alkoholin kohtuukäyttö ei ole haitallista.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00255",
+      "input": "Bakteerit eivät lisäänny alkoholissa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00256",
+      "input": "Tässä vedessä on hieman alkoholia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00257",
+      "input": "Alkoholin käyttö lisääntyy joka vuosi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00258",
+      "input": "Jon sai yrityksensä menestymään.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00259",
+      "input": "Matkani Yokohamaan kesti kaksi tuntia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00260",
+      "input": "Mayuko tiputti pallon.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00261",
+      "input": "Toivon, että olisin ollut siellä kanssasi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00262",
+      "input": "Hän haluaa samanlaisen kellon kuin sinulla.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00263",
+      "input": "Hän meni Ranskan pääkaupunkiin, Pariisiin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00264",
+      "input": "Tottakai. Tiedätkö hyvän paikan?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00265",
+      "input": "Hakiessasi Amerikkalaisiin yliopistoihin, TOEFL-tuloksesi on vain yksi muuttuja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00266",
+      "input": "Strutsit eivät osaa lentää.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00267",
+      "input": "Unelmani on tulla baseball-pelaajaksi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00268",
+      "input": "Jim käyttäytyi koko päivän ajan todella oudosti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00269",
+      "input": "Muistan päivän jolloin pikkuveljeni syntyi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00270",
+      "input": "Juusto valmistetaan maidosta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00271",
+      "input": "Kumpi on pidempi, Shinano-joki vai Agano-joki?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00272",
+      "input": "Olen todella väsynyt oppitunnin jälkeen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00273",
+      "input": "Sinun tulisi kiinnittää enemmän huomiota omaan turvallisuuteesi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00274",
+      "input": "Hän oli veden alla kolme minuuttia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00275",
+      "input": "Tämä on todellakin yllättävää.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00276",
+      "input": "Sinun avullasi suunnitelmamme onnistuisi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00277",
+      "input": "Aseisiin turvautuminen kansainvälisten erimielisyyksien sovittelemisessa ei ole suositeltavaa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00278",
+      "input": "Soitin hänelle varmistaakseni, että hän on tulossa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00279",
+      "input": "Kerro minulle suunnitelmasi tarkoitus.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00280",
+      "input": "Kuulostaa todella mielenkiintoiselta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00281",
+      "input": "Isoisäni on terve ja eloisa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00282",
+      "input": "Hän valmisti pojalleen pienoismallilentokoneen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00283",
+      "input": "Sihteeri osoittautui vakoojaksi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00284",
+      "input": "Leijona makasi keskellä häkkiä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00285",
+      "input": "He siivosivat tien lumesta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00286",
+      "input": "Älä laita kaikkia munia samaan koriin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00287",
+      "input": "Hän ajattelee aina liikaa omia asioitaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00288",
+      "input": "Hän ei ole ollenkaan rehellinen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00289",
+      "input": "Kotona oleminen ei ole hauskaa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00290",
+      "input": "Juodaan malja hurmaavalle emännällemme!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00291",
+      "input": "Hän on puoleensavetävä nainen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00292",
+      "input": "Hän on viehättävä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00293",
+      "input": "Hän on tavattoman viehättävä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00294",
+      "input": "Se idea on todella houkutteleva.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00295",
+      "input": "Mika on yhtä viehättävä kuin Keiko.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00296",
+      "input": "Hän hymyili viehättävästi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00297",
+      "input": "John teki rohkean teon.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00298",
+      "input": "Palomiehet sammuttivat palon käden käänteessä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00299",
+      "input": "Jos ilmaa ja vettä ei olisi, me emme voisi elää.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00300",
+      "input": "Hän oli matkalla kouluun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00301",
+      "input": "En voi elää sellaista elämää.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00302",
+      "input": "Hän oli tiskaamassa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00303",
+      "input": "Hänen vartalonsa on hoikka.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00304",
+      "input": "Korkeakouluopiskelija Ken meni viime vuonna Amerikkaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00305",
+      "input": "Pääskyset palaavat pian etelästä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00306",
+      "input": "He väittivät, että hän tappoi sen naisen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00307",
+      "input": "Hänen olemassaolonsa huomioitiin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00308",
+      "input": "Sain tietää totuuden ensimmäistä kertaa vasta eilen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00309",
+      "input": "Vaikka mukanani on vain vähän rahaa, annathan minun lahjoittaa ne kaikki.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00310",
+      "input": "Ihanko totta? Minulla meni tunti junalla.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00311",
+      "input": "Minua ujostuttaa hänen tapaamisensa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00312",
+      "input": "Tätä sääntöä voidaan tulkita monella eri tavalla.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00313",
+      "input": "Onko tuo poika Tom vai Ben?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00314",
+      "input": "Hänen unelmansa tuli viimeinkin todeksi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00315",
+      "input": "Viilensin potilaan päätä jäillä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00316",
+      "input": "Minulle osoitettiin uusi huone.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00317",
+      "input": "Kiirehdin ulos heti aamiaisen jälkeen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00318",
+      "input": "Hän kävi kotimaassaan viimeisen kerran yli kymmenen vuotta sitten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00319",
+      "input": "Hän on todella roteva.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00320",
+      "input": "Hän on vahva kuin härkä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00321",
+      "input": "Tuo potilas ei kestäne kesän yli.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00322",
+      "input": "Palauta kirja kun olet lukenut sen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00323",
+      "input": "Kun olet lukenut kirjan, niin palautathan sen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00324",
+      "input": "Voi olla ettei hän tule onnistumaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00325",
+      "input": "Se mitä olen tänä päivänä on sinun asiotasi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00326",
+      "input": "Keskiyötä pidetään hetkenä, jolloin aaveet vaeltelevat ympäriinsä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00327",
+      "input": "Tämä on ainoa kamerani.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00328",
+      "input": "Huono juttu. Me käymme syömässä kakkua lounaan jälkeen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00329",
+      "input": "Useimmat pitävät minua hulluna.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00330",
+      "input": "Miltä raiteelta juna Higashi-Kakogawaan lähtee?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00331",
+      "input": "Amy haluaa jotain uutta päällepantavaa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00332",
+      "input": "Kaikki tekevät virheitä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00333",
+      "input": "Kuinka yksinäiseltä ja voimattomalta hänestä tuntuukin sen jälkeen kun hän jäi yksin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00334",
+      "input": "Alkoi sataa suuria pisaroita. Olisi pitänyt tuoda sateenvarjo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00335",
+      "input": "Pata kattilaa soimaa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00336",
+      "input": "Hän lähti juuri hetki sitten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00337",
+      "input": "Otat kritiikin liian tosissasi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00338",
+      "input": "Vanhin kahdesta tyttärestä on yliopistossa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00339",
+      "input": "Bill ei tarkoittanut, että hänen täytyy ehdottomasti totella häntä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00340",
+      "input": "Hän työskentelee yhtä kovasti kuin hänen sisaruksensakin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00341",
+      "input": "Tarkistin lompakkoni uudestaan, ja se oli tyhjä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00342",
+      "input": "Hän oli hieman kiihtynyt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00343",
+      "input": "Tämä suunnitelma on erittäin kallis toteuttaa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00344",
+      "input": "Nykytekniikka sallii meidän matkustaa maailman ympäri muutamassa päivässä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00345",
+      "input": "Hän heräsi penkiltä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00346",
+      "input": "Pyysin viiden kuukauden pillerikuurin, ja vastaus oli \"totta kai\".",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00347",
+      "input": "Kuule, kun olet juuri aloittanut seurustelusuhteen haluatte vain olla lähellä toisianne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00348",
+      "input": "Hänen kenkänsä olivat niin vanhat, että hänen varpaansa tulivat läpi kengänkärjistä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00349",
+      "input": "Hän makasi silmät kiinni sohvalla.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00350",
+      "input": "Kyokoa ei saa puhumaan juhlissa millään.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00351",
+      "input": "Aktiviteettisi ovat täysin laillisia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00352",
+      "input": "Hän on tiukka, mutta ymmärtäväinen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00353",
+      "input": "Kukaan ei ymmärrä minua.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00354",
+      "input": "Hän soitti minulle.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00355",
+      "input": "Mikään ei ole tärkeämpää kuin myötätunto.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00356",
+      "input": "Hän käänsi takkinsa ympäri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00357",
+      "input": "Ongelma on siinä mitä tehdä seuraavaksi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00358",
+      "input": "Hän heittää palloa kovaa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00359",
+      "input": "Kukat tekevät huoneesta kirkkaamman.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00360",
+      "input": "Ostin sen eilen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00361",
+      "input": "Haluaisin asettaa sen elokuvakanavalle.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00362",
+      "input": "Siskoni itkee usein.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00363",
+      "input": "Hän suositteli asiakkaalle sinistä kravattia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00364",
+      "input": "Päiväkirjan pitäminen auttaa meitä muistamaan pieniä päivittäisiä asioita.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00365",
+      "input": "Kuka löysi sen saaren?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00366",
+      "input": "Yritin, mutta epäonnistuin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00367",
+      "input": "Hän on hyvä uimaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00368",
+      "input": "Onneksi olkoon menestyksenne johdosta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00369",
+      "input": "Hän kärsii pahasta päänsärystä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00370",
+      "input": "Nuorella insinöörillä ei ollut tarpeeksi kokemusta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00371",
+      "input": "Kiirehdimme, joten ehdimme viimeiseen bussiin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00372",
+      "input": "Järvi on läpimitaltaan kolme mailia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00373",
+      "input": "Kun taiteilija vanhenee, hänen maalaustyylinsä saattaa muuttua.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00374",
+      "input": "Hän valitti saaneensa epäreilua kohtelua.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00375",
+      "input": "Aikoinaan ajateltiin, että ihmisen on mahdotonta lentää.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00376",
+      "input": "Hän ajattelee aina ensimmäisenä omaa etuaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00377",
+      "input": "Jos olet lukenut sen kirjan loppuun, niin minä haluaisin lainata sen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00378",
+      "input": "Hän kuoli ennen kuin saavuin sinne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00379",
+      "input": "Minä soitan viulua.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00380",
+      "input": "Kun maaliskuu tulee, monet kukat kukkivat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00381",
+      "input": "Bob veloittaa ruohonleikkuusta kolme dollaria tunnilta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00382",
+      "input": "On järkevää säästää rahaa pahan päivän varalle.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00383",
+      "input": "Jos satut muuttamaan mieltäsi, niin ilmoitathan siitä minulle.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00384",
+      "input": "Tom katsoi eilen TV:tä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00385",
+      "input": "Sulje televisio.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00386",
+      "input": "Mary pitää television katselusta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00387",
+      "input": "Television katselu on hauskaa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00388",
+      "input": "Katsotaan televisiota.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00389",
+      "input": "Laita televisio kovemmalle.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00390",
+      "input": "Laita televisio pienemmälle.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00391",
+      "input": "Onpa iso koira!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00392",
+      "input": "Mikä näistä koirista on sinun koirasi?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00393",
+      "input": "Jokainen koira on elossa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00394",
+      "input": "Koira lähti pois.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00395",
+      "input": "Se koira on valkoinen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00396",
+      "input": "Se koira oli kuollut.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00397",
+      "input": "Se koira on kuolemaisillaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00398",
+      "input": "Se koira oli kuolemaisillaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00399",
+      "input": "Se koira näyttää nälkäiseltä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00400",
+      "input": "Hänen pahojen tapojensa takia kukaan ei pidä hänestä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00401",
+      "input": "Päätimme lähteä piknikille, koska sää oli niin erinomainen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00402",
+      "input": "En ole koskaan nähnyt matkoillani kauniimpaa vuorta kuin Everest.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00403",
+      "input": "Mitä Jon tekee juuri nyt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00404",
+      "input": "Tuhannet ulkomaalaiset vierailevat Japanissa vuosittain.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00405",
+      "input": "Tässä kirjassa on paljon kauniita kuvia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00406",
+      "input": "Hänen sanansa yllättivät minut.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00407",
+      "input": "En halua mennä ulos ilman takkia näin kylmänä päivänä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00408",
+      "input": "Tuo ei voi olla hyväksi terveydellesi, eihän?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00409",
+      "input": "Hän on hyvä keksimään tekosyitä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00410",
+      "input": "He kutsuivat minut pelaamaan korttia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00411",
+      "input": "Heitetään siitä kolikkoa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00412",
+      "input": "Hän ei ymmärtänyt hänen vitsiään.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00413",
+      "input": "Valitse mieleisesi tavara (tuote, asia).",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00414",
+      "input": "Voitko suositella hyvää kameraa?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00415",
+      "input": "En voinut syödä appelsiinia, koska se maistui erittäin happamalta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00416",
+      "input": "Hän on suurissa vaikeuksissa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00417",
+      "input": "Tämän koulun säännöt eivät ole kovinkaan tiukkoja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00418",
+      "input": "Pääseekö tätä tietä asemalle?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00419",
+      "input": "Hän käytti lahjapaperin (japanilainen kangaskääre) täysin hyväkseen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00420",
+      "input": "Näytelmä oli ohjelmistossa kuusi kuukautta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00421",
+      "input": "Me suojasimme itsemme vaaralta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00422",
+      "input": "Annoin hänelle lahjan kiitoksena hänen kiltteydestään.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00423",
+      "input": "Seuraa tuota autoa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00424",
+      "input": "On todella tärkeää pitää lupauksensa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00425",
+      "input": "Hän pitää vapaapäivää.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00426",
+      "input": "Lentokone kiersi lentokentän kahdesti lentoon lähdön jälkeen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00427",
+      "input": "Kuu ja tähdet loistivat korkealla yläpuolellamme.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00428",
+      "input": "Siellä ei ollut ristinsielua niin pitkälle kuin silmä kantoi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00429",
+      "input": "Minun täytyy korjauttaa se.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00430",
+      "input": "Hän opiskelee yötä päivää.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00431",
+      "input": "En ymmärrä mitä hän yrittää sanoa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00432",
+      "input": "Puhuisitko hieman hitaammin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00433",
+      "input": "Minun pitäisi mennä jo nukkumaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00434",
+      "input": "Hän ei myönnä itse olevansa väärässä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00435",
+      "input": "Seuraa lääkepakkauksen ohjeita tarkasti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00436",
+      "input": "Ainoa henkilö, joka on kyllästynyt odottamaan Miss Cobbia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00437",
+      "input": "Tuo kauppa myy lihaa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00438",
+      "input": "Anteeksi, jos loukkasin tunteitasi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00439",
+      "input": "Selittäisitkö kuinka sinne pääsee.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00440",
+      "input": "Kukaan meistä ei ole eri mieltä hänen kanssaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00441",
+      "input": "Tapaaminen tulisi järjestää ensi torstaina.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00442",
+      "input": "Olen ollut kiireinen koko päivän.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00443",
+      "input": "Hän rakasti häntä ennen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00444",
+      "input": "Tohtori Skeleton tunnetaan hänen aavetutkimuksestaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00445",
+      "input": "Hän meni postitoimiston ohitse.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00446",
+      "input": "Hän asuu Kiotossa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00447",
+      "input": "Se poika on sairas vaikkei näytä siltä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00448",
+      "input": "Varo ettet riko tätä vaasia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00449",
+      "input": "Hän piti huolta sairaasta aviomiehestään.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00450",
+      "input": "Hän piti minua kauan odotuksessa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00451",
+      "input": "Arvioikaa tappiot viimeistään perjantaihin mennessä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00452",
+      "input": "Parempi myöhään kuin ei milloinkaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00453",
+      "input": "Tulethan paikalle viimeistään kello kahdeksaan mennessä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00454",
+      "input": "Minun täytyi kilpailla hänen kanssaan ylennyksestä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00455",
+      "input": "Sain kirjallisen kutsun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00456",
+      "input": "Kirjoitin kutsukirjekuoreen vastaanottajan nimen ja osoitteen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00457",
+      "input": "Sinun ei pitäisi halveksia häntä vain koska hänen käsialansa on huono.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00458",
+      "input": "Olen eksyksissä. Voisitko kertoa miten pääsen asemalle?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00459",
+      "input": "Me menimme uimaan jokeen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00460",
+      "input": "Hän on aina kansan puolella.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00461",
+      "input": "Televisio kiehtoo häntä paljon.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00462",
+      "input": "On ehdottoman tärkeää, että osallistut siihen kokoukseen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00463",
+      "input": "Hän on häipynyt Lontooseen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00464",
+      "input": "Tässä metsässä saattaa nähdä villikaneja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00465",
+      "input": "Kun menen Kiotoon, vierailen Nanzenjissa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00466",
+      "input": "Puhu lujaa ja selkeästi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00467",
+      "input": "Onko sinulla ylimääräistä aikaa?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00468",
+      "input": "Hän otti reippaasti osaa peliin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00469",
+      "input": "Matkustaja pysähtyi sotilaan huutaessa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00470",
+      "input": "Löysin paikan vaivatta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00471",
+      "input": "Tässä on ravintola, jossa käyn usein syömässä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00472",
+      "input": "Hän sanoo olevansa kiireinen eikä ole ottanut minuun pitkään aikaan yhteyttä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00473",
+      "input": "Ne ovat vain krokotiilin kyyneliä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00474",
+      "input": "Etkö kannata tätä suunnitelmaa?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00475",
+      "input": "Minä rakastan sinua.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00476",
+      "input": "Billillä on paljon ainutlaatuisia ideoita.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00477",
+      "input": "Tänä aamuna oli niin kylmä, että jätin takin päälleni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00478",
+      "input": "Hänestä kasvoi lääkäri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00479",
+      "input": "Tämä kenttä kuuluu koululle.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00480",
+      "input": "Hän on vastuussa siitä luokasta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00481",
+      "input": "Hän hauskuutti lapsia laulamalla.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00482",
+      "input": "Sinä soitit aina hänen kodistaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00483",
+      "input": "Tämän päivän sanomalehden mukaan Chilessä sattui iso maanjäristys eilen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00484",
+      "input": "Älä leikkaa sormeesi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00485",
+      "input": "Meidän täytyy pohtia sitä ongelmaa globaalista näkökulmasta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00486",
+      "input": "Olen nyt valmis lähtemään.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00487",
+      "input": "Tämä lompakko on tehty paperista.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00488",
+      "input": "Hän käyttää ulkonäköään hyväkseen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00489",
+      "input": "En voi hengittää nenän kautta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00490",
+      "input": "Tarkoitukseni ei ole satuttaa sinua millään tavalla.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00491",
+      "input": "Uusi koulurakennus on rakenteilla.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00492",
+      "input": "Bussi kulkee koulun ja aseman välillä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00493",
+      "input": "Teeskennellään olevamme avaruusolentoja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00494",
+      "input": "Ellet olisi noudattanut lääkärin ohjeita, olisit nyt luultavasti sairas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00495",
+      "input": "Kenen luulet rikkoneen ikkunan?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00496",
+      "input": "Hän päätti yrittää uudelleen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00497",
+      "input": "Talvella pidän yllä päällystakkia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00498",
+      "input": "Hän antaa kaikille tarkan diagnoosin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00499",
+      "input": "Kissojen pääasiallinen kommunikointitapa on ruumiinkieli.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00500",
+      "input": "Ei haukku haavaa tee.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00501",
+      "input": "Kirjailija omisti kirjansa siskolleen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00502",
+      "input": "En todellakaan halua lähteä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00503",
+      "input": "Tulisitko sinä myös mukaan?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00504",
+      "input": "Minulla on kalastuskirja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00505",
+      "input": "Kukat kuolivat vedenpuutteeseen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00506",
+      "input": "Pakastaisitko kalan ja lihan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00507",
+      "input": "Kumpi on vahvempi, tiikeri vai leijona?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00508",
+      "input": "Varkaat veivät mukanaan kaikki rahat kassakaapista.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00509",
+      "input": "Sinun pitäisi käydä silmälääkärissä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00510",
+      "input": "Tämä on kirjaston kirja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00511",
+      "input": "Mitä haluat syödä lounaaksi?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00512",
+      "input": "He elävät kädestä suuhun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00513",
+      "input": "Hän elää kädestä suuhun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00514",
+      "input": "Hän eli aikaisemmin kädestä suuhun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00515",
+      "input": "Nuori mies laulaa oven edessä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00516",
+      "input": "Jos hän tulee myöhässä, antaisitko tämän viestin hänelle.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00517",
+      "input": "Harmi ettei hän pääse tulemaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00518",
+      "input": "Olen niin tyhmä... Yritän selittää sinulle asioita joita en ymmärrä itsekään.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00519",
+      "input": "Tämä on totta sinunkin tapauksessasi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00520",
+      "input": "He puhuvat usein toisilleen niin puhelimessa kuin kasvotustenkin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00521",
+      "input": "Sanon niin aina.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00522",
+      "input": "Valitettavasti minulla ei ollut mahdollisuutta nähdä sitä linnaa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00523",
+      "input": "Singaporessa puhutaan englantia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00524",
+      "input": "Hän katosi väkijoukkoon.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00525",
+      "input": "Tule ihmeessä juhliin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00526",
+      "input": "Kuinka paljon sokeria käytät?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00527",
+      "input": "Voit sanoa mitä vain.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00528",
+      "input": "Hänellä on kaksi tytärtä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00529",
+      "input": "Luokallamme on kokous kerran viikossa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00530",
+      "input": "Ai, kutsu minua Angelaksi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00531",
+      "input": "En ole tavannut Rickiä sen jälkeen kun hän palasi Uudesta Seelannista.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00532",
+      "input": "Heidät merkittiin radikaaleiksi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00533",
+      "input": "Minulla on eriävä mielipide sinun kanssasi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00534",
+      "input": "Valitse mikä tahansa näistä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00535",
+      "input": "Tilanne paheni hetki hetkeltä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00536",
+      "input": "Tämä perinne katosi kauan sitten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00537",
+      "input": "Luulen, että tämä solmio sopii puvun kanssa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00538",
+      "input": "Hän piti lupauksensa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00539",
+      "input": "Paahtopaisti tarjoillaan usein Yorkshire-vanukkaan kera.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00540",
+      "input": "Et voi lähteä ulos nyt? Miksi et voi lähteä?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00541",
+      "input": "Hän meni Nagoyaan työmatkalle.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00542",
+      "input": "Hän vei minut ystävällisesti autolla asemalle.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00543",
+      "input": "Ai niin, tiedätkö missä hän asuu tällä hetkellä?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00544",
+      "input": "Hän lukee dekkareita kuin transsissa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00545",
+      "input": "Laita itsesi minun kenkiini.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00546",
+      "input": "Hän ei enää opiskele yhtä ahkerasti kuin ennen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00547",
+      "input": "Milloin voit tavata hänet?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00548",
+      "input": "Hän ei koskaan puhu pahaa toisista.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00549",
+      "input": "Kysyin häneltä saiko hän lähettämäni kirjeen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00550",
+      "input": "Olet edistynyt valtavasti englannin kielen opinnoissasi tänä vuonna.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00551",
+      "input": "He ovat todella kiinnostuneita astronomiasta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00552",
+      "input": "Mitä Jean valmisti?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00553",
+      "input": "Jos epäonnistun vielä kerran hylkään sen suunnitelman.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00554",
+      "input": "Yritin pysäyttää hänet, mutta hän jätti minut jälkeensä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00555",
+      "input": "Missä luulet, että hän asuu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00556",
+      "input": "Me vannotimme hänet pitämään salaisuuden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00557",
+      "input": "Lisään viimeisen silauksen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00558",
+      "input": "Hän ei jakanut salaisuuttaan kanssani.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00559",
+      "input": "Kaikki vaatteni ovat tilaustyönä tehtyjä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00560",
+      "input": "Tyttärelläni on hammasraudat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00561",
+      "input": "Päästäisitkö raitista ilmaa sisään.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00562",
+      "input": "Elämä on täynnä hyviä ja huonoja aikoja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00563",
+      "input": "Ystävälliset terveiset perheellesi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00564",
+      "input": "Sinä päivänä puhalsi kova tuuli.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00565",
+      "input": "Aallot muodostivat vaahtoa särkyessään.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00566",
+      "input": "Hän on ollut sairas kolme viikkoa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00567",
+      "input": "Katso edessäsi olevaa kylttiä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00568",
+      "input": "Jos olisin terve voisin jatkaa opiskelujani.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00569",
+      "input": "Meidän pitäisi istua.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00570",
+      "input": "Jokapäiväinen liikunta on korvaamatonta terveydellesi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00571",
+      "input": "Hän on hyvä käsipallossa",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00572",
+      "input": "Jätä huone ennalleen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00573",
+      "input": "Hänen vaimonsa on erityisen lahjakas nainen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00574",
+      "input": "Hänen oppilaansa puhuvat pahaa hänen selkänsä takana.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00575",
+      "input": "No, minä otan vain paahtoleivän ja kahvin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00576",
+      "input": "Pelaisin mieluummin tennistä kuin uisin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00577",
+      "input": "Välillä tulee lumikuuroja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00578",
+      "input": "Hänen ideansa ovat kurrentteja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00579",
+      "input": "He eivät ottaneet minun mielipidettäni huomioon.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00580",
+      "input": "Et jättänyt minulle paskaakaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00581",
+      "input": "En halua siivota koiran paskaa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00582",
+      "input": "Paska päivässä pitää tohtorin loitolla.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00583",
+      "input": "Allen on runoilija.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00584",
+      "input": "Hänellä ei ollut rahaa joten hän ei voinut ostaa ruokaa",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00585",
+      "input": "Annoit väärän määrän vaihtorahaa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00586",
+      "input": "Nämä kakut ovat hyviä. Maista yhtä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00587",
+      "input": "Oletko lukenut kirjan loppuun?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00588",
+      "input": "Miksi hän pyysi niin paljon rahaa?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00589",
+      "input": "Odotetaan täällä kunnes hän palaa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00590",
+      "input": "Pyykinpesukoneet säästävät kotiäideiltä paljon vaivaa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00591",
+      "input": "Ymmärrän sinua tiettyyn pisteeseen asti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00592",
+      "input": "Kuka koski aseeseeni?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00593",
+      "input": "En puhu japania.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00594",
+      "input": "Minulla on kysymys.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00595",
+      "input": "Samaan aikaan Ismo hyppää ja tyrmistyttää seurueen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00596",
+      "input": "Aine voi ärsyttää tai syövyttää ihoa, silmiä tai limakalvoja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00597",
+      "input": "Koska kirja kertoo eläimistä, minua ärsytti se, että eläimet käyttäytyivät kuin ihmiset.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00598",
+      "input": "Pientä osaa lukuun ottamatta kaikki käyttävät internetiä useammin kuin kerran viikossa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00599",
+      "input": "Bob on minun ystäväni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00600",
+      "input": "Hän on minun ystäväni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00601",
+      "input": "Aurinko paistaa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00602",
+      "input": "Minun koirani on valkoinen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00603",
+      "input": "Näin valkoisen koiran hyppäävän aidan yli.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00604",
+      "input": "Onko puutarhassa paljon kukkia?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00605",
+      "input": "Iris, mitä syöt yleensä aamiaiseksi?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00606",
+      "input": "Hän jatkoi puhumista syödessään.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00607",
+      "input": "Heillä on suuri perhe: heillä on kuusi lasta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00608",
+      "input": "Etsin lahjaa ystävälleni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00609",
+      "input": "Mitä enemmän me epäilemme heitä, sitä enemmän he epäilevät meitä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00610",
+      "input": "Hän ei osaa tehdä sitä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00611",
+      "input": "Hän ei pysty tekemään sitä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00612",
+      "input": "Se yhdistys on perustamisestaan lähtien pidättäytynyt ottamasta amatöörejä jäsenikseen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00613",
+      "input": "Fiksu poika pystyy ratkaisemaan vaikeita ongelmia helposti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00614",
+      "input": "Isäni käyttää vanhaa sanakirjaa, jonka kannet ovat lähteneet irti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00615",
+      "input": "Hän on tajuton.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00616",
+      "input": "Opin häneltä paljon.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00617",
+      "input": "Lopetin tupakan polton.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00618",
+      "input": "Lopetin tupakoinnin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00619",
+      "input": "Se sattui viikko sitten, toisin sanoen toinen huhtikuuta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00620",
+      "input": "Tehtävämme on ollut helppo tähän mennessä, mutta se tulee vaikeutumaan tästä lähtien.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00621",
+      "input": "Sinä tiedät missä ongelma on.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00622",
+      "input": "Hidas mutta varma voittaa kisan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00623",
+      "input": "Hän ryösti minulta kukkaron.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00624",
+      "input": "Hän ryösti minulta käsilaukkuni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00625",
+      "input": "Hänet lomautettiin siihen saakka kun töitä olisi taas enemmän.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00626",
+      "input": "Pidän rakkauskertomuksista.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00627",
+      "input": "Aviomieheni lähtee yleensä töihin kello kahdeksan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00628",
+      "input": "Aviomieheni lähtee yleensä töihin kahdeksalta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00629",
+      "input": "Hän omistautuu tutkimukselle.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00630",
+      "input": "Olen pelkkänä korvana.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00631",
+      "input": "Käyttäydy niin kuin mies.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00632",
+      "input": "Se tosiasia on kaikille selvä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00633",
+      "input": "Isoisä istui tavanmukaisella paikallaan lähellä tulta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00634",
+      "input": "Alkoi sataa aivan hetki sitten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00635",
+      "input": "Nainen kurkotti veistä pöydältä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00636",
+      "input": "Hän näyttää ensisilmäykseltä pelottavalta ehkä siksi että hänellä on parta, mutta todellisuudessa hän on lempeä mies.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00637",
+      "input": "Muisteletko usein lapsuuttasi?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00638",
+      "input": "Aleksandr ei ole nuorempi kuin Vladimir.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00639",
+      "input": "Onko veljesi nimi Aleksei?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00640",
+      "input": "Minä olen nälkäinen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00641",
+      "input": "Olen nälkäinen, koska en ole syönyt lounasta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00642",
+      "input": "Minä olen paras.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00643",
+      "input": "Vaaleapaahtoiset merkkikahvit ovat edelleen suosituimpia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00644",
+      "input": "Onko yliopiston kirjasto nyt auki?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00645",
+      "input": "Televisio on auki.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00646",
+      "input": "Hän on vielä työssä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00647",
+      "input": "He eivät ole vielä täällä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00648",
+      "input": "Hei Mimi! Mitä kuuluu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00649",
+      "input": "Yksi, kaksi, kolme, neljä, viisi, kuusi, seitsemän, kahdeksan, yhdeksän, kymmenen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00650",
+      "input": "Mitä on onnellisuus?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00651",
+      "input": "Rankka sade esti minua menemästä ulos.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00652",
+      "input": "Katsoin ympärilleni, mutta en löytänyt mitään.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00653",
+      "input": "Herra Crouch, mitä sinä teet?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00654",
+      "input": "Nämä työkalut pitää tosiaan korjata.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00655",
+      "input": "Tarvitsetko tätä kirjaa?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00656",
+      "input": "Teemme sen, kun hän tulee.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00657",
+      "input": "Hän oli vaipunut ajatuksiinsa käsi otsallaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00658",
+      "input": "Hän rakasti matkustamista.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00659",
+      "input": "Hän on oma itsensä taas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00660",
+      "input": "On varmaa, että hän onnistuu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00661",
+      "input": "Onko kannussa yhtään vettä?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00662",
+      "input": "Tässä talossa asuin lapsena.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00663",
+      "input": "Meillä oli eilen hauskaa rannalla.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00664",
+      "input": "Pelasin tennistä koko päivän.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00665",
+      "input": "Hän tottui pian kylmään säähän.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00666",
+      "input": "Luulimme sitä lentäväksi lautaseksi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00667",
+      "input": "Tänään on vähän kylmä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00668",
+      "input": "Haluatko tulla mukaan?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00669",
+      "input": "Minulla oli erittäin korkea kuume.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00670",
+      "input": "Hänen mekkonsa ja kenkiensä värit sopivat hyvin yhteen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00671",
+      "input": "Ole hyvä ja kirjoita ylös mitä aion sanoa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00672",
+      "input": "Menen nyt kotiin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00673",
+      "input": "Luulin, että hän on lääkäri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00674",
+      "input": "Hän lauloi laulun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00675",
+      "input": "Voitko kertoa minulle, kun pitää jäädä pois.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00676",
+      "input": "Pystytkö uimaan yhtä nopeasti kuin hän?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00677",
+      "input": "Hän ei ole lääkäri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00678",
+      "input": "Voi ei! Taloni palaa!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00679",
+      "input": "Tämä on heidän talonsa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00680",
+      "input": "...mutta hän piti lapsista ja työstään.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00681",
+      "input": "Kuulin uutiset vasta eilen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00682",
+      "input": "Juna oli täynnä matkustajia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00683",
+      "input": "Minusta tuntuu, että hän tulee tänään.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00684",
+      "input": "Enää muutama minuutti junan lähtöön, eikä hän ole vieläkään tullut.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00685",
+      "input": "Maria käyttää paljon rahaa vaatteisiin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00686",
+      "input": "Yritys valmistaa useita erilaisia soittimia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00687",
+      "input": "Sieltä se juna tulee.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00688",
+      "input": "Tulipalon syy on pääosin tiedossa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00689",
+      "input": "Mielipiteeni siitä elokuvaohjaajasta on korkea.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00690",
+      "input": "Milloin menit naimisiin?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00691",
+      "input": "Hän nukkui koko viikon ollessaan sairas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00692",
+      "input": "Jos olet lukenut kirjan loppuun, palauta se kirjastoon.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00693",
+      "input": "Silmänisku oli hänen ainoa vastauksensa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00694",
+      "input": "Onnettomuus tapahtui sunnuntaina noin kello kolmelta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00695",
+      "input": "En voinut osallistua siihen tapaamiseen sairauden johdosta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00696",
+      "input": "Kuuntele mitä hän sanoo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00697",
+      "input": "He sekoittivat lähettäjän ja vastaanottajan nimet keskenään.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00698",
+      "input": "Lohikäärme on mielikuvitusolento.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00699",
+      "input": "Isäni on vapaa tänään iltapäivällä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00700",
+      "input": "Se paalu on kallellaan vasemmalle.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00701",
+      "input": "Cuzco on yksi maailman kiinnostavimmista paikoista.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00702",
+      "input": "Miten kaunis puutarha.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00703",
+      "input": "Tuo huone ei ole kovin iso.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00704",
+      "input": "Mitä haluaisit illalliseksi?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00705",
+      "input": "En tiedä hänestä mitään.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00706",
+      "input": "Menen pukeutumaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00707",
+      "input": "”Kiitos.” ”Olkaa hyvä.”",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00708",
+      "input": "Menetin tilaisuuteni.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00709",
+      "input": "He keskustelivat siitä ongelmasta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00710",
+      "input": "Väärinkohdellut laittomat ulkomaalaiset työntekijät jäävät usein vaille sosiaaliturvaa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00711",
+      "input": "Olen Alan Tate, Terry Taten poika.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00712",
+      "input": "Sen hotellin tulevaisuus näyttää lupaavalta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00713",
+      "input": "Keskustellaan aurinkoenergiasta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00714",
+      "input": "Olen kyllästynyt kotiläksyihin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00715",
+      "input": "Millä junalla menet?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00716",
+      "input": "Hän oli onnekas läpäistessään kokeen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00717",
+      "input": "Opiskele uiguurin kieltä!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00718",
+      "input": "Paketti toimitettiin eilen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00719",
+      "input": "Mayuko kielsi huhut.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00720",
+      "input": "Hänellä oli tapana töiden jälkeen istua takan ääressä lukien kirjaa ja opiskellen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00721",
+      "input": "Kauan sitten tässä oli silta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00722",
+      "input": "En usko, että hän kykenee siihen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00723",
+      "input": "Tee on liian vahvaa. Lisää hieman vettä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00724",
+      "input": "Hän sanoi kertovansa meille kokeen tulokset myöhemmin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00725",
+      "input": "Hän etsii töitä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00726",
+      "input": "Pesäpallo on urheilulaji, kuten myös vuorikiipeily.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00727",
+      "input": "Mike ja Ken ovat ystäviä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00728",
+      "input": "Tuuli ja sade pilasivat kävelyretkemme.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00729",
+      "input": "Hän pidätti hengitystään.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00730",
+      "input": "Lopeta pitämästä minua \"normaalina\" ihmisenä!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00731",
+      "input": "Edessäni oleva näkymä oli todella kaunis.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00732",
+      "input": "Hän ei opiskellut ollenkaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00733",
+      "input": "Tämä kirje on osoitettu sinulle.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00734",
+      "input": "Lapset juoksentelivat puistossa sinne tänne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00735",
+      "input": "Hän yritti puhua hänelle Intiasta silloin tällöin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00736",
+      "input": "Kaikki mitä hän sanoi oli totta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00737",
+      "input": "Opiskeliko Paula tämän päivän koetta varten?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00738",
+      "input": "He nukahtivat elokuvan jälkeen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00739",
+      "input": "Oletko uusi täällä?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00740",
+      "input": "Treviri on Saksan vanhin kaupunki.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00741",
+      "input": "Hiljaa hyvä tulee.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00742",
+      "input": "Menemme elokuviin. Tule mukaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00743",
+      "input": "Oletko lääkäri?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00744",
+      "input": "En ole syönyt mitään eilisestä lähtien.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00745",
+      "input": "Kaikki ihmiset syntyvät vapaina ja tasavertaisina arvoltaan ja oikeuksiltaan. Heille on annettu järki ja omatunto, ja heidän on toimittava toisiaan kohtaan veljeyden hengessä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00746",
+      "input": "Kun hoidetaan pienet asiat, isot asiat hoituvat samalla itsestään.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00747",
+      "input": "Huoneeni on numero viisi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00748",
+      "input": "Anteeksi kuinka?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00749",
+      "input": "Hitaasti, kiitos.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00750",
+      "input": "Eli meillä on ongelma....",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00751",
+      "input": "Mutta exäsihän on psykopaatti!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00752",
+      "input": "Olisi mahtavaa, jos olisi polkupyörä jolla kierrellä kaupunkia!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00753",
+      "input": "Minua viehättää kotiäidin elämä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00754",
+      "input": "Serkkuni on neljävuotias, mutta syö yhtä paljon kuin minä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00755",
+      "input": "Miksi on olemassa Miss Italia eikä Mister Italia?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00756",
+      "input": "Jos minulla olisi sanat tähän lauluun, voisin kääntää sen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00757",
+      "input": "Haluaisin käännöksen tähän lauluun.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00758",
+      "input": "Tänään meidän täytyy kokeilla balettia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00759",
+      "input": "Kuuntelen juuri Björkin uusinta kappaletta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00760",
+      "input": "Meidän täytyy tehdä enemmän kuin eilen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00761",
+      "input": "Minulla on ystävä, joka asuu Berliinissä ja työskentelee kaksikielisessä päiväkodissa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00762",
+      "input": "Hän kertoi minulle, ettei tapaile ketään tällä hetkellä, mutta en usko sitä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00763",
+      "input": "Virhe korjattiin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00764",
+      "input": "Lehdet tippuvat syksyllä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00765",
+      "input": "Pidän kiinalaisesta ruuasta, erityisesti raviolista ja riisistä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00766",
+      "input": "En ole koskaan syönyt kiinalaista ruokaa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00767",
+      "input": "Serkkuni on jo neljävuotias.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00768",
+      "input": "Tänään hain neljävuotiaan serkkuni päiväkodista.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00769",
+      "input": "En halua auttaa sinua.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00770",
+      "input": "Minulla ei ole aikaa sinulle.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00771",
+      "input": "Minulla on vain vähän aikaa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00772",
+      "input": "Pariisissa söin korealaista ruokaa latinalaisessa korttelissa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00773",
+      "input": "Tänä iltana menemme syömään tiibetiläistä ruokaa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00774",
+      "input": "Mitä haluat ruuaksi?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00775",
+      "input": "Eikö sinulla ole nälkä?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00776",
+      "input": "Eikö sinua väsytä?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00777",
+      "input": "Firefox on hitain selain, mitä olen koskaan käyttänyt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00778",
+      "input": "Olen pahoillani, mutta unohdin tehdä kotitehtävät.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00779",
+      "input": "Hän vastasi, ettei ollut koskaan aiemmin tavannut sitä miestä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00780",
+      "input": "Sinun täytyy vain seurata ohjeita.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00781",
+      "input": "Annoin kissan nimeksi Tama.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00782",
+      "input": "Täytyy pestä pyykit, kun vielä on aurinkoista.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00783",
+      "input": "Kuinka kaukana Hakata on täältä?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00784",
+      "input": "Se on täysin järjetöntä.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00785",
+      "input": "Panin taustakuvaksi koirani.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00786",
+      "input": "Ei sinun olisi tarvinnut ottaa taksia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00787",
+      "input": "Hän ei tullutkaan eilen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00788",
+      "input": "Osan saaresta tuhosivat valtavat aallot.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00789",
+      "input": "Luulenpa että tyttö ei ole kotona.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00790",
+      "input": "Vaihda renkaat uusiin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00791",
+      "input": "Kenen vuoro on?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00792",
+      "input": "Soittakaa lääkäriin!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00793",
+      "input": "Kuuntelen juuri Björkin uusinta laulua.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00794",
+      "input": "Hyvää iltaa, mitä kuuluu?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00795",
+      "input": "Tilasin uusia huonekaluja.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00796",
+      "input": "Mistä ei voi puhua, siitä täytyy vaieta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00797",
+      "input": "Työnnä sormi kurkun läpi!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00798",
+      "input": "Hän joutui liikenneonnettomuuteen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-fi-00799",
+      "input": "Vietin junassa kaksitoista tuntia.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-fi-00000",
+      "input": "Room 304 has the laptops we ordered.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-fi-00001",
+      "input": "Bought 5 cookies on the avenue near my office.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-fi-00002",
+      "input": "Track #12345 was delivered yesterday.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-fi-00003",
+      "input": "I had 5 boxes in storage unit 12.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-fi-00004",
+      "input": "Building number 7 was empty.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-fi-00005",
+      "input": "Open from January 1990 onwards.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-fi-00006",
+      "input": "Floor 3 has the printer.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-fi-00007",
+      "input": "Order #98765 is being processed.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-fi-00008",
+      "input": "The bus runs every 12 minutes.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-fi-00009",
+      "input": "Found 5000 documents in the archive.",
+      "expected": []
+    }
+  ]
+}

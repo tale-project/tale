@@ -1,0 +1,3257 @@
+[
+  {
+    "name": "Brussels",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 1019022
+  },
+  {
+    "name": "Rotterdam",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 868135
+  },
+  {
+    "name": "Amsterdam",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 741636
+  },
+  {
+    "name": "Antwerpen",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 529247
+  },
+  {
+    "name": "The Hague",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 474292
+  },
+  {
+    "name": "Utrecht",
+    "countryCode": "NL",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 376435
+  },
+  {
+    "name": "Gent",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 265086
+  },
+  {
+    "name": "Groningen",
+    "countryCode": "NL",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 244807
+  },
+  {
+    "name": "Eindhoven",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 235691
+  },
+  {
+    "name": "Tilburg",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 221947
+  },
+  {
+    "name": "Charleroi",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 200132
+  },
+  {
+    "name": "Liège",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 195278
+  },
+  {
+    "name": "Breda",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 184126
+  },
+  {
+    "name": "Nijmegen",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 177359
+  },
+  {
+    "name": "Almere Stad",
+    "countryCode": "NL",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 176432
+  },
+  {
+    "name": "Haarlem",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 162543
+  },
+  {
+    "name": "Arnhem",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 162424
+  },
+  {
+    "name": "'s-Hertogenbosch",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 160783
+  },
+  {
+    "name": "Anderlecht",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 160553
+  },
+  {
+    "name": "Enschede",
+    "countryCode": "NL",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 153655
+  },
+  {
+    "name": "Zaanstad",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 140085
+  },
+  {
+    "name": "Amersfoort",
+    "countryCode": "NL",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 139914
+  },
+  {
+    "name": "Apeldoorn",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 136670
+  },
+  {
+    "name": "Schaerbeek",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 132761
+  },
+  {
+    "name": "Hoofddorp",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 132734
+  },
+  {
+    "name": "Zwolle",
+    "countryCode": "NL",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 129840
+  },
+  {
+    "name": "Leeuwarden",
+    "countryCode": "NL",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 124481
+  },
+  {
+    "name": "Maastricht",
+    "countryCode": "NL",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 122378
+  },
+  {
+    "name": "Leiden",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 119713
+  },
+  {
+    "name": "Dordrecht",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 119260
+  },
+  {
+    "name": "Brugge",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 118509
+  },
+  {
+    "name": "Zoetermeer",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 115845
+  },
+  {
+    "name": "Namur",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 110939
+  },
+  {
+    "name": "Venlo",
+    "countryCode": "NL",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 101988
+  },
+  {
+    "name": "Leuven",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 101032
+  },
+  {
+    "name": "Deventer",
+    "countryCode": "NL",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 97331
+  },
+  {
+    "name": "Molenbeek-Saint-Jean",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 97037
+  },
+  {
+    "name": "Mons",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 95299
+  },
+  {
+    "name": "Delft",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 95060
+  },
+  {
+    "name": "Alkmaar",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 94853
+  },
+  {
+    "name": "Heerlen",
+    "countryCode": "NL",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 93084
+  },
+  {
+    "name": "Ixelles",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 86671
+  },
+  {
+    "name": "Amsterdam-Zuidoost",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 84811
+  },
+  {
+    "name": "Hilversum",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 83640
+  },
+  {
+    "name": "Uccle",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 82929
+  },
+  {
+    "name": "Hengelo",
+    "countryCode": "NL",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 82311
+  },
+  {
+    "name": "Purmerend",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 80117
+  },
+  {
+    "name": "Lelystad",
+    "countryCode": "NL",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 79811
+  },
+  {
+    "name": "Amstelveen",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 79639
+  },
+  {
+    "name": "Deurne",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 78747
+  },
+  {
+    "name": "Roosendaal",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 77725
+  },
+  {
+    "name": "Hasselt",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 77651
+  },
+  {
+    "name": "Aalst",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 77534
+  },
+  {
+    "name": "Mechelen",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 77530
+  },
+  {
+    "name": "La Louvière",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 76668
+  },
+  {
+    "name": "Oss",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 76430
+  },
+  {
+    "name": "Schiedam",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 75438
+  },
+  {
+    "name": "Spijkenisse",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 74988
+  },
+  {
+    "name": "Helmond",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 74740
+  },
+  {
+    "name": "Kortrijk",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 73879
+  },
+  {
+    "name": "Vlaardingen",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 73798
+  },
+  {
+    "name": "Almelo",
+    "countryCode": "NL",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 72725
+  },
+  {
+    "name": "Gouda",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 71952
+  },
+  {
+    "name": "Zaandam",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 71708
+  },
+  {
+    "name": "Alphen aan den Rijn",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 70251
+  },
+  {
+    "name": "Tournai",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 69554
+  },
+  {
+    "name": "Ostend",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 69011
+  },
+  {
+    "name": "Sint-Niklaas",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 69010
+  },
+  {
+    "name": "Hoorn",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 68852
+  },
+  {
+    "name": "Assen",
+    "countryCode": "NL",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 68836
+  },
+  {
+    "name": "Velsen-Zuid",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 67758
+  },
+  {
+    "name": "Ede",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 67670
+  },
+  {
+    "name": "Bergen op Zoom",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 66256
+  },
+  {
+    "name": "Capelle aan den IJssel",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 65255
+  },
+  {
+    "name": "Genk",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 63666
+  },
+  {
+    "name": "Nieuwegein",
+    "countryCode": "NL",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 61489
+  },
+  {
+    "name": "Veenendaal",
+    "countryCode": "NL",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 61271
+  },
+  {
+    "name": "Zeist",
+    "countryCode": "NL",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 60949
+  },
+  {
+    "name": "Seraing",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 60737
+  },
+  {
+    "name": "Den Helder",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 59569
+  },
+  {
+    "name": "Hardenberg",
+    "countryCode": "NL",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 57909
+  },
+  {
+    "name": "Emmen",
+    "countryCode": "NL",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 57010
+  },
+  {
+    "name": "Woluwe-Saint-Lambert",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 56584
+  },
+  {
+    "name": "Forest",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 56254
+  },
+  {
+    "name": "Roeselare",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 56016
+  },
+  {
+    "name": "Oosterhout",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 53107
+  },
+  {
+    "name": "Verviers",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 52824
+  },
+  {
+    "name": "Jette",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 52490
+  },
+  {
+    "name": "Mouscron",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 52069
+  },
+  {
+    "name": "Saint-Gilles",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 50221
+  },
+  {
+    "name": "Doetinchem",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 49906
+  },
+  {
+    "name": "Kerkrade",
+    "countryCode": "NL",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 49777
+  },
+  {
+    "name": "Kampen",
+    "countryCode": "NL",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 48980
+  },
+  {
+    "name": "Weert",
+    "countryCode": "NL",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 48662
+  },
+  {
+    "name": "Woerden",
+    "countryCode": "NL",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 48431
+  },
+  {
+    "name": "Sittard",
+    "countryCode": "NL",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 48400
+  },
+  {
+    "name": "Etterbeek",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 48344
+  },
+  {
+    "name": "Heerhugowaard",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 47580
+  },
+  {
+    "name": "Rijswijk",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 47299
+  },
+  {
+    "name": "Middelburg",
+    "countryCode": "NL",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 46485
+  },
+  {
+    "name": "Emmeloord",
+    "countryCode": "NL",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 46409
+  },
+  {
+    "name": "Borgerhout",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 46087
+  },
+  {
+    "name": "Zwijndrecht",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 45696
+  },
+  {
+    "name": "Dendermonde",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 45673
+  },
+  {
+    "name": "Waalwijk",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 45610
+  },
+  {
+    "name": "Vlissingen",
+    "countryCode": "NL",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 45273
+  },
+  {
+    "name": "Ridderkerk",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 45189
+  },
+  {
+    "name": "Drachten",
+    "countryCode": "NL",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 45186
+  },
+  {
+    "name": "Beveren",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 45179
+  },
+  {
+    "name": "Soest",
+    "countryCode": "NL",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 45021
+  },
+  {
+    "name": "Roermond",
+    "countryCode": "NL",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 44975
+  },
+  {
+    "name": "Merksem",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 44435
+  },
+  {
+    "name": "Turnhout",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 44000
+  },
+  {
+    "name": "Berchem",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 43511
+  },
+  {
+    "name": "Heerenveen",
+    "countryCode": "NL",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 43094
+  },
+  {
+    "name": "Evere",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 41667
+  },
+  {
+    "name": "Medemblik",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 41500
+  },
+  {
+    "name": "Lokeren",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 41438
+  },
+  {
+    "name": "Wilrijk",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 41403
+  },
+  {
+    "name": "Huizen",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 41273
+  },
+  {
+    "name": "Beringen",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 40930
+  },
+  {
+    "name": "Tiel",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 40702
+  },
+  {
+    "name": "Harderwijk",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 40516
+  },
+  {
+    "name": "Maarssen",
+    "countryCode": "NL",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 39675
+  },
+  {
+    "name": "Dilbeek",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 39482
+  },
+  {
+    "name": "Heemskerk",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 39191
+  },
+  {
+    "name": "Venray",
+    "countryCode": "NL",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 39047
+  },
+  {
+    "name": "Hoogeveen",
+    "countryCode": "NL",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 38754
+  },
+  {
+    "name": "Barendrecht",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 38672
+  },
+  {
+    "name": "Nijkerk",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 38335
+  },
+  {
+    "name": "Voorburg",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 38000
+  },
+  {
+    "name": "Heist-op-den-Berg",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 37873
+  },
+  {
+    "name": "Sint-Truiden",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 37859
+  },
+  {
+    "name": "Beverwijk",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 37585
+  },
+  {
+    "name": "Braine-l'Alleud",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 37512
+  },
+  {
+    "name": "Brasschaat",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 37040
+  },
+  {
+    "name": "Grimbergen",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 37000
+  },
+  {
+    "name": "Vilvoorde",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 36955
+  },
+  {
+    "name": "Goes",
+    "countryCode": "NL",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 36931
+  },
+  {
+    "name": "Herstal",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 36503
+  },
+  {
+    "name": "Maasmechelen",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 36251
+  },
+  {
+    "name": "Zutphen",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 36188
+  },
+  {
+    "name": "Waregem",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 35896
+  },
+  {
+    "name": "Wageningen",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 35433
+  },
+  {
+    "name": "Castricum",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 35256
+  },
+  {
+    "name": "Châtelet",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 35238
+  },
+  {
+    "name": "Barneveld",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 35095
+  },
+  {
+    "name": "Ieper",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 35089
+  },
+  {
+    "name": "Hoogvliet",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 34950
+  },
+  {
+    "name": "Ninove",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 34795
+  },
+  {
+    "name": "Gorinchem",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 34736
+  },
+  {
+    "name": "Geel",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 34697
+  },
+  {
+    "name": "Uden",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 34601
+  },
+  {
+    "name": "Halle",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 34479
+  },
+  {
+    "name": "Hoboken",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 34443
+  },
+  {
+    "name": "Wavre",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 34305
+  },
+  {
+    "name": "Auderghem",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 33984
+  },
+  {
+    "name": "IJsselstein",
+    "countryCode": "NL",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 33886
+  },
+  {
+    "name": "Knokke-Heist",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 33781
+  },
+  {
+    "name": "Schoten",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 33622
+  },
+  {
+    "name": "Epe",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 33385
+  },
+  {
+    "name": "Lier",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 33272
+  },
+  {
+    "name": "Sneek",
+    "countryCode": "NL",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 32811
+  },
+  {
+    "name": "Geleen",
+    "countryCode": "NL",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 32790
+  },
+  {
+    "name": "Maassluis",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 32780
+  },
+  {
+    "name": "Wijchen",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 32693
+  },
+  {
+    "name": "Mol",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 32659
+  },
+  {
+    "name": "Sint-Amandsberg",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 32115
+  },
+  {
+    "name": "Binche",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 32030
+  },
+  {
+    "name": "Lommel",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 31993
+  },
+  {
+    "name": "IJmuiden",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 31925
+  },
+  {
+    "name": "Menen",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 31916
+  },
+  {
+    "name": "Oudenaarde",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 31866
+  },
+  {
+    "name": "Tienen",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 31743
+  },
+  {
+    "name": "Papendrecht",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 31621
+  },
+  {
+    "name": "Evergem",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 31615
+  },
+  {
+    "name": "Nieuw-Vennep",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 31415
+  },
+  {
+    "name": "Oldenzaal",
+    "countryCode": "NL",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 31410
+  },
+  {
+    "name": "Bussum",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 31334
+  },
+  {
+    "name": "Valkenswaard",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 31071
+  },
+  {
+    "name": "Heusden",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 31017
+  },
+  {
+    "name": "Wevelgem",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 30954
+  },
+  {
+    "name": "Geraardsbergen",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 30807
+  },
+  {
+    "name": "Meppel",
+    "countryCode": "NL",
+    "admin1": "01",
+    "postcodeSample": null,
+    "population": 30697
+  },
+  {
+    "name": "Sint-Pieters-Leeuw",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 30446
+  },
+  {
+    "name": "Kessel-Lo",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 30215
+  },
+  {
+    "name": "Blauwput",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 30215
+  },
+  {
+    "name": "Houthalen",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 30050
+  },
+  {
+    "name": "Helchteren",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 30050
+  },
+  {
+    "name": "Ypenburg",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 30000
+  },
+  {
+    "name": "Tongeren",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 29816
+  },
+  {
+    "name": "Deinze",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 29815
+  },
+  {
+    "name": "Waterloo",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 29778
+  },
+  {
+    "name": "Bergen",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 29715
+  },
+  {
+    "name": "Winterswijk",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 29623
+  },
+  {
+    "name": "Bilzen",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 29622
+  },
+  {
+    "name": "Louvain-la-Neuve",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 29521
+  },
+  {
+    "name": "Boxtel",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 29511
+  },
+  {
+    "name": "Courcelles",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 29473
+  },
+  {
+    "name": "Brunssum",
+    "countryCode": "NL",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 29254
+  },
+  {
+    "name": "Leusden",
+    "countryCode": "NL",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 29215
+  },
+  {
+    "name": "Best",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 29074
+  },
+  {
+    "name": "Krimpen aan den IJssel",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 29017
+  },
+  {
+    "name": "Asse",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 28985
+  },
+  {
+    "name": "Delfzijl",
+    "countryCode": "NL",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 28649
+  },
+  {
+    "name": "Zaventem",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 28188
+  },
+  {
+    "name": "Veendam",
+    "countryCode": "NL",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 28155
+  },
+  {
+    "name": "Groot IJsselmonde",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 28120
+  },
+  {
+    "name": "Dronten",
+    "countryCode": "NL",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 28073
+  },
+  {
+    "name": "Terneuzen",
+    "countryCode": "NL",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 27930
+  },
+  {
+    "name": "Geldrop",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 27900
+  },
+  {
+    "name": "Rijssen",
+    "countryCode": "NL",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 27740
+  },
+  {
+    "name": "Aarschot",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 27656
+  },
+  {
+    "name": "Saint-Josse-ten-Noode",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 27366
+  },
+  {
+    "name": "Ans",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 27297
+  },
+  {
+    "name": "Uithoorn",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 26846
+  },
+  {
+    "name": "Culemborg",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 26826
+  },
+  {
+    "name": "Ath",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 26681
+  },
+  {
+    "name": "Dalfsen",
+    "countryCode": "NL",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 26575
+  },
+  {
+    "name": "Kapellen",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 26410
+  },
+  {
+    "name": "Zaltbommel",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 26383
+  },
+  {
+    "name": "Izegem",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 26382
+  },
+  {
+    "name": "Arlon",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 26179
+  },
+  {
+    "name": "Zevenaar",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 26063
+  },
+  {
+    "name": "Temse",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 26054
+  },
+  {
+    "name": "Oisterwijk",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 25980
+  },
+  {
+    "name": "Harelbeke",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 25978
+  },
+  {
+    "name": "Leiderdorp",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 25966
+  },
+  {
+    "name": "Herentals",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 25912
+  },
+  {
+    "name": "Geldermalsen",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 25734
+  },
+  {
+    "name": "Heemstede",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 25562
+  },
+  {
+    "name": "Beuningen",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 25557
+  },
+  {
+    "name": "Duiven",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 25469
+  },
+  {
+    "name": "Dongen",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 25464
+  },
+  {
+    "name": "Wassenaar",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 25353
+  },
+  {
+    "name": "Veghel",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 25352
+  },
+  {
+    "name": "Wierden",
+    "countryCode": "NL",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 25342
+  },
+  {
+    "name": "Waddinxveen",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 25338
+  },
+  {
+    "name": "Maaseik",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 25201
+  },
+  {
+    "name": "Berchem-Sainte-Agathe",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 25162
+  },
+  {
+    "name": "Watermael-Boitsfort",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 25157
+  },
+  {
+    "name": "Ommoord",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 25150
+  },
+  {
+    "name": "Flémalle-Haute",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 25144
+  },
+  {
+    "name": "Vught",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 25043
+  },
+  {
+    "name": "Nijverdal",
+    "countryCode": "NL",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 25000
+  },
+  {
+    "name": "Hoensbroek",
+    "countryCode": "NL",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 25000
+  },
+  {
+    "name": "Soignies",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 24869
+  },
+  {
+    "name": "Ganshoren",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 24859
+  },
+  {
+    "name": "Lanaken",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 24771
+  },
+  {
+    "name": "Baarn",
+    "countryCode": "NL",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 24584
+  },
+  {
+    "name": "Mortsel",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 24525
+  },
+  {
+    "name": "Jumet",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 24510
+  },
+  {
+    "name": "Zottegem",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 24434
+  },
+  {
+    "name": "Noordwijk-Binnen",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 24363
+  },
+  {
+    "name": "Diemen",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 24361
+  },
+  {
+    "name": "Assendelft",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 24230
+  },
+  {
+    "name": "Ronse",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 24204
+  },
+  {
+    "name": "Nivelles",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 24149
+  },
+  {
+    "name": "Heiloo",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 24144
+  },
+  {
+    "name": "Haaksbergen",
+    "countryCode": "NL",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 24137
+  },
+  {
+    "name": "Andenne",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 24055
+  },
+  {
+    "name": "Borne",
+    "countryCode": "NL",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 23877
+  },
+  {
+    "name": "Sliedrecht",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 23854
+  },
+  {
+    "name": "Marcinelle",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 23696
+  },
+  {
+    "name": "Oupeye",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 23594
+  },
+  {
+    "name": "Steenbergen",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 23582
+  },
+  {
+    "name": "Oud-Beijerland",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 23569
+  },
+  {
+    "name": "Wondelgem",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 23546
+  },
+  {
+    "name": "Overijse",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 23486
+  },
+  {
+    "name": "Zwevegem",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 23358
+  },
+  {
+    "name": "Ekeren",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 23300
+  },
+  {
+    "name": "Heverlee",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 23278
+  },
+  {
+    "name": "Bilthoven",
+    "countryCode": "NL",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 23248
+  },
+  {
+    "name": "Schijndel",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 23239
+  },
+  {
+    "name": "Beersel",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 23228
+  },
+  {
+    "name": "Nuenen",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 23223
+  },
+  {
+    "name": "Putten",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 23168
+  },
+  {
+    "name": "Scheveningen",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 23000
+  },
+  {
+    "name": "Loon op Zand",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 23000
+  },
+  {
+    "name": "Aalsmeer",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 22991
+  },
+  {
+    "name": "Wetteren",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 22930
+  },
+  {
+    "name": "Hamme",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 22891
+  },
+  {
+    "name": "Willebroek",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 22808
+  },
+  {
+    "name": "Goirle",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 22646
+  },
+  {
+    "name": "Saint-Nicolas",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 22586
+  },
+  {
+    "name": "Westerlo",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 22579
+  },
+  {
+    "name": "Diest",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 22516
+  },
+  {
+    "name": "Saint-Ghislain",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 22500
+  },
+  {
+    "name": "Voorschoten",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 22468
+  },
+  {
+    "name": "Losser",
+    "countryCode": "NL",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 22431
+  },
+  {
+    "name": "Lisse",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 22321
+  },
+  {
+    "name": "Borssele",
+    "countryCode": "NL",
+    "admin1": "10",
+    "postcodeSample": null,
+    "population": 22285
+  },
+  {
+    "name": "Manage",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 22196
+  },
+  {
+    "name": "Urk",
+    "countryCode": "NL",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 22173
+  },
+  {
+    "name": "De Meern",
+    "countryCode": "NL",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 22116
+  },
+  {
+    "name": "Maldegem",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 22092
+  },
+  {
+    "name": "Fleurus",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 22080
+  },
+  {
+    "name": "Volendam",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 22000
+  },
+  {
+    "name": "Koekelberg",
+    "countryCode": "BE",
+    "admin1": "BRU",
+    "postcodeSample": null,
+    "population": 21984
+  },
+  {
+    "name": "Zedelgem",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 21968
+  },
+  {
+    "name": "Koksijde",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 21957
+  },
+  {
+    "name": "Hellevoetsluis",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 21927
+  },
+  {
+    "name": "Elburg",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 21844
+  },
+  {
+    "name": "Edegem",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 21839
+  },
+  {
+    "name": "Gembloux",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 21676
+  },
+  {
+    "name": "Rixensart",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 21616
+  },
+  {
+    "name": "Oostkamp",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 21489
+  },
+  {
+    "name": "Hoogezand",
+    "countryCode": "NL",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 21480
+  },
+  {
+    "name": "Brummen",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 21344
+  },
+  {
+    "name": "Oegstgeest",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 21149
+  },
+  {
+    "name": "Zemst",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 21096
+  },
+  {
+    "name": "Grivegnée",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 21057
+  },
+  {
+    "name": "Hendrik-Ido-Ambacht",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 21027
+  },
+  {
+    "name": "Chaudfontaine",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 20960
+  },
+  {
+    "name": "Geertruidenberg",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 20941
+  },
+  {
+    "name": "Nijlen",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 20792
+  },
+  {
+    "name": "Leerdam",
+    "countryCode": "NL",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 20758
+  },
+  {
+    "name": "Tervuren",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 20623
+  },
+  {
+    "name": "Frameries",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 20598
+  },
+  {
+    "name": "Elst",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 20488
+  },
+  {
+    "name": "Schilde",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 20373
+  },
+  {
+    "name": "Tubbergen",
+    "countryCode": "NL",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 20334
+  },
+  {
+    "name": "Kontich",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 20290
+  },
+  {
+    "name": "Zele",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 20236
+  },
+  {
+    "name": "Tegelen",
+    "countryCode": "NL",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 20190
+  },
+  {
+    "name": "Berkel en Rodenrijs",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 20189
+  },
+  {
+    "name": "Braine-le-Comte",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 20133
+  },
+  {
+    "name": "Boussu",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 20058
+  },
+  {
+    "name": "Gilly",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 20043
+  },
+  {
+    "name": "Raalte",
+    "countryCode": "NL",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 20015
+  },
+  {
+    "name": "Katwijk aan Zee",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 20010
+  },
+  {
+    "name": "Stadskanaal",
+    "countryCode": "NL",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 20000
+  },
+  {
+    "name": "Bornem",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 19997
+  },
+  {
+    "name": "Balen",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 19978
+  },
+  {
+    "name": "Huy",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 19973
+  },
+  {
+    "name": "Cranendonck",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 19966
+  },
+  {
+    "name": "Colfontaine",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 19964
+  },
+  {
+    "name": "Vianen",
+    "countryCode": "NL",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 19931
+  },
+  {
+    "name": "Zonhoven",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 19922
+  },
+  {
+    "name": "Schagen",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 19890
+  },
+  {
+    "name": "Assebroek",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 19772
+  },
+  {
+    "name": "Huissen",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 19725
+  },
+  {
+    "name": "Lochristi",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 19696
+  },
+  {
+    "name": "Tongelre",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 19680
+  },
+  {
+    "name": "Jambes",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 19658
+  },
+  {
+    "name": "Leek",
+    "countryCode": "NL",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 19651
+  },
+  {
+    "name": "Lichtenvoorde",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 19590
+  },
+  {
+    "name": "Poperinge",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 19537
+  },
+  {
+    "name": "Wisch",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 19496
+  },
+  {
+    "name": "Nunspeet",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 19496
+  },
+  {
+    "name": "Sint-Katelijne-Waver",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 19487
+  },
+  {
+    "name": "Bodegraven",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 19395
+  },
+  {
+    "name": "Sint-Andries",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 19336
+  },
+  {
+    "name": "Tielt",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 19299
+  },
+  {
+    "name": "Herent",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 19218
+  },
+  {
+    "name": "'s-Gravenzande",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 19190
+  },
+  {
+    "name": "Aalten",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 19141
+  },
+  {
+    "name": "Eeklo",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 19116
+  },
+  {
+    "name": "Zeewolde",
+    "countryCode": "NL",
+    "admin1": "16",
+    "postcodeSample": null,
+    "population": 19022
+  },
+  {
+    "name": "Nootdorp",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 19020
+  },
+  {
+    "name": "Benthuizen",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 18959
+  },
+  {
+    "name": "Torhout",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 18933
+  },
+  {
+    "name": "Aalter",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 18802
+  },
+  {
+    "name": "Montignies-sur-Sambre",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 18765
+  },
+  {
+    "name": "Groesbeek",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 18741
+  },
+  {
+    "name": "Pijnacker",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 18695
+  },
+  {
+    "name": "Driebergen-Rijsenburg",
+    "countryCode": "NL",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 18553
+  },
+  {
+    "name": "Hoogstraten",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 18524
+  },
+  {
+    "name": "Winschoten",
+    "countryCode": "NL",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 18506
+  },
+  {
+    "name": "Meise",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 18497
+  },
+  {
+    "name": "Quaregnon",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 18491
+  },
+  {
+    "name": "Hillegom",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 18419
+  },
+  {
+    "name": "Alblasserdam",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 18348
+  },
+  {
+    "name": "Rhoon",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 18250
+  },
+  {
+    "name": "Zwijndrecht",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 18249
+  },
+  {
+    "name": "Morlanwelz-Mariemont",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 18233
+  },
+  {
+    "name": "Eersel",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 18185
+  },
+  {
+    "name": "Bergeijk",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 18181
+  },
+  {
+    "name": "Koersel",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 18076
+  },
+  {
+    "name": "Rhenen",
+    "countryCode": "NL",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 18061
+  },
+  {
+    "name": "Eupen",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 18029
+  },
+  {
+    "name": "Tubize",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 18000
+  },
+  {
+    "name": "Blankenberge",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 18000
+  },
+  {
+    "name": "Sint-Genesius-Rode",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 17990
+  },
+  {
+    "name": "Didam",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 17812
+  },
+  {
+    "name": "Weesp",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 17802
+  },
+  {
+    "name": "Middelkerke",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 17789
+  },
+  {
+    "name": "Kortenberg",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 17774
+  },
+  {
+    "name": "Kasterlee",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 17765
+  },
+  {
+    "name": "Naaldwijk",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 17753
+  },
+  {
+    "name": "Diepenbeek",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 17699
+  },
+  {
+    "name": "Lessines",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 17687
+  },
+  {
+    "name": "Velp",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 17669
+  },
+  {
+    "name": "Sint-Gillis-Waas",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 17658
+  },
+  {
+    "name": "Middelharnis",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 17554
+  },
+  {
+    "name": "Walcourt",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 17501
+  },
+  {
+    "name": "Kalmthout",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 17485
+  },
+  {
+    "name": "Wijk bij Duurstede",
+    "countryCode": "NL",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 17465
+  },
+  {
+    "name": "Ranst",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 17405
+  },
+  {
+    "name": "Lebbeke",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 17372
+  },
+  {
+    "name": "Enkhuizen",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 17365
+  },
+  {
+    "name": "Wervik",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 17340
+  },
+  {
+    "name": "Stabroek",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 17294
+  },
+  {
+    "name": "Zolder",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 17289
+  },
+  {
+    "name": "Glanerbrug",
+    "countryCode": "NL",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 17260
+  },
+  {
+    "name": "Châtelineau",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 17166
+  },
+  {
+    "name": "Steenwijk",
+    "countryCode": "NL",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 17138
+  },
+  {
+    "name": "Haaltert",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 17129
+  },
+  {
+    "name": "Naarden",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 17115
+  },
+  {
+    "name": "Mariakerke",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 17062
+  },
+  {
+    "name": "Visé",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 17054
+  },
+  {
+    "name": "Stekene",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 16989
+  },
+  {
+    "name": "Denderleeuw",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 16969
+  },
+  {
+    "name": "Sint-Oedenrode",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 16931
+  },
+  {
+    "name": "Zandvoort",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 16868
+  },
+  {
+    "name": "Dour",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 16861
+  },
+  {
+    "name": "Marche-en-Famenne",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 16856
+  },
+  {
+    "name": "Destelbergen",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 16853
+  },
+  {
+    "name": "Lede",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 16813
+  },
+  {
+    "name": "Korrewegwijk",
+    "countryCode": "NL",
+    "admin1": "04",
+    "postcodeSample": null,
+    "population": 16710
+  },
+  {
+    "name": "Merelbeke",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 16684
+  },
+  {
+    "name": "Péruwelz",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 16647
+  },
+  {
+    "name": "Gennep",
+    "countryCode": "NL",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 16642
+  },
+  {
+    "name": "Bergschenhoek",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 16579
+  },
+  {
+    "name": "Tessenderlo",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 16574
+  },
+  {
+    "name": "Herve",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 16544
+  },
+  {
+    "name": "Herzele",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 16523
+  },
+  {
+    "name": "Merenwijk",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 16500
+  },
+  {
+    "name": "Eibergen",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 16493
+  },
+  {
+    "name": "Schiebroek",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 16305
+  },
+  {
+    "name": "Rijen",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 16230
+  },
+  {
+    "name": "Beerse",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 16208
+  },
+  {
+    "name": "Maaspoort",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 16150
+  },
+  {
+    "name": "Neerpelt",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 16122
+  },
+  {
+    "name": "Lindenholt",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 16121
+  },
+  {
+    "name": "Harlingen",
+    "countryCode": "NL",
+    "admin1": "02",
+    "postcodeSample": null,
+    "population": 16119
+  },
+  {
+    "name": "Duffel",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 16011
+  },
+  {
+    "name": "Sint-Kruis",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 16000
+  },
+  {
+    "name": "Hoge Vucht",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 16000
+  },
+  {
+    "name": "Gemert",
+    "countryCode": "NL",
+    "admin1": "06",
+    "postcodeSample": null,
+    "population": 15995
+  },
+  {
+    "name": "Fléron",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 15994
+  },
+  {
+    "name": "Puurs",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 15944
+  },
+  {
+    "name": "Pont-à-Celles",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 15909
+  },
+  {
+    "name": "Gentbrugge",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 15885
+  },
+  {
+    "name": "Blerick",
+    "countryCode": "NL",
+    "admin1": "05",
+    "postcodeSample": null,
+    "population": 15820
+  },
+  {
+    "name": "Boom",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 15810
+  },
+  {
+    "name": "Riemst",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 15809
+  },
+  {
+    "name": "Staphorst",
+    "countryCode": "NL",
+    "admin1": "15",
+    "postcodeSample": null,
+    "population": 15765
+  },
+  {
+    "name": "Peer",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 15551
+  },
+  {
+    "name": "Diksmuide",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 15515
+  },
+  {
+    "name": "Sassenheim",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 15510
+  },
+  {
+    "name": "Lille",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 15466
+  },
+  {
+    "name": "Heusy",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 15420
+  },
+  {
+    "name": "Velserbroek",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 15420
+  },
+  {
+    "name": "Mechelen-aan-de-Maas",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 15374
+  },
+  {
+    "name": "Bevere",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 15311
+  },
+  {
+    "name": "Putte",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 15276
+  },
+  {
+    "name": "Soumagne",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 15237
+  },
+  {
+    "name": "Mijdrecht",
+    "countryCode": "NL",
+    "admin1": "09",
+    "postcodeSample": null,
+    "population": 15230
+  },
+  {
+    "name": "Boskoop",
+    "countryCode": "NL",
+    "admin1": "11",
+    "postcodeSample": null,
+    "population": 15222
+  },
+  {
+    "name": "Bennekom",
+    "countryCode": "NL",
+    "admin1": "03",
+    "postcodeSample": null,
+    "population": 15160
+  },
+  {
+    "name": "Marchienne-au-Pont",
+    "countryCode": "BE",
+    "admin1": "WAL",
+    "postcodeSample": null,
+    "population": 15154
+  },
+  {
+    "name": "Julianadorp",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 15135
+  },
+  {
+    "name": "Badhoevedorp",
+    "countryCode": "NL",
+    "admin1": "07",
+    "postcodeSample": null,
+    "population": 15080
+  },
+  {
+    "name": "Rotselaar",
+    "countryCode": "BE",
+    "admin1": "VLG",
+    "postcodeSample": null,
+    "population": 15007
+  }
+]

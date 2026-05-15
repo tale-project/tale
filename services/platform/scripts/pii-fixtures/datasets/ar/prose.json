@@ -1,0 +1,4002 @@
+[
+  {
+    "text": "متى أنشئت هذه الجامعة؟",
+    "source": "tatoeba",
+    "upstreamId": "332182"
+  },
+  {
+    "text": "يعزف على البيانو بشكل جيد جداً",
+    "source": "tatoeba",
+    "upstreamId": "332187"
+  },
+  {
+    "text": "أتمنى لك نومًا هادئًا يا تِمِي.‏‏",
+    "source": "tatoeba",
+    "upstreamId": "332222"
+  },
+  {
+    "text": "لو سمحت، أضعت طريقي.‏‏",
+    "source": "tatoeba",
+    "upstreamId": "332224"
+  },
+  {
+    "text": "عيد ميلاد سعيد!‏‏",
+    "source": "tatoeba",
+    "upstreamId": "332229"
+  },
+  {
+    "text": "ذهبت اليوم إلى الطبيب",
+    "source": "tatoeba",
+    "upstreamId": "332368"
+  },
+  {
+    "text": "إنه وسيم و ذكي.",
+    "source": "tatoeba",
+    "upstreamId": "336152"
+  },
+  {
+    "text": "هذه القلعة جميلة.",
+    "source": "tatoeba",
+    "upstreamId": "336154"
+  },
+  {
+    "text": "إيطاليا بلد جميل جدا.",
+    "source": "tatoeba",
+    "upstreamId": "336155"
+  },
+  {
+    "text": "طقس اليوم جميل.",
+    "source": "tatoeba",
+    "upstreamId": "336156"
+  },
+  {
+    "text": "تعال إلى منزلي.",
+    "source": "tatoeba",
+    "upstreamId": "336157"
+  },
+  {
+    "text": "أنظر إلى هذا المنزل.",
+    "source": "tatoeba",
+    "upstreamId": "336159"
+  },
+  {
+    "text": "مرحباً بك في المنزل.",
+    "source": "tatoeba",
+    "upstreamId": "336161"
+  },
+  {
+    "text": "لا أحب المدرسة.",
+    "source": "tatoeba",
+    "upstreamId": "336163"
+  },
+  {
+    "text": "أنا طالب في هذه المدرسة.",
+    "source": "tatoeba",
+    "upstreamId": "336164"
+  },
+  {
+    "text": "تستطيع معالجة السرطان اذا أكتشف في المراحل الأولى.",
+    "source": "tatoeba",
+    "upstreamId": "337468"
+  },
+  {
+    "text": "مرض السرطان هو عدو البشريه الأكبر",
+    "source": "tatoeba",
+    "upstreamId": "337469"
+  },
+  {
+    "text": "هل تتكلم اللغة الإنجليزية؟",
+    "source": "tatoeba",
+    "upstreamId": "340399"
+  },
+  {
+    "text": "أنا لا أتكلم اللغة اليابانية.‏‏",
+    "source": "tatoeba",
+    "upstreamId": "340400"
+  },
+  {
+    "text": "الدوق يمتلك الكثير من الأراضي.",
+    "source": "tatoeba",
+    "upstreamId": "341949"
+  },
+  {
+    "text": "الشهر القمري أقصر من الشهر الشمسي.",
+    "source": "tatoeba",
+    "upstreamId": "341950"
+  },
+  {
+    "text": "اليوم أقمارنا الصناعية تدور حول الأرض.",
+    "source": "tatoeba",
+    "upstreamId": "341951"
+  },
+  {
+    "text": "فكرة جيدة أن نلعب الشوقي بعد الغداء.",
+    "source": "tatoeba",
+    "upstreamId": "341952"
+  },
+  {
+    "text": "استيقظت في السابعة هذا الصباح.",
+    "source": "tatoeba",
+    "upstreamId": "341953"
+  },
+  {
+    "text": "تركوا المشكلة بدون حل.",
+    "source": "tatoeba",
+    "upstreamId": "341965"
+  },
+  {
+    "text": "هل تريد أن تنصحني بشيء ما ؟",
+    "source": "tatoeba",
+    "upstreamId": "370530"
+  },
+  {
+    "text": "تعتمد اليابان على نفط البلدان العربية.",
+    "source": "tatoeba",
+    "upstreamId": "370531"
+  },
+  {
+    "text": "من رسم هذه اللوحة؟",
+    "source": "tatoeba",
+    "upstreamId": "370533"
+  },
+  {
+    "text": "هذا بيتي وهذه أرضي!",
+    "source": "tatoeba",
+    "upstreamId": "370534"
+  },
+  {
+    "text": "أحببت هذا الفيلم.",
+    "source": "tatoeba",
+    "upstreamId": "370535"
+  },
+  {
+    "text": "من كتب هذا الكتاب؟",
+    "source": "tatoeba",
+    "upstreamId": "370536"
+  },
+  {
+    "text": "من وضع هذه الخطة؟",
+    "source": "tatoeba",
+    "upstreamId": "370537"
+  },
+  {
+    "text": "اشتريته بالأمس.",
+    "source": "tatoeba",
+    "upstreamId": "370539"
+  },
+  {
+    "text": "العالم قرية صغيرة.",
+    "source": "tatoeba",
+    "upstreamId": "370549"
+  },
+  {
+    "text": "عيادة الطبيب في الدور الثاني.",
+    "source": "tatoeba",
+    "upstreamId": "370565"
+  },
+  {
+    "text": "إنه جدير بأن يكون قائد فريقنا.",
+    "source": "tatoeba",
+    "upstreamId": "370566"
+  },
+  {
+    "text": "إنه يعرفنا جيداً.",
+    "source": "tatoeba",
+    "upstreamId": "370569"
+  },
+  {
+    "text": "أحبه أكثر من بقية الأولاد.",
+    "source": "tatoeba",
+    "upstreamId": "370570"
+  },
+  {
+    "text": "لم ينجُ أحد من تحطم الطائرة.",
+    "source": "tatoeba",
+    "upstreamId": "370571"
+  },
+  {
+    "text": "ما أجمل هذه الزهرة!",
+    "source": "tatoeba",
+    "upstreamId": "370574"
+  },
+  {
+    "text": "تتكاثر الفئران بسرعة.",
+    "source": "tatoeba",
+    "upstreamId": "370575"
+  },
+  {
+    "text": "هذا الحلم سَيَتَحَقَّق.",
+    "source": "tatoeba",
+    "upstreamId": "370576"
+  },
+  {
+    "text": "هذه قصة حقيقية.",
+    "source": "tatoeba",
+    "upstreamId": "370577"
+  },
+  {
+    "text": "لكن هذا ليس صحيحاً.",
+    "source": "tatoeba",
+    "upstreamId": "370578"
+  },
+  {
+    "text": "الموسيقى لغة عالمية.",
+    "source": "tatoeba",
+    "upstreamId": "370581"
+  },
+  {
+    "text": "سرق الرجل حقيبة يدي.",
+    "source": "tatoeba",
+    "upstreamId": "370586"
+  },
+  {
+    "text": "هناك عوامل كثيرة.",
+    "source": "tatoeba",
+    "upstreamId": "370589"
+  },
+  {
+    "text": "قابلتها في الشارع.",
+    "source": "tatoeba",
+    "upstreamId": "370591"
+  },
+  {
+    "text": "أيمكنك رؤية الفرق؟",
+    "source": "tatoeba",
+    "upstreamId": "370592"
+  },
+  {
+    "text": "أيمكنك ملاحظة الفرق؟",
+    "source": "tatoeba",
+    "upstreamId": "370593"
+  },
+  {
+    "text": "المهم هو العمل.",
+    "source": "tatoeba",
+    "upstreamId": "370594"
+  },
+  {
+    "text": "أنت لست صديقنا.",
+    "source": "tatoeba",
+    "upstreamId": "370598"
+  },
+  {
+    "text": "الدلفين نوع من الثدييات.",
+    "source": "tatoeba",
+    "upstreamId": "370600"
+  },
+  {
+    "text": "صفق الجمهور للممثلة.",
+    "source": "tatoeba",
+    "upstreamId": "370603"
+  },
+  {
+    "text": "لا تلمس البضاعة.",
+    "source": "tatoeba",
+    "upstreamId": "370610"
+  },
+  {
+    "text": "الأولاد نائمون.",
+    "source": "tatoeba",
+    "upstreamId": "370611"
+  },
+  {
+    "text": "من فضلك إتّصل بي لاحقاً.",
+    "source": "tatoeba",
+    "upstreamId": "370613"
+  },
+  {
+    "text": "هنا موقع الحادث.",
+    "source": "tatoeba",
+    "upstreamId": "370614"
+  },
+  {
+    "text": "تنافس عشر فرق على الجائزة.",
+    "source": "tatoeba",
+    "upstreamId": "370616"
+  },
+  {
+    "text": "مبيعات السيارات اليابانية في الخارج جيدة.",
+    "source": "tatoeba",
+    "upstreamId": "370618"
+  },
+  {
+    "text": "أصبح بوب مهندساً.",
+    "source": "tatoeba",
+    "upstreamId": "370619"
+  },
+  {
+    "text": "أعتقد أن شكسبير أعظم كاتب دراما في التاريخ.",
+    "source": "tatoeba",
+    "upstreamId": "370620"
+  },
+  {
+    "text": "حضر اللقاء عدد من أصحاب الإختصاص.",
+    "source": "tatoeba",
+    "upstreamId": "370621"
+  },
+  {
+    "text": "ترك الباب مفتوحاً.",
+    "source": "tatoeba",
+    "upstreamId": "370623"
+  },
+  {
+    "text": "أعطني انطباعك عن هذا الكتاب.",
+    "source": "tatoeba",
+    "upstreamId": "370625"
+  },
+  {
+    "text": "يا لها من جملة!",
+    "source": "tatoeba",
+    "upstreamId": "370629"
+  },
+  {
+    "text": "درّسني التاريخ.",
+    "source": "tatoeba",
+    "upstreamId": "370633"
+  },
+  {
+    "text": "هذا المنتزه يذكّرني بطفولتي.",
+    "source": "tatoeba",
+    "upstreamId": "370635"
+  },
+  {
+    "text": "هذا المنتزه جميل و نظيف حقاً.",
+    "source": "tatoeba",
+    "upstreamId": "370636"
+  },
+  {
+    "text": "كاد الولد أن يغرق.",
+    "source": "tatoeba",
+    "upstreamId": "370637"
+  },
+  {
+    "text": "شك المحامي في براءته.",
+    "source": "tatoeba",
+    "upstreamId": "370638"
+  },
+  {
+    "text": "نصحها الطبيب بأخذ إجازة.",
+    "source": "tatoeba",
+    "upstreamId": "370639"
+  },
+  {
+    "text": "سامحني من فضلك.",
+    "source": "tatoeba",
+    "upstreamId": "370640"
+  },
+  {
+    "text": "لا أحب أن أطبخ عندما يكون الجو حارّاً.",
+    "source": "tatoeba",
+    "upstreamId": "370641"
+  },
+  {
+    "text": "من ارتكب هذه الجريمة حتماً فقد عقله.",
+    "source": "tatoeba",
+    "upstreamId": "370642"
+  },
+  {
+    "text": "علمتني عمتي كيف أحضّر قهوةً لذيذة.",
+    "source": "tatoeba",
+    "upstreamId": "370643"
+  },
+  {
+    "text": "هذا بيت و ذلك مسجد.",
+    "source": "tatoeba",
+    "upstreamId": "370644"
+  },
+  {
+    "text": "ذهب بلال إلى المدرسة.",
+    "source": "tatoeba",
+    "upstreamId": "370652"
+  },
+  {
+    "text": "هذا جميل ، و ذلك أيضاً جميل.",
+    "source": "tatoeba",
+    "upstreamId": "370655"
+  },
+  {
+    "text": "وافق المدرس على خطته.",
+    "source": "tatoeba",
+    "upstreamId": "370658"
+  },
+  {
+    "text": "قام بالعمل كما طُلب.",
+    "source": "tatoeba",
+    "upstreamId": "370659"
+  },
+  {
+    "text": "بدأت صحته تتدهور.",
+    "source": "tatoeba",
+    "upstreamId": "370663"
+  },
+  {
+    "text": "الأرملة امرأة توفي زوجها.",
+    "source": "tatoeba",
+    "upstreamId": "370664"
+  },
+  {
+    "text": "زُرِعَت الأشجار بجانب الطريق.",
+    "source": "tatoeba",
+    "upstreamId": "370667"
+  },
+  {
+    "text": "كان رجلاً سابقاً لعصره.",
+    "source": "tatoeba",
+    "upstreamId": "370668"
+  },
+  {
+    "text": "ها قد أتى الباص.",
+    "source": "tatoeba",
+    "upstreamId": "370669"
+  },
+  {
+    "text": "هذا الكتاب لعلي.",
+    "source": "tatoeba",
+    "upstreamId": "370670"
+  },
+  {
+    "text": "المدرس الجديد في الفصل.",
+    "source": "tatoeba",
+    "upstreamId": "370674"
+  },
+  {
+    "text": "أنا في بيت جديد.",
+    "source": "tatoeba",
+    "upstreamId": "370676"
+  },
+  {
+    "text": "السيارة التي أمامي لكرم.",
+    "source": "tatoeba",
+    "upstreamId": "370678"
+  },
+  {
+    "text": "المدرس عند المدير.",
+    "source": "tatoeba",
+    "upstreamId": "370680"
+  },
+  {
+    "text": "أذهبت إلى المدرسة اليوم؟",
+    "source": "tatoeba",
+    "upstreamId": "370682"
+  },
+  {
+    "text": "أحب اللّغة العربية.",
+    "source": "tatoeba",
+    "upstreamId": "370686"
+  },
+  {
+    "text": "ماذا تحب أن تأكل؟",
+    "source": "tatoeba",
+    "upstreamId": "370690"
+  },
+  {
+    "text": "سعة الخزان خمسون جالوناً.",
+    "source": "tatoeba",
+    "upstreamId": "370692"
+  },
+  {
+    "text": "أعد الكتاب إلى صاحبه.",
+    "source": "tatoeba",
+    "upstreamId": "370694"
+  },
+  {
+    "text": "الفتاة تشعر بالوحدة.",
+    "source": "tatoeba",
+    "upstreamId": "370695"
+  },
+  {
+    "text": "كنّا نسبح في النهر.",
+    "source": "tatoeba",
+    "upstreamId": "370696"
+  },
+  {
+    "text": "قررت أن أعمل لحساب شركة في الولايات المتحدة.",
+    "source": "tatoeba",
+    "upstreamId": "370697"
+  },
+  {
+    "text": "قررت أن أعمل لحساب شركة في أمريكا.",
+    "source": "tatoeba",
+    "upstreamId": "370698"
+  },
+  {
+    "text": "جون في عمر أخي.",
+    "source": "tatoeba",
+    "upstreamId": "370699"
+  },
+  {
+    "text": "هذا ما نريد أن نعرفه.",
+    "source": "tatoeba",
+    "upstreamId": "370700"
+  },
+  {
+    "text": "من فضلك إلغِ هذا الملفّ.",
+    "source": "tatoeba",
+    "upstreamId": "370701"
+  },
+  {
+    "text": "الطالبة التي جلست أمام المدرّسة من ألمانيا.",
+    "source": "tatoeba",
+    "upstreamId": "370711"
+  },
+  {
+    "text": "بعضهم مدرّسون ، وبعضهم مهندسون.",
+    "source": "tatoeba",
+    "upstreamId": "370713"
+  },
+  {
+    "text": "من هذان الولدان؟",
+    "source": "tatoeba",
+    "upstreamId": "370721"
+  },
+  {
+    "text": "كم كتاباً قرأت؟",
+    "source": "tatoeba",
+    "upstreamId": "370723"
+  },
+  {
+    "text": "رأيت خمسة رجال.",
+    "source": "tatoeba",
+    "upstreamId": "370729"
+  },
+  {
+    "text": "لديّ عشرة أقلام.",
+    "source": "tatoeba",
+    "upstreamId": "370731"
+  },
+  {
+    "text": "حملت ثلاثة كتب.",
+    "source": "tatoeba",
+    "upstreamId": "370733"
+  },
+  {
+    "text": "مررت بأربعة بيوت.",
+    "source": "tatoeba",
+    "upstreamId": "370735"
+  },
+  {
+    "text": "يبدو أن العصافة هدأت.",
+    "source": "tatoeba",
+    "upstreamId": "370739"
+  },
+  {
+    "text": "علينا أن نهتمّ بالمحافظة على تراثنا الوطني.",
+    "source": "tatoeba",
+    "upstreamId": "370740"
+  },
+  {
+    "text": "لديها خمس إخوة أكبر منها.",
+    "source": "tatoeba",
+    "upstreamId": "370741"
+  },
+  {
+    "text": "لديها خمسة إخوان كبار.",
+    "source": "tatoeba",
+    "upstreamId": "370742"
+  },
+  {
+    "text": "صوتها ناعم و واضح.",
+    "source": "tatoeba",
+    "upstreamId": "370743"
+  },
+  {
+    "text": "خرجت العائلة كلّها لتتمشّى.",
+    "source": "tatoeba",
+    "upstreamId": "370745"
+  },
+  {
+    "text": "لا أشكّ لحظة في صدقك.",
+    "source": "tatoeba",
+    "upstreamId": "370746"
+  },
+  {
+    "text": "إنّ الكتابَ سهلٌ.",
+    "source": "tatoeba",
+    "upstreamId": "370747"
+  },
+  {
+    "text": "لعلّ الجوّ جميل.",
+    "source": "tatoeba",
+    "upstreamId": "370751"
+  },
+  {
+    "text": "أمدرّس أنت أم طالب؟",
+    "source": "tatoeba",
+    "upstreamId": "370762"
+  },
+  {
+    "text": "أإلى القاهرة ذهبت أم إلى الاسكندرية؟",
+    "source": "tatoeba",
+    "upstreamId": "370764"
+  },
+  {
+    "text": "ليس البيت بجديد.",
+    "source": "tatoeba",
+    "upstreamId": "370768"
+  },
+  {
+    "text": "ما زالت تعتمد على والديها.",
+    "source": "tatoeba",
+    "upstreamId": "370770"
+  },
+  {
+    "text": "جريدة اليوم تحذّر من قدوم عاصفة.",
+    "source": "tatoeba",
+    "upstreamId": "370771"
+  },
+  {
+    "text": "من فضلك أرني إياها مرة أخرى.",
+    "source": "tatoeba",
+    "upstreamId": "370772"
+  },
+  {
+    "text": "مات لنكولن في عام ١٨٦٥ للميلاد.",
+    "source": "tatoeba",
+    "upstreamId": "370773"
+  },
+  {
+    "text": "هذه المسألة سهلة لدرجة أن أيّ طالب يمكنه حلّها.",
+    "source": "tatoeba",
+    "upstreamId": "370774"
+  },
+  {
+    "text": "الرياضيات مادّتي المفضّلة.",
+    "source": "tatoeba",
+    "upstreamId": "370908"
+  },
+  {
+    "text": "من فضلك أعطني قلماً و بضعة أوراق.",
+    "source": "tatoeba",
+    "upstreamId": "370914"
+  },
+  {
+    "text": "كيف لي أن أعرف؟",
+    "source": "tatoeba",
+    "upstreamId": "370915"
+  },
+  {
+    "text": "رأيت رجلاً يتّجه نحوي.",
+    "source": "tatoeba",
+    "upstreamId": "370916"
+  },
+  {
+    "text": "كنّا كلّنا متعبون.",
+    "source": "tatoeba",
+    "upstreamId": "370920"
+  },
+  {
+    "text": "لنواجه الحقائق.",
+    "source": "tatoeba",
+    "upstreamId": "370921"
+  },
+  {
+    "text": "بدأ يشعر بالمرض.",
+    "source": "tatoeba",
+    "upstreamId": "370922"
+  },
+  {
+    "text": "أبي لا يقرأ كتاباً الآن.",
+    "source": "tatoeba",
+    "upstreamId": "370924"
+  },
+  {
+    "text": "البيت مسكون بالأشباح.",
+    "source": "tatoeba",
+    "upstreamId": "370926"
+  },
+  {
+    "text": "ماذا تظن نفسك فاعلاً؟",
+    "source": "tatoeba",
+    "upstreamId": "370927"
+  },
+  {
+    "text": "عليك أن تطيع والديك.",
+    "source": "tatoeba",
+    "upstreamId": "370930"
+  },
+  {
+    "text": "قفز من النافذة.",
+    "source": "tatoeba",
+    "upstreamId": "370931"
+  },
+  {
+    "text": "أيمكنني أن أدخّن هنا؟",
+    "source": "tatoeba",
+    "upstreamId": "370932"
+  },
+  {
+    "text": "لدينا أخبار جيدة.",
+    "source": "tatoeba",
+    "upstreamId": "370933"
+  },
+  {
+    "text": "يمكنك استعارة هذا الكتاب بشرط أن تبقيه نظيفاً.",
+    "source": "tatoeba",
+    "upstreamId": "370934"
+  },
+  {
+    "text": "يمكنك استعارة الكتاب بشرط أن تحافظ عليه.",
+    "source": "tatoeba",
+    "upstreamId": "370935"
+  },
+  {
+    "text": "بلال أطْوَلُ من كرم.",
+    "source": "tatoeba",
+    "upstreamId": "370943"
+  },
+  {
+    "text": "أنت أحْسَنُ منّي.",
+    "source": "tatoeba",
+    "upstreamId": "370945"
+  },
+  {
+    "text": "كرم أحسن طالب في المدرسة.",
+    "source": "tatoeba",
+    "upstreamId": "370947"
+  },
+  {
+    "text": "كأنّك من الهند.",
+    "source": "tatoeba",
+    "upstreamId": "370949"
+  },
+  {
+    "text": "كأنّ هذه السيارة له.",
+    "source": "tatoeba",
+    "upstreamId": "370951"
+  },
+  {
+    "text": "ستتزوّج برجل ثريّ.",
+    "source": "tatoeba",
+    "upstreamId": "370953"
+  },
+  {
+    "text": "يمكن معالجة السرطان إذا اِكْتُشِفَ في مرحلة مبكّرة.",
+    "source": "tatoeba",
+    "upstreamId": "370954"
+  },
+  {
+    "text": "الجميع يحبون الموسيقى.",
+    "source": "tatoeba",
+    "upstreamId": "370956"
+  },
+  {
+    "text": "ماذا حدث بالأمس؟",
+    "source": "tatoeba",
+    "upstreamId": "370957"
+  },
+  {
+    "text": "ما الذي حصل البارحة؟",
+    "source": "tatoeba",
+    "upstreamId": "370958"
+  },
+  {
+    "text": "بقي القليل من الحليب في الزجاجة.",
+    "source": "tatoeba",
+    "upstreamId": "370959"
+  },
+  {
+    "text": "استطاع أن يبني بيتاً صغيراً.",
+    "source": "tatoeba",
+    "upstreamId": "370960"
+  },
+  {
+    "text": "فاطمة أكبر طالبة في فصلنا.",
+    "source": "tatoeba",
+    "upstreamId": "370969"
+  },
+  {
+    "text": "استلم الجائزة أحد عشر طالباً.",
+    "source": "tatoeba",
+    "upstreamId": "370971"
+  },
+  {
+    "text": "منذ ١٩٩۰م و حتّى الآن ، استلمت الجائزة إحدى عشرة طالبةً.",
+    "source": "tatoeba",
+    "upstreamId": "370973"
+  },
+  {
+    "text": "لا تصرخ في وجهي.",
+    "source": "tatoeba",
+    "upstreamId": "370975"
+  },
+  {
+    "text": "لم يكن لديّ وقت للأكل.",
+    "source": "tatoeba",
+    "upstreamId": "370984"
+  },
+  {
+    "text": "اشترى لنا عمّي جهاز تلفاز جديد.",
+    "source": "tatoeba",
+    "upstreamId": "370985"
+  },
+  {
+    "text": "أيمكنك أن تعلّمني كيف أستخدم الغسّالة؟",
+    "source": "tatoeba",
+    "upstreamId": "370986"
+  },
+  {
+    "text": "كم من الوقت يلزم للوصول إلى المحطّة.",
+    "source": "tatoeba",
+    "upstreamId": "370987"
+  },
+  {
+    "text": "جلسوا تحت ظل شجرة.",
+    "source": "tatoeba",
+    "upstreamId": "370989"
+  },
+  {
+    "text": "هل الحمّام جاهز؟",
+    "source": "tatoeba",
+    "upstreamId": "370990"
+  },
+  {
+    "text": "أصبحا زوجاً و زوجة.",
+    "source": "tatoeba",
+    "upstreamId": "370993"
+  },
+  {
+    "text": "سيأتي الربيع قريباً.",
+    "source": "tatoeba",
+    "upstreamId": "370994"
+  },
+  {
+    "text": "هل غاب أحد اليوم؟",
+    "source": "tatoeba",
+    "upstreamId": "370995"
+  },
+  {
+    "text": "أتوقّع أن يصل قريباً.",
+    "source": "tatoeba",
+    "upstreamId": "370996"
+  },
+  {
+    "text": "إذا ابتسم المهزوم أفقد المنتصر لذة الفوز.",
+    "source": "tatoeba",
+    "upstreamId": "370997"
+  },
+  {
+    "text": "كلنا كالقمر ، لنا جانب مظلم لا نظهره لأحد.",
+    "source": "tatoeba",
+    "upstreamId": "370999"
+  },
+  {
+    "text": "لا تتحدى من ليس لديه ما يخسره.",
+    "source": "tatoeba",
+    "upstreamId": "371001"
+  },
+  {
+    "text": "جاء الطالب من لندن.",
+    "source": "tatoeba",
+    "upstreamId": "371003"
+  },
+  {
+    "text": "أُنْشِئَتْ مدارس.",
+    "source": "tatoeba",
+    "upstreamId": "371007"
+  },
+  {
+    "text": "سلّمت على التلميذ الأسبق.",
+    "source": "tatoeba",
+    "upstreamId": "371011"
+  },
+  {
+    "text": "لا تجادل وانت غضبان ولا تأكل وانت شبعان.",
+    "source": "tatoeba",
+    "upstreamId": "371013"
+  },
+  {
+    "text": "هاتان صورتان جميلتان.",
+    "source": "tatoeba",
+    "upstreamId": "371015"
+  },
+  {
+    "text": "هاتان صورتان جميلتان إطاراهُما.",
+    "source": "tatoeba",
+    "upstreamId": "371017"
+  },
+  {
+    "text": "هذا عمل ينفع الآخرين.",
+    "source": "tatoeba",
+    "upstreamId": "371021"
+  },
+  {
+    "text": "يمكنها تحدث اليابانيّة.",
+    "source": "tatoeba",
+    "upstreamId": "371024"
+  },
+  {
+    "text": "لا عجب أنّ البعض يشعرون بالتوتر عند دخولهم المستشفى.",
+    "source": "tatoeba",
+    "upstreamId": "371030"
+  },
+  {
+    "text": "لا تنس التذكرة.",
+    "source": "tatoeba",
+    "upstreamId": "371037"
+  },
+  {
+    "text": "لا تنس تذكرة الدخول.",
+    "source": "tatoeba",
+    "upstreamId": "371038"
+  },
+  {
+    "text": "سأوصلك إلى المطار.",
+    "source": "tatoeba",
+    "upstreamId": "371040"
+  },
+  {
+    "text": "ماذا عليّ أن أحضر؟",
+    "source": "tatoeba",
+    "upstreamId": "371042"
+  },
+  {
+    "text": "إنها ساعة متأخرة.",
+    "source": "tatoeba",
+    "upstreamId": "371044"
+  },
+  {
+    "text": "ارجع إلى الوراء من فضلك.",
+    "source": "tatoeba",
+    "upstreamId": "371046"
+  },
+  {
+    "text": "تنحّى جانبا إذا سمحت.",
+    "source": "tatoeba",
+    "upstreamId": "371047"
+  },
+  {
+    "text": "هناك الكثير من الفنادق في وسط المدينة.",
+    "source": "tatoeba",
+    "upstreamId": "371049"
+  },
+  {
+    "text": "أتذكّر أنّي شاهدت هذا الفيلم.",
+    "source": "tatoeba",
+    "upstreamId": "371050"
+  },
+  {
+    "text": "أتمنّى أن تأتي مرّة أخرى.",
+    "source": "tatoeba",
+    "upstreamId": "371051"
+  },
+  {
+    "text": "لا. أنا آسف، عليّ العودة مبكراً.",
+    "source": "tatoeba",
+    "upstreamId": "371052"
+  },
+  {
+    "text": "هذه التفاحة شديدة الحمرة.",
+    "source": "tatoeba",
+    "upstreamId": "371053"
+  },
+  {
+    "text": "هذه التفاحة حمراء جداً.",
+    "source": "tatoeba",
+    "upstreamId": "371054"
+  },
+  {
+    "text": "سأريك بعض الصور.",
+    "source": "tatoeba",
+    "upstreamId": "371055"
+  },
+  {
+    "text": "آه ، متى سيتقابلون مجدداً؟",
+    "source": "tatoeba",
+    "upstreamId": "371057"
+  },
+  {
+    "text": "سأعاود الإتصال بك.",
+    "source": "tatoeba",
+    "upstreamId": "371058"
+  },
+  {
+    "text": "لا تنظر إلى الوراء.",
+    "source": "tatoeba",
+    "upstreamId": "371059"
+  },
+  {
+    "text": "الجو حار اليوم.",
+    "source": "tatoeba",
+    "upstreamId": "371060"
+  },
+  {
+    "text": "عادة ما أغسل الصحون.",
+    "source": "tatoeba",
+    "upstreamId": "371061"
+  },
+  {
+    "text": "أحضر أولادك معك.",
+    "source": "tatoeba",
+    "upstreamId": "371062"
+  },
+  {
+    "text": "لا تنس أن لدينا واجباً.",
+    "source": "tatoeba",
+    "upstreamId": "371063"
+  },
+  {
+    "text": "أما زلت تذكرني؟",
+    "source": "tatoeba",
+    "upstreamId": "371065"
+  },
+  {
+    "text": "أنا في المطار الآن.",
+    "source": "tatoeba",
+    "upstreamId": "371067"
+  },
+  {
+    "text": "ليس هناك ما ينقص.",
+    "source": "tatoeba",
+    "upstreamId": "371069"
+  },
+  {
+    "text": "الآباء يحبون أولادهم.",
+    "source": "tatoeba",
+    "upstreamId": "371070"
+  },
+  {
+    "text": "أطفئ الضوء. لا يمكنني النوم.",
+    "source": "tatoeba",
+    "upstreamId": "371072"
+  },
+  {
+    "text": "أشعل الضوء. لا يمكنني أن أرى شيئاً.",
+    "source": "tatoeba",
+    "upstreamId": "371073"
+  },
+  {
+    "text": "أنا متأكد من أنها ستعود قريباً.",
+    "source": "tatoeba",
+    "upstreamId": "371074"
+  },
+  {
+    "text": "أرني مثالاً آخر.",
+    "source": "tatoeba",
+    "upstreamId": "371075"
+  },
+  {
+    "text": "أراك غداً في المكتبة.",
+    "source": "tatoeba",
+    "upstreamId": "371076"
+  },
+  {
+    "text": "أراك غداً عند المكتبة.",
+    "source": "tatoeba",
+    "upstreamId": "371077"
+  },
+  {
+    "text": "هذه هي المسألة.",
+    "source": "tatoeba",
+    "upstreamId": "371081"
+  },
+  {
+    "text": "من محاسن القاموس الإلكتروني أنه سهل الحمل.",
+    "source": "tatoeba",
+    "upstreamId": "371082"
+  },
+  {
+    "text": "عليك أن تقوم بالواجب.",
+    "source": "tatoeba",
+    "upstreamId": "371083"
+  },
+  {
+    "text": "فبدأ الطبيب بالكشف عليها.",
+    "source": "tatoeba",
+    "upstreamId": "371084"
+  },
+  {
+    "text": "فبدأ الطبيب بمعاينتها.",
+    "source": "tatoeba",
+    "upstreamId": "371085"
+  },
+  {
+    "text": "خسر توم وظيفته.",
+    "source": "tatoeba",
+    "upstreamId": "371088"
+  },
+  {
+    "text": "أين وُلِدَ توم؟",
+    "source": "tatoeba",
+    "upstreamId": "371089"
+  },
+  {
+    "text": "أذكر أني سمعت قصة مشابهة.",
+    "source": "tatoeba",
+    "upstreamId": "371090"
+  },
+  {
+    "text": "هذا الفندق أفضل من ذاك الفندق.",
+    "source": "tatoeba",
+    "upstreamId": "371091"
+  },
+  {
+    "text": "أذكر أني قابلت ذلك الرجل من قبل في كامبردج.",
+    "source": "tatoeba",
+    "upstreamId": "371093"
+  },
+  {
+    "text": "هناك صفحة ناقصة.",
+    "source": "tatoeba",
+    "upstreamId": "371094"
+  },
+  {
+    "text": "خسرنا تلك المباراة.",
+    "source": "tatoeba",
+    "upstreamId": "371095"
+  },
+  {
+    "text": "لا أذكر لحن تلك الأغنية.",
+    "source": "tatoeba",
+    "upstreamId": "371096"
+  },
+  {
+    "text": "كنت مشغولاً بكتابة قصة قصيرة.",
+    "source": "tatoeba",
+    "upstreamId": "371097"
+  },
+  {
+    "text": "لا أقدر أن أسامحه على ما فعل.",
+    "source": "tatoeba",
+    "upstreamId": "371098"
+  },
+  {
+    "text": "فقدت حقيبة يدها.",
+    "source": "tatoeba",
+    "upstreamId": "371100"
+  },
+  {
+    "text": "يستطيع الدب تسلق الشجرة.",
+    "source": "tatoeba",
+    "upstreamId": "371101"
+  },
+  {
+    "text": "يبدو أن السيد تناكا اجتاز الإمتحان.",
+    "source": "tatoeba",
+    "upstreamId": "371102"
+  },
+  {
+    "text": "ندمت على عدم حضوري الخطبة.",
+    "source": "tatoeba",
+    "upstreamId": "371103"
+  },
+  {
+    "text": "فقد الرجل الأمل كلياً.",
+    "source": "tatoeba",
+    "upstreamId": "371104"
+  },
+  {
+    "text": "لماذا أنت في عجلة من أمرك هكذا؟",
+    "source": "tatoeba",
+    "upstreamId": "371110"
+  },
+  {
+    "text": "من فضلك اِنسخ هذه الصفحة.",
+    "source": "tatoeba",
+    "upstreamId": "371184"
+  },
+  {
+    "text": "أبقى جميع النّوافذ مفتوحة.",
+    "source": "tatoeba",
+    "upstreamId": "371186"
+  },
+  {
+    "text": "ضوء القمر ضعيف.",
+    "source": "tatoeba",
+    "upstreamId": "371187"
+  },
+  {
+    "text": "ضوء القمر خافت.",
+    "source": "tatoeba",
+    "upstreamId": "371188"
+  },
+  {
+    "text": "بنى سِياجاً حول بيته.",
+    "source": "tatoeba",
+    "upstreamId": "371189"
+  },
+  {
+    "text": "بنى سِياجاً خشبياً حول بيته.",
+    "source": "tatoeba",
+    "upstreamId": "371190"
+  },
+  {
+    "text": "هل هذه المعلومة صحيحة؟",
+    "source": "tatoeba",
+    "upstreamId": "371191"
+  },
+  {
+    "text": "نصحني الطبيب بالإقلاع عن التدخين.",
+    "source": "tatoeba",
+    "upstreamId": "371192"
+  },
+  {
+    "text": "ارتكبت نفس الخطأ مرّة أخرى.",
+    "source": "tatoeba",
+    "upstreamId": "371193"
+  },
+  {
+    "text": "أهنّئك بمناسبة نجاحك.",
+    "source": "tatoeba",
+    "upstreamId": "371195"
+  },
+  {
+    "text": "كان الجو حاراً جداً ظهيرة اليوم.",
+    "source": "tatoeba",
+    "upstreamId": "371196"
+  },
+  {
+    "text": "اِصعدوا الباص واحداً تلو الآخر.",
+    "source": "tatoeba",
+    "upstreamId": "371198"
+  },
+  {
+    "text": "لم يشجّعها أحد.",
+    "source": "tatoeba",
+    "upstreamId": "371199"
+  },
+  {
+    "text": "حدث ذلك ذات ليلة.",
+    "source": "tatoeba",
+    "upstreamId": "371200"
+  },
+  {
+    "text": "عليّ أن أشتري واحدة.",
+    "source": "tatoeba",
+    "upstreamId": "371203"
+  },
+  {
+    "text": "عدّل رئيس القسم خطّته.",
+    "source": "tatoeba",
+    "upstreamId": "371205"
+  },
+  {
+    "text": "ذكر هاتوياما أنه يعيل عائلته بالمراهنة على سباق الخيل.",
+    "source": "tatoeba",
+    "upstreamId": "371206"
+  },
+  {
+    "text": "تفضّل خذ واحدة.",
+    "source": "tatoeba",
+    "upstreamId": "371212"
+  },
+  {
+    "text": "على المرء أن يستحمّ.",
+    "source": "tatoeba",
+    "upstreamId": "371216"
+  },
+  {
+    "text": "يبدو أن رئيس القسم يحب استغلال سلطته.",
+    "source": "tatoeba",
+    "upstreamId": "371222"
+  },
+  {
+    "text": "على المرء أن يجتهد.",
+    "source": "tatoeba",
+    "upstreamId": "371224"
+  },
+  {
+    "text": "على المرء أن يفعل كلّ ما بوسعه.",
+    "source": "tatoeba",
+    "upstreamId": "371225"
+  },
+  {
+    "text": "لم يساعدني أحد.",
+    "source": "tatoeba",
+    "upstreamId": "371227"
+  },
+  {
+    "text": "لم يكن هناك أحد.",
+    "source": "tatoeba",
+    "upstreamId": "371228"
+  },
+  {
+    "text": "لا أحد يحب الحرب.",
+    "source": "tatoeba",
+    "upstreamId": "371230"
+  },
+  {
+    "text": "كان الجو حاراً جداً عصر اليوم.",
+    "source": "tatoeba",
+    "upstreamId": "371234"
+  },
+  {
+    "text": "سألتني كم عمري.",
+    "source": "tatoeba",
+    "upstreamId": "371235"
+  },
+  {
+    "text": "سألتني عن عمري.",
+    "source": "tatoeba",
+    "upstreamId": "371236"
+  },
+  {
+    "text": "رفع قبّعته اِحتراماً.",
+    "source": "tatoeba",
+    "upstreamId": "371239"
+  },
+  {
+    "text": "كل ما عليك فعله هو حفظ هذه الجملة عن ظهر قلب.",
+    "source": "tatoeba",
+    "upstreamId": "371242"
+  },
+  {
+    "text": "رجال و نساء قاتلوا للدفاع عن وطنهم.",
+    "source": "tatoeba",
+    "upstreamId": "371243"
+  },
+  {
+    "text": "خرج الأولاد من الغرفة واحداً تلو الآخر.",
+    "source": "tatoeba",
+    "upstreamId": "371244"
+  },
+  {
+    "text": "لا يستطيع أحدٌ مساعدتي.",
+    "source": "tatoeba",
+    "upstreamId": "371245"
+  },
+  {
+    "text": "لا أعرف متى سيكون هنا.",
+    "source": "tatoeba",
+    "upstreamId": "371246"
+  },
+  {
+    "text": "لديّ إحساس أني كنت هنا من قبل.",
+    "source": "tatoeba",
+    "upstreamId": "371249"
+  },
+  {
+    "text": "عليك أن تنظّف غرفتك.",
+    "source": "tatoeba",
+    "upstreamId": "371252"
+  },
+  {
+    "text": "النتيجة واحد مقابل واحد.",
+    "source": "tatoeba",
+    "upstreamId": "371257"
+  },
+  {
+    "text": "النتيجة واحد الكلّ.",
+    "source": "tatoeba",
+    "upstreamId": "371258"
+  },
+  {
+    "text": "أيمكنك أن تُرِيَني ذلك؟",
+    "source": "tatoeba",
+    "upstreamId": "371259"
+  },
+  {
+    "text": "وفي يوم من الأيام ، انتحر.",
+    "source": "tatoeba",
+    "upstreamId": "371263"
+  },
+  {
+    "text": "عد من واحد إلى عشرة.",
+    "source": "tatoeba",
+    "upstreamId": "371266"
+  },
+  {
+    "text": "يبلغ متحدّثي اللغة الإنجليزية مليار نسمة.",
+    "source": "tatoeba",
+    "upstreamId": "371268"
+  },
+  {
+    "text": "مليار شخص يتكلمون الإنجليزية.",
+    "source": "tatoeba",
+    "upstreamId": "371269"
+  },
+  {
+    "text": "لحسن الحظ لم يتأذ أحد.",
+    "source": "tatoeba",
+    "upstreamId": "371273"
+  },
+  {
+    "text": "درست لمدة ساعة.",
+    "source": "tatoeba",
+    "upstreamId": "371276"
+  },
+  {
+    "text": "الجو معتدل هنا.",
+    "source": "tatoeba",
+    "upstreamId": "371278"
+  },
+  {
+    "text": "نجا من الموت بأعجوبة.",
+    "source": "tatoeba",
+    "upstreamId": "371279"
+  },
+  {
+    "text": "كم تبعُد عن هنا؟",
+    "source": "tatoeba",
+    "upstreamId": "371280"
+  },
+  {
+    "text": "أريد أن أقول لك شيئاً.",
+    "source": "tatoeba",
+    "upstreamId": "371281"
+  },
+  {
+    "text": "لا أحد يعرف اسمه.",
+    "source": "tatoeba",
+    "upstreamId": "371283"
+  },
+  {
+    "text": "لم يصدّق أحد قصّته.",
+    "source": "tatoeba",
+    "upstreamId": "371284"
+  },
+  {
+    "text": "سنكتفي بهذا الحد اليوم و نقف هنا.",
+    "source": "tatoeba",
+    "upstreamId": "371285"
+  },
+  {
+    "text": "توقف كِن عن الكلام و بدأ بالأكل.",
+    "source": "tatoeba",
+    "upstreamId": "371286"
+  },
+  {
+    "text": "أحتاج إلى مساعدتك.",
+    "source": "tatoeba",
+    "upstreamId": "371288"
+  },
+  {
+    "text": "أحتاج مساعدة طبية.",
+    "source": "tatoeba",
+    "upstreamId": "371289"
+  },
+  {
+    "text": "هل تحتاج لمساعدة؟",
+    "source": "tatoeba",
+    "upstreamId": "371290"
+  },
+  {
+    "text": "\"!صرخت قائلة \"النجدة! ساعدوني.",
+    "source": "tatoeba",
+    "upstreamId": "371291"
+  },
+  {
+    "text": "النجدة! ساعدني!",
+    "source": "tatoeba",
+    "upstreamId": "371292"
+  },
+  {
+    "text": "هل لي أن أساعدك؟",
+    "source": "tatoeba",
+    "upstreamId": "371294"
+  },
+  {
+    "text": "تفضّل البيت بيتك.",
+    "source": "tatoeba",
+    "upstreamId": "371295"
+  },
+  {
+    "text": "تفضّل المكان مكانك.",
+    "source": "tatoeba",
+    "upstreamId": "371296"
+  },
+  {
+    "text": "الى متى سنقف مكتوفى الايدى.",
+    "source": "tatoeba",
+    "upstreamId": "371297"
+  },
+  {
+    "text": "صرخ طالباً النجدة.",
+    "source": "tatoeba",
+    "upstreamId": "371299"
+  },
+  {
+    "text": "أُقَدِّر مساعدتك.",
+    "source": "tatoeba",
+    "upstreamId": "371300"
+  },
+  {
+    "text": "نُقَدِّر مساعدتك.",
+    "source": "tatoeba",
+    "upstreamId": "371301"
+  },
+  {
+    "text": "أيمكنك مساعدتي؟",
+    "source": "tatoeba",
+    "upstreamId": "371303"
+  },
+  {
+    "text": "من فضلك ساعدني.",
+    "source": "tatoeba",
+    "upstreamId": "371304"
+  },
+  {
+    "text": "مات السنة الماضية.",
+    "source": "tatoeba",
+    "upstreamId": "371305"
+  },
+  {
+    "text": "كان لديهما ولد واحد.",
+    "source": "tatoeba",
+    "upstreamId": "371306"
+  },
+  {
+    "text": "رزقوا بولد وحيد.",
+    "source": "tatoeba",
+    "upstreamId": "371307"
+  },
+  {
+    "text": "وقعوا واحداً تلو الآخر.",
+    "source": "tatoeba",
+    "upstreamId": "371308"
+  },
+  {
+    "text": "بدأوا واحداً تلو الآخر.",
+    "source": "tatoeba",
+    "upstreamId": "371309"
+  },
+  {
+    "text": "وصلوا واحداً خلف الآخر.",
+    "source": "tatoeba",
+    "upstreamId": "371310"
+  },
+  {
+    "text": "ماتوا واحداً تلو الآخر.",
+    "source": "tatoeba",
+    "upstreamId": "371311"
+  },
+  {
+    "text": "ركّزت على شيء واحد.",
+    "source": "tatoeba",
+    "upstreamId": "371312"
+  },
+  {
+    "text": "على الأصدقاء مساعدة بعضهم البعض.",
+    "source": "tatoeba",
+    "upstreamId": "371313"
+  },
+  {
+    "text": "لم يأت أحد سوى ماري.",
+    "source": "tatoeba",
+    "upstreamId": "371314"
+  },
+  {
+    "text": "السفر يوسع آفاق تفكير المرء.",
+    "source": "tatoeba",
+    "upstreamId": "371315"
+  },
+  {
+    "text": "أقبل ولكن بشرط واحد.",
+    "source": "tatoeba",
+    "upstreamId": "371316"
+  },
+  {
+    "text": "هناك تفاحة واحدة على المكتب.",
+    "source": "tatoeba",
+    "upstreamId": "371317"
+  },
+  {
+    "text": "احترقت المنازل واحدة تلو الأخرى.",
+    "source": "tatoeba",
+    "upstreamId": "371318"
+  },
+  {
+    "text": "اضرب عصفورين بحجر.",
+    "source": "tatoeba",
+    "upstreamId": "371319"
+  },
+  {
+    "text": "بقيَ واحد وذهب الآخر.",
+    "source": "tatoeba",
+    "upstreamId": "371320"
+  },
+  {
+    "text": "ما أسهل أن يكتسب المرء عادات سيئة!",
+    "source": "tatoeba",
+    "upstreamId": "371321"
+  },
+  {
+    "text": "أرني شيئاً أرخص لو سمحت.",
+    "source": "tatoeba",
+    "upstreamId": "371322"
+  },
+  {
+    "text": "لم يعد يثق به أحد بعد الآن.",
+    "source": "tatoeba",
+    "upstreamId": "371323"
+  },
+  {
+    "text": "عليك أن تساعدها.",
+    "source": "tatoeba",
+    "upstreamId": "371324"
+  },
+  {
+    "text": "أحتاج إلى مساعدته.",
+    "source": "tatoeba",
+    "upstreamId": "371329"
+  },
+  {
+    "text": "هم يحتاجون المزيد من المساعدة.",
+    "source": "tatoeba",
+    "upstreamId": "371331"
+  },
+  {
+    "text": "صرخوا طالبين النجدة.",
+    "source": "tatoeba",
+    "upstreamId": "371332"
+  },
+  {
+    "text": "عليّ أن أساعده.",
+    "source": "tatoeba",
+    "upstreamId": "371334"
+  },
+  {
+    "text": "صرخت طالبة المساعدة.",
+    "source": "tatoeba",
+    "upstreamId": "371335"
+  },
+  {
+    "text": "ساعدني في الطبخ.",
+    "source": "tatoeba",
+    "upstreamId": "371337"
+  },
+  {
+    "text": "من الممكن أن تمطر.",
+    "source": "tatoeba",
+    "upstreamId": "371338"
+  },
+  {
+    "text": "ربما ستمطرُ بعدَ قليل.",
+    "source": "tatoeba",
+    "upstreamId": "371341"
+  },
+  {
+    "text": "وأخيرًا وجدت مفاتيحها المفقودة.",
+    "source": "tatoeba",
+    "upstreamId": "371342"
+  },
+  {
+    "text": "إحدى حقائبي مفقودة.",
+    "source": "tatoeba",
+    "upstreamId": "371343"
+  },
+  {
+    "text": "لربما تمطر غداً.",
+    "source": "tatoeba",
+    "upstreamId": "371345"
+  },
+  {
+    "text": "فجأة هطل المطر.",
+    "source": "tatoeba",
+    "upstreamId": "371346"
+  },
+  {
+    "text": "هل ستمطر اليوم؟",
+    "source": "tatoeba",
+    "upstreamId": "371348"
+  },
+  {
+    "text": "ربما ستمطر الليلة.",
+    "source": "tatoeba",
+    "upstreamId": "371350"
+  },
+  {
+    "text": "ربما ستمطر غداً.",
+    "source": "tatoeba",
+    "upstreamId": "371352"
+  },
+  {
+    "text": "فجأة بدأ المطر بالهطول.",
+    "source": "tatoeba",
+    "upstreamId": "371353"
+  },
+  {
+    "text": "أصبح المطر ثلجاً.",
+    "source": "tatoeba",
+    "upstreamId": "371354"
+  },
+  {
+    "text": "استمر المطر بالهطول لمدة أربعة أيام.",
+    "source": "tatoeba",
+    "upstreamId": "371355"
+  },
+  {
+    "text": "استمر المطر أسبوعاً.",
+    "source": "tatoeba",
+    "upstreamId": "371356"
+  },
+  {
+    "text": "استمر المطر خمسة أيام.",
+    "source": "tatoeba",
+    "upstreamId": "371357"
+  },
+  {
+    "text": "استمر المطر بالهطول طوال اليوم.",
+    "source": "tatoeba",
+    "upstreamId": "371358"
+  },
+  {
+    "text": "أفسد المطر نزهتنا.",
+    "source": "tatoeba",
+    "upstreamId": "371359"
+  },
+  {
+    "text": "استمر المطر ثلاثة أيام.",
+    "source": "tatoeba",
+    "upstreamId": "371361"
+  },
+  {
+    "text": "أخيراً توقف المطر.",
+    "source": "tatoeba",
+    "upstreamId": "371362"
+  },
+  {
+    "text": "سأحضر منشفة أخرى.",
+    "source": "tatoeba",
+    "upstreamId": "371363"
+  },
+  {
+    "text": "سأحضر فوطة أخرى.",
+    "source": "tatoeba",
+    "upstreamId": "371364"
+  },
+  {
+    "text": "لا يعرف أحد عنوانه إلّا توم.",
+    "source": "tatoeba",
+    "upstreamId": "371365"
+  },
+  {
+    "text": "سُأِل كل طالب سؤالاً واحداً.",
+    "source": "tatoeba",
+    "upstreamId": "371366"
+  },
+  {
+    "text": "واحد منّا سيضطر للرحيل.",
+    "source": "tatoeba",
+    "upstreamId": "371367"
+  },
+  {
+    "text": "إنها مئة دولار.",
+    "source": "tatoeba",
+    "upstreamId": "371368"
+  },
+  {
+    "text": "إنها ورقة نقدية من فئة المئة دولار.",
+    "source": "tatoeba",
+    "upstreamId": "371369"
+  },
+  {
+    "text": "إنها ورقة نقدية من فئة المائة دولار.",
+    "source": "tatoeba",
+    "upstreamId": "371370"
+  },
+  {
+    "text": "لَخِّص التقرير في صفحة.",
+    "source": "tatoeba",
+    "upstreamId": "371371"
+  },
+  {
+    "text": "يزن الطرد أكثر من باوند.",
+    "source": "tatoeba",
+    "upstreamId": "371372"
+  },
+  {
+    "text": "لا يستطيع أحد أن ينكر هذا.",
+    "source": "tatoeba",
+    "upstreamId": "371373"
+  },
+  {
+    "text": "نجا من الحادثة شخص واحد.",
+    "source": "tatoeba",
+    "upstreamId": "371374"
+  },
+  {
+    "text": "يتسع الفندق لمئة شخص.",
+    "source": "tatoeba",
+    "upstreamId": "371378"
+  },
+  {
+    "text": "إحدى الحقائب فارغة تماماً.",
+    "source": "tatoeba",
+    "upstreamId": "371379"
+  },
+  {
+    "text": "أحد الولدين يعرف ذلك.",
+    "source": "tatoeba",
+    "upstreamId": "371380"
+  },
+  {
+    "text": "أقلعت الطائرات النفاثة واحدة تلو الأخرى.",
+    "source": "tatoeba",
+    "upstreamId": "371381"
+  },
+  {
+    "text": "إتحدت الدول الثلاث ليكوّنوا دولة واحدة.",
+    "source": "tatoeba",
+    "upstreamId": "371382"
+  },
+  {
+    "text": "كان ذلك أمله الوحيد.",
+    "source": "tatoeba",
+    "upstreamId": "371383"
+  },
+  {
+    "text": "هذا سؤال مهم جداً.",
+    "source": "tatoeba",
+    "upstreamId": "371384"
+  },
+  {
+    "text": "هذا الكتاب أقدم من ذاك.",
+    "source": "tatoeba",
+    "upstreamId": "371385"
+  },
+  {
+    "text": "هذا الحيوان أكبر من ذاك.",
+    "source": "tatoeba",
+    "upstreamId": "371386"
+  },
+  {
+    "text": "عرض هذا النهر ميل.",
+    "source": "tatoeba",
+    "upstreamId": "371387"
+  },
+  {
+    "text": "أداء هذه السيارة أفضل من تلك.",
+    "source": "tatoeba",
+    "upstreamId": "371388"
+  },
+  {
+    "text": "هذه السيارة أكبر من تلك.",
+    "source": "tatoeba",
+    "upstreamId": "371389"
+  },
+  {
+    "text": "كنت أمتلك سيارة نيسان قبل أن أمتلك هذه.",
+    "source": "tatoeba",
+    "upstreamId": "371390"
+  },
+  {
+    "text": "هذا القاموس أفضل من ذاك.",
+    "source": "tatoeba",
+    "upstreamId": "371391"
+  },
+  {
+    "text": "هذه الساعة أفضل من تلك.",
+    "source": "tatoeba",
+    "upstreamId": "371392"
+  },
+  {
+    "text": "أعيش في الطابق الأرضي.",
+    "source": "tatoeba",
+    "upstreamId": "371393"
+  },
+  {
+    "text": "اطمأن والدا توم عندما سمعا بأنه بخير.",
+    "source": "tatoeba",
+    "upstreamId": "371394"
+  },
+  {
+    "text": "كان زوجي الأخير غبيًا بالفعل.",
+    "source": "tatoeba",
+    "upstreamId": "371395"
+  },
+  {
+    "text": "ذهب للمتجر في آخر لحظة، قبل الإغلاق بقليل.",
+    "source": "tatoeba",
+    "upstreamId": "371397"
+  },
+  {
+    "text": "إنه آخر من أطلب منه المساعدة فهو شخص لا يعتمد عليه.",
+    "source": "tatoeba",
+    "upstreamId": "371399"
+  },
+  {
+    "text": "استمرت الخطبة ثلاثين دقيقة.",
+    "source": "tatoeba",
+    "upstreamId": "371401"
+  },
+  {
+    "text": "دامت الخطبة ثلاثين دقيقة.",
+    "source": "tatoeba",
+    "upstreamId": "371403"
+  },
+  {
+    "text": "استمر الجو الممطر عشرة أيام متواصلة.",
+    "source": "tatoeba",
+    "upstreamId": "371404"
+  },
+  {
+    "text": "نعم، سيكفي الحليب حتى يوم الجمعة.",
+    "source": "tatoeba",
+    "upstreamId": "371406"
+  },
+  {
+    "text": "ستبدأ المسرحية في الساعة الثامنة.",
+    "source": "tatoeba",
+    "upstreamId": "371411"
+  },
+  {
+    "text": "إنها تتناول العشاء.",
+    "source": "tatoeba",
+    "upstreamId": "371415"
+  },
+  {
+    "text": "سنلعب التنس في عطلة نهاية الأسبوع.",
+    "source": "tatoeba",
+    "upstreamId": "371417"
+  },
+  {
+    "text": "سُرقت محفظتي بالأمس.",
+    "source": "tatoeba",
+    "upstreamId": "371419"
+  },
+  {
+    "text": "نساء فرنسا جميلات.",
+    "source": "tatoeba",
+    "upstreamId": "371422"
+  },
+  {
+    "text": "أحد أعمامي طبيب.",
+    "source": "tatoeba",
+    "upstreamId": "371424"
+  },
+  {
+    "text": "السكرتيرة متعبة من الطباعة.",
+    "source": "tatoeba",
+    "upstreamId": "371426"
+  },
+  {
+    "text": "هناك وحش تحت سريري.",
+    "source": "tatoeba",
+    "upstreamId": "371428"
+  },
+  {
+    "text": "هناك بعبع تحت سريري.",
+    "source": "tatoeba",
+    "upstreamId": "371430"
+  },
+  {
+    "text": "ذهب إلى الدكان.",
+    "source": "tatoeba",
+    "upstreamId": "371434"
+  },
+  {
+    "text": "ذهب إلى المحل التجاري.",
+    "source": "tatoeba",
+    "upstreamId": "371436"
+  },
+  {
+    "text": "ذهب إلى المتجر.",
+    "source": "tatoeba",
+    "upstreamId": "371437"
+  },
+  {
+    "text": "تتراوح درجة الحرارة في الصيف من ثلاثين إلى أربعين درجة.",
+    "source": "tatoeba",
+    "upstreamId": "371438"
+  },
+  {
+    "text": "فاز فريق مانتشستر يونايتد بأربعة أهداف مقابل إثنين.",
+    "source": "tatoeba",
+    "upstreamId": "371440"
+  },
+  {
+    "text": "إلى أين أنت ذاهب؟",
+    "source": "tatoeba",
+    "upstreamId": "371442"
+  },
+  {
+    "text": "أحب أكل اللازانيا.",
+    "source": "tatoeba",
+    "upstreamId": "371446"
+  },
+  {
+    "text": "هل يحب الجميع الموسيقى؟",
+    "source": "tatoeba",
+    "upstreamId": "371452"
+  },
+  {
+    "text": "أحب هذه الصورة.",
+    "source": "tatoeba",
+    "upstreamId": "371454"
+  },
+  {
+    "text": "الحب لا يرى عيوباً.",
+    "source": "tatoeba",
+    "upstreamId": "371457"
+  },
+  {
+    "text": "الطفل يحتاج الى الحنان.",
+    "source": "tatoeba",
+    "upstreamId": "371458"
+  },
+  {
+    "text": "نحن نحب بعضنا البعض.",
+    "source": "tatoeba",
+    "upstreamId": "371459"
+  },
+  {
+    "text": "أحب هذا الإعلان التلفزيوني.",
+    "source": "tatoeba",
+    "upstreamId": "371460"
+  },
+  {
+    "text": "أحب الأفلام الأمريكية.",
+    "source": "tatoeba",
+    "upstreamId": "371461"
+  },
+  {
+    "text": "أحب مشاهدة مبارايات كرة السلة.",
+    "source": "tatoeba",
+    "upstreamId": "371462"
+  },
+  {
+    "text": "أحب الأفلام الفرنسية.",
+    "source": "tatoeba",
+    "upstreamId": "371463"
+  },
+  {
+    "text": "أحب قصص الغرام.",
+    "source": "tatoeba",
+    "upstreamId": "371464"
+  },
+  {
+    "text": "أعشق موسيقى الروك.",
+    "source": "tatoeba",
+    "upstreamId": "371465"
+  },
+  {
+    "text": "أحب قراءة الكتب.",
+    "source": "tatoeba",
+    "upstreamId": "371466"
+  },
+  {
+    "text": "أحب القصص المصورة.",
+    "source": "tatoeba",
+    "upstreamId": "371468"
+  },
+  {
+    "text": "أنا أيضاً أحب الموسيقى.",
+    "source": "tatoeba",
+    "upstreamId": "371469"
+  },
+  {
+    "text": "نحن نحب أولادنا.",
+    "source": "tatoeba",
+    "upstreamId": "371470"
+  },
+  {
+    "text": "الناس يحبون الحرية.",
+    "source": "tatoeba",
+    "upstreamId": "371471"
+  },
+  {
+    "text": "هل هذا هو الحب؟",
+    "source": "tatoeba",
+    "upstreamId": "371472"
+  },
+  {
+    "text": "عادةً ما تشرب أختي الكبيرة الشاي مع الحليب.",
+    "source": "tatoeba",
+    "upstreamId": "371479"
+  },
+  {
+    "text": "يلعب الأولاد باللعب.",
+    "source": "tatoeba",
+    "upstreamId": "371485"
+  },
+  {
+    "text": "أنا اختلف معك في الرأي.",
+    "source": "tatoeba",
+    "upstreamId": "371487"
+  },
+  {
+    "text": "لا أوافقك الرأي.",
+    "source": "tatoeba",
+    "upstreamId": "371488"
+  },
+  {
+    "text": "النهار يتبع الليل.",
+    "source": "tatoeba",
+    "upstreamId": "371495"
+  },
+  {
+    "text": "كان واضحاً كالشمس أن شنجي سيموت من الجوع.",
+    "source": "tatoeba",
+    "upstreamId": "371505"
+  },
+  {
+    "text": "امش بأسرع ما يمكنك.",
+    "source": "tatoeba",
+    "upstreamId": "371507"
+  },
+  {
+    "text": "كيوتو ليست كبيرة كأوساكا.",
+    "source": "tatoeba",
+    "upstreamId": "371509"
+  },
+  {
+    "text": "ماري ليست بطوله.",
+    "source": "tatoeba",
+    "upstreamId": "371511"
+  },
+  {
+    "text": "\"متى ستعود؟\" \"يعتمد ذلك على الجو.\"",
+    "source": "tatoeba",
+    "upstreamId": "371512"
+  },
+  {
+    "text": "المال ليس كل شيء.",
+    "source": "tatoeba",
+    "upstreamId": "371515"
+  },
+  {
+    "text": "!مجدداً؟ ليس مرة أخرى!",
+    "source": "tatoeba",
+    "upstreamId": "371518"
+  },
+  {
+    "text": "لا لست نعساناً.",
+    "source": "tatoeba",
+    "upstreamId": "371523"
+  },
+  {
+    "text": "يجب أن لا تلعب.",
+    "source": "tatoeba",
+    "upstreamId": "371529"
+  },
+  {
+    "text": "يجب أن لا تنام.",
+    "source": "tatoeba",
+    "upstreamId": "371530"
+  },
+  {
+    "text": "أنت لست يابانياً.",
+    "source": "tatoeba",
+    "upstreamId": "371531"
+  },
+  {
+    "text": "لا تتسرع بالإجابة.",
+    "source": "tatoeba",
+    "upstreamId": "371532"
+  },
+  {
+    "text": "هو ليس يابانياً.",
+    "source": "tatoeba",
+    "upstreamId": "371539"
+  },
+  {
+    "text": "من الممكن أن لا تأتي.",
+    "source": "tatoeba",
+    "upstreamId": "371543"
+  },
+  {
+    "text": "لا ، لا أعتقد ذلك.",
+    "source": "tatoeba",
+    "upstreamId": "371544"
+  },
+  {
+    "text": "أنا عاطل عن العمل.",
+    "source": "tatoeba",
+    "upstreamId": "371545"
+  },
+  {
+    "text": "لست سريعاً بما فيه الكفاية.",
+    "source": "tatoeba",
+    "upstreamId": "371546"
+  },
+  {
+    "text": "انها ليست غلطتي!",
+    "source": "tatoeba",
+    "upstreamId": "371547"
+  },
+  {
+    "text": "الأمل ليس خطةً.",
+    "source": "tatoeba",
+    "upstreamId": "371548"
+  },
+  {
+    "text": "الأمل ليس استراتيجية.",
+    "source": "tatoeba",
+    "upstreamId": "371549"
+  },
+  {
+    "text": "نحتاج إلى العمل وليس الكلام.",
+    "source": "tatoeba",
+    "upstreamId": "371551"
+  },
+  {
+    "text": "لم تدم صداقتنا.",
+    "source": "tatoeba",
+    "upstreamId": "371552"
+  },
+  {
+    "text": "لا أحب مادة العلوم.",
+    "source": "tatoeba",
+    "upstreamId": "371553"
+  },
+  {
+    "text": "لن يعمل الراديو.",
+    "source": "tatoeba",
+    "upstreamId": "371555"
+  },
+  {
+    "text": "لن نصل إلى أي مكان.",
+    "source": "tatoeba",
+    "upstreamId": "371556"
+  },
+  {
+    "text": "لست جاهزاً بعد.",
+    "source": "tatoeba",
+    "upstreamId": "371557"
+  },
+  {
+    "text": "لا يحترق البلاستيك بسهولة.",
+    "source": "tatoeba",
+    "upstreamId": "371558"
+  },
+  {
+    "text": "لا ينكسر البلاستيك بسهولة.",
+    "source": "tatoeba",
+    "upstreamId": "371559"
+  },
+  {
+    "text": "لا يحب كل الأطفال التفاح.",
+    "source": "tatoeba",
+    "upstreamId": "371560"
+  },
+  {
+    "text": "أفضل أن لا أذهب.",
+    "source": "tatoeba",
+    "upstreamId": "371561"
+  },
+  {
+    "text": "دعنا لا نشاهد التلفاز.",
+    "source": "tatoeba",
+    "upstreamId": "371562"
+  },
+  {
+    "text": "تعمد أن يدوس على قدمي.",
+    "source": "tatoeba",
+    "upstreamId": "371563"
+  },
+  {
+    "text": "شرحه لم يكن كافياً.",
+    "source": "tatoeba",
+    "upstreamId": "371566"
+  },
+  {
+    "text": "تركتُ كتابك في السيارة.",
+    "source": "tatoeba",
+    "upstreamId": "371567"
+  },
+  {
+    "text": "دخل الغرفة بعد خروجك.",
+    "source": "tatoeba",
+    "upstreamId": "371569"
+  },
+  {
+    "text": "سوف أسافر في مارس-آذار.",
+    "source": "tatoeba",
+    "upstreamId": "371571"
+  },
+  {
+    "text": "إنها تعمل في مجال التسويق.",
+    "source": "tatoeba",
+    "upstreamId": "371574"
+  },
+  {
+    "text": "اتصل بي مرة أخرى خلال يومين.",
+    "source": "tatoeba",
+    "upstreamId": "371576"
+  },
+  {
+    "text": "كلمتني بالإسبانية.",
+    "source": "tatoeba",
+    "upstreamId": "371580"
+  },
+  {
+    "text": "من المهم أن تتذكر من هم أصدقاؤك.",
+    "source": "tatoeba",
+    "upstreamId": "371582"
+  },
+  {
+    "text": "لست متأكدًا مما إذا كنت أفضل هذا أم ذاك.",
+    "source": "tatoeba",
+    "upstreamId": "371586"
+  },
+  {
+    "text": "ليس من السهل تعلم لغة جديدة بعد سن الخمسين.",
+    "source": "tatoeba",
+    "upstreamId": "371588"
+  },
+  {
+    "text": "بناءً على الاتجاه الذي سار فيه، أظن أنه كان متجهًا إلى البلدة.",
+    "source": "tatoeba",
+    "upstreamId": "371590"
+  },
+  {
+    "text": "الشوكة الصغيرة للسلطة والكبيرة للوجبة الرئيسية.",
+    "source": "tatoeba",
+    "upstreamId": "371592"
+  },
+  {
+    "text": "دفع عشرة دولارات فقط لذلك القميص.",
+    "source": "tatoeba",
+    "upstreamId": "371594"
+  },
+  {
+    "text": "لا أريد القيام بعمله نيابة عنه.",
+    "source": "tatoeba",
+    "upstreamId": "371596"
+  },
+  {
+    "text": "ذهبوا إلى السينما ليلة أمس.",
+    "source": "tatoeba",
+    "upstreamId": "371598"
+  },
+  {
+    "text": "و أخيراً وصلنا إلى القرية.",
+    "source": "tatoeba",
+    "upstreamId": "371603"
+  },
+  {
+    "text": "أكنت في المدرسة في ذلك الوقت؟",
+    "source": "tatoeba",
+    "upstreamId": "371604"
+  },
+  {
+    "text": "هل كنت في المدرسة حينها؟",
+    "source": "tatoeba",
+    "upstreamId": "371605"
+  },
+  {
+    "text": "لا مشكلة مطلقا!",
+    "source": "tatoeba",
+    "upstreamId": "371607"
+  },
+  {
+    "text": "لا مشكلة على الإطلاق!",
+    "source": "tatoeba",
+    "upstreamId": "371608"
+  },
+  {
+    "text": "انظر إلى الصورة.",
+    "source": "tatoeba",
+    "upstreamId": "371609"
+  },
+  {
+    "text": "ضحك الجميع عليّ.",
+    "source": "tatoeba",
+    "upstreamId": "371610"
+  },
+  {
+    "text": "اجلس على الطاولة.",
+    "source": "tatoeba",
+    "upstreamId": "371612"
+  },
+  {
+    "text": "و أخيراً استسلم.",
+    "source": "tatoeba",
+    "upstreamId": "371614"
+  },
+  {
+    "text": "انظر إليّ من فضلك.",
+    "source": "tatoeba",
+    "upstreamId": "371620"
+  },
+  {
+    "text": "ضحك الناس عليه.",
+    "source": "tatoeba",
+    "upstreamId": "371622"
+  },
+  {
+    "text": "نحن نتعلم بالتجربة.",
+    "source": "tatoeba",
+    "upstreamId": "371623"
+  },
+  {
+    "text": "يدرّب الفريق مدرّب جيّد.",
+    "source": "tatoeba",
+    "upstreamId": "371626"
+  },
+  {
+    "text": "لم أدرس مادة الرياضيات على الإطلاق.",
+    "source": "tatoeba",
+    "upstreamId": "371627"
+  },
+  {
+    "text": "إذا كان الكلام من فضة فالسكوت من ذهب.",
+    "source": "tatoeba",
+    "upstreamId": "371628"
+  },
+  {
+    "text": "في هذه الظروف ، لا يمكننا النجاح.",
+    "source": "tatoeba",
+    "upstreamId": "371629"
+  },
+  {
+    "text": "يعمل أبي في المصنع.",
+    "source": "tatoeba",
+    "upstreamId": "371631"
+  },
+  {
+    "text": "أتحس بوجع في بطنك؟",
+    "source": "tatoeba",
+    "upstreamId": "371632"
+  },
+  {
+    "text": "لا أعرف كيف أشكرك.",
+    "source": "tatoeba",
+    "upstreamId": "371633"
+  },
+  {
+    "text": "كلنا يرغب بالنجاح.",
+    "source": "tatoeba",
+    "upstreamId": "371637"
+  },
+  {
+    "text": "أهم شيء أن تكن صبوراً.",
+    "source": "tatoeba",
+    "upstreamId": "371638"
+  },
+  {
+    "text": "هل كل شيء على ما يرام؟",
+    "source": "tatoeba",
+    "upstreamId": "371639"
+  },
+  {
+    "text": "أيمكنني أن أقول شيئاً؟",
+    "source": "tatoeba",
+    "upstreamId": "371641"
+  },
+  {
+    "text": "من اخترع الهاتف؟",
+    "source": "tatoeba",
+    "upstreamId": "371652"
+  },
+  {
+    "text": "من كسر المزهرية؟",
+    "source": "tatoeba",
+    "upstreamId": "371655"
+  },
+  {
+    "text": "من يدرّسك الفرنسية؟",
+    "source": "tatoeba",
+    "upstreamId": "371656"
+  },
+  {
+    "text": "من كتب الرسالة؟",
+    "source": "tatoeba",
+    "upstreamId": "371657"
+  },
+  {
+    "text": "من يدرب الفريق؟",
+    "source": "tatoeba",
+    "upstreamId": "371658"
+  },
+  {
+    "text": "من يملك هذه الفِلّا؟",
+    "source": "tatoeba",
+    "upstreamId": "371662"
+  },
+  {
+    "text": "من يملك قطعة الأرض هذه؟",
+    "source": "tatoeba",
+    "upstreamId": "371663"
+  },
+  {
+    "text": "من كتب هذه القصيدة؟",
+    "source": "tatoeba",
+    "upstreamId": "371665"
+  },
+  {
+    "text": "من اخترع هذه الآلة؟",
+    "source": "tatoeba",
+    "upstreamId": "371666"
+  },
+  {
+    "text": "من يملك هذا المنزل؟",
+    "source": "tatoeba",
+    "upstreamId": "371667"
+  },
+  {
+    "text": "من مالك هذا البيت؟",
+    "source": "tatoeba",
+    "upstreamId": "371668"
+  },
+  {
+    "text": "من فضلك رتب السرير.",
+    "source": "tatoeba",
+    "upstreamId": "371672"
+  },
+  {
+    "text": "متى اخترعت الطباعة؟",
+    "source": "tatoeba",
+    "upstreamId": "371677"
+  },
+  {
+    "text": "متى تكون مشغولاً؟",
+    "source": "tatoeba",
+    "upstreamId": "371680"
+  },
+  {
+    "text": "متى عيد ميلادك؟",
+    "source": "tatoeba",
+    "upstreamId": "371682"
+  },
+  {
+    "text": "إذا لم يكن الآن ، فمتى؟",
+    "source": "tatoeba",
+    "upstreamId": "371683"
+  },
+  {
+    "text": "متى سيبدأ الفيلم؟",
+    "source": "tatoeba",
+    "upstreamId": "371687"
+  },
+  {
+    "text": "متى بُنيت القلعة؟",
+    "source": "tatoeba",
+    "upstreamId": "371688"
+  },
+  {
+    "text": "متى حصل الحادث؟",
+    "source": "tatoeba",
+    "upstreamId": "371689"
+  },
+  {
+    "text": "متى بُني هذا المعبد؟",
+    "source": "tatoeba",
+    "upstreamId": "371690"
+  },
+  {
+    "text": "متى تلعب التنس؟",
+    "source": "tatoeba",
+    "upstreamId": "371693"
+  },
+  {
+    "text": "صحح الأخطاء ، إن وُجدت.",
+    "source": "tatoeba",
+    "upstreamId": "371695"
+  },
+  {
+    "text": "أصلح الأغلاط ، إذا وُجدت.",
+    "source": "tatoeba",
+    "upstreamId": "371696"
+  },
+  {
+    "text": "يمكنك العودة إلى البيت لو أردت.",
+    "source": "tatoeba",
+    "upstreamId": "371701"
+  },
+  {
+    "text": "لا تبق التلفاز مفتوحاً!",
+    "source": "tatoeba",
+    "upstreamId": "371703"
+  },
+  {
+    "text": "هذا أسوأ فلم شاهدته في حياتي.",
+    "source": "tatoeba",
+    "upstreamId": "371704"
+  },
+  {
+    "text": "حاول أن يتقن الفرنسية.",
+    "source": "tatoeba",
+    "upstreamId": "371705"
+  },
+  {
+    "text": "إنه موجود في البيت الآن.",
+    "source": "tatoeba",
+    "upstreamId": "371877"
+  },
+  {
+    "text": "يغادر القطار في الساعة التاسعة.",
+    "source": "tatoeba",
+    "upstreamId": "371879"
+  },
+  {
+    "text": "إنها في اجتماع الآن.",
+    "source": "tatoeba",
+    "upstreamId": "371881"
+  },
+  {
+    "text": "هناك نافورة ماء للشرب قرب ملعب التنس.",
+    "source": "tatoeba",
+    "upstreamId": "371883"
+  },
+  {
+    "text": "نمرّ دائمًا بجانب مكتب البريد في طريقنا إلى العمل.",
+    "source": "tatoeba",
+    "upstreamId": "371885"
+  },
+  {
+    "text": "يجب أن تتم هذا التقرير قبل يوم الأثنين.",
+    "source": "tatoeba",
+    "upstreamId": "371887"
+  },
+  {
+    "text": "هل نذهب بالسيارة أم بالتكسي؟",
+    "source": "tatoeba",
+    "upstreamId": "371889"
+  },
+  {
+    "text": "ما رأيك ، أنذهب بالسيارة أم بالتاكسي؟",
+    "source": "tatoeba",
+    "upstreamId": "371891"
+  },
+  {
+    "text": "هاملت مسرحية لشكسبير.",
+    "source": "tatoeba",
+    "upstreamId": "371892"
+  },
+  {
+    "text": "أعرفه بإسمه الأول.",
+    "source": "tatoeba",
+    "upstreamId": "371894"
+  },
+  {
+    "text": "اشترت البيض بالدزينة.",
+    "source": "tatoeba",
+    "upstreamId": "371896"
+  },
+  {
+    "text": "اشترت البيض بالدرزن.",
+    "source": "tatoeba",
+    "upstreamId": "371898"
+  },
+  {
+    "text": "أنا أتحدث عن هذا القلم، وليس عن ذاك الموجود هناك على المكتب.",
+    "source": "tatoeba",
+    "upstreamId": "371899"
+  },
+  {
+    "text": "ماذا فعلت هذا الصباح؟",
+    "source": "tatoeba",
+    "upstreamId": "371901"
+  },
+  {
+    "text": "نحن ذاهبون إلى السينما.",
+    "source": "tatoeba",
+    "upstreamId": "371903"
+  },
+  {
+    "text": "نحن لا نفعل ذلك عادةً في إسبانيا.",
+    "source": "tatoeba",
+    "upstreamId": "371905"
+  },
+  {
+    "text": "ما هي طبيعة عملك في المكتب؟",
+    "source": "tatoeba",
+    "upstreamId": "371907"
+  },
+  {
+    "text": "سأقوم بغسل الصحون بما أنك طبختَ.",
+    "source": "tatoeba",
+    "upstreamId": "371909"
+  },
+  {
+    "text": "لربّما كنت كبير السن ولكنني لا زلت أستطيع ركوب الدراجة.",
+    "source": "tatoeba",
+    "upstreamId": "371911"
+  },
+  {
+    "text": "لم يكن بإمكانهم فعل شيء إلا الوقوف والمشاهدة.",
+    "source": "tatoeba",
+    "upstreamId": "371913"
+  },
+  {
+    "text": "أنا من النرويج.",
+    "source": "tatoeba",
+    "upstreamId": "371915"
+  },
+  {
+    "text": "أتريد الاخضر أو الازرق؟",
+    "source": "tatoeba",
+    "upstreamId": "371918"
+  },
+  {
+    "text": "أتريد الاخضر أم الازرق؟",
+    "source": "tatoeba",
+    "upstreamId": "371920"
+  },
+  {
+    "text": "أي لون تفضل؟ الأزرق أم الأحمر؟",
+    "source": "tatoeba",
+    "upstreamId": "371921"
+  },
+  {
+    "text": "أي لون تحب أكثر؟ الأزرق أم الأحمر؟",
+    "source": "tatoeba",
+    "upstreamId": "371924"
+  },
+  {
+    "text": "يمكنها ان تعد من واحد إلى عشرة.",
+    "source": "tatoeba",
+    "upstreamId": "371927"
+  },
+  {
+    "text": "يمكنها ان تَعُدَّ من الواحد إلى العشرة.",
+    "source": "tatoeba",
+    "upstreamId": "371932"
+  },
+  {
+    "text": "إبحث عن لوحة تحمل رقم واحد مكتوباً بخط كبير.",
+    "source": "tatoeba",
+    "upstreamId": "371934"
+  },
+  {
+    "text": "أحتاج بصلة واحدة فقط لهذه الوصفة.",
+    "source": "tatoeba",
+    "upstreamId": "371937"
+  },
+  {
+    "text": "لو كان عندي سيارة لذهبت إلى المكتبة.",
+    "source": "tatoeba",
+    "upstreamId": "371941"
+  },
+  {
+    "text": "ترك أبوها البيت لها في وصيته.",
+    "source": "tatoeba",
+    "upstreamId": "371943"
+  },
+  {
+    "text": "أنجزت المهمة بقوة إرادتها.",
+    "source": "tatoeba",
+    "upstreamId": "371945"
+  },
+  {
+    "text": "يشكل الفصل الثالث نهاية البداية في الكتاب. توقف هناك واقرأ تعليقات الناقد.",
+    "source": "tatoeba",
+    "upstreamId": "371949"
+  },
+  {
+    "text": "لا بد من وجود طريقة ما.",
+    "source": "tatoeba",
+    "upstreamId": "371952"
+  },
+  {
+    "text": "متى غادرت؟ في الرابعة أم في الخامسة؟",
+    "source": "tatoeba",
+    "upstreamId": "371959"
+  },
+  {
+    "text": "أستطيع أن أحمل تلك الحقائب عنك.",
+    "source": "tatoeba",
+    "upstreamId": "371961"
+  },
+  {
+    "text": "بإمكانها العزف على البيانو.",
+    "source": "tatoeba",
+    "upstreamId": "371964"
+  },
+  {
+    "text": "هل يُمكنني استعارة سيارتك لهذه الليلة؟",
+    "source": "tatoeba",
+    "upstreamId": "371966"
+  },
+  {
+    "text": "يوجد في هذا المتجر حلوى أكثر من المتجر الآخر.",
+    "source": "tatoeba",
+    "upstreamId": "371968"
+  },
+  {
+    "text": "في هذا المتجر حلوى أكثر من ذاك.",
+    "source": "tatoeba",
+    "upstreamId": "371973"
+  },
+  {
+    "text": "أحتاج لمزيد من الوقت لأنهي واجبي.",
+    "source": "tatoeba",
+    "upstreamId": "371975"
+  },
+  {
+    "text": "أحتاج لمزيد من الوقت لأنهي واجبي المدرسي.",
+    "source": "tatoeba",
+    "upstreamId": "371978"
+  },
+  {
+    "text": "أحتاج لمزيد من الوقت لأنجز فروضي.",
+    "source": "tatoeba",
+    "upstreamId": "371979"
+  },
+  {
+    "text": "إذا كان هذا الكلام صحيحًا، فسنضطر لقبول النتيجة.",
+    "source": "tatoeba",
+    "upstreamId": "371981"
+  },
+  {
+    "text": "في حال كون هذا الكلام صحيحًا ، فسنضطر لقبول تلك النتيجة.",
+    "source": "tatoeba",
+    "upstreamId": "371982"
+  },
+  {
+    "text": "لو كان ذلك الكلام صحيحًا، فسنقبل هذا الإستنتاج.",
+    "source": "tatoeba",
+    "upstreamId": "371983"
+  },
+  {
+    "text": "سأشتري السيارة بشرط أن يصلحوا المكابح أولاً.",
+    "source": "tatoeba",
+    "upstreamId": "371986"
+  },
+  {
+    "text": "هل تعرف إن كان سيحضر الحفل؟",
+    "source": "tatoeba",
+    "upstreamId": "371987"
+  },
+  {
+    "text": "ستُنشر روايتها الجديدة الشهر القادم.",
+    "source": "tatoeba",
+    "upstreamId": "371989"
+  },
+  {
+    "text": "الطبيب غير موجود الآن للأسف.",
+    "source": "tatoeba",
+    "upstreamId": "371991"
+  },
+  {
+    "text": "انطفأت الأضواء.",
+    "source": "tatoeba",
+    "upstreamId": "371993"
+  },
+  {
+    "text": "لم يعد عندنا أي سكر.",
+    "source": "tatoeba",
+    "upstreamId": "371997"
+  },
+  {
+    "text": "لم يعد لدينا سكر.",
+    "source": "tatoeba",
+    "upstreamId": "371998"
+  },
+  {
+    "text": "هناك شئ واحد آخرعليّ فعله.",
+    "source": "tatoeba",
+    "upstreamId": "371999"
+  },
+  {
+    "text": "سيصل الاخرون في غضون دقائق قليلة.",
+    "source": "tatoeba",
+    "upstreamId": "372001"
+  },
+  {
+    "text": "سيصل الاخرون في غضون دقائق معدودة.",
+    "source": "tatoeba",
+    "upstreamId": "372003"
+  },
+  {
+    "text": "الآخرون على وصول.",
+    "source": "tatoeba",
+    "upstreamId": "372004"
+  },
+  {
+    "text": "أقلعت عن التدخين منذ ستة أشهر.",
+    "source": "tatoeba",
+    "upstreamId": "372005"
+  },
+  {
+    "text": "ليس ذلك القميص، بل الآخر.",
+    "source": "tatoeba",
+    "upstreamId": "372006"
+  },
+  {
+    "text": "أنا جائع، لذلك سأذهب لتناول بعض الطعام.",
+    "source": "tatoeba",
+    "upstreamId": "372008"
+  },
+  {
+    "text": "كان غاضباً لدرجة أنّه نسي أن يتناول طعام العشاء.",
+    "source": "tatoeba",
+    "upstreamId": "372010"
+  },
+  {
+    "text": "كان هناك حوالي عشرون شخصاً.",
+    "source": "tatoeba",
+    "upstreamId": "372012"
+  },
+  {
+    "text": "ماذا تريد أن تأكل؟",
+    "source": "tatoeba",
+    "upstreamId": "372014"
+  },
+  {
+    "text": "ماذا؟ لا أسمعك.",
+    "source": "tatoeba",
+    "upstreamId": "372016"
+  },
+  {
+    "text": "ماذا! هل فعلت ذلك حقًا؟",
+    "source": "tatoeba",
+    "upstreamId": "372018"
+  },
+  {
+    "text": "\"كم الساعة الآن؟\" \"إنها الثالثة وعشرون دقيقة.\"",
+    "source": "tatoeba",
+    "upstreamId": "372020"
+  },
+  {
+    "text": "كان عمرنا حينها خمس عشرة سنة فقط.",
+    "source": "tatoeba",
+    "upstreamId": "372022"
+  },
+  {
+    "text": "لقد أكلنا هناك ثلاث مرات.",
+    "source": "tatoeba",
+    "upstreamId": "372024"
+  },
+  {
+    "text": "إرفع صوت الموسيقى!",
+    "source": "tatoeba",
+    "upstreamId": "372026"
+  },
+  {
+    "text": "نهض من النوم في الساعة الثامنة صباحاً.",
+    "source": "tatoeba",
+    "upstreamId": "372028"
+  },
+  {
+    "text": "زادت الفرقة الموسيقية عدد الحفلات في جولتها.",
+    "source": "tatoeba",
+    "upstreamId": "372030"
+  },
+  {
+    "text": "سأذهب إلى لندن في الصيف.",
+    "source": "tatoeba",
+    "upstreamId": "372032"
+  },
+  {
+    "text": "من الأفضل أن تغادر. إن الوقت متأخر.",
+    "source": "tatoeba",
+    "upstreamId": "372034"
+  },
+  {
+    "text": "لا يزال أمامنا عشرة أميال.",
+    "source": "tatoeba",
+    "upstreamId": "372036"
+  },
+  {
+    "text": "يتحدث الكتاب عن ملك يفقد تاجه.",
+    "source": "tatoeba",
+    "upstreamId": "372041"
+  },
+  {
+    "text": "الكتاب عن ملك فقد تاجه.",
+    "source": "tatoeba",
+    "upstreamId": "372042"
+  },
+  {
+    "text": "ما رأيك في خطاب الرئيس؟",
+    "source": "tatoeba",
+    "upstreamId": "372043"
+  },
+  {
+    "text": "سمعت صوت اصطدام حوالي العاشرة ليلة الأمس.",
+    "source": "tatoeba",
+    "upstreamId": "372045"
+  },
+  {
+    "text": "أفضل الغناء على الرقص.",
+    "source": "tatoeba",
+    "upstreamId": "372049"
+  },
+  {
+    "text": "اصطدمت سيارته بشجرة.",
+    "source": "tatoeba",
+    "upstreamId": "372051"
+  },
+  {
+    "text": "كان باستطاعة أحمد تسلُّق الأشجار العالية عندما كان طفلاً.",
+    "source": "tatoeba",
+    "upstreamId": "372054"
+  },
+  {
+    "text": "يوجد هناك خمسون مقاطعة في الولايات المتحدة.",
+    "source": "tatoeba",
+    "upstreamId": "372057"
+  },
+  {
+    "text": "هناك خمسون مقاطعة في الإتحاد الفدرالي.",
+    "source": "tatoeba",
+    "upstreamId": "372058"
+  },
+  {
+    "text": "في عام ١٩٤٨م ، تأسست دولة يهودية.",
+    "source": "tatoeba",
+    "upstreamId": "372059"
+  },
+  {
+    "text": "هناك اثنا عشر شهرًا في السنة.",
+    "source": "tatoeba",
+    "upstreamId": "372061"
+  },
+  {
+    "text": "سيستغرق المشروع سنة على الأقل.",
+    "source": "tatoeba",
+    "upstreamId": "372063"
+  },
+  {
+    "text": "سيستغرق إنهاء المشروع سنةً على الأقل.",
+    "source": "tatoeba",
+    "upstreamId": "372065"
+  },
+  {
+    "text": "كل ما أستطيع فعله هو الإنتظار.",
+    "source": "tatoeba",
+    "upstreamId": "372066"
+  },
+  {
+    "text": "يسمح بالدخول للطلاب فقط لا غير.",
+    "source": "tatoeba",
+    "upstreamId": "372067"
+  },
+  {
+    "text": "خمس عشرة دقيقة فقط.",
+    "source": "tatoeba",
+    "upstreamId": "372069"
+  },
+  {
+    "text": "ما يزال هاري في الأربعين من عمره.",
+    "source": "tatoeba",
+    "upstreamId": "372070"
+  },
+  {
+    "text": "أنت الشخص الوحيد.",
+    "source": "tatoeba",
+    "upstreamId": "372073"
+  },
+  {
+    "text": "لا أعرف إلّا هذا.",
+    "source": "tatoeba",
+    "upstreamId": "372074"
+  },
+  {
+    "text": "الله وحده يعلم.",
+    "source": "tatoeba",
+    "upstreamId": "372075"
+  },
+  {
+    "text": "لو أنّني كنت أعرف!",
+    "source": "tatoeba",
+    "upstreamId": "372076"
+  },
+  {
+    "text": "أنا طفل وحيد أبي و أمي.",
+    "source": "tatoeba",
+    "upstreamId": "372077"
+  },
+  {
+    "text": "نريد شيئاً جديداً.",
+    "source": "tatoeba",
+    "upstreamId": "372079"
+  },
+  {
+    "text": "كل سنة و أنت بخير.",
+    "source": "tatoeba",
+    "upstreamId": "372081"
+  },
+  {
+    "text": "هلا! ما الجديد؟",
+    "source": "tatoeba",
+    "upstreamId": "372082"
+  },
+  {
+    "text": "هذه الكتب جديدة.",
+    "source": "tatoeba",
+    "upstreamId": "372086"
+  },
+  {
+    "text": "الدخول للموظفين فقط.",
+    "source": "tatoeba",
+    "upstreamId": "372088"
+  },
+  {
+    "text": "هذا هو الخيار الوحيد.",
+    "source": "tatoeba",
+    "upstreamId": "372089"
+  },
+  {
+    "text": "نمت لساعتين فقط.",
+    "source": "tatoeba",
+    "upstreamId": "372090"
+  },
+  {
+    "text": "تزداد الحوادث يوماً بعد يوم.",
+    "source": "tatoeba",
+    "upstreamId": "372091"
+  },
+  {
+    "text": "تزداد الحوادث سنةً بعد سنة.",
+    "source": "tatoeba",
+    "upstreamId": "372092"
+  },
+  {
+    "text": "تقاعدت السنة الماضية.",
+    "source": "tatoeba",
+    "upstreamId": "372093"
+  },
+  {
+    "text": "خرجت على المعاش السنة الفائتة.",
+    "source": "tatoeba",
+    "upstreamId": "372094"
+  },
+  {
+    "text": "كل سنة و أنتم بخير.",
+    "source": "tatoeba",
+    "upstreamId": "372097"
+  },
+  {
+    "text": "بعض الثعابين سامة.",
+    "source": "tatoeba",
+    "upstreamId": "372102"
+  },
+  {
+    "text": "أخذ براين بعض الورود.",
+    "source": "tatoeba",
+    "upstreamId": "372103"
+  },
+  {
+    "text": "بعضهم معتدل ، و البعض الآخر متشدد.",
+    "source": "tatoeba",
+    "upstreamId": "372104"
+  },
+  {
+    "text": "خذ الكرسي الآخر.",
+    "source": "tatoeba",
+    "upstreamId": "372106"
+  },
+  {
+    "text": "خذ الطريق المختصر.",
+    "source": "tatoeba",
+    "upstreamId": "372109"
+  },
+  {
+    "text": "خذ وقتك ،يا يوشيدا..",
+    "source": "tatoeba",
+    "upstreamId": "372111"
+  },
+  {
+    "text": "كيف تهجئ \"جميل\"؟",
+    "source": "tatoeba",
+    "upstreamId": "372136"
+  },
+  {
+    "text": "ماذا؟ لم أسمعك.",
+    "source": "tatoeba",
+    "upstreamId": "372137"
+  },
+  {
+    "text": "من رسم هذه اللوحات؟",
+    "source": "tatoeba",
+    "upstreamId": "372143"
+  },
+  {
+    "text": "هذه الألعاب النارية رائعة!",
+    "source": "tatoeba",
+    "upstreamId": "372144"
+  },
+  {
+    "text": "لمن هذه اللوحات؟",
+    "source": "tatoeba",
+    "upstreamId": "372145"
+  },
+  {
+    "text": "لمن هذين الحذائين؟",
+    "source": "tatoeba",
+    "upstreamId": "372150"
+  },
+  {
+    "text": "هل هذه الأشياء لك؟",
+    "source": "tatoeba",
+    "upstreamId": "372152"
+  },
+  {
+    "text": "أراك الأسبوع القادم!",
+    "source": "tatoeba",
+    "upstreamId": "372163"
+  },
+  {
+    "text": "أيمكنني الذهاب إلى الحمام؟",
+    "source": "tatoeba",
+    "upstreamId": "372167"
+  },
+  {
+    "text": "أستخدم الحاسوب.",
+    "source": "tatoeba",
+    "upstreamId": "372169"
+  },
+  {
+    "text": "أحب ضوء الشموع.",
+    "source": "tatoeba",
+    "upstreamId": "372175"
+  },
+  {
+    "text": "أتحب موسيقى الراب؟",
+    "source": "tatoeba",
+    "upstreamId": "372177"
+  },
+  {
+    "text": "هذا الشبل من ذاك الأسد.",
+    "source": "tatoeba",
+    "upstreamId": "372178"
+  },
+  {
+    "text": "البعض يحب كرة القاعدة و البعض الآخر يحب كرة القدم.",
+    "source": "tatoeba",
+    "upstreamId": "372179"
+  },
+  {
+    "text": "ثم أسرعت إلى المنزل.",
+    "source": "tatoeba",
+    "upstreamId": "372181"
+  },
+  {
+    "text": "كان عمري ثماني عشرة سنة حينها.",
+    "source": "tatoeba",
+    "upstreamId": "372182"
+  },
+  {
+    "text": "كنت سعيداً يومها.",
+    "source": "tatoeba",
+    "upstreamId": "372184"
+  },
+  {
+    "text": "كنت سعيداً عند ذلك.",
+    "source": "tatoeba",
+    "upstreamId": "372185"
+  },
+  {
+    "text": "اذهب أنت أولاً.",
+    "source": "tatoeba",
+    "upstreamId": "372191"
+  },
+  {
+    "text": "أحتاج إلى إسعافات أولية.",
+    "source": "tatoeba",
+    "upstreamId": "372194"
+  },
+  {
+    "text": "أي كتاب سيفي بالغرض.",
+    "source": "tatoeba",
+    "upstreamId": "372198"
+  },
+  {
+    "text": "أي طفل يعرف ذلك.",
+    "source": "tatoeba",
+    "upstreamId": "372199"
+  },
+  {
+    "text": "عليك أن تعمل بجهد أكبر.",
+    "source": "tatoeba",
+    "upstreamId": "372200"
+  },
+  {
+    "text": "أين تذهب للعمل؟",
+    "source": "tatoeba",
+    "upstreamId": "372202"
+  },
+  {
+    "text": "لقد أنهيت عملي للتو.",
+    "source": "tatoeba",
+    "upstreamId": "372214"
+  },
+  {
+    "text": "لا بد أن آندي تمرن كثيراً.",
+    "source": "tatoeba",
+    "upstreamId": "372219"
+  },
+  {
+    "text": "لا بد أن آندي تدرب كثيراً.",
+    "source": "tatoeba",
+    "upstreamId": "372220"
+  },
+  {
+    "text": "لا أستطيع رؤية شيء.",
+    "source": "tatoeba",
+    "upstreamId": "372222"
+  },
+  {
+    "text": "الخطوة الأولى دائماً ما تكون الأصعب.",
+    "source": "tatoeba",
+    "upstreamId": "372223"
+  },
+  {
+    "text": "أيمكنك أخذنا إلى المتحف البريطاني؟",
+    "source": "tatoeba",
+    "upstreamId": "372230"
+  },
+  {
+    "text": "ماذا تريد الآن؟",
+    "source": "tatoeba",
+    "upstreamId": "372232"
+  },
+  {
+    "text": "تحمي الثلاجة الأكل من التعفن.",
+    "source": "tatoeba",
+    "upstreamId": "372234"
+  },
+  {
+    "text": "تحفظ الثلاجة الأكل من الفساد.",
+    "source": "tatoeba",
+    "upstreamId": "372235"
+  },
+  {
+    "text": "في يوم من الأيام كان هناك مكتب بريدي على هذه الزاوية من الشارع.",
+    "source": "tatoeba",
+    "upstreamId": "372236"
+  },
+  {
+    "text": "نادراً ما أراها.",
+    "source": "tatoeba",
+    "upstreamId": "372497"
+  },
+  {
+    "text": "سمعنا ذلك من فلان و فلان.",
+    "source": "tatoeba",
+    "upstreamId": "372498"
+  },
+  {
+    "text": "يا لها من صدمة.",
+    "source": "tatoeba",
+    "upstreamId": "372499"
+  },
+  {
+    "text": "كانت صدمة قوية.",
+    "source": "tatoeba",
+    "upstreamId": "372500"
+  },
+  {
+    "text": "يحدث ذلك كثيراً.",
+    "source": "tatoeba",
+    "upstreamId": "372501"
+  },
+  {
+    "text": "يا لها من أزهار جميلة!",
+    "source": "tatoeba",
+    "upstreamId": "372502"
+  },
+  {
+    "text": "يا لك من ولد جميل!",
+    "source": "tatoeba",
+    "upstreamId": "372503"
+  },
+  {
+    "text": "قضينا وقتاً ممتعاً.",
+    "source": "tatoeba",
+    "upstreamId": "372504"
+  },
+  {
+    "text": "ما الذي حملها على فعل شيء كهذا؟",
+    "source": "tatoeba",
+    "upstreamId": "372505"
+  },
+  {
+    "text": "لا تقل شيئاً مثل ذلك.",
+    "source": "tatoeba",
+    "upstreamId": "372506"
+  },
+  {
+    "text": "لا تقل شيئاً كهذا.",
+    "source": "tatoeba",
+    "upstreamId": "372507"
+  },
+  {
+    "text": "البقر يعطينا الحليب.",
+    "source": "tatoeba",
+    "upstreamId": "372508"
+  },
+  {
+    "text": "أعطني فرصةً أخرى.",
+    "source": "tatoeba",
+    "upstreamId": "372509"
+  },
+  {
+    "text": "متى ينتهي الدوام المدرسيّ؟",
+    "source": "tatoeba",
+    "upstreamId": "372511"
+  },
+  {
+    "text": "ماذا يوجد هناك؟",
+    "source": "tatoeba",
+    "upstreamId": "372512"
+  },
+  {
+    "text": "قرأ الرسالة مرة بعد مرة.",
+    "source": "tatoeba",
+    "upstreamId": "372513"
+  },
+  {
+    "text": "جرّبها مرة بعد أخرى.",
+    "source": "tatoeba",
+    "upstreamId": "372514"
+  },
+  {
+    "text": "إنه مشغول بشيء ما.",
+    "source": "tatoeba",
+    "upstreamId": "372516"
+  },
+  {
+    "text": "إنه مشغول بفعل شيء ما.",
+    "source": "tatoeba",
+    "upstreamId": "372518"
+  },
+  {
+    "text": "مع من كنت تتكلم؟",
+    "source": "tatoeba",
+    "upstreamId": "372519"
+  },
+  {
+    "text": "استيقظت السابعة صباحاً.",
+    "source": "tatoeba",
+    "upstreamId": "372520"
+  },
+  {
+    "text": "تقوم الجريدة بتزويدنا بالأخبار.",
+    "source": "tatoeba",
+    "upstreamId": "372521"
+  },
+  {
+    "text": "هذا الخطاب موجه لك.",
+    "source": "tatoeba",
+    "upstreamId": "372522"
+  },
+  {
+    "text": "هذه الرسالة موجهة إليك.",
+    "source": "tatoeba",
+    "upstreamId": "372523"
+  },
+  {
+    "text": "يعتقد الكثيرون ذلك.",
+    "source": "tatoeba",
+    "upstreamId": "372525"
+  },
+  {
+    "text": "ماذا تُسَمّى هذه الوردة؟",
+    "source": "tatoeba",
+    "upstreamId": "372528"
+  },
+  {
+    "text": "لا يعرف أحد اِسمه الحقيقي.",
+    "source": "tatoeba",
+    "upstreamId": "372529"
+  },
+  {
+    "text": "تزداد جمالاً يوماً بعد يوم.",
+    "source": "tatoeba",
+    "upstreamId": "372530"
+  },
+  {
+    "text": "وقعت تفاحة عندما فتحت باب الثلاجة.",
+    "source": "tatoeba",
+    "upstreamId": "372531"
+  },
+  {
+    "text": "ما ثمن هذه القبّعة؟",
+    "source": "tatoeba",
+    "upstreamId": "372532"
+  },
+  {
+    "text": "حتى الأطفال يمكنهم فهم ذلك.",
+    "source": "tatoeba",
+    "upstreamId": "372533"
+  },
+  {
+    "text": "لِمَ أُتْعِبُ نفسي.",
+    "source": "tatoeba",
+    "upstreamId": "372534"
+  },
+  {
+    "text": "الرقم إثنا عشر عدد زوجيّ.",
+    "source": "tatoeba",
+    "upstreamId": "372535"
+  },
+  {
+    "text": "هلّا شاركتنا الحديث؟",
+    "source": "tatoeba",
+    "upstreamId": "372536"
+  },
+  {
+    "text": "لا يمكنني إيجاد تيم.",
+    "source": "tatoeba",
+    "upstreamId": "372537"
+  },
+  {
+    "text": "أيمكنك أن تبحث عنها؟",
+    "source": "tatoeba",
+    "upstreamId": "372538"
+  },
+  {
+    "text": "أيمكنك إيجادها؟",
+    "source": "tatoeba",
+    "upstreamId": "372539"
+  },
+  {
+    "text": "ابحث عن وظيفة جيّدة.",
+    "source": "tatoeba",
+    "upstreamId": "372540"
+  },
+  {
+    "text": "لم تظن أنني أخبرتها بذلك؟",
+    "source": "tatoeba",
+    "upstreamId": "372541"
+  },
+  {
+    "text": "سأحاول وضع أفكاري في كتاب.",
+    "source": "tatoeba",
+    "upstreamId": "372542"
+  },
+  {
+    "text": "عليّ العثور عليها.",
+    "source": "tatoeba",
+    "upstreamId": "372545"
+  },
+  {
+    "text": "لماذا هو موجود هنا؟",
+    "source": "tatoeba",
+    "upstreamId": "372549"
+  },
+  {
+    "text": "تعافى عمّي من مرضه كليّاً.",
+    "source": "tatoeba",
+    "upstreamId": "372558"
+  },
+  {
+    "text": "أبقِ غرفتك نظيفةً بقدر الإمكان.",
+    "source": "tatoeba",
+    "upstreamId": "372653"
+  },
+  {
+    "text": "يتغيّر الجوّ من يوم إلى آخر.",
+    "source": "tatoeba",
+    "upstreamId": "372655"
+  },
+  {
+    "text": "يذهب كين للسّباحة يوماً بعد يوم.",
+    "source": "tatoeba",
+    "upstreamId": "372656"
+  },
+  {
+    "text": "أمضيت ليلة ممتعة.",
+    "source": "tatoeba",
+    "upstreamId": "372657"
+  },
+  {
+    "text": "إذا عرفت الحقيقة سأخبرك.",
+    "source": "tatoeba",
+    "upstreamId": "372658"
+  },
+  {
+    "text": "من سيصبح الضّحيّة التّالية؟",
+    "source": "tatoeba",
+    "upstreamId": "372659"
+  },
+  {
+    "text": "مشيت أنا و هو سوية.",
+    "source": "tatoeba",
+    "upstreamId": "372661"
+  },
+  {
+    "text": "يصبح الجو أبرد يوماً بعد يوم.",
+    "source": "tatoeba",
+    "upstreamId": "372663"
+  },
+  {
+    "text": "يصبح الجو أدفأ يوماً بعد يوم.",
+    "source": "tatoeba",
+    "upstreamId": "372664"
+  },
+  {
+    "text": "إنه يتحسّن يوماً بعد يوم.",
+    "source": "tatoeba",
+    "upstreamId": "372665"
+  },
+  {
+    "text": "إنه يتحسّن كل يوم.",
+    "source": "tatoeba",
+    "upstreamId": "372666"
+  },
+  {
+    "text": "كان توم هنا أيضاً.",
+    "source": "tatoeba",
+    "upstreamId": "372668"
+  },
+  {
+    "text": "هذه أكبر قطة رأيتها في حياتي.",
+    "source": "tatoeba",
+    "upstreamId": "372669"
+  },
+  {
+    "text": "ذهبت إلى هناك أيضاً.",
+    "source": "tatoeba",
+    "upstreamId": "372670"
+  },
+  {
+    "text": "يتكلم الفرنسية أيضاً.",
+    "source": "tatoeba",
+    "upstreamId": "372672"
+  },
+  {
+    "text": "يستطيع تحدُّثَ الفرنسية أيضاً.",
+    "source": "tatoeba",
+    "upstreamId": "372673"
+  },
+  {
+    "text": "لم لا تعتذر و تطلب منه أن يسامحك؟",
+    "source": "tatoeba",
+    "upstreamId": "372677"
+  },
+  {
+    "text": "اِشتريت كل كتاب وجدتّه عن اليابان.",
+    "source": "tatoeba",
+    "upstreamId": "372678"
+  },
+  {
+    "text": "لم تقصد أيّ أذى.",
+    "source": "tatoeba",
+    "upstreamId": "372679"
+  },
+  {
+    "text": "لم تقصد أن تؤذي أحداً بكلامها.",
+    "source": "tatoeba",
+    "upstreamId": "372680"
+  },
+  {
+    "text": "أيّ طريق يؤدّي إلى الشاطئ؟",
+    "source": "tatoeba",
+    "upstreamId": "372681"
+  },
+  {
+    "text": "ليس هناك طريقة أخرى.",
+    "source": "tatoeba",
+    "upstreamId": "372682"
+  },
+  {
+    "text": "ما من طريقة أخرى.",
+    "source": "tatoeba",
+    "upstreamId": "372683"
+  },
+  {
+    "text": "أفسح الطريق من فضلك.",
+    "source": "tatoeba",
+    "upstreamId": "372685"
+  },
+  {
+    "text": "سدّ عليّ الطريق.",
+    "source": "tatoeba",
+    "upstreamId": "372686"
+  },
+  {
+    "text": "أودّ سماع صوتك أيضاً.",
+    "source": "tatoeba",
+    "upstreamId": "372689"
+  },
+  {
+    "text": "لا يمكنني إعطائك جواباً نهائياً اليوم.",
+    "source": "tatoeba",
+    "upstreamId": "372690"
+  },
+  {
+    "text": "ليس بإمكاني إعطائك جواباً قاطعاً اليوم.",
+    "source": "tatoeba",
+    "upstreamId": "372691"
+  },
+  {
+    "text": "هناك العديد من الجامعات في كيوتو.",
+    "source": "tatoeba",
+    "upstreamId": "372692"
+  },
+  {
+    "text": "لدى بيل الكثير من الأصدقاء.",
+    "source": "tatoeba",
+    "upstreamId": "372696"
+  },
+  {
+    "text": "فاجأ ذلك الكثير.",
+    "source": "tatoeba",
+    "upstreamId": "372697"
+  },
+  {
+    "text": "هناك مستشفى بالقرب من هنا.",
+    "source": "tatoeba",
+    "upstreamId": "372698"
+  },
+  {
+    "text": "السرير الذي نمت عليه بالأمس لم يكن مريحاً.",
+    "source": "tatoeba",
+    "upstreamId": "372699"
+  },
+  {
+    "text": "لا بد أنك تمزح!",
+    "source": "tatoeba",
+    "upstreamId": "372700"
+  },
+  {
+    "text": "حذرته من الذهاب وحده.",
+    "source": "tatoeba",
+    "upstreamId": "372701"
+  },
+  {
+    "text": "سأقيس حرارتك الآن.",
+    "source": "tatoeba",
+    "upstreamId": "372702"
+  },
+  {
+    "text": "تبدو شاحب الوجه.",
+    "source": "tatoeba",
+    "upstreamId": "372708"
+  },
+  {
+    "text": "هل تقابلنا من قبل؟",
+    "source": "tatoeba",
+    "upstreamId": "372709"
+  },
+  {
+    "text": "اِرجع إلى البيت قبل السادسة.",
+    "source": "tatoeba",
+    "upstreamId": "372710"
+  },
+  {
+    "text": "قلت لك ذلك من قبل!",
+    "source": "tatoeba",
+    "upstreamId": "372711"
+  },
+  {
+    "text": "ألم أقل لك من قبل!",
+    "source": "tatoeba",
+    "upstreamId": "372712"
+  },
+  {
+    "text": "استحممت قبل تناول الإفطار.",
+    "source": "tatoeba",
+    "upstreamId": "372713"
+  },
+  {
+    "text": "إلامَ يرمز ذلك؟",
+    "source": "tatoeba",
+    "upstreamId": "372714"
+  },
+  {
+    "text": "أضعت محفظة نقودي.",
+    "source": "tatoeba",
+    "upstreamId": "372716"
+  },
+  {
+    "text": "كان الألم فظيعاً.",
+    "source": "tatoeba",
+    "upstreamId": "372717"
+  },
+  {
+    "text": "إِذَا كَوَيْتَ سُويسْرَا ، لَأَصْبَحَتْ أَكْبَرَ مِنْ أَلْمَانِيَا.",
+    "source": "tatoeba",
+    "upstreamId": "372778"
+  },
+  {
+    "text": "خذ حبتين بعد الأكل.",
+    "source": "tatoeba",
+    "upstreamId": "372779"
+  },
+  {
+    "text": "خذ حبتين من الدواء بعد الأكل.",
+    "source": "tatoeba",
+    "upstreamId": "372780"
+  },
+  {
+    "text": "لا أحب الطريقة التي يتكلم بها.",
+    "source": "tatoeba",
+    "upstreamId": "372781"
+  },
+  {
+    "text": "أخذ صورة للكوالا.",
+    "source": "tatoeba",
+    "upstreamId": "372782"
+  },
+  {
+    "text": "لا بد أنه من الجنوب.",
+    "source": "tatoeba",
+    "upstreamId": "372786"
+  },
+  {
+    "text": "إنها تمطر بشدة.",
+    "source": "tatoeba",
+    "upstreamId": "372792"
+  },
+  {
+    "text": "إنها تمطر بشدة الآن.",
+    "source": "tatoeba",
+    "upstreamId": "372794"
+  },
+  {
+    "text": "أثلجت بشدة الأمس.",
+    "source": "tatoeba",
+    "upstreamId": "372796"
+  },
+  {
+    "text": "كان ذلك صعب التصديق.",
+    "source": "tatoeba",
+    "upstreamId": "372802"
+  },
+  {
+    "text": "من الصعب التأكد.",
+    "source": "tatoeba",
+    "upstreamId": "372803"
+  },
+  {
+    "text": "هناك سوق كبيرة للقهوة.",
+    "source": "tatoeba",
+    "upstreamId": "372804"
+  },
+  {
+    "text": "أيمكنك كتابة رسالة بالإنجليزية؟",
+    "source": "tatoeba",
+    "upstreamId": "372810"
+  },
+  {
+    "text": "تتكلم و كأنك رئيسنا.",
+    "source": "tatoeba",
+    "upstreamId": "372811"
+  },
+  {
+    "text": "تتكلم و كأنك رئيس عملنا.",
+    "source": "tatoeba",
+    "upstreamId": "372812"
+  },
+  {
+    "text": "هو ذئب في ثياب النعاج.",
+    "source": "tatoeba",
+    "upstreamId": "372813"
+  },
+  {
+    "text": "كلما أتصل به ، يكون قد خرج.",
+    "source": "tatoeba",
+    "upstreamId": "372814"
+  },
+  {
+    "text": "خطر له فكرة جيدة.",
+    "source": "tatoeba",
+    "upstreamId": "372937"
+  },
+  {
+    "text": "خطر بباله فكرة جيدة.",
+    "source": "tatoeba",
+    "upstreamId": "372938"
+  },
+  {
+    "text": "قابلته في عدة مناسبات.",
+    "source": "tatoeba",
+    "upstreamId": "372961"
+  },
+  {
+    "text": "هل لي بكأس ماء؟",
+    "source": "tatoeba",
+    "upstreamId": "372990"
+  },
+  {
+    "text": "تبدو الأرض مبلولة.",
+    "source": "tatoeba",
+    "upstreamId": "372991"
+  },
+  {
+    "text": "القطط تكره البلل.",
+    "source": "tatoeba",
+    "upstreamId": "372992"
+  },
+  {
+    "text": "أتقبلون الدفع ببطاقة الإئتمان؟",
+    "source": "tatoeba",
+    "upstreamId": "372997"
+  },
+  {
+    "text": "من فضلك وزّع الورق.",
+    "source": "tatoeba",
+    "upstreamId": "372999"
+  },
+  {
+    "text": "من فضلك أدخل بطاقتك.",
+    "source": "tatoeba",
+    "upstreamId": "373000"
+  },
+  {
+    "text": "أيمكنني الدفع عن طريق بطاقة الإئتمان؟",
+    "source": "tatoeba",
+    "upstreamId": "373001"
+  },
+  {
+    "text": "تركت بطاقتي في المنزل.",
+    "source": "tatoeba",
+    "upstreamId": "373002"
+  },
+  {
+    "text": "ألديك بطاقة إئتمان؟",
+    "source": "tatoeba",
+    "upstreamId": "373003"
+  },
+  {
+    "text": "سأقاتل حتى النفس الأخير.",
+    "source": "tatoeba",
+    "upstreamId": "373004"
+  },
+  {
+    "text": "أين أقرب معرض فني؟",
+    "source": "tatoeba",
+    "upstreamId": "373005"
+  },
+  {
+    "text": "طعمه لذيذ جداً.",
+    "source": "tatoeba",
+    "upstreamId": "373006"
+  },
+  {
+    "text": "لنكولن رجل عظيم.",
+    "source": "tatoeba",
+    "upstreamId": "373009"
+  },
+  {
+    "text": "إنها فكرة جيدة.",
+    "source": "tatoeba",
+    "upstreamId": "373010"
+  },
+  {
+    "text": "يا إلهي ، هذا المكان يبدو رائعاً.",
+    "source": "tatoeba",
+    "upstreamId": "373011"
+  },
+  {
+    "text": "هذا الفلم -ببساطة- رائع.",
+    "source": "tatoeba",
+    "upstreamId": "373012"
+  },
+  {
+    "text": "كم ساعة في اليوم تلعب التنس؟",
+    "source": "tatoeba",
+    "upstreamId": "373016"
+  },
+  {
+    "text": "شعر ماريا طويل.",
+    "source": "tatoeba",
+    "upstreamId": "373017"
+  },
+  {
+    "text": "تقطع الطيور مسافات طويلة.",
+    "source": "tatoeba",
+    "upstreamId": "373020"
+  },
+  {
+    "text": "إخترقت الرصاصة جسده.",
+    "source": "tatoeba",
+    "upstreamId": "373042"
+  },
+  {
+    "text": "مررنا بسانت لويس في طريقنا إلى نيو أورلينز.",
+    "source": "tatoeba",
+    "upstreamId": "373044"
+  },
+  {
+    "text": "كان الطقس باردًا هنا طوال شهر آذار- مارس.",
+    "source": "tatoeba",
+    "upstreamId": "373046"
+  },
+  {
+    "text": "رسب في امتحاناته بسبب قلة المذاكرة.",
+    "source": "tatoeba",
+    "upstreamId": "373048"
+  },
+  {
+    "text": "تقع المحطة غرب الفندق.",
+    "source": "tatoeba",
+    "upstreamId": "373050"
+  },
+  {
+    "text": "السيد فورد يملك هذه الأرض.",
+    "source": "tatoeba",
+    "upstreamId": "373051"
+  },
+  {
+    "text": "هذه الأرض من أملاكي.",
+    "source": "tatoeba",
+    "upstreamId": "373052"
+  },
+  {
+    "text": "مايك يسبح بمهارة.",
+    "source": "tatoeba",
+    "upstreamId": "373055"
+  },
+  {
+    "text": "ذهبت أمي إلى السوق.",
+    "source": "tatoeba",
+    "upstreamId": "373063"
+  }
+]

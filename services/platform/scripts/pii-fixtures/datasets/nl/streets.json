@@ -1,0 +1,117 @@
+[
+  {
+    "name": "Hoofdstraat",
+    "countryCode": "NL",
+    "frequency": 5810,
+    "source": "manual"
+  },
+  {
+    "name": "Kerkstraat",
+    "countryCode": "NL",
+    "frequency": 5421,
+    "source": "manual"
+  },
+  {
+    "name": "Schoolstraat",
+    "countryCode": "NL",
+    "frequency": 4905,
+    "source": "manual"
+  },
+  {
+    "name": "Dorpsstraat",
+    "countryCode": "NL",
+    "frequency": 4622,
+    "source": "manual"
+  },
+  {
+    "name": "Stationsstraat",
+    "countryCode": "NL",
+    "frequency": 4308,
+    "source": "manual"
+  },
+  {
+    "name": "Molenstraat",
+    "countryCode": "NL",
+    "frequency": 3914,
+    "source": "manual"
+  },
+  {
+    "name": "Wilhelminastraat",
+    "countryCode": "NL",
+    "frequency": 3712,
+    "source": "manual"
+  },
+  {
+    "name": "Beatrixstraat",
+    "countryCode": "NL",
+    "frequency": 3509,
+    "source": "manual"
+  },
+  {
+    "name": "Julianastraat",
+    "countryCode": "NL",
+    "frequency": 3402,
+    "source": "manual"
+  },
+  {
+    "name": "Oranjestraat",
+    "countryCode": "NL",
+    "frequency": 3211,
+    "source": "manual"
+  },
+  {
+    "name": "Damstraat",
+    "countryCode": "NL",
+    "frequency": 3015,
+    "source": "manual"
+  },
+  {
+    "name": "Marktstraat",
+    "countryCode": "NL",
+    "frequency": 2902,
+    "source": "manual"
+  },
+  {
+    "name": "Nieuwstraat",
+    "countryCode": "NL",
+    "frequency": 2811,
+    "source": "manual"
+  },
+  {
+    "name": "Oude Gracht",
+    "countryCode": "NL",
+    "frequency": 2705,
+    "source": "manual"
+  },
+  {
+    "name": "Prinsengracht",
+    "countryCode": "NL",
+    "frequency": 22,
+    "source": "manual"
+  },
+  {
+    "name": "Herengracht",
+    "countryCode": "NL",
+    "frequency": 18,
+    "source": "manual"
+  },
+  { "name": "Damrak", "countryCode": "NL", "frequency": 8, "source": "manual" },
+  {
+    "name": "Leidseplein",
+    "countryCode": "NL",
+    "frequency": 6,
+    "source": "manual"
+  },
+  {
+    "name": "Rembrandtplein",
+    "countryCode": "NL",
+    "frequency": 5,
+    "source": "manual"
+  },
+  {
+    "name": "Museumplein",
+    "countryCode": "NL",
+    "frequency": 4,
+    "source": "manual"
+  }
+]

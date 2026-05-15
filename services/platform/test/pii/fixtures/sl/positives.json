@@ -1,0 +1,3315 @@
+{
+  "_meta": {
+    "locale": "sl",
+    "generator": "platform/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 300,
+      "negatives": 0
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "positives": [
+    {
+      "id": "email-sl-00000",
+      "input": "Prosimo, pošljite paket na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00001",
+      "input": "Poštni naslov: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00002",
+      "input": "Stranka stanuje na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00003",
+      "input": "Prevzemno mesto — anna.mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00004",
+      "input": "Prosimo, pošljite paket na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00005",
+      "input": "Poštni naslov: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00006",
+      "input": "Stranka stanuje na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00007",
+      "input": "Prevzemno mesto — anna_mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00008",
+      "input": "Prosimo, pošljite paket na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00009",
+      "input": "Poštni naslov: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00010",
+      "input": "Stranka stanuje na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00011",
+      "input": "Prevzemno mesto — annamueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00012",
+      "input": "Prosimo, pošljite paket na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00013",
+      "input": "Poštni naslov: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00014",
+      "input": "Stranka stanuje na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00015",
+      "input": "Prevzemno mesto — anna.mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00016",
+      "input": "Prosimo, pošljite paket na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00017",
+      "input": "Poštni naslov: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00018",
+      "input": "Stranka stanuje na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00019",
+      "input": "Prevzemno mesto — anna_mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00020",
+      "input": "Prosimo, pošljite paket na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00021",
+      "input": "Poštni naslov: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00022",
+      "input": "Stranka stanuje na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00023",
+      "input": "Prevzemno mesto — annamueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00024",
+      "input": "Prosimo, pošljite paket na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00025",
+      "input": "Poštni naslov: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00026",
+      "input": "Stranka stanuje na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00027",
+      "input": "Prevzemno mesto — anna.mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00028",
+      "input": "Prosimo, pošljite paket na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00029",
+      "input": "Poštni naslov: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00030",
+      "input": "Stranka stanuje na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00031",
+      "input": "Prevzemno mesto — anna_mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00032",
+      "input": "Prosimo, pošljite paket na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00033",
+      "input": "Poštni naslov: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00034",
+      "input": "Stranka stanuje na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00035",
+      "input": "Prevzemno mesto — annamueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00036",
+      "input": "Prosimo, pošljite paket na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00037",
+      "input": "Poštni naslov: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00038",
+      "input": "Stranka stanuje na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00039",
+      "input": "Prevzemno mesto — anna.mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00040",
+      "input": "Prosimo, pošljite paket na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00041",
+      "input": "Poštni naslov: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00042",
+      "input": "Stranka stanuje na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00043",
+      "input": "Prevzemno mesto — anna_mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00044",
+      "input": "Prosimo, pošljite paket na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00045",
+      "input": "Poštni naslov: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00046",
+      "input": "Stranka stanuje na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00047",
+      "input": "Prevzemno mesto — annamueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00048",
+      "input": "Prosimo, pošljite paket na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00049",
+      "input": "Poštni naslov: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00050",
+      "input": "Stranka stanuje na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00051",
+      "input": "Prevzemno mesto — anna.mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00052",
+      "input": "Prosimo, pošljite paket na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00053",
+      "input": "Poštni naslov: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00054",
+      "input": "Stranka stanuje na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00055",
+      "input": "Prevzemno mesto — anna_mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00056",
+      "input": "Prosimo, pošljite paket na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00057",
+      "input": "Poštni naslov: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00058",
+      "input": "Stranka stanuje na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00059",
+      "input": "Prevzemno mesto — annamueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00060",
+      "input": "Prosimo, pošljite paket na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00061",
+      "input": "Poštni naslov: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00062",
+      "input": "Stranka stanuje na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00063",
+      "input": "Prevzemno mesto — anna.mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00064",
+      "input": "Prosimo, pošljite paket na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00065",
+      "input": "Poštni naslov: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00066",
+      "input": "Stranka stanuje na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00067",
+      "input": "Prevzemno mesto — anna_mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00068",
+      "input": "Prosimo, pošljite paket na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00069",
+      "input": "Poštni naslov: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00070",
+      "input": "Stranka stanuje na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00071",
+      "input": "Prevzemno mesto — annamueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00072",
+      "input": "Prosimo, pošljite paket na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00073",
+      "input": "Poštni naslov: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00074",
+      "input": "Stranka stanuje na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00075",
+      "input": "Prevzemno mesto — anna.mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00076",
+      "input": "Prosimo, pošljite paket na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00077",
+      "input": "Poštni naslov: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00078",
+      "input": "Stranka stanuje na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00079",
+      "input": "Prevzemno mesto — anna_mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00080",
+      "input": "Prosimo, pošljite paket na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00081",
+      "input": "Poštni naslov: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00082",
+      "input": "Stranka stanuje na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00083",
+      "input": "Prevzemno mesto — annamueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00084",
+      "input": "Prosimo, pošljite paket na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00085",
+      "input": "Poštni naslov: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00086",
+      "input": "Stranka stanuje na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00087",
+      "input": "Prevzemno mesto — anna.mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00088",
+      "input": "Prosimo, pošljite paket na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00089",
+      "input": "Poštni naslov: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00090",
+      "input": "Stranka stanuje na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00091",
+      "input": "Prevzemno mesto — anna_mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00092",
+      "input": "Prosimo, pošljite paket na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00093",
+      "input": "Poštni naslov: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00094",
+      "input": "Stranka stanuje na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00095",
+      "input": "Prevzemno mesto — annamueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00096",
+      "input": "Prosimo, pošljite paket na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00097",
+      "input": "Poštni naslov: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00098",
+      "input": "Stranka stanuje na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00099",
+      "input": "Prevzemno mesto — anna.mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00100",
+      "input": "Prosimo, pošljite paket na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00101",
+      "input": "Poštni naslov: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00102",
+      "input": "Stranka stanuje na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00103",
+      "input": "Prevzemno mesto — anna_mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00104",
+      "input": "Prosimo, pošljite paket na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00105",
+      "input": "Poštni naslov: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00106",
+      "input": "Stranka stanuje na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00107",
+      "input": "Prevzemno mesto — annamueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00108",
+      "input": "Prosimo, pošljite paket na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00109",
+      "input": "Poštni naslov: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00110",
+      "input": "Stranka stanuje na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00111",
+      "input": "Prevzemno mesto — anna.mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00112",
+      "input": "Prosimo, pošljite paket na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00113",
+      "input": "Poštni naslov: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00114",
+      "input": "Stranka stanuje na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00115",
+      "input": "Prevzemno mesto — anna_mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00116",
+      "input": "Prosimo, pošljite paket na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00117",
+      "input": "Poštni naslov: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00118",
+      "input": "Stranka stanuje na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00119",
+      "input": "Prevzemno mesto — annamueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00120",
+      "input": "Prosimo, pošljite paket na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00121",
+      "input": "Poštni naslov: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00122",
+      "input": "Stranka stanuje na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00123",
+      "input": "Prevzemno mesto — anna.mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00124",
+      "input": "Prosimo, pošljite paket na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00125",
+      "input": "Poštni naslov: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00126",
+      "input": "Stranka stanuje na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00127",
+      "input": "Prevzemno mesto — anna_mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00128",
+      "input": "Prosimo, pošljite paket na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00129",
+      "input": "Poštni naslov: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00130",
+      "input": "Stranka stanuje na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00131",
+      "input": "Prevzemno mesto — annamueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00132",
+      "input": "Prosimo, pošljite paket na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00133",
+      "input": "Poštni naslov: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00134",
+      "input": "Stranka stanuje na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00135",
+      "input": "Prevzemno mesto — anna.mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00136",
+      "input": "Prosimo, pošljite paket na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00137",
+      "input": "Poštni naslov: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00138",
+      "input": "Stranka stanuje na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00139",
+      "input": "Prevzemno mesto — anna_mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00140",
+      "input": "Prosimo, pošljite paket na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00141",
+      "input": "Poštni naslov: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00142",
+      "input": "Stranka stanuje na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00143",
+      "input": "Prevzemno mesto — annamueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00144",
+      "input": "Prosimo, pošljite paket na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00145",
+      "input": "Poštni naslov: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00146",
+      "input": "Stranka stanuje na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00147",
+      "input": "Prevzemno mesto — anna.mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00148",
+      "input": "Prosimo, pošljite paket na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00149",
+      "input": "Poštni naslov: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00150",
+      "input": "Stranka stanuje na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00151",
+      "input": "Prevzemno mesto — anna_mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00152",
+      "input": "Prosimo, pošljite paket na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00153",
+      "input": "Poštni naslov: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00154",
+      "input": "Stranka stanuje na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00155",
+      "input": "Prevzemno mesto — annamueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00156",
+      "input": "Prosimo, pošljite paket na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00157",
+      "input": "Poštni naslov: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00158",
+      "input": "Stranka stanuje na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00159",
+      "input": "Prevzemno mesto — anna.mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00160",
+      "input": "Prosimo, pošljite paket na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00161",
+      "input": "Poštni naslov: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00162",
+      "input": "Stranka stanuje na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00163",
+      "input": "Prevzemno mesto — anna_mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00164",
+      "input": "Prosimo, pošljite paket na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00165",
+      "input": "Poštni naslov: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00166",
+      "input": "Stranka stanuje na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00167",
+      "input": "Prevzemno mesto — annamueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00168",
+      "input": "Prosimo, pošljite paket na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00169",
+      "input": "Poštni naslov: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00170",
+      "input": "Stranka stanuje na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00171",
+      "input": "Prevzemno mesto — anna.mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00172",
+      "input": "Prosimo, pošljite paket na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00173",
+      "input": "Poštni naslov: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00174",
+      "input": "Stranka stanuje na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00175",
+      "input": "Prevzemno mesto — anna_mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00176",
+      "input": "Prosimo, pošljite paket na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00177",
+      "input": "Poštni naslov: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00178",
+      "input": "Stranka stanuje na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00179",
+      "input": "Prevzemno mesto — annamueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00180",
+      "input": "Prosimo, pošljite paket na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00181",
+      "input": "Poštni naslov: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00182",
+      "input": "Stranka stanuje na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00183",
+      "input": "Prevzemno mesto — anna.mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00184",
+      "input": "Prosimo, pošljite paket na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00185",
+      "input": "Poštni naslov: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00186",
+      "input": "Stranka stanuje na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00187",
+      "input": "Prevzemno mesto — anna_mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00188",
+      "input": "Prosimo, pošljite paket na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00189",
+      "input": "Poštni naslov: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00190",
+      "input": "Stranka stanuje na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00191",
+      "input": "Prevzemno mesto — annamueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00192",
+      "input": "Prosimo, pošljite paket na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00193",
+      "input": "Poštni naslov: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00194",
+      "input": "Stranka stanuje na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00195",
+      "input": "Prevzemno mesto — anna.mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00196",
+      "input": "Prosimo, pošljite paket na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00197",
+      "input": "Poštni naslov: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00198",
+      "input": "Stranka stanuje na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00199",
+      "input": "Prevzemno mesto — anna_mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00200",
+      "input": "Prosimo, pošljite paket na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00201",
+      "input": "Poštni naslov: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00202",
+      "input": "Stranka stanuje na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00203",
+      "input": "Prevzemno mesto — annamueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00204",
+      "input": "Prosimo, pošljite paket na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00205",
+      "input": "Poštni naslov: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00206",
+      "input": "Stranka stanuje na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00207",
+      "input": "Prevzemno mesto — anna.mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00208",
+      "input": "Prosimo, pošljite paket na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00209",
+      "input": "Poštni naslov: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00210",
+      "input": "Stranka stanuje na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00211",
+      "input": "Prevzemno mesto — anna_mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00212",
+      "input": "Prosimo, pošljite paket na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00213",
+      "input": "Poštni naslov: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00214",
+      "input": "Stranka stanuje na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00215",
+      "input": "Prevzemno mesto — annamueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00216",
+      "input": "Prosimo, pošljite paket na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00217",
+      "input": "Poštni naslov: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00218",
+      "input": "Stranka stanuje na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00219",
+      "input": "Prevzemno mesto — anna.mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00220",
+      "input": "Prosimo, pošljite paket na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00221",
+      "input": "Poštni naslov: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00222",
+      "input": "Stranka stanuje na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00223",
+      "input": "Prevzemno mesto — anna_mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00224",
+      "input": "Prosimo, pošljite paket na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00225",
+      "input": "Poštni naslov: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00226",
+      "input": "Stranka stanuje na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00227",
+      "input": "Prevzemno mesto — annamueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00228",
+      "input": "Prosimo, pošljite paket na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00229",
+      "input": "Poštni naslov: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00230",
+      "input": "Stranka stanuje na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00231",
+      "input": "Prevzemno mesto — anna.mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00232",
+      "input": "Prosimo, pošljite paket na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00233",
+      "input": "Poštni naslov: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00234",
+      "input": "Stranka stanuje na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00235",
+      "input": "Prevzemno mesto — anna_mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00236",
+      "input": "Prosimo, pošljite paket na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00237",
+      "input": "Poštni naslov: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00238",
+      "input": "Stranka stanuje na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00239",
+      "input": "Prevzemno mesto — annamueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00240",
+      "input": "Prosimo, pošljite paket na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00241",
+      "input": "Poštni naslov: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00242",
+      "input": "Stranka stanuje na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00243",
+      "input": "Prevzemno mesto — anna.mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00244",
+      "input": "Prosimo, pošljite paket na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00245",
+      "input": "Poštni naslov: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00246",
+      "input": "Stranka stanuje na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00247",
+      "input": "Prevzemno mesto — anna_mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00248",
+      "input": "Prosimo, pošljite paket na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00249",
+      "input": "Poštni naslov: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00250",
+      "input": "Stranka stanuje na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00251",
+      "input": "Prevzemno mesto — annamueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00252",
+      "input": "Prosimo, pošljite paket na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00253",
+      "input": "Poštni naslov: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00254",
+      "input": "Stranka stanuje na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00255",
+      "input": "Prevzemno mesto — anna.mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00256",
+      "input": "Prosimo, pošljite paket na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00257",
+      "input": "Poštni naslov: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00258",
+      "input": "Stranka stanuje na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00259",
+      "input": "Prevzemno mesto — anna_mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00260",
+      "input": "Prosimo, pošljite paket na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00261",
+      "input": "Poštni naslov: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00262",
+      "input": "Stranka stanuje na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00263",
+      "input": "Prevzemno mesto — annamueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00264",
+      "input": "Prosimo, pošljite paket na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00265",
+      "input": "Poštni naslov: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00266",
+      "input": "Stranka stanuje na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00267",
+      "input": "Prevzemno mesto — anna.mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00268",
+      "input": "Prosimo, pošljite paket na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00269",
+      "input": "Poštni naslov: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00270",
+      "input": "Stranka stanuje na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00271",
+      "input": "Prevzemno mesto — anna_mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00272",
+      "input": "Prosimo, pošljite paket na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00273",
+      "input": "Poštni naslov: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00274",
+      "input": "Stranka stanuje na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00275",
+      "input": "Prevzemno mesto — annamueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00276",
+      "input": "Prosimo, pošljite paket na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00277",
+      "input": "Poštni naslov: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00278",
+      "input": "Stranka stanuje na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00279",
+      "input": "Prevzemno mesto — anna.mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00280",
+      "input": "Prosimo, pošljite paket na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00281",
+      "input": "Poštni naslov: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00282",
+      "input": "Stranka stanuje na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00283",
+      "input": "Prevzemno mesto — anna_mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00284",
+      "input": "Prosimo, pošljite paket na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00285",
+      "input": "Poštni naslov: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00286",
+      "input": "Stranka stanuje na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00287",
+      "input": "Prevzemno mesto — annamueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00288",
+      "input": "Prosimo, pošljite paket na alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00289",
+      "input": "Poštni naslov: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00290",
+      "input": "Stranka stanuje na marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00291",
+      "input": "Prevzemno mesto — anna.mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00292",
+      "input": "Prosimo, pošljite paket na alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00293",
+      "input": "Poštni naslov: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00294",
+      "input": "Stranka stanuje na mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00295",
+      "input": "Prevzemno mesto — anna_mueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00296",
+      "input": "Prosimo, pošljite paket na alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 27,
+          "end": 48
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00297",
+      "input": "Poštni naslov: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00298",
+      "input": "Stranka stanuje na mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 19,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-sl-00299",
+      "input": "Prevzemno mesto — annamueller@corp.example — potrjeno.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 18,
+          "end": 42
+        }
+      ]
+    }
+  ]
+}

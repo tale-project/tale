@@ -4,6 +4,7 @@ export default {
   workspaces: {
     'services/platform': {
       vite: { config: ['vite.config.ts'] },
+      ignore: ['convex/_generated/**'],
       entry: [
         'app/routes/**/*.tsx',
         'scripts/**/*.ts',

@@ -1,0 +1,4065 @@
+{
+  "_meta": {
+    "locale": "da",
+    "generator": "platform/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 0,
+      "negatives": 810
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "negatives": [
+    {
+      "id": "neg-prose-da-00000",
+      "input": "Hvordan har du det?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00001",
+      "input": "På trods af al sin rigdom og berømmelse, er han ulykkelig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00002",
+      "input": "Jeg ved ikke hvad jeg skal gøre.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00003",
+      "input": "Han tror det er umuligt for mig at bestige bjerget alene.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00004",
+      "input": "Jeg kan ikke lide æg.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00005",
+      "input": "Folk som ikke synes at latin er det smukkeste sprog, har intet forstået.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00006",
+      "input": "Vi fløj over Atlanterhavet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00007",
+      "input": "Hvorfor stod du så tidligt op?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00008",
+      "input": "For at slå tiden ihjel, slentrede jeg gennem gaderne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00009",
+      "input": "Mange amerikanere er interesserede i jazz.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00010",
+      "input": "Vent venligst et øjeblik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00011",
+      "input": "Disse blomster vil for det meste overleve vinteren.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00012",
+      "input": "Døden bliver ofte sammenlignet med søvn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00013",
+      "input": "Hun er ikke læge.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00014",
+      "input": "Røgalarmen er aldrig blevet vedligeholdt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00015",
+      "input": "Han er skyldig i tyveri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00016",
+      "input": "Hvad er du interesseret i?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00017",
+      "input": "Han faldt i grøften.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00018",
+      "input": "Der kommer til at være et problem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00019",
+      "input": "Jeg synes de er rigtig sjove.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00020",
+      "input": "Min far skulle til at gå da telefonen ringede.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00021",
+      "input": "Mærkeligt, ikke? Vi skulle allerede være nået frem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00022",
+      "input": "Jeg vil kalde på en politibetjent.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00023",
+      "input": "Jeg vil ringe for at få det bekræftet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00024",
+      "input": "Jeg vil ikke spise morgenmad i dag.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00025",
+      "input": "Jeg arbejder her. Jeg er ingen gæst.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00026",
+      "input": "Jeg arbejder på et hospital.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00027",
+      "input": "Jeg arbejder om morgenen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00028",
+      "input": "Jeg vil gerne have en flaske hostesaft.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00029",
+      "input": "Jeg vil gerne have et værelse med aircondition.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00030",
+      "input": "Jeg vil gerne have kyllingesuppe.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00031",
+      "input": "Drengen der ror båden er en af mine venner.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00032",
+      "input": "Vi tog til søen for at ro i en båd.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00033",
+      "input": "Tooghalvtreds procent af britiske kvinder foretrækker chokolade frem for sex.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00034",
+      "input": "Titanic sank på sin jomfrurejse.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00035",
+      "input": "Alt i alt er jeg tilfreds med resultatet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00036",
+      "input": "Klokken er næsten seks.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00037",
+      "input": "Hun dumpede eksamen, og jeg blev meget skuffet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00038",
+      "input": "Vi havde ikke mange problemer.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00039",
+      "input": "Det er lige meget.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00040",
+      "input": "Hvorfor går du ikke på kur?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00041",
+      "input": "Diane er også din halvsøster, George.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00042",
+      "input": "Din mor må have været smuk, da hun var ung.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00043",
+      "input": "Hvor mange biler har du?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00044",
+      "input": "Drikkevand med syreregn påvirker helbredet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00045",
+      "input": "Vi vil allesammen gerne have at priserne falder.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00046",
+      "input": "Jeg vil tage til udlandet på et tidspunkt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00047",
+      "input": "Jeg nåede frem til landsbyen før det blev mørkt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00048",
+      "input": "Jeg tog bussen for at nå frem før det blev mørkt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00049",
+      "input": "Det er ved at blive mørkt. Vær sød at tænde lyset for mig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00050",
+      "input": "Det er ved at blive mørkt. Du må hellere gå hjem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00051",
+      "input": "Lad hende ikke gå ud når det er mørkt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00052",
+      "input": "Han arbejder meget hårdt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00053",
+      "input": "Han går ofte i biografen med hende.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00054",
+      "input": "Han maler tit landskaber.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00055",
+      "input": "Han sad foran så han kunne høre.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00056",
+      "input": "Han går ofte med hånden i lommen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00057",
+      "input": "Han gjorde tit sin mor nervøs.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00058",
+      "input": "Han var tit oppe til sent om natten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00059",
+      "input": "Han glemmer tit hvad han har lovet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00060",
+      "input": "Han plejede at mobbe sine venner.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00061",
+      "input": "Han spiser tit fisk til aftensmad.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00062",
+      "input": "Han er enten fuld eller skør.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00063",
+      "input": "Det vil tage en evighed at forklare det hele.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00064",
+      "input": "Ved du hvor hun er?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00065",
+      "input": "Dan kan lide at lave modelbiler.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00066",
+      "input": "Manden pustede røg i hovedet på hende.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00067",
+      "input": "Vi har meget, vi skal igennem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00068",
+      "input": "Jeg har ikke set meget til ham på det seneste.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00069",
+      "input": "Jeg kan ikke sove om natten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00070",
+      "input": "Må jeg tage med dig?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00071",
+      "input": "Jeg har ikke mødt ham.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00072",
+      "input": "Jeg skal nok holde det hemmeligt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00073",
+      "input": "Uret virker ikke.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00074",
+      "input": "Mit ur skal repareres.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00075",
+      "input": "Går dit ur rigtigt?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00076",
+      "input": "Mit ur går rigtigt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00077",
+      "input": "Hvor er mit ur?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00078",
+      "input": "Der hænger et ur på væggen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00079",
+      "input": "Hvad er klokken på dit ur?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00080",
+      "input": "Hun gav katten mælk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00081",
+      "input": "Katten sover på stolen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00082",
+      "input": "Er det en kat eller en hund?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00083",
+      "input": "Hendes øjne minder mig om en kats.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00084",
+      "input": "I køkkenet er der en kat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00085",
+      "input": "På bordet var der en kat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00086",
+      "input": "Kattens tunge føles ru.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00087",
+      "input": "Hun har en kat. Katten er hvid.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00088",
+      "input": "Er katten på stolen eller under stolen?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00089",
+      "input": "Når katten er ude, danser musene på bordet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00090",
+      "input": "Jeg har en kat og en hund. Katten er sort og hunden er hvid.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00091",
+      "input": "Der sad en kat på stolen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00092",
+      "input": "Katten er meget sød.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00093",
+      "input": "\"En kat?\", spurgte den gamle mand.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00094",
+      "input": "Min kat er faktisk sky.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00095",
+      "input": "Katten er tyve dage gammel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00096",
+      "input": "Hans gamle kat lever endnu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00097",
+      "input": "Det er min kat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00098",
+      "input": "Denne by kaldes det japanske Danmark.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00099",
+      "input": "Island hørte tidligere til Danmark.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00100",
+      "input": "Island hørte til Danmark.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00101",
+      "input": "Udbred esperanto!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00102",
+      "input": "Jeg kan tale esperanto som en indfødt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00103",
+      "input": "Esperanto er helt sikkert et enormt tidsspilde!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00104",
+      "input": "Esperanto er et internationalt plansprog.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00105",
+      "input": "På esperanto ender navneord på \"o\". Flertal dannes ved at tilføje \"j\".",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00106",
+      "input": "På esperanto ender tillægsord på \"a\". Flertal dannes ved at tilføje \"j\".",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00107",
+      "input": "På esperanto ender et afledet biord på \"e\".",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00108",
+      "input": "Min onkel bor nær skolen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00109",
+      "input": "Anna kan de første tusind cifre af π udenad.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00110",
+      "input": "Er du sikker på at du ikke har glemt noget?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00111",
+      "input": "Forresten, spiller du violin?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00112",
+      "input": "Nå, jeg må gå nu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00113",
+      "input": "Endelig fik de sandheden at vide.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00114",
+      "input": "Jeg forstår ikke tysk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00115",
+      "input": "Du må bestemme dig og det straks.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00116",
+      "input": "Jeg bor på hotellet for tiden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00117",
+      "input": "Her til morgen skar jeg mig under barberingen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00118",
+      "input": "Ingen ved, hvorfor han forlod byen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00119",
+      "input": "Jeg er træt af at se fjernsyn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00120",
+      "input": "Betaler du med kontanter eller med check?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00121",
+      "input": "Vand blomsterne før du spiser morgenmad.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00122",
+      "input": "Vi laver alle fejl.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00123",
+      "input": "Hendes navn er Lucifera.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00124",
+      "input": "Hvad laver denne stol her?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00125",
+      "input": "De to søskende, Niklas og Ana, spiller skak i samdrægtighed.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00126",
+      "input": "Jeg kæmpede mod søvnen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00127",
+      "input": "Først i går fik vi det at vide.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00128",
+      "input": "Eleverne skal være stille i timen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00129",
+      "input": "Chokolade smager sødt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00130",
+      "input": "Et bjerg er ikke nødvendigvis grønt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00131",
+      "input": "Fysik interesserer mig slet ikke.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00132",
+      "input": "Sover du i gæsteværelset?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00133",
+      "input": "Jeg har ikke adressen ved mig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00134",
+      "input": "Et internationalt sprog ville være til stor nytte for menneskeheden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00135",
+      "input": "Varme er en form for energi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00136",
+      "input": "Hvem ønsker varm chokolade?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00137",
+      "input": "Hvem skrev denne bog?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00138",
+      "input": "Hver gang jeg ser dette foto, mindes jeg de lykkelige dage på landet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00139",
+      "input": "Jeg elsker hende ikke længere.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00140",
+      "input": "Han sagde godnat til sine forældre.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00141",
+      "input": "Hvornår skete hændelsen?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00142",
+      "input": "Hvor længe skal jeg endnu blive på sygehuset?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00143",
+      "input": "Han forklarede detaljeret, hvad han havde set.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00144",
+      "input": "Længe troede filosofferne, at viden var sand, begrundet overbevisning.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00145",
+      "input": "Ring til politiet!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00146",
+      "input": "Hvem passede hunden, da du ikke var hjemme?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00147",
+      "input": "Hun fortalte mig en interessant historie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00148",
+      "input": "Du havde masser af tid.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00149",
+      "input": "Del dens længde og bredde med ti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00150",
+      "input": "Dine øjne minder mig om stjerner.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00151",
+      "input": "Sneen dækkede bussen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00152",
+      "input": "Jim Carrey er en meget berømt og god komiker.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00153",
+      "input": "Hvad er det, at han er så gal over?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00154",
+      "input": "Vi håber på godt vejr til sportsarrangementet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00155",
+      "input": "Tal venligst langsommere.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00156",
+      "input": "Det regnede hele eftermiddagen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00157",
+      "input": "Han vendte tilbage fra Amerika.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00158",
+      "input": "Jeg ville have brug for en evighed for at forklare alt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00159",
+      "input": "Hun havde efterladt sin søn alene i bilen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00160",
+      "input": "Det kommer der ikke noget godt ud af.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00161",
+      "input": "Jeg har endnu en ven i Kina.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00162",
+      "input": "Jeg ønsker, at hun ville holde op med at ryge.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00163",
+      "input": "Hvilke sko tager du på?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00164",
+      "input": "Da jeg kom hjem, opdagede jeg, at jeg havde mistet min pung.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00165",
+      "input": "Min mor er udenfor.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00166",
+      "input": "Hvor er dit hus?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00167",
+      "input": "Det er den smukkeste buket, jeg nogensinde har set.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00168",
+      "input": "Jeg har en bog i min hånd.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00169",
+      "input": "Bill har været i Japan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00170",
+      "input": "Politiet interesserede sig for sagen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00171",
+      "input": "Linje tolv standser i nærheden af operahuset.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00172",
+      "input": "Der ligger problemet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00173",
+      "input": "Jeg har været her hele tiden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00174",
+      "input": "Vi går i skole for at lære.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00175",
+      "input": "Denne her maskine laver strøm.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00176",
+      "input": "Hans cykel er blå.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00177",
+      "input": "Jeg bor i Akasaka i Tokyo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00178",
+      "input": "Vær så venlig at lave en kop kaffe til mig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00179",
+      "input": "Jern er et nyttigt metal.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00180",
+      "input": "Mord straffes med døden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00181",
+      "input": "Hvad i alverden laver du her?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00182",
+      "input": "Hvordan har du det? Havde du en god rejse?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00183",
+      "input": "\"Er du træt?\" \"Nej, slet ikke.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00184",
+      "input": "Hvad tror du, hun vil gøre?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00185",
+      "input": "Æbletræerne voksede sig gamle og nye blev plantet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00186",
+      "input": "Kan du ikke lide æbler?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00187",
+      "input": "Sørg for at hunden ikke slipper fri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00188",
+      "input": "Du kan købe den hund hvis du vil. Den er til salg.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00189",
+      "input": "Jeg kan lide hunden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00190",
+      "input": "Jeg fandt det let at finde bygningen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00191",
+      "input": "Ferien er nu forbi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00192",
+      "input": "Det er usikkert om han kommer eller ej.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00193",
+      "input": "Jeg ved ikke om han kommer eller ikke.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00194",
+      "input": "Det gør ingen forskel, om han kommer eller ikke.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00195",
+      "input": "Jeg tvivler på om han kommer.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00196",
+      "input": "Jeg ved ikke om han kommer eller ej.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00197",
+      "input": "Det gør ingen forskel om han kommer eller ej.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00198",
+      "input": "At han kommer, er sikkert.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00199",
+      "input": "Jeg håber at han vil komme.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00200",
+      "input": "Det er sikkert at han kommer.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00201",
+      "input": "Jeg vil vente her indtil han kommer.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00202",
+      "input": "Vent her indtil han kommer.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00203",
+      "input": "Er der nogen mulighed for at han kommer?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00204",
+      "input": "Det er en skam, at han ikke kan komme.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00205",
+      "input": "Han fik lukket for vandet, fordi han ikke betalte regningen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00206",
+      "input": "Det er åbenlyst for enhver at han er forelsket.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00207",
+      "input": "Pigen, han taler med, er Nancy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00208",
+      "input": "Taler han engelsk, fransk eller tysk?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00209",
+      "input": "Hvem er den herre, han taler med?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00210",
+      "input": "Problemet er at jeg ingen penge har på mig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00211",
+      "input": "Så hvad om jeg er bøsse? Er det en forbrydelse?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00212",
+      "input": "Jeg vil låne dig de få penge jeg har på mig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00213",
+      "input": "Jeg er ikke så god til tennis.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00214",
+      "input": "Min ven er ved at lære koreansk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00215",
+      "input": "Hun har blå øjne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00216",
+      "input": "Dette er en japansk dukke.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00217",
+      "input": "Hvad kaldes denne fisk på engelsk?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00218",
+      "input": "Spiser du morgenmad hjemme?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00219",
+      "input": "Jeg vil hjælpe dig så meget jeg kan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00220",
+      "input": "Hvad er det lavet af?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00221",
+      "input": "Hvilket hus kan du bedst lide?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00222",
+      "input": "Hvilken frugt er rød?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00223",
+      "input": "Hvilken frugt er grøn?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00224",
+      "input": "Jeg er et menneske med mange fejl, men det er fejl der let kan rettes.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00225",
+      "input": "Jeg elsker dig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00226",
+      "input": "\"Må jeg komme ind?\" \"Ja, værsgo.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00227",
+      "input": "Jeg er stadig optaget.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00228",
+      "input": "Tak for din gave.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00229",
+      "input": "Han er taget til Østrig for at studere musik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00230",
+      "input": "Du er den smukkeste blomst i mit liv.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00231",
+      "input": "Jeg tager oftere til Bruxelles end til Paris.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00232",
+      "input": "Hvis du sagde: \"Jeg elsker dig\", så ville jeg også sige det samme til dig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00233",
+      "input": "Du kan ikke svømme her.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00234",
+      "input": "Kan du tale fransk?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00235",
+      "input": "Hun er meget bange for slanger.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00236",
+      "input": "Latin er et dødt sprog.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00237",
+      "input": "Jeg har været i supermarkedet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00238",
+      "input": "Jeg holder meget af hende.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00239",
+      "input": "Til hvad skal du bruge penge?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00240",
+      "input": "Jeg sendte ham et brev for at meddele ham min beslutning.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00241",
+      "input": "Når han kommer, betaler jeg de penge som jeg lovede.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00242",
+      "input": "Hvorfor malede du bænken rød?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00243",
+      "input": "Hun er i badeværelset.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00244",
+      "input": "Fuji-bjerget er et smukt syn ved solnedgang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00245",
+      "input": "USAs hovedstad er Washington.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00246",
+      "input": "Han døde i går.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00247",
+      "input": "Faren gik ud for at fiske.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00248",
+      "input": "Jeg er ikke rig og ønsker ikke at være det.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00249",
+      "input": "Han tog barnet ved hånden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00250",
+      "input": "Hun sagde: \"Jeg er meget tilfreds.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00251",
+      "input": "Hvad er vekselkursen?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00252",
+      "input": "Livet er kort, kunsten lang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00253",
+      "input": "Kunsten er lang, livet er kort.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00254",
+      "input": "Han kender os meget godt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00255",
+      "input": "Den, der sår vind, høster storm.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00256",
+      "input": "Jeg kan heller ikke forklare det.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00257",
+      "input": "Han interesserer sig slet ikke for kunst.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00258",
+      "input": "Hvorledes kan vi være sikker på hans ærlighed?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00259",
+      "input": "Jeg har lige set, at Saudi-Arabiens ambassadør i Washington er trådt tilbage.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00260",
+      "input": "Dengang besøgte vi Washington, D.C., USAs hovedstad.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00261",
+      "input": "Tak for dit svar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00262",
+      "input": "Døren var låst, så jeg kunne ikke komme ind.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00263",
+      "input": "Jeg hjælper dig selvfølgelig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00264",
+      "input": "Du kan ikke løfte pianoet alene.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00265",
+      "input": "At ryge er skadeligt for helbredet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00266",
+      "input": "Far vander blomsterne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00267",
+      "input": "Hvad får jeg ud af det?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00268",
+      "input": "Kræft er menneskehedens store fjende.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00269",
+      "input": "Han er ikke min søn, men min nevø.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00270",
+      "input": "Vær så venlig at give mig et glas vand.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00271",
+      "input": "Jeg skal købe nye ski.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00272",
+      "input": "Toget ankom til Kyoto til tiden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00273",
+      "input": "Det sneede i dagevis.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00274",
+      "input": "Vi har brug for en ambulance.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00275",
+      "input": "Enhver by i USA har et bibliotek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00276",
+      "input": "Nemmere sagt end gjort.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00277",
+      "input": "Takket være dig har jeg mistet min appetit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00278",
+      "input": "Den første gruppe studerer om morgenen, den anden om aftenen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00279",
+      "input": "Sommeren er forbi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00280",
+      "input": "\"Er hun ung?\" \"Ja, det er hun.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00281",
+      "input": "Hendes hænder er kolde som is.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00282",
+      "input": "Bogen er meget interessant.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00283",
+      "input": "Spørg ham, hvornår han kommer tilbage.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00284",
+      "input": "Jeg foretrækker engelsk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00285",
+      "input": "Hvad er dit telefonnummer?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00286",
+      "input": "Min kære lille kat har nu været væk i en uge.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00287",
+      "input": "Sig mig hvad jeg skal gøre ved det.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00288",
+      "input": "Enhver har sin egen smag.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00289",
+      "input": "Smag kan ikke diskuteres.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00290",
+      "input": "Vær så venlig at vise mig det på planen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00291",
+      "input": "Tager du til Tokyo med bus?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00292",
+      "input": "Vil du være så venlig at gentage det?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00293",
+      "input": "Så kommer bussen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00294",
+      "input": "Jeg er overhovedet ikke interesseret i fysik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00295",
+      "input": "Jeg er træt af at høre det.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00296",
+      "input": "Jeg bor i Hyogo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00297",
+      "input": "Jeg studerer på universitetet i Hyogo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00298",
+      "input": "Jeg sover i gennemsnit seks timer om dagen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00299",
+      "input": "Jeg har hvid skjorte på til hverdag.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00300",
+      "input": "Jeg er amerikaner.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00301",
+      "input": "Jeg har en stor bogsamling med amerikansk litteratur.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00302",
+      "input": "Jeg er bange for, at jeg ikke er den store musiker.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00303",
+      "input": "Jeg kan ikke li' at studere.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00304",
+      "input": "Jeg kan ikke lide at studere.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00305",
+      "input": "Det er ikke raketvidenskab.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00306",
+      "input": "Du skal ikke bekymre dig om os.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00307",
+      "input": "Han har mistet alle sine penge.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00308",
+      "input": "Jeg er en måge.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00309",
+      "input": "Vil du læse mit essay og rette fejlene, såfremt der er nogle?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00310",
+      "input": "Hvad er forskellen mellem det her og det der?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00311",
+      "input": "Tænd lyset. Jeg kan ikke se noget.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00312",
+      "input": "Messing er en legering af kobber og zink.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00313",
+      "input": "Er du for eller imod abort?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00314",
+      "input": "Vi har hørt ham råbe om hjælp.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00315",
+      "input": "Jeg vil gå i bad.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00316",
+      "input": "Kryds fingre for mig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00317",
+      "input": "Alle veje fører til Rom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00318",
+      "input": "Hun tog til Amerika i forgårs.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00319",
+      "input": "Jeg råder dig til at tage hjem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00320",
+      "input": "Der er en flaske vin på bordet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00321",
+      "input": "Du behøver ikke stå op så tidligt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00322",
+      "input": "Tager du med toget eller kører du i bil?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00323",
+      "input": "Vi gifter os i juni måned.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00324",
+      "input": "Da programmet sluttede, slukkede vi for radioen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00325",
+      "input": "Jeg undskylder. Jeg trækker mine ord tilbage.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00326",
+      "input": "Manden, der var ved at drukne, råbte efter hjælp, men forgæves.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00327",
+      "input": "På dette tilbud gives der ikke de sædvanlige rabatter.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00328",
+      "input": "Jeg har en ven som elsker mig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00329",
+      "input": "Læs så mange bøger som muligt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00330",
+      "input": "Hvornår og hvor modtog du gaven?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00331",
+      "input": "I dag er det min søsters fødselsdag.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00332",
+      "input": "Jeg skyndte mig for ikke at komme for sent til toget.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00333",
+      "input": "Japanerne bør ikke glemme, at USA er en multietnisk nation.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00334",
+      "input": "Vi er hjemme i dag.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00335",
+      "input": "Alt hvad du sagde i e-mailen er rigtigt, bortset fra prisen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00336",
+      "input": "Må jeg låne din telefon?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00337",
+      "input": "Jeg kan høre noget.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00338",
+      "input": "I dag er det ikke usædvanlig for en kvinde at rejse alene.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00339",
+      "input": "Hvordan går det?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00340",
+      "input": "Hun er jævnaldrende med dig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00341",
+      "input": "Jeg håber, at du snart får det bedre.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00342",
+      "input": "I New Zealand taler man engelsk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00343",
+      "input": "Jeg købte to flasker mælk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00344",
+      "input": "Han kan gøre det meget bedre end jeg kan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00345",
+      "input": "Jeg var ikke i stand til at styre min vrede.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00346",
+      "input": "Er dine hænder rene?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00347",
+      "input": "Den virker mod bakterielle infektioner.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00348",
+      "input": "Hvornår tager du hjem?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00349",
+      "input": "Godt begyndt er halvt fuldendt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00350",
+      "input": "Jeg var på vej ud da telefonen ringede.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00351",
+      "input": "Tom er ældre end mig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00352",
+      "input": "Hr. Brown er vores finansrådgiver.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00353",
+      "input": "Engelsk er ikke mit modersmål.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00354",
+      "input": "Maskinen var dækket af støv.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00355",
+      "input": "Tålmodighed er videnskabens moder.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00356",
+      "input": "John er jævnaldrende med min bror.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00357",
+      "input": "Vi har hørt hende råbe om hjælp.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00358",
+      "input": "Man havde hørt hende råbe om hjælp.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00359",
+      "input": "Man havde hørt ham råbe om hjælp.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00360",
+      "input": "Det er ikke hvad jeg bestilte.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00361",
+      "input": "Jeg elsker både katte og hunde.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00362",
+      "input": "Sikke en kæmpestor hund!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00363",
+      "input": "En hund gør af fremmede personer.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00364",
+      "input": "Hvilken hund er din?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00365",
+      "input": "Vores hund, som hedder John, gør af alle.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00366",
+      "input": "Hunden kaldes 'Spot' af familien.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00367",
+      "input": "Hvor gammel er denne hund?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00368",
+      "input": "En hund løb efter en kat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00369",
+      "input": "En hund er en mands bedste ven.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00370",
+      "input": "Hvor fandt han pengene?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00371",
+      "input": "Computeren er ny.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00372",
+      "input": "Åh! Min computer er i stykker!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00373",
+      "input": "Computeren er en kompliceret maskine.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00374",
+      "input": "Computeren sparer os tid og problemer.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00375",
+      "input": "En computer er i stand til at regne meget hurtigt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00376",
+      "input": "En computer er en kompleks maskine.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00377",
+      "input": "Min Gud! Min computer er frosset igen!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00378",
+      "input": "Sommeren er ovre.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00379",
+      "input": "Om efteråret gulner bladene.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00380",
+      "input": "Vinter er min yndlingsårstid.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00381",
+      "input": "Vinter er min foretrukne årstid.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00382",
+      "input": "Om vinteren føler jeg mig mere træt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00383",
+      "input": "Ifølge langtidsprognosen er der udsigt til en mild vinter.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00384",
+      "input": "Efter vinteren følger foråret.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00385",
+      "input": "I år er vinteren meget mild, ikke? Det er meget behageligt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00386",
+      "input": "Foråret er kommet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00387",
+      "input": "Mange blomster begynder at blomstre om foråret.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00388",
+      "input": "Foråret er min yndlingsårstid.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00389",
+      "input": "Foråret kommer snart.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00390",
+      "input": "Livets forår er kort.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00391",
+      "input": "Snart er det forår.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00392",
+      "input": "Foråret er min foretrukne årstid.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00393",
+      "input": "Efter vinteren kommer foråret.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00394",
+      "input": "Jeg er sulten som en ulv.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00395",
+      "input": "Stig ned fra hesten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00396",
+      "input": "Egentlig ville jeg gerne være en frøken i et tårn, bevogtet af syv drager, og så ville en prins på en hvid hest halshugge alle dragerne og befri mig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00397",
+      "input": "Man skal ikke skue given hest i munden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00398",
+      "input": "Bambus bøjer sig i vinden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00399",
+      "input": "Jeg åbnede æsken - den var tom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00400",
+      "input": "Der var to kager.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00401",
+      "input": "Jeg var alene i klasseværelset.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00402",
+      "input": "Der var ingen i haven.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00403",
+      "input": "Der var jo en hjemmeopgave, der skulle laves.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00404",
+      "input": "Alt var meget velsmagende!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00405",
+      "input": "De var altid gode venner.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00406",
+      "input": "Her har der engang været en kirke.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00407",
+      "input": "Oh, du har været ved frisøren!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00408",
+      "input": "Det er et langt brev.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00409",
+      "input": "Smerten var for ham uudholdelig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00410",
+      "input": "Jeg svømmede hurtigere, da jeg var yngre.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00411",
+      "input": "Det var meget svært.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00412",
+      "input": "Var han i Hokkaido sidste år?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00413",
+      "input": "Jeg lærte at køre bil, da jeg var atten og jeg fik mit kørekort.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00414",
+      "input": "Jeg var i bjergene.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00415",
+      "input": "Har du nogensinde været i udlandet?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00416",
+      "input": "Det var sådan en smuk dag, at vi besluttede os for at tage på picnic.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00417",
+      "input": "Mange soldater blev dræbt her.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00418",
+      "input": "Har du nogensinde været i Venedig?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00419",
+      "input": "Da jeg var barn, kunne jeg sove overalt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00420",
+      "input": "Vi var alle trætte.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00421",
+      "input": "Vi var i fare for at miste livet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00422",
+      "input": "Indtil nu har de været gode naboer.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00423",
+      "input": "Det var min tur til at rengøre værelset.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00424",
+      "input": "Det var min tur til at gøre rent i værelset.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00425",
+      "input": "Hvordan var vejret i går?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00426",
+      "input": "Hendes mor havde tre sønner, af hvilke han var den yngste.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00427",
+      "input": "Jeg dumpede eksamen fordi jeg ikke læste.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00428",
+      "input": "Hvor er det en trist historie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00429",
+      "input": "Hun sagde, \"Hvor ser han selvsikker ud!\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00430",
+      "input": "Sikke en ond fyr.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00431",
+      "input": "Jeg vidste ikke hvad jeg skulle sige, så jeg sagde ingen ting.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00432",
+      "input": "Sikke en stor hund!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00433",
+      "input": "Sikke en vidunderlig opfindelse!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00434",
+      "input": "Sikke et dejligt dyr!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00435",
+      "input": "Sikke en tung taske!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00436",
+      "input": "Når hun bliver voksen, vil hun blive en berømt pianist.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00437",
+      "input": "Når hun bliver voksen, vil hun blive en berømt pianistinde.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00438",
+      "input": "Jeg vil være der i morgen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00439",
+      "input": "Hun bliver sytten til februar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00440",
+      "input": "Jeg vil være hos dig, straks efter at jeg bliver færdigt med dette arbejde.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00441",
+      "input": "Alt, som kan misforstås, vil blive misforstået.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00442",
+      "input": "Han bliver muligvis aldrig berømt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00443",
+      "input": "Når jeg bliver stor, vil jeg være konge.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00444",
+      "input": "Det syntes, at endelig ville striden blive grundigt uddiskuteret, da Marko hældte olie på bålet ved at løfte spørgsmålet om hvem der var den skyldige.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00445",
+      "input": "I går var det fredag, og i overmorgen er det mandag.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00446",
+      "input": "Volleyballspilleren vil formodentlig blive straffet for at komme for sent til kampen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00447",
+      "input": "Døren bliver malet i morgen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00448",
+      "input": "Hvor er du i morgen ved denne tid?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00449",
+      "input": "Latin er fremtidens sprog!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00450",
+      "input": "Tag denne jakke på og du vil få det meget varmere.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00451",
+      "input": "Dette program vil længe blive husket.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00452",
+      "input": "Dette er Hr. Millers nyeste bog, og vi håber at det ikke bliver hans sidste.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00453",
+      "input": "I morgen er det mors dag.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00454",
+      "input": "I morgen er det søndag.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00455",
+      "input": "Snart er det min fødselsdag.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00456",
+      "input": "Han vil blive en god ægtefælle.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00457",
+      "input": "Han vil blive en god ægtemand.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00458",
+      "input": "Der er ingen tvivl om hvem der bliver valgt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00459",
+      "input": "Hun kunne ikke komme, fordi hun var syg.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00460",
+      "input": "Han tabte sin tegnebog, og nu er det min.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00461",
+      "input": "Hvad tid begynder det?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00462",
+      "input": "Hvad tid ankommer vores tog til Hakata?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00463",
+      "input": "Jeg havde boet i Sendai i ti år, før jeg kom til Tokyo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00464",
+      "input": "Jeg foretrækker at gå, frem for at køre, i en storby som Tokyo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00465",
+      "input": "Jeg bor hos min onkel i Tokyo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00466",
+      "input": "Jeg har en returbillet til Tokyo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00467",
+      "input": "Jeg er fra Tokyo.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00468",
+      "input": "Jeg ville hellere sulte ihjel end stjæle.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00469",
+      "input": "Jeg tog det for givet, at du var bekendt med faren.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00470",
+      "input": "Jeg tager det for givet at mit svar er korrekt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00471",
+      "input": "Jeg tager det for givet at folk er ærlige.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00472",
+      "input": "Jeg tog det for givet at hun havde modtaget mit brev.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00473",
+      "input": "Jeg tog det for givet at hun ville komme.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00474",
+      "input": "Den eneste forskel mellem mig og en tosse er at jeg ikke er tosset.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00475",
+      "input": "Vær så venlig ikke at ryge.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00476",
+      "input": "Denne kaffe er for bitter.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00477",
+      "input": "Jones blev født i USA.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00478",
+      "input": "Jones blev født i De Forenede Stater.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00479",
+      "input": "Hvorfor tog du til Japan?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00480",
+      "input": "Jeg ville hellere være en fugl end en fisk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00481",
+      "input": "Havet deler Irland fra England.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00482",
+      "input": "Vær så venlig at give flere eksempler på det.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00483",
+      "input": "Hun er på diæt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00484",
+      "input": "Jeg var sulten og tørstig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00485",
+      "input": "Har jeg ikke ret?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00486",
+      "input": "Jeg håber du ringer igen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00487",
+      "input": "Hvis ide var det?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00488",
+      "input": "Kan du lide denne farve?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00489",
+      "input": "Så er det din tur.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00490",
+      "input": "Du skal følge loven.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00491",
+      "input": "Her er det varmt hele året.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00492",
+      "input": "Ingen så fuglen flyve.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00493",
+      "input": "Sne minder mig om min hjemby.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00494",
+      "input": "Jeg antager at det er klogest ikke at være uhøflig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00495",
+      "input": "Ellers tak. Jeg kigger bare.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00496",
+      "input": "Jeg prøver på at tabe mig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00497",
+      "input": "Kan jeg betale med kreditkort?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00498",
+      "input": "Han er ikke sig selv i dag.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00499",
+      "input": "Hun er en ung pige omtrent på din alder.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00500",
+      "input": "Tager I imod kreditkort?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00501",
+      "input": "Tager du imod kreditkort?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00502",
+      "input": "Her er min nøgle.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00503",
+      "input": "Lyv ikke. Vær ærlig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00504",
+      "input": "Han ligner sin far.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00505",
+      "input": "Jeg havde besvær med at overbevise hende om rygningens farer.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00506",
+      "input": "Læreren sad på stolen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00507",
+      "input": "Hun elsker Tom, ikke mig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00508",
+      "input": "Jeg tror at der eksisterer spøgelser.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00509",
+      "input": "Hvor så du disse kvinder?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00510",
+      "input": "Hvor har du set disse kvinder?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00511",
+      "input": "At vågne op er det modsatte af at falde i søvn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00512",
+      "input": "Jeg har hang til eventyr.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00513",
+      "input": "Disse nye biler er til salg.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00514",
+      "input": "Mit mål er at blive læge.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00515",
+      "input": "Hvor meget vil det koste?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00516",
+      "input": "Hvor meget kommer det til at koste?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00517",
+      "input": "Vægge har ører.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00518",
+      "input": "Han pressede sit øre mod væggen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00519",
+      "input": "Billedet hænger nu på væggen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00520",
+      "input": "Der er et landkort på væggen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00521",
+      "input": "Han kastede bolden mod muren.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00522",
+      "input": "Av, kaffen er brandvarm!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00523",
+      "input": "Drengen befriede en fugl fra buret.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00524",
+      "input": "Lav ikke støj her.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00525",
+      "input": "Det er ikke dit hæfte, det er hans.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00526",
+      "input": "Du har ikke set noget.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00527",
+      "input": "Kan jeg låne din bil i dag?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00528",
+      "input": "Det er sent, jeg må gå.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00529",
+      "input": "I skoven mødte hun to fremmede.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00530",
+      "input": "Han underviser i arabisk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00531",
+      "input": "Han er kun en amatør.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00532",
+      "input": "Mit navn er Hopkins.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00533",
+      "input": "Jeg hedder Hopkins.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00534",
+      "input": "Det er lang tid siden, at jeg har set ham.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00535",
+      "input": "Jeg har ikke set ham længe.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00536",
+      "input": "Hun har smukke øjne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00537",
+      "input": "De kører med bil til stationen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00538",
+      "input": "Kom tidligt hjem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00539",
+      "input": "Jeg drikker ikke meget øl.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00540",
+      "input": "Haglen har ødelagt afgrøderne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00541",
+      "input": "Den er snart parat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00542",
+      "input": "Så vidt jeg ved, er hr. Suzuki endnu ikke kommet tilbage fra Hawaii.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00543",
+      "input": "Hun er lige gået ud.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00544",
+      "input": "Han løj overfor mig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00545",
+      "input": "Du vil aldrig være alene.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00546",
+      "input": "Ræk mig mine briller.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00547",
+      "input": "Hendes sympati er kun tilsyneladende.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00548",
+      "input": "Han lovede mig at komme tidligt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00549",
+      "input": "Jeg er gammel nok til at bo for mig selv.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00550",
+      "input": "Tog du til Kairo eller til Alexandria?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00551",
+      "input": "Enhver tænker på at ændre verden, men ingen tænker på at ændre sig selv.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00552",
+      "input": "Han bor her ikke længere.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00553",
+      "input": "De kan producere de samme varer meget billigere.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00554",
+      "input": "Butikken forhøjede alle priser.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00555",
+      "input": "Einstein kunne lide at spille violin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00556",
+      "input": "Hun gik tilbage til sit kontor straks efter mødet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00557",
+      "input": "Denne saks klipper godt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00558",
+      "input": "Mor købte en smuk kjole til mig i søndags.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00559",
+      "input": "Efter ægtefællens død, opdrog hun sine to børn alene.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00560",
+      "input": "Han blev rød i hovedet af raseri.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00561",
+      "input": "Vi fik meget sne i denne her vinter.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00562",
+      "input": "Vi ved at hun blev født i Canada.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00563",
+      "input": "Vi lever i den anden halvdel af det tyvende århundrede.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00564",
+      "input": "Giv ikke flere penge til et barn, end det behøver.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00565",
+      "input": "Jeg kan slet ikke noget fransk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00566",
+      "input": "Jeg traf ham første gang for tre år siden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00567",
+      "input": "Han taler som om han var rig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00568",
+      "input": "Hvad havde verden været uden kvinder?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00569",
+      "input": "Det ville have glædet ham at høre det.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00570",
+      "input": "Jeg troede at han var læge.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00571",
+      "input": "Kommer hun? Det vil være godt hvis hun kom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00572",
+      "input": "Hvor kommer du fra?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00573",
+      "input": "Jeg tænker på at tage til Canada i det kommende år.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00574",
+      "input": "Januar er årets første måned.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00575",
+      "input": "Dette bjerg er dækket af sne hele året.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00576",
+      "input": "Ved du hvor mange mennesker der dør af sult i hele verden om året?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00577",
+      "input": "Ved I hvor mange mennesker der dør af sult i hele verden om året?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00578",
+      "input": "December er årets sidste måned.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00579",
+      "input": "Et år har tolv måneder.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00580",
+      "input": "Det er usædvanlig at det sner på denne tid af året.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00581",
+      "input": "I dag er det den varmeste dag i dette år.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00582",
+      "input": "Dommeren dømte ham til et års fængsel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00583",
+      "input": "Det er et foto af en abe i forbindelse med Abens År.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00584",
+      "input": "Jeg holdt op med at ryge for et år siden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00585",
+      "input": "Bob blev forlovet med Mary for over et år siden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00586",
+      "input": "Det har regnet meget i den forgangne måned.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00587",
+      "input": "Hvor mange bøger læser du om måneden?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00588",
+      "input": "Jeg går til frisøren en gang om måneden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00589",
+      "input": "I Paris har jeg lejet et værelse for en måned.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00590",
+      "input": "Jeg skal bo hos min onkel i en måned.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00591",
+      "input": "John skriver til sine forældre en gang om måneden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00592",
+      "input": "Jeg har ikke noget imod at låne dig penge såfremt du betaler dem tilbage inden for en måned.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00593",
+      "input": "Jeg har en kat og en hund.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00594",
+      "input": "Vi har en kat. Vi kan lide alle katte.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00595",
+      "input": "Kan du lide en sort kat?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00596",
+      "input": "Min bror kaldte sin kat for Hanako.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00597",
+      "input": "Barnet kærtegner katten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00598",
+      "input": "Barnet aer katten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00599",
+      "input": "Jeg skal bade min kat i dag.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00600",
+      "input": "Hunden løb efter katten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00601",
+      "input": "I går købte jeg katten i sækken.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00602",
+      "input": "Hun har en kat. Denne kat er hvid.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00603",
+      "input": "Jeg ville foretrække en kat frem for en hund.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00604",
+      "input": "Nysgerrighed dræbte katten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00605",
+      "input": "Jeg har ikke en kat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00606",
+      "input": "Vi har en kat. Vi kan alle lide katte.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00607",
+      "input": "Katten leger med en levende mus.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00608",
+      "input": "En bils hestekræfter er til ingen nytte, hvis der sidder et æsel ved rattet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00609",
+      "input": "Jesus blev født af Maria.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00610",
+      "input": "\"Elsk din næste som dig selv\" er et citat fra Bibelen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00611",
+      "input": "Demokrati bør være mere end to ulve og et får, der stemmer om hvad aftensmaden skal bestå af.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00612",
+      "input": "Fred være med dig!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00613",
+      "input": "Fred være med jer!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00614",
+      "input": "Gud være med os.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00615",
+      "input": "Bøden skal betales kontant.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00616",
+      "input": "Vær ikke for streng ved dig selv!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00617",
+      "input": "Tro dem, som søger sandheden, tag dig i agt for dem, som har fundet den.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00618",
+      "input": "Vær flink og sluk radioen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00619",
+      "input": "Vær ikke for afhængig af andre.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00620",
+      "input": "En, to, tre, fire, fem, seks, syv, otte, ni, ti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00621",
+      "input": "En for alle, alle for en.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00622",
+      "input": "Alle mennesker er født frie og lige i værdighed og rettigheder. De er udstyret med fornuft og samvittighed, og de bør handle mod hverandre i en broderskabets ånd.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00623",
+      "input": "Vi har kendt hinanden i mange år.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00624",
+      "input": "Det er en af min fars elever.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00625",
+      "input": "Én svale gør ingen sommer.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00626",
+      "input": "John og Ann holder af hinanden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00627",
+      "input": "Denne sø er en af landets dybeste.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00628",
+      "input": "Jeg skal ud at handle ind; jeg kommer tilbage om en time.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00629",
+      "input": "Et, to, tre, fire, fem, seks, syv, otte, ni, ti.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00630",
+      "input": "Ethvert menneske er en verden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00631",
+      "input": "Jeg ventede på ham i en time.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00632",
+      "input": "En million mennesker mistede livet i krigen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00633",
+      "input": "Hun har to sønner, en er læge, den anden er tandlæge.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00634",
+      "input": "Alle arbejdere undtagen en gik hjem igen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00635",
+      "input": "En af mine venner kender dig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00636",
+      "input": "Dette ugeblad udkommer en gang om ugen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00637",
+      "input": "Jeg har boet mere end en måned i Nagoya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00638",
+      "input": "For en uge siden fødte hun tvillinger.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00639",
+      "input": "En af mine venner kommer fra udlandet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00640",
+      "input": "Jeg har to sønner, den ene er i Tokyo, den anden i Nagoya.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00641",
+      "input": "Han er dødssyg; han lever ikke en dag til.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00642",
+      "input": "Jeg ramte to mål med en sten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00643",
+      "input": "Hun dumpede til eksamen og det skuffede mig meget.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00644",
+      "input": "De har alle samme størrelse.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00645",
+      "input": "Hans næse bløder.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00646",
+      "input": "Jeg mødte Tom på vej til skolen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00647",
+      "input": "Men vi kan ikke forstå ham.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00648",
+      "input": "Jeg beklager at jeg ikke har svaret dig tidligere.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00649",
+      "input": "Det tog kirurgen otte timer at udføre operationen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00650",
+      "input": "GMO-produkter er farlige for mennesket.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00651",
+      "input": "Det er farligt at lege nær ved ilden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00652",
+      "input": "Rygning er dårligt for helbredet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00653",
+      "input": "To sjæle, en tanke.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00654",
+      "input": "Det er vanskelig at vænne sig af med at ryge.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00655",
+      "input": "Drik ikke når du kører bil!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00656",
+      "input": "Jeg har ikke en cd-afspiller, men jeg har købt cd'en.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00657",
+      "input": "Jeg sværger at jeg aldrig ville have gjort sådan noget.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00658",
+      "input": "Jeg tvivler på at jeg er en god forfatter.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00659",
+      "input": "Han er lige nu på arbejdet, men han kommer tilbage ved syvtiden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00660",
+      "input": "Det var pokkers! Det er ikke dårligt!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00661",
+      "input": "Vær så venlig at følge med mig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00662",
+      "input": "Hvis du var min kone, ville jeg hænge mig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00663",
+      "input": "Vi kan rejse gennem tiden. Og vi gør det med den bemærkelsesværdige hastighed af et sekund per sekund.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00664",
+      "input": "Det, som du ikke har, er bedre end det, som du har.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00665",
+      "input": "Det du ikke har, er bedre end det du har.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00666",
+      "input": "Jeg har ikke penge, men jeg har en drøm.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00667",
+      "input": "Min søster har to sønner, så jeg har to nevøer.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00668",
+      "input": "\"Hvor gammel er hun?\" - \"Hun er tolv år.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00669",
+      "input": "Jeg har kun halvt så mange bøger som han har.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00670",
+      "input": "Har du en ide om hvor mange indbyggere der er i Tokyo?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00671",
+      "input": "Jeg har fem gange så mange frimærker som han har.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00672",
+      "input": "Han har lige så mange bøger som hans far.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00673",
+      "input": "Han har lige så mange bøger som hans far har.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00674",
+      "input": "Jeg har et spørgsmål.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00675",
+      "input": "Glem ikke at vi har hjemmeopgaver.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00676",
+      "input": "Jeg har hovedpine.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00677",
+      "input": "Har du et kondom?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00678",
+      "input": "Jeg har ikke mange penge.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00679",
+      "input": "Jeg har et dumt spørgsmål.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00680",
+      "input": "Han har en udenlandsk bil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00681",
+      "input": "Jeg ville gerne skrive hundredvis af sætninger på Tatoeba, men jeg har andet at lave.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00682",
+      "input": "Hvor mange indbyggere er der i denne by?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00683",
+      "input": "Hun har få venner.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00684",
+      "input": "Du har tre biler.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00685",
+      "input": "I har tre biler.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00686",
+      "input": "Det smager virkelig godt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00687",
+      "input": "Vi er nødt til at finde et nyt marked for disse produkter.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00688",
+      "input": "Tillykke med fødselsdagen, Muiriel!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00689",
+      "input": "En nær nabo er bedre end en fjern slægtning.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00690",
+      "input": "Våben dræber ingen mennesker. Mennesker dræber mennesker.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00691",
+      "input": "Der er mange mennesker i parken.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00692",
+      "input": "Han sælger biler.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00693",
+      "input": "Jeg skal til byen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00694",
+      "input": "Han har ikke en cykel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00695",
+      "input": "Hun græd hele natten lang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00696",
+      "input": "Det er let at svare på dette spørgsmål.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00697",
+      "input": "Det er let at besvare dit spørgsmål.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00698",
+      "input": "Jeg bor i en by.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00699",
+      "input": "Jeg gik ud for at drikke en øl med mine venner.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00700",
+      "input": "Hvilket sprog taler man i Brasilien?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00701",
+      "input": "Denne te er meget god.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00702",
+      "input": "Jeg er fri om ti minutter.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00703",
+      "input": "Jeg tror, at han aldrig kommer tilbage.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00704",
+      "input": "Ungdommen i vort land interesserer sig ikke for politik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00705",
+      "input": "Jeg har tre gange så mange bøger som han har.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00706",
+      "input": "Han rejser ofte udenlands.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00707",
+      "input": "Han rejser ofte til udlandet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00708",
+      "input": "Han tog sine briller af.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00709",
+      "input": "Vi skal købe et nyt tæppe til dette værelse.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00710",
+      "input": "Morede du dig godt?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00711",
+      "input": "Tag kniven og skær spidsen af.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00712",
+      "input": "Jeg skal lære dette digt udenad.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00713",
+      "input": "Han bor seks huse fra mig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00714",
+      "input": "Jeg vil ikke forlade dig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00715",
+      "input": "Jeg vil ikke forlade jer.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00716",
+      "input": "Jeg forstod ikke, hvad præsidenten sagde dengang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00717",
+      "input": "Han har et stort hus og to biler.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00718",
+      "input": "Schweiz er et meget smukt land, som fortjener et besøg.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00719",
+      "input": "Jeg ville tjekke det efter.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00720",
+      "input": "Selv kloge børn forstår det ikke.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00721",
+      "input": "Bob er populær i skolen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00722",
+      "input": "Jeg har ledt efter Andy. Ved du hvor han er?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00723",
+      "input": "Vil det regne i morgen?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00724",
+      "input": "Denne kniv er meget skarp.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00725",
+      "input": "I mit værelse er der ingen ure.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00726",
+      "input": "I smukt vejr kan Fuji-bjerget ses herfra.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00727",
+      "input": "Spørg Trang om hun skal ud i aften.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00728",
+      "input": "Jeg ved at nogle personer påskønner mit arbejde.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00729",
+      "input": "Hvor lang tid har du brugt til at oversætte denne bog?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00730",
+      "input": "Du burde have holdt det hemmelig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00731",
+      "input": "Så mødes vi endelig! Jeg har ventet længe på dette øjeblik.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00732",
+      "input": "Det har været et heldigt år for ham.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00733",
+      "input": "Lad mig aldrig gå.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00734",
+      "input": "At ryge her er strengt forbudt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00735",
+      "input": "Ikke alle fugle flyver.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00736",
+      "input": "Jeg vil sige dette: jeg er uskyldig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00737",
+      "input": "Du fortjener at lykkes.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00738",
+      "input": "Det er gået ti år siden vi mødtes sidst.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00739",
+      "input": "Jeg modtog en invitation fra ham, men jeg afslog den.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00740",
+      "input": "Hunde kan svømme.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00741",
+      "input": "Er du ikke træt?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00742",
+      "input": "Jeg svømmede hurtigere da jeg var yngre.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00743",
+      "input": "Hun er hverken i køkkenet eller i dagligstuen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00744",
+      "input": "Matematik og engelsk var mine yndlingsfag.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00745",
+      "input": "Jeg er alfa og omega, den første og den sidste, begyndelsen og slutningen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00746",
+      "input": "Kniven var så sløv at jeg ikke kunne skære kødet med den og jeg måtte bruge min lommekniv.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00747",
+      "input": "Alle lægens anstrengelser var forgæves og manden døde kort tid efter.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00748",
+      "input": "Husholdningsfilm er lavet af polyethylen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00749",
+      "input": "Filmen varede to timer.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00750",
+      "input": "Filmen begyndte ved totiden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00751",
+      "input": "Jeg synes at en film er mere interessant end en hvilken som helst bog.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00752",
+      "input": "Var filmen god?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00753",
+      "input": "Hvornår begynder filmen?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00754",
+      "input": "Filmen er ikke så interessant som originalen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00755",
+      "input": "Jeg blev meget berørt af denne film.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00756",
+      "input": "Denne film er egnet for børn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00757",
+      "input": "Filmen var så trist at alle græd.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00758",
+      "input": "Efter filmen faldt de i søvn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00759",
+      "input": "Filmen var interessant.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00760",
+      "input": "Jeg kunne lide denne film.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00761",
+      "input": "Kunne du lide filmen?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00762",
+      "input": "Filmen var romantisk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00763",
+      "input": "Filmen, som han spillede med i, havde ikke den succes som de havde forventet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00764",
+      "input": "Filmen var kedelig; det bedste øjeblik var slutningen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00765",
+      "input": "Dette er den dårligste film jeg har set.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00766",
+      "input": "Denne film er ubehagelig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00767",
+      "input": "At besøge menneskene er vigtigt, ikke stederne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00768",
+      "input": "Jeg går i seng ved ellevetiden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00769",
+      "input": "Jeg vidste ikke at han drak meget.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00770",
+      "input": "Oversæt nogle ordsprog til esperanto om spisning og/eller fedme.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00771",
+      "input": "Himmelen og Helvedet eksisterer i menneskehjertet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00772",
+      "input": "Kan jeg hjælpe dig?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00773",
+      "input": "Hvorfor græder du?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00774",
+      "input": "Hvad vil det koste?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00775",
+      "input": "Jeg vil spille tennis.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00776",
+      "input": "Jeg har ikke et godt syn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00777",
+      "input": "Jeg besøgte Canada for lang tid siden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00778",
+      "input": "Han vil komme hos mig i nat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00779",
+      "input": "Kan du lære mig at flyve?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00780",
+      "input": "Hun holdt op med at ryge.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00781",
+      "input": "Legetøjet er lavet af træ.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00782",
+      "input": "Hvornår blev hun født?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00783",
+      "input": "Hun græder hele tiden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00784",
+      "input": "Hvor er min bil?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00785",
+      "input": "Han vil snart være her.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00786",
+      "input": "Taro, vil du være så venlig at hjælpe mig?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00787",
+      "input": "Hun læste brevet færdigt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00788",
+      "input": "Har du dit kørekort?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00789",
+      "input": "Hvornår skal du giftes?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00790",
+      "input": "Selv børn kan læse denne bog.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00791",
+      "input": "At sælge biler er mit arbejde.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00792",
+      "input": "Vær så venlig at slukke lyset.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00793",
+      "input": "Hvornår gik du i seng i går aftes?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00794",
+      "input": "Hun misunder mig min succes.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00795",
+      "input": "Kumi talte ikke om sin klub.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00796",
+      "input": "Vidste du ikke at han døde for to år siden?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00797",
+      "input": "Hvad laver Toni?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00798",
+      "input": "Det er iskoldt nu.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-da-00799",
+      "input": "Alt, hvad han siger, er sandt.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-da-00000",
+      "input": "Room 304 has the laptops we ordered.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-da-00001",
+      "input": "Bought 5 cookies on the avenue near my office.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-da-00002",
+      "input": "Track #12345 was delivered yesterday.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-da-00003",
+      "input": "I had 5 boxes in storage unit 12.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-da-00004",
+      "input": "Building number 7 was empty.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-da-00005",
+      "input": "Open from January 1990 onwards.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-da-00006",
+      "input": "Floor 3 has the printer.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-da-00007",
+      "input": "Order #98765 is being processed.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-da-00008",
+      "input": "The bus runs every 12 minutes.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-da-00009",
+      "input": "Found 5000 documents in the archive.",
+      "expected": []
+    }
+  ]
+}
