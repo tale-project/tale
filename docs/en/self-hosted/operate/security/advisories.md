@@ -59,7 +59,6 @@ Operators should:
 - Treat `## 🔒 Security` entries in release notes as an upgrade prompt.
 - Subscribe to the direct notification list (once it exists) for critical-only alerts.
 
-## Related
+## Where this fits
 
-- [Release notes format](/self-hosted/operate/release-notes/format) — where Security entries live in notes.
-- The `/release` slash command in the main repository drafts the Security section.
+Security advisories are how Ruler GmbH discloses CVEs and how operators learn what to patch. Every advisory points at a Tale release that contains the fix; operators then run `tale deploy` (or wait for Cloud's automatic roll-forward). The release-notes side of the same event lives at [Release notes format](/self-hosted/operate/release-notes/format), under the Security section. The `/release` slash command in the main repository drafts that section automatically.

@@ -89,3 +89,7 @@ Barrierefreiheits-Compliance wird auf mehreren Ebenen automatisiert durchgesetzt
 | Storybook         | @storybook/addon-a11y                  | Visuelles A11y-Panel mit WCAG-2.1-AA-Regelset                   |
 
 Die Coding-Standards in `AGENTS.md` schreiben vor, dass jede neue UI-Komponente einen A11y-Test-Block mit `checkAccessibility()` aus den Shared-Test-Utilities enthält.
+
+## Wo das einsetzt
+
+Die Selbst-hosted-Übersicht ist die Architektur-Aufnahme für die Betreiberin, die die Plattform sondiert. Von hier aus führen die Install-Seiten eine frische Box von null bis zu einer laufenden Tale-Instanz; die Konfigurations-Seiten katalogisieren jeden existierenden Knopf; die Betreiber-Seiten decken die langfristige Gestalt des Tale-Betriebs ab. Das Produkt selbst — Chat, Agents, Automatisierungen — ist dasselbe wie in der Cloud und ist unter [Platform](/de/platform) dokumentiert.

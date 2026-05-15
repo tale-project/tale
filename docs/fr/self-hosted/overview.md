@@ -89,3 +89,7 @@ La conformité accessibilité est imposée à plusieurs niveaux :
 | Storybook           | @storybook/addon-a11y                   | panneau a11y visuel avec règles WCAG 2.1 AA                |
 
 Les standards de code dans `AGENTS.md` exigent pour chaque nouveau composant UI un bloc de test a11y utilisant `checkAccessibility()` depuis les utilitaires de test partagés.
+
+## Où ça s'inscrit
+
+La vue d'ensemble auto-hébergée est l'instantané architectural pour l'exploitant qui jauge la plateforme. À partir d'ici, les pages d'installation amènent une machine fraîche du zéro à une instance Tale qui tourne ; les pages de configuration cataloguent chaque bouton qui existe ; les pages d'exploitation couvrent à quoi ressemble la forme de long terme de Tale en production. Le produit lui-même — chat, agents, automatisations — est le même que sur le Cloud et est documenté sous [Platform](/fr/platform).

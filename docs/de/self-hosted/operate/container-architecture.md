@@ -155,3 +155,7 @@ Tale bringt drei Container-Testskripte mit:
 | `tests/container-vulnerability-scan.sh` | `bun run docker:test:vulnerability` | Trivy-Vulnerability-Scan (HIGH + CRITICAL).                                      |
 
 Siehe [Contributing Docker guide](/de/develop/contributing-docker) für Details zum Ändern von Dockerfiles und Ausführen der Tests.
+
+## Wo das einsetzt
+
+Die Container-Architektur ist das mentale Modell dafür, was wo läuft und wie die Services miteinander reden. Greif danach, wenn etwas nicht dort ankommt, wo du es erwartest — ein Metrik-Endpoint, der nicht erreichbar ist, ein Port, der versehentlich exponiert wurde, ein Blue-Green-Switch, der nicht sauber gedraint hat. Für die Pro-Service-Observability-Oberflächen ist [Operations](/de/self-hosted/operate/observability/operations) die nächste Seite; für Umgebungsvariablen-Knöpfe ist [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference) erschöpfend.

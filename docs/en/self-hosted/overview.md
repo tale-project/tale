@@ -89,3 +89,7 @@ Accessibility compliance is enforced through automated tooling at multiple level
 | Storybook       | @storybook/addon-a11y                  | Visual a11y panel with WCAG 2.1 AA ruleset                |
 
 The coding standards in `AGENTS.md` require every new UI component to include an accessibility test block using `checkAccessibility()` from the shared test utilities.
+
+## Where this fits
+
+The Self-hosted overview is the architectural snapshot for the operator sizing up the platform. From here, the install pages take a fresh box from zero to a running Tale instance; the configuration pages catalogue every knob that exists; the operate pages cover what the long-term shape of running Tale looks like. The product itself — chat, agents, automations — is the same as on Cloud and is documented under [Platform](/platform).

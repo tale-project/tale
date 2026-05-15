@@ -461,3 +461,7 @@ Tale includes an embedded Convex backend. The Convex Dashboard lets you inspect 
 4. Paste the admin key when prompted.
 
 > **Note:** The Convex Dashboard gives direct read and write access to all data. Only share admin keys with trusted team members.
+
+## Where this fits
+
+Linux-server install is the canonical production path for self-hosted Tale. After the instance is up, the [environment reference](/self-hosted/configuration/environment-reference) catalogues every knob the install touched and every knob it didn't; [Authentication](/self-hosted/admin/authentication) wires the instance to your identity provider; [Operations](/self-hosted/operate/observability/operations) covers what to scrape and alert on once traffic starts flowing. For end-user work inside the running app, [Platform](/platform) is the next destination.

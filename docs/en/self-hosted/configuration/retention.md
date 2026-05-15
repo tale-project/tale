@@ -185,7 +185,6 @@ Audit subtype `gdpr_erasure_executed` (`category: 'admin'`) records actor, reaso
 - For chat-history retention, every descendant row (messages, metadata, todos, feedback, artifacts, etc.) is cascade-deleted via the shared `cascadeDeleteThreadChildren` helper so user-delete and retention-delete never drift on which tables get cleaned up.
 - Audit log retention writes an `auditLogCheckpoints` row at every batch boundary so the SHA-256 hash chain stays verifiable.
 
-## Related
+## Where this fits
 
-- [Environment reference](/self-hosted/configuration/environment-reference) — full list of Tale environment variables.
-- [Governance](/platform/admin/governance) — per-org retention settings and legal hold management.
+Retention is the per-table lifespan policy for everything Tale stores. The defaults are conservative; the per-org overrides come from [Governance](/platform/admin/governance), and every environment variable that gates retention behaviour is catalogued in the [Environment reference](/self-hosted/configuration/environment-reference). Reach for this page when a compliance officer asks "how long do we keep X?"; reach for Governance when the answer needs to change for one specific tenant.

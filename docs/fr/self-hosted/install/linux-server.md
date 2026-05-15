@@ -441,4 +441,8 @@ Tale inclut un backend Convex embarqué. Le Convex Dashboard permet d’inspecte
 3. Ouvrir `https://yourdomain.com/convex-dashboard` dans le navigateur.
 4. Coller la clé admin quand elle est demandée.
 
-> **Note :** Le Convex Dashboard donne un accès direct en lecture et écriture à toutes les données. Ne partage des clés admin qu’avec des équipiers de confiance.
+> **Note :** Le Convex Dashboard donne un accès direct en lecture et écriture à toutes les données. Ne partage des clés admin qu'avec des équipiers de confiance.
+
+## Où ça s'inscrit
+
+L'installation serveur Linux est le chemin canonique de production pour Tale auto-hébergé. Une fois l'instance debout, la [référence des variables d'environnement](/fr/self-hosted/configuration/environment-reference) catalogue chaque bouton que l'installation a touché et chaque bouton qu'elle n'a pas touché ; [Authentification](/fr/self-hosted/admin/authentication) câble l'instance à ton fournisseur d'identité ; [Opérations](/fr/self-hosted/operate/observability/operations) couvre ce qu'il faut scraper et sur quoi alerter une fois que le trafic démarre. Pour le travail utilisateur final dans l'app qui tourne, [Platform](/fr/platform) est la destination suivante.

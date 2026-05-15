@@ -155,3 +155,7 @@ Tale includes three container test scripts:
 | `tests/container-vulnerability-scan.sh` | `bun run docker:test:vulnerability` | Trivy vulnerability scan (HIGH + CRITICAL)                                   |
 
 See [Contributing Docker guide](/develop/contributing-docker) for details on modifying Dockerfiles and running tests.
+
+## Where this fits
+
+Container architecture is the mental model for what's running, where, and how the services talk. Reach for it when something doesn't reach where you expect — a metrics endpoint that's unreachable, a port that's accidentally exposed, a blue-green switch that didn't drain cleanly. For the per-service observability surfaces, [Operations](/self-hosted/operate/observability/operations) is the next page; for environment-variable knobs, [Environment reference](/self-hosted/configuration/environment-reference) is exhaustive.

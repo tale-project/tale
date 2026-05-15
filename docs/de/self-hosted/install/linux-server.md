@@ -446,3 +446,7 @@ Tale enthält ein eingebettetes Convex-Backend. Das Convex-Dashboard erlaubt dir
 4. Den Admin-Schlüssel auf Nachfrage einfügen.
 
 > **Hinweis:** Das Convex-Dashboard gibt direkten Lese- und Schreibzugriff auf alle Daten. Teile Admin-Schlüssel nur mit vertrauenswürdigen Teammitgliedern.
+
+## Wo das einsetzt
+
+Linux-Server-Installation ist der kanonische Produktivpfad für selbst gehostetes Tale. Sobald die Instanz steht, katalogisiert die [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference) jeden Knopf, den die Installation berührt hat, und jeden, den sie nicht berührt hat; [Authentifizierung](/de/self-hosted/admin/authentication) verkabelt die Instanz mit deinem Identity-Anbieter; [Operations](/de/self-hosted/operate/observability/operations) deckt ab, was du scrapen und alerten musst, sobald Traffic fliesst. Für die Endnutzer-Arbeit in der laufenden App ist [Platform](/de/platform) das nächste Ziel.

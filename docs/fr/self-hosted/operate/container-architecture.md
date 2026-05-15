@@ -155,3 +155,7 @@ Tale inclut trois scripts de tests :
 | `tests/container-vulnerability-scan.sh` | `bun run docker:test:vulnerability` | scan Trivy (HIGH + CRITICAL).                                                              |
 
 Voir le [guide de contribution Docker](/fr/develop/contributing-docker) pour la modification des Dockerfiles et le lancement des tests.
+
+## Où ça s'inscrit
+
+L'architecture des conteneurs est le modèle mental pour savoir ce qui tourne, où, et comment les services communiquent. Va la voir quand quelque chose n'arrive pas où tu l'attends — un endpoint de métrique injoignable, un port accidentellement exposé, un bascule blue-green qui n'a pas drainé proprement. Pour les surfaces d'observabilité par service, [Opérations](/fr/self-hosted/operate/observability/operations) est la page suivante ; pour les boutons de variables d'environnement, la [Référence des variables d'environnement](/fr/self-hosted/configuration/environment-reference) est exhaustive.

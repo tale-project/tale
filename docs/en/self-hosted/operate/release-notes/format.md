@@ -95,7 +95,6 @@ Run `tale upgrade` to update the CLI, then `tale deploy` to apply the new versio
 **Full Changelog**: https://github.com/tale-project/tale/compare/v1.5.2...v1.6.0
 ```
 
-## Related
+## Where this fits
 
-- The `/release` slash command in the main repository drafts notes following this spec.
-- [Security advisory process](/self-hosted/operate/security/advisories) — when to also file a GitHub Security Advisory.
+The release-notes format is the contract between Ruler GmbH and every operator running a self-hosted Tale instance. The same Markdown the in-app [What's new](/platform/admin/changelog) viewer renders is what `tale deploy` readers consult before upgrading; consistent shape is what makes the notes scannable. The `/release` slash command in the main repository drafts notes following this spec. For security-grade fixes that also warrant a CVE disclosure, [Security advisories](/self-hosted/operate/security/advisories) is the parallel surface.

@@ -123,3 +123,7 @@ Each container image has a size budget enforced by CI. Current sizes and budgets
 | Proxy    | ~88 MB       | 100 MB |
 
 If an image exceeds its budget after a change, `bun run docker:test:image` will fail. See the [container architecture](/self-hosted/operate/container-architecture) page for details on multi-stage build strategies that keep images lean.
+
+## Where this fits
+
+Operations is the day-to-day surface for the operator running Tale in production — metrics to scrape, logs to ship, health probes to monitor, image budgets to enforce. When something starts going wrong on a live instance, [Troubleshooting](/self-hosted/operate/observability/troubleshooting) is the symptom-to-fix map; for the architectural model behind the services emitting those metrics, [Container architecture](/self-hosted/operate/container-architecture) is one click away.
