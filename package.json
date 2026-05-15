@@ -4,7 +4,6 @@
   "private": true,
   "workspaces": [
     "packages/i18n",
-    "packages/pii",
     "packages/tale_knowledge",
     "packages/tale_shared",
     "packages/tale_telemetry",

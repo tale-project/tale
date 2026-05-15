@@ -3,8 +3,7 @@ import {
   escapeRegExp,
   execWithBudget,
   MAX_MESSAGE_BYTES,
-} from '@tale/pii/core/regex-safety';
-
+} from '../../../lib/pii/core/regex-safety';
 import type { ChatFilterCategory } from '../../../lib/shared/schemas/governance';
 
 export interface ChatFilterMatch {

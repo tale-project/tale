@@ -82,10 +82,6 @@ export default {
       entry: ['src/components/**/*.{ts,tsx}', 'src/**/*.stories.{ts,tsx}'],
       project: ['**/*.{ts,tsx}'],
     },
-    'packages/pii': {
-      entry: ['scripts/**/*.ts'],
-      project: ['**/*.ts'],
-    },
     'tools/cli': {
       project: ['**/*.ts'],
     },

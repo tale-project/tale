@@ -1,11 +1,7 @@
 'use client';
 
-import {
-  PiiConfigPanel,
-  type PiiConfigPanelValue,
-} from '@tale/ui/pii-config-panel';
 import { Skeleton } from '@tale/ui/skeleton';
-import { useCallback, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useRef, useState } from 'react';
 
 import { Switch } from '@/app/components/ui/forms/switch';
 import { PageSection } from '@/app/components/ui/layout/page-section';
@@ -15,6 +11,18 @@ import { useT } from '@/lib/i18n/client';
 
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
+import type { PiiConfigPanelValue } from './pii/pii-config-panel';
+
+// The PII engine (which `PiiConfigPanel` transitively imports from
+// `@/lib/pii`) ships 43 typed locale modules + libphonenumber-js
+// metadata. Loading it eagerly on the guardrails route makes the page
+// slower for every admin, even those who never touch PII. Lazy-load so
+// the chunk only fetches when the user actually toggles PII on.
+const PiiConfigPanel = lazy(() =>
+  import('./pii/pii-config-panel').then((mod) => ({
+    default: mod.PiiConfigPanel,
+  })),
+);
 
 interface PiiConfigProps {
   organizationId: string;
@@ -141,12 +149,14 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
       }
     >
       {enabled && (
-        <PiiConfigPanel
-          value={value}
-          onChange={handlePanelChange}
-          disabled={cannotManage}
-          detectionLocales="*"
-        />
+        <Suspense fallback={<Skeleton className="h-64 w-full rounded-md" />}>
+          <PiiConfigPanel
+            value={value}
+            onChange={handlePanelChange}
+            disabled={cannotManage}
+            detectionLocales="*"
+          />
+        </Suspense>
       )}
     </PageSection>
   );

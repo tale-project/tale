@@ -1,0 +1,46 @@
+import type { LocaleConfig } from '../types';
+
+export const ur: LocaleConfig = {
+  locale: 'ur',
+  name: 'Urdu',
+  scripts: ['arab'],
+  countries: ['PK', 'IN'],
+  phoneContextKeywords: ['فون', 'موبائل', 'نمبر', 'tel.', 'tel'],
+  cvcContextKeywords: ['سیکورٹی کوڈ', 'cvc', 'cvv', 'cv2'],
+  address: {
+    forms: ['inverted', 'po-box'],
+    postcodeForm: 'continental',
+    postcodeRegex: '\\d{5}',
+    requireUppercase: false,
+    streetKeywordsInverted: ['سڑک', 'گلی', 'چوک'],
+    poBoxKeywords: ['پی او باکس'],
+    floorKeywords: ['منزل', 'اپارٹمنٹ'],
+    countryNames: ['پاکستان', 'Pakistan', 'بھارت', 'PK', 'IN'],
+    countryPostcodePrefixes: [],
+  },
+  nationalIds: [
+    {
+      id: 'pk-cnic',
+      name: 'Pakistani CNIC',
+      pattern: '\\b\\d{5}-?\\d{7}-?\\d\\b',
+      replacement: '[CNIC]',
+    },
+  ],
+  dateOfBirth: {
+    monthsLong: [
+      'جنوری',
+      'فروری',
+      'مارچ',
+      'اپریل',
+      'مئی',
+      'جون',
+      'جولائی',
+      'اگست',
+      'ستمبر',
+      'اکتوبر',
+      'نومبر',
+      'دسمبر',
+    ],
+    contextKeywords: ['تاریخ پیدائش', 'پیدائش', 'پیدا ہوا', 'پیدا ہوئی'],
+  },
+};

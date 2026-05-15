@@ -1,3 +1,5 @@
+import { ConvexError } from 'convex/values';
+
 import {
   clampMessage,
   createScrubber,
@@ -10,9 +12,7 @@ import {
   type TokenEntry,
   type Tokenizer,
   type TokenizeResult,
-} from '@tale/pii';
-import { ConvexError } from 'convex/values';
-
+} from '../../lib/pii';
 import {
   chatFilterConfigSchema,
   moderationProviderConfigSchema,
@@ -372,7 +372,7 @@ export function detokenizePiiMessage(
   mapping: Record<string, TokenEntry>,
 ): string {
   if (Object.keys(mapping).length === 0) return text;
-  // Inline the detokenize loop; identical to `@tale/pii`'s `detokenizePii`
+  // Inline the detokenize loop; identical to `@/lib/pii`'s `detokenizePii`
   // but kept inline here to avoid pulling another module into the
   // Convex bundle for a 4-line function.
   let out = text;

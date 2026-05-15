@@ -1,0 +1,3315 @@
+{
+  "_meta": {
+    "locale": "fi",
+    "generator": "platform/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 300,
+      "negatives": 0
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "positives": [
+    {
+      "id": "email-fi-00000",
+      "input": "Lähetä paketti osoitteeseen alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00001",
+      "input": "Postiosoite: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00002",
+      "input": "Asiakas asuu osoitteessa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00003",
+      "input": "Noutopiste — anna.mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00004",
+      "input": "Lähetä paketti osoitteeseen alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00005",
+      "input": "Postiosoite: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00006",
+      "input": "Asiakas asuu osoitteessa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00007",
+      "input": "Noutopiste — anna_mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00008",
+      "input": "Lähetä paketti osoitteeseen alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00009",
+      "input": "Postiosoite: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00010",
+      "input": "Asiakas asuu osoitteessa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00011",
+      "input": "Noutopiste — annamueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00012",
+      "input": "Lähetä paketti osoitteeseen alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00013",
+      "input": "Postiosoite: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00014",
+      "input": "Asiakas asuu osoitteessa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00015",
+      "input": "Noutopiste — anna.mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00016",
+      "input": "Lähetä paketti osoitteeseen alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00017",
+      "input": "Postiosoite: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00018",
+      "input": "Asiakas asuu osoitteessa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00019",
+      "input": "Noutopiste — anna_mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00020",
+      "input": "Lähetä paketti osoitteeseen alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00021",
+      "input": "Postiosoite: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00022",
+      "input": "Asiakas asuu osoitteessa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00023",
+      "input": "Noutopiste — annamueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00024",
+      "input": "Lähetä paketti osoitteeseen alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00025",
+      "input": "Postiosoite: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00026",
+      "input": "Asiakas asuu osoitteessa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00027",
+      "input": "Noutopiste — anna.mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00028",
+      "input": "Lähetä paketti osoitteeseen alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00029",
+      "input": "Postiosoite: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00030",
+      "input": "Asiakas asuu osoitteessa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00031",
+      "input": "Noutopiste — anna_mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00032",
+      "input": "Lähetä paketti osoitteeseen alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00033",
+      "input": "Postiosoite: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00034",
+      "input": "Asiakas asuu osoitteessa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00035",
+      "input": "Noutopiste — annamueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00036",
+      "input": "Lähetä paketti osoitteeseen alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00037",
+      "input": "Postiosoite: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00038",
+      "input": "Asiakas asuu osoitteessa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00039",
+      "input": "Noutopiste — anna.mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00040",
+      "input": "Lähetä paketti osoitteeseen alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00041",
+      "input": "Postiosoite: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00042",
+      "input": "Asiakas asuu osoitteessa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00043",
+      "input": "Noutopiste — anna_mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00044",
+      "input": "Lähetä paketti osoitteeseen alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00045",
+      "input": "Postiosoite: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00046",
+      "input": "Asiakas asuu osoitteessa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00047",
+      "input": "Noutopiste — annamueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00048",
+      "input": "Lähetä paketti osoitteeseen alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00049",
+      "input": "Postiosoite: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00050",
+      "input": "Asiakas asuu osoitteessa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00051",
+      "input": "Noutopiste — anna.mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00052",
+      "input": "Lähetä paketti osoitteeseen alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00053",
+      "input": "Postiosoite: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00054",
+      "input": "Asiakas asuu osoitteessa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00055",
+      "input": "Noutopiste — anna_mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00056",
+      "input": "Lähetä paketti osoitteeseen alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00057",
+      "input": "Postiosoite: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00058",
+      "input": "Asiakas asuu osoitteessa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00059",
+      "input": "Noutopiste — annamueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00060",
+      "input": "Lähetä paketti osoitteeseen alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00061",
+      "input": "Postiosoite: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00062",
+      "input": "Asiakas asuu osoitteessa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00063",
+      "input": "Noutopiste — anna.mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00064",
+      "input": "Lähetä paketti osoitteeseen alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00065",
+      "input": "Postiosoite: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00066",
+      "input": "Asiakas asuu osoitteessa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00067",
+      "input": "Noutopiste — anna_mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00068",
+      "input": "Lähetä paketti osoitteeseen alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00069",
+      "input": "Postiosoite: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00070",
+      "input": "Asiakas asuu osoitteessa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00071",
+      "input": "Noutopiste — annamueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00072",
+      "input": "Lähetä paketti osoitteeseen alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00073",
+      "input": "Postiosoite: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00074",
+      "input": "Asiakas asuu osoitteessa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00075",
+      "input": "Noutopiste — anna.mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00076",
+      "input": "Lähetä paketti osoitteeseen alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00077",
+      "input": "Postiosoite: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00078",
+      "input": "Asiakas asuu osoitteessa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00079",
+      "input": "Noutopiste — anna_mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00080",
+      "input": "Lähetä paketti osoitteeseen alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00081",
+      "input": "Postiosoite: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00082",
+      "input": "Asiakas asuu osoitteessa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00083",
+      "input": "Noutopiste — annamueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00084",
+      "input": "Lähetä paketti osoitteeseen alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00085",
+      "input": "Postiosoite: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00086",
+      "input": "Asiakas asuu osoitteessa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00087",
+      "input": "Noutopiste — anna.mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00088",
+      "input": "Lähetä paketti osoitteeseen alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00089",
+      "input": "Postiosoite: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00090",
+      "input": "Asiakas asuu osoitteessa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00091",
+      "input": "Noutopiste — anna_mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00092",
+      "input": "Lähetä paketti osoitteeseen alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00093",
+      "input": "Postiosoite: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00094",
+      "input": "Asiakas asuu osoitteessa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00095",
+      "input": "Noutopiste — annamueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00096",
+      "input": "Lähetä paketti osoitteeseen alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00097",
+      "input": "Postiosoite: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00098",
+      "input": "Asiakas asuu osoitteessa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00099",
+      "input": "Noutopiste — anna.mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00100",
+      "input": "Lähetä paketti osoitteeseen alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00101",
+      "input": "Postiosoite: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00102",
+      "input": "Asiakas asuu osoitteessa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00103",
+      "input": "Noutopiste — anna_mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00104",
+      "input": "Lähetä paketti osoitteeseen alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00105",
+      "input": "Postiosoite: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00106",
+      "input": "Asiakas asuu osoitteessa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00107",
+      "input": "Noutopiste — annamueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00108",
+      "input": "Lähetä paketti osoitteeseen alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00109",
+      "input": "Postiosoite: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00110",
+      "input": "Asiakas asuu osoitteessa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00111",
+      "input": "Noutopiste — anna.mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00112",
+      "input": "Lähetä paketti osoitteeseen alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00113",
+      "input": "Postiosoite: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00114",
+      "input": "Asiakas asuu osoitteessa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00115",
+      "input": "Noutopiste — anna_mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00116",
+      "input": "Lähetä paketti osoitteeseen alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00117",
+      "input": "Postiosoite: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00118",
+      "input": "Asiakas asuu osoitteessa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00119",
+      "input": "Noutopiste — annamueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00120",
+      "input": "Lähetä paketti osoitteeseen alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00121",
+      "input": "Postiosoite: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00122",
+      "input": "Asiakas asuu osoitteessa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00123",
+      "input": "Noutopiste — anna.mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00124",
+      "input": "Lähetä paketti osoitteeseen alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00125",
+      "input": "Postiosoite: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00126",
+      "input": "Asiakas asuu osoitteessa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00127",
+      "input": "Noutopiste — anna_mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00128",
+      "input": "Lähetä paketti osoitteeseen alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00129",
+      "input": "Postiosoite: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00130",
+      "input": "Asiakas asuu osoitteessa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00131",
+      "input": "Noutopiste — annamueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00132",
+      "input": "Lähetä paketti osoitteeseen alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00133",
+      "input": "Postiosoite: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00134",
+      "input": "Asiakas asuu osoitteessa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00135",
+      "input": "Noutopiste — anna.mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00136",
+      "input": "Lähetä paketti osoitteeseen alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00137",
+      "input": "Postiosoite: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00138",
+      "input": "Asiakas asuu osoitteessa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00139",
+      "input": "Noutopiste — anna_mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00140",
+      "input": "Lähetä paketti osoitteeseen alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00141",
+      "input": "Postiosoite: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00142",
+      "input": "Asiakas asuu osoitteessa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00143",
+      "input": "Noutopiste — annamueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00144",
+      "input": "Lähetä paketti osoitteeseen alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00145",
+      "input": "Postiosoite: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00146",
+      "input": "Asiakas asuu osoitteessa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00147",
+      "input": "Noutopiste — anna.mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00148",
+      "input": "Lähetä paketti osoitteeseen alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00149",
+      "input": "Postiosoite: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00150",
+      "input": "Asiakas asuu osoitteessa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00151",
+      "input": "Noutopiste — anna_mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00152",
+      "input": "Lähetä paketti osoitteeseen alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00153",
+      "input": "Postiosoite: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00154",
+      "input": "Asiakas asuu osoitteessa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00155",
+      "input": "Noutopiste — annamueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00156",
+      "input": "Lähetä paketti osoitteeseen alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00157",
+      "input": "Postiosoite: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00158",
+      "input": "Asiakas asuu osoitteessa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00159",
+      "input": "Noutopiste — anna.mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00160",
+      "input": "Lähetä paketti osoitteeseen alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00161",
+      "input": "Postiosoite: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00162",
+      "input": "Asiakas asuu osoitteessa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00163",
+      "input": "Noutopiste — anna_mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00164",
+      "input": "Lähetä paketti osoitteeseen alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00165",
+      "input": "Postiosoite: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00166",
+      "input": "Asiakas asuu osoitteessa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00167",
+      "input": "Noutopiste — annamueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00168",
+      "input": "Lähetä paketti osoitteeseen alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00169",
+      "input": "Postiosoite: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00170",
+      "input": "Asiakas asuu osoitteessa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00171",
+      "input": "Noutopiste — anna.mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00172",
+      "input": "Lähetä paketti osoitteeseen alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00173",
+      "input": "Postiosoite: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00174",
+      "input": "Asiakas asuu osoitteessa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00175",
+      "input": "Noutopiste — anna_mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00176",
+      "input": "Lähetä paketti osoitteeseen alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00177",
+      "input": "Postiosoite: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00178",
+      "input": "Asiakas asuu osoitteessa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00179",
+      "input": "Noutopiste — annamueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00180",
+      "input": "Lähetä paketti osoitteeseen alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00181",
+      "input": "Postiosoite: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00182",
+      "input": "Asiakas asuu osoitteessa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00183",
+      "input": "Noutopiste — anna.mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00184",
+      "input": "Lähetä paketti osoitteeseen alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00185",
+      "input": "Postiosoite: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00186",
+      "input": "Asiakas asuu osoitteessa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00187",
+      "input": "Noutopiste — anna_mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00188",
+      "input": "Lähetä paketti osoitteeseen alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00189",
+      "input": "Postiosoite: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00190",
+      "input": "Asiakas asuu osoitteessa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00191",
+      "input": "Noutopiste — annamueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00192",
+      "input": "Lähetä paketti osoitteeseen alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00193",
+      "input": "Postiosoite: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00194",
+      "input": "Asiakas asuu osoitteessa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00195",
+      "input": "Noutopiste — anna.mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00196",
+      "input": "Lähetä paketti osoitteeseen alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00197",
+      "input": "Postiosoite: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00198",
+      "input": "Asiakas asuu osoitteessa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00199",
+      "input": "Noutopiste — anna_mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00200",
+      "input": "Lähetä paketti osoitteeseen alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00201",
+      "input": "Postiosoite: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00202",
+      "input": "Asiakas asuu osoitteessa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00203",
+      "input": "Noutopiste — annamueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00204",
+      "input": "Lähetä paketti osoitteeseen alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00205",
+      "input": "Postiosoite: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00206",
+      "input": "Asiakas asuu osoitteessa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00207",
+      "input": "Noutopiste — anna.mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00208",
+      "input": "Lähetä paketti osoitteeseen alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00209",
+      "input": "Postiosoite: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00210",
+      "input": "Asiakas asuu osoitteessa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00211",
+      "input": "Noutopiste — anna_mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00212",
+      "input": "Lähetä paketti osoitteeseen alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00213",
+      "input": "Postiosoite: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00214",
+      "input": "Asiakas asuu osoitteessa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00215",
+      "input": "Noutopiste — annamueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00216",
+      "input": "Lähetä paketti osoitteeseen alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00217",
+      "input": "Postiosoite: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00218",
+      "input": "Asiakas asuu osoitteessa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00219",
+      "input": "Noutopiste — anna.mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00220",
+      "input": "Lähetä paketti osoitteeseen alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00221",
+      "input": "Postiosoite: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00222",
+      "input": "Asiakas asuu osoitteessa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00223",
+      "input": "Noutopiste — anna_mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00224",
+      "input": "Lähetä paketti osoitteeseen alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00225",
+      "input": "Postiosoite: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00226",
+      "input": "Asiakas asuu osoitteessa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00227",
+      "input": "Noutopiste — annamueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00228",
+      "input": "Lähetä paketti osoitteeseen alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00229",
+      "input": "Postiosoite: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00230",
+      "input": "Asiakas asuu osoitteessa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00231",
+      "input": "Noutopiste — anna.mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00232",
+      "input": "Lähetä paketti osoitteeseen alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00233",
+      "input": "Postiosoite: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00234",
+      "input": "Asiakas asuu osoitteessa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00235",
+      "input": "Noutopiste — anna_mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00236",
+      "input": "Lähetä paketti osoitteeseen alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00237",
+      "input": "Postiosoite: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00238",
+      "input": "Asiakas asuu osoitteessa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00239",
+      "input": "Noutopiste — annamueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00240",
+      "input": "Lähetä paketti osoitteeseen alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00241",
+      "input": "Postiosoite: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00242",
+      "input": "Asiakas asuu osoitteessa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00243",
+      "input": "Noutopiste — anna.mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00244",
+      "input": "Lähetä paketti osoitteeseen alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00245",
+      "input": "Postiosoite: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00246",
+      "input": "Asiakas asuu osoitteessa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00247",
+      "input": "Noutopiste — anna_mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00248",
+      "input": "Lähetä paketti osoitteeseen alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00249",
+      "input": "Postiosoite: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00250",
+      "input": "Asiakas asuu osoitteessa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00251",
+      "input": "Noutopiste — annamueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00252",
+      "input": "Lähetä paketti osoitteeseen alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00253",
+      "input": "Postiosoite: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00254",
+      "input": "Asiakas asuu osoitteessa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00255",
+      "input": "Noutopiste — anna.mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00256",
+      "input": "Lähetä paketti osoitteeseen alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00257",
+      "input": "Postiosoite: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00258",
+      "input": "Asiakas asuu osoitteessa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00259",
+      "input": "Noutopiste — anna_mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00260",
+      "input": "Lähetä paketti osoitteeseen alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00261",
+      "input": "Postiosoite: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00262",
+      "input": "Asiakas asuu osoitteessa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00263",
+      "input": "Noutopiste — annamueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00264",
+      "input": "Lähetä paketti osoitteeseen alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00265",
+      "input": "Postiosoite: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00266",
+      "input": "Asiakas asuu osoitteessa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00267",
+      "input": "Noutopiste — anna.mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00268",
+      "input": "Lähetä paketti osoitteeseen alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00269",
+      "input": "Postiosoite: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00270",
+      "input": "Asiakas asuu osoitteessa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00271",
+      "input": "Noutopiste — anna_mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00272",
+      "input": "Lähetä paketti osoitteeseen alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00273",
+      "input": "Postiosoite: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00274",
+      "input": "Asiakas asuu osoitteessa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00275",
+      "input": "Noutopiste — annamueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00276",
+      "input": "Lähetä paketti osoitteeseen alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00277",
+      "input": "Postiosoite: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00278",
+      "input": "Asiakas asuu osoitteessa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00279",
+      "input": "Noutopiste — anna.mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00280",
+      "input": "Lähetä paketti osoitteeseen alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00281",
+      "input": "Postiosoite: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00282",
+      "input": "Asiakas asuu osoitteessa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00283",
+      "input": "Noutopiste — anna_mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00284",
+      "input": "Lähetä paketti osoitteeseen alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00285",
+      "input": "Postiosoite: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00286",
+      "input": "Asiakas asuu osoitteessa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00287",
+      "input": "Noutopiste — annamueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00288",
+      "input": "Lähetä paketti osoitteeseen alex.smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00289",
+      "input": "Postiosoite: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00290",
+      "input": "Asiakas asuu osoitteessa marylee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00291",
+      "input": "Noutopiste — anna.mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00292",
+      "input": "Lähetä paketti osoitteeseen alex_smith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00293",
+      "input": "Postiosoite: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00294",
+      "input": "Asiakas asuu osoitteessa mary.lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00295",
+      "input": "Noutopiste — anna_mueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00296",
+      "input": "Lähetä paketti osoitteeseen alexsmith@example.com.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 28,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00297",
+      "input": "Postiosoite: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00298",
+      "input": "Asiakas asuu osoitteessa mary_lee@company.io.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 25,
+          "end": 44
+        }
+      ]
+    },
+    {
+      "id": "email-fi-00299",
+      "input": "Noutopiste — annamueller@corp.example — vahvistettu.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 13,
+          "end": 37
+        }
+      ]
+    }
+  ]
+}

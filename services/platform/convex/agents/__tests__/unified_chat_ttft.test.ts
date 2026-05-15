@@ -17,8 +17,11 @@ vi.mock('../../auth', () => ({
 
 // Mock the PII library so this TTFT test doesn't pay the cost of compiling
 // the full locale-aware scrubber regex on every test run.
-vi.mock('@tale/pii', async () => {
-  const actual = await vi.importActual<typeof import('@tale/pii')>('@tale/pii');
+vi.mock('../../../lib/pii', async () => {
+  const actual =
+    await vi.importActual<typeof import('../../../lib/pii')>(
+      '../../../lib/pii',
+    );
   return {
     ...actual,
     createScrubber: vi.fn(() => ({

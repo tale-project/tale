@@ -1,0 +1,3425 @@
+{
+  "_meta": {
+    "locale": "th",
+    "generator": "platform/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 310,
+      "negatives": 0
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "positives": [
+    {
+      "id": "addr-th-00000",
+      "input": "กรุณาส่งไปที่ ถนนสุขุมวิท 123 กรุงเทพมหานคร 10110",
+      "expected": [
+        {
+          "pattern": "address",
+          "start": 14,
+          "end": 49
+        }
+      ]
+    },
+    {
+      "id": "addr-th-00001",
+      "input": "ที่อยู่: ถนนสีลม 45 กรุงเทพมหานคร 10500",
+      "expected": [
+        {
+          "pattern": "address",
+          "start": 9,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "addr-th-00002",
+      "input": "ที่อยู่ลูกค้า: ถนนพระราม 4 ที่ 78 กรุงเทพมหานคร 10110",
+      "expected": [
+        {
+          "pattern": "address",
+          "start": 15,
+          "end": 53
+        }
+      ]
+    },
+    {
+      "id": "addr-th-00003",
+      "input": "ส่งจดหมายไปที่ ถนนเจริญกรุง 12 กรุงเทพมหานคร 10500",
+      "expected": [
+        {
+          "pattern": "address",
+          "start": 15,
+          "end": 50
+        }
+      ]
+    },
+    {
+      "id": "addr-th-00004",
+      "input": "ที่อยู่จัดส่ง: ถนนนิมมานเหมินทร์ 33 เชียงใหม่ 50200",
+      "expected": [
+        {
+          "pattern": "address",
+          "start": 15,
+          "end": 51
+        }
+      ]
+    },
+    {
+      "id": "addr-th-00005",
+      "input": "กรุณาส่งไปที่ ถนนเจริญประเทศ 5 เชียงใหม่ 50100",
+      "expected": [
+        {
+          "pattern": "address",
+          "start": 14,
+          "end": 46
+        }
+      ]
+    },
+    {
+      "id": "addr-th-00006",
+      "input": "ที่อยู่: ถนนรถไฟ 17 ภูเก็ต 83000",
+      "expected": [
+        {
+          "pattern": "address",
+          "start": 9,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "addr-th-00007",
+      "input": "ที่อยู่ลูกค้า: ถนนชลประทาน 22 ขอนแก่น 40000",
+      "expected": [
+        {
+          "pattern": "address",
+          "start": 15,
+          "end": 43
+        }
+      ]
+    },
+    {
+      "id": "addr-th-00008",
+      "input": "ส่งจดหมายไปที่ ถนนพัทยา 56 ชลบุรี 20150",
+      "expected": [
+        {
+          "pattern": "address",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "addr-th-00009",
+      "input": "ที่อยู่จัดส่ง: ถนนเฉลิมพระเกียรติ 89 นครราชสีมา 30000",
+      "expected": [
+        {
+          "pattern": "address",
+          "start": 15,
+          "end": 53
+        }
+      ]
+    },
+    {
+      "id": "email-th-00000",
+      "input": "กรุณาส่งไปที่ alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-th-00001",
+      "input": "ที่อยู่: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-th-00002",
+      "input": "ที่อยู่ลูกค้า: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00003",
+      "input": "ส่งจดหมายไปที่ anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-th-00004",
+      "input": "ที่อยู่จัดส่ง: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-th-00005",
+      "input": "กรุณาส่งไปที่ johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-th-00006",
+      "input": "ที่อยู่: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-th-00007",
+      "input": "ที่อยู่ลูกค้า: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-th-00008",
+      "input": "ส่งจดหมายไปที่ alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-th-00009",
+      "input": "ที่อยู่จัดส่ง: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00010",
+      "input": "กรุณาส่งไปที่ mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00011",
+      "input": "ที่อยู่: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00012",
+      "input": "ที่อยู่ลูกค้า: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-th-00013",
+      "input": "ส่งจดหมายไปที่ john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00014",
+      "input": "ที่อยู่จัดส่ง: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00015",
+      "input": "กรุณาส่งไปที่ anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-th-00016",
+      "input": "ที่อยู่: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-th-00017",
+      "input": "ที่อยู่ลูกค้า: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-th-00018",
+      "input": "ส่งจดหมายไปที่ mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00019",
+      "input": "ที่อยู่จัดส่ง: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-th-00020",
+      "input": "กรุณาส่งไปที่ alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-th-00021",
+      "input": "ที่อยู่: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-th-00022",
+      "input": "ที่อยู่ลูกค้า: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00023",
+      "input": "ส่งจดหมายไปที่ annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-th-00024",
+      "input": "ที่อยู่จัดส่ง: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-th-00025",
+      "input": "กรุณาส่งไปที่ john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-th-00026",
+      "input": "ที่อยู่: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-th-00027",
+      "input": "ที่อยู่ลูกค้า: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-th-00028",
+      "input": "ส่งจดหมายไปที่ alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-th-00029",
+      "input": "ที่อยู่จัดส่ง: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-th-00030",
+      "input": "กรุณาส่งไปที่ mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00031",
+      "input": "ที่อยู่: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00032",
+      "input": "ที่อยู่ลูกค้า: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-th-00033",
+      "input": "ส่งจดหมายไปที่ john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00034",
+      "input": "ที่อยู่จัดส่ง: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00035",
+      "input": "กรุณาส่งไปที่ annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-th-00036",
+      "input": "ที่อยู่: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-th-00037",
+      "input": "ที่อยู่ลูกค้า: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00038",
+      "input": "ส่งจดหมายไปที่ marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00039",
+      "input": "ที่อยู่จัดส่ง: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-th-00040",
+      "input": "กรุณาส่งไปที่ alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-th-00041",
+      "input": "ที่อยู่: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-th-00042",
+      "input": "ที่อยู่ลูกค้า: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00043",
+      "input": "ส่งจดหมายไปที่ anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-th-00044",
+      "input": "ที่อยู่จัดส่ง: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-th-00045",
+      "input": "กรุณาส่งไปที่ john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-th-00046",
+      "input": "ที่อยู่: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-th-00047",
+      "input": "ที่อยู่ลูกค้า: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-th-00048",
+      "input": "ส่งจดหมายไปที่ alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-th-00049",
+      "input": "ที่อยู่จัดส่ง: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00050",
+      "input": "กรุณาส่งไปที่ marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-th-00051",
+      "input": "ที่อยู่: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00052",
+      "input": "ที่อยู่ลูกค้า: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-th-00053",
+      "input": "ส่งจดหมายไปที่ johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-th-00054",
+      "input": "ที่อยู่จัดส่ง: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00055",
+      "input": "กรุณาส่งไปที่ anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-th-00056",
+      "input": "ที่อยู่: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-th-00057",
+      "input": "ที่อยู่ลูกค้า: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00058",
+      "input": "ส่งจดหมายไปที่ mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00059",
+      "input": "ที่อยู่จัดส่ง: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-th-00060",
+      "input": "กรุณาส่งไปที่ alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-th-00061",
+      "input": "ที่อยู่: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-th-00062",
+      "input": "ที่อยู่ลูกค้า: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00063",
+      "input": "ส่งจดหมายไปที่ anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-th-00064",
+      "input": "ที่อยู่จัดส่ง: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-th-00065",
+      "input": "กรุณาส่งไปที่ johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-th-00066",
+      "input": "ที่อยู่: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-th-00067",
+      "input": "ที่อยู่ลูกค้า: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-th-00068",
+      "input": "ส่งจดหมายไปที่ alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-th-00069",
+      "input": "ที่อยู่จัดส่ง: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00070",
+      "input": "กรุณาส่งไปที่ mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00071",
+      "input": "ที่อยู่: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00072",
+      "input": "ที่อยู่ลูกค้า: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-th-00073",
+      "input": "ส่งจดหมายไปที่ john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00074",
+      "input": "ที่อยู่จัดส่ง: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00075",
+      "input": "กรุณาส่งไปที่ anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-th-00076",
+      "input": "ที่อยู่: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-th-00077",
+      "input": "ที่อยู่ลูกค้า: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-th-00078",
+      "input": "ส่งจดหมายไปที่ mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00079",
+      "input": "ที่อยู่จัดส่ง: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-th-00080",
+      "input": "กรุณาส่งไปที่ alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-th-00081",
+      "input": "ที่อยู่: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-th-00082",
+      "input": "ที่อยู่ลูกค้า: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00083",
+      "input": "ส่งจดหมายไปที่ annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-th-00084",
+      "input": "ที่อยู่จัดส่ง: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-th-00085",
+      "input": "กรุณาส่งไปที่ john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-th-00086",
+      "input": "ที่อยู่: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-th-00087",
+      "input": "ที่อยู่ลูกค้า: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-th-00088",
+      "input": "ส่งจดหมายไปที่ alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-th-00089",
+      "input": "ที่อยู่จัดส่ง: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-th-00090",
+      "input": "กรุณาส่งไปที่ mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00091",
+      "input": "ที่อยู่: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00092",
+      "input": "ที่อยู่ลูกค้า: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-th-00093",
+      "input": "ส่งจดหมายไปที่ john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00094",
+      "input": "ที่อยู่จัดส่ง: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00095",
+      "input": "กรุณาส่งไปที่ annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-th-00096",
+      "input": "ที่อยู่: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-th-00097",
+      "input": "ที่อยู่ลูกค้า: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00098",
+      "input": "ส่งจดหมายไปที่ marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00099",
+      "input": "ที่อยู่จัดส่ง: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-th-00100",
+      "input": "กรุณาส่งไปที่ alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-th-00101",
+      "input": "ที่อยู่: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-th-00102",
+      "input": "ที่อยู่ลูกค้า: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00103",
+      "input": "ส่งจดหมายไปที่ anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-th-00104",
+      "input": "ที่อยู่จัดส่ง: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-th-00105",
+      "input": "กรุณาส่งไปที่ john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-th-00106",
+      "input": "ที่อยู่: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-th-00107",
+      "input": "ที่อยู่ลูกค้า: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-th-00108",
+      "input": "ส่งจดหมายไปที่ alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-th-00109",
+      "input": "ที่อยู่จัดส่ง: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00110",
+      "input": "กรุณาส่งไปที่ marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-th-00111",
+      "input": "ที่อยู่: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00112",
+      "input": "ที่อยู่ลูกค้า: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-th-00113",
+      "input": "ส่งจดหมายไปที่ johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-th-00114",
+      "input": "ที่อยู่จัดส่ง: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00115",
+      "input": "กรุณาส่งไปที่ anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-th-00116",
+      "input": "ที่อยู่: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-th-00117",
+      "input": "ที่อยู่ลูกค้า: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00118",
+      "input": "ส่งจดหมายไปที่ mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00119",
+      "input": "ที่อยู่จัดส่ง: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-th-00120",
+      "input": "กรุณาส่งไปที่ alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-th-00121",
+      "input": "ที่อยู่: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-th-00122",
+      "input": "ที่อยู่ลูกค้า: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00123",
+      "input": "ส่งจดหมายไปที่ anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-th-00124",
+      "input": "ที่อยู่จัดส่ง: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-th-00125",
+      "input": "กรุณาส่งไปที่ johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-th-00126",
+      "input": "ที่อยู่: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-th-00127",
+      "input": "ที่อยู่ลูกค้า: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-th-00128",
+      "input": "ส่งจดหมายไปที่ alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-th-00129",
+      "input": "ที่อยู่จัดส่ง: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00130",
+      "input": "กรุณาส่งไปที่ mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00131",
+      "input": "ที่อยู่: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00132",
+      "input": "ที่อยู่ลูกค้า: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-th-00133",
+      "input": "ส่งจดหมายไปที่ john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00134",
+      "input": "ที่อยู่จัดส่ง: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00135",
+      "input": "กรุณาส่งไปที่ anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-th-00136",
+      "input": "ที่อยู่: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-th-00137",
+      "input": "ที่อยู่ลูกค้า: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-th-00138",
+      "input": "ส่งจดหมายไปที่ mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00139",
+      "input": "ที่อยู่จัดส่ง: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-th-00140",
+      "input": "กรุณาส่งไปที่ alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-th-00141",
+      "input": "ที่อยู่: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-th-00142",
+      "input": "ที่อยู่ลูกค้า: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00143",
+      "input": "ส่งจดหมายไปที่ annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-th-00144",
+      "input": "ที่อยู่จัดส่ง: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-th-00145",
+      "input": "กรุณาส่งไปที่ john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-th-00146",
+      "input": "ที่อยู่: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-th-00147",
+      "input": "ที่อยู่ลูกค้า: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-th-00148",
+      "input": "ส่งจดหมายไปที่ alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-th-00149",
+      "input": "ที่อยู่จัดส่ง: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-th-00150",
+      "input": "กรุณาส่งไปที่ mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00151",
+      "input": "ที่อยู่: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00152",
+      "input": "ที่อยู่ลูกค้า: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-th-00153",
+      "input": "ส่งจดหมายไปที่ john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00154",
+      "input": "ที่อยู่จัดส่ง: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00155",
+      "input": "กรุณาส่งไปที่ annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-th-00156",
+      "input": "ที่อยู่: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-th-00157",
+      "input": "ที่อยู่ลูกค้า: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00158",
+      "input": "ส่งจดหมายไปที่ marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00159",
+      "input": "ที่อยู่จัดส่ง: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-th-00160",
+      "input": "กรุณาส่งไปที่ alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-th-00161",
+      "input": "ที่อยู่: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-th-00162",
+      "input": "ที่อยู่ลูกค้า: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00163",
+      "input": "ส่งจดหมายไปที่ anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-th-00164",
+      "input": "ที่อยู่จัดส่ง: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-th-00165",
+      "input": "กรุณาส่งไปที่ john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-th-00166",
+      "input": "ที่อยู่: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-th-00167",
+      "input": "ที่อยู่ลูกค้า: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-th-00168",
+      "input": "ส่งจดหมายไปที่ alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-th-00169",
+      "input": "ที่อยู่จัดส่ง: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00170",
+      "input": "กรุณาส่งไปที่ marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-th-00171",
+      "input": "ที่อยู่: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00172",
+      "input": "ที่อยู่ลูกค้า: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-th-00173",
+      "input": "ส่งจดหมายไปที่ johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-th-00174",
+      "input": "ที่อยู่จัดส่ง: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00175",
+      "input": "กรุณาส่งไปที่ anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-th-00176",
+      "input": "ที่อยู่: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-th-00177",
+      "input": "ที่อยู่ลูกค้า: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00178",
+      "input": "ส่งจดหมายไปที่ mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00179",
+      "input": "ที่อยู่จัดส่ง: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-th-00180",
+      "input": "กรุณาส่งไปที่ alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-th-00181",
+      "input": "ที่อยู่: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-th-00182",
+      "input": "ที่อยู่ลูกค้า: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00183",
+      "input": "ส่งจดหมายไปที่ anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-th-00184",
+      "input": "ที่อยู่จัดส่ง: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-th-00185",
+      "input": "กรุณาส่งไปที่ johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-th-00186",
+      "input": "ที่อยู่: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-th-00187",
+      "input": "ที่อยู่ลูกค้า: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-th-00188",
+      "input": "ส่งจดหมายไปที่ alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-th-00189",
+      "input": "ที่อยู่จัดส่ง: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00190",
+      "input": "กรุณาส่งไปที่ mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00191",
+      "input": "ที่อยู่: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00192",
+      "input": "ที่อยู่ลูกค้า: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-th-00193",
+      "input": "ส่งจดหมายไปที่ john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00194",
+      "input": "ที่อยู่จัดส่ง: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00195",
+      "input": "กรุณาส่งไปที่ anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-th-00196",
+      "input": "ที่อยู่: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-th-00197",
+      "input": "ที่อยู่ลูกค้า: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-th-00198",
+      "input": "ส่งจดหมายไปที่ mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00199",
+      "input": "ที่อยู่จัดส่ง: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-th-00200",
+      "input": "กรุณาส่งไปที่ alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-th-00201",
+      "input": "ที่อยู่: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-th-00202",
+      "input": "ที่อยู่ลูกค้า: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00203",
+      "input": "ส่งจดหมายไปที่ annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-th-00204",
+      "input": "ที่อยู่จัดส่ง: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-th-00205",
+      "input": "กรุณาส่งไปที่ john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-th-00206",
+      "input": "ที่อยู่: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-th-00207",
+      "input": "ที่อยู่ลูกค้า: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-th-00208",
+      "input": "ส่งจดหมายไปที่ alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-th-00209",
+      "input": "ที่อยู่จัดส่ง: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-th-00210",
+      "input": "กรุณาส่งไปที่ mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00211",
+      "input": "ที่อยู่: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00212",
+      "input": "ที่อยู่ลูกค้า: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-th-00213",
+      "input": "ส่งจดหมายไปที่ john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00214",
+      "input": "ที่อยู่จัดส่ง: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00215",
+      "input": "กรุณาส่งไปที่ annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-th-00216",
+      "input": "ที่อยู่: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-th-00217",
+      "input": "ที่อยู่ลูกค้า: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00218",
+      "input": "ส่งจดหมายไปที่ marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00219",
+      "input": "ที่อยู่จัดส่ง: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-th-00220",
+      "input": "กรุณาส่งไปที่ alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-th-00221",
+      "input": "ที่อยู่: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-th-00222",
+      "input": "ที่อยู่ลูกค้า: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00223",
+      "input": "ส่งจดหมายไปที่ anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-th-00224",
+      "input": "ที่อยู่จัดส่ง: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-th-00225",
+      "input": "กรุณาส่งไปที่ john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-th-00226",
+      "input": "ที่อยู่: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-th-00227",
+      "input": "ที่อยู่ลูกค้า: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-th-00228",
+      "input": "ส่งจดหมายไปที่ alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-th-00229",
+      "input": "ที่อยู่จัดส่ง: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00230",
+      "input": "กรุณาส่งไปที่ marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-th-00231",
+      "input": "ที่อยู่: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00232",
+      "input": "ที่อยู่ลูกค้า: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-th-00233",
+      "input": "ส่งจดหมายไปที่ johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-th-00234",
+      "input": "ที่อยู่จัดส่ง: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00235",
+      "input": "กรุณาส่งไปที่ anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-th-00236",
+      "input": "ที่อยู่: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-th-00237",
+      "input": "ที่อยู่ลูกค้า: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00238",
+      "input": "ส่งจดหมายไปที่ mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00239",
+      "input": "ที่อยู่จัดส่ง: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-th-00240",
+      "input": "กรุณาส่งไปที่ alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-th-00241",
+      "input": "ที่อยู่: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-th-00242",
+      "input": "ที่อยู่ลูกค้า: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00243",
+      "input": "ส่งจดหมายไปที่ anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-th-00244",
+      "input": "ที่อยู่จัดส่ง: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-th-00245",
+      "input": "กรุณาส่งไปที่ johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-th-00246",
+      "input": "ที่อยู่: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-th-00247",
+      "input": "ที่อยู่ลูกค้า: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-th-00248",
+      "input": "ส่งจดหมายไปที่ alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-th-00249",
+      "input": "ที่อยู่จัดส่ง: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00250",
+      "input": "กรุณาส่งไปที่ mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00251",
+      "input": "ที่อยู่: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00252",
+      "input": "ที่อยู่ลูกค้า: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-th-00253",
+      "input": "ส่งจดหมายไปที่ john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00254",
+      "input": "ที่อยู่จัดส่ง: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00255",
+      "input": "กรุณาส่งไปที่ anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-th-00256",
+      "input": "ที่อยู่: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-th-00257",
+      "input": "ที่อยู่ลูกค้า: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-th-00258",
+      "input": "ส่งจดหมายไปที่ mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00259",
+      "input": "ที่อยู่จัดส่ง: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-th-00260",
+      "input": "กรุณาส่งไปที่ alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 35
+        }
+      ]
+    },
+    {
+      "id": "email-th-00261",
+      "input": "ที่อยู่: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-th-00262",
+      "input": "ที่อยู่ลูกค้า: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00263",
+      "input": "ส่งจดหมายไปที่ annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-th-00264",
+      "input": "ที่อยู่จัดส่ง: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-th-00265",
+      "input": "กรุณาส่งไปที่ john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-th-00266",
+      "input": "ที่อยู่: marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "email-th-00267",
+      "input": "ที่อยู่ลูกค้า: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-th-00268",
+      "input": "ส่งจดหมายไปที่ alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-th-00269",
+      "input": "ที่อยู่จัดส่ง: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-th-00270",
+      "input": "กรุณาส่งไปที่ mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00271",
+      "input": "ที่อยู่: anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00272",
+      "input": "ที่อยู่ลูกค้า: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-th-00273",
+      "input": "ส่งจดหมายไปที่ john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00274",
+      "input": "ที่อยู่จัดส่ง: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00275",
+      "input": "กรุณาส่งไปที่ annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 38
+        }
+      ]
+    },
+    {
+      "id": "email-th-00276",
+      "input": "ที่อยู่: alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-th-00277",
+      "input": "ที่อยู่ลูกค้า: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00278",
+      "input": "ส่งจดหมายไปที่ marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00279",
+      "input": "ที่อยู่จัดส่ง: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-th-00280",
+      "input": "กรุณาส่งไปที่ alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-th-00281",
+      "input": "ที่อยู่: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 26
+        }
+      ]
+    },
+    {
+      "id": "email-th-00282",
+      "input": "ที่อยู่ลูกค้า: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00283",
+      "input": "ส่งจดหมายไปที่ anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "id": "email-th-00284",
+      "input": "ที่อยู่จัดส่ง: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 36
+        }
+      ]
+    },
+    {
+      "id": "email-th-00285",
+      "input": "กรุณาส่งไปที่ john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-th-00286",
+      "input": "ที่อยู่: mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-th-00287",
+      "input": "ที่อยู่ลูกค้า: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-th-00288",
+      "input": "ส่งจดหมายไปที่ alex.smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-th-00289",
+      "input": "ที่อยู่จัดส่ง: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00290",
+      "input": "กรุณาส่งไปที่ marylee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-th-00291",
+      "input": "ที่อยู่: anna.mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00292",
+      "input": "ที่อยู่ลูกค้า: alex_smith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 37
+        }
+      ]
+    },
+    {
+      "id": "email-th-00293",
+      "input": "ส่งจดหมายไปที่ johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-th-00294",
+      "input": "ที่อยู่จัดส่ง: mary.lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00295",
+      "input": "กรุณาส่งไปที่ anna_mueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 14,
+          "end": 39
+        }
+      ]
+    },
+    {
+      "id": "email-th-00296",
+      "input": "ที่อยู่: alexsmith@example.com",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 9,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-th-00297",
+      "input": "ที่อยู่ลูกค้า: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-th-00298",
+      "input": "ส่งจดหมายไปที่ mary_lee@company.io",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 34
+        }
+      ]
+    },
+    {
+      "id": "email-th-00299",
+      "input": "ที่อยู่จัดส่ง: annamueller@corp.example",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 15,
+          "end": 39
+        }
+      ]
+    }
+  ]
+}

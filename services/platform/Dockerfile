@@ -20,7 +20,6 @@ WORKDIR /app
 
 COPY package.json bun.lock bunfig.toml ./
 COPY packages/i18n/package.json ./packages/i18n/
-COPY packages/pii/package.json ./packages/pii/
 COPY packages/tale_knowledge/package.json ./packages/tale_knowledge/
 COPY packages/tale_shared/package.json ./packages/tale_shared/
 COPY packages/tale_telemetry/package.json ./packages/tale_telemetry/
@@ -69,7 +68,6 @@ COPY services/platform/vite.config.ts \
      ./services/platform/
 
 COPY packages/i18n ./packages/i18n
-COPY packages/pii ./packages/pii
 COPY packages/ui ./packages/ui
 COPY packages/webui ./packages/webui
 
@@ -111,7 +109,6 @@ FROM builder AS pruner
 
 COPY --from=workspace-deps /app/package.json /app/bun.lock /app/bunfig.toml /tmp/workspace/
 COPY --from=workspace-deps /app/packages/i18n/package.json /tmp/workspace/packages/i18n/
-COPY --from=workspace-deps /app/packages/pii/package.json /tmp/workspace/packages/pii/
 COPY --from=workspace-deps /app/packages/tale_knowledge/package.json /tmp/workspace/packages/tale_knowledge/
 COPY --from=workspace-deps /app/packages/tale_shared/package.json /tmp/workspace/packages/tale_shared/
 COPY --from=workspace-deps /app/packages/tale_telemetry/package.json /tmp/workspace/packages/tale_telemetry/
@@ -228,11 +225,6 @@ COPY --from=pruner --chown=app:app \
      ./
 COPY --from=pruner --chown=app:app /app/services/platform/convex ./convex
 COPY --from=pruner --chown=app:app /app/services/platform/lib ./lib
-# @tale/pii is the only workspace package reached by `bunx convex deploy`'s
-# bundler at runtime (via convex/governance/* and lib/shared/schemas/governance.ts).
-# Its node_modules entry is a hoisted symlink to ../packages/pii, so the source
-# tree must exist at /app/packages/pii for resolution to succeed.
-COPY --from=pruner --chown=app:app /app/packages/pii ./packages/pii
 COPY --from=pruner --chown=app:app /app/node_modules ./node_modules
 COPY --from=pruner --chown=app:app /app/services/platform/package.json ./
 COPY --from=pruner --chown=app:app /app/services/platform/docker-entrypoint.sh /app/services/platform/generate-admin-key.sh /app/services/platform/reset-owner.sh /app/services/platform/reset-owner.ts /app/services/platform/env.sh ./

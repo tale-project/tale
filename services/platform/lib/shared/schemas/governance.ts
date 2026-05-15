@@ -216,11 +216,18 @@ export const featureFlagsConfigSchema = z.object({
 });
 export type FeatureFlagsConfig = z.infer<typeof featureFlagsConfigSchema>;
 
-// PII configuration schemas live in `@tale/pii/schemas`. The Convex
-// dispatcher (governance/sanitize.ts), the admin UI, and the mutation
-// validator all import them from there. This file used to redeclare them;
-// removed when PII detection moved into the dedicated `@tale/pii` workspace.
-export { piiConfigSchema } from '@tale/pii';
+// PII configuration schemas live in `@/lib/pii/schemas/config`. The
+// Convex dispatcher (governance/sanitize.ts), the admin UI, and the
+// mutation validator all import them from there. This file used to
+// redeclare them; the duplication was removed when the PII engine
+// landed under `lib/pii/`.
+//
+// Import the schema module directly — `@/lib/pii` (the barrel)
+// transitively loads libphonenumber-js + the 43-locale registry, and
+// schema-only consumers (this file, guardrails-overview,
+// the mutation validator) don't need any of that. Many of those
+// consumers sit on hot routes where the cost shows up.
+export { piiConfigSchema } from '../../pii/schemas/config';
 
 export const modelAccessRuleSchema = z.object({
   scope: z.enum(['user', 'team', 'role', 'default']),

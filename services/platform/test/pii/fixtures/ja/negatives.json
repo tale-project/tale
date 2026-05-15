@@ -1,0 +1,4065 @@
+{
+  "_meta": {
+    "locale": "ja",
+    "generator": "platform/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 0,
+      "negatives": 810
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "negatives": [
+    {
+      "id": "neg-prose-ja-00000",
+      "input": "きみにちょっとしたものをもってきたよ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00001",
+      "input": "今日は６月１８日で、ムーリエルの誕生日です！",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00002",
+      "input": "お誕生日おめでとうムーリエル！",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00003",
+      "input": "ムーリエルは２０歳になりました。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00004",
+      "input": "パスワードは「Muiriel」です。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00005",
+      "input": "何と言ったら良いか分かりません。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00006",
+      "input": "先程、どういうわけかマイクが入りませんでした。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00007",
+      "input": "この世界の教育にはがっかりしてしまう。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00008",
+      "input": "すぐに諦めて昼寝をするかも知れない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00009",
+      "input": "それはあなたが一人になりたくないからです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00010",
+      "input": "そんなことは起きないでしょう。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00011",
+      "input": "あなたの勉強を邪魔しないようにします。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00012",
+      "input": "みんなもそうなのかな、と思うことくらいしかできない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00013",
+      "input": "長い目で見れば違ってくると思います。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00014",
+      "input": "私はいつも不思議な性格の方が好きだった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00015",
+      "input": "私は彼らにチケットをもう一枚送ってくれるように頼んだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00016",
+      "input": "君は僕にとてもいらいらしている。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00017",
+      "input": "私はそんな風には生きられない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00018",
+      "input": "私は一時期、天体物理学者になりたかった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00019",
+      "input": "僕が最後に自分の考えを伝えた人は、僕を気違いだと思ったようだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00020",
+      "input": "残念ながらそれは本当なのです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00021",
+      "input": "大抵の人は僕を気違いだと思っている。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00022",
+      "input": "そうしたらひとつ問題があって・・・。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00023",
+      "input": "こんな馬鹿なことは言ったことが無い。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00024",
+      "input": "のろまにはなりたくない。かっこ良くなりたい！！",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00025",
+      "input": "大きくなったら王様になりたい。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00026",
+      "input": "お金を稼ぎたいならアメリカが一番だ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00027",
+      "input": "それで彼らの気が変わったのかも知れない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00028",
+      "input": "兄弟がいるとどんなだろうといつも思う。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00029",
+      "input": "私ならそう言っただろうと思う。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00030",
+      "input": "いつまでかかっても全部を説明するのは無理だ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00031",
+      "input": "時々感情が抑えられないことがある。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00032",
+      "input": "これは代わりになるものをみつけたい単語だ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00033",
+      "input": "私は反社会的かもしれないけれど人と話さないわけではない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00034",
+      "input": "失礼に振舞ったりしないのが一番だと思う。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00035",
+      "input": "僕は不幸かも知れないけれど自殺はしない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00036",
+      "input": "あなたは新しいことを勉強したいのだと思った。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00037",
+      "input": "多くの人が日常のことについて文を書く。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00038",
+      "input": "それをするためには危険を冒さなければならない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00039",
+      "input": "孤独な人は、他人を恐れるから一人なのだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00040",
+      "input": "私は芸術家ではない。全然向いていない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00041",
+      "input": "もう彼女には言えないよ。そんなに単純なことではなくなってきたからね。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00042",
+      "input": "傷を付けたのは私だけど、こんなの簡単に直せる傷よ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00043",
+      "input": "欲しいものがみつかると、決まって高いものだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00044",
+      "input": "たぶん彼にしてみれば同じことよ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00045",
+      "input": "潔白であることは美しいことだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00046",
+      "input": "人間は決して永遠には生きられないものだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00047",
+      "input": "行き過ぎたものであっても、僕は自分の考えをなくしたくない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00048",
+      "input": "自分のかっこ良さをわざと隠すということ？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00049",
+      "input": "もし誰かにこの話の要点は何かって尋ねられても、私はさっぱりわからないわ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00050",
+      "input": "それがどこから来たのか分からなかった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00051",
+      "input": "僕が君と一緒に住んだことは君の人生観に影響を与えたと思う。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00052",
+      "input": "彼女は、どうしてそんなことが可能なのかと尋ねている。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00053",
+      "input": "君はただ人生の問題から逃げているだけだよ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00054",
+      "input": "歌詞を見てみれば、あまり意味が無いことに気付くでしょう。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00055",
+      "input": "君の気付いていない問題がある。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00056",
+      "input": "私の物理の先生は授業をサボっても気にしない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00057",
+      "input": "その後私はそこを出るんだけど、鞄を忘れてきたことに気付くんだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00058",
+      "input": "謝罪はあったにせよ、私はまだ彼に腹を立てている。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00059",
+      "input": "警察はあなたに弾丸をみつけさせるでしょう。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00060",
+      "input": "なぜみんなが私のことを気違いだと思うのか、遂に説明してくれてありがとう。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00061",
+      "input": "そんなつもりではなかったんだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00062",
+      "input": "理論的には、私は数学をしている。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00063",
+      "input": "丸一日オンラインで君を見ないなんてびっくりだよ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00064",
+      "input": "何が言いたいのか分からないなあ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00065",
+      "input": "私のパソコンは何かの役に立つはずだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00066",
+      "input": "自由について私に話したかったの？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00067",
+      "input": "恐い話が聞きたいなら、数週間前に私が見た夢のことを話してあげるよ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00068",
+      "input": "学校に全てを求めることはできない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00069",
+      "input": "分からない言葉がたくさんある。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00070",
+      "input": "私よりも物知りな数学者が自分のことをはっきりと表現できていないのを見るのは心地の良いものではない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00071",
+      "input": "こんなに明らかなことをわざわざどうやって説明したらいいのか分からない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00072",
+      "input": "ウィキペディアでいつかバイアグラを検索するなんて思ってもみなかったわ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00073",
+      "input": "答えが分かったんだ、でもあまりにすぐに分かったものだから正解であるはずがないんだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00074",
+      "input": "だけど、ここではそんなに簡単ではないんです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00075",
+      "input": "私はロウソクの灯りって好きだな。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00076",
+      "input": "痩せる必要がないというのは残念だ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00077",
+      "input": "授業が全然無いとでも言うの？！",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00078",
+      "input": "そんなに驚くことじゃないよね？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00079",
+      "input": "ログアウトするんじゃなかったよ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00080",
+      "input": "もう何をしたらいいか分からない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00081",
+      "input": "いつかフランスに行くことは避けられない、それがいつかは分からないけれど。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00082",
+      "input": "こんなことにはなって欲しくなかった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00083",
+      "input": "君には何が起こるか分かるんじゃないかと思うけどね。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00084",
+      "input": "君が次に分かることは君が新聞に載るってことだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00085",
+      "input": "僕はそんなに旅行好きではない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00086",
+      "input": "君がロボットではないってことは分かる。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00087",
+      "input": "ロボットなんかに私がなるわけないでしょう？ロボットは夢を見ないんだから。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00088",
+      "input": "それは誰にでもできるというものではない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00089",
+      "input": "まだ持ってるか分からないなあ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00090",
+      "input": "私の母はあまり英語が上手に話せない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00091",
+      "input": "私はフランス語がそんなにきちんとは話せない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00092",
+      "input": "今日君は来るのかなと思っていたところだよ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00093",
+      "input": "宇宙でどうやって食べ物をみつけるの？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00094",
+      "input": "みんなあなたに会いたがってる。あなたは有名なのよ！",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00095",
+      "input": "してもいないことをどうして謝るの？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00096",
+      "input": "私が何をしようと彼女はもっとうまくできると言うんだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00097",
+      "input": "何でこんなに遅くまで起きてるの？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00098",
+      "input": "一週間でどれほどのことが学べるか、自分でもびっくりするはずだよ！",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00099",
+      "input": "一緒に旅行してくれる人がいないんだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00100",
+      "input": "忍耐が耐えられないこともある。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00101",
+      "input": "誰も私のことを分かってくれない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00102",
+      "input": "僕は彼女無しに生きる術を学んだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00103",
+      "input": "メールをチェックしたかっただけ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00104",
+      "input": "その答えを知るのにあなたは本当にその質問をする必要があるのかしら。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00105",
+      "input": "私達がしなければならないことそれぞれの背後には自分たちがしたい何かがあると思うんだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00106",
+      "input": "何でうまくいかないか君に説明するにはずいぶん時間がかかりそうだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00107",
+      "input": "うまく言えないんだけど・・・自分も理解していないことを君に説明しようとしてるんだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00108",
+      "input": "私のことを凡人だと思うのはやめて！",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00109",
+      "input": "もっと成績を気にかけられればいいのだけれど、でも自分の人生のある点において成績はそんなに重要ではないと分かったんだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00110",
+      "input": "「転がる石は苔をもつけず」はことわざである。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00111",
+      "input": "「どなたですか」「お母さんよ」",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00112",
+      "input": "「いつ戻りますか」「天候次第です」",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00113",
+      "input": "「どうかしたの？」と小さな白いウサギが聞きました。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00114",
+      "input": "「洞穴の中で何が起こっているんだろう？すごく知りたいなあ」「見当もつかないよ」",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00115",
+      "input": "私たちは兄弟として共に生きることを知らなければならない。さもなくば、愚か者として共に滅びるであろう。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00116",
+      "input": "はぁ・・・（汗）、それでコンタクトは取れるようになったのかしら・・・？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00117",
+      "input": "「実を言うと、俺、高所恐怖症なんだ」「臆病者っ！」",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00118",
+      "input": "「これが探していたものだ」と彼は叫んだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00119",
+      "input": "「これはとてもおもしろそうだね」とひろしが言います。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00120",
+      "input": "彼らのコミュニケーションは我々が考えてきたものよりはるかに複雑かもしれません。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00121",
+      "input": "「電話が鳴っているよ」「私が出ます」",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00122",
+      "input": "「おっさん、やさしいなー」と、ウィリーは言った。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00123",
+      "input": "「手伝ってくれてありがとう」「どういたしまして」",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00124",
+      "input": "またいつか風のように走るんだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00125",
+      "input": "「彼女は音楽が好きだ」「私もそうだ」",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00126",
+      "input": "何か私にできることがありましたらお知らせ下さい。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00127",
+      "input": "そこで私たちを待っている幸福が、私たちが望むような幸福ではないかもしれない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00128",
+      "input": "私たちがそこへ行くかどうかを決めるのは君の責任だ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00129",
+      "input": "授業は八時三十分から始まるから。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00130",
+      "input": "ここから遠くまで行けるボートが欲しいです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00131",
+      "input": "「トランプしたいなあ」「私も」",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00132",
+      "input": "「以前にどこかで会ったことがありませんか」とその学生はたずねた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00133",
+      "input": "日本人ならそんなことはけっしてしないでしょう。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00134",
+      "input": "私の生きているうちに共産主義が効力を持つことは無いだろう。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00135",
+      "input": "ライ麦は貧困の穀物と称されていた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00136",
+      "input": "もし間違いを見つけたら訂正してください。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00137",
+      "input": "トランプを樫のテーブルに置いて。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00138",
+      "input": "人は食事を取らなければ死んでしまう。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00139",
+      "input": "申し訳ないけど長居できないんですよ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00140",
+      "input": "「どうして行かないの？」「行きたくないからだよ」",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00141",
+      "input": "１００万人の人々がその戦争で命を落とした。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00142",
+      "input": "３年前に東京へ来て以来ここに住んでいる。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00143",
+      "input": "１か月あまり名古屋に居たことがある。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00144",
+      "input": "９０歳以上生きることは決してまれではない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00145",
+      "input": "まず新しいサイトの概説をしようと思う。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00146",
+      "input": "自分の顔が、パスポートの顔写真のようになってきたら、旅に出た方がいい。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00147",
+      "input": "あぁ私の白いズボンが！新しいのに。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00148",
+      "input": "多くの人に囲まれて彼は自然と少し緊張しだした。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00149",
+      "input": "私が駅を出た時、男の人を見た。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00150",
+      "input": "それで誰もあなたを助けなかったの？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00151",
+      "input": "マドリードから来た人たちは変わっている。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00152",
+      "input": "彼にだまされなかったなんてついてるね。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00153",
+      "input": "わたしがいなくて淋しいと思った？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00154",
+      "input": "すみません、卵はどこにありますか？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00155",
+      "input": "誰かが亡くなったときは悲しいものだよ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00156",
+      "input": "洗ったあと引っ張って形にして。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00157",
+      "input": "最初着る前に洗濯してください。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00158",
+      "input": "こわれやすいガラス張りの家に住む者は石を投げてはいけない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00159",
+      "input": "「あばたもえくぼ」って言うからね。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00160",
+      "input": "数学は恋のようだ。単純だけど複雑にもなりうる。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00161",
+      "input": "有意義な回答とは、新たな疑問を生むようなそれである。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00162",
+      "input": "自分自身に疑問を持つことは良識の第一歩だ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00163",
+      "input": "貧しい人とはほんのわずかしか持っていない人ではなく欲のありすぎる人である。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00164",
+      "input": "驚かない所をみると知ってたのね。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00165",
+      "input": "あなたが駅に着くのにどのくらいかかりますか。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00166",
+      "input": "アメリカ旅行のよい記念になりました。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00167",
+      "input": "失礼だが、上記の記事にある３つの誤りを指摘しておきたい。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00168",
+      "input": "「はい」と「いいえ」しか言わない人と会話を続けるのは難しい。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00169",
+      "input": "「あの音で考え事ができないわ」と、彼女はタイプライターを見つめながら言った。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00170",
+      "input": "「ハムレット」はこれまでで最もおもしろい戯曲だと言われている。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00171",
+      "input": "「気分はどうですか」と彼は尋ねた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00172",
+      "input": "２、３年でフランス語に熟達するのはきわめて難しい。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00173",
+      "input": "それをあなたに説明することは私には無理です。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00174",
+      "input": "そのことを後悔しながら余生を送りたくない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00175",
+      "input": "年月を経て物事がどう変わっていくか見るのは面白そうだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00176",
+      "input": "そのことは全く予想していませんでした。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00177",
+      "input": "想像力は私たちの生活のどの側面にも影響を与える。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00178",
+      "input": "いつか私のことは忘れちゃうわ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00179",
+      "input": "テレビがなかったら生きていけないよ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00180",
+      "input": "君がいなければできなかった。ありがとう。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00181",
+      "input": "努力なくしては何も得られない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00182",
+      "input": "多くの人が目的なく人生を漂う。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00183",
+      "input": "愛のない人生など全く無意味だ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00184",
+      "input": "もし変更が必要でしたら、お知らせください。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00185",
+      "input": "試験が教育を駄目にしていると思う。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00186",
+      "input": "あの方が言われる事を、何でもしてあげて下さい。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00187",
+      "input": "学校まで１０分で歩いて行ける。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00188",
+      "input": "２、３ページの英語を訳すのに２時間以上もかかりました。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00189",
+      "input": "「ええ、オレンジジュースをお願いします」マイクは言った。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00190",
+      "input": "あなたは何を求めているのですか。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00191",
+      "input": "学校教育の義務的側面は子どもの学習意欲を改善させる様々な研究の多くの取り組みの中ではめったに分析されない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00192",
+      "input": "君にお金をあげるから俺が必要なのか。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00193",
+      "input": "パリは世界で最も美しい街である。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00194",
+      "input": "私はいつも思っていた、心筋梗塞を患うことは死期を知らせる前兆だと。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00195",
+      "input": "なぁ、金は無いかもしれないけどまだプライドは捨てちゃいないんだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00196",
+      "input": "こちらは私の友達のレイチェルです。私たちは同じ高校に通っていました。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00197",
+      "input": "驚くこと、不思議に思うことは理解し始めるということなんだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00198",
+      "input": "完璧であるには、欠点だけが欠けていた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00199",
+      "input": "物事は、ありのまま見るのではなく、自分自身をそこに見る。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00200",
+      "input": "あなたは他の誰も見ていなかった場所で私を見つけた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00201",
+      "input": "君が側にいてくれれば何もいらない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00202",
+      "input": "買い物に行かなければならない。一時間で戻るよ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00203",
+      "input": "イタリア語では何て言うんですか。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00204",
+      "input": "イタリアはとても美しい国です。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00205",
+      "input": "一晩泊めてもらいたいんだけど。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00206",
+      "input": "この辺りにユースホステルはありますか？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00207",
+      "input": "愛情は浪費されるものではない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00208",
+      "input": "人生とは、他の予定を立てることに忙しくしている時に起こる現象のことだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00209",
+      "input": "欲しくないという事は持っていると同じことだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00210",
+      "input": "「塩を取って下さい」「はい、どうぞ」",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00211",
+      "input": "やらなければならない事がありすぎる！",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00212",
+      "input": "ねぇ遊んでよ、とっても退屈なの！",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00213",
+      "input": "私のチョコレートを食べることを考えさえしないで。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00214",
+      "input": "飲み物を俺に頼まないでくれよ。自分で買いにいけばいいだろ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00215",
+      "input": "あんたのせいで食欲をなくしたよ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00216",
+      "input": "とにかく誰かをぶたないと気が済まない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00217",
+      "input": "最後に家族でディズニーランドへに行ってからもう随分になる。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00218",
+      "input": "両親がくだらないことで言い争っていて、とてもいらいらするよ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00219",
+      "input": "日焼け止めを塗りたくないならそれは君の問題だからいいけれど、でも日焼けしたからって僕に不満を言うのは止めてくれよ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00220",
+      "input": "友達はいつも僕のこととても落ち着いてるって言うけれど、家族にはいつもいらいらしているって言われるんだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00221",
+      "input": "あの蜘蛛が大嫌い。いつもそこにいて私が掃除するときいらいらさせるの。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00222",
+      "input": "あぁいらいらする・・・今やパソコンを使うたびに頭痛がするよ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00223",
+      "input": "とても暑くて、車のボンネットで卵が焼けるよ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00224",
+      "input": "偽りの姿を愛されるくらいなら、嫌われた方がましだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00225",
+      "input": "馬が亡くなってから鞍が淋しい。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00226",
+      "input": "私の目は夢を反映する海である。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00227",
+      "input": "私が話しているときは私を見て！",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00228",
+      "input": "女性がいなければ世界はどうなっていただろう。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00229",
+      "input": "君が演説をして誰も来なかったらどうするの？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00230",
+      "input": "君を元気にさせるのに何と言っていいか分からないよ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00231",
+      "input": "こんな馬鹿げた考えをどうやって思いついたんだ？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00232",
+      "input": "ホットチョコレート欲しい人ー？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00233",
+      "input": "もっとゆっくり話してください！",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00234",
+      "input": "それで何をしようとしているの？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00235",
+      "input": "いびきをかくことは認めるよ・・・。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00236",
+      "input": "彼女は寝たふりをしているからいびきをかいていないんだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00237",
+      "input": "靴が小さすぎるから新しいのを買う必要があるな。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00238",
+      "input": "「もし疲れているなら寝たらどう？」「僕が今寝たらあまりに早く目覚めてしまうから」",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00239",
+      "input": "私の言う事を聞くべきだったのに。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00240",
+      "input": "あまりに散らかっていていらする。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00241",
+      "input": "体が触れられたとき肌の感覚器官は脳に信号を送り、エンドルフィンのような化学物質が放出される。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00242",
+      "input": "自転車は都会の環境を破壊することなく資源利用を持続することのできる道具である。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00243",
+      "input": "仏政府は国家予算の帳尻を合わせるよう納税者に挑むオンラインゲームを売り出した。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00244",
+      "input": "証明もできないのに、一体何を真実だと信じるのだ？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00245",
+      "input": "コンピューターのおかげで人間は馬鹿になる。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00246",
+      "input": "考えていることを聞くな。やることを聞け。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00247",
+      "input": "何かを証明しようとする場合、それが真実であるという確信を持つことは何らかの手助けになる。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00248",
+      "input": "世界を変えるのは情報ではなくコミュニケーションだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00249",
+      "input": "ほとんどの科学的進歩は当然のことについての発見に過ぎない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00250",
+      "input": "何かが理解できないのはその中身を知らないからである。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00251",
+      "input": "過去は知られているが変えられない。未来は未知だが変えることができる。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00252",
+      "input": "鍵となる問題は何を得ることができるかではなく、何を失わなければならないかである。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00253",
+      "input": "誤解され得るものはいずれすべて誤解されるであろう。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00254",
+      "input": "何で人生はこんなに苦悩でいっぱいなんだ？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00255",
+      "input": "睡眠は重要であるにもかかわらず、その役割は謎である。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00256",
+      "input": "ジュネーブから来る列車が駅に到着します。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00257",
+      "input": "彼の誕生日に贈り物をあげたいんです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00258",
+      "input": "アンティグアに友達はいますか？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00259",
+      "input": "一立方メートルは千リットルにあたる。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00260",
+      "input": "私は結婚していて子どもが二人いる。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00261",
+      "input": "なぜ人々は映画を見に行くのか？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00262",
+      "input": "私の持っている全てをあなたに与えるために時間をちょうだい。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00263",
+      "input": "「おわったの」「それどころかまだ始めていないよ」",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00264",
+      "input": "「おはよう」とトムは微笑みながら言った。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00265",
+      "input": "ワインとは、ボトルに詰められた詩である。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00266",
+      "input": "あの日が私の人生で最高の日だった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00267",
+      "input": "外国語がとっても楽しいと分った。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00268",
+      "input": "不規則動詞の勉強は好きではない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00269",
+      "input": "あなたは私に夢を見させてくれるのね。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00270",
+      "input": "うれしさで舞い上がっています。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00271",
+      "input": "高校時代について最も後悔することを人々に尋ねると大抵の人は決まってこう言う。時間を無駄にしすぎていた、と。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00272",
+      "input": "したいことが出来なければ出来ることをしなさい。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00273",
+      "input": "あなたは私の好みのタイプです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00274",
+      "input": "また後でかけ直していただけませんか？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00275",
+      "input": "彼はあなたにあなたのセックスライフを語って欲しくないんだよ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00276",
+      "input": "男性が好きなのになぜ女性と結婚するの？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00277",
+      "input": "あなたがじゃがいもを買うように奇蹟を買うことができないなんて本当に残念だわ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00278",
+      "input": "この赤ちゃんペンギンとっても可愛い！",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00279",
+      "input": "病院にいるよ。雷に打たれたんだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00280",
+      "input": "止めて！あなたは彼女の気分を害してるわ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00281",
+      "input": "あなたにとってひらめきの最大の源は何？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00282",
+      "input": "一緒に暮らせる誰かと結婚するのではなく、その人なしでは生きていけない人と結婚するのよ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00283",
+      "input": "理論上、理論と実行の間には何の違いもないが、実際上違いはあるものだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00284",
+      "input": "あまりに馬鹿げていて言葉にできないことは歌うことで生み出される。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00285",
+      "input": "私はあなたが送ってくれた手紙を読んでいました。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00286",
+      "input": "私たちはもう終わったわ。指輪を返して！",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00287",
+      "input": "今日海岸に行こうと思っていたのに雨が降ってきた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00288",
+      "input": "明日図書館で勉強するつもりです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00289",
+      "input": "あれ？あなたまだここにいたのね！",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00290",
+      "input": "僕はあまりに疲れていたので昼休みにひと眠りした。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00291",
+      "input": "私は海の近くに住んでいるのでよく海岸に行きます。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00292",
+      "input": "一日に何回鏡で自分を見ているの？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00293",
+      "input": "彼女はそのことについて話したくないんだよ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00294",
+      "input": "彼は常時彼の才能をねたむ人々から中傷されることにうんざりしていた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00295",
+      "input": "カトリックを信じていない人々でさえ象徴的指導者として法王を敬っている。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00296",
+      "input": "飛行機が乱気流に近付いていたため操縦士は乗客にシートベルトを締めるよう呼びかけた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00297",
+      "input": "ジェイソンは無口な人だったので彼が何かを言うたび驚いていた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00298",
+      "input": "国王はいつも自分を褒めるおべっか使いにうんざりしていたので彼らを遠くへ飛ばした。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00299",
+      "input": "スペンサーはいたずらをした友達に仕返しをするひそかな計画を誰にも言わないだろう。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00300",
+      "input": "もしスペンサーが文を足して訳し続けなければ、他の貢献者がきっと彼を追い抜くだろう。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00301",
+      "input": "彼の評論は問題の表面的な分析結果を取り上げていただけだったのでクラスで最上位の成績を得たことにとても驚いた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00302",
+      "input": "結婚式ではあまりにたくさんのごちそうが出されたので、新郎新婦はもっと多くの人を呼ぶべきだったかなと思い始めた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00303",
+      "input": "この評論を優勝作品に選んだ基準は何ですか。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00304",
+      "input": "私は自分の仕事を気に入っています。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00305",
+      "input": "殺人犯は有罪判決を受けて終身刑に処せられた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00306",
+      "input": "小規模の森林火災はみるみる広がり大火災となった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00307",
+      "input": "全生徒がプロムの夜礼儀正しく振る舞っているのを見て驚いた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00308",
+      "input": "わたしはあなたの夢を見ました。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00309",
+      "input": "新しいパソコンを買わねばなりません。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00310",
+      "input": "くしゃみが出そう・・・ティッシュちょうだい。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00311",
+      "input": "この日はただ時間とお金の無駄だった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00312",
+      "input": "でもあなたは私に言ってくれなかったでしょ！",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00313",
+      "input": "自分のウェブサイトの構成を変えた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00314",
+      "input": "まだ晴れている間に洗濯をしなければなりません。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00315",
+      "input": "ごめん。出来るとは思えないよ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00316",
+      "input": "いくつサンドイッチ残ってるの？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00317",
+      "input": "窓から日が沈むのを見ることができるだろう。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00318",
+      "input": "私が絶対勝てないってあなた言った？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00319",
+      "input": "何が起こったの？アパート全体水浸しだよ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00320",
+      "input": "夏休みの間、私は夜中に夕食を食べていた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00321",
+      "input": "この業界ではもう年をとりすぎている。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00322",
+      "input": "税金を払ったら実生活の始まりだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00323",
+      "input": "彼は彼の人生の話を私にしてくれた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00324",
+      "input": "今日はきっと楽しくなると思っていたよ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00325",
+      "input": "いつご飯食べるの？お腹空いたよ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00326",
+      "input": "「ありがとう」「どういたしまして」",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00327",
+      "input": "あなたからさまざまなことを学びました。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00328",
+      "input": "彼女は無理なお願いをしている。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00329",
+      "input": "彼は跡形もなく姿を消してしまったんだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00330",
+      "input": "コミュニケーションなしに進展はあり得ない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00331",
+      "input": "私はひざを曲げずに両方の手のひらを床に付けることができる。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00332",
+      "input": "誰しも、夢はかなうと信じたいものだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00333",
+      "input": "夢を実現するのに一番良いのは目を覚ますことである。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00334",
+      "input": "世界は君を中心に回っているわけではないんだよ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00335",
+      "input": "私の命が危ないと言ってるわけですか？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00336",
+      "input": "僕の人生がどんなものか、君は分かっているのか？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00337",
+      "input": "この場所には不思議な雰囲気がある。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00338",
+      "input": "これにつきまして、お考えをお聞かせ願えればと存じます。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00339",
+      "input": "同性愛者ですが何か？それが犯罪だとでも？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00340",
+      "input": "私の母はオレンジジュースを二本買った。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00341",
+      "input": "彼女は黒い帽子をかぶっていた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00342",
+      "input": "私たちは朝食にパンケーキを作った。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00343",
+      "input": "きょう何を昼食に食べましたか。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00344",
+      "input": "午後はずっと友人とおしゃべりをして過ごした。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00345",
+      "input": "私はもっと自立したいと思っている。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00346",
+      "input": "そこに一日中ただ立っているつもりかい？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00347",
+      "input": "ウサギには長い耳と短い尾がある。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00348",
+      "input": "私の心は幸福感でいっぱいだった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00349",
+      "input": "彼は嫌な思い出が消えることを願っている。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00350",
+      "input": "私は秘密を漏らしたりしません。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00351",
+      "input": "君の愚痴はもう聞きたくないよ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00352",
+      "input": "そんな不当な提案は、拒否すべきだったのに。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00353",
+      "input": "数学はただ公式を暗記すればいいというものではない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00354",
+      "input": "そういう印象を与えるつもりではなかったんです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00355",
+      "input": "バカンスに行くのが待ち遠しい。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00356",
+      "input": "うんざりするのにももう疲れた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00357",
+      "input": "もし電気がないと、私たちの暮らしがどのようなものになるか想像できますか。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00358",
+      "input": "彼の話はあまりにも馬鹿げていたので誰も信じなかった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00359",
+      "input": "私はこのプロジェクトに参加できることを誇りに思います。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00360",
+      "input": "日本には美しい都市が多い。例えば京都、奈良だ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00361",
+      "input": "土曜日までに本を返さなければなりません。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00362",
+      "input": "ハロー、問題が解決したよ。以上お知らせでした。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00363",
+      "input": "どうしてノートパソコンは持っているのに携帯電話は持っていないの？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00364",
+      "input": "私は友達とビールを飲みに行った。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00365",
+      "input": "クレジットカードでも良いですか？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00366",
+      "input": "状況は私たちが思っていたよりも悪い。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00367",
+      "input": "彼らはなぜなのかさえ知らない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00368",
+      "input": "私はあなたに本当のことを言って欲しい。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00369",
+      "input": "あなたは私が出発してから到着した。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00370",
+      "input": "あなたが戻って来てくれて嬉しいです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00371",
+      "input": "あなたはすっかり変わりましたね。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00372",
+      "input": "あなたって、なんてきれいなんでしょう！",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00373",
+      "input": "あなたはもっと仕事をしなければなりません。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00374",
+      "input": "ここで写真を撮らないでください。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00375",
+      "input": "奈良は静かで、きれいな町です。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00376",
+      "input": "私の趣味は音楽を聞くことです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00377",
+      "input": "いくら考えても、わかりません。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00378",
+      "input": "暇だったら、手伝ってください。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00379",
+      "input": "どうしてそんなに日本の歴史に詳しいの？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00380",
+      "input": "この天気とは気長に付き合っていくしかない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00381",
+      "input": "私は気が短いし、口も軽い男だ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00382",
+      "input": "汚い行為の報いは必ず自分に返ってくる。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00383",
+      "input": "そちら様のお電話番号をいただけますか。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00384",
+      "input": "そうしたなかで急速な進歩を遂げてきたのが、ITである。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00385",
+      "input": "いいからさっき盗ったモノを、カバンの中から出しなさい。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00386",
+      "input": "虫歯を侮ると命に係わる場合もあるのです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00387",
+      "input": "馬鹿が移るまえにそのような宗教に関わらんほうがいい。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00388",
+      "input": "前の歯医者さんに、たばこをやめるなら、ヤニ取りしてあげる・・・といわれたそうです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00389",
+      "input": "歯医者で歯についたたばこのヤニを取ってもらうと、費用はどれくらいかかるでしょう？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00390",
+      "input": "「騙された」と言ってしまえばそれまでですが、「うまい話」に乗った当人であることは間違いありません。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00391",
+      "input": "PC内部のタイマー用ボタン電池が切れた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00392",
+      "input": "そして、この遊具には滑り台のデッキに上がる方法がもう一つあります。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00393",
+      "input": "この空港は新千歳空港ほど便数が多くないので、送迎デッキから見ても最初は飛行機がいませんでした。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00394",
+      "input": "あなたの行くところなら、どこへでも付いてゆくと決めたのだもの。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00395",
+      "input": "私も親の面倒とか見られないですね。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00396",
+      "input": "『北の国から』は、北海道富良野市を舞台にしたフジテレビジョン制作のテレビドラマ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00397",
+      "input": "前髪が、おでこにかからないように髪を上げることをおすすめします。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00398",
+      "input": "どうしてこんな上等のぶどう酒を今まで取って置いたのか。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00399",
+      "input": "身命をかけて職務を実践し、すべての警察官の心に火をともしてくれました。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00400",
+      "input": "政府が住民に問う一般投票を実施しました。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00401",
+      "input": "一般投票による「ピープルズ・チョイス賞」が今年も発表され、メル・ギブソンとジュリア・ロバーツが最も人気のある映画男優と女優に選ばれた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00402",
+      "input": "妹の咲子です。俺と年子で、今受験生です。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00403",
+      "input": "幼なじみが春から大阪の大学に行くらしい。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00404",
+      "input": "手が寒さで震えたは、少しオーバーですみません。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00405",
+      "input": "外を見ると雨が降り始めている。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00406",
+      "input": "今まで使っていたものを今朝部屋でボール遊びをしていて、わってしまったのです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00407",
+      "input": "結果、雨の日は部屋の中でボール遊びをしています。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00408",
+      "input": "勧工場には約２０の出店が並んだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00409",
+      "input": "マリア・カラスは有名なオペラ歌手でした。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00410",
+      "input": "「何を考えてるの？」「別に・・・」",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00411",
+      "input": "選挙に勝つには「見た目」が何割？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00412",
+      "input": "義務は、許可通知の後、発行料を支払った後も続く点に留意。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00413",
+      "input": "納税者の目線で努力を致したいと思います。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00414",
+      "input": "６月末に参加者を募ったら１週間弱で約５００席が予約でいっぱいになった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00415",
+      "input": "来年６月２２日に観測される皆既日食。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00416",
+      "input": "いつから日本人は精白米を食べるようになったのですか？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00417",
+      "input": "ハバロフスク市が極東ロシアで大都会の一つです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00418",
+      "input": "ただ、調子を合わせているんじゃない。本当に、私の気持ちを分かっていて同情している目だった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00419",
+      "input": "女性に彼氏がいるかいないかの探りを入れるベストな方法が有れば教えてください。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00420",
+      "input": "たまには偏差値の高い人とレベルの高い会話してみたい。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00421",
+      "input": "このオンボードというのは平たく言えば「グラフィックカードがついていない」ものだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00422",
+      "input": "殺人事件の背後に潜むミステリーを解き明かせ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00423",
+      "input": "同じ頃、事務員・有村夏恵は、今月を限りに退職する旨を五鬼上に申し入れた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00424",
+      "input": "いよいよ今週を限りに、しばらくのお休みです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00425",
+      "input": "考えたんだけど、やっぱりこういうのはよくないから、今日を限りに別れよう。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00426",
+      "input": "俺を哀れに思って助けてくれたのさ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00427",
+      "input": "彼はくたくたの背広を着ていた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00428",
+      "input": "彼はトロフィーを高々と差し上げた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00429",
+      "input": "赤鉛筆を忘れた子どもには、きちんと借りに来させた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00430",
+      "input": "「じゃ留年しなかったら付き合ってくれんの？」「タラレバ話って好きじゃないの」",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00431",
+      "input": "「少しうちに寄っていかない？」「いいの？」「うち共働きで親は遅いの」",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00432",
+      "input": "早川くん、中間テストの結果でてたわよ。またトップ！",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00433",
+      "input": "木工芸では、木を、硬木、軟木と、唐木に分類します。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00434",
+      "input": "軟木の絶縁された部屋およびよいヒーターはサウナのための絶対必要である。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00435",
+      "input": "２回目の人工内耳移植への低所得者医療扶助制度の適用不許可を取り下げる。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00436",
+      "input": "あなたの美意識を満足させるものは何ですか？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00437",
+      "input": "職場でOutlookのスケジュールを使用していますが、ＰＤＡを購入しシンクロさせたいと考えています。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00438",
+      "input": "迷彩のショートパンツを履く場合、上は何色のTシャツが合いますか？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00439",
+      "input": "例えば、たばこをぷかぷか吸う先生が、たばこを吸う生徒に注意してもその注意は矛盾しているだろう。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00440",
+      "input": "「ご注文は？」「オレンジジュース」「アイス付きで？」「そう」「まいど」",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00441",
+      "input": "「ちょっとカタいかな～」「カタい？」「粘度が高すぎるってことさ」",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00442",
+      "input": "「何も聞いていないので何も言えない」と困惑の表情を浮かべた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00443",
+      "input": "私たちはとっても仲良しでお互いの家をよく行き来する仲でした。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00444",
+      "input": "ほお紅や口紅を差すだけで表情や笑顔がどんどん変わってくるんです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00445",
+      "input": "初期の自覚症状としては、排尿障害がありますが、多くの場合、はっきりとした症状がありません。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00446",
+      "input": "副作用としては、視力障害があります。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00447",
+      "input": "「お見事、よくやった」と小川選手を褒め称える報道が多かった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00448",
+      "input": "ママ～！あのお姉ちゃんとお兄ちゃん、お手手繋いで、すっごく仲良しさんだね～！",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00449",
+      "input": "カミナリが光ったその後【くわばらくわばら】と唱えたもしくは、唱える人を見たことがあるだろう。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00450",
+      "input": "東北・秋田新幹線が運転を見合わせるなど交通も混乱した。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00451",
+      "input": "気をつけて。警察の犬がかぎ回ってる。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00452",
+      "input": "ワインを冷やしておいてくれたとは気が利いてるね。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00453",
+      "input": "官軍に入城を許すとはどういう了見だ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00454",
+      "input": "なんとかそこで支えよ。入市を許すな。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00455",
+      "input": "「クレオパトラ」は美人の代名詞になっている。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00456",
+      "input": "「親父これって・・・真剣？」「当たり前だろう、決闘なのだからな」",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00457",
+      "input": "あなたはどこの国の出身ですか。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00458",
+      "input": "日本語のソフトを落とすコツ・いいサイトありませんか？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00459",
+      "input": "赤ちゃんは泣かせたままにしてはいけないのでしょうか？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00460",
+      "input": "たまには赤ちゃんを泣かせておくのもいい。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00461",
+      "input": "本状の持参人は友人の鈴木君です。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00462",
+      "input": "この百科事典は検索に便利である。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00463",
+      "input": "私は料理をしますが、とんでもなく下手くそです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00464",
+      "input": "たまにはビール以外のお酒をちびちび舐めるのも良いでしょう。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00465",
+      "input": "ここのソースは舐めてみるとちょっと塩っぱい。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00466",
+      "input": "良い所：様々なコンボで自由に敵を料理する楽しさ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00467",
+      "input": "ようやく夜が明けて長い夜が終わった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00468",
+      "input": "彼は古代史の分野で突っ込んだ研究をしている。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00469",
+      "input": "「なあ、そこの姉さん」「え？」「ちょっと相談に乗ってくれないか？」",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00470",
+      "input": "実も結ぶが、挿し木でも根付くらしい？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00471",
+      "input": "先ずは憧れの作家の文章の呼吸をつかむためにひたすら筆写、丸写しをする。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00472",
+      "input": "黒魔法の話を聞きたいです。学院ではさわりしか聞いたことがないんですが興味があります。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00473",
+      "input": "それは君の腕次第かな。期待してるよ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00474",
+      "input": "ここの下りも手掛かりがないので危険だ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00475",
+      "input": "美術館の東の陳列棟は清掃のため閉鎖されていた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00476",
+      "input": "やくざがひろしに試練を課している。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00477",
+      "input": "社長が社員の主体的な取り組みを促した。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00478",
+      "input": "私たちは姉妹３人で喫茶店を始めた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00479",
+      "input": "パックマンが、ある条件を満たすと追ってくるモンスターを逆襲して食べることができる。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00480",
+      "input": "サダムが脅威でないなどと言うのは、赤がかった反戦運動の人達くらい。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00481",
+      "input": "母ちゃんも同じ事いってたな。だからどうしたってんだよ。オレにゃ関係ない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00482",
+      "input": "ご読了ありがとございました～。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00483",
+      "input": "終わったあとも足が軽い感じがしました。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00484",
+      "input": "これは兄です。かっこいいですね。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00485",
+      "input": "会社に入ると、自分が望むと望まざるとにかかわらず、会社のために働かなくてはいけない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00486",
+      "input": "上司は僕の仕事振りがいい加減だと決め付けた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00487",
+      "input": "これは一押しのレストランなんだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00488",
+      "input": "アジア諸国などから出稼ぎにきた外国人をメイドとして使うのが常識のようになっている。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00489",
+      "input": "東京ミッドタウンは緑がいっぱい！",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00490",
+      "input": "犯人だと思っていた男は事件とは何の関係もなかった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00491",
+      "input": "しかし、その貸金庫に預けているものを狙った男達に、ハナを誘拐されてしまう。その誘拐犯達とは、実は刑事だった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00492",
+      "input": "サイレンが急変を知らせました。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00493",
+      "input": "誰がどんな趣味だろうと君の知ったことか？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00494",
+      "input": "ママー、今あのおにいちゃんすごいころんだよー。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00495",
+      "input": "大学院生のケンは去年アメリカに行った。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00496",
+      "input": "娘はいつも、約束を守らない母親に苛立っていた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00497",
+      "input": "窓を開ける時は、カーテンは閉めないで下さい。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00498",
+      "input": "しかし、使徒たちはその危険に気付いた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00499",
+      "input": "僕には彼女の言うことが分かった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00500",
+      "input": "私自身も、当社に入社する前の会社では、２度ほどトップに直言した経験があります。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00501",
+      "input": "日本ではリング状のものが早くから普及したため「避妊リング」と呼ばれることも多い。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00502",
+      "input": "儲けようとする投機筋に操られているのです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00503",
+      "input": "第１３週：絶対運動と相対運動について学習する。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00504",
+      "input": "これは遠心力ですがニュートンは絶対運動と見なしています。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00505",
+      "input": "心情的には賛成、けれど現実的に反対します。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00506",
+      "input": "僕的にはもっと地味ってか渋い服が欲しいんですけどね。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00507",
+      "input": "黒鯛の料理方法．刺し身、黒鯛は何といっても刺身が一番おいしいです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00508",
+      "input": "それを発明した教授は大学から相当の対価を受ける権利がある。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00509",
+      "input": "特殊能力があるかどうかは分かりませんが、普通の人間以上の力はあった事でしょう。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00510",
+      "input": "化学物質に敏感な人々への配慮がない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00511",
+      "input": "惰性に身を任せているがために今のような現在があるんですね。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00512",
+      "input": "彼の声は悪霊の突然の咆哮にかき消される。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00513",
+      "input": "結局、法案は提出断念に追い込まれたのだった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00514",
+      "input": "殺してやる！ぶっ殺して、踏み潰してやる！くそったれ！死ね！",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00515",
+      "input": "本書の欠点は、既婚者である著者が非婚をすすめても、説得力を欠く事である。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00516",
+      "input": "町田は古いものと新しいものが入り交じった面白い街です。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00517",
+      "input": "このシステムのもとでは、生徒は交替で教えあい、お互いに助け合わなければなりません。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00518",
+      "input": "だからお互いに助け合う必要があったので、そういう意味では妹との絆は強かった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00519",
+      "input": "ムクドリのヒナを親鳥に返せますか。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00520",
+      "input": "最近寝てるときにこむらがえりを起こします。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00521",
+      "input": "ＯＥＣＤの調査で北欧諸国が税率において世界の上位をキープした。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00522",
+      "input": "当時の農家の暴利はすさまじかった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00523",
+      "input": "それを皮切りとして欧州の詩や文学を多数紹介するようになりました。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00524",
+      "input": "あんな物を投げ下ろせば、運悪く当たった人は、ケガをする。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00525",
+      "input": "それは定石通りというだけで、手を抜いたわけではないのです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00526",
+      "input": "非の打ち所がない計画は、窮屈だなあ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00527",
+      "input": "そうです、異常音は空冷ファンの最後の断末魔だったのです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00528",
+      "input": "男でも女でも腹が据わっているってのはカッコいいですよね。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00529",
+      "input": "傍目八目という言葉があるように一度協会から離れて、日本サッカーをみて頂きたい。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00530",
+      "input": "マネがこの絵を描くまで、女性の裸像は女神に限られていました。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00531",
+      "input": "味も濃厚で、炒め物、スープなど中華料理に深みを与えます。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00532",
+      "input": "toのつかない不定詞を原形不定詞と言う。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00533",
+      "input": "「ソフトウェア開発」は「モノ作り」ではない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00534",
+      "input": "ここで使われている文法形式は現在進行形である。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00535",
+      "input": "制度的に大きな枷となるのは、著作権の問題である。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00536",
+      "input": "この公園の西側に近いところは、道路の騒音も大きいが、奥にはいるともう聞こえない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00537",
+      "input": "人物画を描けるスクールを探しています。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00538",
+      "input": "彼が新進気鋭の学者と新聞で紹介された男かい。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00539",
+      "input": "そしてこの法律案が通らなかった場合において、おまえはどういう責任をとるのだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00540",
+      "input": "療養病床が減ればそれができず、一般病床の医療にも支障をきたします。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00541",
+      "input": "英日の翻訳と日英の翻訳では、英日の翻訳を希望する人のほうが多いようです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00542",
+      "input": "そんなことを考えながら『我輩はカモである』を再見しました。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00543",
+      "input": "ちなみに、それはこの話の後日談にする予定です。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00544",
+      "input": "朝夕は冷えるので服装などに注意したい。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00545",
+      "input": "一生懸命磨きました。困ったのは、意外と低級宝石のストックがないことです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00546",
+      "input": "小学５年の息子が静岡から名古屋の小学校に転入しました。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00547",
+      "input": "強い乱視はコンタクトレンズのほうが矯正できます。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00548",
+      "input": "ふたをして始めは強火、沸騰したら中火にして約７分間煮ます。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00549",
+      "input": "そういえば、電車の中で隣に座ったほろ酔いのおっさんに、自分の俳句を見て欲しいと言われたことがある。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00550",
+      "input": "私なんぞには野牛と鹿と馬とを描き分けることなど到底出来ない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00551",
+      "input": "細かい意訳誤訳は気にしないでください。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00552",
+      "input": "今回、まだ両替していなかったので、日本円を人民元に替える必要があった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00553",
+      "input": "椎間板ヘルニアは背骨の間にある椎間板という軟骨が飛び出すものです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00554",
+      "input": "太陽熱は日本では発電より太陽熱温水器として利用されています。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00555",
+      "input": "こんな歌を残している明治天皇の一面を知っている日本人は少ないのではないだろうか。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00556",
+      "input": "社屋や従業員に被害はなく、平常通り営業している。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00557",
+      "input": "基本的に俺は短詩が好きだ。短詩の中では、この詩がトップだった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00558",
+      "input": "そのろくでなしどもはクビになりましたよ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00559",
+      "input": "占星学は科学的な根拠もないのに、とても人気があって、占星学は信じている人が多いようです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00560",
+      "input": "女ってどうして連れションしたがるの？物凄く理解不能。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00561",
+      "input": "微生物学の基本から最新の情報までを網羅する。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00562",
+      "input": "as may be の文法解釈を教えてください。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00563",
+      "input": "項目が増えたり減ったりする表示なら、Accessでなくて表計算ソフトを活用すべきだと思います。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00564",
+      "input": "偏頭痛がおこったときに対処するだけではなく、普段の生活のなかで、偏頭痛をなるべく防いでいくのも大事なことです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00565",
+      "input": "職場・仕事の変化で、かなりストレスがたまっているのもある。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00566",
+      "input": "私はストレスがたまると食欲がなくなるのではなく、逆に何か食べないと気が済まなくなる。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00567",
+      "input": "「馬鹿」という言葉は、悪い言葉だと言われているが、私の成長してきた環境では、 それほど悪い言葉ではなかったように思う。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00568",
+      "input": "REM睡眠中の脳波は起きている時と同じ脳波であり、夢を見るステージです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00569",
+      "input": "ストレスが胃の粘膜を荒らす原因のひとつは次のように考えられています。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00570",
+      "input": "アルミニウム、マグネシウム、シリコンなどの粉末が爆発する。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00571",
+      "input": "道具としての実需がないから品揃えに深みがでない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00572",
+      "input": "細菌などから隔離するため、面会謝絶となっています。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00573",
+      "input": "ハゲタカが突っつく死んだ鹿とか、他の動物の食べ残しとか、 そういう腐った肉を死肉と書きました。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00574",
+      "input": "教育産業に関する情報を掲載したインターネットサイトには以下のようなものがあります。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00575",
+      "input": "一戸建より共同住宅に住む世帯の増加率の方が高い。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00576",
+      "input": "楽器・機材の質は完全にプロ仕様！ですが値段は何処よりも安い！",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00577",
+      "input": "パプアニューギニアに住むメラネシア人の多くは、かなり強い天然パーマですね。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00578",
+      "input": "スーパーボウルを見るために会社を休んでいた事もありました。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00579",
+      "input": "次の動詞はｔｏ不定詞だけを目的語にとります。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00580",
+      "input": "ガーデニングの本を見てたら、ドクロマークのついたのがいっぱいあって驚きました。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00581",
+      "input": "小学校のときから、酸性・アルカリ性という性質をリトマス紙で調べたりしてきていますね。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00582",
+      "input": "リトマス紙で溶液の液性（酸性、中性、塩基性）を調べるときは、リトマス紙をすべて溶液に浸すのではなく、紙の先端の部分だけを浸します。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00583",
+      "input": "中国がより積極的な役割を発揮していくものと信じる。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00584",
+      "input": "以前はタバコを吸い、かなりのヘビースモーカーでした。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00585",
+      "input": "あなた同様私もヤフオクの評価が信じられません。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00586",
+      "input": "ドアを開けて入ってきたのは、まったく見知らぬ人だった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00587",
+      "input": "「寝てた？」「爆睡」「そ、そうか？」「なんかうなされてたよ。怖い夢でも見てた？」",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00588",
+      "input": "仕事を生半可に知っている人が書くことは、できれば避けたい。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00589",
+      "input": "もうよろしくてよ。実のない会話にはうんざりですわ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00590",
+      "input": "食べられることなくそのたこは、海に帰ったのであった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00591",
+      "input": "神は創造者です。天も地も人も、神以外は全て被造物です。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00592",
+      "input": "彼は戦災孤児をひきとって養女として育てています。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00593",
+      "input": "生き地獄は、言い過ぎだと私も思う。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00594",
+      "input": "ゴムをすると確かに性感が落ちるので、出来れば生でしたいです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00595",
+      "input": "インコを飼うために必要なものを揃えましょう。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00596",
+      "input": "彼女は無邪気なのか羞恥心がないのか。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00597",
+      "input": "そこそこ腕が立つようになるにはどれくらいの時間がかかるものでしょうか？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00598",
+      "input": "彼女たちの口から職場の労働問題が出てくることはほとんどなかった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00599",
+      "input": "「西遊記」の中には錬金術の話が数多く登場します。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00600",
+      "input": "そのため、派遣労働者は劣悪な労働条件の下で働いている。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00601",
+      "input": "彼ほど平々凡々たる主人公は珍しい。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00602",
+      "input": "避妊はちゃんとコンドームつけてたのよね？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00603",
+      "input": "ロバート・ハンセンが、旧ソ連に秘密情報を売りさばいた容疑で逮捕された。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00604",
+      "input": "夫との間に波風が立つのが恐くて、愛人の存在は知らない振りをしています。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00605",
+      "input": "ついに我がデジタルグルーヴクラブの定款が完成しました。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00606",
+      "input": "中日間は本当にお互いを知り合うところまでは到達していない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00607",
+      "input": "Boston Dynamicsのロボット「RHex」は、いろんな地形を走れるすごいやつです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00608",
+      "input": "私の駄文を見ていただきありがとうございます。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00609",
+      "input": "仕事をそつなくこなすことを会社は求めていることはわかります。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00610",
+      "input": "う～む、相貌から判断するに上海からか。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00611",
+      "input": "実施設計とは基本設計で決まった計画を、工事ができる図面に書く作業です。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00612",
+      "input": "くれぐれも浄水器の悪質訪問販売業者や無料点検商法にはご注意ください。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00613",
+      "input": "飼鳥の医学―病気の診断とその治療。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00614",
+      "input": "山越えの道は狭く、しかも急勾配だった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00615",
+      "input": "そこに赤井選手も加わり、ゴール前は混戦模様となった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00616",
+      "input": "トップのリーダーは犬の行動学では「アルファ」と呼ばれ、以下「ベータ」「ガンマ」と続きます。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00617",
+      "input": "当事者が公証役場に行く場合、下記のものが必要になります。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00618",
+      "input": "では、CGを作る場合はどのように光源を使用すればよいのであろうか。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00619",
+      "input": "企業経営で活躍するために必要となるのが多くの仲間と仕事を遂行するための協調精神です。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00620",
+      "input": "若い棋士が多少、尊大な感じになるのはよくあることで、 そういうことは将棋界に限った話ではないでしょう。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00621",
+      "input": "なお、会社説明会後でも、会社見学は随時受け付けております。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00622",
+      "input": "王手をかけられたほうは、玉を逃げるなどの方法で王手を防がねばなりません。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00623",
+      "input": "陰影に気をつけてみたのですがなかなかうまくいかないです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00624",
+      "input": "ワインにはいろいろなタイプがあり、それによって育成の仕方もさまざまです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00625",
+      "input": "玄関にも取り付け可能な暗証タイプです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00626",
+      "input": "ただし、安全日だからって、中出ししても妊娠しないというわけではないらしいです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00627",
+      "input": "テクトロニクスの新ソフトウェアは、ロジック・アナライザを使う顧客のニーズにまさしく応えるものです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00628",
+      "input": "皆さんは、モラルを大切にしていますか。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00629",
+      "input": "ペットロスとは、ペットを失った飼い主に起きるショックや怒りなどの反応をいう。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00630",
+      "input": "リスクマネーとは、ハイリスクながらハイリターンを求める投資に投入される資金のことをいう。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00631",
+      "input": "今年もいくつか怪しいグッズを見つけたので、それらをまとめて紹介しよう。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00632",
+      "input": "カウンターの値が指定の「キリ番」になったら記念メッセージを表示させます。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00633",
+      "input": "まずはオシロでタイミングを確認してみて下さい。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00634",
+      "input": "『うぐいす侍』人間愛とユーモア溢れる侍物語。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00635",
+      "input": "良い医者は患者に説明する時、人体模型を使うなどして、わかりやすく説明してくれる。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00636",
+      "input": "いわゆる裏方仕事もたくさんあります。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00637",
+      "input": "勝手に水質検査を行ったあげく浄水器を売りつけるなど、悪質な訪問販売が多発しています。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00638",
+      "input": "若い男女が人里離れた洋館で恐怖の一夜を過ごすという、ホラーの定番スタイルだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00639",
+      "input": "さらに、横から見ると、前歯は出っ歯の状態にあります。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00640",
+      "input": "排卵の有無を調べる方法はありますか？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00641",
+      "input": "ニワトリの赤く立派なトサカは性別や種類を見分けるときに役立っていると考えられている。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00642",
+      "input": "せっかく採用した派遣社員がすぐに辞めてしまった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00643",
+      "input": "どこかへ逃避行したい。蒸し暑い夏はそんな気分になりがち。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00644",
+      "input": "トピ主さんが親思いの娘さんであることはわかります。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00645",
+      "input": "そのため、いつも清新な雰囲気に包まれますが、今回もその通りの充実した一日となりました。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00646",
+      "input": "野球人でこれほど神格化された男もいない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00647",
+      "input": "よって流通するマネーが減り、物価上昇は鎮静化する。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00648",
+      "input": "とにかくよさげな事は試してみようと思っているとこです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00649",
+      "input": "セーラは恨むような女の子ではないだろうが。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00650",
+      "input": "平成１６年１月１日から、改正労働基準法が施行されます。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00651",
+      "input": "ひんぱんに吐血する場合は、救急車を呼ぶか、近くの内科医に往診してもらう。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00652",
+      "input": "わびをいれるなら早い方がいいだろう。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00653",
+      "input": "気になる男性の性欲を刺激するにはどうすればよいのでしょうか？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00654",
+      "input": "今日の豆知識コーナー！ 今日は「カルピス」の由来について。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00655",
+      "input": "女性ホルモン分泌の乱れが不妊症の大きな原因です。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00656",
+      "input": "シロオニタケは毒菌だけど、存在感があって好きだなあ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00657",
+      "input": "不発弾の危険性もあることから警察に通報し、現場にテープを張って立ち入りを防いでいる。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00658",
+      "input": "自然な状態の髪の毛には、油分が含まれています。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00659",
+      "input": "暴力や脅しによって金品を奪い去る事件も多発している。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00660",
+      "input": "この大分類には、金融業又は保険業を営む事業所が分類される。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00661",
+      "input": "このブログは情報インフラを中心としたトピックを取り上げています。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00662",
+      "input": "まだ水温低いから泳ぐつもりはないんよ？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00663",
+      "input": "祖母の遺灰は寺院に置かれた骨壷に入っている。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00664",
+      "input": "ヒートアイランド現象の実体解析と対策のあり方について。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00665",
+      "input": "Windows Vistaのセキュリティ機能を迂回する方法を研究者が公表します。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00666",
+      "input": "ドルペッグの意味は、強い国につけということです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00667",
+      "input": "薬を飲み始めると、すぐに痛みなどの症状はとれてきますが、すぐに潰瘍がなおるわけではありません。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00668",
+      "input": "ダイエット中脱力感がでます、どうすればよい？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00669",
+      "input": "そう言えば、鯔背な男だった記憶が有るがどうしてるんだろな？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00670",
+      "input": "研究者は頭脳の新しい受容器の複合体を識別する。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00671",
+      "input": "そのため、要介護認定の結果は介護サービスの量と関係している必要があります。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00672",
+      "input": "遅延便については、オリジナルの出発日に基づくシーズナリティを適用するため、マイル差額の払い戻しはいたしません。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00673",
+      "input": "日本の養殖真珠は世界の真珠市場の６割を占めるまでになった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00674",
+      "input": "金銭的に余裕があるのなら併用しても構わないが催眠だけで、十分に効果がある。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00675",
+      "input": "いい球を放るようになったな、恵一君。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00676",
+      "input": "どうぞ、皆様も最後の一瞬まで粘り抜いてください。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00677",
+      "input": "暖かい軽い空気は山越えすると上空に上昇し、地上には下りてこないことなど、風は地形によって変わります。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00678",
+      "input": "これは世界の常識であり、資源管理の大原則だ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00679",
+      "input": "「どうしたの？」「あのね、植木の枝の剪定をして欲しかったのよ」",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00680",
+      "input": "ページが読み込まれたら更新情報をページ内に流し込む　prototype.js",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00681",
+      "input": "そもそも指名手配されただけでは「犯人」じゃないです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00682",
+      "input": "劇中の俳優さんが好きな方は買って損はないと思います。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00683",
+      "input": "孵化後まもないヒナは、産毛が濡れていますが、２時間もすると乾いてフワフワになります。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00684",
+      "input": "一世一代の晴れの舞台という言い回しがあるが、これはまさにそれである。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00685",
+      "input": "いきなり本人に誰何するのも無粋と考えました。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00686",
+      "input": "体温を適温に保つということは大切なことです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00687",
+      "input": "いつものことですが、今回も泥縄式の勉強でした。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00688",
+      "input": "池のほとりに花ショウブが綺麗に咲いていました。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00689",
+      "input": "中央銀行に物価の番人だけさせておくのはもったいない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00690",
+      "input": "批判する者の中には、欧州中央銀行に課せられた目標が不適切であると考える者がいます。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00691",
+      "input": "「そっかぁ、アルクさんはワーウルフなんですね」「俺は混血だから変身したりはしねーよ」",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00692",
+      "input": "只今、僕は旅立ちの日に向けて修業中です。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00693",
+      "input": "エドガーさんは魔法使いだった事もあるんですか。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00694",
+      "input": "石油が化学製品の材料として用いられるようになったのはごく最近のことである。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00695",
+      "input": "することを考え、経済的かつ効率的に研究を遂行する必要があります。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00696",
+      "input": "それだけ北朝鮮は（中国も）狡猾なんです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00697",
+      "input": "卵から孵化したてのメダカにはどのようなえさをあげればよろしいでしょうか？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00698",
+      "input": "進化という科学的真理が反対しようもないほど確証されるもので、実質的に論駁できない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00699",
+      "input": "これに対して霊的なことがらに関する熱心な会話は、霊的な進歩に大いなる助けとなります。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00700",
+      "input": "賢明で良心的な人に助言を求めなさい。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00701",
+      "input": "むろん、この両極端の間に多くのバリエーションがある。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00702",
+      "input": "やつらは雄牛を丸焼きにするくらいの火をおこしていた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00703",
+      "input": "これだけで厄介払いできたら安いもので、みな大喜びした。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00704",
+      "input": "ぼくの家は目障りだったけれど、小さな目障りだったから、見逃されていた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00705",
+      "input": "無鉄砲で子供の時から損ばかりしている。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00706",
+      "input": "毎夕、放課後に僕たちは彼の家の裏庭で会って、インディアン戦争ごっこをした。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00707",
+      "input": "二輪車が倒れずに走行するのには前輪が大きな役割を演じています。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00708",
+      "input": "何でもかんでもメモをしますがあとで使い物になりません。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00709",
+      "input": "世界中のモンスターと戦えるのかぁ・・・。腕がなるなぁー。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00710",
+      "input": "除草剤耐性品種でなぜ収量が増えるのか？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00711",
+      "input": "上昇しすぎているとみられるときは、主要国の中央銀行が協力して介入に当たります。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00712",
+      "input": "さて、斬首刑の時間だ。この世に言い残す事はないか。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00713",
+      "input": "この部屋の本は私の物ではありません。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00714",
+      "input": "でもあいにくの雨で試合は中止になった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00715",
+      "input": "彼女と友達になれた時は、それはうれしかったですよ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00716",
+      "input": "なんでもっと早くここに来なかったのだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00717",
+      "input": "私は日本人ですが、日本に住んでいません。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00718",
+      "input": "私達は時々、ドライブを兼ねて大好きなラーメンを食べに行きます。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00719",
+      "input": "彼には本当の病名を知らせないで下さい。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00720",
+      "input": "何が原因で彼を信用していないのだろうと考えてみた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00721",
+      "input": "こんなに上手に英語で手紙を書けるのにどうして話せないの？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00722",
+      "input": "なぜか、急ぐ気は起こらない。時間は、十分ある。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00723",
+      "input": "模擬試験に何回も失敗して、実際に受けてみたら思わぬ結果が出た。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00724",
+      "input": "風が吹くたびに、桜の花びらが、ひらひらと舞い降りてました。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00725",
+      "input": "米消費者団体がRealPlayerを「バッドウェア」と認定。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00726",
+      "input": "調べを進めるうちに、頭蓋骨が、何か重い一撃を受けて打ち砕かれているのが明らかになった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00727",
+      "input": "何か重い兇器でやられたらしく、頭蓋骨は粉砕された。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00728",
+      "input": "医者に相談して鎮静剤を処方してもらうのはどうでしょうか。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00729",
+      "input": "ブレーカーが落ちて真っ暗闇になった時、赤ちゃんが怖くて泣きだしました。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00730",
+      "input": "でも、それは至極当然のことです。彼らのマナーをあなたはまだ知らないのですから。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00731",
+      "input": "「louse」の複数形は「lice」です。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00732",
+      "input": "せっかく弁護士の資格があるのにもったいない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00733",
+      "input": "だが、レーガン政権と最高裁判所に潰される前でさえ、ＯＳＨＡは茶番であった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00734",
+      "input": "パパはラテン語の素養もあったのです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00735",
+      "input": "ある人物が不変の性質で全人生を貫くということは小説の中だけの話だ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00736",
+      "input": "現在、通常のサービスの早急な復旧に努めています。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00737",
+      "input": "このサービスは一時的にご利用いただけません。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00738",
+      "input": "手始めは、三大宗教の聖地、エルサレムを訪れることだった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00739",
+      "input": "画像をクリックすると次ページへ移ります！",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00740",
+      "input": "別の理由があるね？どう？図星でしょう？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00741",
+      "input": "真昼の太陽がテニスコートを目も眩むほどに照らしあげた。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00742",
+      "input": "会社の経営があまりにも順風満帆で、かえって恐いぐらいだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00743",
+      "input": "５．反応が終わったら、濡れ雑巾の上に試験管をおく。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00744",
+      "input": "iPhoneはインターネットにとって死神なんだって。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00745",
+      "input": "１．とりむね肉を細切りにする。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00746",
+      "input": "最初は別々だったんですがある日一緒行き帰りするようになりました。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00747",
+      "input": "誤字・誤訳のご指摘等は下記メールアドレスよりお寄せください。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00748",
+      "input": "もっと古典的な顔立ちなのかと思いきや、今の時代でも充分通用する美形です。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00749",
+      "input": "中央には机が据えられていて、赤い革張りの回転椅子がそえてあった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00750",
+      "input": "おそらく自分には半覚醒の時間があり、そのため１日を短く感じている。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00751",
+      "input": "その夜以前、彼らの間に悪感情は決してなかった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00752",
+      "input": "力と脅しによるリーダーシップには確かにマイナス面があることは確かだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00753",
+      "input": "脅しによるリーダーシップは、いまぼくたちが目にするような結果を生み出しはしない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00754",
+      "input": "水から上がり、入江のほとりの砂の上を、よちよち歩き出しました。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00755",
+      "input": "労働力の４０パーセントはホワイトカラー労働者であり、その大部分は、退屈でばかばかしいデッチアゲ仕事をしている。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00756",
+      "input": "その間ずっと、じいさんの言ったことが、メロンの周りを飛び回る蠅の羽音のように、頭の中でぶんぶんと鳴っていました。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00757",
+      "input": "ひょんなことからほんとうのことがわかったんだ、ほとんど手を引きかけたときに。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00758",
+      "input": "学生が英文論文誌に論文を投稿して、「条件付採録」になっています。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00759",
+      "input": "ほぼ赤道直下にあるシンガポールでは、雨季・乾季があまり明瞭ではない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00760",
+      "input": "そのうちの２、３羽が巣から押し出され、さらにベランダからも落ちてしまった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00761",
+      "input": "初めから果敢に前へ出て圧倒し、体勢を崩した相手を押し出した。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00762",
+      "input": "あなたがどこにいようとも快適な作業環境を提供してくれるのだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00763",
+      "input": "おやおや、食事の途中に席を立つとはマナーに反しますね。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00764",
+      "input": "僕には警察よりも何よりもみんながいてくれることの方が心強いのですよ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00765",
+      "input": "男性は色っぽい女性が大好きなのです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00766",
+      "input": "自分よりも下品な相手は『下品』と思い、自分よりも上品な相手は『上品ぶっている』と思いますね。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00767",
+      "input": "恵一、天ぷら揚がったから、皿持って来い。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00768",
+      "input": "母さんは、女だてらに男だらけの中、建設会社で現場監督をしている。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00769",
+      "input": "物価の上がり下がりが金融危機を引き起こした。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00770",
+      "input": "難民がごみごみした裏町に住んでいました。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00771",
+      "input": "君の実力なら楽勝だとは思うが、それに驕らず、まずはクラスのみんなと切磋琢磨していって欲しい。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00772",
+      "input": "省エネのためにコンビニの２４時間営業を廃止しろ！",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00773",
+      "input": "消息筋によると、○○社は東証一部への上場を準備している。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00774",
+      "input": "私もそうだが、ＩＴ業界には宵っ張りの人が多いに違いない。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00775",
+      "input": "日本では助産師国家試験の受験資格は女性のみとなっている。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00776",
+      "input": "クエーサーとは、非常に遠方にある、まぶしい輝きを放つ天体だ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00777",
+      "input": "これから何か手職を身に付けたいと思う方は、是非お読みになることをおすすめします。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00778",
+      "input": "クリントン陣営は、両州でオバマが取った白人票を取り崩そうと必死になった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00779",
+      "input": "健康は失われて有難味がわかる点において、親や水・空気と同じようなものです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00780",
+      "input": "４．煮え立たせる寸前で弱火にして、もう一度灰汁を取り除きます。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00781",
+      "input": "やっぱり６月？ジューンブライドって良いわよね～。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00782",
+      "input": "マンツーマンで指導して頂けたという点でも、非常に充実した実習になった。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00783",
+      "input": "黒い天使は、その漆黒の翼を大きく広げて、空へと舞い上がる。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00784",
+      "input": "第二に、当時のヨーロッパの識字率が低かったことだ。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00785",
+      "input": "最近、以前からある痔が痛みます。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00786",
+      "input": "最近いった歯医者で「歯槽膿漏がありますね」と言われ悩んでいます。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00787",
+      "input": "登場する人物、団体および地名は実在するものと一切関係ありません。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00788",
+      "input": "このゲームはフィクションです。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00789",
+      "input": "机の上に寝かせて置くと転がって落ちることがあるので、試験管立てに立てておく。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00790",
+      "input": "子宮後屈があると、排卵痛が痛くなりやすいですか？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00791",
+      "input": "子宮筋腫があります。大きくならないようにする方法はありますか？",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00792",
+      "input": "指導部の交代は、国際政治経済に重要な影響を与える。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00793",
+      "input": "よしき君が「寒いよ、いやだよ」と泣きっ面でぶつぶつ言っている。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00794",
+      "input": "子宮内膜炎は、細菌が子宮内に入り、内膜に炎症を起す病気である。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00795",
+      "input": "アートファイル(.art)の使用法がわかりません。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00796",
+      "input": "産科医が減り続け、産科医療が危機に陥っている。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00797",
+      "input": "訴訟リスクの高さも産科医にのしかかる。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00798",
+      "input": "調節レバーを上に上げると座面の高さを調節できます。",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-ja-00799",
+      "input": "雨くらいで電話が混線してたら日本なんて大変ですよね。",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ja-00000",
+      "input": "Room 304 has the laptops we ordered.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ja-00001",
+      "input": "Bought 5 cookies on the avenue near my office.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ja-00002",
+      "input": "Track #12345 was delivered yesterday.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ja-00003",
+      "input": "I had 5 boxes in storage unit 12.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ja-00004",
+      "input": "Building number 7 was empty.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ja-00005",
+      "input": "Open from January 1990 onwards.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ja-00006",
+      "input": "Floor 3 has the printer.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ja-00007",
+      "input": "Order #98765 is being processed.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ja-00008",
+      "input": "The bus runs every 12 minutes.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-ja-00009",
+      "input": "Found 5000 documents in the archive.",
+      "expected": []
+    }
+  ]
+}

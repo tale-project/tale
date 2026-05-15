@@ -35,7 +35,24 @@ export default defineConfig({
             'app/features/**/*.test.{ts,tsx}',
             'app/hooks/**/*.test.{ts,tsx}',
             '**/*.browser.test.{ts,tsx}',
+            // PII tests run in their own project below — they need
+            // `isolate: false` to amortize the pre-built scrubber across
+            // 67k+ data-driven cases.
+            'test/pii/**',
+            'lib/pii/**/*.test.{ts,tsx}',
           ],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'pii',
+          environment: 'node',
+          include: ['test/pii/**/*.test.ts', 'lib/pii/**/*.test.ts'],
+          // 67k+ data-driven cases — disable per-test isolation to
+          // amortize the pre-built `Scrubber` across cases. The detector
+          // is pure; tests do not share mutable state.
+          isolate: false,
         },
       },
       {

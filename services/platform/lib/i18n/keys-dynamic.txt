@@ -44,3 +44,10 @@ customers.searchPlaceholder
 products.searchPlaceholder
 vendors.searchPlaceholder
 websites.searchPlaceholder
+
+
+# `piiTypeLabel(name, tTypes)` in pii-type-labels.ts maps a dynamic pattern
+# name (`email`, `phone`, `nl-bsn`, …) onto a translation key. The scanner
+# sees `tTypes(key)` with `key` as a runtime variable, so every label entry
+# under the `piiTypes` namespace is dynamic from its perspective.
+piiTypes

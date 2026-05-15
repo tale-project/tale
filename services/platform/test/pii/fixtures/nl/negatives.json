@@ -1,0 +1,4069 @@
+{
+  "_meta": {
+    "locale": "nl",
+    "generator": "platform/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {
+      "streets": "2026-05-14",
+      "cities": "2026-04-13",
+      "prose": "2026-05-14"
+    },
+    "counts": {
+      "positives": 0,
+      "negatives": 810
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "negatives": [
+    {
+      "id": "neg-prose-nl-00000",
+      "input": "Wilt u een kopje koffie?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00001",
+      "input": "Hoe oud bent u?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00002",
+      "input": "We houden niet van regen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00003",
+      "input": "Hoe is het weer?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00004",
+      "input": "In Parijs heb ik voor een maand een kamer gehuurd.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00005",
+      "input": "Ik koop briefpapier, postzegels en papieren zakdoekjes.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00006",
+      "input": "Goedenavond, hoe maakt u het?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00007",
+      "input": "Goedemorgen, hoe maakt u het?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00008",
+      "input": "Ik weet het niet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00009",
+      "input": "Gerechtigheid is duur.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00010",
+      "input": "De meeste mensen denken dat ik gek ben.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00011",
+      "input": "Ik moet gaan slapen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00012",
+      "input": "Heb je gezegd dat ik nooit zou kunnen winnen?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00013",
+      "input": "Gelukkige verjaardag Muiriel!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00014",
+      "input": "Laten we iets proberen!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00015",
+      "input": "Ik wacht al uren lang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00016",
+      "input": "Ik was in de bergen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00017",
+      "input": "Dat was een slecht konijn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00018",
+      "input": "Ik weet niet wat te zeggen...",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00019",
+      "input": "Hier komt nooit een eind aan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00020",
+      "input": "Ik heb er geen woorden voor.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00021",
+      "input": "Ik ben zo terug.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00022",
+      "input": "Het wachtwoord is \"Muiriel\".",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00023",
+      "input": "Het onderwijs in deze wereld valt me tegen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00024",
+      "input": "Tenslotte moet iedereen zelf leren.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00025",
+      "input": "Om de een of andere reden werkte de microfoon daarnet niet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00026",
+      "input": "Ik weet niet of ik tijd heb.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00027",
+      "input": "Is dit een recente foto?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00028",
+      "input": "Op onze website, http://www.example.com, staat alle informatie die je nodig hebt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00029",
+      "input": "Blijf zwemmen tot je aan je grens zit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00030",
+      "input": "Laat het ons eerst hebben over de experimenten die uitgevoerd worden in laboratoria.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00031",
+      "input": "Het ligt misschien niet in je aard, maar je zou tenminste een beetje beleefd kunnen zijn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00032",
+      "input": "Spanjaarden hebben twee achternamen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00033",
+      "input": "Paco tekent stadsgezichten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00034",
+      "input": "Raúl kan zich zonder zijn vrienden niet vermaken.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00035",
+      "input": "Rosa Montero is een heel bijzondere vrouw.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00036",
+      "input": "Rubén is vader van drie kinderen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00037",
+      "input": "Soms weten critici niet wat ze aan het bekritiseren zijn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00038",
+      "input": "Sporten is goed voor je lichamelijke conditie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00039",
+      "input": "Ze voerden een verrassingsaanval uit op de vijand.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00040",
+      "input": "Ik ben veganist.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00041",
+      "input": "Zit er vlees in dit eten?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00042",
+      "input": "Ik eet geen vlees, geen vis en geen zeevruchten, en ook geen vleesbouillon.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00043",
+      "input": "Ik heb altijd geloofd dat een hartaanval de aankondiging van het ophanden zijnde overlijden is.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00044",
+      "input": "Dank je, dat is alles.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00045",
+      "input": "Wat is er gebeurd?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00046",
+      "input": "Engels wordt hier niet gesproken.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00047",
+      "input": "Neem de andere stoel!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00048",
+      "input": "Het ligt onder de stoel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00049",
+      "input": "Deze stoel is lelijk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00050",
+      "input": "Zit de kat op of onder de stoel?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00051",
+      "input": "U mag op de stoel gaan zitten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00052",
+      "input": "Er zat een kat op de stoel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00053",
+      "input": "Wat heeft deze stoel hier te zoeken?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00054",
+      "input": "De jongen zat op een stoel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00055",
+      "input": "Hij stond achter de stoel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00056",
+      "input": "De stoel is niet dicht bij het raam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00057",
+      "input": "Welke jongen is Masao?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00058",
+      "input": "De jongen liep weg.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00059",
+      "input": "Het heeft geen zin om me om geld te vragen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00060",
+      "input": "Maak je geen zorgen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00061",
+      "input": "Maak je er geen zorgen over!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00062",
+      "input": "Maak je geen zorgen over het verleden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00063",
+      "input": "Maak je geen zorgen over mij.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00064",
+      "input": "Maak je geen zorgen over ons.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00065",
+      "input": "We vragen ons af waarom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00066",
+      "input": "Waarom kwam je niet?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00067",
+      "input": "Waarom is hij hier?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00068",
+      "input": "Waarom was je laat?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00069",
+      "input": "Waarom ben je aan het huilen?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00070",
+      "input": "Waarom studeer je?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00071",
+      "input": "Wees niet bang om fouten te maken wanneer je Engels spreekt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00072",
+      "input": "Schrijf alstublieft met een pen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00073",
+      "input": "Ik schrijf regelmatig artikels.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00074",
+      "input": "Eet wat je wilt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00075",
+      "input": "Kan ik dit eten?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00076",
+      "input": "Mag ik iets zeggen?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00077",
+      "input": "Zeg het in het Engels.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00078",
+      "input": "Wat heeft hij gezegd?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00079",
+      "input": "Wat heb je gezegd?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00080",
+      "input": "Hoe durf je dat te zeggen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00081",
+      "input": "Waarom zeg je dat?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00082",
+      "input": "Zeg het op een andere manier.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00083",
+      "input": "Je kan niet \"nee\" zeggen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00084",
+      "input": "In het begin wist ik niet wat te doen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00085",
+      "input": "Vertaal deze zin in het Japans alstublieft.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00086",
+      "input": "Vertaal de volgende zinnen in het Japans.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00087",
+      "input": "Het kostte me meer dan twee uur om een paar pagina's in het Engels te vertalen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00088",
+      "input": "Het is moeilijk om een gedicht in een andere taal te vertalen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00089",
+      "input": "Dit werkwoord wordt gewoonlijk alleen gebruikt in de derde persoon.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00090",
+      "input": "Hij speelt zeer goed.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00091",
+      "input": "Het probleem was dat ik niets tegen hem te zeggen had.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00092",
+      "input": "Kleren maken de man.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00093",
+      "input": "Geef me de sleutel van dit kasteel!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00094",
+      "input": "Ik zal jou dit boek geven.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00095",
+      "input": "Waarom zou je zo triest moeten zijn?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00096",
+      "input": "We bleven tijdens de nacht in Hakone.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00097",
+      "input": "Zij is zeer mooi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00098",
+      "input": "Het kan niet waar zijn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00099",
+      "input": "Wie is de vrouw met de bruine jas?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00100",
+      "input": "Ik keek toen tv.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00101",
+      "input": "Wat ben je aan het doen?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00102",
+      "input": "Wat was je aan het doen?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00103",
+      "input": "Probeer het nog eens.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00104",
+      "input": "Onze hond begraaft zijn botten in de tuin.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00105",
+      "input": "Je kunt maar beter een tijdje gaan slapen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00106",
+      "input": "Ze zijn met de auto naar Chicago gegaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00107",
+      "input": "De politie onderzoekt de oorzaak van het ongeval.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00108",
+      "input": "Ik heb met mijn ouders gesproken over studeren in het buitenland.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00109",
+      "input": "Wat is de oorsprong van de Olympische Spelen?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00110",
+      "input": "De berg is bedekt met sneeuw.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00111",
+      "input": "Hij kwam niet, totdat ik belde.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00112",
+      "input": "Ik weet niet wat ik nog meer kan doen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00113",
+      "input": "Hoe hard je het ook probeert, Engels leer je niet in twee, drie maanden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00114",
+      "input": "Ik had de bloemen geen water hoeven geven. Ik was er maar net klaar mee, of het begon te regenen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00115",
+      "input": "De broedhen heeft een week op de eieren zitten broeden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00116",
+      "input": "Ik ben misschien niet erg sociaal, maar dat betekent nog niet dat ik niet met mensen omga.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00117",
+      "input": "De bus vertrekt dadelijk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00118",
+      "input": "Vind je dit een mooie kleur?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00119",
+      "input": "Hij is teruggekomen uit China.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00120",
+      "input": "Japan heeft diplomatieke betrekkingen met China.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00121",
+      "input": "Om de oorlog te financieren zijn er obligaties uitgegeven.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00122",
+      "input": "Hij heeft een boek geschreven over porselein.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00123",
+      "input": "Je moet rekening houden met zijn leeftijd.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00124",
+      "input": "Over dit meer bestaat een mysterieuze legende.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00125",
+      "input": "Frankrijk voerde oorlog met Rusland.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00126",
+      "input": "Ons vliegtuig vloog boven de wolken.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00127",
+      "input": "Er zijn gevallen waarin deze regel niet geldt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00128",
+      "input": "Ik dacht net aan een nieuwe baan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00129",
+      "input": "Ik zei tegen mezelf: dat is een goed idee.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00130",
+      "input": "Straks is onze zus bij ons.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00131",
+      "input": "Misschien gaat het sneeuwen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00132",
+      "input": "Frans wordt in Frankrijk gesproken.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00133",
+      "input": "Ik heb afschuwelijk gedroomd.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00134",
+      "input": "Het is moeilijk voor buitenlanders om Japans te leren.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00135",
+      "input": "De Verenigde Staten grenzen aan Canada.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00136",
+      "input": "Hij zei dat hij van plan was een risico te nemen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00137",
+      "input": "Het concert was leuk, maar het was wel koud in de zaal.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00138",
+      "input": "Bovendien kan hij Ivriet lezen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00139",
+      "input": "Gisteren was u niet op school.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00140",
+      "input": "Verkopen ze schriften in die winkel?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00141",
+      "input": "Mijn oom is gisteren overleden aan maagkanker.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00142",
+      "input": "Het merendeel van de mensen die met een vork eten, woont in Europa, Noord-Amerika en Latijns-Amerika; mensen die met stokjes eten, wonen in Afrika, het Nabije Oosten, Indonesië en India.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00143",
+      "input": "Ik heb dat verhaal in een of ander boek gelezen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00144",
+      "input": "Majoeko heeft vreemd gedroomd.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00145",
+      "input": "Ons bedrijf is van plan een nieuwe chemische fabriek te bouwen in Rusland.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00146",
+      "input": "Wat vind je ervan om een wandeling te maken in het park?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00147",
+      "input": "Ze verdween langzaam in het nevelige bos.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00148",
+      "input": "Deze kaas is gemaakt van schapenmelk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00149",
+      "input": "Zijn vaderland is Duitsland.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00150",
+      "input": "Mag ik alstublieft een glas water?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00151",
+      "input": "Wat mij betreft, ik heb op het moment niets te zeggen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00152",
+      "input": "Zij die alles vergeten, zijn gelukkig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00153",
+      "input": "Deze airconditioner verbruikt veel elektriciteit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00154",
+      "input": "Hoe dan ook, het gaat je niks aan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00155",
+      "input": "Over een uur kom ik bij je.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00156",
+      "input": "Duitsland grenst aan Nederland.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00157",
+      "input": "De helft van de appels is rot.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00158",
+      "input": "Dit bedrag is inclusief belasting.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00159",
+      "input": "Teder legde hij zijn hand op haar schouder.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00160",
+      "input": "Mary sloot zichzelf op in haar kamer en deed alle ramen dicht.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00161",
+      "input": "Duitsland was ooit een bondgenoot van Italië.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00162",
+      "input": "Hij heeft, geloof ik, in Spanje gewoond.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00163",
+      "input": "John weet niet wat hij verder moet doen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00164",
+      "input": "Je hoeft alleen maar je kamer schoon te maken.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00165",
+      "input": "Er zitten knopen op het jasje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00166",
+      "input": "Heeft u wel eens met een luchtballon gevlogen?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00167",
+      "input": "Hebben jullie wel eens met een luchtballon gevlogen?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00168",
+      "input": "In Wales hebben we een spreekwoord.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00169",
+      "input": "In Wales hebben ze een spreekwoord.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00170",
+      "input": "Ik kwam in een regenbui terecht en ben nat geworden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00171",
+      "input": "Ik poets mijn tanden tweemaal per dag.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00172",
+      "input": "Het is handig om zo dicht bij het station te wonen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00173",
+      "input": "Geen liefde zonder jaloezie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00174",
+      "input": "Zwitserland is een neutraal land.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00175",
+      "input": "Het Latijn is een dode taal.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00176",
+      "input": "De stad werd gebombardeerd door vijandelijke vliegtuigen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00177",
+      "input": "Vijandelijke vliegtuigen bombardeerden de stad.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00178",
+      "input": "Hij kwam pas toen ik belde.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00179",
+      "input": "Zij is niet mooier dan haar moeder.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00180",
+      "input": "Is dit in Zwitserland gemaakt?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00181",
+      "input": "Ik wil dat je een liedje zingt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00182",
+      "input": "In het noorden ligt Schotland, in het zuiden Engeland, in het westen Wales, en nog verder naar het westen Noord-Ierland.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00183",
+      "input": "Kent u de hoofdstad van België?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00184",
+      "input": "Kennen jullie de hoofdstad van België?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00185",
+      "input": "Geef me alstublieft nog een kans.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00186",
+      "input": "Bij ons sneeuwt het in januari.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00187",
+      "input": "Sawako wil naar Frankrijk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00188",
+      "input": "Morgen gaat het sneeuwen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00189",
+      "input": "Geef haar er niet de schuld van.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00190",
+      "input": "Tanabata wordt gevierd in juli.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00191",
+      "input": "Ik kan alleen maar wachten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00192",
+      "input": "Ik bel je later terug.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00193",
+      "input": "Hij wachtte op hem tot tien uur.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00194",
+      "input": "Er valt bijna een knoop van je bloes af.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00195",
+      "input": "De dikke lijnen op de kaart zijn wegen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00196",
+      "input": "We moeten op het stoplicht letten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00197",
+      "input": "Deze wijn is erg lekker.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00198",
+      "input": "Er bestaat geen twijfel over wie er gekozen zal worden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00199",
+      "input": "Is dit wat je wilde?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00200",
+      "input": "Het is bijna kerst.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00201",
+      "input": "Het probleem is dat het te duur is.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00202",
+      "input": "Deze roman is geschreven door een bekende Amerikaanse schrijver.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00203",
+      "input": "Hij slaapt als een roos.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00204",
+      "input": "Vergeet ons niet!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00205",
+      "input": "Bill is in Japan geweest.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00206",
+      "input": "Weten is één ding, het ook doen is heel wat anders.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00207",
+      "input": "Hij is naar Zwitserland gegaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00208",
+      "input": "Canada is groter dan Japan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00209",
+      "input": "Napoleon heeft zijn leger naar Rusland geleid.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00210",
+      "input": "De Rijn stroomt tussen Frankrijk en Duitsland.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00211",
+      "input": "Tijdens de volkstelling zal \"Trasjanka\" gelijkgesteld worden aan Wit-Russisch.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00212",
+      "input": "Bepaalde diersoorten zijn snel aan het verdwijnen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00213",
+      "input": "Dit horloge is gemaakt in Zwitserland.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00214",
+      "input": "Vind je Engels bijvoorbeeld mooi?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00215",
+      "input": "Wilt u alstublieft een kamer in de buurt van de internationale luchthaven in Toronto reserveren?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00216",
+      "input": "Elke soort papier is geschikt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00217",
+      "input": "Ik ben naar Japan gekomen vanuit China.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00218",
+      "input": "Ik ben geen aanhanger van de theorie dat je Latijn moet leren om Engels beter te begrijpen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00219",
+      "input": "Ik heet Tanaka Itsjiro.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00220",
+      "input": "De sneeuw is gesmolten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00221",
+      "input": "Rusland heeft te maken gekregen met ernstige financiële problemen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00222",
+      "input": "Lees elke dag de krant, want anders bent u niet op de hoogte van het laatste nieuws.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00223",
+      "input": "\"Aha!\" zullen ze zeggen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00224",
+      "input": "Frankrijk grenst aan Spanje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00225",
+      "input": "Er is veel sneeuw gevallen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00226",
+      "input": "Weet hij dat je van hem houdt?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00227",
+      "input": "Alles is uitverkocht!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00228",
+      "input": "Vraag hem eens of hij Japans spreekt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00229",
+      "input": "China is het grootste land in Azië.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00230",
+      "input": "Ik ren zo hard als ik kan om hem in te halen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00231",
+      "input": "Ik kan het me niet veroorloven om ook maar één yen te verspillen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00232",
+      "input": "Mexico was toen nog niet onafhankelijk van Spanje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00233",
+      "input": "Op de foto heeft het meisje geen gouden kroon, maar een kroon van bloemen op.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00234",
+      "input": "Denk er eens over na.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00235",
+      "input": "Dit is Millers nieuwste boek, en we hopen dat het niet het laatste zal zijn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00236",
+      "input": "Niet huilen alsjeblieft.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00237",
+      "input": "Je mag dit boek gratis hebben.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00238",
+      "input": "Deze traditie is ontstaan in China.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00239",
+      "input": "Hij loste die opgave met gemak op.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00240",
+      "input": "De mens is het enige dier dat kan lachen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00241",
+      "input": "Het is verschrikkelijk koud vandaag.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00242",
+      "input": "Ik heb altijd meer van mysterieuze personages gehouden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00243",
+      "input": "Er zijn veel sterrenstelsels in het heelal.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00244",
+      "input": "Volgens mij zijn de kinderen moe van het zwemmen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00245",
+      "input": "Tom spreekt vloeiend Japans.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00246",
+      "input": "Ierland staat bekend om zijn kant.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00247",
+      "input": "De regen ging over in sneeuw.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00248",
+      "input": "Het stoute verdwaalde jongetje keek om zich heen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00249",
+      "input": "Ik heb nog een vriend in China.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00250",
+      "input": "Wat doe je hier?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00251",
+      "input": "Omdat al zijn vrienden ook arm waren.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00252",
+      "input": "De sneeuw is verdwenen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00253",
+      "input": "De medicijnen versnelden het groeiproces.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00254",
+      "input": "Mike heeft een aantal vrienden in Florida.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00255",
+      "input": "Ik ben uitgenodigd om naar het buitenland te gaan, maar ik wil niet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00256",
+      "input": "Wanneer komt het u uit?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00257",
+      "input": "Ik heb hem zien rennen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00258",
+      "input": "Het was erg leuk je weer eens gezien te hebben.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00259",
+      "input": "Zwitserland is een mooi land.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00260",
+      "input": "Dit kostte minder dan vijftien dollar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00261",
+      "input": "Ik heb geleerd te leven zonder haar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00262",
+      "input": "Frankrijk ligt in West-Europa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00263",
+      "input": "Ik heb hem ontmoet toen ik in Parijs was.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00264",
+      "input": "Hij beval mij de kamer onmiddellijk te verlaten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00265",
+      "input": "Joko heeft gisteren boodschappen gedaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00266",
+      "input": "Ik heb een droom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00267",
+      "input": "Ik weet dat je rijk bent.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00268",
+      "input": "Zo iemand lukt niets.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00269",
+      "input": "Geweldig. Niemand geeft me iets.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00270",
+      "input": "Canada heeft een koud klimaat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00271",
+      "input": "China is veel groter dan Japan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00272",
+      "input": "Ik ontmoet je zondag om drie uur.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00273",
+      "input": "Een ongeluk komt zelden alleen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00274",
+      "input": "Dit is wat ik gekocht heb in Spanje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00275",
+      "input": "Dit probleem is ontstaan door een wederzijds misverstand.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00276",
+      "input": "In China leert men ook Engels.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00277",
+      "input": "Hij onderbrak ons gesprek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00278",
+      "input": "Hij beloofde met haar te trouwen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00279",
+      "input": "Ik wil het werk zelf afmaken.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00280",
+      "input": "Ik controleer de woorden in mijn woordenboek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00281",
+      "input": "De partijleider is een beroemd geleerde.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00282",
+      "input": "Hoelang blijf je?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00283",
+      "input": "Een man is op zijn veertigste en op zijn vijftigste nog steeds een jochie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00284",
+      "input": "Er is niemand die met mij mee wil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00285",
+      "input": "Heb je hem pas leren kennen?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00286",
+      "input": "Ik zal jullie vandaag verder niets vragen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00287",
+      "input": "Volgende week gaat het misschien vriezen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00288",
+      "input": "Hij was al jong uitgehuwelijkt, toen hij nog een tweedejaars student was, en nu scheen zijn vrouw de helft ouder te zijn dan hij.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00289",
+      "input": "De tentoonstelling is al open.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00290",
+      "input": "Ik weet dat hij van jazz houdt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00291",
+      "input": "O, hier zit een vlinder!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00292",
+      "input": "Hoewel hij zich verontschuldigd heeft, ben ik nog steeds razend.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00293",
+      "input": "Japans spreken is makkelijk voor mij.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00294",
+      "input": "Ooit wilde ik astrofysicus worden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00295",
+      "input": "Papa, waarom onweert het 's winters niet?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00296",
+      "input": "Iedereen heeft sterke en zwakke punten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00297",
+      "input": "Waarom slaap je zo laat nog niet?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00298",
+      "input": "Zodra hij alleen was, opende hij de brief.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00299",
+      "input": "Zij feliciteerden hem met zijn huwelijk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00300",
+      "input": "Ik heet Tamako, en jij?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00301",
+      "input": "Gisteren heb ik een erg interessant verhaal gelezen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00302",
+      "input": "Hij is gisteren overleden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00303",
+      "input": "Dat is niet belangrijk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00304",
+      "input": "Alle beschaafde landen zijn tegen oorlog.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00305",
+      "input": "Soms kan ik mijn emoties niet bedwingen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00306",
+      "input": "Steeds wanneer ik naar deze foto kijk, herinner ik me die gelukkige dagen in het dorp.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00307",
+      "input": "Ik kan niet meer!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00308",
+      "input": "Hij besloot zijn vertrek uit te stellen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00309",
+      "input": "Ik weet niets van hem, behalve zijn naam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00310",
+      "input": "Ik ben geen echte vis, ik ben maar een knuffelbeest.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00311",
+      "input": "Mary ziet er niet zo erg vriendelijk uit, maar ze heeft het hart op de juiste plaats.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00312",
+      "input": "Het is jouw schuld dat ik mijn eetlust kwijt ben.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00313",
+      "input": "Ze was betoverd door zijn glimlach.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00314",
+      "input": "In de hotelkamer lag een watermeloen op tafel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00315",
+      "input": "Vergeef me alsjeblieft.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00316",
+      "input": "Als ik je wilde bang maken, zou ik je vertellen waar ik een paar weken geleden over gedroomd heb.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00317",
+      "input": "Ik heb hem vorige week betaald.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00318",
+      "input": "Hij heeft een brief geschreven.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00319",
+      "input": "Hier zijn we dan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00320",
+      "input": "Ik zal proberen je niet te storen bij het leren.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00321",
+      "input": "Ik weet niet wat dat is.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00322",
+      "input": "Hij is al een man.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00323",
+      "input": "Michael Jackson is niet meer.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00324",
+      "input": "Ik zal proberen om elke dag lichamelijke oefeningen te doen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00325",
+      "input": "Ik blijf hier niet lang.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00326",
+      "input": "De datum en het adres schrijft men gewoonlijk bovenaan de brief.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00327",
+      "input": "Zij gaat elke ochtend onder de douche.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00328",
+      "input": "Heb je al besloten waarover je je scriptie gaat schrijven?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00329",
+      "input": "Je kunt waarschijnlijk wel raden wat er gaat gebeuren.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00330",
+      "input": "Veel mensen schrijven over hun dagelijks leven.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00331",
+      "input": "Met grote inspanning kon het probleem opgelost worden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00332",
+      "input": "Juridische terminologie is voor de meeste leken onbegrijpelijk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00333",
+      "input": "Ik weet niet wat je bedoelt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00334",
+      "input": "Buitenlanders zijn interessant.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00335",
+      "input": "Daarna ontmoetten ze elkaar iedere middag op de kade, ontbeten samen, dineerden, wandelden en bewonderden de zee.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00336",
+      "input": "Als je het geel verft, sla je twee vliegen in één klap: én het valt goed op, én je bespaart geld omdat je verf kunt gebruiken die je al in huis hebt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00337",
+      "input": "Gisteren is mijn zus naar Kobe gegaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00338",
+      "input": "U kunt maar beter weggaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00339",
+      "input": "Hij las erg veel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00340",
+      "input": "Nikolai Aleksejevitsj, ik moet eens ernstig met u spreken.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00341",
+      "input": "Ik heb een ontzettende hekel aan een formele schrijfstijl!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00342",
+      "input": "In het mandje zitten een paar appels.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00343",
+      "input": "In het koetsje zat een heer, niet knap, maar ook niet slecht van uiterlijk, niet al te dik, niet al te dun; oud kon hij niet genoemd worden, maar hij was ook niet al te jong.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00344",
+      "input": "De vorige persoon aan wie ik mijn idee vertelde, dacht dat ik gestoord was.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00345",
+      "input": "Nee, dit is niet mijn nieuwe vriendje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00346",
+      "input": "Het meisje stond voor het lokaal.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00347",
+      "input": "Ik heb niks beters te doen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00348",
+      "input": "Laten we eens kijken wat er kan gebeuren in het ergste geval.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00349",
+      "input": "Ik denk dat de zaak er wat anders voor staat wanneer je hierover nadenkt op de lange termijn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00350",
+      "input": "Gisteren heb ik een boek gekocht.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00351",
+      "input": "Dat lawaai werkt op mijn zenuwen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00352",
+      "input": "Waar heb je het over?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00353",
+      "input": "Er staan veel woorden die ik niet begrijp.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00354",
+      "input": "Hemel en hel bestaan enkel in de harten van mensen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00355",
+      "input": "Ik heb nooit van biologie gehouden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00356",
+      "input": "Wiskunde is het deel van de wetenschap waarmee je je nog steeds zou kunnen bezighouden als je 's morgens wakker zou worden en zou merken dat het heelal er niet meer is.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00357",
+      "input": "Jemig! M'n computer is alweer vastgelopen!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00358",
+      "input": "Wil je het licht uitdoen alsjeblieft?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00359",
+      "input": "Kan dat ook anders geformuleerd worden?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00360",
+      "input": "Thuis las hij altijd liggend.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00361",
+      "input": "Ze vraagt hoe dat kan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00362",
+      "input": "Dat is mijn antwoord!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00363",
+      "input": "Wat denk je dat ik aan het doen was?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00364",
+      "input": "Wil je niet met me mee?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00365",
+      "input": "Voor mij thee met citroen alstublieft.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00366",
+      "input": "Hij was weduwnaar, maar een jaar na de bruiloft van zijn zoon hield hij het niet meer uit en trouwde zelf ook.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00367",
+      "input": "Hij is net teruggekomen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00368",
+      "input": "Ik was alleen in het lokaal.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00369",
+      "input": "Waar ben je gisteren geweest?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00370",
+      "input": "Als u me zo niet kende, dan kende u me überhaupt niet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00371",
+      "input": "\"Het is goed dat ik vertrek,\" zei ze tegen Goerov. \"Dat is ons lot.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00372",
+      "input": "Wat denk je, wat zou ze gaan doen?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00373",
+      "input": "Hij schrijft mij eens per week.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00374",
+      "input": "Dat is te duur!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00375",
+      "input": "Om de één of andere reden ben ik 's nachts levendiger.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00376",
+      "input": "Dat vind ik erg leuk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00377",
+      "input": "Afgelopen week heeft ze een schitterende dochter gekregen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00378",
+      "input": "Ik spreek geen Japans.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00379",
+      "input": "Ik kan haar dat nu niet zeggen. Dat is niet zo eenvoudig meer.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00380",
+      "input": "Dat is nu juist het probleem.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00381",
+      "input": "Bedankt voor de uitleg.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00382",
+      "input": "Ik moet je een domme vraag stellen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00383",
+      "input": "Ik ben linkshandig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00384",
+      "input": "Het ijs is gesmolten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00385",
+      "input": "Zo goed spreek ik geen Frans.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00386",
+      "input": "Het is bijna lente.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00387",
+      "input": "Hoe heet deze straat?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00388",
+      "input": "Hij is politieagent geworden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00389",
+      "input": "Ik ben niet geregistreerd op deze forums.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00390",
+      "input": "Hij liegt nooit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00391",
+      "input": "De auteur heeft een mooie stijl.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00392",
+      "input": "Ik zal u direct de rekening brengen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00393",
+      "input": "Weet je waar mijn horloge is?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00394",
+      "input": "Met de haar van een vrouw kun je zelfs een grote olifant vastbinden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00395",
+      "input": "Het kan dat ik zo meteen opgeef en in plaats hiervan een dutje ga doen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00396",
+      "input": "De winter is mijn lievelingsseizoen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00397",
+      "input": "Er vindt altijd wel iemand tijd.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00398",
+      "input": "Gisteren was het donderdag.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00399",
+      "input": "Onvoorzichtigheid is de grootste vijand.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00400",
+      "input": "Welkom in Japan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00401",
+      "input": "Ben je voor of tegen abortus?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00402",
+      "input": "Als je op de tekst van het liedje let, dan gaat het eigenlijk nergens over.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00403",
+      "input": "Ik wist het wel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00404",
+      "input": "Het experiment was een mislukking.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00405",
+      "input": "Denk er eens over na als je wil.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00406",
+      "input": "Papa heeft boeken voor me gekocht.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00407",
+      "input": "Ik heb mijn portemonnee verloren.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00408",
+      "input": "Bedankt, dat is alles.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00409",
+      "input": "Ik begrijp het niet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00410",
+      "input": "De rekening, alstublieft.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00411",
+      "input": "Hoeveel kost het?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00412",
+      "input": "We kunnen niet slapen vanwege het lawaai.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00413",
+      "input": "Hoe ver is het naar het vliegveld?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00414",
+      "input": "Hoelang doet de vliegveldbus erover naar het vliegveld?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00415",
+      "input": "Ik wil graag een hotelreservering.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00416",
+      "input": "Er ontbreekt een vork.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00417",
+      "input": "Naar het Hiltonhotel alstublieft.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00418",
+      "input": "Wilt u me uw paspoort even laten zien alstublieft?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00419",
+      "input": "Er ontbreekt een mes.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00420",
+      "input": "Pardon, ik ben verdwaald.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00421",
+      "input": "Waarvandaan vertrekken de bussen naar het vliegveld?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00422",
+      "input": "Wat is uw bloedgroep?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00423",
+      "input": "Laat eens zien wat je gekocht hebt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00424",
+      "input": "Mijn bagage ontbreekt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00425",
+      "input": "Ik stap uit op het volgende station.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00426",
+      "input": "Uw ticket, alstublieft.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00427",
+      "input": "Kunt u me nog een andere laten zien?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00428",
+      "input": "Ik wil graag een kop koffie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00429",
+      "input": "Om bij het museum te komen moet je die bus nemen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00430",
+      "input": "Ik heb niet veel geld.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00431",
+      "input": "Ik kom uit Singapore.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00432",
+      "input": "Ik heet Andrea.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00433",
+      "input": "Het is een verrassing.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00434",
+      "input": "Vergeet het kaartje niet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00435",
+      "input": "Niemand komt erachter.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00436",
+      "input": "Niemand begrijpt me.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00437",
+      "input": "Gefeliciteerd met je verjaardag, Muiriel!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00438",
+      "input": "Waarom vraag je dat?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00439",
+      "input": "Hoe schrijf je \"pretty\"?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00440",
+      "input": "Heb je een condoom?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00441",
+      "input": "Wil je met me dansen?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00442",
+      "input": "Ik heb hoofdpijn.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00443",
+      "input": "Ik hou niet van onregelmatige werkwoorden leren.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00444",
+      "input": "Pak een boek en lees het!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00445",
+      "input": "Ik ben bang om te vallen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00446",
+      "input": "Zou je misschien later kunnen terugbellen?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00447",
+      "input": "Het leven is mooi.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00448",
+      "input": "Ik doe iedere morgen boodschappen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00449",
+      "input": "Ik wil het niet meer.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00450",
+      "input": "Ik breng je wel naar het vliegveld.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00451",
+      "input": "O! Laat eens zien.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00452",
+      "input": "Je beeldt het je maar in.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00453",
+      "input": "Het is ons een genoegen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00454",
+      "input": "Wat moet ik meenemen?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00455",
+      "input": "Je hoeft je niet te schamen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00456",
+      "input": "Wat ontbreekt er?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00457",
+      "input": "Laten we teruggaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00458",
+      "input": "Ik schaam me voor mezelf.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00459",
+      "input": "Neem een taxi naar het hotel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00460",
+      "input": "Het is gloednieuw.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00461",
+      "input": "Ik weet nog dat ik de film gezien heb.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00462",
+      "input": "Er zijn veel hotels in de binnenstad.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00463",
+      "input": "Vergeet niet de brief op de post te doen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00464",
+      "input": "Ik hoop wel dat je nog een keer komt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00465",
+      "input": "Kom snel terug.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00466",
+      "input": "Schrijf alsjeblieft gauw terug.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00467",
+      "input": "Doe je ouders de groeten van me.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00468",
+      "input": "We hopen dat je van de voorstelling zult genieten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00469",
+      "input": "Nee. Ik moet helaas weer vroeg terug.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00470",
+      "input": "Sorry. Ik neem mijn woorden terug.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00471",
+      "input": "Deze appel is erg rood.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00472",
+      "input": "Die gitaar is zo duur dat ik hem niet kan kopen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00473",
+      "input": "Ik zal je wat foto's laten zien.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00474",
+      "input": "Nu weet ik het weer.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00475",
+      "input": "Ah, wanneer ontmoeten ze elkaar weer?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00476",
+      "input": "Beantwoord de vraag.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00477",
+      "input": "Wat een verrassing!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00478",
+      "input": "Ik heb een vraag.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00479",
+      "input": "Kijk niet terug.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00480",
+      "input": "Het is heet vandaag.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00481",
+      "input": "Ik kan me de eerste keer nog herinneren.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00482",
+      "input": "Ik doe meestal de vaat.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00483",
+      "input": "Neem uw kinderen mee.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00484",
+      "input": "Ik zal je de stad laten zien.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00485",
+      "input": "Vergeet niet dat we huiswerk hebben.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00486",
+      "input": "Herinner je je mij nog?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00487",
+      "input": "Ik ga niet terug.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00488",
+      "input": "Ik ben nu op het vliegveld.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00489",
+      "input": "Er ontbreekt niets.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00490",
+      "input": "Ouders houden van hun kinderen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00491",
+      "input": "Het is van mijn broer.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00492",
+      "input": "Doe het licht uit. Ik kan niet in slaap komen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00493",
+      "input": "Doe het licht aan. Ik zie niks.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00494",
+      "input": "Ik zal het nooit meer doen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00495",
+      "input": "Breng hem naar binnen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00496",
+      "input": "Ik weet zeker dat ze snel terugkomt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00497",
+      "input": "Ze is erg knap.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00498",
+      "input": "Laat me nog eens een voorbeeld zien.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00499",
+      "input": "Tot morgen in de bibliotheek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00500",
+      "input": "Je zult verdwalen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00501",
+      "input": "De vraag is dit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00502",
+      "input": "Het handige van dit elektronische woordenboek is dat je het makkelijk mee kan nemen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00503",
+      "input": "Ik ben er weer! O, hebben we visite?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00504",
+      "input": "Het is niet licht genoeg om foto's te nemen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00505",
+      "input": "Zal ik uw jas dragen?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00506",
+      "input": "Mijn hobby is gitaar spelen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00507",
+      "input": "Het is fris vandaag.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00508",
+      "input": "Ik begrijp niet helemaal wat hij zegt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00509",
+      "input": "Bemoei je niet met mijn zaken.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00510",
+      "input": "Niet één van mijn klasgenoten woont hier in de buurt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00511",
+      "input": "Ik wil de film zien.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00512",
+      "input": "Mag ik een vraag stellen?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00513",
+      "input": "Ik maak graag foto's.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00514",
+      "input": "Mag ik even uitrusten?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00515",
+      "input": "Engels is niet makkelijk, maar wel interessant.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00516",
+      "input": "Hoe lang bent u?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00517",
+      "input": "Waarom moet ik dat doen?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00518",
+      "input": "Twee vanille-ijsjes alstublieft.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00519",
+      "input": "Zijn hoed zag er heel grappig uit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00520",
+      "input": "Kun je me helpen deze zinnen in het Chinees te vertalen?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00521",
+      "input": "Hij ziet slecht.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00522",
+      "input": "Morgen is het Kerstmis.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00523",
+      "input": "Hij zal op je wachten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00524",
+      "input": "Hij wacht wel op je.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00525",
+      "input": "Ik kan nog steeds niet goed Chinees schrijven.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00526",
+      "input": "Ik had erge trek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00527",
+      "input": "Mag ik deze fiets gebruiken?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00528",
+      "input": "Mijn fiets is gisteren gestolen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00529",
+      "input": "Ik ga met de fiets naar het werk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00530",
+      "input": "Hoelang is het fietsen van hier naar jouw huis?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00531",
+      "input": "Ik heb leren fietsen toen ik zes was.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00532",
+      "input": "Eet je brood tussen de middag?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00533",
+      "input": "Ik heb twee broden gekocht.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00534",
+      "input": "Wil je een plakje ham voor me snijden?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00535",
+      "input": "Sandra neemt een boterham en een kop koffie als ontbijt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00536",
+      "input": "Tom houdt niet van kaas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00537",
+      "input": "Kaas is niet licht verteerbaar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00538",
+      "input": "Belegen kaas is geschikt als je een korstje op de ovenschotel wilt, maar als de kaas alleen moet smelten, kun je beter jonge kaas gebruiken.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00539",
+      "input": "Moeder heeft boterhammen met kaas voor ons klaargemaakt voor het middageten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00540",
+      "input": "Mag ik de smeerkaas alsjeblieft?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00541",
+      "input": "Er stond een watermolen onderaan de dam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00542",
+      "input": "Het ontbijt is klaar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00543",
+      "input": "Ik heb het onbijt overgeslagen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00544",
+      "input": "Heb je al geluncht?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00545",
+      "input": "Na het middageten keken we tv.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00546",
+      "input": "Mijn moeder is bezig het avondeten te koken.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00547",
+      "input": "Na het avondeten deed ik de afwas.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00548",
+      "input": "Wij eten altijd om zes uur 's avonds.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00549",
+      "input": "Slaap lekker, Timmy.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00550",
+      "input": "Slaap zacht, Sean.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00551",
+      "input": "Ik vocht tegen de slaap.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00552",
+      "input": "Ik kon niet slapen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00553",
+      "input": "In de winter slaap ik onder twee dekens.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00554",
+      "input": "Ik probeer te slapen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00555",
+      "input": "Lees het nog een keer.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00556",
+      "input": "Lees wat je wilt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00557",
+      "input": "Ik lees stripboeken.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00558",
+      "input": "Lees het hardop.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00559",
+      "input": "Studeer je scheikunde?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00560",
+      "input": "Goede studenten studeren hard.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00561",
+      "input": "Ga naar school.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00562",
+      "input": "Uniformen verschillen van school tot school.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00563",
+      "input": "Dat is onze school.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00564",
+      "input": "Ik ga lopend naar school.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00565",
+      "input": "Onze school is afgebrand.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00566",
+      "input": "Ik was te laat op school.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00567",
+      "input": "Ik vind school niet leuk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00568",
+      "input": "De school begint om half negen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00569",
+      "input": "Deze tafel is gereserveerd.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00570",
+      "input": "Ze ruimde de tafel af.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00571",
+      "input": "Een tafel heeft vier poten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00572",
+      "input": "Mama heeft de tafel gedekt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00573",
+      "input": "Deze tafel wiebelt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00574",
+      "input": "Wie heeft hen tafelmanieren geleerd?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00575",
+      "input": "Wat een grote hond!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00576",
+      "input": "Mike heeft zijn hond Spike genoemd.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00577",
+      "input": "De hond ging op de postbode af.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00578",
+      "input": "Pas op de hond!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00579",
+      "input": "De kat is heel lief.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00580",
+      "input": "De koe voorziet ons van melk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00581",
+      "input": "Ik heb nog nooit een echte koe gezien.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00582",
+      "input": "Koeien grazen in de wei.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00583",
+      "input": "Deze wei zit vol kikkers.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00584",
+      "input": "Hoe breed is deze rivier?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00585",
+      "input": "We liepen langs de rivier.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00586",
+      "input": "Wil je met me spelen?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00587",
+      "input": "Hij kon het hardst rennen van de hele wereld.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00588",
+      "input": "\"Zo zo,\" zei de dokter. \"Ik moet haar onderzoeken.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00589",
+      "input": "Zoiets heb ik nog nooit in mijn leven gezien, niet één keer!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00590",
+      "input": "Het is toch maar goed dat ik een oma heb!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00591",
+      "input": "Doe de groeten aan opa.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00592",
+      "input": "\"Jullie moeten samen een mandje appels naar opa brengen,\" zei moeder. \"Jij houdt de ene kant vast, en jij de andere. En zo lopen jullie dan.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00593",
+      "input": "Niet alle rode appels smaken hetzelfde.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00594",
+      "input": "Ze namen van elke appel een hap.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00595",
+      "input": "Jullie moeten heel stil zijn en op jullie tenen lopen. Het baby'tje slaapt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00596",
+      "input": "Ik ga buiten spelen. Ga je mee?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00597",
+      "input": "Hij kon met geen mogelijkheid iets bedenken om te doen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00598",
+      "input": "Laat ik eens op mijn hoofd gaan staan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00599",
+      "input": "Ze drukte haar neus tegen de ruit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00600",
+      "input": "Komt u soms bij me thee drinken?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00601",
+      "input": "Mama en papa worden vast niet boos.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00602",
+      "input": "Uit de boeken die in de kast staan mag je in geen geval plaatjes knippen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00603",
+      "input": "In haar slaapkamer stond een tafeltje. En daarop stond een klein flesje.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00604",
+      "input": "Wat zijn jullie toch een vlegels!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00605",
+      "input": "Kom nooit meer aan dat flesje!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00606",
+      "input": "Het schip zinkt!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00607",
+      "input": "Eigenlijk vond ze het helemaal niet leuk, maar ze zei niets.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00608",
+      "input": "Wat lach je nou?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00609",
+      "input": "Kom je pannenkoeken bij me eten?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00610",
+      "input": "Laten we blindemannetje spelen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00611",
+      "input": "Hoe hard je ook \"Oe-oe!\" roept, in een wolf verander je toch niet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00612",
+      "input": "Katten dragen geen halsband.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00613",
+      "input": "We kunnen thuis geen schaap houden. Wat moeten we er daar mee doen?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00614",
+      "input": "Het was zijn eigen schuld.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00615",
+      "input": "Sasha had een enorme buil op zijn hoofd.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00616",
+      "input": "Het regent dat het giet! Op straat zijn overal plassen, en het water stroomt van de daken.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00617",
+      "input": "Met zulk weer gaat niemand naar buiten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00618",
+      "input": "Laten we naar huis gaan!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00619",
+      "input": "\"De lakens hang ik zelf op,\" zei de buurvrouw. \"Die zijn wel erg zwaar.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00620",
+      "input": "Ze aten allebei hun chocoladereep tot het laatste brokje toe op.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00621",
+      "input": "Slaap je in de logeerkamer?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00622",
+      "input": "Wat ik ook doe, zij zegt dat ik het beter had kunnen doen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00623",
+      "input": "Ik heb een eeuwigheid nodig om alles uit te leggen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00624",
+      "input": "In welk jaar bent u geboren?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00625",
+      "input": "Dit boek verkocht goed in Japan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00626",
+      "input": "We missen je heel erg.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00627",
+      "input": "Zou het kunnen dat dat gerucht waar is?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00628",
+      "input": "Ik vind dat examens het onderwijs verpesten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00629",
+      "input": "Ik droomde er al van jongs af aan van om banketbakker te worden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00630",
+      "input": "Ik hou van muziek en van Engels.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00631",
+      "input": "Dat was niet mijn bedoeling.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00632",
+      "input": "\"Is het goed als ik met jullie meega?\" \"Natuurlijk!\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00633",
+      "input": "De appel valt niet ver van de boom.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00634",
+      "input": "Ik ga graag naar de bioscoop.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00635",
+      "input": "Hij trok zijn bontjas beneden uit, ging naar boven en klopte zachtjes op de deur.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00636",
+      "input": "Dat is de mening van een leek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00637",
+      "input": "Mijn horloge was gestolen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00638",
+      "input": "Wat is dat voor onzin?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00639",
+      "input": "Veel meisjes zijn gek op deze zanger.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00640",
+      "input": "Ik denk dat je je maar beter netjes kunt gedragen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00641",
+      "input": "Leven is wat er met je gebeurt terwijl je bezig bent met andere dingen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00642",
+      "input": "Iedereen wil u ontmoeten, u bent een beroemdheid!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00643",
+      "input": "Ik wist niet waar het vandaan kwam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00644",
+      "input": "Ik wil niet zo lang wachten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00645",
+      "input": "\"Wie is dat meisje?\" \"Dat is Keiko.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00646",
+      "input": "Ik heb ontzettende hoofdpijn!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00647",
+      "input": "Dat is niet iets wat iedereen kan doen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00648",
+      "input": "Ik hou van kaarslicht.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00649",
+      "input": "Heb je het druk op het moment?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00650",
+      "input": "Helaas is het waar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00651",
+      "input": "Dat is altijd zo geweest.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00652",
+      "input": "Hij weet zeker dat hij komt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00653",
+      "input": "Het was hem niet gegeven haar ooit nog te ontmoeten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00654",
+      "input": "Ik hou er niet van als wiskundigen die veel meer weten dan ik hun gedachten niet duidelijk kunnen uitdrukken.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00655",
+      "input": "Mike speelt graag basketbal.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00656",
+      "input": "Uit welk land kom je?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00657",
+      "input": "Jij bent de allermooiste bloem in mijn leven.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00658",
+      "input": "En zo zat hij op een keer aan het eind van de middag in de tuin te eten, toen een dame met een baret rustig in zijn richting kwam om aan de tafel naast hem te gaan zitten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00659",
+      "input": "Ik vind je niet meer leuk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00660",
+      "input": "Ik hou niet meer van je.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00661",
+      "input": "De mand zat tot de rand toe vol met aardbeien.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00662",
+      "input": "Ik ben een mens met tekortkomingen, maar het zijn tekortkomingen die makkelijk verholpen kunnen worden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00663",
+      "input": "Het licht ging vanzelf uit.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00664",
+      "input": "Veel buitenlanders komen naar Japan om Japans te leren.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00665",
+      "input": "Jammer dat ik niet hoef af te vallen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00666",
+      "input": "En toch is het omgekeerde ook waar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00667",
+      "input": "De kleine Martin had een rustige kindertijd in Atlanta, Georgia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00668",
+      "input": "Je bent niet snel genoeg.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00669",
+      "input": "Hij woont in een appartement.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00670",
+      "input": "Ik vroeg hem naar zijn naam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00671",
+      "input": "Ik vroeg me af of je vandaag zou komen opdagen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00672",
+      "input": "Bedoel je dat je met opzet je schoonheid verbergt?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00673",
+      "input": "Het heeft geen zin om nog langer na te denken.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00674",
+      "input": "Hij woont in een dorp.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00675",
+      "input": "Hij woont op het platteland.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00676",
+      "input": "Wilde je me over vrijheid vertellen?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00677",
+      "input": "Wel ja, toe maar!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00678",
+      "input": "Ik kan zo niet leven.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00679",
+      "input": "Het is moeilijk te zeggen wat goed is en wat niet, maar toch moet het.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00680",
+      "input": "Tom stak de straat over.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00681",
+      "input": "Ik heb een wiskundeknobbel.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00682",
+      "input": "Ik heb een natuurlijke aanleg voor wiskunde.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00683",
+      "input": "Er was een week voorbijgegaan sinds de kennismaking.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00684",
+      "input": "Mijn vader is een man van goud.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00685",
+      "input": "Ze heeft altijd wel wat op hem aan te merken.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00686",
+      "input": "Ik bel ze morgen, als ik weer terug ben.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00687",
+      "input": "Later, toen ze weg waren gegaan, was er geen levende ziel meer te bekennen op de kade, de stad met zijn cipressen leek totaal uitgestorven, maar de zee bruiste nog en sloeg tegen de kust.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00688",
+      "input": "Ze is dol op tennissen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00689",
+      "input": "Als ze hier zonder man en zonder kennissen is, dacht Goerov, dan zou het geen kwaad kunnen om met haar kennis te maken.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00690",
+      "input": "Ieder eenzaam mens is eenzaam door zijn angst voor de mensen om hem heen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00691",
+      "input": "Liefde maakt blind.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00692",
+      "input": "Moet je die rook zien.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00693",
+      "input": "Zij is nergens bang voor.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00694",
+      "input": "Vertel me alsjeblieft je naam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00695",
+      "input": "Weet je het zeker?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00696",
+      "input": "Vergeet het gas niet uit te doen voordat jullie naar buiten gaan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00697",
+      "input": "Welke mogelijkheden heb ik verder nog?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00698",
+      "input": "Deze berg is het hele jaar door bedekt met sneeuw.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00699",
+      "input": "De enige nuttige antwoorden zijn die antwoorden die nieuwe vragen oproepen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00700",
+      "input": "Mijn naam is Yamada.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00701",
+      "input": "Steeds wanneer ik iets vind dat me bevalt, is het te duur.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00702",
+      "input": "Wat hij ook doet, hij doet het goed.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00703",
+      "input": "Ik ben tevreden met mijn werk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00704",
+      "input": "Dat zal niet gebeuren.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00705",
+      "input": "\"Waar staat je huis?\" \"Daarzo.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00706",
+      "input": "Gisteren heb ik mijn vader geholpen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00707",
+      "input": "De volgende dag riep de dove, terwijl hij de binnenplaats over rende, naar haar: \"Als u iets nodig heeft, moedertje, neemt u het maar!\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00708",
+      "input": "Ons team heeft de wedstrijd gewonnen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00709",
+      "input": "Mensen kunnen niet eeuwig leven.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00710",
+      "input": "Het was nooit de bedoeling dat mensen eeuwig zouden leven.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00711",
+      "input": "Later, in zijn hotelkamer, dacht hij aan haar, aan dat ze hem morgen waarschijnlijk zou ontmoeten.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00712",
+      "input": "Alleen de waarheid is schoon.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00713",
+      "input": "Ik hou van lasagne.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00714",
+      "input": "Het was heet gisteren.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00715",
+      "input": "Ik ben nieuwsgierig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00716",
+      "input": "Wat heb je geantwoord?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00717",
+      "input": "Ik had nooit gedacht dat ik op een dag het woord \"viagra\" zou opzoeken op Wikipedia.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00718",
+      "input": "Ik kwam dat restaurant toevallig tegen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00719",
+      "input": "Ik heet Kyril, aangenaam kennis te maken.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00720",
+      "input": "Liefde kun je niet verspillen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00721",
+      "input": "Dit is een goed lesboek.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00722",
+      "input": "Aan zichzelf twijfelen is het eerste teken van intelligentie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00723",
+      "input": "De politie zal jullie dwingen de kogels te vinden.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00724",
+      "input": "Ik heb twee hamburgers besteld.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00725",
+      "input": "Het schilderij is het werk van een Nederlandse meester.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00726",
+      "input": "Aardappels zijn geïntroduceerd door de Nederlanders uit Jakarta.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00727",
+      "input": "Nederlands is nauw verwant aan Duits.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00728",
+      "input": "Russisch is erg moeilijk te leren.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00729",
+      "input": "We hebben Russisch geleerd in plaats van Frans.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00730",
+      "input": "Hij kan het Russisch zowel spreken als schrijven.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00731",
+      "input": "Hij spreekt perfect Russisch.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00732",
+      "input": "Hij heeft snel Russisch verworven.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00733",
+      "input": "Zij spreekt Russisch.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00734",
+      "input": "Ik ken een man die goed Russisch spreekt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00735",
+      "input": "Hij spreekt ook Russisch.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00736",
+      "input": "Hij is Russisch van geboorte.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00737",
+      "input": "Een Fransman bijvoorbeeld kan misschien moeilijk lachen om een Russische grap.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00738",
+      "input": "Chabarovsk is één van de grootste steden in het Verre Oosten van Rusland.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00739",
+      "input": "Iedereen wil je ontmoeten, je bent beroemd!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00740",
+      "input": "Wat ik ook doe, zij zegt dat ik het beter kan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00741",
+      "input": "Ik zou een eeuwigheid bezig zijn om alles uit te leggen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00742",
+      "input": "We missen je allemaal heel erg.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00743",
+      "input": "Wat zijn jullie toch een bengels!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00744",
+      "input": "Wat zijn jullie toch een belhamels!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00745",
+      "input": "Tot nu toe heb ik nog nooit een echte koe gezien.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00746",
+      "input": "Ik weet niet of ik tijd heb daarvoor.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00747",
+      "input": "Om de één of andere reden werkte de microfoon tot nu toe niet.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00748",
+      "input": "Ik zie u graag.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00749",
+      "input": "Ik wil deze film graag zien.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00750",
+      "input": "Ik zal jullie wat foto's laten zien.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00751",
+      "input": "Ik breng u wel naar het vliegveld.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00752",
+      "input": "Je beeldt je dingen in.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00753",
+      "input": "Hij stond tot zijn enkels in het water.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00754",
+      "input": "Kijk, de jongens lopen met blote voeten in het water.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00755",
+      "input": "Kom je bij me op schoot zitten?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00756",
+      "input": "Mama, waarom heb ik geen oom met een baard?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00757",
+      "input": "Het hondje keek haar heel droevig aan.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00758",
+      "input": "Honden kunnen niet praten, maar het leek alsof de ogen van het hondje zeiden: \"Nee, ik heb geen thuis.\"",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00759",
+      "input": "Wat een kinderen! Je stuurt ze weg om snoepjes, en ze komen terug met een hond!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00760",
+      "input": "Voor geen goud!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00761",
+      "input": "Hij deed zo zijn best dat hij er helemaal rood van werd.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00762",
+      "input": "Ik moet een hele emmer appels schillen voor de jam.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00763",
+      "input": "Waar was je toch?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00764",
+      "input": "Als ik later groot ben, word ik piloot. En wat wil jij worden?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00765",
+      "input": "Kijk eens aan. Wat een geweldige cadeautjes! Wat ben ik blij!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00766",
+      "input": "Het is gevaarlijk om in die rivier te zwemmen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00767",
+      "input": "Dit eten is gevaarlijk voor de gezondheid.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00768",
+      "input": "Is die slang dood of levend?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00769",
+      "input": "Ik heb een balpen, maar ik wil er nog één.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00770",
+      "input": "Ik ben rechtshandig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00771",
+      "input": "Buitenlanders intrigeren me.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00772",
+      "input": "Buitenlanders maken me nieuwsgierig.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00773",
+      "input": "Buitenlanders zijn vermakelijk.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00774",
+      "input": "De meeste mensen schrijven over hun dagelijks leven.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00775",
+      "input": "Steeds wanneer ik naar deze foto kijk, herinner ik me die gelukkige dagen op het platteland.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00776",
+      "input": "Waarom ben je zo laat nog op?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00777",
+      "input": "Ik zal je vandaag verder niets vragen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00778",
+      "input": "Hoelang ben je gebleven?",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00779",
+      "input": "Het kostte minder dan vijftig dollar.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00780",
+      "input": "Het stoute jongetje verdwaalde en keek om zich heen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00781",
+      "input": "Latijn is een taal met sterke flexie.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00782",
+      "input": "Zalig de korten van geheugen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00783",
+      "input": "Je was niet op school gisteren.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00784",
+      "input": "Er is een mysterieuze legende overgeleverd over dit meer.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00785",
+      "input": "Hij heeft een boek geschreven over China.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00786",
+      "input": "Ik weet niet meer wat ik moet doen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00787",
+      "input": "Als twee mensen hetzelfde doen, is het niet hetzelfde.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00788",
+      "input": "De mens is een wolf voor de mens.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00789",
+      "input": "De dobbelsteen is gegooid.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00790",
+      "input": "Ik kwam, ik zag, ik overwon.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00791",
+      "input": "Als je geliefd wilt zijn, heb dan lief!",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00792",
+      "input": "We leren niet voor het leven, maar voor school.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00793",
+      "input": "Het geluk staat de dapperen bij.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00794",
+      "input": "Plato is mijn vriend, maar de waarheid is mij meer waard.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00795",
+      "input": "De tijd vliegt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00796",
+      "input": "Ik weet niet of je haar leuk vindt.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00797",
+      "input": "Mijn oom heeft dit boek voor mij gekocht.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00798",
+      "input": "Wat je gezegd hebt, kan je niet terugnemen.",
+      "expected": []
+    },
+    {
+      "id": "neg-prose-nl-00799",
+      "input": "Wanneer u terugkomt uit Amerika, ben ik al afgestudeerd.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-nl-00000",
+      "input": "Room 304 has the laptops we ordered.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-nl-00001",
+      "input": "Bought 5 cookies on the avenue near my office.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-nl-00002",
+      "input": "Track #12345 was delivered yesterday.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-nl-00003",
+      "input": "I had 5 boxes in storage unit 12.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-nl-00004",
+      "input": "Building number 7 was empty.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-nl-00005",
+      "input": "Open from January 1990 onwards.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-nl-00006",
+      "input": "Floor 3 has the printer.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-nl-00007",
+      "input": "Order #98765 is being processed.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-nl-00008",
+      "input": "The bus runs every 12 minutes.",
+      "expected": []
+    },
+    {
+      "id": "neg-pseudo-nl-00009",
+      "input": "Found 5000 documents in the archive.",
+      "expected": []
+    }
+  ]
+}

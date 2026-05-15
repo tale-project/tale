@@ -4,8 +4,7 @@ import {
   modified,
   pass,
   type FilterOutcome,
-} from '@tale/pii';
-
+} from '../../../lib/pii';
 import type { ChatFilterConfig } from '../../../lib/shared/schemas/governance';
 import { detectViolations } from './detector';
 import { applyEnforcement } from './enforcer';

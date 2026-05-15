@@ -1,0 +1,3359 @@
+{
+  "_meta": {
+    "locale": "ko",
+    "generator": "platform/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 304,
+      "negatives": 0
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "positives": [
+    {
+      "id": "email-ko-00000",
+      "input": "alex.smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00001",
+      "input": "우편 주소: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00002",
+      "input": "고객은 marylee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00003",
+      "input": "픽업 장소 — anna.mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00004",
+      "input": "alex_smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00005",
+      "input": "우편 주소: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00006",
+      "input": "고객은 mary.lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00007",
+      "input": "픽업 장소 — anna_mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00008",
+      "input": "alexsmith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 21
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00009",
+      "input": "우편 주소: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00010",
+      "input": "고객은 mary_lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00011",
+      "input": "픽업 장소 — annamueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00012",
+      "input": "alex.smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00013",
+      "input": "우편 주소: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00014",
+      "input": "고객은 marylee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00015",
+      "input": "픽업 장소 — anna.mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00016",
+      "input": "alex_smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00017",
+      "input": "우편 주소: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00018",
+      "input": "고객은 mary.lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00019",
+      "input": "픽업 장소 — anna_mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00020",
+      "input": "alexsmith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 21
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00021",
+      "input": "우편 주소: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00022",
+      "input": "고객은 mary_lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00023",
+      "input": "픽업 장소 — annamueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00024",
+      "input": "alex.smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00025",
+      "input": "우편 주소: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00026",
+      "input": "고객은 marylee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00027",
+      "input": "픽업 장소 — anna.mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00028",
+      "input": "alex_smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00029",
+      "input": "우편 주소: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00030",
+      "input": "고객은 mary.lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00031",
+      "input": "픽업 장소 — anna_mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00032",
+      "input": "alexsmith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 21
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00033",
+      "input": "우편 주소: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00034",
+      "input": "고객은 mary_lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00035",
+      "input": "픽업 장소 — annamueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00036",
+      "input": "alex.smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00037",
+      "input": "우편 주소: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00038",
+      "input": "고객은 marylee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00039",
+      "input": "픽업 장소 — anna.mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00040",
+      "input": "alex_smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00041",
+      "input": "우편 주소: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00042",
+      "input": "고객은 mary.lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00043",
+      "input": "픽업 장소 — anna_mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00044",
+      "input": "alexsmith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 21
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00045",
+      "input": "우편 주소: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00046",
+      "input": "고객은 mary_lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00047",
+      "input": "픽업 장소 — annamueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00048",
+      "input": "alex.smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00049",
+      "input": "우편 주소: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00050",
+      "input": "고객은 marylee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00051",
+      "input": "픽업 장소 — anna.mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00052",
+      "input": "alex_smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00053",
+      "input": "우편 주소: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00054",
+      "input": "고객은 mary.lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00055",
+      "input": "픽업 장소 — anna_mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00056",
+      "input": "alexsmith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 21
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00057",
+      "input": "우편 주소: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00058",
+      "input": "고객은 mary_lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00059",
+      "input": "픽업 장소 — annamueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00060",
+      "input": "alex.smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00061",
+      "input": "우편 주소: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00062",
+      "input": "고객은 marylee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00063",
+      "input": "픽업 장소 — anna.mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00064",
+      "input": "alex_smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00065",
+      "input": "우편 주소: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00066",
+      "input": "고객은 mary.lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00067",
+      "input": "픽업 장소 — anna_mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00068",
+      "input": "alexsmith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 21
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00069",
+      "input": "우편 주소: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00070",
+      "input": "고객은 mary_lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00071",
+      "input": "픽업 장소 — annamueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00072",
+      "input": "alex.smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00073",
+      "input": "우편 주소: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00074",
+      "input": "고객은 marylee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00075",
+      "input": "픽업 장소 — anna.mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00076",
+      "input": "alex_smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00077",
+      "input": "우편 주소: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00078",
+      "input": "고객은 mary.lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00079",
+      "input": "픽업 장소 — anna_mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00080",
+      "input": "alexsmith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 21
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00081",
+      "input": "우편 주소: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00082",
+      "input": "고객은 mary_lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00083",
+      "input": "픽업 장소 — annamueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00084",
+      "input": "alex.smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00085",
+      "input": "우편 주소: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00086",
+      "input": "고객은 marylee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00087",
+      "input": "픽업 장소 — anna.mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00088",
+      "input": "alex_smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00089",
+      "input": "우편 주소: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00090",
+      "input": "고객은 mary.lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00091",
+      "input": "픽업 장소 — anna_mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00092",
+      "input": "alexsmith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 21
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00093",
+      "input": "우편 주소: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00094",
+      "input": "고객은 mary_lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00095",
+      "input": "픽업 장소 — annamueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00096",
+      "input": "alex.smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00097",
+      "input": "우편 주소: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00098",
+      "input": "고객은 marylee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00099",
+      "input": "픽업 장소 — anna.mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00100",
+      "input": "alex_smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00101",
+      "input": "우편 주소: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00102",
+      "input": "고객은 mary.lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00103",
+      "input": "픽업 장소 — anna_mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00104",
+      "input": "alexsmith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 21
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00105",
+      "input": "우편 주소: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00106",
+      "input": "고객은 mary_lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00107",
+      "input": "픽업 장소 — annamueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00108",
+      "input": "alex.smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00109",
+      "input": "우편 주소: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00110",
+      "input": "고객은 marylee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00111",
+      "input": "픽업 장소 — anna.mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00112",
+      "input": "alex_smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00113",
+      "input": "우편 주소: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00114",
+      "input": "고객은 mary.lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00115",
+      "input": "픽업 장소 — anna_mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00116",
+      "input": "alexsmith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 21
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00117",
+      "input": "우편 주소: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00118",
+      "input": "고객은 mary_lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00119",
+      "input": "픽업 장소 — annamueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00120",
+      "input": "alex.smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00121",
+      "input": "우편 주소: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00122",
+      "input": "고객은 marylee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00123",
+      "input": "픽업 장소 — anna.mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00124",
+      "input": "alex_smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00125",
+      "input": "우편 주소: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00126",
+      "input": "고객은 mary.lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00127",
+      "input": "픽업 장소 — anna_mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00128",
+      "input": "alexsmith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 21
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00129",
+      "input": "우편 주소: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00130",
+      "input": "고객은 mary_lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00131",
+      "input": "픽업 장소 — annamueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00132",
+      "input": "alex.smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00133",
+      "input": "우편 주소: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00134",
+      "input": "고객은 marylee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00135",
+      "input": "픽업 장소 — anna.mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00136",
+      "input": "alex_smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00137",
+      "input": "우편 주소: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00138",
+      "input": "고객은 mary.lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00139",
+      "input": "픽업 장소 — anna_mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00140",
+      "input": "alexsmith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 21
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00141",
+      "input": "우편 주소: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00142",
+      "input": "고객은 mary_lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00143",
+      "input": "픽업 장소 — annamueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00144",
+      "input": "alex.smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00145",
+      "input": "우편 주소: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00146",
+      "input": "고객은 marylee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00147",
+      "input": "픽업 장소 — anna.mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00148",
+      "input": "alex_smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00149",
+      "input": "우편 주소: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00150",
+      "input": "고객은 mary.lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00151",
+      "input": "픽업 장소 — anna_mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00152",
+      "input": "alexsmith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 21
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00153",
+      "input": "우편 주소: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00154",
+      "input": "고객은 mary_lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00155",
+      "input": "픽업 장소 — annamueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00156",
+      "input": "alex.smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00157",
+      "input": "우편 주소: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00158",
+      "input": "고객은 marylee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00159",
+      "input": "픽업 장소 — anna.mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00160",
+      "input": "alex_smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00161",
+      "input": "우편 주소: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00162",
+      "input": "고객은 mary.lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00163",
+      "input": "픽업 장소 — anna_mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00164",
+      "input": "alexsmith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 21
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00165",
+      "input": "우편 주소: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00166",
+      "input": "고객은 mary_lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00167",
+      "input": "픽업 장소 — annamueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00168",
+      "input": "alex.smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00169",
+      "input": "우편 주소: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00170",
+      "input": "고객은 marylee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00171",
+      "input": "픽업 장소 — anna.mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00172",
+      "input": "alex_smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00173",
+      "input": "우편 주소: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00174",
+      "input": "고객은 mary.lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00175",
+      "input": "픽업 장소 — anna_mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00176",
+      "input": "alexsmith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 21
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00177",
+      "input": "우편 주소: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00178",
+      "input": "고객은 mary_lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00179",
+      "input": "픽업 장소 — annamueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00180",
+      "input": "alex.smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00181",
+      "input": "우편 주소: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00182",
+      "input": "고객은 marylee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00183",
+      "input": "픽업 장소 — anna.mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00184",
+      "input": "alex_smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00185",
+      "input": "우편 주소: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00186",
+      "input": "고객은 mary.lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00187",
+      "input": "픽업 장소 — anna_mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00188",
+      "input": "alexsmith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 21
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00189",
+      "input": "우편 주소: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00190",
+      "input": "고객은 mary_lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00191",
+      "input": "픽업 장소 — annamueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00192",
+      "input": "alex.smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00193",
+      "input": "우편 주소: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00194",
+      "input": "고객은 marylee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00195",
+      "input": "픽업 장소 — anna.mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00196",
+      "input": "alex_smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00197",
+      "input": "우편 주소: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00198",
+      "input": "고객은 mary.lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00199",
+      "input": "픽업 장소 — anna_mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00200",
+      "input": "alexsmith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 21
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00201",
+      "input": "우편 주소: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00202",
+      "input": "고객은 mary_lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00203",
+      "input": "픽업 장소 — annamueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00204",
+      "input": "alex.smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00205",
+      "input": "우편 주소: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00206",
+      "input": "고객은 marylee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00207",
+      "input": "픽업 장소 — anna.mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00208",
+      "input": "alex_smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00209",
+      "input": "우편 주소: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00210",
+      "input": "고객은 mary.lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00211",
+      "input": "픽업 장소 — anna_mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00212",
+      "input": "alexsmith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 21
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00213",
+      "input": "우편 주소: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00214",
+      "input": "고객은 mary_lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00215",
+      "input": "픽업 장소 — annamueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00216",
+      "input": "alex.smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00217",
+      "input": "우편 주소: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00218",
+      "input": "고객은 marylee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00219",
+      "input": "픽업 장소 — anna.mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00220",
+      "input": "alex_smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00221",
+      "input": "우편 주소: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00222",
+      "input": "고객은 mary.lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00223",
+      "input": "픽업 장소 — anna_mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00224",
+      "input": "alexsmith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 21
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00225",
+      "input": "우편 주소: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00226",
+      "input": "고객은 mary_lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00227",
+      "input": "픽업 장소 — annamueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00228",
+      "input": "alex.smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00229",
+      "input": "우편 주소: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00230",
+      "input": "고객은 marylee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00231",
+      "input": "픽업 장소 — anna.mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00232",
+      "input": "alex_smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00233",
+      "input": "우편 주소: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00234",
+      "input": "고객은 mary.lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00235",
+      "input": "픽업 장소 — anna_mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00236",
+      "input": "alexsmith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 21
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00237",
+      "input": "우편 주소: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00238",
+      "input": "고객은 mary_lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00239",
+      "input": "픽업 장소 — annamueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00240",
+      "input": "alex.smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00241",
+      "input": "우편 주소: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00242",
+      "input": "고객은 marylee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00243",
+      "input": "픽업 장소 — anna.mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00244",
+      "input": "alex_smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00245",
+      "input": "우편 주소: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00246",
+      "input": "고객은 mary.lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00247",
+      "input": "픽업 장소 — anna_mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00248",
+      "input": "alexsmith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 21
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00249",
+      "input": "우편 주소: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00250",
+      "input": "고객은 mary_lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00251",
+      "input": "픽업 장소 — annamueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00252",
+      "input": "alex.smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00253",
+      "input": "우편 주소: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00254",
+      "input": "고객은 marylee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00255",
+      "input": "픽업 장소 — anna.mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00256",
+      "input": "alex_smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00257",
+      "input": "우편 주소: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00258",
+      "input": "고객은 mary.lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00259",
+      "input": "픽업 장소 — anna_mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00260",
+      "input": "alexsmith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 21
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00261",
+      "input": "우편 주소: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00262",
+      "input": "고객은 mary_lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00263",
+      "input": "픽업 장소 — annamueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00264",
+      "input": "alex.smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00265",
+      "input": "우편 주소: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00266",
+      "input": "고객은 marylee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00267",
+      "input": "픽업 장소 — anna.mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00268",
+      "input": "alex_smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00269",
+      "input": "우편 주소: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00270",
+      "input": "고객은 mary.lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00271",
+      "input": "픽업 장소 — anna_mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00272",
+      "input": "alexsmith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 21
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00273",
+      "input": "우편 주소: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00274",
+      "input": "고객은 mary_lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00275",
+      "input": "픽업 장소 — annamueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00276",
+      "input": "alex.smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00277",
+      "input": "우편 주소: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00278",
+      "input": "고객은 marylee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00279",
+      "input": "픽업 장소 — anna.mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00280",
+      "input": "alex_smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00281",
+      "input": "우편 주소: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00282",
+      "input": "고객은 mary.lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00283",
+      "input": "픽업 장소 — anna_mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00284",
+      "input": "alexsmith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 21
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00285",
+      "input": "우편 주소: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00286",
+      "input": "고객은 mary_lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00287",
+      "input": "픽업 장소 — annamueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00288",
+      "input": "alex.smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00289",
+      "input": "우편 주소: john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00290",
+      "input": "고객은 marylee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00291",
+      "input": "픽업 장소 — anna.mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00292",
+      "input": "alex_smith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00293",
+      "input": "우편 주소: johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00294",
+      "input": "고객은 mary.lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00295",
+      "input": "픽업 장소 — anna_mueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 33
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00296",
+      "input": "alexsmith@example.com로 소포를 보내주세요.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 0,
+          "end": 21
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00297",
+      "input": "우편 주소: john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00298",
+      "input": "고객은 mary_lee@company.io에 거주합니다.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-ko-00299",
+      "input": "픽업 장소 — annamueller@corp.example — 확인됨.",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 8,
+          "end": 32
+        }
+      ]
+    },
+    {
+      "id": "manual-ko-dob-001",
+      "input": "생년월일: 1998년9월28일",
+      "expected": [
+        {
+          "pattern": "dateOfBirth",
+          "start": 6,
+          "end": 16
+        }
+      ]
+    },
+    {
+      "id": "manual-ko-dob-002",
+      "input": "1987년3월15일 출생",
+      "expected": [
+        {
+          "pattern": "dateOfBirth",
+          "start": 0,
+          "end": 10
+        }
+      ]
+    },
+    {
+      "id": "manual-ko-email-001",
+      "input": "이메일: kim@example.kr",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 19
+        }
+      ]
+    },
+    {
+      "id": "manual-ko-phone-001",
+      "input": "전화: 02-1234-5678",
+      "expected": [
+        {
+          "pattern": "phone",
+          "start": 4,
+          "end": 16
+        }
+      ]
+    }
+  ]
+}

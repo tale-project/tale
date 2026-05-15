@@ -1,0 +1,3469 @@
+{
+  "_meta": {
+    "locale": "zh-Hans",
+    "generator": "platform/pii-fixtures@0.1.0",
+    "seed": 42,
+    "datasets": {},
+    "counts": {
+      "positives": 314,
+      "negatives": 0
+    },
+    "generatedAt": "2026-05-14T00:00:00Z"
+  },
+  "positives": [
+    {
+      "id": "addr-zh-Hans-00000",
+      "input": "请将包裹寄送至北京市朝阳区建国路100号 100025。",
+      "expected": [
+        {
+          "pattern": "address",
+          "start": 7,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "addr-zh-Hans-00001",
+      "input": "邮寄地址：上海市浦东新区世纪大道2000号 200120",
+      "expected": [
+        {
+          "pattern": "address",
+          "start": 5,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "addr-zh-Hans-00002",
+      "input": "客户居住在广州市天河区天河路208号 510610。",
+      "expected": [
+        {
+          "pattern": "address",
+          "start": 5,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "addr-zh-Hans-00003",
+      "input": "取件点 — 深圳市福田区福华一路123号 518048 — 已确认。",
+      "expected": [
+        {
+          "pattern": "address",
+          "start": 6,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "addr-zh-Hans-00004",
+      "input": "请将包裹寄送至成都市武侯区人民南路四段45号 610041。",
+      "expected": [
+        {
+          "pattern": "address",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "addr-zh-Hans-00005",
+      "input": "邮寄地址：杭州市西湖区文三路278号 310012",
+      "expected": [
+        {
+          "pattern": "address",
+          "start": 5,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "addr-zh-Hans-00006",
+      "input": "客户居住在南京市鼓楼区中山北路30号 210008。",
+      "expected": [
+        {
+          "pattern": "address",
+          "start": 5,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "addr-zh-Hans-00007",
+      "input": "取件点 — 武汉市江汉区解放大道200号 430022 — 已确认。",
+      "expected": [
+        {
+          "pattern": "address",
+          "start": 6,
+          "end": 27
+        }
+      ]
+    },
+    {
+      "id": "addr-zh-Hans-00008",
+      "input": "请将包裹寄送至西安市新城区解放路1号 710004。",
+      "expected": [
+        {
+          "pattern": "address",
+          "start": 7,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "addr-zh-Hans-00009",
+      "input": "邮寄地址：天津市和平区南京路189号 300100",
+      "expected": [
+        {
+          "pattern": "address",
+          "start": 5,
+          "end": 25
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00000",
+      "input": "请将包裹寄送至alex.smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00001",
+      "input": "邮寄地址：john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00002",
+      "input": "客户居住在marylee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00003",
+      "input": "取件点 — anna.mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00004",
+      "input": "请将包裹寄送至alex_smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00005",
+      "input": "邮寄地址：johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00006",
+      "input": "客户居住在mary.lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00007",
+      "input": "取件点 — anna_mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00008",
+      "input": "请将包裹寄送至alexsmith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00009",
+      "input": "邮寄地址：john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00010",
+      "input": "客户居住在mary_lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00011",
+      "input": "取件点 — annamueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00012",
+      "input": "请将包裹寄送至alex.smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00013",
+      "input": "邮寄地址：john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00014",
+      "input": "客户居住在marylee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00015",
+      "input": "取件点 — anna.mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00016",
+      "input": "请将包裹寄送至alex_smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00017",
+      "input": "邮寄地址：johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00018",
+      "input": "客户居住在mary.lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00019",
+      "input": "取件点 — anna_mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00020",
+      "input": "请将包裹寄送至alexsmith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00021",
+      "input": "邮寄地址：john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00022",
+      "input": "客户居住在mary_lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00023",
+      "input": "取件点 — annamueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00024",
+      "input": "请将包裹寄送至alex.smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00025",
+      "input": "邮寄地址：john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00026",
+      "input": "客户居住在marylee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00027",
+      "input": "取件点 — anna.mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00028",
+      "input": "请将包裹寄送至alex_smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00029",
+      "input": "邮寄地址：johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00030",
+      "input": "客户居住在mary.lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00031",
+      "input": "取件点 — anna_mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00032",
+      "input": "请将包裹寄送至alexsmith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00033",
+      "input": "邮寄地址：john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00034",
+      "input": "客户居住在mary_lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00035",
+      "input": "取件点 — annamueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00036",
+      "input": "请将包裹寄送至alex.smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00037",
+      "input": "邮寄地址：john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00038",
+      "input": "客户居住在marylee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00039",
+      "input": "取件点 — anna.mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00040",
+      "input": "请将包裹寄送至alex_smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00041",
+      "input": "邮寄地址：johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00042",
+      "input": "客户居住在mary.lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00043",
+      "input": "取件点 — anna_mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00044",
+      "input": "请将包裹寄送至alexsmith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00045",
+      "input": "邮寄地址：john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00046",
+      "input": "客户居住在mary_lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00047",
+      "input": "取件点 — annamueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00048",
+      "input": "请将包裹寄送至alex.smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00049",
+      "input": "邮寄地址：john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00050",
+      "input": "客户居住在marylee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00051",
+      "input": "取件点 — anna.mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00052",
+      "input": "请将包裹寄送至alex_smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00053",
+      "input": "邮寄地址：johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00054",
+      "input": "客户居住在mary.lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00055",
+      "input": "取件点 — anna_mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00056",
+      "input": "请将包裹寄送至alexsmith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00057",
+      "input": "邮寄地址：john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00058",
+      "input": "客户居住在mary_lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00059",
+      "input": "取件点 — annamueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00060",
+      "input": "请将包裹寄送至alex.smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00061",
+      "input": "邮寄地址：john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00062",
+      "input": "客户居住在marylee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00063",
+      "input": "取件点 — anna.mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00064",
+      "input": "请将包裹寄送至alex_smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00065",
+      "input": "邮寄地址：johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00066",
+      "input": "客户居住在mary.lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00067",
+      "input": "取件点 — anna_mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00068",
+      "input": "请将包裹寄送至alexsmith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00069",
+      "input": "邮寄地址：john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00070",
+      "input": "客户居住在mary_lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00071",
+      "input": "取件点 — annamueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00072",
+      "input": "请将包裹寄送至alex.smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00073",
+      "input": "邮寄地址：john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00074",
+      "input": "客户居住在marylee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00075",
+      "input": "取件点 — anna.mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00076",
+      "input": "请将包裹寄送至alex_smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00077",
+      "input": "邮寄地址：johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00078",
+      "input": "客户居住在mary.lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00079",
+      "input": "取件点 — anna_mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00080",
+      "input": "请将包裹寄送至alexsmith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00081",
+      "input": "邮寄地址：john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00082",
+      "input": "客户居住在mary_lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00083",
+      "input": "取件点 — annamueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00084",
+      "input": "请将包裹寄送至alex.smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00085",
+      "input": "邮寄地址：john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00086",
+      "input": "客户居住在marylee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00087",
+      "input": "取件点 — anna.mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00088",
+      "input": "请将包裹寄送至alex_smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00089",
+      "input": "邮寄地址：johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00090",
+      "input": "客户居住在mary.lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00091",
+      "input": "取件点 — anna_mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00092",
+      "input": "请将包裹寄送至alexsmith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00093",
+      "input": "邮寄地址：john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00094",
+      "input": "客户居住在mary_lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00095",
+      "input": "取件点 — annamueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00096",
+      "input": "请将包裹寄送至alex.smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00097",
+      "input": "邮寄地址：john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00098",
+      "input": "客户居住在marylee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00099",
+      "input": "取件点 — anna.mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00100",
+      "input": "请将包裹寄送至alex_smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00101",
+      "input": "邮寄地址：johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00102",
+      "input": "客户居住在mary.lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00103",
+      "input": "取件点 — anna_mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00104",
+      "input": "请将包裹寄送至alexsmith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00105",
+      "input": "邮寄地址：john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00106",
+      "input": "客户居住在mary_lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00107",
+      "input": "取件点 — annamueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00108",
+      "input": "请将包裹寄送至alex.smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00109",
+      "input": "邮寄地址：john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00110",
+      "input": "客户居住在marylee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00111",
+      "input": "取件点 — anna.mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00112",
+      "input": "请将包裹寄送至alex_smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00113",
+      "input": "邮寄地址：johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00114",
+      "input": "客户居住在mary.lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00115",
+      "input": "取件点 — anna_mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00116",
+      "input": "请将包裹寄送至alexsmith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00117",
+      "input": "邮寄地址：john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00118",
+      "input": "客户居住在mary_lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00119",
+      "input": "取件点 — annamueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00120",
+      "input": "请将包裹寄送至alex.smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00121",
+      "input": "邮寄地址：john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00122",
+      "input": "客户居住在marylee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00123",
+      "input": "取件点 — anna.mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00124",
+      "input": "请将包裹寄送至alex_smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00125",
+      "input": "邮寄地址：johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00126",
+      "input": "客户居住在mary.lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00127",
+      "input": "取件点 — anna_mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00128",
+      "input": "请将包裹寄送至alexsmith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00129",
+      "input": "邮寄地址：john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00130",
+      "input": "客户居住在mary_lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00131",
+      "input": "取件点 — annamueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00132",
+      "input": "请将包裹寄送至alex.smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00133",
+      "input": "邮寄地址：john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00134",
+      "input": "客户居住在marylee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00135",
+      "input": "取件点 — anna.mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00136",
+      "input": "请将包裹寄送至alex_smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00137",
+      "input": "邮寄地址：johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00138",
+      "input": "客户居住在mary.lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00139",
+      "input": "取件点 — anna_mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00140",
+      "input": "请将包裹寄送至alexsmith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00141",
+      "input": "邮寄地址：john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00142",
+      "input": "客户居住在mary_lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00143",
+      "input": "取件点 — annamueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00144",
+      "input": "请将包裹寄送至alex.smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00145",
+      "input": "邮寄地址：john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00146",
+      "input": "客户居住在marylee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00147",
+      "input": "取件点 — anna.mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00148",
+      "input": "请将包裹寄送至alex_smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00149",
+      "input": "邮寄地址：johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00150",
+      "input": "客户居住在mary.lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00151",
+      "input": "取件点 — anna_mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00152",
+      "input": "请将包裹寄送至alexsmith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00153",
+      "input": "邮寄地址：john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00154",
+      "input": "客户居住在mary_lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00155",
+      "input": "取件点 — annamueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00156",
+      "input": "请将包裹寄送至alex.smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00157",
+      "input": "邮寄地址：john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00158",
+      "input": "客户居住在marylee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00159",
+      "input": "取件点 — anna.mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00160",
+      "input": "请将包裹寄送至alex_smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00161",
+      "input": "邮寄地址：johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00162",
+      "input": "客户居住在mary.lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00163",
+      "input": "取件点 — anna_mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00164",
+      "input": "请将包裹寄送至alexsmith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00165",
+      "input": "邮寄地址：john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00166",
+      "input": "客户居住在mary_lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00167",
+      "input": "取件点 — annamueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00168",
+      "input": "请将包裹寄送至alex.smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00169",
+      "input": "邮寄地址：john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00170",
+      "input": "客户居住在marylee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00171",
+      "input": "取件点 — anna.mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00172",
+      "input": "请将包裹寄送至alex_smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00173",
+      "input": "邮寄地址：johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00174",
+      "input": "客户居住在mary.lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00175",
+      "input": "取件点 — anna_mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00176",
+      "input": "请将包裹寄送至alexsmith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00177",
+      "input": "邮寄地址：john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00178",
+      "input": "客户居住在mary_lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00179",
+      "input": "取件点 — annamueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00180",
+      "input": "请将包裹寄送至alex.smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00181",
+      "input": "邮寄地址：john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00182",
+      "input": "客户居住在marylee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00183",
+      "input": "取件点 — anna.mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00184",
+      "input": "请将包裹寄送至alex_smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00185",
+      "input": "邮寄地址：johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00186",
+      "input": "客户居住在mary.lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00187",
+      "input": "取件点 — anna_mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00188",
+      "input": "请将包裹寄送至alexsmith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00189",
+      "input": "邮寄地址：john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00190",
+      "input": "客户居住在mary_lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00191",
+      "input": "取件点 — annamueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00192",
+      "input": "请将包裹寄送至alex.smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00193",
+      "input": "邮寄地址：john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00194",
+      "input": "客户居住在marylee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00195",
+      "input": "取件点 — anna.mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00196",
+      "input": "请将包裹寄送至alex_smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00197",
+      "input": "邮寄地址：johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00198",
+      "input": "客户居住在mary.lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00199",
+      "input": "取件点 — anna_mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00200",
+      "input": "请将包裹寄送至alexsmith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00201",
+      "input": "邮寄地址：john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00202",
+      "input": "客户居住在mary_lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00203",
+      "input": "取件点 — annamueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00204",
+      "input": "请将包裹寄送至alex.smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00205",
+      "input": "邮寄地址：john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00206",
+      "input": "客户居住在marylee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00207",
+      "input": "取件点 — anna.mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00208",
+      "input": "请将包裹寄送至alex_smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00209",
+      "input": "邮寄地址：johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00210",
+      "input": "客户居住在mary.lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00211",
+      "input": "取件点 — anna_mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00212",
+      "input": "请将包裹寄送至alexsmith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00213",
+      "input": "邮寄地址：john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00214",
+      "input": "客户居住在mary_lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00215",
+      "input": "取件点 — annamueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00216",
+      "input": "请将包裹寄送至alex.smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00217",
+      "input": "邮寄地址：john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00218",
+      "input": "客户居住在marylee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00219",
+      "input": "取件点 — anna.mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00220",
+      "input": "请将包裹寄送至alex_smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00221",
+      "input": "邮寄地址：johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00222",
+      "input": "客户居住在mary.lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00223",
+      "input": "取件点 — anna_mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00224",
+      "input": "请将包裹寄送至alexsmith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00225",
+      "input": "邮寄地址：john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00226",
+      "input": "客户居住在mary_lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00227",
+      "input": "取件点 — annamueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00228",
+      "input": "请将包裹寄送至alex.smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00229",
+      "input": "邮寄地址：john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00230",
+      "input": "客户居住在marylee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00231",
+      "input": "取件点 — anna.mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00232",
+      "input": "请将包裹寄送至alex_smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00233",
+      "input": "邮寄地址：johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00234",
+      "input": "客户居住在mary.lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00235",
+      "input": "取件点 — anna_mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00236",
+      "input": "请将包裹寄送至alexsmith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00237",
+      "input": "邮寄地址：john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00238",
+      "input": "客户居住在mary_lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00239",
+      "input": "取件点 — annamueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00240",
+      "input": "请将包裹寄送至alex.smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00241",
+      "input": "邮寄地址：john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00242",
+      "input": "客户居住在marylee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00243",
+      "input": "取件点 — anna.mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00244",
+      "input": "请将包裹寄送至alex_smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00245",
+      "input": "邮寄地址：johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00246",
+      "input": "客户居住在mary.lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00247",
+      "input": "取件点 — anna_mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00248",
+      "input": "请将包裹寄送至alexsmith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00249",
+      "input": "邮寄地址：john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00250",
+      "input": "客户居住在mary_lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00251",
+      "input": "取件点 — annamueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00252",
+      "input": "请将包裹寄送至alex.smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00253",
+      "input": "邮寄地址：john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00254",
+      "input": "客户居住在marylee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00255",
+      "input": "取件点 — anna.mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00256",
+      "input": "请将包裹寄送至alex_smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00257",
+      "input": "邮寄地址：johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00258",
+      "input": "客户居住在mary.lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00259",
+      "input": "取件点 — anna_mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00260",
+      "input": "请将包裹寄送至alexsmith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00261",
+      "input": "邮寄地址：john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00262",
+      "input": "客户居住在mary_lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00263",
+      "input": "取件点 — annamueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00264",
+      "input": "请将包裹寄送至alex.smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00265",
+      "input": "邮寄地址：john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00266",
+      "input": "客户居住在marylee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00267",
+      "input": "取件点 — anna.mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00268",
+      "input": "请将包裹寄送至alex_smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00269",
+      "input": "邮寄地址：johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00270",
+      "input": "客户居住在mary.lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00271",
+      "input": "取件点 — anna_mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00272",
+      "input": "请将包裹寄送至alexsmith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00273",
+      "input": "邮寄地址：john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00274",
+      "input": "客户居住在mary_lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00275",
+      "input": "取件点 — annamueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00276",
+      "input": "请将包裹寄送至alex.smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00277",
+      "input": "邮寄地址：john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00278",
+      "input": "客户居住在marylee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00279",
+      "input": "取件点 — anna.mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00280",
+      "input": "请将包裹寄送至alex_smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00281",
+      "input": "邮寄地址：johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00282",
+      "input": "客户居住在mary.lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00283",
+      "input": "取件点 — anna_mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00284",
+      "input": "请将包裹寄送至alexsmith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00285",
+      "input": "邮寄地址：john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00286",
+      "input": "客户居住在mary_lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00287",
+      "input": "取件点 — annamueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00288",
+      "input": "请将包裹寄送至alex.smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00289",
+      "input": "邮寄地址：john_doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00290",
+      "input": "客户居住在marylee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00291",
+      "input": "取件点 — anna.mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00292",
+      "input": "请将包裹寄送至alex_smith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 29
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00293",
+      "input": "邮寄地址：johndoe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 22
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00294",
+      "input": "客户居住在mary.lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00295",
+      "input": "取件点 — anna_mueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 31
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00296",
+      "input": "请将包裹寄送至alexsmith@example.com。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 7,
+          "end": 28
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00297",
+      "input": "邮寄地址：john.doe@mail.test",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 23
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00298",
+      "input": "客户居住在mary_lee@company.io。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 5,
+          "end": 24
+        }
+      ]
+    },
+    {
+      "id": "email-zh-Hans-00299",
+      "input": "取件点 — annamueller@corp.example — 已确认。",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 6,
+          "end": 30
+        }
+      ]
+    },
+    {
+      "id": "manual-zh-Hans-dob-001",
+      "input": "出生于1998年9月28日",
+      "expected": [
+        {
+          "pattern": "dateOfBirth",
+          "start": 3,
+          "end": 13
+        }
+      ]
+    },
+    {
+      "id": "manual-zh-Hans-dob-002",
+      "input": "出生日期: 1987年3月15日",
+      "expected": [
+        {
+          "pattern": "dateOfBirth",
+          "start": 6,
+          "end": 16
+        }
+      ]
+    },
+    {
+      "id": "manual-zh-Hans-email-001",
+      "input": "邮箱: wang@example.cn",
+      "expected": [
+        {
+          "pattern": "email",
+          "start": 4,
+          "end": 19
+        }
+      ]
+    },
+    {
+      "id": "manual-zh-Hans-phone-001",
+      "input": "电话: 010-12345678",
+      "expected": [
+        {
+          "pattern": "phone",
+          "start": 4,
+          "end": 16
+        }
+      ]
+    }
+  ]
+}
