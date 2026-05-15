@@ -225,3 +225,7 @@ Wenn nach der Pruner-Stage ein Modul fehlt, prüfe:
 
 1. Ob es unter `dependencies` (nicht `devDependencies`) in `package.json` steht.
 2. Ob der Pruner-Schritt es in seiner `rm -rf`-Liste explizit entfernt.
+
+## Wo das einsetzt
+
+Docker-Beiträge sind der Source-Contributor-Flow für das Build-System, das Tales Container-Images erzeugt. Die meisten Leser dieser Seite arbeiten an `Dockerfile.<service>`, dem Multi-Stage-Build oder den Image-Budget-Tests; die Laufzeit-Architektur, in der diese Images laufen, ist unter [Container-Architektur](/de/self-hosted/operate/container-architecture) dokumentiert. Für den Betreiber-seitigen Installations-Pfad, der die Images konsumiert, sind [Quickstart](/de/self-hosted/install/quickstart) und [Linux-Server-Installation](/de/self-hosted/install/linux-server) die kanonischen Referenzen.

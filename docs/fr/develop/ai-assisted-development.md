@@ -42,4 +42,8 @@ Les fichiers de règles et le répertoire reference sont dans le binaire CLI. La
 tale upgrade
 ```
 
-Ne modifie pas ces fichiers à la main, ils sont écrasés à l’upgrade.
+Ne modifie pas ces fichiers à la main, ils sont écrasés à l'upgrade.
+
+## Où ça s'inscrit
+
+Le développement assisté par IA est le chemin d'auteur par fichier pour les agents, automatisations, intégrations et branding. Il existe parce que la forme JSON derrière chaque écran UI est aussi la forme qu'un éditeur IA peut générer à partir d'une description en langage naturel — et pour une flotte d'agents, c'est plus rapide que de construire chacun dans l'UI. Pour le flux de construction UI canonique, [Créer un agent](/fr/platform/agents/create) est le point d'entrée ; pour le schéma de connecteur spécifiquement, [Construire une intégration](/fr/develop/integrations) est la page suivante.

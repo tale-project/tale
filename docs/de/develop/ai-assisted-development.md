@@ -43,3 +43,7 @@ tale upgrade
 ```
 
 Bearbeite diese Dateien nicht manuell, da sie beim Upgrade überschrieben werden.
+
+## Wo das einsetzt
+
+KI-gestützte Entwicklung ist der datei-basierte Autoren-Pfad für Agents, Automatisierungen, Integrationen und Branding. Sie existiert, weil die JSON-Form hinter jedem UI-Bildschirm auch die Form ist, die ein KI-Editor aus einer natürlichsprachigen Beschreibung erzeugen kann — und für eine Flotte von Agents ist das schneller als jeden einzeln in der UI zu bauen. Für den kanonischen UI-Bau-Flow ist [Agent erstellen](/de/platform/agents/create) der Einstiegspunkt; für das Konnektor-Schema speziell ist [Integration bauen](/de/develop/integrations) die nächste Seite.

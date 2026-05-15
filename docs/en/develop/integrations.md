@@ -302,8 +302,6 @@ Placeholders use `@paramName`, matched to keys in `parametersSchema.properties`.
 - **Vague error messages.** `Failed` is not actionable. Tell the user which credential is wrong, which scope is missing, or which quota was exceeded.
 - **Missing `operationType: 'write'` on mutating calls.** Without it, the approval gate doesn't engage and a write may run unattended.
 
-## Related
+## Where this fits
 
-- [Integrations overview](/platform/integrations/overview) — concepts and how connectors are consumed.
-- [AI-assisted development](/develop/ai-assisted-development) — using Claude Code, Cursor, GitHub Copilot, or Windsurf to author connectors against the platform's reference source.
-- [API reference](/develop/api-reference) — the Tale API itself, distinct from connectors.
+Building an integration is the connector-author flow. From here, the manifest gets installed on Tale instances; once installed, the connector's operations show up as tools in [Create an agent](/platform/agents/create) and as steps in automation [Workflows](/platform/automations/workflows). For the operator-side consumption surface, [Integrations overview](/platform/integrations/overview) is the canonical reference; for AI-assisted authoring of the manifest itself, [AI-assisted development](/develop/ai-assisted-development) is the workflow. The [API reference](/develop/api-reference) covers the Tale API itself — distinct from connectors.

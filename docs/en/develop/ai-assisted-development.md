@@ -43,3 +43,7 @@ tale upgrade
 ```
 
 Do not edit these files manually as they are overwritten on upgrade.
+
+## Where this fits
+
+AI-assisted development is the file-based authoring path for agents, automations, integrations, and branding. It exists because the JSON shape that backs every UI screen is also the shape an AI-powered editor can generate from a plain-language description — and for a fleet of agents, that's faster than building each one in the UI. For the canonical UI build flow, [Create an agent](/platform/agents/create) is the entry point; for the connector schema specifically, [Build an integration](/develop/integrations) is the next page.

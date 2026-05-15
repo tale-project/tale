@@ -179,6 +179,7 @@
         "develop/webhooks",
         "develop/ai-assisted-development",
         "develop/integrations",
+        "develop/status-page",
         "develop/contributing-docker"
       ]
     }

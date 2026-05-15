@@ -223,5 +223,9 @@ Si un paquet est installé en builder mais pas disponible en runtime, vérifie :
 
 Si un module manque après le pruner, vérifie :
 
-1. S’il est listé en `dependencies` (pas `devDependencies`) dans `package.json`.
+1. S'il est listé en `dependencies` (pas `devDependencies`) dans `package.json`.
 2. Si le pruner le retire explicitement dans son `rm -rf`.
+
+## Où ça s'inscrit
+
+Contribuer à Docker est le flux contributeur source pour le système de build qui produit les images conteneur de Tale. La plupart des lecteurs de cette page touchent à `Dockerfile.<service>`, au build multi-stage ou aux tests de budget d'image ; l'architecture runtime dans laquelle ces images tournent est documentée à [Architecture des conteneurs](/fr/self-hosted/operate/container-architecture). Pour le chemin d'installation côté exploitant qui consomme les images, [Démarrage rapide](/fr/self-hosted/install/quickstart) et [Installation serveur Linux](/fr/self-hosted/install/linux-server) sont les références canoniques.

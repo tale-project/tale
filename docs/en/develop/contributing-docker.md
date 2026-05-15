@@ -225,3 +225,7 @@ If a module is missing after the pruner stage, check:
 
 1. Whether it's listed in `dependencies` (not `devDependencies`) in `package.json`
 2. Whether the pruner step explicitly removes it in the `rm -rf` list
+
+## Where this fits
+
+Contributing Docker is the source-contributor flow for the build system that produces Tale's container images. Most readers of this page are touching `Dockerfile.<service>`, the multi-stage build, or the image-budget tests; the runtime architecture those images run inside is documented at [Container architecture](/self-hosted/operate/container-architecture). For the operator-side install path that consumes the images, [Quickstart](/self-hosted/install/quickstart) and [Linux-server install](/self-hosted/install/linux-server) are the canonical references.
