@@ -34,6 +34,8 @@ These are the rules that fail review (or fail the test suite) when they're broke
 
 **Rule 5 — One narrator.** The voice on every page in every locale is the same calm, opinionated, second-person informal narrator described below. A page that drifts into marketing softening, passive bureaucracy, or first-person "we" prose fails review even if every other rule passes.
 
+**Rule 6 — Claims are verified against the code.** Every factual claim on a page — a UI label, a button name, an environment variable, a default value, a URL path, a behaviour, a limit, a role's permission, a step's effect — is verified against the current source before the page is considered done. The sources of truth are `services/platform/messages/<locale>.json` (UI labels), `services/platform/app/` (routes and screens), `services/platform/convex/` (backend behaviour), the relevant service under `services/` (RAG, Crawler, etc.), `docker-compose.*.yml` (defaults and ports), and the env loader (variable names and defaults). Voice rules cover _how_ the page reads; this rule covers _whether the page is true_. A page that reads well but documents a button that no longer exists fails review on this rule alone.
+
 ---
 
 ## The voice
@@ -106,6 +108,9 @@ The body is whatever stands between the opening and the closing. The rules below
 - **One topic per file.** If the page drifts into a second subject, split it. The taxonomy section below covers where each subject lives.
 - **Sub-section headings are sentence case** and **named for what the section does, not what it is**. Prefer `## Build one`, `## Where this fits`, `## When to reach for it` over `## Building`, `## Context`, `## Use cases`.
 - **Maximum heading depth is H4.** If a page genuinely needs H5, it should be split.
+- **UI walk-throughs follow `effect → location → action`.** Lead with the outcome, then the surface, then the click. `To restrict an agent's knowledge to one folder, open the agent's **Knowledge** tab and pick the folder under **Sources**` — never `Click **Knowledge**, then **Sources**, then a folder; this restricts the agent's knowledge.` Action-first walk-throughs read like recipes; effect-first walk-throughs read like the page already knew the reader's question.
+- **One worked example precedes any options table.** When a reference page documents a feature with parameters, the first sub-section is a runnable example that shows the feature in use. Tables of parameters follow the example, never lead it. Readers scan code blocks before they scan tables.
+- **Parameter tables use a fixed shape.** API endpoints, schema fields, and config knobs use a four-column table: `Name | Type | Required | Description`. Env-var tables use `Name | Default | Description` (env vars are always strings; the type column adds nothing). Keep the columns identical across every reference page so a reader who has read one can scan any of them.
 
 ### The closing
 
@@ -144,7 +149,8 @@ Six page types cover everything in `docs/`. Each has its own shape contract on t
 1. **Opening** (3–4 sentences): name the concept, who uses it, what it solves that the next-closest concept doesn't.
 2. **The pieces** (one sub-section per piece, each with at least one paragraph of prose before any list or table): name each piece, what it controls, the consequence of the typical choice.
 3. **Putting it together** (one sub-section): show one or two worked combinations of the pieces — a table is fine here, since the rows have identity.
-4. **Closing** (named `## Build one`, `## Where this fits`, or `## When to reach for it`): one paragraph of recap, one paragraph linking to the next page (the build flow, the comparison page, etc.).
+4. **When to reach for it** _(required when the concept has sibling features)_: a small decision table comparing this concept to its closest siblings — agents vs automations, workflows vs triggers, documents vs structured data. Columns are `Use … when | …`. Forces the page to name the trade-off the reader is actually weighing.
+5. **Closing** (named `## Build one`, `## Where this fits`, or `## When to reach for it` — fold the decision table into the closing when that's its natural home): one paragraph of recap, one paragraph linking to the next page (the build flow, the comparison page, etc.).
 
 **Pattern example.** [`platform/agents/concepts.md`](../../docs/en/platform/agents/concepts.md) is the canonical concept page — four pieces (instructions, knowledge, tools, model), one combination table, one `## Build one` closing.
 
@@ -152,6 +158,7 @@ Six page types cover everything in `docs/`. Each has its own shape contract on t
 
 - The opening defines the concept by listing its sub-headings ("Agents have instructions, knowledge, tools, and a model"). Define the concept by what it _does_, not what it contains.
 - A piece sub-section is one sentence and a bullet. Add the prose paragraph; the bullets follow.
+- No "When to reach for it" table on a concept that has obvious siblings. Readers leave the page without knowing whether they're on the right one.
 - The closing is `## Next`. Rename it.
 
 ### 2. Tutorial
@@ -164,7 +171,7 @@ Six page types cover everything in `docs/`. Each has its own shape contract on t
 
 1. **Opening** (3–4 sentences): the outcome you'll have at the end, the prerequisites in one sentence, where the reference for the underlying feature lives. Pre-empt the "is this the right page?" check.
 2. **What you'll build** _(optional sub-section)_: one paragraph of prose plus one diagram if the workflow has more than three steps. Only include it if the outcome isn't obvious from the title.
-3. **Prerequisites** (sub-section): bulleted, parallel, with specific links. List the role required, the feature access required, any third-party software, any API keys.
+3. **Before you begin** (sub-section, required): the prerequisites, as prose-led bullets, each one specific and verifiable — the role required (`Editor or higher`), the edition (`Cloud or Self-hosted`), the feature flag if one applies, the external account, the API key. Each bullet starts with the prerequisite, then names how the reader checks they have it. The name is fixed (`Before you begin`, not `Prerequisites`, not `Requirements`) so readers across every tutorial reach the same surface.
 4. **Numbered steps** (sub-sections `## Step 1 — <action>`, etc.): each step is **one move** (create one thing, configure one thing, run one thing). Each step starts with a paragraph naming what this step accomplishes and why, then walks the mechanic, then names the verification — _how the reader knows the step worked_.
 5. **Troubleshooting** (sub-section): the three or four issues the maintainer has actually seen, each as a short paragraph or three-line bullet (symptom → cause → fix).
 6. **Closing** (named `## Where this fits` or `## Where this gets used`): one paragraph of recap on what the reader now knows how to do, one paragraph of "and here's the natural next move" with a contextualised link.
@@ -187,15 +194,18 @@ Six page types cover everything in `docs/`. Each has its own shape contract on t
 **Shape.**
 
 1. **Opening** (2–3 sentences): name the feature, the audience, the canonical scope of this page ("this page covers X, not Y — Y lives at <link>"). Reference pages live or die by the scope sentence.
-2. **The data** (multiple sub-sections, each named for a sub-concept): tables, code blocks, env-var lists, schema fields — whatever the actual data is. Prose introduces each sub-section in 1–2 sentences before the data.
-3. **Edge cases / advanced** _(optional sub-section)_: the gotchas a reader hits in production. Keep it short — if it's long, split into its own page.
-4. **Closing** (named `## Where this fits`): one paragraph linking the reference to the UI counterpart (or the file counterpart), and to the conceptual page if one exists.
+2. **A worked example** (the first body sub-section): a runnable example that shows the feature in use. For an API endpoint, that's a request and response. For a config knob, that's a working config snippet. For a schema, that's one fully populated instance. The example precedes any options table — readers scan code blocks before they scan tables.
+3. **The data** (multiple sub-sections, each named for a sub-concept): tables, code blocks, env-var lists, schema fields — whatever the actual data is. Prose introduces each sub-section in 1–2 sentences before the data. Parameter and option tables use the fixed `Name | Type | Required | Description` shape (or `Name | Default | Description` for env-var groups) so a reader who has learned to scan one can scan every one.
+4. **Edge cases / advanced** _(optional sub-section)_: the gotchas a reader hits in production. Keep it short — if it's long, split into its own page.
+5. **Closing** (named `## Where this fits`): one paragraph linking the reference to the UI counterpart (or the file counterpart), and to the conceptual page if one exists.
 
 **Pattern example.** [`self-hosted/configuration/providers.md`](../../docs/en/self-hosted/configuration/providers.md) is the canonical reference page — schema, fields, cost rules, gateway-vs-vendor distinction, `## Where this fits` closing.
 
 **Common failures.**
 
 - The opening is one sentence of "Providers connect Tale to AI models". Add the scope sentence — what does _this_ page cover, where does the rest live.
+- The page leads with the options table, with the example buried at the bottom. Move the example up: readers want to see the shape before they read the rules.
+- Parameter tables drift from the fixed column shape. Normalise to `Name | Type | Required | Description` (or `Name | Default | Description` for env vars).
 - Tables with no prose introduction. Add the lead-in sentence.
 - The closing duplicates the opening. Make it a real recap that introduces the related pages.
 
@@ -209,7 +219,7 @@ Six page types cover everything in `docs/`. Each has its own shape contract on t
 
 1. **Opening** (3–4 sentences): name the area, name the audience, name why this area exists in the product. For role-indexed overviews, name what this role can do that the next-closest role can't.
 2. **Context paragraph(s)** (1–3 paragraphs of prose): how the area fits in the broader product. For role pages, the day-in-the-life. For feature areas, the mental model in one paragraph.
-3. **Page index** (sub-section `## Pages in this section` or similar): bulleted list of links, each with a one-line description of what the page covers. The descriptions follow a parallel structure — same length, same shape.
+3. **Page index** (sub-section `## Pages in this section` or similar): a list of links, one line each, in this fixed shape: `**[Page title](/locale/path)** — one sentence naming the audience and the outcome of reading it.` Same length, same grammar, every row. This is the "card" shape Anthropic and OpenAI use on their capability landings — title in bold, em-dash, one-sentence promise — adapted to plain Markdown.
 
 **Pattern example.** [`platform/admin/overview.md`](../../docs/en/platform/admin/overview.md) is the canonical section overview.
 
@@ -218,6 +228,7 @@ Six page types cover everything in `docs/`. Each has its own shape contract on t
 - The body is the link list, with a sentence on top. Add 200–300 words of real prose framing.
 - The page descriptions are inconsistent — some are full sentences, others are noun phrases. Pick one and be parallel.
 - The links don't say _what's in_ the page, only the title. Rewrite each description.
+- The link descriptions name the topic but not the outcome. `**Members and roles** — the role matrix` tells the reader nothing; `**Members and roles** — invite teammates, change roles, and read the six-role permission matrix` lets the reader pick.
 
 ### 5. Troubleshooting page
 
@@ -254,6 +265,27 @@ Six page types cover everything in `docs/`. Each has its own shape contract on t
 
 - No trust-boundary section. Add one.
 - The integration's UI labels drift from the actual third-party UI. Verify against the current third-party version and add a "last verified" note in the commit message (not in the page — see Rule 5's no-status-chatter rule).
+
+### 7. Glossary / reference table page
+
+**Where they live.** `self-hosted/configuration/environment-reference.md`, glossary-style pages, exhaustive enum listings.
+
+**What they do.** Be the searchable, alphabetically-or-categorically-sorted source of truth for a closed set — every env var, every role permission, every integration auth method. They are tables with prose framing, not concepts with tables.
+
+**Shape.**
+
+1. **Opening** (2–3 sentences): name the set, who reads it, when. A glossary page's opening can be shorter than a concept page's because the page is consulted, not read.
+2. **How to read this page** _(optional, one paragraph)_: name the ordering (alphabetical, grouped by surface, by lifecycle), the source of truth, and how to search. Spare the reader the question.
+3. **The tables** (one sub-section per logical group): each table uses the fixed parameter-table shape. The sub-section heading names the group (`### Database connection`, `### Object storage`). Each sub-section opens with one to two sentences naming what the group controls before the table.
+4. **Closing** (named `## Where this fits`): one paragraph naming the UI counterpart, the conceptual page, and how to discover deprecations (release notes link).
+
+**Pattern example.** [`self-hosted/configuration/environment-reference.md`](../../docs/en/self-hosted/configuration/environment-reference.md).
+
+**Common failures.**
+
+- The page is one giant table with no grouping. Group by surface so the reader can find the four variables that control storage without reading the eighty that control everything else.
+- Each row's description is a noun phrase ("the storage bucket"). Write the sentence ("Name of the S3 bucket Tale uses for uploaded files and exported reports.").
+- The page tries to be a tutorial too. Split — the tutorial goes under `tutorials/admin/`, the reference stays here.
 
 ---
 
@@ -316,6 +348,14 @@ The page assumes the reader is _also_ reading another page. References to "the p
 ### Half-Translated Sentence
 
 DE/FR prose with English UI nouns spliced in: `Öffne **Settings > Members**`, `Téléverse dans la **Knowledge Base**`. Caught by `terminology.test.ts`. Fix: translate the noun to the shipped UI label.
+
+### Half-Translated Compound
+
+A multi-word technical term that's translated halfway: `Pull Anfrage` (instead of `Pull Request` kept English, or a clean translation that drops the half-English form), `Code Review-Prozess`, `Merge-Anfrage`, `Branch-Zweig`. Compound terms are translated whole or kept whole, never half. The Git-domain loanwords (`Pull Request`, `Merge`, `Rebase`, `Branch`, `Commit`, `Push`, `Pull`, `Fork`, `Diff`, `Code Review`, `Issue`, `Repository`, `Tag`, `Release`) stay English in DE and FR; product-domain compounds (`Knowledge Base` → `Wissensdatenbank` in DE, `Base de connaissances` in FR) translate whole. Caught (in part) by `terminology.test.ts` and reviewers; the per-locale terminology files list the exact buckets.
+
+### Gender Slip (DE)
+
+A German article or adjective whose case+gender disagrees with the noun it governs: `einen einmaligen [SECURITY]-Warnung` (masculine accusative on a feminine noun — should be `eine einmalige`), `dem Anfrage` (dative-masculine on a feminine noun — should be `der Anfrage`). Mostly catches translation calques where the writer mapped the English determiner to the wrong German gender. Caught (warn-only) by `grammar-de.test.ts` for the closed list of high-frequency Tale nouns in `GLOSSARY.json`; reviewers cover the rest. Fix: consult the noun-gender map and rewrite.
 
 ### Pronoun Slip
 
@@ -553,11 +593,16 @@ The `test` step covers structural parity (every nav slug resolves, every page ha
 
 ## Quick reference — the page shape contract
 
-| Surface     | Rule                                                                                                              | Test                                                               |
-| ----------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Opening     | 2–4 sentences of prose, with _what / who / why_                                                                   | `opening-paragraph.test.ts`                                        |
-| Body        | Prose first, lists for 5+ parallel items, every heading owns a paragraph                                          | review                                                             |
-| Closing     | Named for what it does (`## Build one`, `## Where this fits`, …), recap paragraph, contextualised link            | `closing-paragraph.test.ts`                                        |
-| Voice       | Second person informal, why before what, no marketing softening                                                   | review                                                             |
-| Translation | UI labels match shipped strings; translate-bucket nouns are translated; informal pronoun; same EN heading outline | `terminology.test.ts`, `loanword.test.ts`, `locale-parity.test.ts` |
-| Mechanics   | Frontmatter `title` + `description`, dash-case files, sentence-case headings, language ID on code blocks          | `frontmatter.test.ts`                                              |
+| Surface          | Rule                                                                                                                                                                    | Test                                                               |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Opening          | 2–4 sentences of prose, with _what / who / why_                                                                                                                         | `opening-paragraph.test.ts`                                        |
+| Body             | Prose first, lists for 5+ parallel items, every heading owns a paragraph                                                                                                | review                                                             |
+| Walk-through     | `effect → location → action` order, not the other way                                                                                                                   | review                                                             |
+| Reference tables | Fixed four-column `Name / Type / Required / Description` (or `Name / Default / Description` for env vars)                                                               | review                                                             |
+| Worked example   | Reference pages lead with a runnable example, then the options table                                                                                                    | review                                                             |
+| Closing          | Named for what it does (`## Build one`, `## Where this fits`, …), recap paragraph, contextualised link                                                                  | `closing-paragraph.test.ts`                                        |
+| Voice            | Second person informal, why before what, no marketing softening                                                                                                         | review                                                             |
+| Translation      | UI labels match shipped strings; translate-bucket nouns are translated; informal pronoun; same EN heading outline                                                       | `terminology.test.ts`, `loanword.test.ts`, `locale-parity.test.ts` |
+| German grammar   | Article/adjective case+gender agrees with the noun (closed list)                                                                                                        | `grammar-de.test.ts` (warn-only)                                   |
+| Truthfulness     | Every UI label, env var, route, default verified against `services/platform/messages/<locale>.json`, `services/platform/app/`, `services/platform/convex/`, env loaders | review (Rule 6)                                                    |
+| Mechanics        | Frontmatter `title` + `description`, dash-case files, sentence-case headings, language ID on code blocks                                                                | `frontmatter.test.ts`                                              |

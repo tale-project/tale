@@ -76,7 +76,7 @@ Ein paar weitere Punkte stehen unter **Einstellungen > Integrationen** zur besse
 
 **E-Mail (Konversationen-Posteingang).** Verbinde ein IMAP- und SMTP-Postfach, um den [Konversationen](/de/platform/workspace/conversations)-Posteingang zu versorgen. Eingehende E-Mails werden zu Threads; aus der Plattform versendete Antworten gehen als normale E-Mails raus. Konfiguration getrennt von Konnektoren.
 
-**Microsoft OneDrive.** Verbinde ein Microsoft-365-Konto, sodass Nutzer OneDrive-Dateien direkt in die [Wissensdatenbank](/de/platform/workspace/knowledge-base) importieren können, ohne sie vorher herunterzuladen. Konfiguriert über den Knowledge-Base-Importfluss, nicht als Konnektor.
+**Microsoft OneDrive.** Verbinde ein Microsoft-365-Konto, sodass Nutzer OneDrive-Dateien direkt in die [Wissensdatenbank](/de/platform/workspace/knowledge-base) importieren können, ohne sie vorher herunterzuladen. Konfiguriert über den Wissensdatenbank-Importfluss, nicht als Konnektor.
 
 ## API-Schlüssel
 

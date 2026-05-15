@@ -71,7 +71,7 @@ Diese Seite liefert nur DSGVO Art. 17 (Löschung). Bewusst nicht enthalten (v1):
 
 - Art. 16 Berichtigung und Art. 20 Datenübertragbarkeit — landen später als zusätzliche `kind`-Werte auf derselben DSR-Seite, ohne Route-Umbenennung.
 - Self-Service-Portal für betroffene Personen — Tale ist administrationsgesteuert.
-- In-Product-Identitätsprüfung — außerhalb des Produkts beim Admin.
+- Identitätsprüfung im Produkt — außerhalb des Produkts beim Admin.
 - Benachrichtigung der betroffenen Person bei Abschluss — Aufgabe der E-Mail-Infrastruktur.
 - Bulk-Subject-Anfragen (Sammelklagen).
 - Multi-Jurisdiktions-Templates (CCPA, LGPD etc.) — zuerst nur DSGVO.

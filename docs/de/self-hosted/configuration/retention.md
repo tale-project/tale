@@ -162,7 +162,7 @@ Audit-Subtyp `gdpr_erasure_executed` (`category: 'admin'`) erfasst Akteur, Grund
 
 - Zeilen werden aus der Datenbank gelöscht.
 - Zugehörige Dateien werden aus dem Object Storage gelöscht.
-- Vector-Embeddings für gelöschte Dokumente werden aus dem Knowledge-Store entfernt.
+- Vector-Embeddings für gelöschte Dokumente werden aus dem Wissens-Store entfernt.
 - Bei der Chat-Verlauf-Aufbewahrung wird jede Nachfolge-Zeile (Nachrichten, Metadata, Todos, Feedback, Artifacts usw.) per Cascade über den geteilten `cascadeDeleteThreadChildren`-Helper gelöscht, sodass User-Delete und Retention-Delete niemals auseinanderdriften.
 - Die Audit-Log-Aufbewahrung schreibt an jeder Batch-Grenze einen `auditLogCheckpoints`-Eintrag, sodass die SHA-256-Hash-Chain verifizierbar bleibt.
 

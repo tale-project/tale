@@ -69,7 +69,7 @@ Siehe [Canvas](/de/platform/workspace/canvas) für alle Details.
 
 Speichere und nutze Prompt-Vorlagen in deiner ganzen Organisation wieder. Öffne die Prompt-Bibliothek aus der Chat-Toolbar, um gespeicherte Prompts zu durchsuchen und einzufügen. Du kannst auch jede Chat-Nachricht direkt aus der Konversation als Prompt-Vorlage speichern.
 
-Siehe [Prompt library](/de/platform/workspace/prompt-library) für alle Details.
+Siehe [Prompt-Bibliothek](/de/platform/workspace/prompt-library) für alle Details.
 
 ## Recherche-Plan
 

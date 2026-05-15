@@ -9,7 +9,7 @@ Office Agents ist ausdrücklich **nicht produktionsreif** und wird **nicht im Mi
 
 ## Was du baust
 
-Ein per Sideload installiertes AI-Chat-Panel in Word und Excel, das jede Anfrage über deine Tale-Instanz an einen Agent routet, den du kontrollierst. Modell, Wissensumfang, Ton und Audit-Trail liegen alle in Tale — das Add-in ist nur die UI auf Editor-Seite.
+Ein per Sideload installiertes AI-Chat-Panel in Word und Excel, das jede Anfrage über deine Tale-Instanz an einen Agent routet, den du kontrollierst. Modell, Wissensumfang, Ton und Audit-Trail liegen alle in Tale — das Add-in ist nur die UI auf Seite des Redakteurs.
 
 ## Voraussetzungen
 

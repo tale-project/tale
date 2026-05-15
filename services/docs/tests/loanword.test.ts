@@ -12,19 +12,28 @@ import {
 } from './_helpers';
 
 /**
- * Flags any English term from `translateBucket` in `GLOSSARY.json` that appears
- * untranslated in a DE or FR page body (outside code fences, inline code, URLs,
- * frontmatter, and brand names).
+ * Flags any term from GLOSSARY.json with `category === "translateBucket"`
+ * whose English form appears untranslated in a DE / FR / de-CH page body
+ * (outside code fences, inline code, URLs, and frontmatter).
  *
- * Currently runs warn-only. When the rewrite is complete the simplest move is
- * to fold the translateBucket entries into `enToLocale` so the existing
- * terminology.test.ts catches them as hard failures and this file can be
- * deleted.
+ * This is a narrow, focused subset of `terminology.test.ts` — it carries a
+ * pointed error message ("translate-bucket term left English") for the
+ * Bucket-3 set (`Header`, `Request`, `Email`, `Help Center`, `Billing`,
+ * `Sales Research`, `Draft`, `Attachment`, `Self-hosted`, plus FR-only
+ * `Engineering`). The broader UI-term check lives in `terminology.test.ts`.
  */
 
-type Bucket = { en: string; native: string }[];
+type Term = {
+  key: string;
+  category: string;
+  en: string;
+  de?: string;
+  fr?: string;
+  de_ch?: string;
+};
+
 type Glossary = {
-  translateBucket?: Record<string, Bucket>;
+  terms: Term[];
 };
 
 const REPO_ROOT = path.resolve(DOCS_ROOT, '..', '..');
@@ -73,8 +82,6 @@ function maskInlineCode(line: string): string {
 }
 
 function maskUrls(line: string): string {
-  // Strip URLs and the link targets in `[text](url)` so embedded English
-  // path segments don't get flagged.
   return line.replace(/\bhttps?:\/\/\S+/g, ' ').replace(/\(\/[^)\s]+\)/g, ' ');
 }
 
@@ -82,39 +89,49 @@ function escapeRegex(s: string): string {
   return s.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
 }
 
+function resolveForm(term: Term, locale: string): string {
+  if (locale === 'de-CH') return term.de_ch ?? term.de ?? term.en;
+  if (locale === 'de') return term.de ?? term.en;
+  if (locale === 'fr') return term.fr ?? term.en;
+  return term.en;
+}
+
 const locales = discoverLocales();
 const localizedPages = walkDocs().filter(
   (rel) => localeOf(rel, locales) !== 'en',
 );
 
-describe('docs translate-bucket loanwords (warn-only)', () => {
-  it('loaded glossary with translateBucket', () => {
-    expect(GLOSSARY.translateBucket).toBeDefined();
-    expect(Object.keys(GLOSSARY.translateBucket!).length).toBeGreaterThan(0);
+const translateBucketTerms = GLOSSARY.terms.filter(
+  (t) => t.category === 'translateBucket',
+);
+
+describe('docs translate-bucket loanwords', () => {
+  it('loaded glossary with translate-bucket terms', () => {
+    expect(translateBucketTerms.length).toBeGreaterThan(0);
   });
 
-  it('warns when a DE/FR page leaves a translate-bucket English noun untranslated', () => {
+  it('rejects translate-bucket English nouns left untranslated in DE/FR/de-CH pages', () => {
     const findings: Finding[] = [];
     for (const rel of localizedPages) {
       const locale = localeOf(rel, locales);
-      const bucket = GLOSSARY.translateBucket?.[locale];
-      if (!bucket || bucket.length === 0) continue;
       const raw = fs
         .readFileSync(path.join(CONTENT_ROOT, rel), 'utf8')
         .replaceAll('\r\n', '\n');
       const stripped = stripFences(stripFrontmatter(raw));
       stripped.split('\n').forEach((line, idx) => {
         const masked = maskUrls(maskInlineCode(line));
-        for (const entry of bucket) {
+        for (const term of translateBucketTerms) {
+          const native = resolveForm(term, locale);
+          if (native === term.en) continue;
           const re = new RegExp(
-            `(^|[^A-Za-z])${escapeRegex(entry.en)}(?![A-Za-z])`,
+            `(^|[^A-Za-z])${escapeRegex(term.en)}(?![A-Za-z])`,
           );
           if (re.test(masked)) {
             findings.push({
               file: rel,
               line: idx + 1,
-              en: entry.en,
-              native: entry.native,
+              en: term.en,
+              native,
             });
           }
         }
@@ -125,7 +142,7 @@ describe('docs translate-bucket loanwords (warn-only)', () => {
       .join('\n');
     expect(
       findings,
-      `loanword (${findings.length} untranslated occurrence(s) in DE/FR pages):\n${formatted}`,
+      `loanword (${findings.length} untranslated occurrence(s) in DE/FR/de-CH pages):\n${formatted}`,
     ).toEqual([]);
   });
 });

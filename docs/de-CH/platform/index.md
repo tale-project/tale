@@ -1,6 +1,6 @@
 ---
 title: Platform-Übersicht
-description: Produktdokumentation für Tale — Funktionen, Rollen und Organisationsverwaltung. Gilt identisch für Cloud und Self-hosted.
+description: Produktdokumentation für Tale — Funktionen, Rollen und Organisationsverwaltung. Gilt identisch für Cloud und selbst gehostete Instanzen.
 ---
 
 Platform ist die vollständige Produktdokumentation zu Tale. Sie beschreibt jede nutzerseitige Funktion — Chat, Wissensdatenbank, Agents, Automatisierungen, Integrationen — und enthält zusätzlich rollenspezifische Aufgaben-Leitfäden sowie alle Einstellungen auf Organisationsebene (Mitglieder, Rollen, Teams, Branding, Governance, KI-Anbieter, Analytics). Alles hier gilt gleichermassen, egal ob du die gemanagte [Cloud](/de/cloud)-Edition nutzt oder eine eigene [selbst gehostet](/de/self-hosted)-Instanz betreibst.

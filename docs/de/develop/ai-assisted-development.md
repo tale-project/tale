@@ -26,7 +26,7 @@ Die Regel-Dateien enthalten denselben Kerninhalt: Projektstruktur, Konfiguration
    - "Erstelle einen Agent, der dem Sales-Team Produktdetails und Kundenhistorie nachschlägt."
    - "Füge einen Workflow hinzu, der jeden Morgen nach überfälligen Rechnungen sucht und eine Zusammenfassung an Slack sendet."
    - "Erstelle eine REST-API-Integration für unseren internen Service auf api.example.com mit OAuth2-Authentifizierung."
-   - "Gib dem CRM-Assistenten-Agent zusätzlich Zugriff auf das Document-Search-Tool."
+   - "Gib dem CRM-Assistenten-Agent zusätzlich Zugriff auf das `Document-Search`-Tool."
 5. Die KI liest den Reference-Quellcode, versteht gültige Schemas und Beziehungen und erzeugt korrekte JSON-Konfigurationsdateien.
 6. Änderungen an `agents/`, `workflows/`, `integrations/` und `branding/` werden von der Plattform live nachgeladen.
 

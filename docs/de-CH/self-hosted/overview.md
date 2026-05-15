@@ -5,7 +5,7 @@ description: Architektur, Dienste und Kernfähigkeiten für Operatoren, die Tale
 
 Tale ist eine Open-Source-Plattform für selbst gehostete KI, die Teams eine vollständige KI-Anwendung gibt, die sie besitzen, steuern und erweitern können. Sie umfasst einen intelligenten Chat-Assistenten, eine semantische Wissensdatenbank, Kundenkonversations-Verwaltung, visuelle Automatisierungs-Workflows und eine strukturierte API-Schicht.
 
-Anders als Cloud-only-KI-Produkte läuft Tale vollständig auf deiner eigenen Infrastruktur. Deine Daten bleiben auf deinen Servern. Es gibt keine Per-Seat-Gebühren, keinen Vendor-Lock-in und keine Modell-Einschränkungen, die über das hinausgehen, was dein API-Schlüssel unterstützt.
+Anders als Cloud-only-KI-Produkte läuft Tale vollständig auf deiner eigenen Infrastruktur. Deine Daten bleiben auf deinen Servern. Es gibt keine Per-Seat-Gebühren, keine Anbieter-Bindung und keine Modell-Einschränkungen, die über das hinausgehen, was dein API-Schlüssel unterstützt.
 
 ## Architektur im Überblick
 

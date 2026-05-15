@@ -5,7 +5,7 @@ description: The pre-commit verification skill for the docs. Runs the docs test 
 
 # Check docs integrity
 
-The docs test suite is the pre-merge gate for everything under [`docs/`](../../docs/) and [`services/docs/`](../../services/docs/). It runs ten test files covering three layers: **structural** (mechanics), **terminology** (per-locale UI labels and pronouns), and **prose-quality** (opening, closing, and loanwords). Run it locally before every PR — it gates CI through `bunx turbo run test`.
+The docs test suite is the pre-merge gate for everything under [`docs/`](../../docs/) and [`services/docs/`](../../services/docs/). It runs a set of test files covering three layers: **structural** (mechanics), **terminology** (per-locale UI labels, pronouns, loanwords, German grammar), and **prose-quality** (opening, closing). Run it locally before every PR — it gates CI through `bunx turbo run test`.
 
 This skill exists because a single failing test message is rarely enough to understand which rule was broken and where to find the contract. The sections below name every check, the contract it enforces, the failure mode it catches, and the fix.
 
@@ -89,13 +89,21 @@ These checks fail when a translated page contradicts the shipped UI or uses the 
 
 ### `loanword.test.ts`
 
-**What it checks.** For every `{ en, native }` pair in `translateBucket[locale]`, the test rejects the English form appearing in the page body (outside code fences, inline-code spans, and link URLs).
-
-The bucket today covers `Header`, `Request`, `Email`, `Help Center`, `Billing`, `Sales Research`, `Draft`, `Attachment`, `Self-hosted` in DE/FR, plus FR-only `Engineering`. The `Provider` term is already enforced through `enToLocale`.
+**What it checks.** For every term in [`GLOSSARY.json`](../terminology/GLOSSARY.json) where the locale value differs from `en` (the Bucket-3 translate-must set), the test rejects the English form appearing in the page body (outside code fences, inline-code spans, and link URLs).
 
 **What it catches.** The most common translation failure mode — leaving an English noun in DE/FR prose when a clean native equivalent exists. `Schicke deinen Request an die API.` → bug; should be `Anfrage`. `Configure ton Email Provider.` → bug; should be `fournisseur de courriel`.
 
-**How to fix.** Use the native term from the `native` field. The mechanical sweep at `/tmp/sweep_loanwords.py` (committed in the docs rewrite PR) does the bulk translation safely — re-run it after large drift.
+**How to fix.** Use the native term from the glossary entry.
+
+### `grammar-de.test.ts` (warn-only)
+
+**What it checks.** Indefinite-article gender agreement for the closed list of high-frequency Tale nouns at `nounGenders.de` in [`GLOSSARY.json`](../terminology/GLOSSARY.json). For each noun with a known gender, the test scans for `einen`/`eine`/`einem`/`einer`/`eines` (with up to two adjectives in between) and flags mismatches.
+
+**What it catches.** The class of error the audit caught: `einen einmaligen Warnung` (masculine accusative on a feminine noun) → should be `eine einmalige Warnung`. `dem Anfrage` → should be `der Anfrage`. `einen Konversation` → should be `eine Konversation`.
+
+**How to fix.** Consult the noun-gender map at `nounGenders.de` and rewrite the article + adjective endings to agree. Definite-article cases (`der`/`die`/`das`/`dem`/`den`/`des`) are deliberately out of scope for v1 because they're ambiguous across case+number.
+
+**Status:** warn-only. Promote to hard-fail once the rewrite sweep clears the existing corpus.
 
 ---
 
@@ -167,6 +175,8 @@ Pitfalls the suite cannot catch — review them by hand:
 - **Link in a non-English file missing its locale prefix.** A link in `docs/de/**` to `/self-hosted/foo` 404s — it has to be `/de/self-hosted/foo`.
 - **Tone drift inside passing prose.** The loanword test catches untranslated nouns; it does not catch a translation that is structurally German but reads bureaucratic (`Wird gespeichert…` passes lint but fails review). Read the [`docs`](../docs/AGENTS.md) and [`terminology`](../terminology/AGENTS.md) skills for the voice rules and review your prose against them.
 - **Calqued idioms.** The loanword test catches `Header` → `Kopfzeile`, but not `Vertrauenshaltung` for `Trust posture`. Read it aloud — if it sounds like a translation, restructure.
+- **Half-translated compounds beyond known UI terms.** The tests catch `Pull Anfrage` only when both halves are tracked terms; outside that, reviewers spot the language-switch-mid-word.
+- **Definite-article gender slips in DE.** The grammar test covers indefinite articles only. `dem Anfrage` is caught (the new test's edge case); `der Warnung` in a sentence where dative case doesn't apply is not.
 - **A section overview that's still a stub-with-links.** Passes opening/closing tests but fails the section-overview shape contract from [`docs/AGENTS.md`](../docs/AGENTS.md). Read by hand.
 
 ---
@@ -188,13 +198,14 @@ To extend `translateBucket`: add the `{ en, native, rationale }` triple to `GLOS
 
 ## Quick reference — every check on one line
 
-| Test                        | Layer       | What it enforces                                                   |
-| --------------------------- | ----------- | ------------------------------------------------------------------ |
-| `navigation-parity.test.ts` | structural  | Nav slugs resolve to real files in en/de/fr.                       |
-| `frontmatter.test.ts`       | structural  | Every page has `title` and `description`.                          |
-| `locale-parity.test.ts`     | structural  | DE/FR mirror the EN heading outline and code-block count.          |
-| `readme-parity.test.ts`     | structural  | READMEs in en/de/fr stay structurally in sync.                     |
-| `terminology.test.ts`       | terminology | Informal pronouns; UI-label terms match the shipped UI per locale. |
-| `loanword.test.ts`          | terminology | Translate-bucket English nouns are translated in DE/FR.            |
-| `opening-paragraph.test.ts` | prose       | Every page opens with ≥ 2 sentences of prose.                      |
-| `closing-paragraph.test.ts` | prose       | Every page closes with a real recap, not a `## Next` stub.         |
+| Test                        | Layer       | What it enforces                                                                           |
+| --------------------------- | ----------- | ------------------------------------------------------------------------------------------ |
+| `navigation-parity.test.ts` | structural  | Nav slugs resolve to real files in en/de/fr.                                               |
+| `frontmatter.test.ts`       | structural  | Every page has `title` and `description`.                                                  |
+| `locale-parity.test.ts`     | structural  | DE/FR mirror the EN heading outline and code-block count.                                  |
+| `readme-parity.test.ts`     | structural  | READMEs in en/de/fr stay structurally in sync.                                             |
+| `terminology.test.ts`       | terminology | Informal pronouns; UI-label terms match the shipped UI per locale.                         |
+| `loanword.test.ts`          | terminology | Translate-bucket English nouns are translated in DE/FR.                                    |
+| `grammar-de.test.ts`        | terminology | German indefinite-article gender agreement on the closed `nounGenders.de` set (warn-only). |
+| `opening-paragraph.test.ts` | prose       | Every page opens with ≥ 2 sentences of prose.                                              |
+| `closing-paragraph.test.ts` | prose       | Every page closes with a real recap, not a `## Next` stub.                                 |

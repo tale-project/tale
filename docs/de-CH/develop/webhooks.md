@@ -1,6 +1,6 @@
 ---
 title: Webhooks
-description: Workflows und Agents aus externen Systemen per signierter HTTP-Request aufrufen.
+description: Workflows und Agents aus externen Systemen per signierter HTTP-Anfrage aufrufen.
 ---
 
 Tale bietet zwei Arten von Webhooks: **Workflow-Webhooks** (lösen eine Automatisierung aus) und **Agent-Webhooks** (senden eine Nachricht an einen Agent ausserhalb der Chat-UI). Beide nutzen dasselbe Anfrage-Format und dasselbe Signatur-Schema.

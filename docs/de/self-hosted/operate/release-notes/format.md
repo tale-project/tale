@@ -3,7 +3,7 @@ title: Release-Notes-Format
 description: Maßgebliches Format für GitHub-Release-Notes auf tale-project/tale.
 ---
 
-Maßgebliches Format für GitHub-Release-Notes auf `tale-project/tale`. Der `/release`-Slash-Command entwirft Notes gegen diese Spezifikation, und der Link "What's new" im Produkt führt direkt zu diesen Releases.
+Maßgebliches Format für GitHub-Release-Notes auf `tale-project/tale`. Der `/release`-Slash-Command entwirft Notes gegen diese Spezifikation, und der Link „Was ist neu" im Produkt führt direkt zu diesen Releases.
 
 ## Warum diese Spec existiert
 
