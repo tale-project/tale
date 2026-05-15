@@ -3,9 +3,9 @@ title: Automatisierungs-Konzepte
 description: Wie Workflows, Schritte, Trigger und Variablen zusammenhängen.
 ---
 
-Eine Automatisierung ist ein kleines, deterministisches Programm, das startet, wenn etwas es triggert. Anders als der Chat — der offen ist — tun Automatisierungen genau das, was ihre Schritte sagen, in Reihenfolge, jedes Mal. So bringst du KI in den Hintergrund eines Geschäftsprozesses: nächtliche Importe, eingehende Webhook-Fan-Outs, geplante Zusammenfassungen, alles, was ohne Menschen im Chat passieren soll.
+Eine Automatisierung ist ein kleines, deterministisches Programm, das startet, wenn etwas es triggert. Anders als der Chat — der offen ist — tun Automatisierungen genau das, was ihre Schritte sagen, in Reihenfolge, jedes Mal. Sie bringen KI in den Hintergrund eines Geschäftsprozesses: nächtliche Importe, eingehende Webhook-Fan-Outs, geplante Zusammenfassungen, alles, was ohne Menschen im Chat passieren muss.
 
-Die Bausteine unten — Workflow, Schritt, Trigger, Variable — sind das kleine Vokabular, das der Rest dieses Bereichs voraussetzt. Einmal gelesen, werden Editor, Trigger-Konfiguration und Ausführungslogs alle für sich navigierbar.
+Diese Seite richtet sich an alle, die eine Automatisierung bauen, debuggen oder lesen — Entwickler-Rolle oder höher, auf beiden Editionen. Die Bausteine unten — Workflow, Schritt, Trigger, Variable — sind das kleine Vokabular, das der Rest dieses Bereichs voraussetzt. Einmal gelesen, werden Editor, Trigger-Konfiguration und Ausführungslogs alle für sich navigierbar.
 
 ## Workflow
 
@@ -41,6 +41,19 @@ Workflows haben, wie Agents, ein Entwurf-Veröffentlichen-Modell. Ein Workflow k
 ## Läufe und Ausführungen
 
 Jedes Mal, wenn ein Trigger feuert, erstellt die Plattform eine **Ausführung**. Ausführungen leben im Ausführungen-Tab des Workflows mit Startzeit, Dauer, Endstatus und einer Pro-Schritt-Aufschlüsselung von Inputs, Outputs und Fehlern. Das Ausführungslog ist der Ort, an dem du Fehler debuggst: Jeder Schritt zeichnet Input, Output und jeden geworfenen Fehler auf, sodass ein `400 Bad Request` eines Drittsystems einen Klick entfernt ist von der konkreten Anfrage, die ihn ausgelöst hat. Siehe [Ausführungslogs](/de/platform/automations/execution-logs).
+
+## Wann du danach greifst
+
+Automatisierungen sind das deterministische Hintergrund-Primitiv in Tale. Ihr Geschwister ist der **Agent** — das Konversations-Primitiv, das synchron mit einem Menschen im Chat läuft. Wähle danach, wo die Arbeit stattfindet.
+
+| Greif zur Automatisierung, wenn …                                              | Greif zum Agent, wenn …                                                              |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| ein Zeitplan, ein Webhook oder ein internes Ereignis die Arbeit feuert         | ein Mensch eine Frage stellt und auf eine Antwort wartet                             |
+| der Ablauf jedes Mal gleich ist — dieselben Schritte, dieselbe Reihenfolge     | der Ablauf bei jeder Antwort verzweigt; der nächste Schritt hängt von der Absicht ab |
+| die Ausgabe eine Wirkung auf ein anderes System ist (DB-Zeile, E-Mail, Ticket) | die Ausgabe eine geschriebene Antwort oder kleine strukturierte Nutzlast ist         |
+| du eine lückenlose Spur jedes Inputs, Outputs und Fehlers willst               | du einen Konversationsverlauf mit den Modellentscheidungen inline willst             |
+
+Die beiden komponieren. Der LLM-Schritt eines Workflows kann die Anweisungen eines Agents nutzen; ein Agent kann einen langlaufenden Job über das Integrationen-Tool an eine Automatisierung übergeben. Wähle das primäre Primitiv danach, ob der Nutzer in der Schleife ist, wenn die Arbeit startet.
 
 ## Einen bauen
 

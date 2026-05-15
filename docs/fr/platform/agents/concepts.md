@@ -41,6 +41,19 @@ Ces quatre boutons permettent de créer beaucoup d'agents depuis la même platef
 | Recherche commerciale  | fouille en profondeur, cite les sources | tous documents + sites + Produits | recherche, recherche web   | Avancé   |
 | Exploration de données | prudent, explique les requêtes          | toutes connexions SQL             | intégration SQL, recherche | Rapide   |
 
+## Quand y recourir
+
+Les agents sont le primitif conversationnel de Tale. Leur primitif frère est l'**automatisation** — un programme multi-étapes qui tourne sans humain dans la boucle. Les deux résolvent des problèmes différents, et la plupart des équipes finissent avec les deux.
+
+| Utilise un agent quand …                                     | Utilise une automatisation quand …                                                       |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| un humain est dans la conversation et pose des questions     | un déclencheur planifié, un webhook externe ou un événement interne la déclenche         |
+| le flux est ouvert — l'étape suivante dépend de la réponse   | le flux est déterministe — mêmes étapes à chaque fois, dans le même ordre                |
+| la sortie est du texte ou une petite charge utile structurée | la sortie est un effet sur un autre système (enregistrement mis à jour, courriel envoyé) |
+| la latence compte parce que quelqu'un attend                 | la latence de fond est acceptable ; la justesse compte plus                              |
+
+Beaucoup de fonctionnalités mêlent les deux : un agent qui délègue un travail long à une automatisation, ou un workflow dont l'étape LLM utilise les instructions d'un agent. Choisis le primitif principal selon que l'utilisateur est dans la conversation au moment où le travail doit avoir lieu.
+
 ## En construire un
 
 Les concepts sont posés. La page suivante traverse le flux de création de bout en bout — nommer, choisir un modèle, écrire les instructions, brancher des connaissances, activer des outils et publier la première version. Continue ici : [Créer un agent](/fr/platform/agents/create).

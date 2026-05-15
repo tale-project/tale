@@ -41,6 +41,19 @@ These four knobs let you create many agents from the same platform:
 | Sales research   | Dig deep, cite sources                 | All docs + websites + products | Knowledge search, web search      | Advanced |
 | Data exploration | Safe, explains queries                 | All SQL connections            | SQL integration, knowledge search | Fast     |
 
+## When to reach for it
+
+Agents are the conversational primitive in Tale. Their sibling primitive is the **automation** — a multi-step program that runs without a human in the loop. The two solve different problems, and most teams end up with both.
+
+| Use an agent when …                                         | Use an automation when …                                                |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------- |
+| A human is in the conversation asking questions             | A scheduled trigger, an external webhook, or an internal event fires it |
+| The flow is open-ended — the next step depends on the reply | The flow is deterministic — same steps every time, in the same order    |
+| Output is text or a small structured payload                | Output is an effect on another system (record updated, email sent)      |
+| Latency matters because someone is waiting                  | Background latency is fine; correctness matters more                    |
+
+Many features mix the two: an agent that delegates a long-running job to an automation, or a workflow whose LLM step uses an agent's instructions. Pick the primary primitive based on whether the user is in the conversation when the work has to happen.
+
 ## Build one
 
 Concepts done. The next page walks the create flow end to end — naming, picking a model, writing instructions, attaching knowledge, enabling tools, and publishing the first version. Start there: [Create an agent](/platform/agents/create).

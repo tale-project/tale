@@ -3,9 +3,9 @@ title: Concepts des automatisations
 description: Comment workflows, étapes, triggers et variables s'articulent.
 ---
 
-Une automatisation est un petit programme déterministe qui démarre quand quelque chose le déclenche. Contrairement au chat — ouvert — les automatisations font exactement ce que leurs étapes disent, dans l'ordre, à chaque fois. C'est ainsi qu'on met l'IA en arrière-plan d'un processus métier : imports nocturnes, fan-out de webhooks entrants, résumés programmés, tout ce qui doit se passer sans humain dans le chat.
+Une automatisation est un petit programme déterministe qui démarre quand quelque chose le déclenche. Contrairement au chat — ouvert — les automatisations font exactement ce que leurs étapes disent, dans l'ordre, à chaque fois. Elles mettent l'IA en arrière-plan d'un processus métier : imports nocturnes, fan-out de webhooks entrants, résumés programmés, tout ce qui doit se passer sans humain dans le chat.
 
-Les pièces ci-dessous — workflow, étape, trigger, variable — sont le petit vocabulaire que le reste de cette section présuppose. Lis-les une fois et l'éditeur, la config des triggers et les journaux d'exécution deviennent navigables par eux-mêmes.
+Cette page s'adresse à toute personne qui s'apprête à construire, déboguer ou lire une automatisation — rôle Développeur ou supérieur, sur les deux éditions. Les pièces ci-dessous — workflow, étape, trigger, variable — sont le petit vocabulaire que le reste de cette section présuppose. Lis-les une fois et l'éditeur, la config des triggers et les journaux d'exécution deviennent navigables par eux-mêmes.
 
 ## Workflow
 
@@ -41,6 +41,19 @@ Les workflows, comme les agents, utilisent un modèle brouillon-et-publication. 
 ## Runs et exécutions
 
 Chaque déclenchement crée une **exécution**. Les exécutions vivent dans l'onglet Exécutions du workflow avec date de début, durée, statut final et détail par étape (entrées, sorties, erreurs). Le journal d'exécution est l'endroit où tu débogues les échecs : chaque étape enregistre son entrée, sa sortie et toute erreur levée, donc un `400 Bad Request` d'une API tierce est à un clic du payload exact qui l'a produit. Voir [Journaux d'exécution](/fr/platform/automations/execution-logs).
+
+## Quand y recourir
+
+Les automatisations sont le primitif déterministe d'arrière-plan de Tale. Leur frère est l'**agent** — le primitif conversationnel qui tourne en synchrone avec un humain dans le chat. Choisis selon l'endroit où le travail a lieu.
+
+| Utilise une automatisation quand …                                            | Utilise un agent quand …                                                        |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| un calendrier, un webhook ou un événement interne déclenche le travail        | un humain pose une question et attend une réponse                               |
+| le flux est le même à chaque fois — mêmes étapes, même ordre                  | le flux se ramifie à chaque réponse ; l'étape suivante dépend de l'intention    |
+| la sortie est un effet sur un autre système (ligne en base, courriel, ticket) | la sortie est une réponse écrite ou une petite charge utile structurée          |
+| tu veux une trace complète de chaque entrée, sortie et erreur                 | tu veux un enregistrement conversationnel avec les décisions du modèle en ligne |
+
+Les deux se composent. L'étape LLM d'un workflow peut appeler les instructions d'un agent ; un agent peut déléguer un travail long à une automatisation via l'outil d'intégration. Choisis le primitif principal selon que l'utilisateur est dans la boucle au moment où le travail démarre.
 
 ## En construire un
 

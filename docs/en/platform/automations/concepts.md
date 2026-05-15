@@ -3,9 +3,9 @@ title: Automation concepts
 description: How workflows, steps, triggers, and variables fit together.
 ---
 
-An automation is a small, deterministic program that runs when something triggers it. Unlike the chat interface — which is open-ended — automations do exactly what their steps say, in order, every time. They are how you put AI into the background of a business process: nightly imports, inbound webhook fan-outs, scheduled summaries, anything that should happen without a human in the chat.
+An automation is a small, deterministic program that runs when something triggers it. Unlike the chat interface — which is open-ended — automations do exactly what their steps say, in order, every time. They put AI into the background of a business process: nightly imports, inbound webhook fan-outs, scheduled summaries, anything that has to happen without a human in the chat.
 
-The pieces below — workflow, step, trigger, variable — are the small vocabulary the rest of this section assumes. Read them once and the editor, the trigger config, and the execution logs all become navigable on their own.
+This page is for anyone about to build, debug, or read an automation — Developer role or higher, on either edition. The pieces below — workflow, step, trigger, variable — are the small vocabulary the rest of this section assumes. Read them once and the editor, the trigger config, and the execution logs all become navigable on their own.
 
 ## Workflow
 
@@ -41,6 +41,19 @@ Workflows, like agents, have a draft-and-publish model. A workflow can only be a
 ## Runs and executions
 
 Every time a trigger fires, the platform creates an **execution**. Executions live on the workflow's Executions tab with start time, duration, final status, and a per-step breakdown of inputs, outputs, and errors. The Execution log is where you debug failures: every step records its input, its output, and any thrown error, so a `400 Bad Request` from a third-party API is one click away from the literal payload that produced it. See [Execution logs](/platform/automations/execution-logs).
+
+## When to reach for it
+
+Automations are the deterministic background primitive in Tale. Their sibling is the **agent** — the conversational primitive that runs synchronously with a human in the chat. Pick by where the work happens.
+
+| Use an automation when …                                          | Use an agent when …                                              |
+| ----------------------------------------------------------------- | ---------------------------------------------------------------- |
+| A schedule, a webhook, or an internal event fires the work        | A human is asking a question and waiting for an answer           |
+| The flow is the same every time — same steps, same order          | The flow branches on each reply; the next step depends on intent |
+| The output is an effect on another system (DB row, email, ticket) | The output is a written answer or a small structured payload     |
+| You want a paper trail of every input, output, and error          | You want a conversational record with model decisions inline     |
+
+The two compose. A workflow's LLM step can call an agent's instructions; an agent can hand off a long-running job to an automation via the integration tool. Pick the primary primitive based on whether the user is in the loop when the work starts.
 
 ## Build one
 

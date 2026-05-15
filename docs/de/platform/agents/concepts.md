@@ -17,9 +17,9 @@ Die Anweisungen zu ändern, ändert Persönlichkeit, Umfang und Ausgabeformat de
 
 ## Wissen
 
-Wissen ist die Teilmenge der [Wissensdatenbank](/de/platform/workspace/knowledge-base), die der Agent durchsuchen darf. Standardmässig dürfen Agents alles durchsuchen, was die Organisation hochgeladen hat. Du schränkst das nach Ordner, Team oder Entitätstyp ein (Dokumente, Produkte, Kunden, Lieferanten).
+Wissen ist die Teilmenge der [Wissensdatenbank](/de/platform/workspace/knowledge-base), die der Agent durchsuchen darf. Standardmäßig dürfen Agents alles durchsuchen, was die Organisation hochgeladen hat. Du schränkst das nach Ordner, Team oder Entitätstyp ein (Dokumente, Produkte, Kunden, Lieferanten).
 
-Engere Wissensfilter führen zu relevanteren Treffern — ein Support-Agent, der nur den kundenseitigen Ordner durchsucht, lässt sich nicht von internen Engineering-Dokumenten ablenken. Engere Filter heissen ausserdem niedrigere Kosten, weil weniger Dokumente das Modell erreichen.
+Engere Wissensfilter führen zu relevanteren Treffern — ein Support-Agent, der nur den kundenseitigen Ordner durchsucht, lässt sich nicht von internen Engineering-Dokumenten ablenken. Engere Filter heißen außerdem niedrigere Kosten, weil weniger Dokumente das Modell erreichen.
 
 ## Tools
 
@@ -40,6 +40,19 @@ Diese vier Stellschrauben erlauben viele Agents aus derselben Plattform:
 | Freundlicher Support | hilfsbereit, knapp, lehnt Off-Scope-Fragen ab | nur Hilfe-Center-Dokumente           | Wissens-Suche, Kunden-Lookup   | Standard  |
 | Vertriebs-Recherche  | gründlich, zitiert Quellen                    | alle Dokumente + Websites + Produkte | Wissens-Suche, Web-Suche       | Erweitert |
 | Daten-Exploration    | vorsichtig, erklärt Abfragen                  | alle SQL-Verbindungen                | SQL-Integration, Wissens-Suche | Schnell   |
+
+## Wann du danach greifst
+
+Agents sind das Konversations-Primitiv in Tale. Ihr Geschwister-Primitiv ist die **Automatisierung** — ein mehrstufiges Programm, das ohne Mensch in der Schleife läuft. Die beiden lösen unterschiedliche Probleme, und die meisten Teams landen am Ende bei beidem.
+
+| Greif zum Agent, wenn …                                             | Greif zur Automatisierung, wenn …                                                              |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| ein Mensch im Gespräch Fragen stellt                                | ein geplanter Trigger, ein externer Webhook oder ein internes Ereignis sie startet             |
+| der Ablauf offen ist — der nächste Schritt hängt von der Antwort ab | der Ablauf deterministisch ist — jedes Mal dieselben Schritte, in derselben Reihenfolge        |
+| die Ausgabe Text oder eine kleine strukturierte Nutzlast ist        | die Ausgabe eine Wirkung auf ein anderes System ist (Datensatz aktualisiert, E-Mail versendet) |
+| Latenz zählt, weil jemand wartet                                    | Hintergrund-Latenz ist okay; Korrektheit zählt mehr                                            |
+
+Viele Funktionen mischen beides: ein Agent, der einen langlaufenden Job an eine Automatisierung delegiert, oder ein Workflow, dessen LLM-Schritt die Anweisungen eines Agents verwendet. Wähle das primäre Primitiv danach, ob der Nutzer im Gespräch ist, wenn die Arbeit anfallen muss.
 
 ## Einen bauen
 
