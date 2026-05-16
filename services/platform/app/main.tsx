@@ -31,7 +31,7 @@ createRoot(root).render(
         <AppShell
           i18n={i18n}
           locale={{ mode: 'client', onChange: loadDayjsLocale }}
-          theme={{ defaultTheme: 'system' }}
+          theme
         >
           <QueryClientProvider client={queryClient}>
             <LazyMotion features={domAnimation} strict>

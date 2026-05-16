@@ -18,7 +18,7 @@ if (!root) throw new Error('Missing #root element');
 // `useCurrentLocale()`.
 createRoot(root).render(
   <StrictMode>
-    <AppShell i18n={i18n} theme={{ defaultTheme: 'light' }}>
+    <AppShell i18n={i18n} theme>
       <RouterProvider router={router} />
     </AppShell>
   </StrictMode>,

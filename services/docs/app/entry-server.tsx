@@ -28,7 +28,7 @@ export async function render(url: string): Promise<RenderResult> {
   await router.load();
   const html = renderToString(
     <StrictMode>
-      <AppShell i18n={i18n} theme={{ defaultTheme: 'light' }}>
+      <AppShell i18n={i18n} theme>
         <RouterProvider router={router} />
       </AppShell>
     </StrictMode>,

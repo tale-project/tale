@@ -20,11 +20,7 @@ if (!root) throw new Error('Missing #root element');
 // URL (web/docs pattern). Drop `theme` if pinned to a single theme.
 createRoot(root).render(
   <StrictMode>
-    <AppShell
-      i18n={i18n}
-      locale={{ mode: 'client' }}
-      theme={{ defaultTheme: 'light' }}
-    >
+    <AppShell i18n={i18n} locale={{ mode: 'client' }} theme>
       <RouterProvider router={router} />
     </AppShell>
   </StrictMode>,

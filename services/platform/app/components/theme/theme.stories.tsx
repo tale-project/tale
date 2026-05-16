@@ -18,7 +18,7 @@ detection.
 \`\`\`tsx
 import { AppShell } from '@tale/ui/app-shell';
 
-<AppShell i18n={i18n} theme={{ defaultTheme: 'system' }}>
+<AppShell i18n={i18n} theme>
   <App />
 </AppShell>
 \`\`\`

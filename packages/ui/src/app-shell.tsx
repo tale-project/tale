@@ -29,9 +29,15 @@ interface ClientLocaleConfig {
 }
 
 interface ThemeConfig {
-  /** Forwarded to `<ThemeProvider>`. Defaults to `'system'` when omitted. */
+  /**
+   * Overrides the package default (`'system'`). Don't set unless this
+   * service has a specific reason to override OS preference — the canonical
+   * setup is to leave it unset so the user's OS choice wins.
+   */
   defaultTheme?: Theme;
 }
+
+type ThemeOption = boolean | ThemeConfig;
 
 interface AppShellProps {
   /** The service's i18n instance, returned from `initServiceI18n`. */
@@ -44,12 +50,13 @@ interface AppShellProps {
    */
   locale?: ClientLocaleConfig;
   /**
-   * When provided, wraps the tree with `<ThemeProvider>` from
-   * `@tale/ui/theme`. Omit for services pinned to a single theme that
-   * intentionally don't toggle the `.dark` class on `<html>` (currently the
-   * marketing site).
+   * Set to `true` (`<AppShell theme>`) to mount `<ThemeProvider>` from
+   * `@tale/ui/theme` with the canonical `'system'` default. Pass a config
+   * object only when a service needs to override `defaultTheme`. Omit
+   * entirely for services that intentionally don't toggle the `.dark` class
+   * on `<html>` (currently the marketing site, until its dark styles ship).
    */
-  theme?: ThemeConfig;
+  theme?: ThemeOption;
   children: ReactNode;
 }
 
@@ -78,7 +85,7 @@ function ClientLocaleBridge() {
  *   <AppShell
  *     i18n={i18n}
  *     locale={{ mode: 'client', onChange: loadDayjsLocale }}
- *     theme={{ defaultTheme: 'system' }}
+ *     theme
  *   >
  *     <RouterProvider router={router} />
  *   </AppShell>
@@ -108,8 +115,11 @@ export function AppShell({ i18n, locale, theme, children }: AppShellProps) {
   }
 
   if (theme) {
+    const themeConfig = theme === true ? undefined : theme;
     tree = (
-      <ThemeProvider defaultTheme={theme.defaultTheme}>{tree}</ThemeProvider>
+      <ThemeProvider defaultTheme={themeConfig?.defaultTheme}>
+        {tree}
+      </ThemeProvider>
     );
   }
 
