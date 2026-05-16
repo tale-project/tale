@@ -7,6 +7,7 @@ import {
   createRootRoute,
   createRouter,
 } from '@tanstack/react-router';
+import { useState } from 'react';
 import type { DecoratorFunction } from 'storybook/internal/types';
 
 import { i18n } from '../lib/i18n/i18n';
@@ -32,7 +33,7 @@ function WithProviders({
 }: {
   Story: Parameters<DecoratorFunction>[0];
 }) {
-  const router = createStoryRouter();
+  const [router] = useState(createStoryRouter);
   return (
     <AppShell i18n={i18n} locale={{ mode: 'client' }}>
       <RouterProvider router={router} defaultComponent={() => <Story />} />

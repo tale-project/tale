@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useLocale } from '@/i18n/locale-provider';
+import { checkAccessibility } from '@/test/utils/a11y';
 import { render, screen } from '@/test/utils/render';
 
 import { AppShell } from './app-shell';
@@ -100,5 +101,19 @@ describe('AppShell', () => {
     );
 
     expect(screen.getByTestId('locale')).toHaveTextContent('de-DE');
+  });
+
+  describe('accessibility', () => {
+    it('passes axe audit', async () => {
+      const i18n = createI18n();
+      const { container } = render(
+        <AppShell i18n={i18n}>
+          <main>
+            <h1>Hello</h1>
+          </main>
+        </AppShell>,
+      );
+      await checkAccessibility(container);
+    });
   });
 });
