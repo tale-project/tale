@@ -118,7 +118,7 @@ Seul le Propriétaire peut faire ceci :
 
 ## Comment les vérifications de rôle sont appliquées
 
-Les rôles sont vérifiés côté serveur sur chaque query, mutation et action Convex — les boutons cachés dans l'interface sont un confort, pas la barrière. Une page qui « ne devrait pas s'afficher » est tout de même refusée avec `insufficient role` si tu l'atteins par URL. Le rôle `Désactivé` court-circuite le reste de la matrice : l'écran d'accès refusé est la seule surface qu'un utilisateur Désactivé voit.
+Les rôles sont vérifiés côté serveur sur chaque appel de lecture, écriture ou tâche de fond — les boutons cachés dans l'interface sont un confort, pas la barrière. Une page qui « ne devrait pas s'afficher » est tout de même refusée avec une erreur « rôle insuffisant » si tu l'atteins par URL. Le rôle Désactivé court-circuite le reste de la matrice : l'écran d'accès refusé est la seule surface qu'un utilisateur Désactivé voit.
 
 La règle des deux Admins minimum est appliquée lors d'un changement de rôle et lors du retrait d'un membre, afin qu'une organisation ne se retrouve jamais sans Admin ou avec un seul. La même règle ne s'applique pas au Propriétaire : une organisation avec un Propriétaire et un Admin est légale parce que le Propriétaire est lui-même un Admin.
 

@@ -1,62 +1,62 @@
 ---
-title: Triggers
-description: Comment démarrent les workflows — calendriers, événements, webhooks et exécutions manuelles.
+title: Déclencheurs
+description: Comment démarrent les automatisations — planifications, webhooks, événements et exécutions manuelles.
 ---
 
-Chaque workflow a besoin d’au moins un trigger. Le trigger définit _quand_ le workflow démarre et _avec quelle entrée_. Un workflow peut avoir plusieurs triggers, du même type ou de types différents.
+Un déclencheur nomme le moment où une automatisation démarre et l'entrée avec laquelle elle démarre. Tale en livre quatre formes — planifications, webhooks, événements et exécutions manuelles — et une même automatisation peut en porter n'importe quel mélange, si bien que le même fan-out peut tourner sur une planification nocturne et à chaque webhook entrant d'un système extérieur. Cette page est pour le Développeur ou plus qui câble une automatisation ; la surface de configuration, c'est l'onglet **Déclencheurs** sur n'importe quelle automatisation.
 
-Les triggers se configurent sur l’étape **Start** du workflow.
+## Planifications
 
-## Triggers calendrier
+Une planification fait tourner l'automatisation à l'horloge. Ouvre **Déclencheurs > Planifications > Ajouter une planification** et soit tape directement une expression cron (`0 9 * * 1-5` tourne à 09:00 en semaine), soit décris en langage naturel ce que tu veux — « chaque jour ouvré à 9h » — et laisse l'assistant IA traduire. Les cinq préréglages rapides (toutes les 5 minutes, toutes les heures, tous les jours, toutes les semaines, tous les mois) couvrent les cas courants sans rien taper.
 
-Lance le workflow selon un calendrier.
+Chaque planification tourne en **UTC**. Si ton équipe pense dans un autre fuseau, fais la conversion avant d'enregistrer — `0 9 * * 1-5` vaut 09:00 UTC, soit 10:00 à Zurich en hiver et 11:00 en été. Le champ **Variables du workflow** sur le formulaire de planification te laisse épingler une charge utile JSON avec laquelle l'exécution démarre ; il est pré-rempli depuis le schéma d'entrée de l'automatisation, donc le cas courant, c'est d'ajuster des valeurs au lieu d'écrire la forme de zéro.
 
-- Entre une expression cron directement (`0 9 * * 1-5` = 9h UTC en semaine).
-- Ou utilise l’assistant IA à côté du champ pour générer depuis l’anglais ("every weekday at 9am").
-- Presets rapides : toutes les 5 min, horaire, journalier, hebdo, mensuel.
+## Webhooks
 
-Tous les calendriers tournent en **UTC**. Si ton équipe est dans un autre fuseau, convertis avant d’entrer le cron.
+Un webhook donne à l'automatisation une URL sur laquelle des appelants extérieurs peuvent envoyer un POST. Ouvre **Déclencheurs > Webhooks > Ajouter un webhook** et Tale génère une URL de la forme :
 
-## Triggers événement
+```text
+https://<ton-hote-tale>/api/workflows/wh/<token>
+```
 
-Lance le workflow quand quelque chose se passe dans Tale.
+Le jeton dans l'URL, c'est le justificatif d'authentification — quiconque le détient peut déclencher l'automatisation, traite-le donc comme une clé API. Range-le dans le coffre de secrets du système appelant, fais-le tourner en supprimant et recréant le webhook, et audite-le via le [Journal d'audit](/fr/platform/admin/governance#audit-log) quand quelque chose semble louche. Il n'y a pas d'en-tête de signature séparé.
 
-| Événement                 | Exemple d’usage                             |
-| ------------------------- | ------------------------------------------- |
-| Nouveau client ajouté     | envoyer un courriel de bienvenue.           |
-| Nouvelle conversation     | taguer le fil selon l’historique du client. |
-| Approbation demandée      | notifier un canal Slack.                    |
-| Document téléversé        | extraire métadonnées et classifier.         |
-| Stock produit ≤ threshold | réapprovisionner ou alerter les achats.     |
+Un appel qui marche ressemble à ça :
 
-Chaque type d’événement accepte des conditions de filtre optionnelles. Le filtre agit avant le démarrage — les événements non matchés sont silencieusement ignorés.
+```bash
+curl -X POST https://your-tale-host/api/workflows/wh/abc123def456 \
+  -H "Content-Type: application/json" \
+  -d '{"orderId": "ord_42", "amount": 199.00}'
+```
 
-## Triggers webhook
+Le corps est analysé comme du JSON et mis à disposition comme entrée de l'automatisation. La réponse, c'est `{ "status": "accepted", "workflowSlug": "..." }` pour un appel frais. Envoie un en-tête `X-Idempotency-Key` avec une valeur unique si le système appelant peut rejouer la même requête — Tale reconnaît le rejeu et répond `{ "status": "duplicate", "executionId": "..." }` au lieu de lancer une seconde exécution.
 
-Chaque workflow a une URL webhook unique à laquelle tu peux POSTer. Utilise les triggers webhook quand quelque chose hors de Tale doit démarrer le workflow — soumission de formulaire, événement amont, hook CI/CD.
+Les webhooks sont limités en débit par IP source pour qu'un appelant bruyant ne puisse pas épuiser le moteur ; les appels au-delà de la limite renvoient `429`. La référence complète de la requête et de la réponse, signatures pour l'ancien schéma signé par Tale comprises sur les anciennes formes de webhook, vit dans [Webhooks](/fr/develop/webhooks).
 
-- Le body de la requête est disponible comme entrée pour toutes les étapes.
-- Ajoute un secret webhook pour vérifier l’authenticité. Tale vérifie un en-tête `X-Tale-Signature` et rejette les requêtes qui ne matchent pas.
-- L’URL webhook est visible sur l’étape **Start** et dans l’onglet **Configuration**.
+## Événements
 
-Voir [Webhooks](/fr/develop/webhooks) pour les formats détaillés et le code de vérification de signature.
+Un déclencheur d'événement fait tourner l'automatisation quand quelque chose se passe à l'intérieur de Tale. Ouvre **Déclencheurs > Événements > Ajouter un déclencheur d'événement**, choisis un type d'événement et ajoute un filtre si l'événement en demande un.
 
-## Triggers manuels
+| Type d'événement                | Se déclenche quand                                                    |
+| ------------------------------- | --------------------------------------------------------------------- |
+| `customer.created`              | Une fiche client est ajoutée (manuellement, par import ou via l'API). |
+| `customer.updated`              | Une fiche client change.                                              |
+| `customer.deleted`              | Une fiche client est supprimée.                                       |
+| `conversation.created`          | Une nouvelle conversation est ouverte dans la boîte de réception.     |
+| `conversation.message_received` | Une réponse arrive sur une conversation existante.                    |
+| `conversation.closed`           | Une conversation est marquée fermée.                                  |
+| `workflow.completed`            | Une autre automatisation termine avec succès. Filtrable par source.   |
 
-Le bouton **Démarrer l’exécution** de chaque workflow permet un démarrage manuel avec une entrée personnalisée. Utile pour :
+Le filtre est évalué avant le démarrage de l'automatisation — les événements qui ne correspondent pas sont sautés sans laisser d'exécution sur l'onglet **Exécutions**. L'événement `workflow.completed` en particulier, c'est la façon de chaîner les automatisations : l'une finit, l'autre récupère sa sortie et continue le travail.
 
-- tester un nouveau workflow avant de le planifier ;
-- des runs ponctuels quand le workflow existe mais ne doit pas tourner automatiquement ;
-- lancer un backfill.
+## Exécutions manuelles
 
-Les runs manuels apparaissent dans Exécutions comme les autres.
+Le bouton **Tester l'automatisation** dans l'éditeur et l'action **Exécuter** sur une automatisation publiée déclenchent toutes deux une exécution ponctuelle avec l'entrée que tu fournis. Les exécutions manuelles partagent le moteur avec les exécutions planifiées et webhook mais apparaissent sur l'onglet **Exécutions** avec la source de déclenchement étiquetée `manual` — utile pour essayer une nouvelle automatisation avant de la planifier, pour des rattrapages ponctuels et pour rejouer une charge utile issue d'une exécution échouée après avoir corrigé le bogue.
 
-## Plusieurs triggers sur un workflow
+## Plusieurs déclencheurs sur une même automatisation
 
-Un workflow peut être déclenché par exemple à la fois par un calendrier (chaque heure) et un webhook (à la demande). Chaque exécution enregistre quel trigger l'a lancée.
+Une automatisation avec deux déclencheurs — disons, une planification nocturne et un webhook entrant — tourne une fois par déclencheur qui s'allume. Chaque exécution enregistre quel déclencheur l'a lancée, donc l'onglet **Exécutions** et le tableau de bord des métriques montrent tous deux la répartition par source sans perdre la trace par exécution. Mélanger les déclencheurs, c'est le bon mouvement quand le même travail doit se faire à l'horloge et à la demande ; ne duplique pas l'automatisation juste pour attribuer un déclencheur différent.
 
-## Où cela s'insère
+## Où ça s'inscrit
 
-Les triggers sont la frontière entre Tale et tout le reste. Un workflow sans trigger ne fait rien ; un workflow avec le bon trigger tourne au moment exact, avec l'entrée exacte. Les quatre types — calendrier, événement, webhook, manuel — couvrent presque tout : le travail régulier passe par un calendrier, le travail réactif par un événement ou un webhook, les cas d'exception par le manuel.
-
-Pour les webhooks entrants en particulier, [Webhooks](/fr/develop/webhooks) couvre le schéma de signature et un exemple complet en cURL, Node et Python. Pour voir ce qu'un trigger a déclenché et ce qu'il a passé en entrée, va voir [Journaux d'exécution](/fr/platform/automations/execution-logs).
+Les déclencheurs sont la frontière entre Tale et tout ce qui veut démarrer une automatisation. Les quatre formes couvrent à peu près toutes les façons de « démarrer maintenant » : du travail régulier sur une planification, du travail réactif sur un événement, du travail intégré sur un webhook, des exceptions sur une exécution manuelle. La référence côté développement pour la forme de l'URL webhook, l'idempotence et les limites de débit, c'est [Webhooks](/fr/develop/webhooks) ; la trace par exécution que chaque déclencheur laisse derrière lui, ce sont les [journaux d'exécution](/fr/platform/automations/execution-logs).

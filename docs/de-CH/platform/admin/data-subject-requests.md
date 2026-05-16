@@ -3,7 +3,7 @@ title: Anfragen betroffener Personen
 description: Self-Service-Verwaltung für DSGVO-Art.-17-Löschungsanfragen mit Fristverfolgung, einmaliger Art.-12(3)-Verlängerung und Audit-Beleg.
 ---
 
-Org-Admins bearbeiten DSGVO-Art.-17-Anfragen (Recht auf Löschung) direkt unter **Einstellungen > Governance > Anfragen betroffener Personen**. Jede Einreichung legt einen dauerhaften Beleg mit 30-Tage-Frist an, führt die Kaskade asynchron aus und schreibt für jeden Statuswechsel einen Audit-Eintrag (eingereicht → blockiert / ausgeführt / verlängert / wiederholt).
+Org-Admins bearbeiten DSGVO-Art.-17-Anfragen (Recht auf Löschung) direkt unter **Einstellungen > Governance > Anfragen betroffener Personen**. Jede Einreichung legt einen dauerhaften Beleg mit 30-Tage-Frist an, führt die Kaskade als Hintergrund-Job aus und schreibt für jeden Statuswechsel einen Audit-Eintrag (eingereicht → blockiert / ausgeführt / verlängert / wiederholt).
 
 Die Seite ist nach dem DSR-Oberbegriff benannt — nicht nach „Löschung" allein —, damit künftige Art.-16- (Berichtigung) und Art.-20-Flows (Datenübertragbarkeit) ohne Route-Umbenennung folgen können. Heute ist nur Art. 17 implementiert.
 
@@ -22,25 +22,25 @@ Klicke oben auf der Seite auf **Anfrage einreichen**. Der Dialog erfasst:
 - **Begründung** — Freitext (≥ 10 Zeichen) zum Verifizierungskontext. Landet im Beleg und im Audit-Log.
 - **Bestätigung tippen** — tippe `ERASE`, um den Absende-Button freizuschalten. Die Phrase ist sprachneutral, damit die Anforderung in jeder Sprache identisch ist.
 
-Beim Absenden läuft die Kaskade asynchron in einer Convex-Node-Action und löscht Chat-Threads der Person, RAG-indizierte Dokumente, File-Metadata-Blobs sowie neun pro-Tabelle erfasste Kategorien. Anschliessend werden die PII aus der Audit-Kette für Zeilen gescrubt, die die Person erstellt hat.
+Beim Absenden läuft die Kaskade als Hintergrund-Job und löscht Chat-Threads der Person, RAG-indizierte Dokumente, File-Metadata-Blobs sowie neun pro-Tabelle erfasste Kategorien. Anschliessend werden personenbezogene Daten aus allen Audit-Log-Zeilen entfernt, die die Person erstellt hat.
 
-Steht die Person unter aktiver rechtlicher Sperre (organisationsweit oder Aufbewahrungssperre), wird die Anfrage **am Gate abgewiesen** und ein Inline-Panel zeigt die Zahl der bewahrten Threads / Dokumente sowie einen Deep-Link zur Legal-Hold-Seite. Der Beleg wird dennoch mit `status: blocked` geschrieben, damit die Audit-Spur für die Aufsicht beweisbar bleibt.
+Steht die Person unter aktiver rechtlicher Sperre (organisationsweit oder Aufbewahrungssperre), wird die Anfrage **am Gate abgewiesen** und ein Inline-Panel zeigt die Zahl der bewahrten Threads / Dokumente sowie einen Deep-Link zur Legal-Hold-Seite. Der Beleg wird dennoch im Zustand **blockiert** geschrieben, damit die Audit-Spur für die Aufsicht beweisbar bleibt.
 
 ## Frist-Badge und Art.-12(3)-Verlängerung
 
-Jede Anfrage trägt eine 30-Tage-Frist (`requestedAt + 30 Tage`). Liste und Detailansicht zeigen ein SLA-Badge mit vier Stufen:
+Jede Anfrage trägt eine 30-Tage-Frist ab Einreichungs-Datum. Liste und Detailansicht zeigen ein SLA-Badge mit vier Stufen:
 
 - **Grün** — mehr als 7 Tage übrig.
 - **Gelb** — 7 oder weniger Tage übrig.
 - **Rot** — überfällig.
-- **Grau** — Endzustand (`done` / `failed`); Frist obsolet.
+- **Grau** — Endzustand (fertig / fehlgeschlagen); Frist obsolet.
 
 Art. 12(3) DSGVO erlaubt, das Antwortfenster um bis zu zwei weitere Monate zu verlängern, **aber die Verlängerung selbst muss innerhalb des ursprünglichen Monats begründet mitgeteilt werden**. Die Aktion **Frist verlängern** im Detail-Drawer setzt das um:
 
 - Verfügbar, solange die Anfrage nicht in einem Endzustand ist und die ursprüngliche Frist noch nicht abgelaufen ist.
 - 1–60 Tage hinzufügen, mit Pflicht-Begründung (≥ 10 Zeichen).
-- Jede Anfrage kann **höchstens einmal** verlängert werden — der zweite Versuch wird mit `ALREADY_EXTENDED` abgewiesen.
-- Das SLA-Badge nutzt `extensionDeadlineAt ?? slaDeadlineAt`, damit gewährte Verlängerungen sofort die Farbstufe und den angezeigten Countdown beeinflussen.
+- Jede Anfrage kann **höchstens einmal** verlängert werden — der zweite Versuch wird mit dem Fehler „bereits verlängert" abgewiesen.
+- Das SLA-Badge zeigt die verlängerte Frist, sobald eine Verlängerung gewährt wurde, sonst die ursprüngliche Frist — gewährte Verlängerungen beeinflussen sofort Farbstufe und Countdown.
 
 Das Audit-Log hält fest, wer verlängert hat, mit welchem Grund und auf welche neue Frist.
 
@@ -48,9 +48,9 @@ Das Audit-Log hält fest, wer verlängert hat, mit welchem Grund und auf welche 
 
 Drei Zustände sind wiederholbar:
 
-- `partial` — Kaskade lief, einzelne Kategorien wurden durch eine zwischenzeitlich gesetzte Sperre übersprungen, oder ein Thread hat das Seiten-Limit erreicht.
-- `blocked` — Anfrage wurde am Legal-Hold-Gate abgewiesen. Sperre lösen, dann erneut versuchen.
-- `failed` — Kaskade ist abgestürzt (RAG-Service nicht erreichbar, transienter Infrastrukturfehler) oder wurde vom Watchdog nach Überschreiten des 30-Minuten-Limits erfasst.
+- **teilweise** — Kaskade lief, einzelne Kategorien wurden durch eine zwischenzeitlich gesetzte Sperre übersprungen, oder ein Thread hat das Seiten-Limit erreicht.
+- **blockiert** — Anfrage wurde am Legal-Hold-Gate abgewiesen. Sperre lösen, dann erneut versuchen.
+- **fehlgeschlagen** — Kaskade ist abgestürzt (RAG-Service nicht erreichbar, transienter Infrastrukturfehler) oder wurde vom Watchdog nach Überschreiten des 30-Minuten-Limits erfasst.
 
 Die Aktion **Erneut versuchen** im Drawer plant den Processor neu ein. Das Hold-Gate läuft beim Start des Processors erneut, schliesst also das Fenster zwischen „Sperre aufheben" und „Wiederholen".
 
@@ -61,7 +61,7 @@ Der Detail-Drawer rendert den vollständigen Art.-17-/-19-Beleg für eine Anfrag
 - Status-Badge + Frist-Countdown.
 - Identifier der Person, Rechtsgrund, Begründung, Einreichende Person und Zeitpunkt, aktuelle Frist (mit Verlängerungs-Info, falls vorhanden).
 - Zähler: gelöschte / Ziel-Threads, aus RAG entfernte Dokumente, gelöschte Dokumente, durch Sperre übersprungene Dokumente, Fehlermeldung im Fehlerfall.
-- Audit-Verlauf: jede `gdpr_erasure_*`-Zeile, die zur Person gehört, sortiert nach Audit-Kette.
+- Audit-Verlauf: jede GDPR-Löschungs-Audit-Log-Zeile, die zur Person gehört, sortiert nach Audit-Kette.
 
 **Es werden keine gelöschten PII-Inhalte angezeigt** — nur aggregierte Zähler und Identifier. Der Beleg darf direkt an die Aufsicht oder an die Person ausgehändigt werden.
 
@@ -69,7 +69,7 @@ Der Detail-Drawer rendert den vollständigen Art.-17-/-19-Beleg für eine Anfrag
 
 Diese Seite liefert nur DSGVO Art. 17 (Löschung). Bewusst nicht enthalten (v1):
 
-- Art. 16 Berichtigung und Art. 20 Datenübertragbarkeit — landen später als zusätzliche `kind`-Werte auf derselben DSR-Seite, ohne Route-Umbenennung.
+- Art. 16 Berichtigung und Art. 20 Datenübertragbarkeit — landen später als zusätzliche Anfrage-Arten auf derselben DSR-Seite, ohne Route-Umbenennung.
 - Self-Service-Portal für betroffene Personen — Tale ist administrationsgesteuert.
 - Identitätsprüfung im Produkt — ausserhalb des Produkts beim Admin.
 - Benachrichtigung der betroffenen Person bei Abschluss — Aufgabe der E-Mail-Infrastruktur.

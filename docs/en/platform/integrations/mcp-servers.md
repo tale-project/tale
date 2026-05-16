@@ -1,15 +1,13 @@
 ---
 title: MCP servers
-description: Connect external Model Context Protocol servers to Tale so their tools and resources show up as agent tools.
+description: Connect external Model Context Protocol servers so their tools and resources show up as agent tools.
 ---
 
-A Model Context Protocol (MCP) server is an external process that exposes a set of tools, resources, and prompts over a small standardised RPC. Tale registers an MCP server once and then makes its tools available to every agent in the organisation that opts in. Where a Tale [integration](/platform/integrations/overview) wraps a vendor's REST or SQL surface in a Tale-authored manifest, an MCP server lets a third party publish its own tool catalogue — and Tale consumes it without writing a connector.
+A Model Context Protocol (MCP) server is an external process that publishes a catalogue of tools, resources, and prompts over a small standardised RPC. Tale registers one once and then makes its tools available to every agent in the organisation that opts in. Where a Tale [integration](/platform/integrations/overview) wraps a vendor's REST or SQL surface in a manifest you author and ship, an MCP server lets the third party publish the tool catalogue and Tale consumes it without writing a connector at all. This page is the reference for **Settings > MCP servers** and the schema behind it; the audience is Admin and Developer.
 
-This page is the reference for the **Settings > MCP servers** screen and the on-disk schema behind it. The audience is Admins and Developers connecting an MCP server to an organisation. Members and Editors don't see this surface; they see new tools appear on their agents.
+## A worked registration
 
-## A worked example
-
-The shortest path to a working MCP integration is to register a public Streamable HTTP server with API-key auth. To register the `example-tools` server at `https://mcp.example.com`, open **Settings > MCP servers**, click **Add MCP server**, and fill in:
+The shortest path to a working MCP server is a public Streamable HTTP endpoint with an API key. Open **Settings > MCP servers > Add MCP server** and fill in:
 
 ```json
 {
@@ -21,55 +19,53 @@ The shortest path to a working MCP integration is to register a public Streamabl
 }
 ```
 
-After saving, Tale prompts for the API key, stores it encrypted, and moves the server into the `discovering` state. The discovery RPC returns the server's tool list within seconds; the status flips to `active` and every discovered tool is now available to enable on agents at **Agents > [agent] > Tools**.
+Save, paste the API key when the form asks for it, and the server moves into the `discovering` status. The discovery RPC calls `tools/list` on the server within seconds; the status flips to `active` and the discovered tools become available to enable on agents under **Agents > [agent] > Tools**.
 
 ## Transport types
 
-Tale supports three MCP transports. Pick by where the server runs and how Tale reaches it.
+Three transports cover where an MCP server can run. Pick by how Tale reaches it.
 
-| Transport         | When to pick it                                                                                                                                                           |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `streamable_http` | The server is a public HTTP service speaking the MCP Streamable HTTP transport. The default for hosted MCP servers.                                                       |
-| `sse`             | The server is an HTTP service speaking the older Server-Sent Events transport. Still supported for compatibility with older servers.                                      |
-| `stdio`           | The server is a local process Tale spawns via a command (`command` + `args`). Only valid on self-hosted instances where the process can run alongside the Tale container. |
+| Transport         | Reach for when …                                                                                                           |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `streamable_http` | The server is a public HTTP service speaking the MCP Streamable HTTP transport. Default for hosted MCP servers.            |
+| `sse`             | The server is an HTTP service speaking the older Server-Sent Events transport. Kept for compatibility with older servers.  |
+| `stdio`           | The server is a local process Tale spawns by command. Only valid on self-hosted instances where Tale can launch processes. |
 
-`streamable_http` and `sse` both need a `url`; `stdio` needs `command`, optional `args`, and optional `env` map for environment variables passed to the spawned process.
+`streamable_http` and `sse` both need a `url`. `stdio` needs a `command`, optional `args`, and an optional `env` map for environment variables passed to the spawned process.
 
 ## Authentication
 
-Three auth types cover the common shapes:
+Three auth shapes cover the common cases.
 
-| Auth type | What Tale stores                                                                                                                                                                                       |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `none`    | Nothing. The server is open or auth-free (typical for `stdio` transports running locally).                                                                                                             |
-| `api_key` | A single API key (`apiKeyEncrypted`), passed on every request per the server's convention.                                                                                                             |
-| `oauth2`  | An OAuth 2.0 client config (`tokenUrl`, optional `authorizationUrl`, `clientId`, `clientSecretEncrypted`, `scopes`, `grantType`) plus the access/refresh tokens Tale obtains after the flow completes. |
+| Auth type | What Tale stores                                                                                                                                                                       |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `none`    | Nothing. The server is open or auth-free (typical for `stdio` transports running locally).                                                                                             |
+| `api_key` | A single API key, passed on every request per the server's convention.                                                                                                                 |
+| `oauth2`  | An OAuth 2.0 client config (token URL, optional authorisation URL, client id and secret, scopes, grant type) plus the access and refresh tokens Tale obtains after the flow completes. |
 
-OAuth2 supports two grant types: `client_credentials` for server-to-server, and `authorization_code` for flows where an admin authorises Tale to act on behalf of an account. The latter triggers a redirect to the `authorizationUrl` when the integration is connected; Tale stores both access and refresh tokens and refreshes the access token automatically when it expires.
-
-All secrets — `apiKeyEncrypted`, `clientSecretEncrypted`, `accessTokenEncrypted`, `refreshTokenEncrypted` — are stored encrypted at rest, scoped to the organisation.
+OAuth 2.0 supports two grant types. `client_credentials` is the server-to-server case; `authorization_code` is the case where an admin authorises Tale to act on behalf of an account, with a redirect to the authorisation URL when the integration is connected. In both cases Tale stores access and refresh tokens and refreshes the access token automatically before it expires. Every secret — API keys, client secrets, access tokens, refresh tokens — is encrypted at rest and scoped to your organisation.
 
 ## Status states
 
-Every MCP server entry carries a `status` field that mirrors the connection health.
+Every MCP server entry carries a status that mirrors the connection health.
 
-| Status        | Meaning                                                                                                              |
-| ------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `discovering` | Initial state after registering. Tale is calling the server's `tools/list` RPC to populate `discoveredTools`.        |
-| `active`      | Discovery succeeded and the server is reachable. Tools are available to enable on agents.                            |
-| `inactive`    | The admin manually disabled the server. The discovered tool list is preserved; enabling it again skips re-discovery. |
-| `error`       | The last connection attempt failed. The reason is in `lastError`; fix the credentials or the URL and re-test.        |
+| Status        | What it means                                                                                                      |
+| ------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `discovering` | Initial state after registering. Tale is calling `tools/list` to populate the discovered-tools array.              |
+| `active`      | Discovery succeeded and the server is reachable. Tools are available to enable on agents.                          |
+| `inactive`    | An admin disabled the server. The discovered tool list is preserved, so re-enabling skips re-discovery.            |
+| `error`       | The last connection attempt failed. The reason is in the last-error field; fix credentials or the URL and re-test. |
 
 ## Discovered tools
 
-When discovery completes, the server's tool catalogue lands in the `discoveredTools` array. Each tool has a `name`, optional `description`, optional `inputSchema` (JSON Schema for parameters), and an optional `requiresApproval` flag.
+Once discovery completes, the server's tool catalogue lands in the **Discovered tools** section of the server detail. Each tool has a name, an optional description, an optional input schema (JSON Schema for parameters), and an optional **requires approval** flag.
 
-`requiresApproval: true` makes every invocation of that tool generate an approval card in the chat — the same flow as a `write` operation on a Tale-native integration. Use it for tools that touch billing systems, send messages on someone's behalf, or modify production data. The full approvals doctrine is at [Approvals](/platform/workspace/approvals).
+The **requires approval** flag is the load-bearing field. When it is set, every invocation of that tool generates an approval card in the chat — the same flow as a `write` operation on a Tale-native integration. Reach for it on tools that touch billing systems, send messages on someone's behalf, or modify production data. The full doctrine — who can approve, how the card looks, how rejects propagate — is at [Approvals](/platform/workspace/approvals).
 
-The discovered list is what agent owners pick from when enabling MCP tools at **Agents > [agent] > Tools > MCP servers**. Enabling an MCP server on an agent grants access to all of that server's tools; granularity at the per-tool level lives on the agent's tool config, not on the MCP-server registration.
+The discovered list is what agent owners pick from under **Agents > [agent] > Tools > MCP servers**. Enabling a server on an agent grants the agent access to that server's tools; per-tool granularity lives on the agent's tool configuration, not on the server registration.
 
 ## Where this fits
 
-MCP servers are the "bring your own tool catalogue" path; [integrations](/platform/integrations/overview) are the "wrap a vendor we know about" path. They coexist — an agent can use both — and both show up in the same agent tool picker. Reach for MCP when the server already exists (a third-party publishes one for their product) and for a connector when you control the wrapper and want Tale's read/write semantics, the operations table, and the connector's setup guide.
+MCP servers are the "bring your own tool catalogue" path; [integrations](/platform/integrations/overview) are the "wrap a vendor we know about" path. They coexist — one agent can use both, and both show up in the same agent tool picker. Reach for an MCP server when the server already exists (a third party publishes one for their product) and for a connector when you control the wrapper and want Tale's read/write operation model and the **Configuration guide** UX.
 
-To enable an MCP server's tools on a specific agent, open the agent and follow the [Tools section](/platform/agents/create) of the agent build flow. To audit which agents have which MCP tools enabled, the [Audit log](/platform/admin/governance) records every enable/disable change with the actor and timestamp.
+To enable an MCP server's tools on a specific agent, open the agent and follow the **Tools** section of [Create an agent](/platform/agents/create). To audit which agents have which MCP tools enabled, the [Audit log](/platform/admin/governance#audit-log) records every enable and disable change with the actor and timestamp.

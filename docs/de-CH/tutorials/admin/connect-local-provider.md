@@ -3,13 +3,13 @@ title: Lokalen Anbieter verbinden
 description: Ollama oder vLLM als Tale-KI-Anbieter einbinden, damit Agents auf vollständig selbst gehosteten Modellen laufen.
 ---
 
-Tale verbindet sich mit KI-Modellen über [Anbieter](/de-CH/platform/admin/providers) — jeder OpenAI-kompatible Endpunkt qualifiziert sich, einschliesslich lokaler Laufzeiten wie [Ollama](https://ollama.com), [vLLM](https://docs.vllm.ai) und [LocalAI](https://localai.io). Agents gegen einen lokalen Anbieter laufen zu lassen hält Prompts, Completions und Wissensdatenbank-Kontext in deinem Netzwerk; nichts erreicht einen gehosteten Modell-Anbieter. Dieses Integrations-Tutorial führt durch das Hinzufügen von Ollama als Anbieter, das Freischalten eines Modells für Agents und die Bestätigung, dass die Inferenz lokal läuft.
+Tale verbindet sich mit KI-Modellen über [Anbieter](/de-CH/platform/admin/providers) — jeder OpenAI-kompatible Endpunkt qualifiziert sich, einschliesslich lokaler Laufzeiten wie [Ollama](https://ollama.com), [vLLM](https://docs.vllm.ai) und [LocalAI](https://localai.io). Agents gegen einen lokalen Anbieter laufen zu lassen hält Prompts, Completions und Wissensdatenbank-Kontext in deinem Netzwerk; nichts erreicht einen gehosteten Modell-Anbieter. Dieses Integrationen-Tutorial führt durch das Hinzufügen von Ollama als Anbieter, das Freischalten eines Modells für Agents und die Bestätigung, dass die Inferenz lokal läuft.
 
 Das Ergebnis am Ende ist ein funktionierender Air-Gap-Pfad: jeder Chat oder jede Automatisierung, die das lokale Modell wählt, routet über Hardware, die du kontrollierst.
 
 ## Bevor du beginnst
 
-Du brauchst Admin- oder Inhaber-Zugriff in Tale — beide Rollen können Anbieter bearbeiten. Du brauchst ausserdem einen lauffähigen Ollama- oder vLLM-Server, der von deiner Tale-Instanz per HTTP erreichbar ist; die jeweiligen Installations-Leitfäden decken das Setup ab. Läuft Tale selbst in Docker, muss die Laufzeit über das Docker-Netzwerk erreichbar sein (die [Self-hosted-Netzwerk-Referenz](/de-CH/self-hosted/configuration/environment-reference) deckt die Optionen ab). Für Ollama brauchst du zusätzlich mindestens ein heruntergeladenes Modell — `ollama pull <name>` lädt es.
+Du brauchst Admin- oder Inhaber-Zugriff in Tale — beide Rollen können Anbieter bearbeiten. Du brauchst ausserdem einen lauffähigen Ollama- oder vLLM-Server, der von deiner Tale-Instanz per HTTP erreichbar ist; die jeweiligen Installations-Leitfäden decken das Setup ab. Läuft Tale selbst in Docker, muss die Laufzeit über das Docker-Netzwerk erreichbar sein (die [Netzwerk-Referenz für selbst gehostete Instanzen](/de-CH/self-hosted/configuration/environment-reference) deckt die Optionen ab). Für Ollama brauchst du zusätzlich mindestens ein heruntergeladenes Modell — `ollama pull <name>` lädt es.
 
 Kein externes Konto, kein API-Schlüssel, kein Feature-Flag.
 
@@ -107,4 +107,4 @@ Der letzte Punkt ist die häufigste Lücke in beanspruchten Air-Gap-Deployments:
 
 Einen lokalen Anbieter anzubinden ist der Air-Gap-Baustein: ist er einmal da, nutzt jede andere Tale-Oberfläche — Agents, Automatisierungen, Chat — ihn so, wie sie einen gehosteten Anbieter nutzen würde. Der Unterschied ist operativ (eigene Hardware, höhere Latenz, keine Kosten pro Token) und Vertrauensgrenze (kein Verkehr zu einem Modell-Anbieter); das Verhalten ist dasselbe.
 
-Der Lokaler-Anbieter-Pfad passt sauber zu zwei anderen Integrations-Tutorials: [Meeting-Transkription](/de-CH/tutorials/admin/meeting-transcription) hält den Audio-Pfad auf dem Gerät, während das Zusammenfassungs-LLM lokal bleibt, und [Word- & Excel-Add-in](/de-CH/tutorials/admin/office-add-in) routet Office-Verkehr durch Tale zu welchem Anbieter auch immer du konfiguriert hast.
+Der Lokaler-Anbieter-Pfad passt sauber zu zwei anderen Integrationen-Tutorials: [Meeting-Transkription](/de-CH/tutorials/admin/meeting-transcription) hält den Audio-Pfad auf dem Gerät, während das Zusammenfassungs-LLM lokal bleibt, und [Word- & Excel-Add-in](/de-CH/tutorials/admin/office-add-in) routet Office-Verkehr durch Tale zu welchem Anbieter auch immer du konfiguriert hast.

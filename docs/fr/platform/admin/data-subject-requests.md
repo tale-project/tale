@@ -3,7 +3,7 @@ title: Demandes des personnes concernées
 description: Déposer des demandes d'effacement RGPD Art. 17 directement depuis l'interface admin, avec suivi SLA, prolongation Art. 12(3) à octroi unique et reçus chaînés au journal d'audit.
 ---
 
-Demandes des personnes concernées est l'endroit où les Admins d'organisation traitent les demandes d'effacement RGPD Art. 17 sans quitter le produit. Chaque dépôt insère une ligne de reçu durable avec un délai SLA de 30 jours, fait tourner la cascade d'effacement de manière asynchrone et écrit une entrée au journal d'audit pour chaque transition d'état — `déposée`, `bloquée`, `exécutée`, `prolongée`, `réessayée`, `partielle`, `échouée`. La page porte le nom de l'ombrelle DSR plutôt que seulement « effacement » afin que les futurs flux Art. 16 (rectification) et Art. 20 (portabilité) puissent atterrir sur la même surface sans renommer la route ; aujourd'hui, seule Art. 17 est livrée.
+Demandes des personnes concernées est l'endroit où les Admins d'organisation traitent les demandes d'effacement RGPD Art. 17 sans quitter le produit. Chaque dépôt insère un reçu durable avec un délai SLA de 30 jours, fait tourner la cascade d'effacement en tâche de fond et écrit une entrée au journal d'audit pour chaque transition d'état — déposée, bloquée, exécutée, prolongée, réessayée, partielle, échouée. La page porte le nom de l'ombrelle DSR plutôt que seulement « effacement » afin que les futurs flux Art. 16 (rectification) et Art. 20 (portabilité) puissent atterrir sur la même surface sans renommer la route ; aujourd'hui, seule Art. 17 est livrée.
 
 Le public, c'est l'Admin d'organisation en charge de la conformité. Membres, Éditeurs et Développeurs ne voient pas cette page. La surface est **Paramètres > Gouvernance > Demandes des personnes concernées**.
 
@@ -22,25 +22,25 @@ Clique **Déposer une demande** en haut de la page. La boîte demande quatre cha
 - **Récit motivant** — texte libre, minimum 10 caractères, qui décrit le contexte de vérification. Le récit est porté sur le reçu et dans le journal d'audit.
 - **Confirmation tapée** — tape `ERASE` pour activer le bouton d'envoi. La phrase est stable d'une langue à l'autre, de sorte que l'exigence de frappe est identique partout.
 
-Au dépôt, la cascade tourne en asynchrone dans une action Convex Node : elle supprime les threads de chat de la personne, les documents indexés RAG, les blobs de métadonnées de fichiers, et neuf catégories par table de portée-personne, puis purge le PII de la chaîne d'audit pour les lignes que la personne a écrites.
+Au dépôt, la cascade tourne en tâche de fond : elle supprime les threads de chat de la personne, les documents indexés RAG, les blobs de métadonnées de fichiers, et neuf catégories par table de portée-personne, puis efface les données personnelles dans les lignes du journal d'audit que la personne a écrites.
 
-Si la personne est sous un hold légal actif — à l'échelle de l'organisation ou par custodian — la demande est **refusée à la barrière**. Un panneau en ligne fait remonter le compte de threads et documents tenus, plus un lien profond vers la page des holds légaux. La ligne de reçu est tout de même insérée avec `status: blocked` afin que le chemin d'audit régulateur ait la preuve structurée que la demande a été reçue.
+Si la personne est sous un hold légal actif — à l'échelle de l'organisation ou par custodian — la demande est **refusée à la barrière**. Un panneau en ligne fait remonter le compte de threads et documents tenus, plus un lien profond vers la page des holds légaux. Le reçu est tout de même inséré à l'état **bloquée** afin que le chemin d'audit régulateur ait la preuve structurée que la demande a été reçue.
 
 ## Badge SLA et la prolongation Art. 12(3)
 
-Chaque demande porte un délai de 30 jours dérivé de `requestedAt + 30 days`. Les vues liste et détail rendent un badge de compte à rebours SLA avec quatre seaux :
+Chaque demande porte un délai de 30 jours compté depuis la date de dépôt. Les vues liste et détail rendent un badge de compte à rebours SLA avec quatre seaux :
 
 - **Vert** — plus de 7 jours restants.
 - **Jaune** — 7 jours ou moins restants.
 - **Rouge** — en retard.
-- **Gris** — statut terminal (`done` ou `failed`) ; le compte à rebours est sans objet.
+- **Gris** — statut terminal (terminée ou échouée) ; le compte à rebours est sans objet.
 
 L'Art. 12(3) du RGPD permet au responsable de prolonger la fenêtre de réponse jusqu'à deux mois de plus pour les demandes complexes, **mais la prolongation doit être communiquée à la personne dans le mois initial, avec motifs**. L'action **Prolonger le délai** dans le tiroir de détail met en œuvre cette contrainte :
 
 - Disponible tant que la demande est non terminale et que le délai initial n'est pas écoulé.
 - Ajouter de 1 à 60 jours, avec un motif de prolongation obligatoire d'au moins 10 caractères.
-- Chaque demande peut être prolongée **au plus une fois** — une seconde tentative est refusée avec `ALREADY_EXTENDED`.
-- Le badge SLA dérive de `extensionDeadlineAt ?? slaDeadlineAt`, de sorte qu'une prolongation accordée change immédiatement le seau de couleur et le compte à rebours affiché.
+- Chaque demande peut être prolongée **au plus une fois** — une seconde tentative est refusée avec une erreur « déjà prolongée ».
+- Le badge SLA affiche le délai prolongé dès qu'une prolongation est accordée, sinon le délai initial — une prolongation accordée change immédiatement le seau de couleur et le compte à rebours affiché.
 
 Le journal d'audit enregistre qui a accordé la prolongation, le motif et le nouveau délai.
 
@@ -61,7 +61,7 @@ Le tiroir de détail rend le reçu Art. 17 / Art. 19 complet pour une demande :
 - Badge de statut plus compte à rebours SLA.
 - Identifiant de la personne, base légale, récit motivant, qui a déposé et quand, délai SLA courant (avec info de prolongation le cas échéant).
 - Compteurs : threads effacés et ciblés, documents RAG retirés, documents effacés, documents sautés par hold, message d'erreur en cas d'échec.
-- Chronologie d'audit : chaque ligne `gdpr_erasure_*` du journal d'audit liée à la personne, triée par horodatage de chaîne.
+- Chronologie d'audit : chaque ligne du journal d'audit d'effacement RGPD liée à la personne, triée par horodatage de chaîne.
 
 **Aucun contenu PII effacé n'est rendu** — uniquement des compteurs agrégés et des identifiants. Le reçu est sûr à remettre directement à un régulateur ou à la personne.
 
@@ -69,7 +69,7 @@ Le tiroir de détail rend le reçu Art. 17 / Art. 19 complet pour une demande :
 
 Seul l'effacement Art. 17 est livré aujourd'hui. Les exclusions intentionnelles de la coupe v1 :
 
-- Art. 16 rectification et Art. 20 portabilité — atterriront comme des valeurs `kind` supplémentaires sur la même page DSR, sans renommage de route.
+- Art. 16 rectification et Art. 20 portabilité — atterriront comme des types de demande supplémentaires sur la même page DSR, sans renommage de route.
 - Portail libre-service pour la personne concernée — Tale est admin-médié par conception.
 - Vérification d'identité dans le produit — traitée hors-bande par l'organisation de l'Admin.
 - Notification courriel à la personne à la complétion — différée vers le chantier d'infrastructure courriel.

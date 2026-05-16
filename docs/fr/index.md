@@ -32,15 +32,9 @@ Quatre propriétés que la plupart des équipes comparent face aux alternatives 
 
 - **Tes données, ta région.** Cloud ancre chaque locataire en Suisse ou dans l'UE, avec divulgation explicite des sous-traitants et l'option d'apporter tes propres clés IA. Auto-hébergée quitte le réseau entièrement — les prompts, le contenu des documents et les embeddings ne traversent jamais l'infrastructure de Tale.
 - **N'importe quel modèle, échangeable par agent.** OpenAI, Anthropic, Google, Mistral, Meta, DeepSeek, Moonshot, Qwen — ou des modèles auto-hébergés via Ollama, vLLM ou LocalAI — échangeables agent par agent sans ré-indexation, sans ré-entraînement, sans migration.
-- **Un produit pour toute l'organisation.** Six rôles couvrent les lecteurs en lecture seule jusqu'aux propriétaires d'organisation, organisés en équipes avec accès à la connaissance restreint. Les Membres chattent avec les agents ; les Éditeurs entretiennent ; les Développeurs construisent les automatisations ; les Admins gouvernent.
-- **Une conformité que tu peux montrer à ton auditeur.** Certifié ISO 27001 et SOC 2, suisse (Ruler GmbH), aligné RGPD par défaut — avec journal d'audit et outillage pour les demandes de personnes concernées intégrés.
+- **Un produit pour toute l'organisation.** Six rôles couvrent les lecteurs en lecture seule jusqu'aux propriétaires d'organisation, organisés en équipes avec accès aux connaissances cloisonné. Les Membres chattent avec les agents ; les Éditeurs entretiennent ; les Développeurs construisent les automatisations ; les Admins gouvernent.
+- **Une conformité que tu peux montrer à ton auditeur.** Exploité par Ruler GmbH en Suisse, aligné RGPD par défaut — avec journal d'audit et outillage pour les demandes de personnes concernées intégrés, et l'état des certifications documenté sous [Cloud](/fr/cloud).
 
 ## Où ça s'inscrit
 
-Le contrat de forme traite cet index comme une porte d'entrée, pas une visite guidée. Une fois l'édition et le rôle choisis, l'étape suivante utile est l'une des suivantes :
-
-- [Platform](/fr/platform) — la référence canonique des fonctionnalités, identique entre les deux éditions. Démarre là une fois dans le produit.
-- [Onboarding Cloud](/fr/cloud) ou [Installation auto-hébergée](/fr/self-hosted) — mise en place spécifique à l'édition. Passe-la si Tale tourne déjà pour toi.
-- [Tutoriels](/fr/tutorials/overview) — exemples travaillés indexés par rôle, de bout en bout, sur une instance fraîche.
-
-Pour le code source, les issues et les annonces de release, [GitHub](https://github.com/tale-project/tale) et [tale.dev](https://tale.dev) sont les canaux canoniques.
+Une fois l'édition et le rôle choisis, le reste de la doc est à un clic. [Platform](/fr/platform) est la référence canonique des fonctionnalités et s'applique à l'identique en Cloud et en auto-hébergé, donc quiconque est déjà dans le produit commence là ; [Cloud](/fr/cloud) et [auto-hébergée](/fr/self-hosted) couvrent la couche spécifique à l'édition au-dessus. [Tutoriels](/fr/tutorials/overview) déroule des exemples indexés par rôle, de bout en bout, sur une instance fraîche, et [Develop](/fr/develop/api-reference) est le point d'entrée pour les intégrateurs et les contributeurs. Le code source, les issues et les annonces de release vivent sur [GitHub](https://github.com/tale-project/tale) et [tale.dev](https://tale.dev).

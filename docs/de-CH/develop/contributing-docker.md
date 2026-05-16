@@ -168,7 +168,7 @@ Die Datei ist Klartext, eine CVE pro Zeile, optionaler Kommentar nach `#`.
 
 ## CI/CD-Pipeline
 
-### Auf Pull Requests (`build.yml`)
+### Bei eingehenden Beiträgen (`build.yml`)
 
 ```mermaid
 graph LR

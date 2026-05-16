@@ -1,36 +1,47 @@
 ---
 title: Automation metrics
-description: Usage and performance KPIs across every automation in your organisation.
+description: A cross-automation dashboard of total runs, success rate, average duration, and top movers.
 ---
 
-The Automation metrics dashboard is a cross-workflow view of how your automations are running. It rolls up every workflow in the organisation into four headline KPIs, a runs-over-time chart, a status breakdown, and a top-workflows table. Use it to spot the workflow that started failing yesterday, the one that grew 10x in volume after a process change, or the long tail of automations nobody is actually using.
+The **Automation metrics** dashboard rolls every automation in the organisation into one view: four headline numbers across the top, a runs-over-time trend, a status breakdown, and a top-automations table you can drill into. Open it when the question crosses automations rather than sits inside one — "did we break something with the deploy yesterday", "which automation grew ten times in volume after the process change", "what is on the long tail nobody actually uses". The audience is Admin and Developer, the same roles that can edit automations.
 
-The dashboard lives at **Automations > Metrics**. It's available to Admin and Developer roles, the same audience that can edit automations.
+The dashboard lives at **Automations > Metrics**. It is empty until at least one automation has run; once runs land, the surface refreshes in near real time.
 
-## What it shows
+## The four headline numbers
 
-| Card / chart         | Reads                                                                                                              |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| **Total runs**       | Count of executions in the selected period.                                                                        |
-| **Success rate**     | Successful runs divided by total — `running` and `cancelled` are excluded.                                         |
-| **Avg duration**     | Mean wall-clock duration of completed runs.                                                                        |
-| **Failed runs**      | Count of executions that ended in failure.                                                                         |
-| **Runs over time**   | Daily series of completed, failed, and running executions.                                                         |
-| **Status breakdown** | Donut showing the share of each terminal status across the period.                                                 |
-| **Top workflows**    | Table ranked by run count, with success rate, average duration, failed count, and last-run timestamp per workflow. |
+The top of the page carries four cards.
 
-Click a row in **Top workflows** to jump to that workflow's own [Execution logs](/platform/automations/execution-logs).
+| Card             | Reads                                                                           |
+| ---------------- | ------------------------------------------------------------------------------- |
+| **Total runs**   | Count of runs in the selected period.                                           |
+| **Success rate** | Successful runs divided by total. Runs still in flight and cancelled ones drop. |
+| **Avg duration** | Mean wall-clock duration of completed runs.                                     |
+| **Failed runs**  | Count of runs that ended in failure.                                            |
 
-## Period selector
+The four together answer "is the system healthy this period". A success rate that slips while total runs hold steady points at a specific automation regressing; a success rate that holds while total runs collapse points at the trigger source going quiet.
 
-Switch between **Last 7 days**, **Last 30 days**, and **Last 90 days** from the period selector at the top of the page. The period choice is reflected in the URL (`?period=30`) so a link to the dashboard is always reproducible.
+## Trend and status
 
-The dashboard caps each query at the most recent 5,000 runs in the selected window. When the cap is hit, a banner reads _"Showing the most recent 5,000 runs in this window. Older runs in this period are not included in these totals."_ — switch to a shorter window for a complete picture, or jump to **Top workflows** and inspect the per-workflow execution logs which are not capped.
+Below the cards, two charts split the period.
 
-## Empty state
+**Runs over time** is a daily series of completed, failed, and running runs across the selected window. The shape of the series — slow climb, weekly cycle, sudden spike — is the cue for which automation to open next.
 
-If no workflows have run in the selected period, the dashboard shows an empty state with the headline _No workflow runs_ instead of zero-valued cards. That's the cue to either widen the period or check that your triggers are firing — see [Triggers](/platform/automations/triggers).
+**Status breakdown** is a donut of the share each terminal status takes across the period. A healthy mix is heavy on completed with a thin sliver of failed; a donut where failed is more than a few percent is the signal to drill in.
+
+## Top automations
+
+The table at the bottom ranks automations by run count and surfaces, for each, the success rate, average duration, failed-run count, and the timestamp of the most recent run. Click any row to jump straight to that automation's [Execution logs](/platform/automations/execution-logs) — the rank table is the cross-automation lens, the execution log is the per-run truth.
+
+## Period and the cap
+
+Switch between **Last 7 days**, **Last 30 days**, and **Last 90 days** from the period picker at the top right. The choice is reflected in the URL so a linked dashboard is reproducible.
+
+Each query reads the most recent 5,000 runs in the window. When the cap is hit, a banner above the cards reads _"Showing the most recent 5,000 runs in this window. Older runs in this period are not included in these totals."_ — switch to a shorter window for a complete picture, or jump into the top-automations table and open each automation's execution log, which is not capped.
+
+## Empty period
+
+A period with no runs renders the empty state — a single line that reads **No workflow runs**, not zero-valued cards. The empty state is the cue to either widen the window or check that the triggers are firing at all; the natural next step from there is [Triggers](/platform/automations/triggers).
 
 ## Where this fits
 
-Automation metrics is the cross-workflow dashboard — the surface that answers "is anything broken right now?" and "what changed since last week?" without opening every workflow individually. When a KPI changes, drill into [Execution logs](/platform/automations/execution-logs) for the per-run truth. For LLM-cost trends that span both automations and chat, [Usage analytics](/platform/admin/usage-analytics) is one tab over.
+Automation metrics is the cross-automation lens: the answer to "is anything broken" and "what changed since last week" without opening every automation individually. When a number changes, [Execution logs](/platform/automations/execution-logs) is the per-run truth — open the offending automation, find the failing run, read its journal. For LLM-cost trends that span both automations and chat together, [Usage analytics](/platform/admin/usage-analytics) is one tab over.

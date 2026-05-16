@@ -81,9 +81,9 @@ Der Schritt hat funktioniert, wenn der Agent eine repräsentative In-Scope-Frage
 
 ## Schritt 8 — Eine Version veröffentlichen
 
-Jede Änderung bis hierhin hat einen **Entwurf** aktualisiert; die Live-Version (sofern es eine vorherige gibt) serviert weiter den Chat, bis du veröffentlichst. Klicke **Veröffentlichen** im Versions-Header. Zukünftige Änderungen starten einen neuen Entwurf — Nutzer treffen weiter die veröffentlichte Version, bis du erneut veröffentlichst.
+Jede Änderung bis hierhin hat einen **Entwurf** aktualisiert; die Live-Version (sofern es eine vorherige gibt) serviert weiter den Chat, bis du veröffentlichst. Klicke **Veröffentlichen** in der Versions-Kopfzeile. Zukünftige Änderungen starten einen neuen Entwurf — Nutzer treffen weiter die veröffentlichte Version, bis du erneut veröffentlichst.
 
-Der Schritt hat funktioniert, wenn der Versions-Header eine frische Versionsnummer und ein „Veröffentlicht"-Badge zeigt und der Entwurf-Tab des Agents leer ist.
+Der Schritt hat funktioniert, wenn die Versions-Kopfzeile eine frische Versionsnummer und ein „Veröffentlicht"-Badge zeigt und der Entwurf-Tab des Agents leer ist.
 
 ## Fehlerbehebung
 

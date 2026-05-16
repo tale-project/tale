@@ -1,66 +1,66 @@
 ---
 title: Authentification
-description: Comment fonctionne l'authentification dans Tale — mot de passe, SSO Microsoft Entra ID et en-têtes HTTP de confiance.
+description: Fonctionnement de l'authentification dans Tale — connexion par mot de passe, SSO Microsoft Entra ID et en-têtes HTTP de confiance.
 ---
 
-Tale est une plateforme offline-first. Pas d’inscription self-service ni de reset de mot de passe. Le premier utilisateur qui ouvre l’application crée le compte Propriétaire. Tous les suivants sont créés par un Admin dans **Paramètres > Membres**.
+L'authentification décide qui entre dans une instance Tale, point final. Le produit livre trois méthodes — mot de passe, SSO Microsoft Entra ID et intégration via en-têtes HTTP de confiance avec un reverse proxy en amont — et elles peuvent tourner côte à côte sur la même instance. Cette page s'adresse à l'opérateur qui branche l'authentification sur un fournisseur d'identité ; la matrice des rôles qui décide ce que chaque utilisateur peut faire une fois entré vit sur [Membres et rôles](/fr/platform/admin/members-and-roles).
 
-Pour activer la connexion self-service et le provisioning automatique des comptes, connecte Tale à un fournisseur SSO ou configure des Trusted En-têtes.
+Tale est offline-first par défaut. Pas d'inscription publique, pas de réinitialisation de mot de passe par lien « mot de passe oublié », pas de création de compte automatique. Le premier utilisateur qui ouvre l'application devient Propriétaire ; tous les autres sont créés par un Admin dans **Paramètres > Membres**, ou provisionnés automatiquement par SSO ou par en-têtes de confiance.
 
 ## Mot de passe (par défaut)
 
-Aucune configuration requise. Les Admins créent les utilisateurs avec courriel, mot de passe et rôle dans **Paramètres > Membres**. Les utilisateurs se connectent avec leurs identifiants sur la page de login.
+Aucune configuration requise. Les Admins créent les utilisateurs avec une adresse de courriel, un mot de passe et un rôle dans **Paramètres > Membres**. Les utilisateurs se connectent avec ces identifiants sur la page de connexion standard.
 
-Les utilisateurs venus par SSO ou Trusted En-têtes peuvent aussi définir un mot de passe depuis **Paramètres du compte** pour activer la connexion directe.
+Les utilisateurs arrivés via SSO ou en-têtes de confiance peuvent aussi définir un mot de passe depuis **Paramètres du compte** pour activer la connexion directe en parallèle de leur méthode principale. Les deux chemins cohabitent — un utilisateur qui a à la fois un mot de passe et un lien SSO peut utiliser l'un ou l'autre.
 
-## Microsoft Entra ID (SSO)
+## SSO Microsoft Entra ID
 
-Single sign-on avec Microsoft 365 / Azure AD. Les utilisateurs se connectent avec leur compte Microsoft existant et sont provisionnés automatiquement à la première connexion.
+Microsoft Entra ID est le chemin SSO pour les organisations sous Microsoft 365 ou Azure AD. Les utilisateurs se connectent avec leur compte Microsoft existant et sont provisionnés automatiquement à la première connexion. Le flux utilise OIDC en sous-marin ; Tale joue le rôle de relying party.
 
-### Installation Azure
+### Étape 1 — Enregistrer l'application dans Azure
 
-1. Dans le [Portail Azure](https://portal.azure.com) → Microsoft Entra ID → App registrations.
-2. Crée une nouvelle registration (ou utilise une existante).
-3. Ajoute une redirect URI : `https://yourdomain.com/api/sso/callback`.
-4. Note Application (client) ID, Directory (tenant) ID et crée un client secret.
+Dans le [Portail Azure](https://portal.azure.com), ouvre **Microsoft Entra ID > App registrations** et crée un nouvel enregistrement (ou choisis-en un existant).
 
-### Installation Tale
+Ajoute une redirect URI : `https://yourdomain.com/api/sso/callback`. Note l'Application (client) ID et le Directory (tenant) ID ; les deux viennent directement du blade **Overview**. Génère un client secret sous **Certificates & secrets** et copie la valeur — Azure n'affiche le secret qu'une seule fois.
 
-1. Va dans **Paramètres > Intégrations** dans le panneau d’admin Tale.
-2. Choisis **Microsoft Entra ID** comme fournisseur SSO.
-3. Entre client ID, client secret et issuer URL.
-4. Optionnellement active group sync, role mapping, auto-provisioning et OneDrive access.
+### Étape 2 — Brancher Tale sur Azure
 
-Le bouton SSO apparaît sur la page de login une fois configuré.
+Dans Tale, ouvre **Paramètres > Intégrations** et sélectionne **Microsoft Entra ID** comme fournisseur SSO. Colle le client ID, le tenant ID et le secret. Des bascules optionnelles activent la synchronisation des groupes, le mapping des rôles, le provisioning automatique des nouveaux comptes et l'accès OneDrive pour la base de connaissances ; active chacune d'elles si elle colle à ta configuration IdP.
 
-> **Note :** SSO et mot de passe peuvent coexister. Les utilisateurs qui existaient avant l’activation du SSO gardent leur mot de passe.
+Le bouton SSO apparaît sur la page de connexion une fois la configuration en place. SSO et connexion par mot de passe cohabitent — les utilisateurs qui existaient avant l'activation du SSO continuent avec leur mot de passe ; les nouveaux comptes créés via SSO peuvent ajouter un mot de passe plus tard.
 
-## Trusted En-têtes
+Pour les installations infrastructure-as-code qui préfèrent `.env` à l'interface, les trois valeurs sont aussi disponibles en `AUTH_MICROSOFT_ENTRA_ID_ID`, `AUTH_MICROSOFT_ENTRA_ID_SECRET` et `AUTH_MICROSOFT_ENTRA_ID_TENANT_ID`. La forme variable d'environnement et la forme UI sont équivalentes ; les mélanger ne casse rien, mais choisis l'une comme source de vérité pour une instance donnée.
 
-Pour les déploiements derrière un reverse proxy authentifiant comme Authelia, Authentik ou oauth2-proxy. Le proxy authentifie les utilisateurs en externe ; Tale lit l’identité depuis les headers HTTP et provisionne les comptes automatiquement à la première requête.
+## En-têtes de confiance
 
-Quand les Trusted En-têtes sont actifs, la page de login est contournée — les utilisateurs sont authentifiés de façon transparente à chaque requête.
+Les en-têtes de confiance couvrent le schéma de déploiement où Tale est placé derrière un reverse proxy authentifiant — Authelia, Authentik, oauth2-proxy ou tout autre composant qui authentifie les utilisateurs et propage leur identité dans des en-têtes HTTP. Avec les en-têtes de confiance actifs, la page de connexion est entièrement contournée : chaque requête est authentifiée de manière transparente d'après les en-têtes posés par le proxy, et un compte est provisionné au premier contact.
 
-### Configuration
+C'est le bon chemin quand ton organisation fait déjà tourner un portail SSO devant chaque application interne et que Tale doit rentrer dans la même frontière d'authentification.
 
-Ajoute cette variable à ton `.env` :
+### Activer le mode
+
+Ajoute le drapeau à `.env` :
 
 ```dotenv
 TRUSTED_HEADERS_ENABLED=true
 ```
 
-### Noms des headers
+Le mode prend effet après `tale deploy` (production) ou `tale start` (local) — Convex lit l'environnement au démarrage du processus, donc un stack vivant ne bascule pas tant que le conteneur n'a pas redémarré.
 
-Par défaut, Tale lit ces headers :
+### Noms d'en-têtes par défaut
 
-| En-tête     | Requis | Nom par défaut | Description                                                                               |
-| ----------- | ------ | -------------- | ----------------------------------------------------------------------------------------- |
-| Courriel    | Oui    | `Remote-Email` | adresse courriel de l’utilisateur.                                                        |
-| Nom affiché | Non    | `Remote-Name`  | nom affiché (retombe sur la partie avant `@`).                                            |
-| Rôle        | Non    | `Remote-Role`  | `admin`, `developer`, `editor` ou `member` (défaut : `member`).                           |
-| Équipes     | Non    | `Remote-Teams` | liste séparée par virgules au format `id:name` (ex. `abc123:Engineering, def456:Design`). |
+D'origine, Tale lit quatre en-têtes. Chaque proxy utilise des noms différents ; les surcharges de la section suivante alignent Tale sur le proxy qui se trouve devant.
 
-Chaque proxy utilise des noms différents. Surcharge les défauts avec des variables d’environnement :
+| En-tête     | Requis | Nom par défaut | Description                                                                                  |
+| ----------- | ------ | -------------- | -------------------------------------------------------------------------------------------- |
+| Courriel    | Oui    | `Remote-Email` | Adresse de courriel de l'utilisateur.                                                        |
+| Nom affiché | Non    | `Remote-Name`  | Nom affiché. Retombe sur la partie locale du courriel quand absent.                          |
+| Rôle        | Non    | `Remote-Role`  | Une valeur parmi `admin`, `developer`, `editor`, `member`. Défaut : `member`.                |
+| Équipes     | Non    | `Remote-Teams` | Liste séparée par virgules au format `id:name` (p. ex. `abc123:Engineering, def456:Design`). |
+
+### Surcharger les noms d'en-têtes
+
+La plupart des proxies ne livrent pas `Remote-*`. Surcharge les valeurs par défaut pour qu'elles correspondent au proxy qui se trouve devant :
 
 ```dotenv
 TRUSTED_EMAIL_HEADER=X-Forwarded-Email
@@ -69,7 +69,7 @@ TRUSTED_ROLE_HEADER=X-Forwarded-Role
 TRUSTED_TEAMS_HEADER=X-Forwarded-Teams
 ```
 
-Configurations proxy courantes :
+Proxies courants :
 
 | Proxy        | En-tête courriel    | En-tête nom        | En-tête groupes/rôle |
 | ------------ | ------------------- | ------------------ | -------------------- |
@@ -77,33 +77,35 @@ Configurations proxy courantes :
 | Authentik    | `X-authentik-email` | `X-authentik-name` | `X-authentik-groups` |
 | oauth2-proxy | `X-Forwarded-Email` | `X-Forwarded-User` | `X-Forwarded-Groups` |
 
-### Fonctionnement
+### Trajet d'une requête
 
-1. Le reverse proxy authentifie l’utilisateur et pose les headers d’identité.
-2. La page de login détecte le mode Trusted En-têtes et navigue le navigateur vers `/api/trusted-headers/authenticate` via `window.location.href` (navigation côté client, pas redirect HTTP).
-3. Tale lit les headers, trouve ou crée l’utilisateur et pose un cookie de session.
-4. Le navigateur est redirigé vers le dashboard.
+Quand les en-têtes de confiance sont actifs, chaque requête du navigateur suit le même chemin :
 
-Aux requêtes suivantes, le cookie de session est réutilisé. La session est rafraîchie et les valeurs des headers (rôle, équipes) mises à jour à chaque authentification.
+1. Le reverse proxy authentifie l'utilisateur sur son propre annuaire d'identité et pose les en-têtes d'identité sur la requête transmise.
+2. La page de connexion de Tale détecte le mode en-têtes de confiance et navigue le navigateur vers `/api/trusted-headers/authenticate` via une redirection côté client (pas un HTTP 302).
+3. Le backend de Tale lit les en-têtes, trouve ou crée l'utilisateur et pose un cookie de session limité à ton domaine.
+4. Le navigateur est redirigé vers le tableau de bord.
 
-### Équipes
+Aux requêtes suivantes, le cookie de session est réutilisé. La session se rafraîchit à chaque authentification et relit le rôle et les équipes dans les en-têtes, donc un changement dans l'annuaire d'identité en amont se propage au chargement de page suivant — pas de synchronisation manuelle.
 
-L’IdP externe est la source unique de vérité pour les équipes — les IDs sont passés directement sans lookup interne. Omets le header des équipes pour ne pas changer ; envoie-le vide pour retirer l’utilisateur de toutes les équipes.
+### Propagation des équipes
+
+Le fournisseur d'identité externe est la source unique de vérité pour les équipes ; les identifiants d'équipe passent tels quels, sans consultation interne de la base. Omets l'en-tête équipes pour ne rien changer ; envoie-le vide pour retirer l'utilisateur de toutes ses équipes.
 
 ### Secret interne (optionnel)
 
-Pour defense-in-depth, définis un secret partagé que l’endpoint Convex valide :
+Pour la défense en profondeur, définis un secret partagé que l'endpoint Convex vérifie avant d'honorer les en-têtes :
 
 ```dotenv
 TRUSTED_HEADERS_INTERNAL_SECRET=your-random-secret
 ```
 
-L’endpoint d’auth ne peut alors être appelé qu’à travers la chaîne de proxy de confiance.
+Ça garantit que l'endpoint d'authentification n'est joignable qu'à travers la chaîne de proxy de confiance. Sans le secret, n'importe quelle requête qui atterrit sur `/api/trusted-headers/authenticate` avec les bons en-têtes est acceptée ; avec le secret, la requête doit aussi porter la valeur de l'en-tête interne correspondante.
 
-> **Sécurité :** N'active les Trusted En-têtes que derrière un proxy de confiance qui supprime ces headers des requêtes externes. Si des clients externes peuvent poser les headers directement, ils peuvent se faire passer pour n'importe quel utilisateur.
+N'active les en-têtes de confiance que quand le proxy en amont supprime ces mêmes en-têtes des requêtes externes. Si des clients externes peuvent les poser directement, ils peuvent se faire passer pour n'importe quel utilisateur.
 
 ## Où cela s'insère
 
-L'authentification est la version la plus stricte de la question à laquelle répond [Membres et rôles](/fr/platform/admin/members-and-roles). Membres-et-rôles décide _qui peut faire quoi_ une fois entré ; l'authentification décide _qui peut entrer tout court_. Les trois méthodes — courriel/mot de passe, SSO Microsoft Entra, Trusted En-têtes de reverse proxy — tournent côte à côte ; une organisation peut utiliser le SSO pour les employés et les Trusted En-têtes pour une surface publique derrière Authelia, et la même matrice de rôles Tale s'applique aux deux.
+L'authentification est la version la plus stricte de la question à laquelle [Membres et rôles](/fr/platform/admin/members-and-roles) répond. Membres et rôles décide qui peut faire quoi une fois entré ; l'authentification décide qui rentre. Les trois méthodes — mot de passe, SSO Microsoft Entra, en-têtes de reverse proxy de confiance — tournent côte à côte sur la même instance, donc une organisation peut utiliser le SSO pour les employés et les en-têtes de confiance pour une surface publique derrière Authelia, avec la même matrice de rôles Tale qui s'applique aux deux.
 
-Pour la couche second facteur qui se pose par-dessus chacune des trois méthodes, [Authentification à deux facteurs](/fr/platform/admin/two-factor-authentication) est la page. Pour l'inventaire des variables d'environnement qui relient les Trusted En-têtes au déploiement, [Référence d'environnement](/fr/self-hosted/configuration/environment-reference) est l'index.
+Pour la couche second facteur qui se pose au-dessus de chacune des trois méthodes, [Authentification à double facteur](/fr/platform/admin/two-factor-authentication) est la page. Pour l'inventaire des variables d'environnement qui relient en-têtes de confiance et SSO Entra au déploiement, [Référence d'environnement](/fr/self-hosted/configuration/environment-reference) est l'index.

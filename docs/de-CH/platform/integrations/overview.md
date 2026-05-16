@@ -51,7 +51,7 @@ Das Repository liefert dreizehn einsatzbereite Konnektoren unter [github.com/tal
 | **AI image**     | rest_api | bearer_token | Bildgenerierung gegen OpenAI-kompatible Anbieter.                       |
 | **Circuly**      | rest_api | basic_auth   | Produkte, Kunden und Abonnements in Circuly.                            |
 | **Discord**      | rest_api | bearer_token | Guilds, Kanäle und Nachrichten über die Discord-Bot-API.                |
-| **GitHub**       | rest_api | bearer_token | Repositories, Issues, Pull Anfragen und Code-Suche.                     |
+| **GitHub**       | rest_api | bearer_token | Repositories, Issues, `Pull Requests` und Code-Suche.                   |
 | **Gmail**        | rest_api | oauth2       | Nachrichten, Labels, Threads und Entwürfe in Gmail.                     |
 | **Google Drive** | rest_api | oauth2       | Dateien aus Drive-Ordnern in Tale-Dokumente synchronisieren.            |
 | **Outlook**      | rest_api | oauth2       | Mail, Kalender und Kontakte über Microsoft Graph.                       |

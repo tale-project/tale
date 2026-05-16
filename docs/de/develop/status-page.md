@@ -66,7 +66,7 @@ Das Rollup ist auf Komponenten-Ebene binär: jedes Subsystem ist entweder erreic
 
 ## Wie der Probe funktioniert
 
-Eine einzelne Probe-Runde verteilt drei HTTP-Anfragen parallel — eine an jeden Backend-Health-Endpunkt — mit zwei Sekunden Pro-Probe-Timeout. Das Ergebnis wird fünf Sekunden im Prozess-Speicher gecacht, damit eine nicht-authentifizierte `/status`-Route nicht von einem feindlichen Anrufer zu einem Probe-Verstärker gemacht werden kann. Nur der HTTP-Status jedes Upstreams wird inspiziert; Antwort-Bodies werden sofort verworfen, sodass ein sich fehlverhaltender Upstream keine Bytes in die öffentliche Antwort drücken kann.
+Eine einzelne Probe-Runde verteilt drei HTTP-Anfragen parallel — eine an jeden Backend-Health-Endpunkt — mit zwei Sekunden Pro-Probe-Timeout. Das Ergebnis wird fünf Sekunden im Prozess-Speicher gecacht, damit eine nicht-authentifizierte `/status`-Route nicht von einem feindlichen Client zu einem Probe-Verstärker gemacht werden kann. Nur der HTTP-Status jedes Upstreams wird inspiziert; Antwort-Bodies werden sofort verworfen, sodass ein sich fehlverhaltender Upstream keine Bytes in die öffentliche Antwort drücken kann.
 
 Der Platform-Prozess selbst ist im Rollup implizit: wenn `/status` überhaupt antwortet, ist die Platform erreichbar. `outage` heisst also, dass jeder Backend-Probe fehlschlug — das ist, was Nutzer effektiv sehen, weil keiner der nutzerseitigen Flows ohne mindestens einen der drei funktioniert.
 
@@ -87,4 +87,4 @@ Für internes Alarming, das tiefer geht als das Rollup, scrape stattdessen die P
 
 ## Wo das einsetzt
 
-Die Status-Seite ist die leichteste Operator-Oberfläche — die URL, die jemand vor dem Melden eines Vorfalls trifft, der Endpunkt, den ein Drittanbieter-Monitor pollt. Das API-Gegenstück zu dieser Seite ist der Rest der [API-Referenz](/de/develop/api-reference); der tiefere Observability-Stack für Self-hosted-Betreiber liegt unter [Operations](/de/self-hosted/operate/observability/operations), und der In-App-Kommunikations-Kanal für Upgrades und bekannte Probleme ist [What's new](/de/platform/admin/whats-new).
+Die Status-Seite ist die leichteste Operator-Oberfläche — die URL, die jemand vor dem Melden eines Vorfalls trifft, der Endpunkt, den ein Drittanbieter-Monitor pollt. Das API-Gegenstück zu dieser Seite ist der Rest der [API-Referenz](/de/develop/api-reference); der tiefere Observability-Stack für selbst-gehostete Betreiber liegt unter [Operations](/de/self-hosted/operate/observability/operations), und der In-App-Kommunikations-Kanal für Upgrades und bekannte Probleme ist [Was ist neu](/de/platform/admin/whats-new).

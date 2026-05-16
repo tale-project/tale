@@ -9,7 +9,7 @@ Die Tutorials sind nach der Rolle gruppiert, der die Aufgabe gehört, damit du a
 
 ## Wie ein Tutorial aufgebaut ist
 
-Jedes Tutorial folgt derselben Form: eine kurze Einleitung, die Ergebnis und Voraussetzungen benennt, ein **Bevor du beginnst**-Abschnitt mit den genauen Anforderungen, nummerierte Schritte mit jeweils einer Aktion und einer Verifikationszeile, ein **Fehlerbehebung**-Abschnitt für die drei oder vier Probleme, die wirklich auftreten, und ein Abschluss, der nennt, wo der Baustein als Nächstes greift. Integrations-Tutorials (Office-Add-in, Meetily, lokaler Anbieter) tragen einen zusätzlichen **Datenschutz-Hinweise**- oder **Vertrauensgrenze**-Abschnitt, der benennt, was in jede Richtung über das Netz geht.
+Jedes Tutorial folgt derselben Form: eine kurze Einleitung, die Ergebnis und Voraussetzungen benennt, ein **Bevor du beginnst**-Abschnitt mit den genauen Anforderungen, nummerierte Schritte mit jeweils einer Aktion und einer Verifikationszeile, ein **Fehlerbehebung**-Abschnitt für die drei oder vier Probleme, die wirklich auftreten, und ein Abschluss, der nennt, wo der Baustein als Nächstes greift. Integrationen-Tutorials (Office-Add-in, Meetily, lokaler Anbieter) tragen einen zusätzlichen **Datenschutz-Hinweise**- oder **Vertrauensgrenze**-Abschnitt, der benennt, was in jede Richtung über das Netz geht.
 
 Wenn ein Schritt aussieht, als täte er zwei Dinge gleichzeitig, lies ihn nochmal — jeder Schritt hat eine Aktion und eine Verifikation. Einen Abschnitt zu überspringen in der Annahme, die Voraussetzung sei schon erfüllt, ist die häufigste Art, wie ein Tutorial auf halber Strecke kippt; der nächste Schritt hängt meist an genau dem Feld, das der übersprungene konfiguriert.
 
@@ -19,9 +19,9 @@ Wenn ein Schritt aussieht, als täte er zwei Dinge gleichzeitig, lies ihn nochma
 - **[Den ersten Agent end-to-end bauen](/de/tutorials/editor/first-agent-end-to-end)** — Tutorial für die Redakteur-Rolle, das dich von einer leeren Agent-Seite zu einem versionierten, wissensgescopten Agent führt, den dein Team im Chat auswählen kann.
 - **[Tale aus einem Skript aufrufen](/de/tutorials/developer/call-tale-from-a-script)** — Tutorial für die Entwickler-Rolle, das eine Chat-Anfrage aus cURL und Python gegen Tales OpenAI-kompatible API absetzt.
 - **[Eine Automatisierung per Webhook auslösen](/de/tutorials/developer/trigger-automation-via-webhook)** — Tutorial für die Entwickler-Rolle, das ein externes System über die eindeutige Webhook-URL in einen Tale-Workflow einbindet.
-- **[Word- & Excel-Add-in](/de/tutorials/admin/office-add-in)** — Integrations-Tutorial für die Admin-Rolle, das ein sideloaded KI-Panel in Microsoft 365 durch einen Tale-Agent routet.
-- **[Meeting-Transkription](/de/tutorials/admin/meeting-transcription)** — Integrations-Tutorial für die Admin-Rolle, das Tale mit Meetily verbindet, sodass das rohe Audio auf dem Laptop bleibt und nur das Transkript deine Instanz erreicht.
-- **[Lokalen Anbieter verbinden](/de/tutorials/admin/connect-local-provider)** — Integrations-Tutorial für die Admin-Rolle, das Ollama oder vLLM als Tale-KI-Anbieter hinzufügt, sodass die Modell-Inferenz in deinem Netzwerk bleibt.
+- **[Word- & Excel-Add-in](/de/tutorials/admin/office-add-in)** — Integrationen-Tutorial für die Admin-Rolle, das ein sideloaded KI-Panel in Microsoft 365 durch einen Tale-Agent routet.
+- **[Meeting-Transkription](/de/tutorials/admin/meeting-transcription)** — Integrationen-Tutorial für die Admin-Rolle, das Tale mit Meetily verbindet, sodass das rohe Audio auf dem Laptop bleibt und nur das Transkript deine Instanz erreicht.
+- **[Lokalen Anbieter verbinden](/de/tutorials/admin/connect-local-provider)** — Integrationen-Tutorial für die Admin-Rolle, das Ollama oder vLLM als Tale-KI-Anbieter hinzufügt, sodass die Modell-Inferenz in deinem Netzwerk bleibt.
 
 ## Wo das einsetzt
 

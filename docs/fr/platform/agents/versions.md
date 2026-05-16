@@ -1,48 +1,40 @@
 ---
 title: Versions des agents
-description: Itère sur un agent en production en toute sécurité avec brouillon, publication et rollback.
+description: Itère sur un agent en production en toute sécurité — chaque enregistrement atterrit dans l'historique, et tout snapshot passé peut être comparé à l'état actuel et restauré en un clic.
 ---
 
-Les agents utilisent un modèle brouillon-et-publication pour que tu puisses itérer sans gêner les utilisateurs en train de discuter. Les instructions, les filtres de connaissances, les outils et le préréglage de modèle versionnent ensemble — quand tu publies, le bundle entier devient la nouvelle version active atomiquement, et le rollback ramène le bundle entier. Il n'y a pas de demi-état en production.
+Les agents de Tale s'enregistrent automatiquement pendant que tu les modifies, et chaque enregistrement atterrit dans un historique propre à l'agent. Les instructions, les filtres de connaissances, les outils, le préréglage de modèle, les amorces et les cibles de délégation sont capturés ensemble — restaure un snapshot passé et tout le paquet revient de manière atomique. Cette page couvre la boucle d'itération : ce que contient une entrée d'historique, comment comparer deux snapshots et quand restaurer est le bon geste.
 
-Le modèle est identique à celui des automatisations (voir [Concepts des automatisations — Brouillon vs Actif](/fr/platform/automations/concepts#brouillon-vs-actif)) ; une fois que tu en connais un, l'autre se lit pareil.
+Le modèle mental derrière les quatre boutons que tu règles vit dans [Concepts des agents](/fr/platform/agents/concepts) ; le flux de création qui produit ces snapshots vit dans [Créer un agent](/fr/platform/agents/create).
 
-## Brouillon vs Actif
+## Comment fonctionnent les enregistrements et les snapshots
 
-Chaque agent a deux états à tout moment :
+Les modifications de la configuration d'un agent s'enregistrent automatiquement — un indicateur en haut à droite de l'éditeur montre l'état courant (enregistrement, enregistré). Chaque enregistrement crée une entrée d'historique qui capture toute la configuration de l'agent à cet instant : instructions, sélecteur de modèle, périmètre de connaissances, interrupteurs d'outils, amorces, cibles de délégation. Pas d'enregistrement partiel, pas de demi-état ; si l'enregistrement a réussi, l'entrée est complète.
 
-- **Version active** — celle qui sert les requêtes. C’est ce que voient les utilisateurs quand ils choisissent l’agent, et ce qu’appellent les webhooks et délégations.
-- **Brouillon** — ton travail en cours. Modifier les instructions, connaissances ou outils met à jour le brouillon. Rien ne change pour les utilisateurs avant publication.
+Les conversations en cours continuent contre l'état de l'agent tel qu'il était au moment où le message a démarré — personne ne voit un changement de personnalité au milieu d'une réponse parce que quelqu'un a enregistré une nouvelle modification entre-temps.
 
-En haut à droite de l’éditeur d’agent, un indicateur montre quelle version tu regardes — **Brouillon** ou **Actif** — et permet de basculer.
+## Ouvrir l'historique
 
-## Publier un brouillon
+Pour parcourir les snapshots, ouvre le menu **Historique** dans l'éditeur d'agent. La liste affiche chaque snapshot avec l'acteur et la date, les plus récents en premier. Chaque ligne correspond à un enregistrement ; survole une ligne pour un aperçu en infobulle, ou ouvre la boîte de dialogue de diff pour comparer un snapshot à l'état actuel.
 
-Quand tu es content du brouillon, clique **Publier**. Publier :
+Si la liste est vide, l'agent n'a pas été modifié depuis sa création — le premier enregistrement créera la première entrée d'historique.
 
-1. enregistre la version active précédente dans l’historique ;
-2. fait du brouillon la nouvelle version active ;
-3. efface l’état brouillon. Les prochaines modifications démarrent un nouveau brouillon.
+## Comparer deux snapshots
 
-Toute conversation en train de répondre au moment de la publication termine avec sa version d’origine — personne ne voit un changement de personnalité en plein tour.
+Clique sur une entrée d'historique pour ouvrir la boîte de dialogue **Comparer les modifications**. La vue montre l'état actuel d'un côté et le snapshot de l'autre, avec les différences mises en évidence au niveau du champ. Sers-t'en pour repérer ce qu'une coéquipière ou un coéquipier a changé dans l'enregistrement de mercredi dernier, ou pour vérifier la formulation exacte d'une instruction avant d'y revenir. Si le snapshot est identique à l'état actuel, la boîte de dialogue affiche _Aucune différence trouvée_ et le bouton **Restaurer cette version** est désactivé.
 
-## Historique des versions
+## Restaurer un snapshot passé
 
-Le dialogue d’historique liste chaque version publiée avec auteur, date de publication et résumé des changements. Pour chaque version passée, tu peux :
+Pour ramener l'agent à un snapshot passé, ouvre-le dans la boîte de dialogue de diff et clique sur **Restaurer cette version**. La restauration est destructive pour la configuration actuelle — Tale ne capture pas un snapshot de l'état courant avant d'appliquer la restauration, donc enregistre d'abord si tu veux garder tes modifications en cours. La restauration prend effet immédiatement pour toutes les nouvelles conversations ; les réponses en cours terminent contre leur état d'origine.
 
-- **Comparer** — diff de ses instructions face à la version active actuelle.
-- **Restaurer** — en faire le nouveau brouillon, que tu peux ensuite publier.
-
-## Rollback
-
-Si une modification publiée pose problème — ton erroné, mauvaises réponses, accès d’outil cassé — ouvre l’historique, choisis la dernière version connue bonne et clique **Restaurer** puis **Publier**. Le rollback est immédiat pour toutes les nouvelles conversations.
+Sers-toi de la restauration quand une modification récente s'est mise à produire de moins bonnes réponses — mauvais ton, périmètre manquant, accès d'outil cassé — et que tu veux retirer les changements sans les démêler un par un. Pour un rollback incrémental (ne réinitialiser que les instructions, garder le nouvel outil), ouvre le snapshot en référence et copie le champ souhaité dans l'éditeur actuel, plutôt que de lancer une restauration complète.
 
 ## Agents par fichier
 
-Les agents définis dans `TALE_CONFIG_DIR/agents/*.json` n'utilisent pas le système de versions UI — leur historique est ce que ton dépôt git enregistre. Voir [AI-assisted development](/fr/develop/ai-assisted-development) pour le workflow par fichier.
+Les agents définis dans `TALE_CONFIG_DIR/agents/*.json` portent leur historique de versions dans ton dépôt git plutôt que dans la liste d'historique en-produit. Modifie le fichier, committe le changement, et la plateforme reprend la nouvelle configuration à la prochaine synchronisation. L'interface d'historique dans l'éditeur affiche toujours les snapshots que la plateforme a capturés à la dernière modification du fichier, mais pour les agents par fichier la source de vérité reste le dépôt. Voir [Développement assisté par l'IA](/fr/develop/ai-assisted-development) pour le workflow par fichier.
 
 ## Où ça s'inscrit
 
-Le versioning est le filet d'itération pour les agents. La décision que le contrat de forme te demande de retenir : les brouillons et la version publiée coexistent, donc réécrire les instructions d'un agent est sans risque tant que tu ne publies pas avant que le brouillon ait fait ses preuves. Utilise l'onglet Versions pour chaque changement significatif ; utilise le rollback quand la production donne de moins bonnes réponses juste après une publication.
+L'historique est le filet d'itération pour les agents. La seule chose à retenir : chaque enregistrement crée un snapshot, donc réécrire les instructions d'un agent est sans risque — si la nouvelle version produit de moins bonnes réponses, la précédente est à un clic. Sers-toi de la boîte de dialogue de diff pour chaque changement significatif afin de confirmer que le snapshot capture bien ce que tu attendais ; passe à la restauration quand une modification récente s'est mise à produire de moins bons résultats et que tu veux récupérer l'état précédent en bloc.
 
-Pour le flux de création lui-même — nommer, choisir le modèle, écrire les instructions — retourne à [Créer un agent](/fr/platform/agents/create). Pour le modèle mental derrière les quatre boutons que tu règles, [Concepts des agents](/fr/platform/agents/concepts).
+Pour le flux de création lui-même — nommer, sélectionner le modèle, écrire les instructions, choisir les connaissances et les outils — retourne à [Créer un agent](/fr/platform/agents/create). Pour le modèle mental derrière les quatre boutons que tu règles, [Concepts des agents](/fr/platform/agents/concepts).

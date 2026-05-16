@@ -1,82 +1,58 @@
 ---
-title: Workflows
-description: Build and run multi-step workflows with triggers, conditions, loops, and AI steps.
+title: Automations
+description: Build, configure, and test automations in the visual editor.
 ---
 
-A workflow is the runnable shape of an automation — the editor where steps, triggers, and variables become a graph that runs end to end. This page covers the editor itself: how to create a workflow, the six step types it ships, how to wire triggers to the **Start** step, the configuration knobs that shape retries and timeouts, and how to test before publishing. The audience is the Developer or higher building or maintaining a workflow; the vocabulary the page leans on lives at [Automation concepts](/platform/automations/concepts).
+The automation editor is where the vocabulary from [Automation concepts](/platform/automations/concepts) becomes a runnable graph. This page covers the build flow itself: opening the editor, the six step types, the configuration knobs that shape retries and timeouts, the variables every step can read, and the **Test automation** path that proves a draft before it goes live. The audience is the Developer or higher who is building or maintaining an automation; the trigger and execution surfaces have their own pages, linked at the bottom.
 
-## Creating a workflow
+## Open the editor
 
-There are three ways to create a workflow:
+Open **Automations** in the sidebar and click **Create automation**. The dialog has two tabs: **Blank** lets you describe what the automation should do in a single field, and the AI assistant turns that description into a first draft of steps you can refine in the editor. **From template** lists the ready-made automations bundled with installed integrations — pick one, give it a name, and the editor opens with the template's steps already wired up.
 
-### AI-assisted creation
-
-1. Navigate to Automations and click New Automation.
-2. Enter a name and a description of what the workflow should do. The more detail you add, the better the AI can build the initial steps.
-3. Click Continue. The platform creates the workflow and opens the AI Chat panel on the right where you can refine things in conversation.
-
-### Manual visual editor
-
-1. Create a new workflow as above but leave the description blank.
-2. Use the Add Step button on the workflow canvas to add steps one at a time.
-3. Configure each step using the side panel that appears when you click on a step.
-4. Connect steps by clicking the connector handles and drawing lines between them.
-
-### File-based creation with AI assistance
-
-You can create workflows by adding JSON files to the `workflows/` directory in your project. If you open the project in an AI-powered editor (Claude Code, Cursor, GitHub Copilot, or Windsurf), the editor has full context about workflow schemas, step types, and trigger configuration. Describe what you want the workflow to do and the AI will generate a valid configuration. See [AI-assisted development](/develop/ai-assisted-development) for setup details.
+The editor itself is a canvas. Steps are nodes, links between them are directional, and the panel on the right opens whatever step is currently selected. The toolbar at the top of the canvas carries **Add step**, **Test automation**, **AI assistant**, and **Focus** (collapse the canvas to a single column for a smaller screen).
 
 ## Step types
 
-| Step type | Color  | What it does                                                                                                           |
-| --------- | ------ | ---------------------------------------------------------------------------------------------------------------------- |
-| Start     | Blue   | The entry point of the workflow. Defines the input schema and when it starts (schedule, event, webhook, or manual run) |
-| Action    | Orange | Runs an operation such as create a record, send a message, call an API, or update data                                 |
-| LLM       | Purple | Sends a prompt to an AI model and passes the response to the next step                                                 |
-| Condition | Amber  | Checks a condition and routes execution down different branches                                                        |
-| Loop      | Cyan   | Repeats a set of steps for each item in a list                                                                         |
-| Output    | Green  | Defines the output mapping for the workflow, determining what data is returned when the workflow completes             |
+Six step types cover the work an automation can do. Pick by what the step has to accomplish.
 
-## Triggers
+| Step          | Use it for                                                               |
+| ------------- | ------------------------------------------------------------------------ |
+| **Start**     | The entry point. Names the input schema and binds the triggers.          |
+| **Action**    | Calling an integration operation, an MCP tool, or a Tale-native action.  |
+| **LLM**       | Sending a prompt to a model and routing the reply forward.               |
+| **Condition** | Branching to one of several paths based on a check on prior step output. |
+| **Loop**      | Repeating a block of steps once per item in a list.                      |
+| **Output**    | Naming the data the automation returns when it finishes.                 |
 
-Every workflow needs at least one trigger to know when to run.
+Every step lands on the canvas with sensible defaults; you configure it by clicking it and editing in the right-hand panel. The panel validates as you type and flags missing fields with an inline error rather than letting the automation save in a broken state.
 
-### Schedule triggers
+## Configuration
 
-Run the workflow on a time schedule. You can enter a cron expression directly or use the AI assistant to generate one from plain English, such as "every weekday at 9am".
+Open the **Configuration** tab of any automation to set the knobs that apply to the whole run rather than to one step.
 
-All schedules run in UTC. Quick presets are available for every 5 minutes, hourly, daily, weekly, and monthly.
+| Field            | Default     | What it does                                                                               |
+| ---------------- | ----------- | ------------------------------------------------------------------------------------------ |
+| **Name**         | —           | The name shown everywhere in the platform. Required.                                       |
+| **Description**  | —           | Free-text description, surfaced in pickers and metrics.                                    |
+| **Timeout (ms)** | 300,000     | How long the whole automation may run before the engine stops it. Default is five minutes. |
+| **Max retries**  | 3           | Per-step retry count when a step fails with a transient error.                             |
+| **Backoff (ms)** | 1,000       | Delay between retry attempts. Doubles per attempt up to a sensible cap.                    |
+| **Variables**    | `{}` (JSON) | Shared key-value bag read by every step as `{{ variables.<key> }}`. Edit as a JSON object. |
 
-### Event triggers
+The **Save configuration** button writes the change. Saved changes apply to the next run — in-flight runs keep the configuration they started with.
 
-Run the workflow when something happens in the platform, for example when a new customer is added, a conversation is opened, or a product's stock hits zero. Each event type can have optional filter conditions.
+## Variables
 
-### Webhook triggers
+The **Variables** field is a JSON object. Anything you put there is readable from every step config with the `{{ variables.<key> }}` syntax. The two common shapes are credentials referenced by multiple steps and feature flags that change behaviour between drafts and the live version. Two notes worth remembering: secret values stored as variables are not separately encrypted — for credentials a connector reads, use the integration's credential surface instead; and variables are versioned with the rest of the automation, so a restore from **History** restores them along with the steps.
 
-Each workflow gets a unique webhook URL. Sending an HTTP POST to this URL with a JSON body starts the workflow with that data as input. You can add a webhook secret to verify that incoming requests are genuine.
+## Test automation
 
-## Workflow configuration
+Click **Test automation** in the toolbar to run the draft with an input payload of your choice. The test runs against the same engine as production runs but is recorded on the **Executions** tab with the trigger source labelled `manual`, so you can replay it, diff its output against a previous run, and reuse its input later. Use it before publishing — a published draft starts firing on its real triggers immediately, and a five-second test catch beats a 3 am pager about a misconfigured **Action** step.
 
-Navigate to a workflow's Configuration tab to adjust:
+## History
 
-- Active toggle: enable or disable the workflow. Draft workflows cannot be activated until they are published first.
-- Timeout: maximum time in milliseconds a workflow is allowed to run before being stopped. Default is 300,000 ms (5 minutes).
-- Max retries: how many times a failed step will be retried before the whole workflow fails. Default is 3.
-- Backoff: delay in milliseconds between retry attempts. Default is 1,000 ms.
-- Variables: a JSON object of key-value pairs that are available to all steps as shared configuration data.
+Every saved edit lands in **History**, alongside the editor's main canvas. The **Restore** button rolls the automation back to the snapshot you pick; the **Compare changes** view shows the diff before you commit to the restore. History is the safety net for "the change I shipped this morning broke the nightly run" — open it, find the previous snapshot, restore.
 
-## Testing a workflow
+## Build one
 
-Use the Test panel, available from the side panel in the workflow editor, to:
-
-- Execute: triggers a real run with test input data. Check the Executions tab to see the result
-
-## Execution history
-
-Navigate to the Executions tab of any workflow to see a log of all past runs, including start time, duration, status, and the input and output data at each step.
-
-## Where this fits
-
-Workflows are the canvas where the vocabulary from [Automation concepts](/platform/automations/concepts) — steps, triggers, variables, drafts — becomes a runnable thing. The editor is opinionated: each step does one move, the graph runs from Start to Output, and the Test panel proves it before publication. The Executions tab is where you debug after — it carries the full per-step trace that a `400 Bad Request` on a third-party API turns into a single readable record.
-
-The natural next moves: configure how the workflow fires with [Triggers](/platform/automations/triggers), and debug a failed run with [Execution logs](/platform/automations/execution-logs).
+The editor is opinionated by design: each step does one move, the graph runs from **Start** to **Output**, and **Test automation** proves the shape before publishing. The next two pages cover the parts of the model the editor only points at — [Triggers](/platform/automations/triggers) for the four ways an automation starts, and [Execution logs](/platform/automations/execution-logs) for the per-run trace you read when something fails.

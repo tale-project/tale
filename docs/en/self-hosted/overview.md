@@ -3,93 +3,72 @@ title: Platform overview
 description: Architecture, services, and key capabilities for operators running Tale.
 ---
 
-Tale is an open-source, self-hosted AI platform for teams that want a full-stack AI application they can own, control, and extend. It includes an intelligent chat assistant, a semantic knowledge base, customer conversation management, visual automation workflows, and a structured API layer.
+Self-hosted Tale runs as a six-container Docker Compose stack on infrastructure you control. There are no per-seat fees, no model restrictions beyond what your API key allows, and no data ever leaves your network unless you point a provider at an external endpoint. This page is the snapshot an operator reads before installing: what the containers are, where the ports land, what the architecture costs in RAM and disk.
 
-Unlike cloud-only AI products, Tale runs entirely on your own infrastructure. Your data stays on your servers. There are no per-seat fees, no vendor lock-in, and no model restrictions beyond what your API key supports.
+If you came here to install, the [Local quickstart](/self-hosted/install/quickstart) and [Production deployment](/self-hosted/install/linux-server) pages are the next stop. The overview below is for the reader still deciding whether self-hosted Tale fits their environment.
 
-## Architecture at a glance
+## Six containers, one network
 
-Tale runs as five Docker services that communicate over an internal network:
+Tale runs as six Docker containers behind a single Caddy proxy. The proxy is the only service that listens on a public port; every other service talks to its peers on an internal Docker bridge network. The bundle stays the same whether you run it on a developer laptop or a production server — only the TLS mode and the host name change.
 
-| Service  | Technology                                   | Role                                                     | Local port       |
-| -------- | -------------------------------------------- | -------------------------------------------------------- | ---------------- |
-| Platform | Bun + TanStack + Convex                      | Web UI, real-time backend, auth, data, workflows         | 3000 (via proxy) |
-| RAG      | Python + FastAPI                             | Document indexing, vector search, answer generation      | 8001             |
-| Crawler  | Python + Playwright + Crawl4AI               | Website crawling, URL discovery, file-to-text conversion | 8002             |
-| Database | ParadeDB (PostgreSQL + pg_search + pgvector) | Persistent storage, full-text search, vector search      | 5432             |
-| Proxy    | Caddy                                        | TLS termination and routing                              | 80 / 443         |
+| Container  | Image base                          | Role                                                                    | Internal port    |
+| ---------- | ----------------------------------- | ----------------------------------------------------------------------- | ---------------- |
+| `proxy`    | Caddy                               | TLS termination, routing, ACME for Let's Encrypt                        | 80, 443          |
+| `platform` | Convex Backend (for `generate_key`) | TanStack Start app, Vite SPA, Bun server                                | 3000             |
+| `convex`   | Convex Backend                      | Convex local backend, Convex Dashboard, builtin seed                    | 3210, 3211, 6791 |
+| `rag`      | `python:3.11-slim`                  | FastAPI service for document chunking, embeddings, semantic search      | 8001             |
+| `crawler`  | `python:3.11-slim`                  | Crawl4AI + Playwright for website crawling and file-to-text conversion  | 8002             |
+| `db`       | `paradedb/paradedb:0.22.5-pg16`     | PostgreSQL 16 with pgvector + pg_search for vector and full-text search | 5432             |
+
+The `platform` container is a thin runtime — the SPA plus the Bun server that fronts it. Convex is split out into its own container because it owns the realtime backend, the function set, and the local dashboard; splitting brought the platform image from around 2.58 GB compressed down to around 320 MB and made app-only rebuilds much faster. The full image-size and multi-stage build table lives on [Container architecture](/self-hosted/operate/container-architecture).
+
+## How the services talk
 
 ```mermaid
-graph TD
-    subgraph Proxy
-        Caddy["Caddy Proxy<br/>(Routes traffic to healthy backend)"]
+graph TB
+    subgraph External
+        Browser["Browser / API client"]
     end
 
-    subgraph Blue["Blue Services (Active)"]
-        PB[platform-blue]
-        RB[rag-blue]
-        CB[crawler-blue]
+    subgraph Internal["Internal Docker network"]
+        Proxy["proxy (Caddy)"]
+        Platform["platform (TanStack Start)"]
+        Convex["convex (backend + Dashboard)"]
+        RAG["rag (FastAPI)"]
+        Crawler["crawler (Playwright)"]
+        DB["db (ParadeDB / Postgres 16)"]
     end
 
-    subgraph Green["Green Services (Standby)"]
-        PG[platform-green]
-        RG[rag-green]
-        CG[crawler-green]
-    end
-
-    subgraph Shared["Shared Services (Stateful)"]
-        DB[db - ParadeDB]
-        PR[proxy - Caddy]
-    end
-
-    Caddy --> Blue
-    Caddy --> Green
-    Blue --> Shared
-    Green --> Shared
+    Browser -->|HTTPS :443| Proxy
+    Proxy -->|HTTP :3000| Platform
+    Proxy -->|WS/HTTP :3210/:3211| Convex
+    Proxy -->|HTTP :6791| Convex
+    Platform -->|HTTP :3210| Convex
+    Convex -->|TCP :5432| DB
+    Convex -->|HTTP :8001| RAG
+    Convex -->|HTTP :8002| Crawler
+    RAG -->|TCP :5432| DB
+    Crawler -->|TCP :5432| DB
 ```
 
-> **Note:** All communication between services stays on the internal Docker network. Only ports 80 and 443 are exposed publicly through the Caddy proxy. The database (5432) and API services (8001, 8002) are exposed on the host for local development only.
+The proxy fans inbound traffic between the platform SPA and the Convex WebSocket endpoints. Convex is the source of truth for application state — it pushes mutations, reads, and function results to the platform over WebSocket — and it talks directly to the database and to the two Python services. The platform never touches Postgres; everything funnels through Convex.
 
-## Key capabilities
+## What you need to run it
 
-- AI chat assistant with multi-turn conversations, file attachments, agent selection, [arena mode](/platform/chat/arena-mode) for model comparison, [canvas](/platform/workspace/canvas) for content editing, and built-in tools
-- [Prompt library](/platform/workspace/prompt-library) for saving and sharing reusable prompt templates
-- Semantic knowledge base for documents, websites, products, customers, and vendors with [document comparison](/platform/workspace/document-comparison)
-- Customer conversations inbox with AI-assisted replies and bulk actions
-- Visual automation builder with LLM steps, conditionals, loops, and scheduling
-- Custom AI agents with tailored instructions, knowledge, and tools
-- Role-based access control from read-only Member to full Admin
-- SSO and integrations including Microsoft Entra ID, REST APIs, OneDrive sync, and SQL connectors
-- Production operations with zero-downtime deployments, Prometheus metrics, and Sentry error tracking
-- WCAG 2.1 Level AA accessibility across all pages and components
+For a laptop install, the only requirement is Docker Desktop 24 or newer. For a production server, the [Production deployment](/self-hosted/install/linux-server) page covers the full prerequisite list, but the headline numbers are:
 
-## Accessibility
+- **RAM** — 8 GB to run, 12 GB to support a blue-green deploy. Blue-green runs the new color alongside the old one until health checks pass, so two of every stateless service exist briefly.
+- **Disk** — about 4.4 GB compressed for the initial image pull, plus whatever your knowledge base and chat history grow to.
+- **Network** — ports 80 and 443 public, every other port stays on the Docker bridge. Outbound HTTPS to AI providers (or to your internal inference backend) is the only external traffic.
 
-Tale is built to conform to [WCAG 2.1 Level AA](https://www.w3.org/TR/WCAG21/). Every page and component is designed and tested against these standards so the platform is usable by everyone, including people who rely on assistive technologies.
+The bundled database is fine for most installs. If you want a managed Postgres or you need data residency in a specific cluster, the architecture supports pointing every service at an external Postgres instance — the steps are on the [Production deployment](/self-hosted/install/linux-server#using-an-external-database) page.
 
-Key accessibility features:
+## What the product covers
 
-- **Keyboard navigation** — all interactive elements are reachable and operable via keyboard with visible focus indicators.
-- **Screen reader support** — semantic HTML landmarks (`<main>`, `<nav>`, `<header>`), proper heading hierarchy, ARIA labels, and live regions for dynamic content.
-- **Skip navigation** — a skip-to-main-content link lets keyboard users bypass repeated navigation.
-- **Color and contrast** — all text meets the 4.5:1 contrast ratio for normal text and 3:1 for large text. Information is never conveyed by color alone.
-- **Reduced motion** — all animations and transitions respect the `prefers-reduced-motion` user preference.
-- **Form accessibility** — labels are associated with inputs, error messages identify the field and describe how to fix the issue, and validation states are communicated via ARIA attributes.
-- **Dialogs and overlays** — focus is trapped inside open dialogs and returns to the trigger element on close.
-- **Touch targets** — interactive elements meet the minimum 24×24 CSS pixel target size.
+Tale ships every feature documented under [Platform](/platform) — chat with multi-turn conversations and file attachments, custom agents with their own instructions and tools, automation workflows with LLM steps and conditionals, a semantic knowledge base for documents and websites, a customer-conversation inbox, role-based access control across six roles, and Microsoft Entra SSO. The role-indexed pages under [Platform](/platform) apply identically on Cloud and self-hosted; the only differences live in this tab — install, configuration files, container architecture, observability, the trusted-header authentication path.
 
-### Automated testing
-
-Accessibility compliance is enforced through automated tooling at multiple levels:
-
-| Layer           | Tool                                   | What it checks                                            |
-| --------------- | -------------------------------------- | --------------------------------------------------------- |
-| Linting         | oxlint with jsx-a11y plugin (27 rules) | ARIA validity, semantic HTML, keyboard handlers, alt text |
-| Component tests | vitest-axe (`checkAccessibility`)      | Axe-core WCAG 2.1 AA audit on rendered components         |
-| Storybook       | @storybook/addon-a11y                  | Visual a11y panel with WCAG 2.1 AA ruleset                |
-
-The coding standards in `AGENTS.md` require every new UI component to include an accessibility test block using `checkAccessibility()` from the shared test utilities.
+Accessibility is part of the same bundle. Tale targets [WCAG 2.1 Level AA](https://www.w3.org/TR/WCAG21/) — keyboard navigation, screen-reader landmarks, visible focus indicators, 4.5:1 contrast on body text, reduced-motion support, and a 24×24 minimum touch target. The CI pipeline enforces it through oxlint's jsx-a11y rules, vitest-axe assertions on rendered components, and Storybook's a11y addon.
 
 ## Where this fits
 
-The Self-hosted overview is the architectural snapshot for the operator sizing up the platform. From here, the install pages take a fresh box from zero to a running Tale instance; the configuration pages catalogue every knob that exists; the operate pages cover what the long-term shape of running Tale looks like. The product itself — chat, agents, automations — is the same as on Cloud and is documented under [Platform](/platform).
+The overview is the architectural picture an operator reads once. From here, [Local quickstart](/self-hosted/install/quickstart) and [Production deployment](/self-hosted/install/linux-server) take a fresh box to a running instance; [Container architecture](/self-hosted/operate/container-architecture) is the deeper reference for the ports, volumes, and health-check shape sketched above; and [Operations](/self-hosted/operate/observability/operations) catalogues what to scrape, log, and alert on once traffic starts flowing. The product itself — chat, agents, automations, knowledge — lives once under [Platform](/platform) and reads identically on Cloud.

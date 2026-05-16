@@ -1,9 +1,9 @@
 ---
 title: KI-Anbieter
-description: Tale über OpenAI-kompatible Anbieter mit KI-Modellen verbinden — den Katalog aus der Einstellungen-UI verwalten und Vendor-APIs, Gateways und selbst gehostete Inferenz unter einem Dach mischen.
+description: Tale über OpenAI-kompatible Anbieter mit KI-Modellen verbinden — den Katalog aus der Einstellungen-UI verwalten und Lieferanten-APIs, Gateways und selbst gehostete Inferenz unter einem Dach mischen.
 ---
 
-Tale spricht mit KI-Modellen über **Anbieter** — jeder Anbieter ist ein OpenAI-kompatibler API-Endpunkt mit einem Katalog an Modell-Definitionen. Der Endpunkt kann ein gehosteter Vendor sein (OpenAI, Anthropic über OpenRouter, Google), ein Routing-Gateway (OpenRouter, Vercel AI Gateway) oder ein selbst gehosteter Inferenz-Server (Ollama, vLLM, LocalAI, faster-whisper-server). Ein Anbieter exponiert, _welche_ Modelle existieren und _wie_ sie eingesetzt werden — Chat, Vision, Embedding, Bild-Generierung, Bild-Bearbeitung, Transkription. Admins verwalten Anbieter unter **Einstellungen > Anbieter**; Nutzer sehen die resultierenden Modelle dann in der Chat-Modellauswahl und in der Agent-Konfiguration.
+Tale spricht mit KI-Modellen über **Anbieter** — jeder Anbieter ist ein OpenAI-kompatibler API-Endpunkt mit einem Katalog an Modell-Definitionen. Der Endpunkt kann ein gehosteter Lieferant sein (OpenAI, Anthropic über OpenRouter, Google), ein Routing-Gateway (OpenRouter, Vercel AI Gateway) oder ein selbst gehosteter Inferenz-Server (Ollama, vLLM, LocalAI, faster-whisper-server). Ein Anbieter exponiert, _welche_ Modelle existieren und _wie_ sie eingesetzt werden — Chat, Vision, Embedding, Bild-Generierung, Bild-Bearbeitung, Transkription. Admins verwalten Anbieter unter **Einstellungen > Anbieter**; Nutzer sehen die resultierenden Modelle dann in der Chat-Modellauswahl und in der Agent-Konfiguration.
 
 Tale liefert einen [OpenRouter](https://openrouter.ai)-Beispiel-Anbieter mit, der über einen einzigen API-Schlüssel Zugriff auf Modelle von OpenAI, Anthropic, Google, Mistral, Meta und anderen gibt — der schnellste Weg von einer frischen Installation zu einem funktionierenden Chat. Mitglieder, Redakteure und Entwickler können Anbieter nicht bearbeiten; der Bildschirm ist Admin-only.
 
@@ -41,7 +41,7 @@ Wie sich die Auswahl verhält, wenn zwei Anbieter dieselbe Modell-ID definieren,
 
 ## Anbieter-Optionen (Fortgeschritten)
 
-Das Panel **Anbieter-Optionen** leitet ein frei geformtes JSON-Objekt als zusätzliche Felder im Anfrage-Body bei jedem Modell-Aufruf weiter. Tale interpretiert das JSON nicht — es reicht es wortgetreu durch — also wird die Form vom Upstream-API diktiert. Gateways und Direkt-Vendoren exponieren unterschiedliche Stellschrauben:
+Das Panel **Anbieter-Optionen** leitet ein frei geformtes JSON-Objekt als zusätzliche Felder im Anfrage-Body bei jedem Modell-Aufruf weiter. Tale interpretiert das JSON nicht — es reicht es wortgetreu durch — also wird die Form vom Upstream-API diktiert. Gateways und Direkt-Lieferanten exponieren unterschiedliche Stellschrauben:
 
 - **OpenRouter (Gateway)** — Routing-Steuerung unter einem Top-Level-`provider`-Schlüssel:
 
@@ -67,7 +67,7 @@ Das Panel **Anbieter-Optionen** leitet ein frei geformtes JSON-Objekt als zusät
   { "safety_model": "meta-llama/Llama-Guard-4-12B", "repetition_penalty": 1.1 }
   ```
 
-Direkt-Vendoren exponieren `quantizations` nicht als Anfrage-Feld — die Präzision liegt zur Deploy-Zeit fest, also wähle stattdessen eine andere Modell-ID. Schlüssel wie `model`, `messages`, `max_tokens` und `temperature` werden auf dieser Schicht abgelehnt, weil sie auf den Agent gehören, nicht auf den Anbieter.
+Direkt-Lieferanten exponieren `quantizations` nicht als Anfrage-Feld — die Präzision liegt zur Deploy-Zeit fest, also wähle stattdessen eine andere Modell-ID. Schlüssel wie `model`, `messages`, `max_tokens` und `temperature` werden auf dieser Schicht abgelehnt, weil sie auf den Agent gehören, nicht auf den Anbieter.
 
 Dasselbe Panel existiert auf Modell-Ebene — das Modell-JSON wird auf die Anbieter-Voreinstellungen draufgemerged, sodass ein Modell-Override das gemeinsame Objekt nicht duplizieren muss.
 

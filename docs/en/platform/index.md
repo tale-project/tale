@@ -1,6 +1,6 @@
 ---
 title: Platform overview
-description: Product documentation for Tale — features, roles, and organisation admin. Applies identically to Cloud and self-hosted.
+description: Product documentation for Tale — features, roles, and organisation admin. Applies identically to Cloud and Self-hosted.
 ---
 
 Platform is the complete product documentation for Tale. It covers every user-visible feature — chat, knowledge base, agents, automations, integrations — plus role-specific task guidance and all org-level admin settings (members, roles, teams, branding, governance, AI providers, analytics). Everything here applies identically whether you are on the managed [Cloud](/cloud) edition or running a [Self-hosted](/self-hosted) instance.
@@ -27,7 +27,7 @@ Tale has six roles. Four have task-oriented guidance here; Owner is Admin plus a
 
 ## Organisation admin
 
-Org-level settings apply equally to Cloud and self-hosted, except where noted. Canonical reference:
+Org-level settings apply equally to Cloud and Self-hosted, except where noted. Canonical reference:
 
 - [Members and roles](/platform/admin/members-and-roles) — the six-role permission matrix.
 - [Teams](/platform/admin/teams) — scope knowledge and chat access.
@@ -36,4 +36,8 @@ Org-level settings apply equally to Cloud and self-hosted, except where noted. C
 - [Governance](/platform/admin/governance) — content and policy controls.
 - [Usage analytics](/platform/admin/usage-analytics) — per-user and org-wide activity.
 
-For authentication setup (password, SSO, trusted headers), see [Self-hosted authentication](/self-hosted/admin/authentication) — the configuration surface is specific to self-hosted; Cloud handles it via the hosted admin UI.
+For authentication setup (password, SSO, trusted headers), see [Self-hosted authentication](/self-hosted/admin/authentication) — the configuration surface is Self-hosted-specific; Cloud handles it via the hosted admin UI.
+
+## Where this fits
+
+Platform is the single source of truth for what Tale does, and it stays the same surface regardless of where the instance runs. Anything that requires a config file, an environment variable, or a CLI command lives one tab over under [Self-hosted](/self-hosted/overview); anything that only exists for managed customers — billing, hosted SSO, custom domains — lives under [Cloud](/cloud). If you landed here from a search result and aren't sure what role to read as, start with [Members and roles](/platform/admin/members-and-roles) — every other admin question reads differently once that page has answered who can do what.

@@ -1,67 +1,58 @@
 ---
 title: Wissensdatenbank
-description: Dokumente und gecrawlte Websites in deinem Arbeitsbereich hochladen, organisieren und durchsuchen.
+description: Die Dokumente und gecrawlten Websites hochladen, organisieren und durchsuchen, in denen die KI ihre Antworten verankert.
 ---
 
-Die Wissensdatenbank ist der Ort, an dem Tale Informationen für die KI ablegt. Alles, was du hier hinzufügst, wird vom Chat-Agent per bedeutungsbasierter Suche durchsucht. Diese Seite behandelt die beiden nutzerseitigen Bereiche — **Dokumente** und **Websites**. Für strukturierte Daten (Produkte, Kunden, Lieferanten) siehe [Strukturierte Daten](/de/platform/knowledge/structured-data).
+Die Wissensdatenbank ist der Ort, an dem Tale die Informationen ablegt, in denen die KI ihre Antworten verankert. Alles, was du hier hinzufügst, wird für jeden Agent in der Organisation durchsuchbar — hochgeladene Dateien, vom Crawler indizierte Websites, importierte strukturierte Datensätze. Diese Seite behandelt die beiden nutzerseitigen Hauptbereiche: **Dokumente** für Dateien, die du hochlädst oder synchronisierst, und **Websites** für gecrawlte Quellen. Redakteur-Rolle oder höher ist nötig, um Einträge hinzuzufügen, zu ändern oder zu löschen; Mitglieder können den Katalog lesen.
 
-> **Hinweis:** Das Bearbeiten der Wissensdatenbank erfordert die Redakteur-Rolle oder höher. Nutzer mit der Mitglied-Rolle können alle Wissens-Einträge sehen, aber nicht anlegen, ändern oder löschen.
+Für strukturierte Datenbereiche (Produkte, Kunden, Lieferanten) siehe [Strukturierte Daten](/de/platform/knowledge/structured-data) — dieselbe Wissensoberfläche, mit einer Tabellen-Form statt freier Dateien.
 
 ## Dokumente
 
-Dokumente sind der Kern der Wissensdatenbank. Du kannst Dateien direkt hochladen oder aus Microsoft OneDrive synchronisieren. Einmal indiziert, ist der Inhalt für den KI-Agent durchsuchbar.
+Dokumente sind der Kern der Wissensdatenbank. Lade Dateien direkt vom Gerät hoch, synchronisiere sie aus Microsoft 365 oder lasse einen Vergleich gegen ein vorhandenes Dokument laufen. Sobald eine Datei indiziert ist, wird der Inhalt für jeden Agent durchsuchbar, der Zugriff auf den Ordner hat, in dem sie liegt.
 
 ### Dokumente hochladen
 
-1. Navigiere zu **Wissen > Dokumente**.
-2. Klicke oben rechts im Aktionsmenü auf **Hochladen**.
-3. Ziehe Dateien in den Upload-Bereich oder klicke, um zu durchsuchen. Du kannst mehrere Dateien gleichzeitig auswählen.
-4. Ordne die Dokumente optional einem oder mehreren Teams zu. Das steuert, in welchen teamgefilterten Ansichten sie erscheinen.
-5. Klicke auf **Hochladen**. Jede Datei wird in die Hintergrundverarbeitung eingereiht. Ein Status-Indikator zeigt an, wann die Indizierung fertig ist.
+Um eine oder mehrere Dateien hochzuladen, öffne **Wissen > Dokumente** und klicke im Aktionsmenü oben rechts auf **Hochladen**. Der Dialog akzeptiert Dateien, die du in den Drop-Bereich ziehst, oder eine Auswahl aus dem Dateiauswahl-Dialog — wähle mehrere auf einmal, wenn du einen Stapel hast. Ordne die Dokumente optional einem oder mehreren Teams zu, um zu steuern, in welchen teamgefilterten Ansichten sie erscheinen. Klicke auf **Hochladen**, um die Dateien in die Warteschlange zu stellen; jede zeigt während der Indizierung im Hintergrund einen Status-Indikator.
 
-Unterstützte Dateitypen: PDF, DOCX, PPTX, XLSX, TXT, Markdown, CSV, HTML, JSON, YAML und die meisten gängigen Code-Dateien.
+Die akzeptierten Dateitypen: PDF, DOCX, PPTX, XLSX, TXT, Markdown, CSV, HTML, JSON, YAML und die meisten gängigen Code-Datei-Formate. Die maximale Dateigrösse beträgt standardmässig 100 MB pro Datei; Admins können die Obergrenze pro MIME-Typ in der [Upload-Richtlinie](/de/platform/admin/governance#upload-policy) senken.
 
-Maximale Dateigröße: 100 MB pro Datei.
+### In Ordner organisieren
 
-### Ordner-Organisation
+Dokumente können in Ordnern liegen, sodass das Team einen tiefen Katalog navigieren kann, ohne durch eine flache Liste zu scrollen. Nutze die Breadcrumb-Navigation oben in der Dokumente-Tabelle, um zwischen Ordnern zu wechseln, oder wähle **Neuer Ordner** aus dem Aktionsmenü. Du kannst beim Upload oder jederzeit später einen Ordner anlegen; Dokumente lassen sich aus dem Zeilen-Aktionsmenü zwischen Ordnern verschieben.
 
-Dokumente lassen sich in Ordner organisieren. Nutze die Breadcrumb-Navigation oben in der Dokumenten-Tabelle, um zwischen Ordnern zu wechseln. Ordner kannst du beim Upload oder aus dem Aktionsmenü anlegen.
+### Aus Microsoft 365 synchronisieren
 
-### Microsoft-OneDrive-Sync
+Wenn eine Microsoft-Account-Integration verbunden ist, erscheint **Aus Microsoft 365** im Upload-Dialog neben **Vom Gerät**. Auswählen öffnet einen Browser für OneDrive- und SharePoint-Sites, die der Account erreichen kann — wähle einen einmaligen Import oder eine Synchronisation, die die Dateien mit dem Quellordner im Takt hält. So importierte Dateien tragen ein SharePoint- oder OneDrive-Quell-Badge in der Dokumente-Tabelle, sodass du synchronisierte Dateien von Gerät-Uploads unterscheidest.
 
-Wenn eine Microsoft-Account-Integration konfiguriert ist, erscheint im Aktionsmenü die Option **Aus OneDrive synchronisieren**. Sie importiert Dokumente direkt aus OneDrive, ohne sie vorher auf deinen Server zu laden.
+### Zwei Dokumente vergleichen
 
-### Dokumenten-Vergleich
-
-Du kannst zwei Dokumente vergleichen, um zu sehen, was sich geändert hat. Lade eine neue Version hoch oder wähle ein vorhandenes Dokument aus — die Plattform erzeugt ein detailliertes Diff mit Hinzufügungen, Löschungen und Änderungen.
-
-Siehe [Dokumenten-Vergleich](/de/platform/workspace/document-comparison) für alle Details.
+Um zwei Dokumente zu diffen — eine neue Vertragsversion gegen die vorherige, eine aufgefrischte Richtlinie gegen die Spezifikation —, öffne das Aktionsmenü und wähle den Vergleichs-Eintrag. Der Dialog führt durch den Hochladen-oder-Wählen-Flow und rendert ein Diff auf Absatzebene. Die volle Doktrin liegt unter [Dokumenten-Vergleich](/de/platform/workspace/document-comparison).
 
 ## Websites
 
-Das Website-Tracking weist Tales Crawler an, Seiten einer Domain nach Plan zu besuchen und zu indizieren. Einmal indiziert, kann der KI-Agent Fragen zum Inhalt dieser Seite beantworten.
+Das Website-Tracking weist Tales Crawler an, Seiten einer Domain nach Plan zu besuchen und zu indizieren. Sobald eine Site indiziert ist, kann jeder Agent mit Web-Zugriff Fragen zu ihrem Inhalt beantworten — nützlich für Dokumentations-Sites, interne Wikis und jede öffentliche Domain, die das Team oft zitiert.
 
-### Website hinzufügen
+### Eine Website hinzufügen
 
-1. Navigiere zu **Wissen > Websites** und klicke auf **Website hinzufügen**.
-2. Gib die vollständige URL der Website an, z. B. `https://docs.example.com`.
-3. Wähle ein Scan-Intervall. Es steuert, wie oft der Crawler nach geänderten Inhalten sucht.
-4. Klicke auf **Hinzufügen**. Der Crawler ruft sofort die Startseite ab und findet dann verlinkte Seiten.
+Um eine Site hinzuzufügen, öffne **Wissen > Websites** und klicke **Website hinzufügen**. Der Dialog fragt nach der vollständigen URL (zum Beispiel `https://docs.example.com`) und einem Scan-Intervall. Klicke **Hinzufügen**, um zu speichern — der Crawler ruft die Startseite sofort ab und beginnt, verlinkte Seiten zu entdecken.
 
-| Scan-Intervall            | Ideal für                             |
-| ------------------------- | ------------------------------------- |
-| Jede Stunde               | Seiten mit häufigen Inhaltsänderungen |
-| Alle 6 Stunden (Standard) | Dokumentations-Sites und Firmen-Wikis |
-| Alle 12 Stunden           | Halbwegs aktive Sites                 |
-| Täglich                   | Marketing-Sites und Blogs             |
-| Alle 5 Tage               | Moderat statische Inhalte             |
-| Alle 7 Tage               | Referenz-Sites mit seltenen Updates   |
-| Alle 30 Tage              | Kaum wechselnde Referenzinhalte       |
+Die sieben unterstützten Scan-Intervalle tauschen Aktualität gegen Crawl-Kosten:
 
-Für tiefere Kontrolle über das Crawl-Verhalten siehe [Website-Crawling](/de/platform/knowledge/crawling).
+| Scan-Intervall  | Am besten für                          |
+| --------------- | -------------------------------------- |
+| Stündlich       | Sites mit häufigen Inhaltsänderungen.  |
+| Alle 6 Stunden  | Dokumentations-Sites und Firmen-Wikis. |
+| Alle 12 Stunden | Halbwegs aktive Sites.                 |
+| Täglich         | Marketing-Sites und Blogs.             |
+| Alle 5 Tage     | Moderat statische Inhalte.             |
+| Alle 7 Tage     | Referenz-Sites mit seltenen Updates.   |
+| Alle 30 Tage    | Kaum wechselndes Referenzmaterial.     |
 
-## Wo das hingehört
+Für tiefere Kontrolle über den Crawl-Umfang (erlaubte Pfade, ignorierte Bereiche, robots.txt-Überschreibungen) siehe [Website-Crawling](/de/platform/knowledge/crawling).
 
-Die Wissensdatenbank ist das Substrat, in dem jeder Agent verankert ist — die Dokumente, Websites und strukturierten Datensätze, die die KI bei der Antwort zitiert. Wer sie gut kuratiert, macht aus einer generischen KI eine, die deine Produkte, deine Richtlinien und deine Kunden kennt. Die meisten Qualitätsgewinne beim Bau eines neuen Agents kommen aus dem Verengen des Wissensumfangs, nicht aus dem Modelltausch.
+## Wo das einsetzt
 
-Um einzugrenzen, was ein bestimmter Agent durchsuchen darf (statt jedem Agent Zugriff auf alles zu geben), ist die nächste Seite [Agent-Konzepte → Wissen](/de/platform/agents/concepts#wissen). Um die Datenbank mit strukturierten Datensätzen anzureichern, führt [Strukturierte Daten](/de/platform/knowledge/structured-data) durch die Produkte / Kunden / Lieferanten-Entitäten.
+Die Wissensdatenbank ist das Substrat, in dem jeder Agent verankert ist — die Dokumente, Websites und strukturierten Datensätze, die die KI bei der Antwort zitiert. Gut zu kuratieren ist, was einen generischen KI-Assistenten in einen verwandelt, der deine Produkte, deine Richtlinien und deine Kunden kennt. Die meisten Qualitätsgewinne beim Bau eines neuen Agents kommen aus dem Schärfen des Wissensumfangs, nicht aus dem Modelltausch.
+
+Um einzugrenzen, was ein bestimmter Agent durchsuchen darf, statt jedem Agent Zugriff auf alles zu geben, ist die nächste Seite [Agent-Konzepte → Wissen](/de/platform/agents/concepts#wissen). Um die Datenbank mit strukturierten Datensätzen anzureichern, führt [Strukturierte Daten](/de/platform/knowledge/structured-data) durch die Entitäten Produkte, Kunden und Lieferanten.

@@ -3,7 +3,7 @@ title: Meeting-Transkription
 description: Meeting-Audio lokal mit Meetily aufzeichnen und über einen Tale-Agent zusammenfassen.
 ---
 
-Tale unterstützt Audio-Transkription auf zwei Wegen, und dieses Integrations-Tutorial läuft die **vollständig lokale** Variante durch. Brauchst du nur Ad-hoc-Aufnahmen zusammenzufassen, ist eine Audio- oder Video-Datei in den Chat zu ziehen der kürzeste Weg — die Transkriptions-Pipeline der Plattform erledigt das serverseitig, dokumentiert unter [Chat-Anhänge](/de/platform/chat/attachments#audio-and-video-transcription). Für einen vollen Meeting-Capture-Workflow, in dem das rohe Audio nie den Laptop des Vortragenden verlässt, koppele Tale mit [Meetily](https://github.com/Zackriya-Solutions/meetily) — einem MIT-lizenzierten, vollständig lokalen Meeting-Recorder, der mit Whisper.cpp auf dem Gerät transkribiert und nur das Transkript an ein LLM zur Zusammenfassung sendet.
+Tale unterstützt Audio-Transkription auf zwei Wegen, und dieses Integrationen-Tutorial läuft die **vollständig lokale** Variante durch. Brauchst du nur Ad-hoc-Aufnahmen zusammenzufassen, ist eine Audio- oder Video-Datei in den Chat zu ziehen der kürzeste Weg — die Transkriptions-Pipeline der Plattform erledigt das serverseitig, dokumentiert unter [Chat-Anhänge](/de/platform/chat/attachments#audio-and-video-transcription). Für einen vollen Meeting-Capture-Workflow, in dem das rohe Audio nie den Laptop des Vortragenden verlässt, koppele Tale mit [Meetily](https://github.com/Zackriya-Solutions/meetily) — einem MIT-lizenzierten, vollständig lokalen Meeting-Recorder, der mit Whisper.cpp auf dem Gerät transkribiert und nur das Transkript an ein LLM zur Zusammenfassung sendet.
 
 Das Ergebnis am Ende ist ein Meeting-Ablauf, bei dem Audio-Bytes die Endgerätegrenze nie überschreiten, die resultierende Zusammenfassung aber als normaler Tale-Konversationsthread mit vollem Audit- und Aufbewahrungs-Schutz landet.
 
@@ -57,7 +57,7 @@ Der Schritt hat funktioniert, wenn das Testtranskript zu dem passt, was du gesag
 
 ## Schritt 4 — Meetily auf den Tale-Webhook zeigen
 
-Öffne in Meetilys Einstellungen das LLM-Provider-Panel (das genaue Label variiert je Release — aktuelle Builds verwenden **Settings > Models** oder **Settings > LLM provider**). Wähle die Option **Custom OpenAI-compatible** und konfiguriere:
+Öffne in Meetilys Einstellungen das LLM-Anbieter-Panel (das genaue Label variiert je Release — aktuelle Builds verwenden **Settings > Models** oder **Settings > LLM provider**). Wähle die Option **Custom OpenAI-compatible** und konfiguriere:
 
 | Feld          | Wert                                                                                                                             |
 | ------------- | -------------------------------------------------------------------------------------------------------------------------------- |
@@ -67,7 +67,7 @@ Der Schritt hat funktioniert, wenn das Testtranskript zu dem passt, was du gesag
 
 Speichern. Meetily sendet Zusammenfassungen jetzt durch den konfigurierten Tale-Agent.
 
-Der Schritt hat funktioniert, wenn Meetilys Einstellungs-UI den gespeicherten Provider zeigt und „Test" (falls vorhanden) eine 200-Antwort liefert.
+Der Schritt hat funktioniert, wenn Meetilys Einstellungs-UI den gespeicherten Anbieter zeigt und „Test" (falls vorhanden) eine 200-Antwort liefert.
 
 ## Schritt 5 — Ein Meeting aufzeichnen und zusammenfassen
 

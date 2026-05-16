@@ -118,7 +118,7 @@ Only the Owner can do these:
 
 ## How role checks are enforced
 
-Roles are checked server-side on every Convex query, mutation, and action — the UI's hidden buttons are a convenience, not the gate. A page that "shouldn't show" is still rejected with `insufficient role` if you reach it by URL. The `Disabled` role bypasses the rest of the matrix: the access-denied screen is the only surface a Disabled user sees.
+Roles are checked server-side on every read, write, and background action — the UI's hidden buttons are a convenience, not the gate. A page that "shouldn't show" is still rejected with an "insufficient role" error if you reach it by URL. The Disabled role bypasses the rest of the matrix: the access-denied screen is the only surface a Disabled user sees.
 
 The two-Admins-minimum rule is enforced when changing roles and when removing members, so an organisation cannot be left with zero or one Admin. The same rule does not bind the Owner: a single-Owner-one-Admin organisation is legal because Owner is itself an Admin.
 

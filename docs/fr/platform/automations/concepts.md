@@ -1,60 +1,56 @@
 ---
 title: Concepts des automatisations
-description: Comment workflows, étapes, triggers et variables s'articulent.
+description: Comment automatisations, étapes, déclencheurs et variables s'articulent.
 ---
 
-Une automatisation est un petit programme déterministe qui démarre quand quelque chose le déclenche. Contrairement au chat — ouvert — les automatisations font exactement ce que leurs étapes disent, dans l'ordre, à chaque fois. Elles mettent l'IA en arrière-plan d'un processus métier : imports nocturnes, fan-out de webhooks entrants, résumés programmés, tout ce qui doit se passer sans humain dans le chat.
+Une automatisation est un programme déterministe d'arrière-plan qui s'exécute quand quelque chose le lui demande : une horloge, un événement dans Tale, un webhook venu d'un système externe, ou une personne qui clique sur **Exécuter**. Là où le chat reste ouvert et suit la conversation, une automatisation fait exactement ce que ses étapes disent, dans l'ordre où elles le disent, à chaque déclenchement. Le public de cette page : toute personne sur le point de construire, déboguer ou lire une automatisation — rôle Développeur ou supérieur, en Cloud ou en auto-hébergé.
 
-Cette page s'adresse à toute personne qui s'apprête à construire, déboguer ou lire une automatisation — rôle Développeur ou supérieur, sur les deux éditions. Les pièces ci-dessous — workflow, étape, trigger, variable — sont le petit vocabulaire que le reste de cette section présuppose. Lis-les une fois et l'éditeur, la config des triggers et les journaux d'exécution deviennent navigables par eux-mêmes.
+Le vocabulaire ci-dessous — automatisation, étape, déclencheur, variable, exécution — est le petit ensemble que le reste de cette section présuppose. Lis-le une fois et l'éditeur, l'onglet **Déclencheurs** et l'onglet **Exécutions** deviennent lisibles d'eux-mêmes.
 
-## Workflow
+## L'automatisation elle-même
 
-Un workflow est toute l'automatisation. Il a un nom, une description, une liste d'étapes, un ou plusieurs triggers et un petit ensemble de réglages (timeout, retries, variables). Un workflow est une unité exécutable ; tu le publies, le versionnes et l'observes comme une seule pièce.
+Une automatisation est une unité nommée et exécutable. Elle possède une liste d'étapes, les déclencheurs qui la lancent, les variables que chaque étape peut lire, et un petit ensemble de réglages (délai d'expiration, nombre de tentatives, délai de backoff). Publier, restaurer une version antérieure depuis **Historique** et suivre une seule ligne sur le tableau de métriques sont autant d'actions à l'échelle d'une automatisation — le reste du modèle se construit autour de l'automatisation comme atome.
 
-## Étape
+## Étapes
 
-Une étape est une unité de travail. La plateforme fournit six types, chacun codé en couleur dans l'éditeur pour que l'intention d'un workflow se lise d'un coup d'œil :
+Une étape est une unité de travail. L'éditeur fournit six types d'étape, codés en couleur pour que la forme d'une automatisation se lise d'un coup d'œil.
 
-| Étape         | Couleur | Ce qu'elle fait                                                                                                     |
-| ------------- | ------- | ------------------------------------------------------------------------------------------------------------------- |
-| **Start**     | Bleu    | point d'entrée. Définit le schéma d'entrée et quels triggers démarrent le workflow.                                 |
-| **Action**    | Orange  | exécute une opération — appeler une API, interroger une base, envoyer un courriel, mettre à jour un enregistrement. |
-| **LLM**       | Violet  | envoie un prompt à un modèle IA et passe la réponse à l'étape suivante.                                             |
-| **Condition** | Ambre   | vérifie une condition et route selon plusieurs branches.                                                            |
-| **Loop**      | Cyan    | répète un ensemble d'étapes pour chaque élément d'une liste.                                                        |
-| **Output**    | Vert    | définit la forme des données renvoyées quand le workflow finit.                                                     |
+| Étape         | Ce qu'elle fait                                                                                        |
+| ------------- | ------------------------------------------------------------------------------------------------------ |
+| **Start**     | Le point d'entrée. Porte le schéma d'entrée et lie les déclencheurs qui lancent l'automatisation.      |
+| **Action**    | Exécute une opération — appeler une intégration, écrire dans une base de données, envoyer un courriel. |
+| **LLM**       | Envoie un prompt à un modèle et transmet la réponse à l'étape suivante.                                |
+| **Condition** | Branche le chemin selon un test.                                                                       |
+| **Loop**      | Exécute une sous-séquence une fois par élément d'une liste.                                            |
+| **Output**    | Nomme les données que l'automatisation renvoie à la fin.                                               |
 
-Les étapes sont connectées par des liens orientés. L'exécution suit les liens de Start à Output ; les branches d'une Condition sont parcourues indépendamment ; les Loops répètent leur bloc interne par élément de liste.
+Les étapes sont reliées par des liens orientés. L'exécution suit les liens de **Start** à **Output** ; **Condition** choisit une branche ; **Loop** répète son bloc interne par élément de liste.
 
-## Trigger
+## Déclencheurs
 
-Un trigger dit au workflow quand tourner. La plateforme en supporte trois : un calendrier (style cron), un événement (quelque chose s'est passé dans Tale) et un webhook (un système externe nous a appelés). Un workflow peut avoir plusieurs triggers — le même fan-out tourne sur calendrier nocturne _et_ dès qu'un webhook arrive. Voir [Triggers](/fr/platform/automations/triggers) pour les détails de chaque type et la syntaxe de configuration.
+Un déclencheur nomme le moment où l'automatisation démarre et l'entrée avec laquelle elle commence. Tale fournit trois variantes — **Planifications** pour les exécutions pilotées par l'horloge, **Webhooks** pour les exécutions lancées depuis l'extérieur de la plateforme, et **Événements** pour les exécutions qui réagissent à quelque chose survenu dans Tale (un nouveau client, une conversation fermée, une autre automatisation terminée). Une même automatisation peut porter plusieurs déclencheurs de toute nature, donc le même fan-out tourne sur une planification nocturne et sur chaque webhook entrant. Les détails — syntaxe cron, l'URL du webhook, les types d'événement pris en charge — sont sur [Déclencheurs](/fr/platform/automations/triggers).
 
 ## Variables
 
-Les variables sont des données clé-valeur partagées, accessibles depuis chaque étape. Utile pour des clés API référencées par plusieurs étapes, des feature flags qui changent le comportement du workflow et des constantes qu'on ne veut pas répéter dans chaque config d'étape. Les variables vivent dans l'onglet Configuration du workflow et toute étape peut les lire via `{{ variables.name }}`.
+Les variables sont le sac partagé de clés-valeurs que chaque étape peut lire. C'est là que tu gardes la clé d'API que trois étapes référencent, le drapeau de fonctionnalité qui bascule le comportement entre staging et production, ou la constante que tu ne veux pas coller dans cinq configurations d'étape. Elles vivent dans l'onglet **Configuration** et se lisent depuis n'importe quelle étape avec la syntaxe `{{ variables.name }}`.
 
-## Brouillon vs Actif
+## Exécutions
 
-Les workflows, comme les agents, utilisent un modèle brouillon-et-publication. Un workflow ne peut être activé qu'après publication. Les modifications après activation créent un nouveau brouillon qui tourne à côté de la version active jusqu'à la prochaine publication — tu peux donc retravailler une étape sans interrompre l'automatisation active.
-
-## Runs et exécutions
-
-Chaque déclenchement crée une **exécution**. Les exécutions vivent dans l'onglet Exécutions du workflow avec date de début, durée, statut final et détail par étape (entrées, sorties, erreurs). Le journal d'exécution est l'endroit où tu débogues les échecs : chaque étape enregistre son entrée, sa sortie et toute erreur levée, donc un `400 Bad Request` d'une API tierce est à un clic du payload exact qui l'a produit. Voir [Journaux d'exécution](/fr/platform/automations/execution-logs).
+Chaque fois qu'un déclencheur se déclenche, la plateforme crée une exécution dans l'onglet **Exécutions**. Une exécution porte la source du déclencheur, l'heure de début et de fin, le statut final, et un enregistrement par étape de l'entrée vue, de la sortie produite et de toute erreur levée. C'est l'artefact que tu ouvres quand une API tierce a renvoyé `400` et que tu veux le corps de requête littéral qui l'a produit — voir [Journaux d'exécution](/fr/platform/automations/execution-logs).
 
 ## Quand y recourir
 
-Les automatisations sont le primitif déterministe d'arrière-plan de Tale. Leur frère est l'**agent** — le primitif conversationnel qui tourne en synchrone avec un humain dans le chat. Choisis selon l'endroit où le travail a lieu.
+Automatisations et agents sont les deux façons dont Tale fait tourner le travail d'IA ; choisis selon l'endroit où l'humain se trouve.
 
-| Utilise une automatisation quand …                                            | Utilise un agent quand …                                                        |
-| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| un calendrier, un webhook ou un événement interne déclenche le travail        | un humain pose une question et attend une réponse                               |
-| le flux est le même à chaque fois — mêmes étapes, même ordre                  | le flux se ramifie à chaque réponse ; l'étape suivante dépend de l'intention    |
-| la sortie est un effet sur un autre système (ligne en base, courriel, ticket) | la sortie est une réponse écrite ou une petite charge utile structurée          |
-| tu veux une trace complète de chaque entrée, sortie et erreur                 | tu veux un enregistrement conversationnel avec les décisions du modèle en ligne |
+| Utilise une automatisation quand …                                       | Utilise un agent quand …                                                         |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| Une planification, un webhook ou un événement système lance le travail   | Une personne pose une question et attend une réponse écrite                      |
+| Le flux est le même à chaque exécution — mêmes étapes, même ordre        | Le flux se ramifie selon la réponse ; le mouvement suivant dépend de l'intention |
+| La sortie est une écriture dans un autre système, un courriel, un ticket | La sortie est du texte que la personne lit, ou une petite charge structurée      |
+| Tu veux une trace par exécution de chaque entrée, sortie et erreur       | Tu veux un transcript de conversation avec le raisonnement du modèle en ligne    |
 
-Les deux se composent. L'étape LLM d'un workflow peut appeler les instructions d'un agent ; un agent peut déléguer un travail long à une automatisation via l'outil d'intégration. Choisis le primitif principal selon que l'utilisateur est dans la boucle au moment où le travail démarre.
+Les deux se composent. L'étape **LLM** d'une automatisation peut adopter les instructions et la liste d'outils d'un agent ; un agent peut passer un travail long à une automatisation via l'outil d'intégration. Choisis le primaire selon qu'un humain est dans la boucle quand le travail démarre.
 
-## En construire un
+## En construire une
 
-Le vocabulaire ci-dessus est tout le modèle. La page suivante est l'éditeur qui le transforme en workflow exécutable : [Workflows](/fr/platform/automations/workflows).
+Les cinq noms de cette page — automatisation, étape, déclencheur, variable, exécution — sont tout le modèle. La page suivante est l'éditeur qui les transforme en quelque chose d'exécutable : [Automatisations](/fr/platform/automations/workflows).

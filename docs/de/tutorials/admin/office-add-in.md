@@ -51,7 +51,7 @@ Der Schritt hat funktioniert, wenn der Office-Agents-Knopf im Menüband des Offi
 
 | Feld          | Wert                                                                                                  |
 | ------------- | ----------------------------------------------------------------------------------------------------- |
-| Provider      | **OpenAI-compatible** (Label variiert je Release — „Custom" geht auch)                                |
+| Anbieter      | **OpenAI-compatible** (Label variiert je Release — „Custom" geht auch)                                |
 | Basis-URL     | `https://<deine-tale-instanz>/api/v1`                                                                 |
 | API-Schlüssel | Das `tale_...`-Token aus Schritt 1                                                                    |
 | Modell        | Eine Modell-ID, die `GET /api/v1/models` zurückgibt — siehe [API-Referenz](/de/develop/api-reference) |

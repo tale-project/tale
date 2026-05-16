@@ -1,48 +1,40 @@
 ---
 title: Agent-Versionen
-description: Mit Entwurf und Veröffentlichung sowie Rollback sicher an einem produktiven Agent iterieren.
+description: Sicher an einem aktiven Agent iterieren — jedes Speichern landet im Verlauf, und jeder vergangene Snapshot lässt sich gegen den aktuellen Stand vergleichen und mit einem Klick wiederherstellen.
 ---
 
-Agents nutzen ein Entwurf-Veröffentlichen-Versionsmodell, damit du an einem Agent arbeiten kannst, ohne die gerade laufenden Nutzer zu stören. Anweisungen, Wissensfilter, Tools und Modell-Preset versionieren zusammen — wenn du veröffentlichst, wird das ganze Bündel atomar zur neuen aktiven Version, und Rollback bringt das ganze Bündel zurück. Es gibt keinen Halbzustand in der Produktion.
+Tales Agents speichern automatisch, während du sie bearbeitest, und jedes Speichern landet in einem Verlauf pro Agent. Anweisungen, Wissensfilter, Tools, Modell-Voreinstellung, Gesprächseinstiege und Delegationsziele werden gemeinsam erfasst — stellst du einen vergangenen Snapshot wieder her, kommt das ganze Paket atomar zurück. Diese Seite behandelt den Iterationsablauf: was ein Verlaufseintrag enthält, wie du zwei Snapshots vergleichst und wann Wiederherstellen der richtige Schritt ist.
 
-Das Modell ist identisch zur Versionierung von Automatisierungen (siehe [Automatisierungs-Konzepte — Entwurf vs. Aktiv](/de/platform/automations/concepts#entwurf-vs-aktiv)) — wer eines kennt, liest das andere genauso.
+Das mentale Modell hinter den vier Stellschrauben liegt unter [Agent-Konzepte](/de/platform/agents/concepts); der Ablauf, der diese Snapshots erzeugt, liegt unter [Agent erstellen](/de/platform/agents/create).
 
-## Entwurf vs. Aktiv
+## Wie Speichern und Snapshots funktionieren
 
-Jeder Agent hat zu jeder Zeit zwei Zustände:
+Änderungen an der Konfiguration eines Agents speichern automatisch — eine Status-Anzeige oben rechts im Editor zeigt den aktuellen Zustand (speichert, gespeichert). Jedes Speichern erzeugt einen Verlaufseintrag, der die gesamte Agent-Konfiguration in diesem Moment festhält: Anweisungen, Modellauswahl, Wissensumfang, Tool-Schalter, Gesprächseinstiege, Delegationsziele. Keine Teil-Speicherungen, keine Halbzustände; war das Speichern erfolgreich, ist der Eintrag vollständig.
 
-- **Aktive Version** — die, die gerade Anfragen bedient. Das ist, was Nutzer sehen, wenn sie den Agent im Chat auswählen, und was Webhooks und Delegations aufrufen.
-- **Entwurf-Version** — deine laufende Arbeit. Änderungen an Anweisungen, Wissen oder Tools aktualisieren den Entwurf. Bis du veröffentlichst, sehen die Nutzer nichts davon.
+Laufende Konversationen arbeiten weiter mit dem Agent-Zustand, der galt, als die Nachricht startete — niemand sieht mitten in einer Antwort einen Persönlichkeitswechsel, nur weil jemand parallel eine neue Bearbeitung gespeichert hat.
 
-Oben rechts im Agent-Editor zeigt eine Anzeige, welche Version du gerade bearbeitest — **Entwurf** oder **Aktiv** — und erlaubt den Wechsel.
+## Verlauf öffnen
 
-## Einen Entwurf veröffentlichen
+Um die Snapshots zu durchstöbern, öffne das Menü **Verlauf** im Agent-Editor. Die Liste zeigt jeden Snapshot mit Akteur und Datum, neueste zuerst. Jede Zeile entspricht einem Speichern; fahre über eine Zeile für eine Tooltip-Vorschau oder öffne den Diff-Dialog, um einen Snapshot gegen den aktuellen Stand zu vergleichen.
 
-Wenn du mit dem Entwurf zufrieden bist, klicke auf **Veröffentlichen**. Veröffentlichen tut Folgendes:
+Ist die Liste leer, wurde der Agent seit seiner Erstellung nicht bearbeitet — das erste Speichern erzeugt den ersten Verlaufseintrag.
 
-1. Trägt die vorherige aktive Version in den Versionsverlauf ein.
-2. Macht den Entwurf zur neuen aktiven Version.
-3. Leert den Entwurfs-Zustand. Zukünftige Änderungen starten einen frischen Entwurf.
+## Zwei Snapshots vergleichen
 
-Jede Konversation, die beim Veröffentlichen mitten in einer Antwort war, läuft mit ihrer ursprünglichen Version zu Ende — niemand sieht einen Persönlichkeitswechsel mitten im Zug.
+Klicke auf einen Verlaufseintrag, um den Dialog **Änderungen vergleichen** zu öffnen. Die Ansicht zeigt den aktuellen Stand auf einer Seite und den Snapshot auf der anderen, mit den Unterschieden auf Feldebene hervorgehoben. Nutze sie, um zu sehen, was eine Teamkollegin oder ein Teamkollege im Speichern vom letzten Mittwoch geändert hat, oder um eine konkrete Formulierung der Anweisungen vor dem Zurückrollen zu prüfen. Ist der Snapshot identisch zum aktuellen Stand, zeigt der Dialog _Keine Unterschiede gefunden_ und der Button **Diese Version wiederherstellen** ist deaktiviert.
 
-## Versionsverlauf
+## Einen vergangenen Snapshot wiederherstellen
 
-Der Versionsverlaufs-Dialog zeigt jede veröffentlichte Version des Agents mit Autor, Veröffentlichungs-Zeitpunkt und einer kurzen Zusammenfassung der Änderungen. Für jede vergangene Version kannst du:
+Um den Agent auf einen vergangenen Snapshot zurückzurollen, öffne ihn im Diff-Dialog und klicke **Diese Version wiederherstellen**. Das Wiederherstellen ist destruktiv für die aktuelle Konfiguration — Tale speichert den aktuellen Stand nicht automatisch, bevor die Wiederherstellung läuft. Speichere also vorher, wenn du deine laufenden Änderungen behalten willst. Die Wiederherstellung wirkt sofort für alle neuen Konversationen; bereits begonnene Antworten laufen mit ihrem ursprünglichen Stand zu Ende.
 
-- **Vergleichen** — Anweisungen gegen die aktuelle aktive Version vergleichen.
-- **Wiederherstellen** — die Version zum neuen Entwurf machen, den du dann veröffentlichen kannst.
-
-## Rollback
-
-Wenn eine veröffentlichte Änderung Probleme verursacht — falscher Ton, schlechte Antworten, kaputte Tool-Zugriffe — öffne den Versionsverlauf, wähle die letzte gute Version und klicke **Wiederherstellen** dann **Veröffentlichen**. Der Rollback ist sofort für alle neuen Konversationen wirksam.
+Greif zu Wiederherstellen, wenn eine kürzliche Bearbeitung schlechtere Antworten zu liefern begann — falscher Ton, fehlender Umfang, kaputter Tool-Zugriff — und du die Änderungen rausnehmen willst, ohne sie einzeln auseinanderzunehmen. Für ein schrittweises Zurückrollen (nur die Anweisungen zurücksetzen, das neue Tool behalten) öffne den Snapshot zur Referenz und kopiere das gewünschte Feld in den aktuellen Editor, statt eine vollständige Wiederherstellung zu fahren.
 
 ## Datei-basierte Agents
 
-Agents, die in `TALE_CONFIG_DIR/agents/*.json` definiert sind, nutzen nicht die UI-Versionierung — ihre Historie ist das, was dein Git-Repository aufzeichnet. Siehe [AI-assisted development](/de/develop/ai-assisted-development) für den datei-basierten Workflow.
+Agents, die als JSON-Dateien in `TALE_CONFIG_DIR/agents/*.json` definiert sind, tragen ihren Versionsverlauf in deinem Git-Repository statt im in-Produkt-Verlauf. Bearbeite die Datei, committe die Änderung, und die Plattform übernimmt die neue Konfiguration beim nächsten Sync. Die Verlaufs-UI im Editor zeigt weiterhin Snapshots, die die Plattform beim letzten Anfassen der Datei erfasst hat, aber für datei-basierte Agents ist die Wahrheit das Repository. Siehe [KI-gestützte Entwicklung](/de/develop/ai-assisted-development) für den datei-basierten Ablauf.
 
 ## Wo das einsetzt
 
-Versionierung ist das Iterations-Sicherheitsnetz für Agents. Die Entscheidung, die der Page-Shape-Vertrag merken lässt: Entwürfe und die veröffentlichte Live-Version koexistieren, sodass das Umschreiben der Anweisungen eines Agents risikofrei ist, solange du nicht veröffentlichst, bevor der Entwurf sich bewährt hat. Nutze den Versionen-Tab für jede sinnvolle Änderung; nutze Rollback, wenn die Produktion direkt nach einem Publish schlechtere Antworten liefert.
+Der Verlauf ist das Iterations-Sicherheitsnetz für Agents. Die eine Sache, die du dir merken solltest: jedes Speichern erzeugt einen Snapshot, das Umschreiben der Anweisungen eines Agents ist also gefahrlos — produziert die neue Fassung schlechtere Antworten, ist die vorherige einen Klick entfernt. Nutze den Diff-Dialog bei jeder bedeutsamen Änderung, um zu bestätigen, dass der Snapshot das enthält, was du erwartet hast; greif zu Wiederherstellen, wenn eine kürzliche Bearbeitung schlechtere Ausgaben zu liefern begann und du den vorherigen Zustand komplett zurückwillst.
 
-Für den Erstellen-Flow selbst — Namen, Modellauswahl, Anweisungs-Composer — geh zurück zu [Agent erstellen](/de/platform/agents/create). Für das mentale Modell hinter den vier Stellschrauben, an denen du drehst, [Agent-Konzepte](/de/platform/agents/concepts).
+Für den Erstellungsablauf selbst — Name, Modellauswahl, Anweisungen, Wissen, Tools — geh zurück zu [Agent erstellen](/de/platform/agents/create). Für das mentale Modell hinter den vier Stellschrauben, [Agent-Konzepte](/de/platform/agents/concepts).

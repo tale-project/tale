@@ -10,7 +10,7 @@ This page is the front door for both editions and every role. Pick the edition t
 
 ## Choose an edition
 
-The two editions trade off control for convenience. Both ship the same product; the difference is who operates the infrastructure.
+The two editions trade control for convenience. Both ship the same product; the difference is who operates the infrastructure.
 
 - **[Cloud](/cloud)** — Tale operates the stack and pins your data to Switzerland or the EU. Pick this when sovereignty means "EU jurisdiction" and not "behind our firewall", and when running infrastructure isn't where the team should spend its hours.
 - **[Self-hosted](/self-hosted)** — install Tale on your own VPC, on-premises hardware, or in an air-gapped environment with a single CLI command. Pick this when data residency means "our datacentre", when network controls have to wrap the whole stack, or when custom models and a custom build are non-negotiable.
@@ -32,15 +32,9 @@ Four properties most teams compare against the alternatives:
 
 - **Your data, your region.** Cloud pins every tenant to Switzerland or the EU, with explicit subprocessor disclosure and the option to bring your own AI keys. Self-hosted leaves the network entirely — prompts, document content, and embeddings never traverse Tale's infrastructure.
 - **Any model, swappable per agent.** OpenAI, Anthropic, Google, Mistral, Meta, DeepSeek, Moonshot, Qwen — or self-hosted models via Ollama, vLLM, or LocalAI — switchable on a per-agent basis without re-indexing, re-training, or migration.
-- **One product for the whole organisation.** Six roles cover read-only viewers up to org owners, organised into teams with scoped knowledge access. Members chat with agents; editors curate; developers build automations; admins govern.
-- **Compliance you can show your auditor.** ISO 27001 and SOC 2 certified, Swiss-based (Ruler GmbH), GDPR-aligned by default — with audit logs and data subject request tooling built in.
+- **One product for the whole organisation.** Six roles cover read-only viewers up to org owners, organised into teams with scoped knowledge access. Members chat with agents; Editors curate; Developers build automations; Admins govern.
+- **Compliance you can show your auditor.** Operated by Ruler GmbH in Switzerland, GDPR-aligned by default — with audit logs and data subject request tooling built in, and the certification posture documented under [Cloud](/cloud).
 
 ## Where this gets used
 
-The page-shape contract treats this index as the front door, not a tour. Once you've picked an edition and a role, the meaningful next step is one of:
-
-- [Platform](/platform) — the canonical feature reference, identical across both editions. Start here once you're inside the product.
-- [Cloud onboarding](/cloud) or [Self-hosted install](/self-hosted) — edition-specific setup. Skip this if Tale is already running for you.
-- [Tutorials](/tutorials/overview) — role-indexed worked examples, end to end, on a fresh instance.
-
-For source, issues, and release announcements, [GitHub](https://github.com/tale-project/tale) and [tale.dev](https://tale.dev) are the canonical channels.
+Once you've picked an edition and a role, the rest of the docs sit one click away. [Platform](/platform) is the canonical feature reference and applies identically to Cloud and Self-hosted, so anyone already inside the product should start there; [Cloud](/cloud) and [Self-hosted](/self-hosted) cover the edition-specific layer on top. [Tutorials](/tutorials/overview) walks role-indexed worked examples end to end on a fresh instance, and [Develop](/develop/api-reference) is the entry point for integrators and contributors. Source, issues, and release announcements live at [GitHub](https://github.com/tale-project/tale) and [tale.dev](https://tale.dev).

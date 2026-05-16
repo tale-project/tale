@@ -1,64 +1,78 @@
 ---
 title: Security-Advisory-Prozess
-description: Wie Tale sicherheitsrelevante Fixes koordiniert, einreicht und veröffentlicht.
+description: Wie Tale sicherheitsrelevante Behebungen koordiniert, einreicht und veröffentlicht.
 ---
 
-Diese Seite dokumentiert, wie Tale sicherheitsrelevante Fixes vom ersten Bericht bis zum veröffentlichten Advisory handhabt. Die Form des Prozesses — privater Entwurf auf GitHub, Patch veröffentlicht, Advisory mit CVE-Verknüpfung und Release-Notes-Querverweis publiziert — ist konventionell; die Seite existiert, damit Betreiber wissen, worauf sie achten müssen, und Reporter wissen, was sie erwartet.
+Diese Seite dokumentiert, wie Tale sicherheitsrelevante Behebungen vom ersten Bericht bis zum veröffentlichten Advisory handhabt. Die Form ist konventionell: ein privater Entwurf auf GitHub, ein gepatchtes Release, dann ein öffentliches Advisory mit CVE-Verlinkung und einer Quer-Referenz in den Release-Notes. Die Seite existiert, damit Operatoren wissen, wonach Ausschau zu halten ist, und damit Berichtende wissen, was sie von einer Offenlegung erwarten können.
 
-Die Operator-Folge ist kurz: abonniere GitHub Security Advisories auf `tale-project/tale` und lies den `## 🔒 Security`-Abschnitt jedes Releases. Alles, was eine CVE bekommt, landet an beiden Stellen, mit Upgrade-Pfad und Workarounds explizit benannt.
+Der operator-seitige Take ist kurz — abonniere GitHub-Security-Advisories auf `tale-project/tale` und lies den `## 🔒 Security`-Abschnitt jedes Releases. Alles, was ein CVE verdient, taucht an beiden Orten auf, mit dem Upgrade-Pfad und den Workarounds explizit benannt.
 
-## Kanäle
+## Wo Advisories leben
 
-- **Primär**: [GitHub Security Advisories](https://github.com/tale-project/tale/security/advisories) auf `tale-project/tale`. Advisories werden privat vorbereitet, bei Relevanz mit einer CVE verknüpft und erst veröffentlicht, sobald ein Patched Release verfügbar ist.
-- **Sekundär**: jedes Advisory wird in den zugehörigen GitHub-Release-Notes unter dem Abschnitt `## 🔒 Security` referenziert (siehe [release-notes-format.md](/de-CH/self-hosted/operate/release-notes/format)).
-- **Direkte Benachrichtigung** (zurzeit manuell): kritische Advisories werden per E-Mail an bekannte Deployment-Operatoren geschickt. Eine automatisierte Operator-E-Mail-Liste gibt es noch nicht — das ist geplant.
+Der **primäre Kanal** sind [GitHub-Security-Advisories](https://github.com/tale-project/tale/security/advisories) auf `tale-project/tale`. Advisories werden privat entworfen, bei entsprechender Schwere mit einem CVE verlinkt und erst veröffentlicht, nachdem ein gepatchtes Release verfügbar ist. Der Advisory-Body benennt jeden betroffenen Versionsbereich, den gepatchten Versions-Tag, die Auswirkungs-Zusammenfassung und den Upgrade-Pfad.
 
-## Wann ein Advisory eingereicht wird
+Jedes Advisory wird in den entsprechenden GitHub-Release-Notes unter dem `## 🔒 Security`-Abschnitt **quer-referenziert** — siehe [Release-Notes-Format](/de-CH/self-hosted/operate/release-notes/format) für die kanonische Form. Ein Operator, der ein Release auf Sicherheitsrelevanz überfliegt, muss die Notes nie verlassen; der Punkt dort benennt das CVE und verlinkt aufs Advisory.
 
-Ein GitHub Security Advisory wird eingereicht, wenn eines der folgenden Kriterien zutrifft:
+Für die **direkte Benachrichtigung** über kritische Advisories sendet Ruler GmbH bekannten Deployment-Operatoren vor der öffentlichen Offenlegung E-Mails. Es gibt noch keine automatisierte Operator-E-Mail-Liste — das ist ein künftiger Arbeitspunkt. Das Abonnieren von GitHub-Security-Advisories auf dem Repo (`GitHub → Watch → Custom → Security advisories`) ist der unmittelbare Ersatz, kostenlos und funktioniert heute.
 
-- CVSS-v3.1-Score ≥ 4.0 (Medium oder höher).
-- Jeder Bug, der Secrets über Mandantengrenzen lecken, Session-Tokens lecken oder Rechte eskalieren könnte.
-- Jeder Fix in Authentifizierung, Session, Organisations-Scoping, Crypto oder Secret-Speicherung — auch ohne externen Melder.
-- Jede erreichbare Abhängigkeits-CVE (der verwundbare Code-Pfad wird von Tale ausgeführt).
+## Wann ein Advisory einzureichen ist
 
-**Kein** Advisory für Abhängigkeits-CVEs, deren Code-Pfade von Tale nachweislich nicht erreicht werden — stattdessen im normalen Abschnitt `## 🔒 Security` der Release-Notes mit Hinweis dokumentieren, warum sie hier nicht ausnutzbar sind.
+Reiche ein GitHub-Security-Advisory ein, wann immer eines davon zutrifft:
 
-## Schwere → Eskalations-Matrix
+- CVSS v3.1-Score von 4,0 oder höher (Medium und darüber).
+- Ein Bug, der Geheimnisse über Mandanten hinweg leaken, Session-Tokens leaken oder Privilegien eskalieren könnte.
+- Eine Behebung in Authentifizierung, Session-Handling, Organisations-Scoping, Kryptographie oder Geheimnis-Storage — auch wenn kein externer Bericht sie auslöste.
+- Ein erreichbarer Abhängigkeits-CVE — also wenn der verwundbare Code-Pfad tatsächlich von Tale durchtrainiert wird.
 
-| CVSS             | Advisory | Release-Notes                       | Direkte E-Mail an Operatoren                                                   |
-| ---------------- | -------- | ----------------------------------- | ------------------------------------------------------------------------------ |
-| Critical (9.0+)  | Pflicht  | Pflicht, prominente Zusammenfassung | Ja — vor öffentlicher Offenlegung bei Koordination, sonst bei Veröffentlichung |
-| High (7.0–8.9)   | Pflicht  | Pflicht                             | Nur wenn Ausnutzung keine Nutzer-Aktion braucht                                |
-| Medium (4.0–6.9) | Pflicht  | Pflicht                             | Nein                                                                           |
-| Low (&lt;4.0)    | Optional | Pflicht                             | Nein                                                                           |
+Reiche **kein** Advisory für Abhängigkeits-CVEs ein, deren Code-Pfade nachweislich von Tale nicht erreichbar sind. Dokumentiere die im normalen `## 🔒 Security`-Release-Notes-Abschnitt mit einer Notiz, warum sie hier nicht ausgenutzt werden können. Advisory-Inflation schadet dem Operator-Signal mehr, als sie hilft.
 
-## Zeitablauf
+## Schwere-zu-Eskalations-Matrix
 
-1. **Privater Entwurf** im GitHub Security Advisory. Enthalte betroffene Versionen, Beschreibung und Schwere-Einschätzung.
-2. **CVE anfragen** über die Advisory-UI von GitHub, wenn die Schwere mindestens Medium ist.
-3. **Patched Release vorbereiten** auf einem privaten Fork/Branch. Patches nicht nach `main` pushen, bevor das Advisory zur Veröffentlichung bereit ist.
-4. **Koordinierte Offenlegung** mit dem Melder bei externen Meldungen — typischerweise bis zu 90 Tage Embargo, kürzer bei aktiv ausgenutzten Problemen.
-5. **Advisory veröffentlichen** gleichzeitig mit der Verfügbarkeit des patched `tale upgrade`. CVE und Release-Tag referenzieren.
-6. **Querverweis** in den Release-Notes der gepatchten Version.
+| CVSS             | Advisory     | Release-Notes                | Direkte E-Mail an Operatoren                                               |
+| ---------------- | ------------ | ---------------------------- | -------------------------------------------------------------------------- |
+| Critical (9,0+)  | Erforderlich | Erforderlich, prominent oben | Ja — vor öffentlicher Offenlegung bei Koordination, sonst beim Publizieren |
+| High (7,0–8,9)   | Erforderlich | Erforderlich                 | Nur, wenn die Ausnutzung keine Nutzeraktion verlangt                       |
+| Medium (4,0–6,9) | Erforderlich | Erforderlich                 | Nein                                                                       |
+| Low (<4,0)       | Optional     | Erforderlich                 | Nein                                                                       |
 
-## Was in ein Advisory gehört
+Die Matrix ist die Bodenwahrheit — alles, was dort nicht gelistet ist, ist redaktionelles Ermessen im Advisory-Body.
 
-- Betroffene Versionen (Bereich oder Liste).
-- Gepatchte Version (exakter Tag, z. B. `v1.6.1`).
-- Zusammenfassung der Auswirkung — was ein Angreifer tun könnte.
-- Voraussetzungen — Netzwerkposition, Auth-Status, benötigte Feature-Flags zur Ausnutzung.
+## Offenlegungs-Zeitplan
+
+Eine Sicherheits-Behebung bewegt sich durch sechs Schritte vom Bericht bis zur Veröffentlichung.
+
+1. **Privater Entwurf** in GitHub-Security-Advisories eingereicht. Der Entwurf enthält betroffene Versionen, Beschreibung und eine Schwere-Schätzung.
+2. **CVE angefordert** über die Advisory-UI von GitHub, wenn die Schwere Medium erreicht.
+3. **Gepatchtes Release vorbereitet** auf einem privaten Branch. Patches pushen nicht nach `main`, bevor das Advisory zur Veröffentlichung bereit ist.
+4. **Koordinierte Offenlegung** mit dem Berichtenden bei externer Meldung — typisch ein Maximum-Embargo von 90 Tagen, kürzer für aktiv ausgenutzte Probleme.
+5. **Advisory veröffentlicht** gleichzeitig mit der Verfügbarkeit des gepatchten `tale upgrade`. Das veröffentlichte Advisory referenziert das CVE und den Release-Tag.
+6. **Quer-Link** in den Release-Notes der gepatchten Version.
+
+Die Reihenfolge ist bewusst: der Patch landet vor dem Advisory, damit ein Operator, der das Advisory zur Veröffentlichungszeit liest, sofort auf die behobene Version upgraden kann.
+
+## Was ein Advisory enthält
+
+Jedes veröffentlichte Advisory benennt sechs Dinge:
+
+- Die betroffenen Versionen (Bereich oder Liste).
+- Die gepatchte Version (genauer Tag, z. B. `v1.6.1`).
+- Eine Zusammenfassung der Auswirkung — was ein Angreifer tun könnte.
+- Voraussetzungen für die Ausnutzung — Netzwerk-Position, Auth-Status, Feature-Flags.
 - Workarounds für Operatoren, die nicht sofort upgraden können.
-- Credits an die Melder:innen (mit Zustimmung).
+- Credits an die Berichtende mit ihrer Erlaubnis.
+
+Die Kombination aus "Auswirkung" und "Voraussetzungen" ist das, was einen Operator entscheiden lässt, ob er exponiert ist, ohne den Patch zu lesen.
 
 ## Operator-Aktion
 
-Operatoren sollten:
+Operatoren, die diese Seite lesen, sollten drei Dinge tun.
 
-- Releases von `tale-project/tale` beobachten (`GitHub → Watch → Custom → Security advisories` ist kostenlos, ohne Plattform-Arbeit).
-- Einträge unter `## 🔒 Security` in Release-Notes als Upgrade-Hinweis behandeln.
-- Sich (sobald verfügbar) in die Liste für direkte Benachrichtigungen für ausschliesslich kritische Meldungen eintragen.
+Beobachte `tale-project/tale`-Releases auf der **Security-Advisories**-Benachrichtigungs-Ebene — `GitHub → Watch → Custom → Security advisories` ist kostenlos, läuft über GitHubs eigenes E-Mail-System und braucht keine plattformseitige Arbeit.
+
+Behandle jeden `## 🔒 Security`-Eintrag in Release-Notes als Upgrade-Aufforderung. Selbst wenn das verlinkte Advisory mit deinem Deployment nichts zu tun zu haben scheint, existiert der Punkt, weil etwas Tieferliegendes — Auth, Krypto, Geheimnisse, eine erreichbare Abhängigkeit — sich bewegte.
+
+Abonniere die direkte Nur-Kritisch-Benachrichtigungs-Liste, sobald sie existiert. Bis dahin ist der GitHub-Watch-Feed der einzige Push-Kanal.
 
 ## Wo das einsetzt
 
-Sicherheitshinweise sind, wie Ruler GmbH CVEs offenlegt und wie Betreiber erfahren, was sie auf einer selbst gehosteten Instanz patchen müssen. Jedes Advisory zeigt auf ein Tale-Release, das den Fix enthält; Betreiber rollen mit `tale deploy` vorwärts, während Cloud-Kund:innen denselben Fix beim nächsten Platform-Deploy bekommen. Die Release-Notes-Seite desselben Ereignisses lebt unter [Release-Notes-Format](/de-CH/self-hosted/operate/release-notes/format) im Abschnitt `## 🔒 Security`; der `/release`-Slash-Command im Hauptrepository entwirft diesen Abschnitt automatisch, sobald ein Release ausgeliefert wird.
+Sicherheitshinweise sind, wie Ruler GmbH CVEs offenlegt und wie Operatoren lernen, was auf einer selbst gehosteten Instanz zu patchen ist. Jedes Advisory zeigt auf ein Tale-Release, das die Behebung enthält; Operatoren fahren `tale deploy`, um vorwärts zu rollen, und Cloud-Kunden bekommen dieselbe Behebung beim nächsten Platform-Deploy. Die Release-Notes-Seite desselben Ereignisses lebt unter [Release-Notes-Format](/de-CH/self-hosted/operate/release-notes/format) im `## 🔒 Security`-Abschnitt; der `/release`-Slash-Befehl im Haupt-Repository entwirft diesen Abschnitt automatisch beim Release.

@@ -1,60 +1,56 @@
 ---
 title: Automation concepts
-description: How workflows, steps, triggers, and variables fit together.
+description: How automations, steps, triggers, and variables fit together.
 ---
 
-An automation is a small, deterministic program that runs when something triggers it. Unlike the chat interface — which is open-ended — automations do exactly what their steps say, in order, every time. They put AI into the background of a business process: nightly imports, inbound webhook fan-outs, scheduled summaries, anything that has to happen without a human in the chat.
+An automation is a deterministic background program that runs when something asks it to: a clock, an event inside Tale, a webhook from an outside system, or a person clicking **Run**. Where the chat is open-ended and follows the conversation, an automation does exactly what its steps say, in the order they say it, every time it is triggered. The audience for this page is anyone about to build, debug, or read an automation — Developer role or higher, on Cloud or self-hosted.
 
-This page is for anyone about to build, debug, or read an automation — Developer role or higher, on either edition. The pieces below — workflow, step, trigger, variable — are the small vocabulary the rest of this section assumes. Read them once and the editor, the trigger config, and the execution logs all become navigable on their own.
+The vocabulary below — automation, step, trigger, variable, run — is the small set the rest of this section assumes. Read it once and the editor, the **Triggers** tab, and the **Executions** tab all become legible on their own.
 
-## Workflow
+## The automation itself
 
-A workflow is the whole automation. It has a name, a description, a list of steps, one or more triggers, and a small set of configuration knobs (timeout, retries, variables). One workflow is one runnable unit; you publish, version, and observe it as a single thing.
+An automation is one named, runnable unit. It owns a list of steps, the triggers that start it, the variables every step can read, and a small set of configuration knobs (timeout, retry count, backoff delay). Publishing, restoring an older version from **History**, and watching a single line on the metrics dashboard are all single-automation moves — the rest of the model is built around the automation as the atom.
 
-## Step
+## Steps
 
-A step is one unit of work. The platform ships six step types, each colour-coded in the editor so a workflow's intent is readable at a glance:
+A step is one unit of work. The editor ships six step types, colour-coded so you can read an automation's shape at a glance.
 
-| Step          | Colour | What it does                                                                        |
-| ------------- | ------ | ----------------------------------------------------------------------------------- |
-| **Start**     | Blue   | The entry point. Defines the input schema and which triggers start the workflow.    |
-| **Action**    | Orange | Runs one operation — call an API, query a database, send an email, update a record. |
-| **LLM**       | Purple | Sends a prompt to an AI model and passes the response to the next step.             |
-| **Condition** | Amber  | Checks a condition and routes down different branches.                              |
-| **Loop**      | Cyan   | Repeats a set of steps for each item in a list.                                     |
-| **Output**    | Green  | Defines the shape of the data returned when the workflow finishes.                  |
+| Step          | What it does                                                                                |
+| ------------- | ------------------------------------------------------------------------------------------- |
+| **Start**     | The entry point. Carries the input schema and binds the triggers that start the automation. |
+| **Action**    | Runs one operation — call an integration, write to a database, send an email.               |
+| **LLM**       | Sends a prompt to a model and passes the response to the next step.                         |
+| **Condition** | Branches the path based on a check.                                                         |
+| **Loop**      | Runs a sub-sequence once per item in a list.                                                |
+| **Output**    | Names the data the automation returns when it finishes.                                     |
 
-Steps connect with directional links. Execution follows the links from Start to Output; branches inside a Condition are followed independently; Loop steps repeat their inner block per list item.
+Steps are wired together with directional links. Execution walks the links from **Start** to **Output**; **Condition** picks one branch; **Loop** repeats its inner block per list item.
 
-## Trigger
+## Triggers
 
-A trigger tells the workflow when to run. The platform supports three kinds: a schedule (cron-style), an event (something happened inside Tale), and a webhook (an external system called us). One workflow can have multiple triggers — the same fan-out runs on a nightly schedule _and_ whenever a webhook fires. See [Triggers](/platform/automations/triggers) for the details on each kind and the syntax for configuring them.
+A trigger names the moment the automation starts and what input it starts with. Tale ships three flavours — **Schedules** for clock-driven runs, **Webhooks** for runs kicked off from outside the platform, and **Events** for runs reacting to something that happened inside Tale (a new customer, a closed conversation, another automation finishing). One automation can carry multiple triggers of any kind, so the same fan-out can run on a nightly schedule and on every inbound webhook. The details — cron syntax, the webhook URL, the supported event types — are at [Triggers](/platform/automations/triggers).
 
 ## Variables
 
-Variables are shared key-value data available to every step. They are useful for API keys referenced by multiple steps, for feature flags that change workflow behaviour, and for constants you don't want to repeat in every step config. Variables live on the workflow's Configuration tab and are read by any step using the `{{ variables.name }}` syntax.
+Variables are the shared key-value bag every step can read. They are where you keep the API key three steps reference, the feature flag that flips behaviour between staging and production, or the constant you do not want pasted into five step configurations. They live on the **Configuration** tab and are read inside any step with the `{{ variables.name }}` syntax.
 
-## Draft vs. active
+## Runs
 
-Workflows, like agents, have a draft-and-publish model. A workflow can only be activated once it has been published. Edits after activation create a new draft that runs alongside the live version until you publish again — so you can rework a step without taking the active automation down.
-
-## Runs and executions
-
-Every time a trigger fires, the platform creates an **execution**. Executions live on the workflow's Executions tab with start time, duration, final status, and a per-step breakdown of inputs, outputs, and errors. The Execution log is where you debug failures: every step records its input, its output, and any thrown error, so a `400 Bad Request` from a third-party API is one click away from the literal payload that produced it. See [Execution logs](/platform/automations/execution-logs).
+Every time a trigger fires, the platform creates a run on the **Executions** tab. A run carries the trigger source, the start and end time, the final status, and a per-step record of the input it saw, the output it produced, and any error it threw. This is the artefact you open when a third-party API returned `400` and you want the literal request body that produced it — see [Execution logs](/platform/automations/execution-logs).
 
 ## When to reach for it
 
-Automations are the deterministic background primitive in Tale. Their sibling is the **agent** — the conversational primitive that runs synchronously with a human in the chat. Pick by where the work happens.
+Automations and agents are the two ways Tale runs AI work; pick by where the human sits.
 
-| Use an automation when …                                          | Use an agent when …                                              |
-| ----------------------------------------------------------------- | ---------------------------------------------------------------- |
-| A schedule, a webhook, or an internal event fires the work        | A human is asking a question and waiting for an answer           |
-| The flow is the same every time — same steps, same order          | The flow branches on each reply; the next step depends on intent |
-| The output is an effect on another system (DB row, email, ticket) | The output is a written answer or a small structured payload     |
-| You want a paper trail of every input, output, and error          | You want a conversational record with model decisions inline     |
+| Reach for an automation when …                              | Reach for an agent when …                                             |
+| ----------------------------------------------------------- | --------------------------------------------------------------------- |
+| A schedule, a webhook, or a system event starts the work    | A person is asking a question and waiting for a written answer        |
+| The flow is the same every run — same steps, same order     | The flow branches on the reply; the next move depends on intent       |
+| The output is a write to another system, an email, a ticket | The output is text the person reads, or a small structured payload    |
+| You want a per-run trace of every input, output, and error  | You want a conversation transcript with the model's reasoning in-line |
 
-The two compose. A workflow's LLM step can call an agent's instructions; an agent can hand off a long-running job to an automation via the integration tool. Pick the primary primitive based on whether the user is in the loop when the work starts.
+The two compose. An automation's **LLM** step can adopt an agent's instructions and tool list; an agent can hand a long-running job off to an automation through the integration tool. Pick the primary by whether a human is in the loop when the work starts.
 
 ## Build one
 
-The vocabulary above is the whole model. The next page is the editor that turns it into a runnable workflow: [Workflows](/platform/automations/workflows).
+The five nouns on this page — automation, step, trigger, variable, run — are the entire model. The next page is the editor that turns them into something runnable: [Automations](/platform/automations/workflows).

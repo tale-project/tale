@@ -1,130 +1,112 @@
 ---
 title: Bibliothèque de prompts
-description: Enregistre, parcours et partage des modèles de prompt réutilisables dans ton organisation.
+description: Enregistre, parcours et partage des modèles de prompts réutilisables dans toute l'organisation, avec historique de versions, visibilité cadrée et insertion en un clic.
 ---
 
-La Bibliothèque de prompts est une collection partagée de modèles de prompt réutilisables. Enregistre les prompts que tu utilises souvent, organise-les par catégorie et étiquettes, et partage avec ton équipe ou toute l’organisation. Chaque modification est conservée dans l’historique des versions, ce qui te permet de comparer et de revenir en arrière sans perdre de travail.
+La Bibliothèque de prompts est une collection partagée de modèles de prompts réutilisables. Enregistre les prompts que l'équipe utilise souvent, organise-les par catégorie et tags, et partage-les au bon périmètre — brouillons personnels, playbooks d'équipe, ou modèles canoniques à l'échelle de l'organisation. Chaque modification est capturée dans l'historique de versions, donc comparer deux versions et revenir sur un mauvais enregistrement prend quelques secondes au lieu d'un après-midi.
+
+La bibliothèque est joignable depuis la barre d'outils du composeur dans chaque chat. Le public, c'est tout le monde dans le produit ; les périmètres de visibilité décident de ce que chaque rôle voit.
 
 ## Parcourir les prompts
 
-Ouvre la Bibliothèque de prompts depuis la barre d’outils du chat. Le dialogue affiche tous les prompts auxquels tu as accès.
+Ouvre la bibliothèque depuis la barre d'outils de la saisie du chat — la boîte liste chaque prompt auquel tu as accès. La recherche filtre sur le titre, la description, le contenu, la catégorie et les tags. Quatre onglets filtrent par périmètre : **Tous**, **Global**, **Équipe**, **Personnel**. Les popovers Catégorie et Tag resserrent les lignes visibles selon les facettes de la page chargée ; si un filtre vide la page courante mais que d'autres pages existent, l'état vide propose **Charger plus** pour continuer la recherche, plus **Effacer les filtres** pour réinitialiser. Chaque ligne montre le titre, un aperçu du contenu, un badge de périmètre, la catégorie, les tags et la version courante (par exemple `v3` quand un historique existe).
 
-- **Recherche** filtre sur titre, description, contenu, catégorie et étiquettes.
-- **Onglets** filtrent par visibilité : Tous, Global, Équipe ou Personnel.
-- Les popovers **Catégorie** et **Étiquette** restreignent les lignes visibles selon les facettes de la page chargée. Si un filtre vide la page courante mais que d’autres pages existent, l’état vide propose **Charger plus** pour continuer la recherche, ainsi que **Effacer les filtres** pour réinitialiser.
-- Chaque ligne montre le titre, l’aperçu du contenu, le badge de visibilité, la catégorie, les étiquettes et la version courante (ex. `v3` quand un historique existe).
-
-Clique **Utiliser ce prompt** sur une ligne pour insérer son contenu dans la saisie du chat.
+Clique sur **Utiliser** sur une ligne pour insérer son contenu dans la saisie du chat.
 
 ## Créer un prompt
 
-1. Ouvre la Bibliothèque de prompts et clique l’icône **plus**.
-2. Remplis le formulaire :
+Pour créer un prompt, ouvre la bibliothèque et clique sur l'icône plus. Le formulaire demande sept champs, dont trois sont requis :
 
-| Champ           | Requis       | Description                                                             |
-| --------------- | ------------ | ----------------------------------------------------------------------- |
-| **Titre**       | Oui          | nom court du prompt.                                                    |
-| **Contenu**     | Oui          | texte du prompt. Affiché en monospace.                                  |
-| **Description** | Non          | brève explication de ce que fait le prompt.                             |
-| **Visibilité**  | Oui          | qui peut voir le prompt (voir [Visibilités](#visibilités)).             |
-| **Équipe**      | Conditionnel | requis si la visibilité est Équipe.                                     |
-| **Catégorie**   | Non          | un label comme "writing", "analysis" ou "coding".                       |
-| **Tags**        | Non          | mots-clés séparés par des virgules pour la recherche et l’organisation. |
+| Champ           | Requis       | Ce qu'il faut mettre                                              |
+| --------------- | ------------ | ----------------------------------------------------------------- |
+| **Titre**       | Oui          | Un nom court pour le prompt.                                      |
+| **Contenu**     | Oui          | Le texte du prompt. Affiché en police monospace.                  |
+| **Description** | Non          | Brève explication de ce que fait le prompt.                       |
+| **Visibilité**  | Oui          | Qui peut voir ce prompt — Global, Équipe ou Personnel.            |
+| **Équipe**      | Conditionnel | Requis quand la Visibilité est mise sur Équipe.                   |
+| **Catégorie**   | Non          | Un label comme `writing`, `analysis` ou `coding`.                 |
+| **Tags**        | Non          | Mots-clés séparés par virgules pour la recherche et le rangement. |
 
-3. Clique **Créer**.
+Clique sur **Créer**. Le nouveau prompt apparaît dans la bibliothèque en v1.
 
-### Saisie des étiquettes
+### Saisie des tags
 
-Le champ **Étiquettes** est une saisie à puces. Appuie sur **Entrée** ou tape une **virgule** pour valider une étiquette ; **Retour arrière** sur une saisie vide supprime la dernière puce ; le **×** sur une puce la retire. Les doublons sont silencieusement fusionnés sans tenir compte de la casse (`Foo` et `foo` deviennent une seule étiquette). Le compteur sous la saisie devient destructif dès que la limite est atteinte (voir [Limites](#limites)).
+Le champ tags est une saisie à puces. Appuie sur **Entrée** ou tape une virgule pour valider un tag ; **Retour arrière** sur une saisie vide retire la dernière puce ; le × sur une puce la retire. Les doublons sont fusionnés silencieusement sans tenir compte de la casse (`Foo` et `foo` donnent un seul tag). Le compteur sous la saisie passe en destructif quand tu atteins le plafond.
 
-## Enregistrer un message comme prompt
+## Enregistrer un message de chat comme prompt
 
-Tu peux enregistrer n’importe quel message de chat comme modèle directement depuis la conversation :
+Pour capter un message déjà envoyé, ouvre le menu du message dans la conversation et choisis **Enregistrer comme prompt**. Le contenu du message est pré-rempli — ajoute un titre et une description optionnelle, puis enregistre. Le nouveau prompt atterrit en visibilité Personnel et est publié tout de suite.
 
-1. Ouvre le menu du message et choisis **Enregistrer le prompt**.
-2. Le contenu est pré-rempli. Ajoute un titre et une description optionnelle.
-3. Le prompt est enregistré en visibilité **Personnel** et publié immédiatement.
+## Périmètres
 
-C’est un moyen rapide de capter des prompts efficaces sans quitter le chat.
+Trois niveaux de visibilité décident de qui voit un prompt :
 
-## Visibilités
+| Périmètre     | Qui peut le voir                   | Couleur du badge |
+| ------------- | ---------------------------------- | ---------------- |
+| **Personnel** | Toi uniquement.                    | Bleu.            |
+| **Équipe**    | Membres de l'équipe choisie.       | Orange.          |
+| **Global**    | Tout le monde dans l'organisation. | Vert.            |
 
-Les prompts ont trois niveaux :
-
-| Visibilité    | Qui peut le voir            | Couleur du badge |
-| ------------- | --------------------------- | ---------------- |
-| **Personnel** | toi uniquement              | bleu             |
-| **Équipe**    | membres de l’équipe choisie | orange           |
-| **Global**    | toute l’organisation        | vert             |
-
-Les prompts non publiés ne sont visibles que par leur créateur quelle que soit la visibilité.
+Les prompts non publiés ne sont visibles que par leur créateur, quel que soit le périmètre.
 
 ## Éditer et supprimer
 
-Seul le créateur du prompt ou un Admin peut éditer ou supprimer. Utilise le menu contextuel sur une ligne pour accéder à ces actions.
+Seul le créateur du prompt ou un Admin peut éditer ou supprimer un prompt. Utilise le menu kebab sur une ligne pour atteindre ces actions. Supprimer un prompt est définitif et irréversible.
 
-La suppression est définitive et irréversible.
+## Historique de versions
 
-## Historique des versions
+Chaque enregistrement crée une nouvelle version. Pour parcourir l'historique, ouvre le menu kebab sur une ligne et choisis **Historique de versions** — la boîte liste chaque version avec sa date de publication et son auteur. Les prompts qui n'ont pas été édités depuis la livraison de la versionnalisation n'ont pas encore de dialogue Historique ; fais une première édition pour créer v2, l'élément de menu devient alors disponible et v1 reste préservé comme état antérieur.
 
-Chaque enregistrement crée une nouvelle version. Ouvre le menu contextuel sur une ligne et choisis **Historique des versions** pour voir toutes les versions passées de ce prompt. Le dialogue liste chaque version avec sa date de publication et son auteur. Les prompts qui n'ont pas été modifiés depuis la mise en place de la versionnalisation n'ont pas encore de dialogue Historique — fais une première modification pour créer v2, l'élément de menu devient alors disponible et v1 est conservé comme état précédent.
+### Comparer deux versions
 
-### Comparer les versions
-
-Appuie sur **Entrée** sur une version (ou clique **Comparer avec l’actuelle**) pour ouvrir le diff côte à côte. Le diff est ligne à ligne, optimisé pour la prose :
-
-- Les lignes marquées `−` sont dans le contenu actuel mais pas dans l’instantané comparé.
-- Les lignes marquées `+` sont dans l’instantané. Ce sont elles que **Restaurer** ramènerait.
-- Les changements de métadonnées (titre, description, catégorie, étiquettes, visibilité) apparaissent au-dessus du diff de contenu avec les valeurs avant/après.
-
-Les utilisateurs de lecteurs d’écran entendent chaque ligne ajoutée/retirée annoncée avec un préfixe explicite.
+Appuie sur **Entrée** sur une version (ou clique sur **Comparer avec l'actuelle**) pour ouvrir un diff côte à côte. Le diff est ligne par ligne, optimisé pour la prose. Les lignes marquées `−` sont dans le contenu actuel mais pas dans l'instantané comparé ; les lignes marquées `+` sont dans l'instantané — ce sont celles que **Restaurer** ramènerait. Les changements de métadonnées (titre, description, catégorie, tags, périmètre) apparaissent au-dessus du diff de contenu avec la valeur avant/après. Les utilisateurs de lecteurs d'écran entendent chaque ligne ajoutée ou retirée annoncée avec un préfixe explicite.
 
 ### Restaurer une version
 
-Appuie sur **R** ou **Maj+Entrée** sur une version (ou clique **Restaurer** dans la vue de comparaison) pour ramener le prompt à cet instantané. La restauration est **réversible** — elle crée une nouvelle version v(actuelle + 1) reprenant le contenu et les métadonnées de l’instantané ; la version actuelle précédente reste dans l’historique et peut être restaurée plus tard.
+Appuie sur **R** ou **Maj+Entrée** sur une version (ou clique sur **Restaurer** dans la vue de comparaison) pour ramener le prompt à cet instantané. Restaurer est réversible — ça crée une nouvelle version v(courante + 1) qui porte le contenu et les métadonnées de l'instantané ; la version courante précédente reste dans l'historique pour pouvoir la restaurer plus tard si besoin.
 
-Si quelqu’un d’autre a enregistré une nouvelle version pendant que ton dialogue d’historique était ouvert, la restauration échoue avec **L’historique des versions a changé — actualise et réessaie**. Ferme et rouvre le dialogue pour voir le dernier état avant de retenter.
+Si quelqu'un d'autre a enregistré une nouvelle version pendant que ta boîte d'historique était ouverte, la restauration échoue avec **L'historique de versions a changé — rafraîchis et réessaie**. Ferme et rouvre la boîte pour voir l'état le plus récent avant de retenter.
 
-### Raccourcis clavier dans le dialogue d’historique
+### Raccourcis clavier dans la boîte d'historique
 
-| Touche                 | Action                                                |
-| ---------------------- | ----------------------------------------------------- |
-| **↑ / ↓**              | Naviguer entre les versions                           |
-| **Début / Fin**        | Aller à la version la plus récente / la plus ancienne |
-| **Entrée**             | Ouvrir la vue de comparaison pour la ligne focalisée  |
-| **R** / **Maj+Entrée** | Restaurer la version focalisée                        |
-| **Échap**              | Fermer le dialogue (ou la vue de comparaison)         |
+| Touche                 | Action                                                 |
+| ---------------------- | ------------------------------------------------------ |
+| **↑ / ↓**              | Se déplacer entre les versions.                        |
+| **Début / Fin**        | Aller à la version la plus récente / la plus ancienne. |
+| **Entrée**             | Ouvrir la vue de comparaison pour la ligne focalisée.  |
+| **R** / **Maj+Entrée** | Restaurer la version focalisée.                        |
+| **Échap**              | Fermer la boîte (ou la vue de comparaison).            |
 
 ## Modifications concurrentes
 
-Si tu ouvres un prompt en édition pendant que quelqu’un d’autre publie une nouvelle version, le formulaire affiche une bannière : **Nouvelle version disponible**. Clique **Charger la dernière** pour ré-ancrer le formulaire sur le dernier instantané avant d’enregistrer — tes modifications non enregistrées seront perdues, donc l’avertissement passe en destructif quand le formulaire est modifié.
+Si tu ouvres un prompt en édition pendant que quelqu'un d'autre publie une nouvelle version, le formulaire affiche une bannière **Nouvelle version disponible**. Clique sur **Charger la dernière** pour ré-ancrer le formulaire sur l'instantané le plus récent avant d'enregistrer. Tes modifications non enregistrées seront jetées, donc l'avertissement passe en destructif quand le formulaire est dirty.
 
 ## Limites
 
-Limites par prompt (appliquées côté serveur, miroir côté client) :
+Les plafonds par prompt sont appliqués côté serveur et reflétés côté client :
 
-| Champ               | Limite                               |
-| ------------------- | ------------------------------------ |
-| Contenu             | 16 KiB (UTF-8)                       |
-| Titre               | 200 caractères                       |
-| Description         | 2 000 caractères                     |
-| Catégorie           | 100 caractères                       |
-| Étiquette (chacune) | 50 caractères                        |
-| Étiquettes (nombre) | 20 par prompt                        |
-| Historique          | 12 versions (la plus ancienne tombe) |
+| Champ         | Plafond                                       |
+| ------------- | --------------------------------------------- |
+| Contenu       | 16 KiB (UTF-8).                               |
+| Titre         | 200 caractères.                               |
+| Description   | 2 000 caractères.                             |
+| Catégorie     | 100 caractères.                               |
+| Tag (chacun)  | 50 caractères.                                |
+| Tags (nombre) | 20 par prompt.                                |
+| Historique    | 12 versions (la plus ancienne tombe au save). |
 
-Quand l’historique atteint la limite, la version la plus ancienne est retirée (FIFO) et un événement d’audit **history truncated** est émis.
+Quand l'historique atteint le plafond, la version la plus ancienne tombe (FIFO) et un événement d'audit **history truncated** est émis.
 
 ## Limites de débit
 
-Les mutations sur les prompts sont rate-limitées par utilisateur pour que les opérations en masse restent fluides. Si tu atteins la limite, un toast affiche **Enregistrement trop rapide — patiente un instant avant de réessayer**, et l’action repart proprement dès que la fenêtre se réinitialise.
+Les mutations sur les prompts sont rate-limitées par utilisateur pour que les opérations en masse restent fluides. Si tu touches une limite, un toast affiche **Enregistrement trop rapide — patiente un instant avant de réessayer**, et l'action redémarre proprement dès que la fenêtre se réinitialise.
 
-## Suivi d’utilisation
+## Suivi d'utilisation
 
-Chaque prompt suit combien de fois il a été utilisé. Le compteur est visible sur la carte et se met à jour à chaque insertion.
+Chaque prompt suit combien de fois il a été inséré. Le compteur d'utilisation apparaît sur la carte du prompt et se met à jour dès qu'on choisit le prompt pour une conversation — un signal utile pour repérer les modèles qui portent l'équipe en silence et ceux qui se sont révélés des coups uniques.
 
 ## Où ça s'inscrit
 
-La Bibliothèque de prompts est la surface pour le texte réutilisable dans le composer du chat. Elle existe pour la même raison que le contrôle de version : le prompt que tu as écrit la semaine dernière — celui qui a enfin obtenu la bonne réponse — devrait être sauvegardé une fois et atteignable depuis chaque conversation, pas pêché dans une recherche d'historique de chat. Les portées personnelles sont pour les brouillons ; les portées d'équipe pour les workflows partagés ; les portées à l'échelle de l'organisation pour les modèles canoniques vers lesquels toute l'entreprise devrait se tourner.
+La Bibliothèque de prompts est la surface de texte réutilisable pour le composeur du chat. Elle existe pour la même raison que le contrôle de version : le prompt que tu as écrit la semaine dernière, celui qui a enfin obtenu la bonne réponse, devrait être enregistré une fois et joignable depuis chaque conversation — pas pêché dans une recherche d'historique de chat. Les périmètres personnels sont pour les brouillons ; les périmètres d'équipe pour les playbooks partagés ; les périmètres à l'échelle de l'organisation pour les modèles canoniques que toute l'entreprise devrait prendre.
 
-Pour les prompts qui changent le comportement de l'IA de manière durable plutôt que de simplement encadrer un message, édite les instructions de l'agent dans [Créer un agent](/fr/platform/agents/create) — les instructions sont le prompt qui tourne avant _chaque_ message d'une conversation d'agent, alors qu'un prompt de bibliothèque est le corps d'un seul message.
+Pour les prompts qui changent durablement le comportement de l'IA plutôt que d'encadrer un seul message, édite les instructions de l'agent dans [Créer un agent](/fr/platform/agents/create) — les instructions sont le prompt qui tourne avant _chaque_ message d'une conversation d'agent, alors qu'un prompt de bibliothèque est le corps d'un seul message.

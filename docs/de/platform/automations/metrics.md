@@ -1,36 +1,47 @@
 ---
 title: Workflow-Metriken
-description: Nutzungs- und Leistungs-KPIs über alle Automatisierungen deiner Organisation.
+description: Ein automatisierungsübergreifendes Dashboard mit Gesamtausführungen, Erfolgsquote, durchschnittlicher Dauer und Top-Bewegungen.
 ---
 
-Die Workflow-Metriken-Seite ist eine workflowübergreifende Sicht auf den Lauf deiner Automatisierungen. Sie aggregiert jeden Workflow der Organisation in vier Headline-KPIs, eine Ausführungen-im-Zeitverlauf-Kurve, eine Statusverteilung und eine Top-Workflows-Tabelle. Nutze sie, um den Workflow zu finden, der gestern angefangen hat zu scheitern, den Workflow, dessen Volumen nach einer Prozessänderung um das Zehnfache gestiegen ist, oder den langen Schwanz an Automatisierungen, die niemand mehr wirklich braucht.
+Das Dashboard **Workflow-Metriken** fasst jede Automatisierung der Organisation in einer Ansicht zusammen: vier Kennzahlen oben, ein Trend der Ausführungen im Zeitverlauf, eine Statusverteilung und eine Top-Workflows-Tabelle, in die du hineinspringen kannst. Öffne es, wenn die Frage über mehrere Automatisierungen hinweg geht und nicht in einer einzigen sitzt — „haben wir mit dem Deploy gestern etwas kaputt gemacht", „welche Automatisierung ist nach der Prozessänderung um das Zehnfache gewachsen", „was liegt im langen Schwanz, das niemand mehr nutzt". Die Zielgruppe sind Admin und Entwickler, dieselben Rollen, die Automatisierungen bearbeiten dürfen.
 
-Die Seite liegt unter **Automatisierungen > Metriken**. Sie steht den Rollen Admin und Entwickler offen, also derselben Gruppe, die Automatisierungen bearbeiten darf.
+Das Dashboard liegt unter **Automatisierungen > Metriken anzeigen**. Es ist leer, bis mindestens eine Automatisierung gelaufen ist; sobald Ausführungen eintreffen, frischt sich die Oberfläche nahezu in Echtzeit auf.
 
-## Was sie zeigt
+## Die vier Kennzahlen oben
 
-| Karte / Chart                   | Misst                                                                                                                        |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| **Ausführungen gesamt**         | Anzahl der Ausführungen im gewählten Zeitraum.                                                                               |
-| **Erfolgsquote**                | Erfolgreiche Ausführungen geteilt durch alle — `running` und `cancelled` sind ausgenommen.                                   |
-| **Ø Dauer**                     | Mittlere Wall-Clock-Dauer abgeschlossener Ausführungen.                                                                      |
-| **Fehlgeschlagen**              | Anzahl der Ausführungen, die mit einem Fehler geendet haben.                                                                 |
-| **Ausführungen im Zeitverlauf** | Tageswerte für abgeschlossene, fehlgeschlagene und laufende Ausführungen.                                                    |
-| **Statusverteilung**            | Donut, der den Anteil jedes Endstatus über den Zeitraum zeigt.                                                               |
-| **Top-Workflows**               | Tabelle, sortiert nach Ausführungsanzahl, mit Erfolgsquote, Ø Dauer, Fehlern und letztem Ausführungs-Zeitpunkt pro Workflow. |
+Der obere Bereich der Seite trägt vier Karten.
 
-Klicke eine Zeile in **Top-Workflows** an, um zu den [Ausführungsprotokollen](/de/platform/automations/execution-logs) dieses Workflows zu springen.
+| Karte                   | Liest                                                                                                           |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------- |
+| **Ausführungen gesamt** | Anzahl der Ausführungen im gewählten Zeitraum.                                                                  |
+| **Erfolgsquote**        | Erfolgreiche Ausführungen geteilt durch die Gesamtzahl. Noch laufende und abgebrochene Ausführungen fallen weg. |
+| **Ø Dauer**             | Mittlere Wanduhrzeit der abgeschlossenen Ausführungen.                                                          |
+| **Fehlgeschlagen**      | Anzahl der Ausführungen, die mit einem Fehler endeten.                                                          |
 
-## Zeitraum-Wahl
+Die vier zusammen beantworten die Frage „ist das System in diesem Zeitraum gesund". Eine sinkende Erfolgsquote bei stabilen Gesamtausführungen zeigt auf eine bestimmte Automatisierung mit Regression; eine stabile Erfolgsquote bei einbrechenden Gesamtausführungen zeigt darauf, dass die Trigger-Quelle still geworden ist.
 
-Wechsle oben auf der Seite zwischen **Letzte 7 Tage**, **Letzte 30 Tage** und **Letzte 90 Tage**. Der Zeitraum spiegelt sich in der URL (`?period=30`), damit ein Link auf das Dashboard reproduzierbar bleibt.
+## Trend und Status
 
-Pro Abfrage werden nur die letzten 5.000 Ausführungen im gewählten Fenster ausgewertet. Wird das Limit erreicht, blendet sich ein Banner ein: _„Es werden die letzten 5.000 Ausführungen in diesem Zeitraum angezeigt. Ältere Ausführungen sind nicht in diesen Summen enthalten.“_ — wähle dann ein kürzeres Fenster für ein komplettes Bild oder springe zu **Top-Workflows** und untersuche die ungekappten, workflow-spezifischen Ausführungsprotokolle.
+Unter den Karten teilen zwei Diagramme den Zeitraum auf.
 
-## Leerer Zustand
+**Ausführungen im Zeitverlauf** ist eine tägliche Reihe aus abgeschlossenen, fehlgeschlagenen und laufenden Ausführungen über das gewählte Fenster. Die Form der Reihe — langsamer Anstieg, Wochenrhythmus, plötzlicher Ausschlag — ist der Hinweis darauf, welche Automatisierung als Nächstes zu öffnen ist.
 
-Hat im gewählten Zeitraum kein Workflow laufen, zeigt die Seite einen leeren Zustand mit dem Titel _Keine Workflow-Ausführungen_ statt KPI-Karten mit Null-Werten. Das ist das Signal, entweder den Zeitraum zu erweitern oder zu prüfen, ob deine Trigger feuern — siehe [Trigger](/de/platform/automations/triggers).
+**Statusverteilung** ist ein Donut mit dem Anteil, den jeder Endstatus über den Zeitraum hinweg einnimmt. Eine gesunde Mischung ist schwer bei „abgeschlossen" mit einem dünnen Streifen „fehlgeschlagen"; ein Donut, in dem fehlgeschlagen mehr als ein paar Prozent ausmacht, ist das Signal zum Reinschauen.
 
-## Wo das einsetzt
+## Top-Workflows
 
-Automatisierungs-Metriken ist das Workflow-übergreifende Dashboard — die Oberfläche, die „läuft gerade etwas schief?" und „was hat sich seit letzter Woche geändert?" beantwortet, ohne jeden Workflow einzeln zu öffnen. Wenn eine Kennzahl sich ändert, bohre in [Ausführungsprotokolle](/de/platform/automations/execution-logs) für die Pro-Lauf-Wahrheit. Für LLM-Kostentrends über Automatisierungen und Chat hinweg ist [Nutzungsanalyse](/de/platform/admin/usage-analytics) einen Tab weiter.
+Die Tabelle unten ordnet Automatisierungen nach Ausführungsanzahl und zeigt für jede die Erfolgsquote, die durchschnittliche Dauer, die Anzahl der Fehlläufe und den Zeitstempel der letzten Ausführung. Klick eine Zeile an, um direkt in die [Ausführungsprotokolle](/de/platform/automations/execution-logs) dieser Automatisierung zu springen — die Rangtabelle ist die automatisierungsübergreifende Linse, das Ausführungsprotokoll ist die Wahrheit pro Lauf.
+
+## Zeitraum und das Limit
+
+Wechsle zwischen **Letzte 7 Tage**, **Letzte 30 Tage** und **Letzte 90 Tage** über die Zeitraumauswahl oben rechts. Die Wahl spiegelt sich in der URL wider, sodass ein verlinktes Dashboard reproduzierbar ist.
+
+Jede Abfrage liest die jüngsten 5.000 Ausführungen im Fenster. Wird das Limit erreicht, zeigt ein Banner über den Karten den Hinweis _„Es werden die letzten 5.000 Ausführungen in diesem Zeitraum angezeigt. Ältere Ausführungen sind nicht in diesen Summen enthalten."_ — wechsle dann auf ein kürzeres Fenster für ein vollständiges Bild oder springe in die Top-Workflows-Tabelle und öffne das Ausführungsprotokoll jeder einzelnen Automatisierung, das nicht gedeckelt ist.
+
+## Leerer Zeitraum
+
+Ein Zeitraum ohne Ausführungen zeigt den Leerzustand — eine einzelne Zeile **Keine Workflow-Ausführungen** statt Karten mit Null-Werten. Der Leerzustand ist der Hinweis, entweder das Fenster zu erweitern oder zu prüfen, ob die Trigger überhaupt feuern; der natürliche nächste Schritt von dort ist [Trigger](/de/platform/automations/triggers).
+
+## Wo das hingehört
+
+Workflow-Metriken sind die automatisierungsübergreifende Linse: die Antwort auf „ist etwas kaputt" und „was hat sich seit letzter Woche geändert", ohne jede Automatisierung einzeln zu öffnen. Wenn sich eine Zahl verändert, sind die [Ausführungsprotokolle](/de/platform/automations/execution-logs) die Wahrheit pro Lauf — öffne die betroffene Automatisierung, finde den fehlerhaften Lauf, lies sein Journal. Für LLM-Kostentrends, die Automatisierungen und Chat zusammen abdecken, liegt [Nutzungsanalyse](/de/platform/admin/usage-analytics) eine Lasche weiter.

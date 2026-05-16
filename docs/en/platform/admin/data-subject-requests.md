@@ -3,7 +3,7 @@ title: Data subject requests
 description: File GDPR Art. 17 erasure requests directly from the admin UI, with SLA tracking, single-grant Art. 12(3) extensions, and audit-chained receipts.
 ---
 
-Data subject requests is where org Admins handle GDPR Art. 17 (Right to Erasure) filings without leaving the product. Every request inserts a durable receipt row with a 30-day SLA deadline, runs the erasure cascade asynchronously, and writes an audit-log entry for every state transition — `filed`, `blocked`, `executed`, `extended`, `retried`, `partial`, `failed`. The page is named for the umbrella DSR concept rather than "erasure" alone so future Art. 16 (rectification) and Art. 20 (portability) flows can land on the same surface without renaming the route; only Art. 17 ships today.
+Data subject requests is where org Admins handle GDPR Art. 17 (Right to Erasure) filings without leaving the product. Every request inserts a durable receipt with a 30-day SLA deadline, runs the erasure cascade as a background job, and writes an audit-log entry for every state transition — filed, blocked, executed, extended, retried, partial, failed. The page is named for the umbrella DSR concept rather than "erasure" alone so future Art. 16 (rectification) and Art. 20 (portability) flows can land on the same surface without renaming the route; only Art. 17 ships today.
 
 The audience is the org Admin in charge of compliance. Members, Editors, and Developers cannot see this page. The surface is **Settings > Governance > Data subject requests**.
 
@@ -22,25 +22,25 @@ Click **File request** at the top of the page. The dialog asks for four fields:
 - **Reason narrative** — free text, minimum 10 characters, describing the verification context. The narrative is written onto the receipt and into the audit log.
 - **Typed confirmation** — type `ERASE` to enable the submit button. The phrase is locale-stable so the typing requirement is identical across languages.
 
-On submit, the cascade runs asynchronously in a Convex Node action: it deletes the subject's chat threads, RAG-indexed documents, file-metadata blobs, and nine per-table subject-scope categories, then scrubs the audit-chain PII for any rows the subject authored.
+On submit, the cascade runs as a background job: it deletes the subject's chat threads, RAG-indexed documents, file-metadata blobs, and nine per-table subject-scope categories, then scrubs personal data from any audit-log rows the subject authored.
 
-If the subject is under an active legal hold — org-wide or custodian — the request is **rejected at the gate**. An inline panel surfaces the count of held threads and documents plus a deep link to the legal-hold page. The receipt row is still inserted with `status: blocked` so the regulator audit trail has structured proof that the request was received.
+If the subject is under an active legal hold — org-wide or custodian — the request is **rejected at the gate**. An inline panel surfaces the count of held threads and documents plus a deep link to the legal-hold page. The receipt is still inserted in the **blocked** state so the regulator audit trail has structured proof that the request was received.
 
 ## SLA badge and the Art. 12(3) extension
 
-Each request carries a 30-day deadline derived from `requestedAt + 30 days`. The list and detail views render an SLA countdown badge with four buckets:
+Each request carries a 30-day deadline counted from the filing date. The list and detail views render an SLA countdown badge with four buckets:
 
 - **Green** — more than 7 days remaining.
 - **Yellow** — 7 days or fewer remaining.
 - **Red** — overdue.
-- **Grey** — terminal status (`done` or `failed`); countdown is moot.
+- **Grey** — terminal status (done or failed); the countdown is moot.
 
 Art. 12(3) of the GDPR lets the controller extend the response window by up to two further months for complex requests, **but the extension must be communicated to the subject within the original month, with reasons**. The detail drawer's **Extend deadline** action implements that constraint:
 
 - Open while the request is non-terminal and the original deadline has not lapsed.
 - Add 1 to 60 days, with a required extension reason of at least 10 characters.
-- Each request can be extended **at most once** — a second attempt is rejected with `ALREADY_EXTENDED`.
-- The SLA badge derives from `extensionDeadlineAt ?? slaDeadlineAt`, so a granted extension changes the colour bucket and the displayed countdown immediately.
+- Each request can be extended **at most once** — a second attempt is rejected with an "already extended" error.
+- The SLA badge shows the extended deadline once an extension is granted, otherwise the original deadline, so a granted extension changes the colour bucket and the displayed countdown immediately.
 
 The audit log records who granted the extension, the reason, and the new deadline.
 
@@ -61,7 +61,7 @@ The detail drawer renders the full Art. 17 / Art. 19 receipt for one request:
 - Status badge plus SLA countdown.
 - Subject identifier, lawful ground, reason narrative, who filed it and when, current SLA deadline (with extension info when applicable).
 - Counters: threads erased and targeted, RAG documents removed, documents erased, documents skipped by hold, error message on failure.
-- Audit timeline: every `gdpr_erasure_*` audit-log row scoped to the subject, ordered by chain timestamp.
+- Audit timeline: every GDPR-erasure audit-log row scoped to the subject, ordered by chain timestamp.
 
 **No erased PII content is rendered** — only aggregate counts and identifiers. The receipt is safe to hand directly to a regulator or to the subject.
 
@@ -69,7 +69,7 @@ The detail drawer renders the full Art. 17 / Art. 19 receipt for one request:
 
 Only Art. 17 erasure ships today. The intentional v1 exclusions:
 
-- Art. 16 rectification and Art. 20 portability — land as additional `kind` values on the same DSR page, no route rename needed.
+- Art. 16 rectification and Art. 20 portability — land as additional request kinds on the same DSR page, no route rename needed.
 - Subject-facing self-service portal — Tale is admin-mediated by design.
 - In-product identity verification — handled out of band by the Admin's organisation.
 - Subject email notification on completion — deferred to the email-infrastructure workstream.

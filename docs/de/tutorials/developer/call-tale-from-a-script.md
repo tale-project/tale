@@ -3,7 +3,7 @@ title: Tale aus einem Skript aufrufen
 description: Eine Chat-Anfrage aus cURL und Python über Tales OpenAI-kompatible API senden.
 ---
 
-Tales öffentliche API ist OpenAI-kompatibel — jedes SDK, das mit `/chat/completions` spricht, spricht mit Tale, indem du zwei Werte änderst: die Basis-URL und den API-Schlüssel. Dieses Tutorial läuft einen minimalen cURL-Aufruf durch, denselben Aufruf in Python mit dem offiziellen `openai`-Client und den Wechsel auf Streaming. Die volle Oberfläche — jeder Header, jeder Parameter, jeder Fehlercode — liegt in der [API-Referenz](/de/develop/api-reference).
+Tales öffentliche API ist OpenAI-kompatibel — jedes SDK, das mit `/chat/completions` spricht, spricht mit Tale, indem du zwei Werte änderst: die Basis-URL und den API-Schlüssel. Dieses Tutorial läuft einen minimalen cURL-Aufruf durch, denselben Aufruf in Python mit dem offiziellen `openai`-Client und den Wechsel auf Streaming. Die volle Oberfläche — jede Kopfzeile, jeder Parameter, jeder Fehlercode — liegt in der [API-Referenz](/de/develop/api-reference).
 
 Das Ergebnis am Ende ist ein lauffähiges Skript, das deine Tale-Instanz von deinem Laptop oder einem CI-Job aus trifft.
 
@@ -15,7 +15,7 @@ Agent-seitig ist keine Konfiguration nötig — der API-Schlüssel routet über 
 
 ## Schritt 1 — Einen API-Schlüssel erstellen
 
-Öffne **Einstellungen > API-Schlüssel** und klicke **Erstellen**. Gib dem Schlüssel einen beschreibenden Namen (`cli-dev-laptop`, `ci-runner`), damit du ihn widerrufen kannst, ohne andere Anrufer zu treffen, und kopiere dann das Token. Das Token beginnt mit `tale_` und wird genau einmal angezeigt — speichere es in deinem Passwort-Manager oder einer Shell-Env-Variablen. Schließt du den Dialog ohne zu kopieren, musst du neu generieren.
+Öffne **Einstellungen > API-Schlüssel** und klicke **Erstellen**. Gib dem Schlüssel einen beschreibenden Namen (`cli-dev-laptop`, `ci-runner`), damit du ihn widerrufen kannst, ohne andere Clients zu treffen, und kopiere dann das Token. Das Token beginnt mit `tale_` und wird genau einmal angezeigt — speichere es in deinem Passwort-Manager oder einer Shell-Env-Variablen. Schließt du den Dialog ohne zu kopieren, musst du neu generieren.
 
 ```bash
 export TALE_API_KEY="tale_..."
@@ -122,7 +122,7 @@ Der Schritt hat funktioniert, wenn Zeichen schrittweise in deinem Terminal ersch
 
 ## Schritt 5 — Die richtige Organisation wählen, wenn du in mehreren bist
 
-Ein einzelner API-Schlüssel ist auf einen Nutzer begrenzt, und dieser Nutzer kann zu mehr als einer Organisation gehören. Gehört der Nutzer zu genau einer Organisation, löst Tale automatisch auf; sonst musst du sie mit dem `X-Organization-Slug`-Header benennen — der Wert ist der Org-Slug, der in deiner URL nach `/dashboard/` steht.
+Ein einzelner API-Schlüssel ist auf einen Nutzer begrenzt, und dieser Nutzer kann zu mehr als einer Organisation gehören. Gehört der Nutzer zu genau einer Organisation, löst Tale automatisch auf; sonst musst du sie mit der `X-Organization-Slug`-Kopfzeile benennen — der Wert ist der Org-Slug, der in deiner URL nach `/dashboard/` steht.
 
 ```python
 client = OpenAI(
@@ -136,13 +136,13 @@ Der Schritt hat funktioniert, wenn eine Anfrage von einem Multi-Org-Nutzer den `
 
 ## Fehlerbehebung
 
-- **401 Unauthorized** — der `tale_`-Schlüssel wurde widerrufen, falsch getippt, oder der Anfrage fehlt das `Bearer `-Präfix. Prüfe **Einstellungen > API-Schlüssel** und den `Authorization`-Header erneut.
+- **401 Unauthorized** — der `tale_`-Schlüssel wurde widerrufen, falsch getippt, oder der Anfrage fehlt das `Bearer `-Präfix. Prüfe **Einstellungen > API-Schlüssel** und die `Authorization`-Kopfzeile erneut.
 - **404 Not Found auf `/chat/completions`** — der Basis-URL fehlt das `/api/v1`-Suffix, oder das Deployment serviert kein HTTPS auf dem Host, den du aufrufst.
-- **400 missing model** — der Request-Body hat kein `model`-Feld. Übergib eine ID aus `GET /api/v1/models`.
+- **400 missing model** — der Anfrage-Body hat kein `model`-Feld. Übergib eine ID aus `GET /api/v1/models`.
 - **400 Failed to resolve organization** — der Nutzer hinter dem API-Schlüssel gehört zu mehr als einer Organisation. Sende `X-Organization-Slug` wie in Schritt 5.
 
 ## Wo das einsetzt
 
-Jeder OpenAI-kompatible Client spricht mit Tale, sobald du ihn auf die richtige Basis-URL zeigst und ein Modell aus den Anbietern deiner Organisation wählst — es gibt kein Tale-spezifisches SDK, und eine bestehende OpenAI-Integration zu tauschen bedeutet, zwei Strings zu ändern. Der Streaming-Schalter ist identisch zu OpenAIs, und der `X-Organization-Slug`-Header ist die einzige Tale-spezifische Eigenheit, die du typischerweise brauchst.
+Jeder OpenAI-kompatible Client spricht mit Tale, sobald du ihn auf die richtige Basis-URL zeigst und ein Modell aus den Anbietern deiner Organisation wählst — es gibt kein Tale-spezifisches SDK, und eine bestehende OpenAI-Integration zu tauschen bedeutet, zwei Strings zu ändern. Der Streaming-Schalter ist identisch zu OpenAIs, und die `X-Organization-Slug`-Kopfzeile ist die einzige Tale-spezifische Eigenheit, die du typischerweise brauchst.
 
 Zwei häufige nächste Schritte: denselben Aufruf in eine Automatisierung verdrahten, die ohne expliziten Skript-Aufruf läuft — [Eine Automatisierung per Webhook auslösen](/de/tutorials/developer/trigger-automation-via-webhook) — oder den Client um Tool-Calling erweitern, abgedeckt in der [API-Referenz](/de/develop/api-reference).

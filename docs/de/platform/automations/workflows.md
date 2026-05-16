@@ -1,82 +1,58 @@
 ---
-title: Workflows
-description: Mehrstufige Workflows mit Triggern, Bedingungen, Schleifen und KI-Schritten bauen und ausführen.
+title: Automatisierungen
+description: Automatisierungen im visuellen Editor bauen, konfigurieren und testen.
 ---
 
-Ein Workflow ist die lauffähige Form einer Automatisierung — der Editor, in dem Schritte, Trigger und Variablen zu einem Graphen werden, der von Anfang bis Ende läuft. Diese Seite beschreibt den Editor selbst: wie du einen Workflow anlegst, die sechs Schritttypen, die er mitbringt, wie du Trigger an den **Start**-Schritt hängst, die Konfigurations-Stellschrauben für Retries und Timeouts, und wie du testest, bevor du veröffentlichst. Zielgruppe ist die Entwickler-Rolle oder höher, die einen Workflow baut oder pflegt; das Vokabular, auf das diese Seite zurückgreift, liegt unter [Automatisierungs-Konzepte](/de/platform/automations/concepts).
+Der Automatisierungs-Editor ist der Ort, an dem das Vokabular aus [Automatisierungs-Konzepte](/de/platform/automations/concepts) zu einem ausführbaren Graphen wird. Diese Seite deckt den Build-Ablauf selbst ab: den Editor öffnen, die sechs Schritttypen, die Konfigurations-Stellschrauben für Wiederholungen und Timeouts, die Variablen, die jeder Schritt lesen kann, und den Weg über **Automatisierung testen**, der einen Entwurf beweist, bevor er live geht. Die Zielgruppe ist der Entwickler oder höher, der eine Automatisierung baut oder pflegt; Trigger- und Ausführungsoberflächen haben eigene Seiten, unten verlinkt.
 
-## Einen Workflow erstellen
+## Den Editor öffnen
 
-Es gibt drei Wege, einen Workflow zu erstellen:
+Öffne **Automatisierungen** in der Seitenleiste und klick auf **Automatisierung erstellen**. Der Dialog hat zwei Tabs: **Leer** lässt dich in einem einzigen Feld beschreiben, was die Automatisierung tun soll, und der KI-Assistent macht aus dieser Beschreibung einen ersten Entwurf aus Schritten, den du im Editor verfeinerst. **Aus Vorlage** listet die fertigen Automatisierungen, die mit installierten Integrationen kommen — wähle eine, gib ihr einen Namen, und der Editor öffnet sich mit den bereits verdrahteten Schritten der Vorlage.
 
-### KI-unterstützt
-
-1. Navigiere zu **Automatisierungen** und klicke auf **Neue Automatisierung**.
-2. Gib einen Namen und eine Beschreibung ein, was der Workflow tun soll. Je mehr Details, desto besser kann die KI die ersten Schritte bauen.
-3. Klicke auf **Weiter**. Die Plattform erstellt den Workflow und öffnet rechts den KI-Chat, in dem du gesprächsweise verfeinern kannst.
-
-### Manueller visueller Editor
-
-1. Erstelle einen neuen Workflow wie oben, aber lasse die Beschreibung leer.
-2. Nutze den **Schritt hinzufügen**-Button auf dem Workflow-Canvas, um Schritte einzeln hinzuzufügen.
-3. Konfiguriere jeden Schritt im Seitenpanel, das beim Klick auf einen Schritt erscheint.
-4. Verbinde Schritte, indem du die Verbinder-Griffe anklickst und Linien dazwischen ziehst.
-
-### Datei-basiert mit KI-Unterstützung
-
-Du kannst Workflows erstellen, indem du JSON-Dateien ins Verzeichnis `workflows/` deines Projekts legst. Wenn du das Projekt in einem KI-Editor (Claude Code, Cursor, GitHub Copilot oder Windsurf) öffnest, kennt der Editor Workflow-Schemas, Schritttypen und Trigger-Konfiguration vollständig. Beschreibe, was der Workflow tun soll, und die KI erzeugt eine gültige Konfiguration. Siehe [AI-assisted development](/de/develop/ai-assisted-development).
+Der Editor selbst ist eine Leinwand. Schritte sind Knoten, Verbindungen zwischen ihnen sind gerichtet, und das Panel auf der rechten Seite öffnet, was gerade ausgewählt ist. Die Symbolleiste oben auf der Leinwand trägt **Schritt hinzufügen**, **Automatisierung testen**, **KI-Assistent** und **Fokus** (klappt die Leinwand auf eine einzelne Spalte für einen kleineren Bildschirm zusammen).
 
 ## Schritttypen
 
-| Schritttyp | Farbe     | Funktion                                                                                                          |
-| ---------- | --------- | ----------------------------------------------------------------------------------------------------------------- |
-| Start      | Blau      | Einstiegspunkt des Workflows. Definiert das Input-Schema und wann er startet (Zeitplan, Event, Webhook, manuell). |
-| Action     | Orange    | Führt eine Operation aus — einen Datensatz anlegen, eine Nachricht senden, eine API rufen, Daten ändern.          |
-| LLM        | Lila      | Schickt einen Prompt an ein KI-Modell und reicht die Antwort an den nächsten Schritt.                             |
-| Condition  | Bernstein | Prüft eine Bedingung und zweigt in unterschiedliche Äste.                                                         |
-| Loop       | Cyan      | Wiederholt eine Gruppe von Schritten für jedes Element einer Liste.                                               |
-| Output     | Grün      | Definiert das Output-Mapping des Workflows — was beim Abschluss zurückgegeben wird.                               |
+Sechs Schritttypen decken die Arbeit ab, die eine Automatisierung leisten kann. Wähle nach dem, was der Schritt erreichen muss.
 
-## Trigger
+| Schritt       | Wofür                                                                                                |
+| ------------- | ---------------------------------------------------------------------------------------------------- |
+| **Start**     | Der Einstiegspunkt. Benennt das Eingabeschema und bindet die Trigger.                                |
+| **Aktion**    | Eine Integrationsoperation, ein MCP-Tool oder eine Tale-eigene Aktion aufrufen.                      |
+| **LLM**       | Einen Prompt an ein Modell schicken und die Antwort weiter routen.                                   |
+| **Bedingung** | Auf einen von mehreren Pfaden verzweigen, basierend auf einer Prüfung der bisherigen Schrittausgabe. |
+| **Schleife**  | Einen Block von Schritten pro Element einer Liste wiederholen.                                       |
+| **Ausgabe**   | Die Daten benennen, die die Automatisierung beim Abschluss zurückgibt.                               |
 
-Jeder Workflow braucht mindestens einen Trigger, der sagt, wann er laufen soll.
+Jeder Schritt landet mit sinnvollen Vorgaben auf der Leinwand; du konfigurierst ihn, indem du ihn anklickst und im rechten Panel bearbeitest. Das Panel validiert beim Tippen und markiert fehlende Felder mit einem Inline-Fehler, statt die Automatisierung in einem kaputten Zustand speichern zu lassen.
 
-### Zeitplan-Trigger
+## Konfiguration
 
-Lasse den Workflow nach Zeitplan laufen. Du kannst einen Cron-Ausdruck direkt eingeben oder den KI-Assistenten nutzen, um einen aus natürlicher Sprache zu erzeugen, z. B. "jeden Werktag um 9 Uhr".
+Öffne den Tab **Konfiguration** einer beliebigen Automatisierung, um die Stellschrauben zu setzen, die für die gesamte Ausführung gelten, nicht für einen einzelnen Schritt.
 
-Alle Zeitpläne laufen in UTC. Quick-Presets: alle 5 Minuten, stündlich, täglich, wöchentlich, monatlich.
+| Feld                    | Standard    | Was es tut                                                                                                          |
+| ----------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------- |
+| **Name**                | —           | Der Name, der überall in der Plattform angezeigt wird. Pflicht.                                                     |
+| **Beschreibung**        | —           | Freitext-Beschreibung, taucht in Auswahllisten und in den Metriken auf.                                             |
+| **Timeout (ms)**        | 300.000     | Wie lange die gesamte Automatisierung laufen darf, bevor die Engine sie stoppt. Standard sind fünf Minuten.         |
+| **Max. Wiederholungen** | 3           | Anzahl der Wiederholungen pro Schritt, wenn ein Schritt mit einem vorübergehenden Fehler scheitert.                 |
+| **Backoff (ms)**        | 1.000       | Verzögerung zwischen Wiederholungen. Verdoppelt sich pro Versuch bis zu einer sinnvollen Grenze.                    |
+| **Variablen**           | `{}` (JSON) | Gemeinsamer Schlüssel-Wert-Beutel, den jeder Schritt als `{{ variables.<key> }}` liest. Als JSON-Objekt bearbeiten. |
 
-### Event-Trigger
+Der Button **Konfiguration speichern** schreibt die Änderung. Gespeicherte Änderungen gelten für die nächste Ausführung — laufende Ausführungen behalten die Konfiguration, mit der sie gestartet sind.
 
-Lasse den Workflow laufen, wenn in der Plattform etwas passiert, z. B. wenn ein neuer Kunde angelegt, eine Konversation eröffnet oder der Bestand eines Produkts 0 erreicht. Jeder Event-Typ kann optionale Filterbedingungen haben.
+## Variablen
 
-### Webhook-Trigger
+Das Feld **Variablen** ist ein JSON-Objekt. Alles, was du dort ablegst, ist aus jeder Schritt-Konfiguration mit der Syntax `{{ variables.<key> }}` lesbar. Die zwei häufigen Formen sind Zugangsdaten, die mehrere Schritte referenzieren, und Feature-Flags, die das Verhalten zwischen Entwürfen und der Live-Version ändern. Zwei Punkte sind festzuhalten: geheime Werte, die als Variablen abgelegt sind, sind nicht zusätzlich verschlüsselt — für Zugangsdaten, die ein Konnektor liest, nutze stattdessen die Zugangsdaten-Oberfläche der Integration; und Variablen sind mit dem Rest der Automatisierung versioniert, sodass ein Wiederherstellen aus **Verlauf** sie zusammen mit den Schritten zurückholt.
 
-Jeder Workflow bekommt eine eigene Webhook-URL. Ein HTTP-POST an diese URL mit einem JSON-Body startet den Workflow mit diesen Daten als Input. Du kannst ein Webhook-Secret hinzufügen, um die Authentizität eingehender Anfragen zu prüfen.
+## Automatisierung testen
 
-## Workflow-Konfiguration
+Klick **Automatisierung testen** in der Symbolleiste, um den Entwurf mit einem Eingabe-Payload deiner Wahl laufen zu lassen. Der Test läuft gegen dieselbe Engine wie Produktionsausführungen, wird aber auf dem Tab **Ausführungen** mit der Trigger-Quelle `manual` festgehalten, sodass du ihn erneut abspielen, seine Ausgabe gegen eine frühere Ausführung diffen und seine Eingabe später wiederverwenden kannst. Nutze ihn vor dem Veröffentlichen — ein veröffentlichter Entwurf beginnt sofort auf seinen echten Triggern zu feuern, und ein Fünf-Sekunden-Testfang schlägt einen Pager-Alarm um 3 Uhr morgens wegen eines falsch konfigurierten Schritts vom Typ **Aktion**.
 
-Navigiere zum **Konfiguration**-Tab eines Workflows, um Folgendes anzupassen:
+## Verlauf
 
-- **Aktiv**-Umschalter: Workflow aktivieren oder deaktivieren. Entwürfe lassen sich erst aktivieren, wenn sie veröffentlicht sind.
-- **Timeout**: maximale Laufzeit eines Workflows in Millisekunden, bevor er gestoppt wird. Standard ist 300.000 ms (5 Minuten).
-- **Max. Wiederholungen**: wie oft ein fehlgeschlagener Schritt erneut versucht wird, bevor der Workflow fehlschlägt. Standard ist 3.
-- **Backoff**: Wartezeit in Millisekunden zwischen Wiederholungen. Standard ist 1.000 ms.
-- **Variablen**: ein JSON-Objekt aus Key-Value-Paaren, auf das alle Schritte als gemeinsame Konfiguration zugreifen.
+Jede gespeicherte Änderung landet im **Verlauf**, neben der Hauptleinwand des Editors. Der Button **Wiederherstellen** rollt die Automatisierung auf den von dir gewählten Schnappschuss zurück; die Ansicht **Änderungen vergleichen** zeigt das Diff, bevor du dich zum Wiederherstellen entscheidest. Der Verlauf ist das Sicherheitsnetz für „die Änderung, die ich heute Morgen ausgespielt habe, hat die nächtliche Ausführung kaputt gemacht" — öffnen, vorigen Schnappschuss finden, wiederherstellen.
 
-## Einen Workflow testen
+## Bau einen
 
-Nutze das Test-Panel (verfügbar im Seitenpanel des Workflow-Editors), um:
-
-- **Ausführen**: einen echten Lauf mit Test-Input auszulösen. Das Ergebnis siehst du im **Ausführungen**-Tab.
-
-## Ausführungsverlauf
-
-Navigiere zum **Ausführungen**-Tab eines beliebigen Workflows, um ein Log aller vergangenen Läufe zu sehen, inklusive Startzeit, Dauer, Status sowie Input- und Output-Daten in jedem Schritt.
-
-## Wo das hingehört
-
-Workflows sind die Leinwand, auf der das Vokabular aus [Automatisierungs-Konzepte](/de/platform/automations/concepts) — Schritte, Trigger, Variablen, Entwürfe — zu etwas Lauffähigem wird. Der Editor ist opinionated: Jeder Schritt tut einen Zug, der Graph läuft von Start zu Output, und das Test-Panel beweist die Logik vor der Veröffentlichung. Der Ausführungen-Tab ist der Ort fürs Debuggen danach — er trägt die vollständige Pro-Schritt-Spur, die einen `400 Bad Request` einer Drittsystem-API in einen einzigen lesbaren Datensatz verwandelt.
-
-Die natürlichen nächsten Schritte: wie der Workflow startet, regelst du in [Trigger](/de/platform/automations/triggers); fehlgeschlagene Läufe debuggst du in [Ausführungslogs](/de/platform/automations/execution-logs).
+Der Editor ist mit Absicht meinungsstark: jeder Schritt tut einen Zug, der Graph läuft von **Start** zu **Ausgabe**, und **Automatisierung testen** beweist die Form vor der Veröffentlichung. Die nächsten zwei Seiten decken die Teile des Modells ab, auf die der Editor nur zeigt — [Trigger](/de/platform/automations/triggers) für die vier Wege, auf denen eine Automatisierung startet, und [Ausführungsprotokolle](/de/platform/automations/execution-logs) für die Spur pro Lauf, die du liest, wenn etwas schiefläuft.

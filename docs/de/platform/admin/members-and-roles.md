@@ -21,14 +21,14 @@ Für die Anmelde-Mechanik (Passwort, Microsoft Entra ID SSO, vertrauenswürdige 
 
 ## Die sechs Rollen
 
-| Rolle       | Wozu diese Rolle gedacht ist                                                                                                                                                                  |
-| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Inhaber     | Die Person, die die Organisation erstellt hat. Gleiche Berechtigungen wie Admin, plus Eigentümerschaft übertragen und Organisation löschen. Genau ein Inhaber pro Organisation.               |
-| Admin       | Volle Kontrolle über die Organisation. Verwaltet Mitglieder, Anbieter, Branding, Richtlinien, Aufbewahrung, Audit-Log und alles, was darunter steht.                                          |
-| Entwickler  | Der Bau- und Integrations-Sitz. Erstellt und bearbeitet Agents und Automatisierungen, konfiguriert Integrationen und MCP-Server, verwaltet API-Schlüssel. Kein Zugriff auf Admin-Oberflächen. |
-| Redakteur   | Der Kuratierungs-Sitz. Lädt Wissen hoch und bearbeitet es, verwaltet Produkte, Kunden, Lieferanten und Websites, antwortet in Konversationen, entscheidet Freigaben und bearbeitet Agents.    |
-| Mitglied    | Nur-Lese-Konsument. Chattet mit KI und Agents, liest die Wissensdatenbank, liest Konversationen und Freigaben. Kann keine dieser Oberflächen beschreiben.                                     |
-| Deaktiviert | Gesperrtes Konto. Anmeldung wird für diese Organisation abgelehnt. Der zugrunde liegende Nutzer-Datensatz bleibt, damit das Konto durch eine Rollen-Änderung reaktiviert werden kann.         |
+| Rolle       | Wozu diese Rolle gedacht ist                                                                                                                                                                       |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Inhaber     | Die Person, die die Organisation erstellt hat. Gleiche Berechtigungen wie Admin, plus Eigentümerschaft übertragen und Organisation löschen. Genau ein Inhaber pro Organisation.                    |
+| Admin       | Volle Kontrolle über die Organisation. Verwaltet Mitglieder, Anbieter, Branding, Richtlinien, Aufbewahrung, Audit-Log und alles, was darunter steht.                                               |
+| Entwickler  | Der Sitz fürs Bauen und Integrieren. Erstellt und bearbeitet Agents und Automatisierungen, konfiguriert Integrationen und MCP-Server, verwaltet API-Schlüssel. Kein Zugriff auf Admin-Oberflächen. |
+| Redakteur   | Der Kuratierungs-Sitz. Lädt Wissen hoch und bearbeitet es, verwaltet Produkte, Kunden, Lieferanten und Websites, antwortet in Konversationen, entscheidet Freigaben und bearbeitet Agents.         |
+| Mitglied    | Nur-Lese-Konsument. Chattet mit KI und Agents, liest die Wissensdatenbank, liest Konversationen und Freigaben. Kann keine dieser Oberflächen beschreiben.                                          |
+| Deaktiviert | Gesperrtes Konto. Anmeldung wird für diese Organisation abgelehnt. Der zugrunde liegende Nutzer-Datensatz bleibt, damit das Konto durch eine Rollen-Änderung reaktiviert werden kann.              |
 
 `Inhaber` ist eine strikte Obermenge von `Admin` — jede Admin-Berechtigung weiter unten gehört auch dem Inhaber. Die Matrix führt ab hier `Admin` auf, um die Spalten kurz zu halten.
 
@@ -118,7 +118,7 @@ Nur der Inhaber kann das hier:
 
 ## Wie Rollen-Prüfungen erzwungen werden
 
-Rollen werden serverseitig bei jeder Convex-Query, Mutation und Action geprüft — die ausgeblendeten Schaltflächen im UI sind eine Bequemlichkeit, nicht die Schranke. Eine Seite, die „nicht erscheinen sollte", wird trotzdem mit `insufficient role` abgelehnt, wenn du sie per URL ansteuerst. Die Rolle `Deaktiviert` umgeht die übrige Matrix: Der Zugriff-verweigert-Bildschirm ist die einzige Oberfläche, die ein deaktivierter Nutzer sieht.
+Rollen werden serverseitig bei jedem Lese-, Schreib- und Hintergrund-Aufruf geprüft — die ausgeblendeten Schaltflächen im UI sind eine Bequemlichkeit, nicht die Schranke. Eine Seite, die „nicht erscheinen sollte", wird trotzdem mit dem Fehler „unzureichende Rolle" abgelehnt, wenn du sie per URL ansteuerst. Die Rolle Deaktiviert umgeht die übrige Matrix: Der Zugriff-verweigert-Bildschirm ist die einzige Oberfläche, die ein deaktivierter Nutzer sieht.
 
 Die Zwei-Admins-Mindestregel wird beim Wechsel der Rolle und beim Entfernen von Mitgliedern erzwungen, damit eine Organisation nie ohne oder mit nur einem Admin dasteht. Diese Regel bindet den Inhaber nicht: Eine Organisation mit einem Inhaber und einem Admin ist zulässig, weil der Inhaber selbst Admin ist.
 

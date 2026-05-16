@@ -3,7 +3,7 @@ title: API-Referenz
 description: REST-Endpoints für Platform, RAG und Crawler — OpenAI-kompatibles Chat, Dokument-Indizierung und Crawler-Steuerung.
 ---
 
-Die Tale-API ist die Oberfläche, die dein Code aufruft, wenn du die Konversation, die Indizierung oder das Crawling treibst, statt durch die UI zu klicken. Der Platform-Dienst spricht eine OpenAI-kompatible Chat-Completions-API unter `/api/v1/*`; RAG und Crawler exponieren je ihre eigene REST-Oberfläche am Dienst-Port. Diese Seite ist die einzige Quelle der Wahrheit für die Drahtform — jeder Endpunkt, jeder Pflicht-Header, jedes Anfrage- und Antwortfeld — und ergänzt das Tutorial unter [Tale aus einem Skript aufrufen](/de/tutorials/developer/call-tale-from-a-script) für den durchgespielten Ablauf.
+Die Tale-API ist die Oberfläche, die dein Code aufruft, wenn du die Konversation, die Indizierung oder das Crawling treibst, statt durch die UI zu klicken. Der Platform-Dienst spricht eine OpenAI-kompatible Chat-Completions-API unter `/api/v1/*`; RAG und Crawler exponieren je ihre eigene REST-Oberfläche am Dienst-Port. Diese Seite ist die einzige Quelle der Wahrheit für die Drahtform — jeder Endpunkt, jede Pflicht-Kopfzeile, jedes Anfrage- und Antwortfeld — und ergänzt das Tutorial unter [Tale aus einem Skript aufrufen](/de/tutorials/developer/call-tale-from-a-script) für den durchgespielten Ablauf.
 
 Die Webhook-Oberfläche — Tale empfängt Anfragen von externen Systemen — liegt in [Webhooks](/de/develop/webhooks).
 
@@ -15,7 +15,7 @@ Jede Platform-API-Anfrage trägt ein Bearer-Token, das in **Einstellungen > API-
 Authorization: Bearer tale_...
 ```
 
-Tokens beginnen mit `tale_` und sind auf den erstellenden Nutzer begrenzt. Gehört dieser Nutzer zu mehr als einer Organisation, sende `X-Organization-Slug: <slug>`, um die Organisation zu wählen; Tale löst automatisch auf, wenn der Nutzer zu genau einer gehört. RAG und Crawler werden über das interne Docker-Netzwerk erreicht und brauchen für In-Cluster-Anrufer keine Auth — sie extern zu exponieren ist eine Operator-Entscheidung, dokumentiert in der Self-hosted-Konfigurations-Referenz.
+Tokens beginnen mit `tale_` und sind auf den erstellenden Nutzer begrenzt. Gehört dieser Nutzer zu mehr als einer Organisation, sende `X-Organization-Slug: <slug>`, um die Organisation zu wählen; Tale löst automatisch auf, wenn der Nutzer zu genau einer gehört. RAG und Crawler werden über das interne Docker-Netzwerk erreicht und brauchen für In-Cluster-Clients keine Auth — sie extern zu exponieren ist eine Operator-Entscheidung, dokumentiert in der Konfigurations-Referenz für selbst gehostete Instanzen.
 
 ## Interaktive API-Dokumentation
 
@@ -86,15 +86,15 @@ Die Antwort folgt der OpenAI-Form — `id`, `object: chat.completion`, `created`
 
 Sende eine Chat-Nachricht und empfange eine Antwort. Unterstützt Streaming, Tool-Calling und JSON-Modus.
 
-**Header.** `Authorization` ist Pflicht; `X-Organization-Slug` nur für Multi-Org-Nutzer.
+**Kopfzeilen.** `Authorization` ist Pflicht; `X-Organization-Slug` nur für Multi-Org-Nutzer.
 
 | Name                  | Typ    | Erforderlich         | Beschreibung                                                                    |
 | --------------------- | ------ | -------------------- | ------------------------------------------------------------------------------- |
 | `Authorization`       | string | Ja                   | `Bearer tale_...` — der API-Schlüssel aus **Einstellungen > API-Schlüssel**.    |
 | `X-Organization-Slug` | string | nur Multi-Org-Nutzer | Organisations-Slug. Wird automatisch aufgelöst, wenn der Nutzer genau eine hat. |
-| `Content-Type`        | string | Ja                   | `application/json` für den Request-Body.                                        |
+| `Content-Type`        | string | Ja                   | `application/json` für den Anfrage-Body.                                        |
 
-**Request-Body.**
+**Anfrage-Body.**
 
 | Name                | Typ                | Erforderlich | Beschreibung                                                                                      |
 | ------------------- | ------------------ | ------------ | ------------------------------------------------------------------------------------------------- |
@@ -209,7 +209,7 @@ Lade ein Dokument zur Indizierung hoch. Multipart-form-data.
 | Name       | Typ     | Erforderlich | Beschreibung                                             |
 | ---------- | ------- | ------------ | -------------------------------------------------------- |
 | `file`     | file    | Ja           | Die zu indizierende Binärdatei.                          |
-| `file_id`  | string  | Ja           | Stabiler Identifier, den der Anrufer vergibt.            |
+| `file_id`  | string  | Ja           | Stabiler Identifier, den der Aufrufer vergibt.           |
 | `sync`     | boolean | Nein         | Auf das Ende der Indizierung warten. Standard `false`.   |
 | `metadata` | string  | Nein         | JSON-kodierte Metadaten, neben dem Dokument gespeichert. |
 

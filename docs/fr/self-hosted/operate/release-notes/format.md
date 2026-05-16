@@ -3,7 +3,7 @@ title: Format des release notes
 description: Format de référence pour les release notes GitHub de tale-project/tale.
 ---
 
-Tale publie son historique de versions sous forme de release notes GitHub contre le dépôt `tale-project/tale`, dans une forme fixe pour que les exploitants puissent scanner une release avant un upgrade pour les trois choses qui comptent — relevance sécurité, changement de comportement, breaking change — sans lire chaque bullet. Cette page est le contrat : elle nomme chaque section, l'ordre dans lequel elles apparaissent, le cadre que chaque release partage, et les règles de classification qui décident où atterrit chaque bullet. La slash-command `/release` du dépôt principal rédige les notes selon cette spec, et le viewer **What's new** dans le produit rend le même Markdown.
+Tale publie son historique de versions sous forme de release notes GitHub contre le dépôt `tale-project/tale`, dans une forme fixe pour que les exploitants puissent scanner une release avant un upgrade pour les trois choses qui comptent — relevance sécurité, changement de comportement, breaking change — sans lire chaque bullet. Cette page est le contrat : elle nomme chaque section, l'ordre dans lequel elles apparaissent, le cadre que chaque release partage, et les règles de classification qui décident où atterrit chaque bullet. La slash-command `/release` du dépôt principal rédige les notes selon cette spec, et le viewer **Nouveautés** dans le produit rend le même Markdown.
 
 ## Pourquoi cette spec
 
@@ -97,4 +97,4 @@ Run `tale upgrade` to update the CLI, then `tale deploy` to apply the new versio
 
 ## Où cela s'inscrit
 
-Le format des release notes est le contrat entre Ruler GmbH et chaque exploitant qui fait tourner une instance Tale auto-hébergée. Le même Markdown que rend le viewer [What's new](/fr/platform/admin/changelog) dans le produit est ce que les lecteurs consultent avant `tale deploy` ; c'est la forme cohérente qui rend les notes scannables. La slash-command `/release` du dépôt principal rédige les notes selon cette spec. Pour les correctifs de niveau sécurité qui méritent en plus une divulgation CVE, [Avis de sécurité](/fr/self-hosted/operate/security/advisories) est la surface parallèle.
+Le format des release notes est le contrat entre Ruler GmbH et chaque exploitant qui fait tourner une instance Tale auto-hébergée. Le même Markdown que rend le viewer [Nouveautés](/fr/platform/admin/changelog) dans le produit est ce que les lecteurs consultent avant `tale deploy` ; c'est la forme cohérente qui rend les notes scannables. La slash-command `/release` du dépôt principal rédige les notes selon cette spec. Pour les correctifs de niveau sécurité qui méritent en plus une divulgation CVE, [Avis de sécurité](/fr/self-hosted/operate/security/advisories) est la surface parallèle.

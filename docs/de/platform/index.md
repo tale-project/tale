@@ -3,7 +3,7 @@ title: Platform-Übersicht
 description: Produktdokumentation für Tale — Funktionen, Rollen und Organisationsverwaltung. Gilt identisch für Cloud und selbst gehostete Instanzen.
 ---
 
-Platform ist die vollständige Produktdokumentation zu Tale. Sie beschreibt jede nutzerseitige Funktion — Chat, Wissensdatenbank, Agents, Automatisierungen, Integrationen — und enthält zusätzlich rollenspezifische Aufgaben-Leitfäden sowie alle Einstellungen auf Organisationsebene (Mitglieder, Rollen, Teams, Branding, Governance, KI-Anbieter, Analytics). Alles hier gilt gleichermaßen, egal ob du die gemanagte [Cloud](/de/cloud)-Edition nutzt oder eine eigene [selbst gehostet](/de/self-hosted)-Instanz betreibst.
+Platform ist die vollständige Produktdokumentation zu Tale. Sie beschreibt jede nutzerseitige Funktion — Chat, Wissensdatenbank, Agents, Automatisierungen, Integrationen — und enthält zusätzlich rollenspezifische Aufgaben-Leitfäden sowie alle Einstellungen auf Organisationsebene (Mitglieder, Rollen, Teams, Branding, Governance, KI-Anbieter, Analytics). Alles hier gilt gleichermaßen, egal ob du die gemanagte [Cloud](/de/cloud)-Edition nutzt oder eine eigene [selbst gehostete](/de/self-hosted) Instanz betreibst.
 
 Nur editionsspezifische Themen gehören **nicht** hierher: Cloud-Abrechnung, regionale Datenhaltung und gehostetes SSO stehen unter Cloud; Installation, Umgebungskonfiguration, Observability und Release Notes stehen unter selbst gehostet. Alles, was du in der Produktoberfläche siehst, ist in diesem Bereich beschrieben.
 
@@ -36,4 +36,8 @@ Organisationsweite Einstellungen gelten sowohl für Cloud als auch für selbst g
 - [Governance](/de/platform/admin/governance) — Regeln für Inhalte und Richtlinien.
 - [Nutzungsanalyse](/de/platform/admin/usage-analytics) — Aktivität pro Person und organisationsweit.
 
-Für die Einrichtung der Authentifizierung (Passwort, SSO, Trusted Kopfzeilen) siehe [selbst gehostet-Authentifizierung](/de/self-hosted/admin/authentication) — die Konfiguration ist self-hosted-spezifisch; in Cloud erledigt das die gehostete Admin-Oberfläche.
+Für die Einrichtung der Authentifizierung (Passwort, SSO, Trusted-Kopfzeilen) siehe [Authentifizierung in selbst gehosteten Instanzen](/de/self-hosted/admin/authentication) — die Konfiguration ist auf selbst gehostete Instanzen zugeschnitten; in Cloud erledigt das die gehostete Admin-Oberfläche.
+
+## Wo das einsetzt
+
+Platform ist die einzige Wahrheit darüber, was Tale tut, und die Oberfläche bleibt dieselbe, egal wo die Instanz läuft. Alles, was eine Konfigurationsdatei, eine Umgebungsvariable oder einen CLI-Befehl braucht, liegt einen Tab weiter unter [selbst gehostet](/de/self-hosted/overview); alles, was es nur für gemanagte Kundinnen und Kunden gibt — Abrechnung, gehostetes SSO, eigene Domains — liegt unter [Cloud](/de/cloud). Wenn du aus einer Suchergebnisliste hier gelandet bist und nicht sicher bist, mit welcher Rolle du lesen sollst, fang mit [Mitglieder und Rollen](/de/platform/admin/members-and-roles) an — jede andere Admin-Frage liest sich anders, sobald diese Seite beantwortet hat, wer was darf.

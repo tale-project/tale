@@ -51,7 +51,7 @@ Ouvre le panneau Office Agents dans Word ou Excel, ouvre son dialogue **Settings
 
 | Champ       | Valeur                                                                                               |
 | ----------- | ---------------------------------------------------------------------------------------------------- |
-| Provider    | **OpenAI-compatible** (l'étiquette varie par release — « Custom » convient aussi)                    |
+| Fournisseur | **OpenAI-compatible** (l'étiquette varie par release — « Custom » convient aussi)                    |
 | URL de base | `https://<ton-instance-tale>/api/v1`                                                                 |
 | Clé API     | Le jeton `tale_...` de l'étape 1                                                                     |
 | Modèle      | Un ID de modèle renvoyé par `GET /api/v1/models` — voir [API — Référence](/fr/develop/api-reference) |

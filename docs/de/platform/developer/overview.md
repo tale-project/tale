@@ -1,9 +1,9 @@
 ---
 title: Entwickler
-description: Der Bau- und Integrations-Sitz — Agents, Automatisierungen, Integrationen, MCP-Server und API-Schlüssel. Die aufgabenorientierte Landung des Entwicklers für den Alltag.
+description: Der Sitz fürs Bauen und Integrieren — Agents, Automatisierungen, Integrationen, MCP-Server und API-Schlüssel. Die aufgabenorientierte Landung des Entwicklers für den Alltag.
 ---
 
-Ein **Entwickler** in Tale ist der Bau- und Integrations-Sitz. Du verdrahtest die Teile der Plattform, die alle anderen nutzen: die Agents, für die deine Redakteure Wissen kuratieren, die Automatisierungen, die im Hintergrund laufen, die Integrationen, die Tale mit anderen Systemen verbinden, und die API-Schlüssel, die Skripte und Webhooks von außen in Tale hineinrufen lassen. Alles, was ein Redakteur kann, kannst du auch; obendrein erstellst und veröffentlichst du Automatisierungen, konfigurierst Integrationen und MCP-Server und verwaltest API-Schlüssel. Du änderst keine Organisations-Einstellungen — Branding, Richtlinien, Anbieter, Mitglieder-Rollen — das ist Admin-Territorium.
+Ein **Entwickler** in Tale ist der Sitz fürs Bauen und Integrieren. Du verdrahtest die Teile der Plattform, die alle anderen nutzen: die Agents, für die deine Redakteure Wissen kuratieren, die Automatisierungen, die im Hintergrund laufen, die Integrationen, die Tale mit anderen Systemen verbinden, und die API-Schlüssel, die Skripte und Webhooks von außen in Tale hineinrufen lassen. Alles, was ein Redakteur kann, kannst du auch; obendrein erstellst und veröffentlichst du Automatisierungen, konfigurierst Integrationen und MCP-Server und verwaltest API-Schlüssel. Du änderst keine Organisations-Einstellungen — Branding, Richtlinien, Anbieter, Mitglieder-Rollen — das ist Admin-Territorium.
 
 Bauen in Tale ist meistens Komposition statt Code. Du entscheidest, was ein Agent wissen, was er können und wie er sich verhalten soll; Tale erledigt die Modell-Aufrufe, das Konversations-Gedächtnis, die Tool-Orchestrierung und die Lauf-Historie. Das Mental-Modell unten ist die kleine Menge an Bausteinen, die du komponierst. Die kanonische Berechtigungsmatrix lebt unter [Mitglieder und Rollen](/de/platform/admin/members-and-roles) — lies sie, wenn ein Tutorial an einer fehlenden Schaltfläche scheitert.
 
@@ -33,4 +33,4 @@ Jeder Baustein oben lässt sich auch aus JSON-Dateien in deinem Projektverzeichn
 
 ## Wo das hingehört
 
-Die Entwickler-Rolle ist der Bau- und Integrations-Sitz. Dieselbe Person, die die Agents baut, die Redakteure kuratieren, verdrahtet auch die Integrationen, die die Agents aufrufen, die Automatisierungen, die im Hintergrund laufen, und die API-Schlüssel, die externe Systeme in Tale hineinrufen lassen. Für die kanonische Berechtigungsmatrix siehe [Mitglieder und Rollen](/de/platform/admin/members-and-roles); für übergreifende Arbeit (Tale aus einem Skript aufrufen, Webhooks empfangen) ist die Sektion [Entwickeln](/de/develop/api-reference) einen Tab weiter.
+Die Entwickler-Rolle ist der Sitz fürs Bauen und Integrieren. Dieselbe Person, die die Agents baut, die Redakteure kuratieren, verdrahtet auch die Integrationen, die die Agents aufrufen, die Automatisierungen, die im Hintergrund laufen, und die API-Schlüssel, die externe Systeme in Tale hineinrufen lassen. Für die kanonische Berechtigungsmatrix siehe [Mitglieder und Rollen](/de/platform/admin/members-and-roles); für übergreifende Arbeit (Tale aus einem Skript aufrufen, Webhooks empfangen) ist die Sektion [Entwickeln](/de/develop/api-reference) einen Tab weiter.

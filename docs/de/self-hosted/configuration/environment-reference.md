@@ -1,118 +1,154 @@
 ---
-title: Environment-Referenz
-description: Vollständige Referenz aller Environment-Variablen zur Konfiguration von Tale.
+title: Umgebungsreferenz
+description: Vollständige Referenz aller Umgebungsvariablen zur Konfiguration von Tale.
 ---
 
-Die gesamte Konfiguration erfolgt über Environment-Variablen in der `.env`-Datei. Kopiere `.env.example` nach `.env` und fülle deine Werte ein.
+Die Umgebungsreferenz katalogisiert jede Variable, die Tale beim Container-Start liest. Operatoren konsultieren diese Seite, wenn ein Knopf geändert werden muss — eine Domain, ein TLS-Modus, ein SSO-Mandant — und nochmal, wenn etwas, was die Laufzeit erwartete zu finden, nicht da ist. Die Wahrheitsquelle ist `.env.example` und die Per-Service-Env-Loader; die Tabellen unten sind nach Oberfläche gruppiert, sodass die Variablen, die eine Sorge regieren, nahe beieinander bleiben.
 
-## Domain-Konfiguration
+Jede Variable lebt in `.env` im Projekt-Wurzelverzeichnis. `tale init` versorgt die Datei mit vernünftigen Voreinstellungen; Produktions-Deployments überschreiben Domain-, TLS- und Datenbankwerte, und die meisten Installationen rühren nichts anderes an.
 
-| Variable    | Pflicht | Standard             | Beschreibung                                                                         |
-| ----------- | ------- | -------------------- | ------------------------------------------------------------------------------------ |
-| `HOST`      | Ja      | `tale.local`         | Hostname ohne Protokoll (wird für Docker-Netzwerk und E-Mails genutzt).              |
-| `SITE_URL`  | Ja      | `https://tale.local` | vollständige kanonische URL mit Protokoll (für externe Links und Auth-Callbacks).    |
-| `BASE_PATH` | Nein    |                      | Basis-Pfad für Subpath-Deployments (z. B. `/app`). Leer lassen bei Root-Deployments. |
+## Wie diese Seite zu lesen ist
 
-`SITE_URL` muss der URL entsprechen, die Nutzer im Browser aufrufen, inklusive nicht-standardmäßiger Ports (z. B. `https://example.com:8443`).
+Variablen sind danach gruppiert, was sie kontrollieren — Domain, TLS, Secrets, Datenbank, Monitoring, SSO, vertrauenswürdige HTTP-Kopfzeilen, Aufbewahrung, Deployment. Jede Gruppe öffnet mit ein bis zwei Sätzen, die benennen, was die Gruppe regiert, dann folgt eine `Name | Voreinstellung | Beschreibung`-Tabelle. Variablen ohne Voreinstellung sind voreingestellt ungesetzt; fehlende erforderliche Variablen führen dazu, dass der Container den Start mit der auf der [Fehlersuche](/de/self-hosted/operate/observability/troubleshooting)-Seite genannten Meldung verweigert.
 
-## TLS/SSL
+Änderungen greifen beim Container-Start, also verlangt das Bearbeiten von `.env` ein `tale deploy` (Produktion) oder ein `tale start` (lokal). Ein laufender Stack liest `.env` nie erneut.
 
-| Variable    | Pflicht | Standard     | Beschreibung                                                            |
-| ----------- | ------- | ------------ | ----------------------------------------------------------------------- |
-| `TLS_MODE`  | Nein    | `selfsigned` | Zertifikatsverwaltung: `selfsigned`, `letsencrypt` oder `external`.     |
-| `TLS_EMAIL` | Nein    |              | E-Mail für Let's-Encrypt-Benachrichtigungen (für Produktion empfohlen). |
+## Domain
 
-- **selfsigned**: selbstsignierte Zertifikate für Entwicklung. Browser zeigt eine Warnung.
-- **letsencrypt**: kostenlose vertrauenswürdige Zertifikate von Let's Encrypt. Benötigt eine gültige öffentliche Domain und die Ports 80/443 offen.
-- **external**: TLS wird vom externen Reverse-Proxy erledigt. Caddy lauscht nur auf HTTP.
+`HOST` ist der Hostname, den Docker für internes Routing und E-Mail nutzt; `SITE_URL` ist die vollständige URL, die Nutzer in den Browser tippen, einschließlich eines nicht standardmäßigen Ports. `BASE_PATH` wird nur gesetzt, wenn ein vorgelagerter Proxy Tale unter einem Subpath ausliefert.
 
-## Sicherheits-Secrets
+| Name        | Voreinstellung       | Beschreibung                                                                                       |
+| ----------- | -------------------- | -------------------------------------------------------------------------------------------------- |
+| `HOST`      | `tale.local`         | Hostname ohne Protokoll. Wird für Docker-Netzwerk-Aliase und ausgehende E-Mail-Kopfzeilen genutzt. |
+| `SITE_URL`  | `https://tale.local` | Vollständige kanonische URL mit Protokoll. Wird für externe Links und Auth-Callbacks genutzt.      |
+| `BASE_PATH` | _(leer)_             | Subpath hinter einem Pfad-Präfix-Proxy (z. B. `/app`). Leer lassen für Wurzel-Deployments.         |
 
-| Variable                | Pflicht | Beschreibung                                                                                                                                                                                                                                                                                       |
-| ----------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `BETTER_AUTH_SECRET`    | Ja      | Signatur-Schlüssel für Auth-Sessions. Erzeugen mit: `openssl rand -base64 32`.                                                                                                                                                                                                                     |
-| `ENCRYPTION_SECRET_HEX` | Ja      | Verschlüsselungsschlüssel für sensible Daten, einschließlich der in der DB gespeicherten Guardrails-Secrets (Moderations-API-Schlüssel usw.). Erzeugen mit: `openssl rand -hex 32`. Eine Rotation invalidiert alle gespeicherten Guardrails-Secrets — Admins müssen sie über die UI neu speichern. |
-| `INSTANCE_SECRET`       | Nein    | Convex-Instanz-Secret. Erzeugen mit: `openssl rand -hex 32`.                                                                                                                                                                                                                                       |
-| `SOPS_AGE_KEY`          | Nein    | Age-Geheimschlüssel für die [SOPS](https://github.com/getsops/sops)-Verschlüsselung von `providers/*.secrets.json`. Wenn gesetzt, werden Anbieter-Secrets verschlüsselt gespeichert; sonst als Klartext mit Datei-Modus `0600`. Wird von `tale init` automatisch erzeugt.                          |
-| `SOPS_AGE_KEY_FILE`     | Nein    | Alternative zu `SOPS_AGE_KEY`: Pfad zu einer Datei mit dem Age-Geheimschlüssel. Eine der beiden Variablen aktiviert den verschlüsselten Modus für Anbieter-Secrets.                                                                                                                                |
+`SITE_URL` muss der URL entsprechen, die Nutzer tatsächlich erreichen. Wenn dein Reverse-Proxy auf `:8443` lauscht, nimm ihn auf: `SITE_URL=https://example.com:8443`. Der Proxy nutzt diesen Wert, um OAuth-Callback-URLs und den Passwort-Reset-Link zu bauen, also bricht eine Diskrepanz beide Abläufe still.
 
-> **Wichtig:** `.env.example` enthält Beispiel-Secrets. Diese musst du vor dem Start durch eigene Werte ersetzen, auch in der lokalen Entwicklung.
+## TLS
 
-## KI-Anbieter
+Drei Modi decken die Zertifikatsoptionen ab. `selfsigned` ist die lokale Voreinstellung; `letsencrypt` ist die Produktions-Voreinstellung; `external` ist für Deployments, in denen ein vorgelagerter Proxy TLS bereits terminiert.
 
-Die Anbieter-Konfiguration (API-Schlüssel, Base-URLs, Modelle) erfolgt über Dateien im Verzeichnis `providers/`, nicht über Environment-Variablen. Siehe Seite Einstellungen > Anbieter in der Management-UI oder bearbeite die Anbieter-JSON-Dateien direkt.
+| Name        | Voreinstellung | Beschreibung                                                                                   |
+| ----------- | -------------- | ---------------------------------------------------------------------------------------------- |
+| `TLS_MODE`  | `selfsigned`   | Zertifikatsbehandlung: `selfsigned`, `letsencrypt` oder `external`.                            |
+| `TLS_EMAIL` | _(leer)_       | Kontakt-E-Mail für Let's-Encrypt-ACME-Benachrichtigungen. Empfohlen, wann immer `letsencrypt`. |
 
-- `providers/<name>.json` — öffentliche Konfiguration (Base-URL, Modelle, Tags).
-- `providers/<name>.secrets.json` — API-Schlüssel. SOPS-verschlüsselt, wenn `SOPS_AGE_KEY` gesetzt ist; sonst Klartext mit Modus `0600`. Wird von `tale init` und der Einstellungs-UI automatisch erzeugt.
+Selbstsignierte Zertifikate lösen eine Browser-Warnung aus, bis du auf dem Host `docker exec tale-proxy caddy trust` fährst. Let's Encrypt braucht die Ports 80 und 443 vom öffentlichen Internet erreichbar für die ACME-Challenge. Der externe Modus fährt Caddy nur auf HTTP; der vorgelagerte Proxy behandelt TLS und leitet WebSocket-Upgrades für den Convex-Realtime-Kanal weiter.
+
+## Security-Secrets
+
+Das sind die Secrets, ohne die die Plattform den Start verweigert. `tale init` erzeugt jedes einzelne; das Rotieren macht alles ungültig, was zuvor mit dem alten Wert verschlüsselt wurde.
+
+| Name                    | Voreinstellung | Beschreibung                                                                                                                              |
+| ----------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `BETTER_AUTH_SECRET`    | _(ungesetzt)_  | Signing-Schlüssel für Auth-Sessions. Mit `openssl rand -base64 32` erzeugen. Erforderlich.                                                |
+| `ENCRYPTION_SECRET_HEX` | _(ungesetzt)_  | 32-Byte-Hex-Schlüssel für die in-Datenbank Secret-Box. Mit `openssl rand -hex 32` erzeugen. Rotieren macht gespeicherte Secrets ungültig. |
+| `INSTANCE_SECRET`       | _(ungesetzt)_  | Seed für den Convex-Admin-Schlüssel, den `tale deploy` ableitet. Mit `openssl rand -hex 32` erzeugen.                                     |
+| `SOPS_AGE_KEY`          | _(ungesetzt)_  | Inline-age-Secret-Key für SOPS-Verschlüsselung von `providers/*.secrets.json`. `tale init` versorgt diesen standardmäßig.                 |
+| `SOPS_AGE_KEY_FILE`     | _(ungesetzt)_  | Pfad zu einer Datei mit einem oder mehreren age-Schlüsseln, einer pro Zeile. Nutze diese Form für Schlüssel-Rotation.                     |
+
+Die Datei `.env.example` liefert Platzhalter-Secrets aus. Ersetze jeden einzelnen, bevor du den Stack startest, auch für lokale Entwicklung; die Platzhalter sind öffentlich auf GitHub, und ein Angreifer, der die Instanz erreicht, kann mit ihnen Auth-Tokens fälschen. Die SOPS-Modi — verschlüsselt, Klartext, Schlüssel-Rotation — werden unter [Anbieter](/de/self-hosted/configuration/providers#provider-secrets-storage) behandelt.
 
 ## Datenbank
 
-| Variable               | Pflicht | Standard | Beschreibung                                                                                                                                    |
-| ---------------------- | ------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DB_PASSWORD`          | Ja      |          | Passwort für die mitgelieferte PostgreSQL-Datenbank.                                                                                            |
-| `POSTGRES_URL`         | Nein    |          | Überschreibt die automatisch erzeugte DB-Connection-URL. Falls nicht gesetzt, wird sie als `postgresql://tale:${DB_PASSWORD}@db:5432` gebildet. |
-| `RAG_DATABASE_URL`     | Nein    |          | Überschreibt die DB-URL für den RAG-Dienst (muss den DB-Namen enthalten, z. B. `postgresql://...host/tale_knowledge`).                          |
-| `CRAWLER_DATABASE_URL` | Nein    |          | Überschreibt die DB-URL für den Crawler-Dienst (muss den DB-Namen enthalten, z. B. `postgresql://...host/tale_knowledge`).                      |
+`DB_PASSWORD` ist das Passwort für den gebündelten Postgres-Container. Die Override-Variablen zählen nur, wenn Tale auf eine externe Postgres-Instanz ausgerichtet wird — das vollständige Muster steht unter [Produktions-Deployment](/de/self-hosted/install/linux-server#using-an-external-database).
 
-Zum Einsatz einer externen PostgreSQL-Instanz statt des mitgelieferten Containers siehe [Externe Datenbank nutzen](/de/self-hosted/install/linux-server#externe-datenbank-nutzen).
+| Name                   | Voreinstellung | Beschreibung                                                                                                         |
+| ---------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `DB_PASSWORD`          | _(ungesetzt)_  | Passwort für den gebündelten Postgres. Erforderlich bei Nutzung des `db`-Containers.                                 |
+| `POSTGRES_URL`         | _(ungesetzt)_  | Überschreibt die automatisch gebaute Verbindungs-URL. Format `postgresql://user:pass@host:port` ohne Datenbanknamen. |
+| `RAG_DATABASE_URL`     | _(ungesetzt)_  | Pro-Service-Override für RAG. Schließe den Datenbanknamen ein (`/tale_knowledge`).                                   |
+| `CRAWLER_DATABASE_URL` | _(ungesetzt)_  | Pro-Service-Override für den Crawler. Schließe den Datenbanknamen ein (`/tale_knowledge`).                           |
 
-## Error-Tracking
+Ohne `POSTGRES_URL` baut Tale die URL als `postgresql://tale:${DB_PASSWORD}@db:5432`. Die beiden service-spezifischen URLs überschreiben die Basis-URL nur für den benannten Service, was Read-Replikas und Per-Service-Routing möglich macht.
 
-| Variable     | Pflicht | Standard | Beschreibung                                                         |
-| ------------ | ------- | -------- | -------------------------------------------------------------------- |
-| `SENTRY_DSN` | Nein    |          | Sentry-DSN für Error-Tracking. Kompatibel mit GlitchTip und Bugsink. |
+## Fehler-Tracking
 
-Falls nicht gesetzt, ist Error-Tracking deaktiviert und Fehler erscheinen nur in Docker-Logs.
+Tales Fehler-Reporting spricht das Sentry-DSN-Format. Selbst gehostetes Sentry, GlitchTip und Bugsink akzeptieren alle dieselbe DSN-Form, also funktioniert jedes davon als Drop-in-Ersatz. Lass die Variable ungesetzt, um Fehler nur in Docker-Logs zu halten.
+
+| Name                        | Voreinstellung | Beschreibung                                                                                                   |
+| --------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------- |
+| `SENTRY_DSN`                | _(ungesetzt)_  | DSN-Endpunkt für Crash- und Fehler-Reporting. Kompatibel mit Sentry, GlitchTip und Bugsink.                    |
+| `SENTRY_TRACES_SAMPLE_RATE` | `1.0`          | Anteil der Transaktionen, der für Performance-Tracing gesampelt wird. Auf `0.0` setzen, um es zu deaktivieren. |
 
 ## Monitoring
 
-| Variable               | Pflicht | Standard | Beschreibung                                               |
-| ---------------------- | ------- | -------- | ---------------------------------------------------------- |
-| `METRICS_BEARER_TOKEN` | Nein    |          | Bearer-Token für externen Zugriff auf Prometheus-Metriken. |
+Jeder Dienst exponiert einen Prometheus-Textformat-Endpunkt `/metrics` im internen Docker-Netzwerk. Um sie durch den Proxy für ein externes Prometheus zu exponieren, setze ein Bearer-Token:
 
-Wenn leer, liefern alle `/metrics/*`-Endpoints `401`. Siehe [Operations](/de/self-hosted/operate/observability/operations) für Endpoint-Details.
+| Name                   | Voreinstellung | Beschreibung                                                                                                          |
+| ---------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `METRICS_BEARER_TOKEN` | _(ungesetzt)_  | Bearer-Token, um `/metrics/<service>` durch den Proxy zu lesen. Ungesetzt antwortet jeder Metrics-Endpunkt mit `401`. |
 
-## Dienst-URLs
+Die vollständige Endpunkt-Liste und eine Beispiel-Prometheus-Scrape-Konfiguration stehen unter [Betrieb](/de/self-hosted/operate/observability/operations#monitoring).
 
-In Docker Compose automatisch gesetzt, lassen sich aber für eigene Setups überschreiben:
+## Service-URLs
 
-| Variable      | Standard              | Beschreibung                                      |
-| ------------- | --------------------- | ------------------------------------------------- |
-| `CRAWLER_URL` | `http://crawler:8002` | Crawler-Dienst für Website-Crawling.              |
-| `RAG_URL`     | `http://rag:8001`     | RAG-Dienst für Dokumenten-Indizierung und -Suche. |
+Docker Compose verdrahtet Service-zu-Service-Verkehr automatisch, also müssen die URLs unten selten überschrieben werden. Die Variablen existieren für eigene Topologien — RAG auf einem separaten Host laufen lassen, den Crawler horizontal skalieren und so weiter.
 
-## Docker-Deployment
+| Name          | Voreinstellung        | Beschreibung                                          |
+| ------------- | --------------------- | ----------------------------------------------------- |
+| `CRAWLER_URL` | `http://crawler:8002` | Crawler-Dienst-Endpunkt, von der Platform konsumiert. |
+| `RAG_URL`     | `http://rag:8001`     | RAG-Dienst-Endpunkt, von der Platform konsumiert.     |
 
-| Variable      | Pflicht | Standard | Beschreibung                                                                    |
-| ------------- | ------- | -------- | ------------------------------------------------------------------------------- |
-| `PULL_POLICY` | Nein    |          | Auf `always` setzen, um vorgebaute Images von GitHub zu nutzen.                 |
-| `VERSION`     | Nein    |          | Image-Version-Tag (z. B. `latest`, `v1.0.0`). Genutzt mit `PULL_POLICY=always`. |
+## Docker
 
-## Microsoft Entra ID SSO
+Diese kontrollieren, wie `docker compose` und `tale deploy` Images ziehen.
 
-Diese Variablen sind nur nötig, wenn du SSO über Environment-Variablen konfigurierst statt über die In-App-UI Einstellungen > Integrationen.
+| Name          | Voreinstellung | Beschreibung                                                                                  |
+| ------------- | -------------- | --------------------------------------------------------------------------------------------- |
+| `PULL_POLICY` | `build`        | `build` für lokale Entwicklung; `always`, um vorgefertigte Images von GHCR zu ziehen.         |
+| `VERSION`     | `latest`       | Image-Versions-Tag. Kombiniere mit `PULL_POLICY=always`, um ein bestimmtes Release zu pinnen. |
 
-| Variable                            | Pflicht | Beschreibung                                |
-| ----------------------------------- | ------- | ------------------------------------------- |
-| `AUTH_MICROSOFT_ENTRA_ID_ID`        | Nein    | Microsoft-Entra-ID-Application (Client) ID. |
-| `AUTH_MICROSOFT_ENTRA_ID_SECRET`    | Nein    | Microsoft-Entra-ID-Client-Secret.           |
-| `AUTH_MICROSOFT_ENTRA_ID_TENANT_ID` | Nein    | Microsoft-Entra-ID-Tenant-ID.               |
+## Microsoft Entra SSO
 
-## Trusted-Kopfzeilen-Authentifizierung
+Diese drei Variablen zählen nur, wenn SSO über `.env` statt über den Bildschirm **Einstellungen > Integrationen** in der App konfiguriert wird. Die meisten Operatoren nutzen die UI; die Env-Var-Form ist nützlich für Infrastructure-as-Code-Setups, bei denen die SSO-Konfiguration im selben Repository wie `.env` lebt.
 
-| Variable                          | Pflicht | Beschreibung                                                                      |
-| --------------------------------- | ------- | --------------------------------------------------------------------------------- |
-| `TRUSTED_HEADERS_ENABLED`         | Nein    | Auf `true` setzen, um Trusted-Kopfzeilen-Auth zu aktivieren.                      |
-| `TRUSTED_HEADERS_INTERNAL_SECRET` | Nein    | Gemeinsames Secret zur Prüfung von Trusted-Kopfzeile-Anfragen (Defense-in-Depth). |
-| `TRUSTED_EMAIL_HEADER`            | Nein    | Kopfzeile-Name für die E-Mail des Nutzers (Standard: `Remote-Email`).             |
-| `TRUSTED_NAME_HEADER`             | Nein    | Kopfzeile-Name für den Anzeigenamen des Nutzers (Standard: `Remote-Name`).        |
-| `TRUSTED_ROLE_HEADER`             | Nein    | Kopfzeile-Name für die Rolle des Nutzers (Standard: `Remote-Role`).               |
-| `TRUSTED_TEAMS_HEADER`            | Nein    | Kopfzeile-Name für die Teams des Nutzers (Standard: `Remote-Teams`).              |
+| Name                                | Voreinstellung | Beschreibung                             |
+| ----------------------------------- | -------------- | ---------------------------------------- |
+| `AUTH_MICROSOFT_ENTRA_ID_ID`        | _(ungesetzt)_  | Microsoft Entra Application (client) ID. |
+| `AUTH_MICROSOFT_ENTRA_ID_SECRET`    | _(ungesetzt)_  | Microsoft Entra Client Secret.           |
+| `AUTH_MICROSOFT_ENTRA_ID_TENANT_ID` | _(ungesetzt)_  | Microsoft Entra Directory (tenant) ID.   |
 
-Siehe die [Authentifizierungs-Anleitung](/de/self-hosted/admin/authentication) für Details zur Konfiguration von Trusted Kopfzeilen.
+Der vollständige SSO-Ablauf steht unter [Authentifizierung](/de/self-hosted/admin/authentication#microsoft-entra-id-sso).
 
-## Wo das hingehört
+## Vertrauenswürdige HTTP-Kopfzeilen
 
-Das oben aufgeführte Umgebungsvariablen-Inventar ist die Operator-API zu Tale. Alles, was Tales Runtime wissen muss und nicht im Code mitgeliefert oder über die UI gesetzt wird, lebt in einer dieser Variablen, und die meisten haben sinnvolle Defaults, die nur die Produktions-Installation überhaupt überschreibt. Die UI-Gegenstücke dieser Schrauben liegen unter **Einstellungen > Governance**, **Einstellungen > KI-Anbieter** und **Einstellungen > Branding** — für die feature-spezifischen Referenzseiten siehe [Governance](/de/platform/admin/governance), [KI-Anbieter — Konfigurationsreferenz](/de/self-hosted/configuration/providers) und [Branding](/de/platform/admin/branding).
+Für Deployments hinter einem authentifizierenden Reverse-Proxy — Authelia, Authentik, oauth2-proxy — liest Tale die Identität des Nutzers aus HTTP-Kopfzeilen, die der Proxy setzt, und versorgt dann bei der ersten Anfrage ein Konto.
 
-Wenn Tales Runtime etwas erwartet, das nicht da ist — ein fehlender API-Schlüssel, ein abwesender Pepper, ein verkorkstes `TALE_CONFIG_DIR` — sagt der Boot-Log das auf stderr. [Fehlerbehebung](/de/self-hosted/operate/observability/troubleshooting) katalogisiert die häufigsten Umgebungs-Fehlkonfigurations-Fehlermodi.
+| Name                              | Voreinstellung | Beschreibung                                                                                              |
+| --------------------------------- | -------------- | --------------------------------------------------------------------------------------------------------- |
+| `TRUSTED_HEADERS_ENABLED`         | `false`        | Auf `true` setzen, um vertrauenswürdige Kopfzeilen zu aktivieren. Die Login-Seite wird dann übersprungen. |
+| `TRUSTED_HEADERS_INTERNAL_SECRET` | _(ungesetzt)_  | Gemeinsames Geheimnis, das der convex-Endpunkt validiert, bevor er Kopfzeilen vertraut. Defense-in-Depth. |
+| `TRUSTED_EMAIL_HEADER`            | `Remote-Email` | Name der HTTP-Kopfzeile, die die E-Mail-Adresse des Nutzers trägt.                                        |
+| `TRUSTED_NAME_HEADER`             | `Remote-Name`  | Name der HTTP-Kopfzeile, die den Anzeigenamen des Nutzers trägt.                                          |
+| `TRUSTED_ROLE_HEADER`             | `Remote-Role`  | Name der HTTP-Kopfzeile, die die Rolle trägt (`admin`, `developer`, `editor` oder `member`).              |
+| `TRUSTED_TEAMS_HEADER`            | `Remote-Teams` | Name der HTTP-Kopfzeile, die eine komma-separierte `id:name`-Team-Liste trägt.                            |
+
+Aktiviere vertrauenswürdige Kopfzeilen nur, wenn der vorgelagerte Proxy diese Kopfzeilen von externen Anfragen entfernt. Wenn externe Clients die Kopfzeilen direkt setzen können, können sie jeden Nutzer imitieren. Die vollständige Konfigurations-Anleitung steht unter [Authentifizierung](/de/self-hosted/admin/authentication#trusted-headers).
+
+## Aufbewahrung
+
+Die Aufbewahrungsgrenzen für jede Datenkategorie kommen aus JSON-Dateien unter `TALE_CONFIG_DIR/retention/`. Die Umgebungsvariablen unten verschärfen diese Grenzen — sie können nicht ausweiten, was die Datei deklariert. Das vollständige geschichtete Modell steht unter [Aufbewahrung](/de/self-hosted/configuration/retention).
+
+Eine Handvoll Variablen berühren den Audit-Log-Boden und den Legal-Hold-Ablauf statt Per-Kategorie-Grenzen:
+
+| Name                                     | Voreinstellung | Beschreibung                                                                                            |
+| ---------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------- |
+| `TALE_RETENTION_DISABLED`                | `false`        | Auf `true` setzen, um die nächtliche Bereinigung zu deaktivieren. Operator-Notschalter für Migrationen. |
+| `TALE_AUDIT_PEPPER`                      | _(ungesetzt)_  | Geheimnis von 16+ Zeichen. Aktiviert HMAC-SHA256-Hashing von E-Mail und IP in Audit-Zeilen.             |
+| `TALE_AUDIT_SIGNING_KEY`                 | _(ungesetzt)_  | Signiert `auditLogCheckpoints`-Zeilen, um Aufbewahrungs-Scrubs von Manipulation zu unterscheiden.       |
+| `TALE_LEGAL_HOLD_RELEASE_COOLDOWN_HOURS` | `24`           | Stunden zwischen Genehmigung und tatsächlicher Freigabe eines Legal-Hold.                               |
+| `TALE_LEGAL_HOLD_SINGLE_ADMIN_OK`        | `false`        | Auf `true` setzen, damit Single-Admin-Instanzen Legal-Hold-Freigaben selbst genehmigen dürfen.          |
+
+Die Per-Kategorie-`_MIN`/`_MAX`-Overrides sind vollständig unter [Aufbewahrung — Umgebungsvariablen](/de/self-hosted/configuration/retention#environment-variables-tightening-overlay) gelistet.
+
+## KI-Anbieter
+
+Anbieter-API-Schlüssel, Basis-URLs und Modell-Definitionen sind keine Umgebungsvariablen — sie leben in JSON-Dateien unter `TALE_CONFIG_DIR/providers/`. Das On-Disk-Schema, die SOPS-Verschlüsselungsmodi und die Regeln für das Weiterleiten anbieterspezifischer Optionen stehen unter [Anbieter](/de/self-hosted/configuration/providers).
+
+## Wo das einsetzt
+
+Die Umgebungsreferenz ist die Operator-API zu Tale. Alles, was die Laufzeit braucht und was nicht im Code mitgeliefert oder über die UI gesetzt wird, lebt in einer der Variablen oben, und die meisten haben vernünftige Voreinstellungen — die produktionsreifen Installationsseiten überschreiben nur Domain, TLS, Secrets und die Datenbank. Die UI-Gegenstücke der in der App auftauchenden Werte leben unter **Einstellungen > Governance**, **Einstellungen > Anbieter** und **Einstellungen > Branding**; greife zu [Governance](/de/platform/admin/governance), [Anbieter](/de/self-hosted/configuration/providers) und [Branding](/de/platform/admin/branding) für die Per-Funktion-Referenz.
+
+Wenn die Laufzeit eine Variable erwartet, die nicht da ist, sagt das Boot-Log das auf stderr. [Fehlersuche](/de/self-hosted/operate/observability/troubleshooting) katalogisiert die häufigsten Umgebungs-Fehlkonfigurationen; die Seite [Release-Notes-Format](/de/self-hosted/operate/release-notes/format) deckt ab, wie Deprecations landen.

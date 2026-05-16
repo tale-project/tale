@@ -1,53 +1,43 @@
 ---
 title: Bildgenerierungs-Agents
-description: Agents konfigurieren, die mit FLUX, Imagen, Nano Banana, GPT-Image oder anderen kompatiblen Modellen Bilder erzeugen oder bearbeiten.
+description: Agents konfigurieren, die Bilder mit FLUX, Imagen, Nano Banana, GPT-Image oder einem kompatiblen Modell erzeugen oder bearbeiten.
 ---
 
-Bildgenerierungs-Agents nehmen einen Prompt, optional ein Referenzbild, und liefern als Assistant-Antwort ein neues Bild. Sie nutzen dieselbe Agent-Konfiguration wie Chat-Agents (Instructions, Wissen, Tools, Gesprächseinstiege), binden aber an ein Modell mit dem Tag `image-generation` oder `image-edit` statt an ein Chat-Modell. Denk an einen Agent für Marketing-Thumbnails, Produkt-Mockups, Social Cards oder schnelle Concept-Art — alles, was das Team in einer Nachricht erledigen will, statt einen vollen Bild-Editing-Workflow zu starten.
+Bildgenerierungs-Agents nehmen einen Prompt, optional ein Referenzbild, und liefern als Assistant-Antwort ein Bild. Sie nutzen die Standard-Agent-Konfiguration — Anweisungen, Wissen, Tools, Gesprächseinstiege — sind aber an ein Modell mit Tag `image-generation` oder `image-edit` gebunden statt an ein Chat-Modell. Stell dir einen Agent für Marketing-Thumbnails, Produkt-Mockups, Social-Cards oder schnelle Concept-Art vor — was das Team in einer Ein-Nachricht-Hin-und-Rück erledigen will statt in einem vollen Bildbearbeitungs-Workflow.
 
-Im Chat-Modell-Picker erscheinen Bildgenerierungs-Agents neben den Chat-Agents. Sobald jemand einen wählt, schaltet der Composer in einen bildbewussten Modus: einen Thumbnail-Picker für Referenzbilder, einen Platzhalter mit dem Text _Beschreibe ein Bild, das erstellt werden soll…_ und eine Vorschau in der Assistant-Antwort.
+Der Modell-Picker im Chat zeigt Bildgenerierungs-Agents neben Chat-Agents. Wählt ein Nutzer einen, schaltet der Composer in einen bildbewussten Modus: einen Thumbnail-Picker für Referenzbilder, einen Platzhalter mit dem Text _Beschreibe ein Bild, das erstellt werden soll…_ und einen Vorschau-Bereich an den Assistant-Antworten.
 
-## Bildgenerierungsmodi
+## Die zwei Aufruf-Modi
 
-Jedes Bild-Modell ist auf einen von zwei Aufruf-Modi verdrahtet. Der Modus wird pro Modell in **Einstellungen > KI-Anbieter** gesetzt und bestimmt, welchen OpenAI-kompatiblen Endpunkt Tale anspricht.
+Jedes Bild-Modell ist auf einen von zwei Aufruf-Modi verdrahtet. Der Modus wird pro Modell auf der Konfigurationsseite des Anbieters gesetzt und entscheidet, welchen OpenAI-kompatiblen Endpunkt Tale anspricht.
 
-| Modus             | Endpunkt                 | Verwendet von                  | Bearbeitungspfad                                    |
-| ----------------- | ------------------------ | ------------------------------ | --------------------------------------------------- |
-| `images-api`      | `/v1/images/generations` | FLUX, Imagen, OpenAI DALL-E    | `/v1/images/edits` mit Referenzbild                 |
-| `chat-multimodal` | `/v1/chat/completions`   | Nano Banana, GPT-Image, Gemini | Referenzbild als Content-Part in der User-Nachricht |
+| Modus             | Endpunkt                 | Verwendet von                  | Bearbeitungspfad                                     |
+| ----------------- | ------------------------ | ------------------------------ | ---------------------------------------------------- |
+| `images-api`      | `/v1/images/generations` | FLUX, Imagen, OpenAI DALL-E    | `/v1/images/edits` mit Referenzbild.                 |
+| `chat-multimodal` | `/v1/chat/completions`   | Nano Banana, GPT-Image, Gemini | Referenzbild als Content-Part in der User-Nachricht. |
 
-Wähle den Modus, den dein Anbieter dokumentiert. `images-api` ist einfacher — Input ist ein String, Output ein Bild — und funktioniert für jeden Anbieter, der das Schema des OpenAI-Images-Endpunkts ausspielt. `chat-multimodal` ist für Modelle wie Gemini erforderlich, die Bilder direkt aus dem Chat-Completion-Endpunkt liefern und Referenzbilder als Inline-Message-Parts erwarten.
+Wähle den Modus, den die Dokumentation deines Anbieters beschreibt. `images-api` ist einfacher — Eingabe ist ein String, Ausgabe ein Bild — und funktioniert für jeden Anbieter, der das Schema des OpenAI-Images-Endpunkts ausspielt. `chat-multimodal` ist nötig für Modelle wie Gemini, die Bilder direkt aus dem Chat-Completion-Endpunkt emittieren und Referenzbilder als Inline-Message-Parts annehmen.
 
-## Modell beim Anbieter konfigurieren
+## Modell beim Anbieter registrieren
 
-Öffne **Einstellungen > KI-Anbieter**, bearbeite den Anbieter und füge ein Modell mit dem Tag `image-generation` hinzu (oder `image-edit`, wenn es bestehende Bilder überarbeiten kann). Für jedes Bild-Modell setzt du:
+Öffne **Einstellungen > KI-Anbieter**, bearbeite den Anbieter und füge ein Modell mit dem Tag `image-generation` hinzu (oder `image-edit`, wenn das Modell ein vorhandenes Bild überarbeiten kann). Setze für jedes Bild-Modell den **Image-Generation-Modus** — `images-api` oder `chat-multimodal` — und trage im Abschnitt **Default-Modelle** das bevorzugte Bild-Modell des Anbieters ein, damit Nutzer beim Öffnen des Agents auf dem richtigen Modell landen.
 
-- **Image generation mode** — entweder `images-api` oder `chat-multimodal`. Tale zeigt unter dem Feld eine Hilfe-Zeile, die jeden Modus beschreibt; wähle den, den dein Anbieter dokumentiert.
-- **Default-Modelle** — trage das bevorzugte Bild-Modell des Anbieters im Abschnitt **Default-Modelle** ein, damit Nutzer beim Wählen des Agents auf dem richtigen Modell landen.
-
-Bild-Modelle werden pro generiertem Bild und nicht pro Token abgerechnet. Das Usage-Ledger erfasst Bildanzahl und etwaige Anbieter-Kosten daher getrennt von den Chat-Tokens.
+Bild-Modelle werden pro erzeugtem Bild abgerechnet, nicht pro Token. Das Usage-Ledger erfasst die Bild-Anzahl und etwaige anbieterseitige Kosten getrennt von Chat-Tokens.
 
 ## Bildgenerierungs-Agent anlegen
 
-Starte mit **Agents > New Agent** und fülle die Basis aus — Name, Slug, Beschreibung. Im Tab **Instructions**:
+Öffne **Agents > Agent erstellen** und fülle die Basis aus — Anzeigename, Name, Beschreibung. Wähle auf dem Tab **Anweisungen & Modell** das oben registrierte Bild-Modell als Modell des Agents; im Picker erscheinen nur Modelle mit Tag `image-generation` oder `image-edit`. Schreibe einen System-Anweisungs-Block, der beschreibt, worin der Agent gut sein soll — _„Du erzeugst minimalistische Marketing-Thumbnails: flache Farben, ein Motiv, kein Text-Overlay"_ steuert deutlich verlässlicher als gar keine Anweisungen.
 
-- **Modell-Preset** — wähle das oben registrierte Bild-Modell. Im Picker erscheinen nur Modelle mit dem Tag `image-generation` oder `image-edit`.
-- **System Instructions** — beschreibe, worin der Agent gut sein soll. _„Du erstellst minimalistische Marketing-Thumbnails: flache Farben, ein Motiv, kein Text-Overlay“_ steuert deutlich verlässlicher als gar keine Instructions.
+Wissen, Tools, Starter, Delegation und Workers funktionieren wie bei Chat-Agents. Siehe [Agent erstellen](/de/platform/agents/create) für den vollen Bau-Flow.
 
-Wissen, Tools, Gesprächseinstiege, Delegation und Webhook funktionieren wie bei Chat-Agents — siehe [Agent erstellen](/de/platform/agents/create).
+## Im Chat nutzen
 
-## Im Chat verwenden
+Wähle den Bildgenerierungs-Agent im Agent-Selector, und das Composer-Verhalten passt sich an. Im **Erstellen-Modus** lautet der Platzhalter _Beschreibe ein Bild, das erstellt werden soll…_; tippe einen Prompt und sende. Um in den **Bearbeiten-Modus** zu wechseln, klicke auf ein Bild weiter oben im Thread oder hänge ein Referenzbild über den Thumbnail-Picker an; der Platzhalter wechselt zu _Beschreibe die Änderung…_ und das Referenzbild geht an den Edit-Endpunkt (oder als Content-Part bei `chat-multimodal`-Modellen). Wenn das aktive Modell nur Erzeugung unterstützt, liest der Composer _Dieses Modell erzeugt nur neue Bilder. Wechsle zu einem Editing-Modell, um Änderungen anzuwenden._ — wähle dann ein Modell mit dem Tag `image-edit`.
 
-Wähle den Bildgenerierungs-Agent im Agent-Selector. Das Composer-Verhalten passt sich an:
-
-- **Erstellen-Modus** — der Platzhalter lautet _Beschreibe ein Bild, das erstellt werden soll…_. Tippe einen Prompt und sende ihn.
-- **Bearbeiten-Modus** — klicke auf ein Bild weiter oben im Thread, oder hänge ein Referenzbild über den Thumbnail-Picker an, dann wechselt der Platzhalter zu _Beschreibe die Änderung…_. Das Referenzbild geht an den Edit-Endpunkt (oder als Content-Part bei `chat-multimodal`-Modellen).
-- **Modell kann nicht bearbeiten** — wenn das gewählte Modell nur `image-generation` ist, zeigt der Composer _Dieses Modell erstellt nur neue Bilder. Wechsle zu einem Editing-Modell, um Änderungen anzuwenden._ Wähle dann ein Modell mit dem Tag `image-edit`.
-
-Erzeugte Bilder werden als Message-Anhänge gespeichert, folgen derselben Aufbewahrungsrichtlinie wie andere Anhänge und können heruntergeladen, im Canvas geöffnet oder als Edit-Vorlage für Folgeanfragen wiederverwendet werden.
+Erzeugte Bilder werden als Nachrichten-Anhänge gespeichert, folgen derselben Aufbewahrungsrichtlinie wie andere Anhänge und können heruntergeladen, in Canvas geöffnet oder als Bearbeitungseingabe für Folge-Runden wiederverwendet werden.
 
 ## Wo das einsetzt
 
-Bildgenerierungs-Agents sind die Ein-Schritt-Bild-Oberfläche im Chat — ein schneller Weg, ein Marketing-Thumbnail, ein Produkt-Mockup oder eine Konzept-Skizze zu erzeugen. Sie ersetzen kein dediziertes Bildbearbeitungstool; der Tradeoff ist Geschwindigkeit und konversationelle Erreichbarkeit, nicht pixelgenaue Kontrolle. Für teamweite Bildworkflows mit Iterations-Tracking ist ein Agent, der über eine [Integration](/de/platform/integrations/overview) an einen externen Bild-Dienst übergibt, die bessere Wahl.
+Bildgenerierungs-Agents sind die Ein-Runden-Bild-Oberfläche im Chat — ein schneller Weg, ein Marketing-Thumbnail, ein Produkt-Mockup, eine Konzept-Skizze zu erzeugen. Sie ersetzen kein dediziertes Bildbearbeitungs-Tool; der Tradeoff ist Geschwindigkeit und konversationelle Erreichbarkeit, nicht Pixel-genaue Kontrolle. Für teamweite Bild-Workflows, die Iterations-Tracking brauchen, ist ein Agent, der per [Integration](/de/platform/integrations/overview) an einen externen Bild-Dienst übergibt, die bessere Wahl.
 
-Um die zugrunde liegenden Modelle zu konfigurieren, richtet ein Admin Modelle mit den Tags `image-generation` und `image-edit` unter [KI-Anbieter](/de/platform/admin/providers) ein.
+Um die zugrunde liegenden Modelle zu konfigurieren, richtet ein Admin Modell-Tags `image-generation` und `image-edit` unter [KI-Anbieter](/de/platform/admin/providers) ein.

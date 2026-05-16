@@ -100,7 +100,7 @@ Das Manifest wird serverseitig gegen ein Zod-Schema in [services/platform/lib/sh
 
 | Name                   | Typ                                                                 | Erforderlich         | Beschreibung                                                                                                                      |
 | ---------------------- | ------------------------------------------------------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `title`                | string (1–200)                                                      | Ja                   | Menschen-lesbarer Name, in der Integrations-Liste angezeigt.                                                                      |
+| `title`                | string (1–200)                                                      | Ja                   | Menschen-lesbarer Name, in der Integrationen-Liste angezeigt.                                                                     |
 | `description`          | string (≤ 2000)                                                     | Nein                 | Einsatz-Zusammenfassung in einem Satz, neben dem Titel angezeigt.                                                                 |
 | `version`              | integer                                                             | Nein                 | Hochzählen, wenn sich Operationen oder Parameter-Formen ändern, damit Konsumenten Drift erkennen.                                 |
 | `type`                 | `'rest_api'` \| `'sql'`                                             | Nein                 | Standard `rest_api`. Setze `sql` für Datenbank-Konnektoren.                                                                       |
@@ -127,8 +127,8 @@ Eine REST-Operation beschreibt eine aufrufbare Aktion. Der Agent wählt eine Ope
 | `name`             | string                | Ja           | Stabiler Identifier, den der Agent nutzt. Konvention: Snake_case.                                                         |
 | `title`            | string                | Nein         | Menschen-lesbares Label in der Operations-Liste der UI.                                                                   |
 | `description`      | string                | Nein         | Was die Operation tut und wann sie zu nutzen ist. Der Agent liest das — für das Modell schreiben, nicht für den Menschen. |
-| `operationType`    | `'read'` \| `'write'` | Nein         | Treibt das Approval-Gate. Standard ist Read-artiges Verhalten, wenn weggelassen.                                          |
-| `requiresApproval` | boolean               | Nein         | Erzwingt die Approval-Karte auch bei einem Read, oder überspringt sie bei einem Write, der wirklich sicher ist.           |
+| `operationType`    | `'read'` \| `'write'` | Nein         | Treibt das Genehmigungs-Gate. Standard ist Read-artiges Verhalten, wenn weggelassen.                                      |
+| `requiresApproval` | boolean               | Nein         | Erzwingt die Genehmigungs-Karte auch bei einem Read, oder überspringt sie bei einem Write, der wirklich sicher ist.       |
 | `requiredScopes`   | array of strings      | Nein         | OAuth-Scopes, die diese Operation braucht; werden beim Connect für den Nutzer angezeigt.                                  |
 | `parametersSchema` | JSON Schema (object)  | Nein         | Standard-JSON-Schema. Aktuell wird nur `type: 'object'` mit `properties` und `required` benutzt.                          |
 
@@ -270,7 +270,7 @@ SQL-Integrationen überspringen `connector.ts` ganz. Die Plattform führt die im
 }
 ```
 
-Platzhalter nutzen `@paramName`, abgeglichen gegen `parametersSchema.properties`. Markiere ändernde Queries mit `operationType: 'write'` und meist `requiresApproval: true`, damit der Approval-Flow greift. Siehe [examples/integrations/protel/config.json](https://github.com/tale-project/tale/blob/main/examples/integrations/protel/config.json) für einen vollen Hotel-PMS-Konnektor mit zwanzig-plus Read-Operationen und einer Handvoll Approval-gegateter Writes.
+Platzhalter nutzen `@paramName`, abgeglichen gegen `parametersSchema.properties`. Markiere ändernde Queries mit `operationType: 'write'` und meist `requiresApproval: true`, damit der Genehmigungs-Flow greift. Siehe [examples/integrations/protel/config.json](https://github.com/tale-project/tale/blob/main/examples/integrations/protel/config.json) für einen vollen Hotel-PMS-Konnektor mit zwanzig-plus Read-Operationen und einer Handvoll genehmigungs-gegateter Writes.
 
 `sqlConnectionConfig.engine` akzeptiert `'mssql'`, `'postgres'` oder `'mysql'`. Die optionalen `security.maxResultRows` und `security.queryTimeoutMs` sind Obergrenzen, die die Plattform zusätzlich zu dem durchsetzt, was die Datenbank selbst erlaubt — Defense in Depth, kein Ersatz für ein read-only Datenbank-Konto.
 
@@ -288,7 +288,7 @@ Platzhalter nutzen `@paramName`, abgeglichen gegen `parametersSchema.properties`
 - **Secrets im Code.** Niemals einen API-Schlüssel oder Token in `connector.ts` einbetten. Immer über `ctx.secrets.get('<binding>')` lesen und die Bindung in `secretBindings` deklarieren.
 - **Hosts nicht in `allowedHosts`.** Eine Anfrage an einen nicht gelisteten Host scheitert, bevor sie die Sandbox verlässt. Jede Basis-URL eintragen, die der Konnektor berührt, einschliesslich Redirect-Ziele.
 - **Vage Fehlermeldungen.** `Failed` ist nicht handlungsleitend. Sag dem Nutzer, welche Anmeldung falsch ist, welcher Scope fehlt oder welche Quote überschritten wurde.
-- **Fehlendes `operationType: 'write'` bei ändernden Calls.** Ohne greift das Approval-Gate nicht, und ein Write kann unbeaufsichtigt laufen.
+- **Fehlendes `operationType: 'write'` bei ändernden Calls.** Ohne greift das Genehmigungs-Gate nicht, und ein Write kann unbeaufsichtigt laufen.
 
 ## Wo das einsetzt
 

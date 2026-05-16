@@ -1,43 +1,40 @@
 ---
 title: Approbations
-description: Examine et approuve ou refuse les actions en attente des automatisations et agents, directement dans le chat.
+description: Examine, approuve ou refuse les actions que les automatisations et les agents mettent en file d'attente pour validation humaine, directement dans la conversation.
 ---
 
-Les automatisations et agents IA peuvent être configurés pour s’arrêter à certaines étapes et attendre une approbation humaine avant de poursuivre. Quand une approbation est nécessaire, elle apparaît en carte inline dans ta conversation.
+Les approbations sont des cartes en ligne qui apparaissent dans une conversation de chat lorsqu'une automatisation ou un agent IA atteint une étape verrouillée pour validation humaine. La carte porte tout le contexte — quel workflow ou outil l'a déclenchée, quelle action elle veut exécuter, quelles données elle utiliserait — et propose des boutons **Approuver** et **Refuser** qui exécutent ou annulent l'action sur place. Le public, c'est toute personne dans la conversation au moment où une approbation arrive ; les cartes apparaissent dans l'alignement des messages auxquels elles appartiennent, donc le relecteur ne change pas de surface pour décider.
 
-## Types d’approbation
+Cette page couvre les sept formes d'approbation que tu peux rencontrer, le flux de relecture sur chaque carte, et en quoi les deux variantes interactives (demandes utilisateur et demandes de localisation) se distinguent de la paire approuver-ou-refuser standard.
 
-| Type                    | Ce qui est demandé                                                                           |
+## Types d'approbation
+
+Les sept cartes qui peuvent apparaître dans une conversation, chacune verrouillée pour une raison différente :
+
+| Type                    | Ce qu'elle demande                                                                           |
 | ----------------------- | -------------------------------------------------------------------------------------------- |
-| Opération d’intégration | autorisation d’exécuter une requête REST API ou SQL via une intégration connectée.           |
-| Création de workflow    | autorisation de créer une nouvelle automatisation.                                           |
-| Exécution de workflow   | autorisation de lancer un workflow existant avec des paramètres précis.                      |
-| Mise à jour de workflow | autorisation de modifier les étapes ou la configuration d’un workflow existant.              |
-| Écriture de document    | autorisation de créer ou enregistrer un ou plusieurs fichiers dans la base de connaissances. |
-| Demande d’input humain  | un workflow en pause te demande de remplir une information avant de continuer.               |
-| Demande de localisation | autorisation d’accéder à ta position navigateur pour une tâche géolocalisée.                 |
+| Opération d'intégration | Permission d'exécuter un appel d'API REST ou une requête SQL via une intégration connectée.  |
+| Création de workflow    | Permission de créer un nouveau workflow d'automatisation.                                    |
+| Exécution de workflow   | Permission de lancer un workflow existant avec des paramètres précis.                        |
+| Mise à jour de workflow | Permission de modifier les étapes ou la configuration d'un workflow existant.                |
+| Écriture de document    | Permission de créer ou d'enregistrer un ou plusieurs fichiers dans la base de connaissances. |
+| Demande utilisateur     | Un workflow en pause demande au relecteur de remplir une information avant de continuer.     |
+| Demande de localisation | Permission d'accéder à la position du navigateur pour une tâche géolocalisée.                |
 
 ## Examiner une approbation
 
-Quand un agent ou une automatisation a besoin d’approbation, une carte apparaît dans le chat avec tout le contexte : quel workflow ou outil a déclenché la demande, quelle action est prévue et quelles données seraient utilisées.
+Chaque carte a la même forme. Un en-tête identifie le type d'approbation et l'acteur (le workflow ou l'agent qui l'a soulevée). Une section de détails dépliable montre les paramètres, la liste des fichiers ou les étapes du workflow — tout ce que l'action toucherait. Les deux boutons en bas exécutent ou annulent l'action.
 
-Chaque carte contient :
+Pour laisser l'action se poursuivre, clique sur **Approuver**. La carte bascule vers une vue d'exécution avec la progression en direct, puis le résultat final. Pour l'annuler, clique sur **Refuser** (certaines cartes utilisent un libellé contextuel comme **Annuler la création du workflow** ou **Refuser cette opération**). L'agent reçoit une notification de refus et ajuste son approche au tour suivant.
 
-- un en-tête identifiant le type d’approbation ;
-- des métadonnées détaillées que tu peux déplier (paramètres, listes de fichiers, étapes) ;
-- les boutons **Approuver** et **Rejeter**.
+## Demandes utilisateur et demandes de localisation
 
-Clique **Approuver** pour laisser l’action se poursuivre. La carte montre la progression et le résultat final. Clique **Rejeter** pour l’annuler. L’agent reçoit une notification de refus et peut ajuster son approche.
+Deux des sept types sont interactives plutôt que de simples décisions approuver-ou-refuser. Les demandes utilisateur affichent un formulaire avec les champs dont le workflow en pause a besoin — saisies texte, menus déroulants, bascules oui/non — et soumettre la réponse reprend le workflow avec les valeurs jointes. Les demandes de localisation sollicitent la géolocalisation du navigateur : clique sur **Partager la position** pour accorder l'accès (le navigateur affiche son invite native de permission) ou **Refuser** pour décliner.
 
-## Input humain et demandes de localisation
-
-Certaines approbations sont interactives plutôt que de simples Approuver/Rejeter :
-
-- **Demandes d’input humain** affichent un formulaire (textes, menus déroulants, oui/non) que le workflow en pause demande à remplir. Soumets ta réponse pour reprendre.
-- **Demandes de localisation** sollicitent ta position navigateur. Clique **Partager la position** pour autoriser ou refuse.
+Dans les deux formes, la conversation est en pause jusqu'à ce que le relecteur réponde. La carte affiche _En attente de réponse_ dans le transcript de l'agent pour que l'historique du chat reste lisible.
 
 ## Où ça s'inscrit
 
-Les approbations sont la surface de contrôle humain-dans-la-boucle. Elles existent parce que certaines actions — opérations de facturation, envois massifs d'e-mails, écritures sur données de production — ne devraient pas tourner en autonomie même quand l'agent en a la capacité technique. Le motif de carte est le même que la demande vienne d'un [agent](/fr/platform/agents/concepts) appelant une opération d'écriture d'une intégration, d'une [automatisation](/fr/platform/automations/concepts) atteignant une étape verrouillée pour relecture, ou d'un outil de serveur MCP marqué `requiresApproval: true`.
+Les approbations sont la surface de contrôle « humain dans la boucle ». Elles existent parce que certaines actions — opérations de facturation, envois massifs de courriel, écritures sur les données de production — ne devraient pas tourner en autonomie même quand l'agent en a la capacité technique. Le motif de carte est le même que la demande vienne d'un [agent](/fr/platform/agents/concepts) appelant l'opération d'écriture d'une intégration, d'une automatisation atteignant une étape verrouillée pour relecture, ou d'un outil de serveur MCP marqué `requiresApproval: true`.
 
-Pour configurer quelles opérations d'intégration exigent une approbation, voir [Intégrations — aperçu](/fr/platform/integrations/overview). Pour déclencher une approbation dans une étape d'automatisation, voir [Workflows](/fr/platform/automations/workflows).
+Pour verrouiller une opération d'intégration précise derrière une approbation, l'option par opération vit sur la page de configuration de l'intégration dans [Paramètres > Intégrations](/fr/platform/integrations/overview). Pour exiger une approbation avant qu'une étape de workflow tourne, l'éditeur de workflow expose la même option par étape.

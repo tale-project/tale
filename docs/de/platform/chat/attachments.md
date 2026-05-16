@@ -1,55 +1,52 @@
 ---
 title: Chat-Anhänge
-description: Hänge Dateien an Chat-Nachrichten, damit die KI Bilder, Dokumente und Code lesen kann.
+description: Dateien an Chat-Nachrichten anhängen, damit die KI Bilder lesen, Dokumente parsen und Audio oder Video transkribieren kann, bevor sie antwortet.
 ---
 
-Du kannst an jede Chat-Nachricht Dateien anhängen, damit der KI-Agent sie gemeinsam mit deiner Frage analysieren kann. Anhänge werden vor dem Senden der Nachricht verarbeitet und ihr Inhalt in die Konversation eingebunden.
+Chat-Anhänge sind Dateien, die du neben einer Nachricht sendest, damit die KI sie im selben Zug analysieren kann. Tale verarbeitet jeden Upload, bevor die Nachricht das Modell erreicht — Bilder und Dokumente werden zu Vision-Tokens oder reinem Text extrahiert, Audio und Video werden serverseitig transkribiert, und das Ergebnis wird an den Nachrichtentext angehängt, sodass der Agent eine zusammenhängende Eingabe sieht. Die Seite ist für jede Rolle im Produkt: Mitglieder hängen Referenzmaterial an eine Frage, Redakteure kuratieren gescannte Dokumente, Entwickler testen Integrationen mit Beispiel-Payloads.
 
-## Wie du anhängst
+Anhänge leben bei der Konversation, nicht bei der gemeinsamen Wissensdatenbank. Die Pipeline unten zeigt, was wohin geht, die Grössen- und Mengen-Limits, die Aufbewahrungsregeln und den Sicherheits-Scan-Pfad.
 
-- Klicke auf das **Büroklammer**-Icon in der Chat-Toolbar und wähle Dateien von deinem Gerät aus.
-- Oder ziehe Dateien per Drag-and-drop direkt auf das Chat-Fenster.
+## Eine Datei anhängen
 
-Du kannst mehrere Dateien gleichzeitig anhängen. Jede Datei zeigt während des Uploads einen Fortschritts-Spinner; die Nachricht wird erst gesendet, sobald jeder Anhang bereit ist.
+Um eine Datei anzuhängen, klicke auf das **Büroklammer**-Icon in der Composer-Toolbar und wähle Dateien vom Gerät, oder zieh die Dateien per Drag-and-drop direkt auf das Chat-Fenster. Die Nachricht geht erst raus, wenn jeder Anhang fertig ist — jede Datei zeigt während des Uploads einen Fortschritts-Spinner, plus einen Transkriptions-Status-Pill für Audio und Video.
 
 ## Unterstützte Dateitypen
 
-| Kategorie     | Endungen                                                        | Was die KI tut                                                                                                            |
-| ------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| **Bilder**    | `PNG`, `JPEG`, `GIF`, `WebP`                                    | betrachtet den visuellen Inhalt — Layout, Diagramme, Fotos, Text im Bild.                                                 |
-| **Dokumente** | `PDF`, `DOCX`, `XLSX`, `PPTX`, `TXT`, `Markdown`                | liest den Textinhalt einschließlich Tabellen und Überschriften.                                                           |
-| **Code**      | `JS`, `TS`, `Python` und die meisten gängigen Quellcode-Formate | liest den Quellcode als Text mit Syntax-Bewusstsein.                                                                      |
-| **Audio**     | `MP3`, `M4A`, `WAV`, `OGG`, `WebM`-Audio                        | transkribiert die Audiospur und übergibt den Text an den Agent. Die Rohdaten erreichen das Chat-Modell nie.               |
-| **Video**     | `MP4`, `MOV`, `MKV`, `WebM`, `AVI`, `MPEG`, `3GP`, `M4V`        | extrahiert die Audiospur, transkribiert sie und übergibt den Text an den Agent. Visueller Inhalt wird **nicht** gesendet. |
+Die akzeptierten Formate ordnen sich in fünf Kategorien, jede mit eigenem Verarbeitungspfad, bevor die Nachricht das Modell erreicht:
 
-### Audio- und Video-Transkription
+| Kategorie     | Endungen                                                   | Was passiert, bevor das Modell sie sieht                                                                       |
+| ------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **Bilder**    | `PNG`, `JPEG`, `GIF`, `WebP`                               | Als Vision-Tokens gesendet — das Modell betrachtet Layout, Diagramme, Fotos und Text im Bild.                  |
+| **Dokumente** | `PDF`, `DOCX`, `XLSX`, `PPTX`, `TXT`, `Markdown`           | Text- und Tabelleninhalt wird extrahiert; das Modell liest den extrahierten Text, nicht die Binärdatei.        |
+| **Code**      | `JS`, `TS`, `Python` und die meisten gängigen Quellformate | Wird als reiner Text mit Syntax-Bewusstsein gelesen.                                                           |
+| **Audio**     | `MP3`, `M4A`, `WAV`, `OGG`, `WebM`-Audio                   | Serverseitig transkribiert; nur das Transkript erreicht das Chat-Modell.                                       |
+| **Video**     | `MP4`, `MOV`, `MKV`, `WebM`, `AVI`, `MPEG`, `3GP`, `M4V`   | Die Audiospur wird extrahiert, transkribiert und an den Agent übergeben. Visueller Inhalt geht **nicht** raus. |
 
-Wenn du eine Audio- oder Video-Datei anhängst, läuft vor dem Senden der Nachricht eine serverseitige Transkriptions-Pipeline:
+## Audio- und Video-Transkription
 
-1. Die Datei wird nach Opus komprimiert (und bei Bedarf in Chunks zerlegt), damit sie in das Eingabelimit des Transkriptionsmodells passt.
-2. Jeder Chunk geht an das von der Organisation konfigurierte Modell mit Tag `transcription` (z. B. OpenAI Whisper oder ein selbst gehosteter Whisper-kompatibler Server wie faster-whisper-server, vLLM oder LocalAI).
-3. Das zurückgegebene Transkript wird als Text an die Nachricht angehängt.
+Audio- und Video-Uploads durchlaufen eine serverseitige Transkriptions-Pipeline, bevor das Chat-Modell etwas zu sehen bekommt. Die Pipeline komprimiert die Datei nach Opus und teilt sie in Chunks auf, falls sie das Eingabelimit des Transkriptionsmodells überschreitet, schickt jeden Chunk an das vom Anbieter konfigurierte `transcription`-Modell der Organisation (OpenAI Whisper oder einen selbst gehosteten Whisper-kompatiblen Server wie faster-whisper-server, vLLM oder LocalAI) und hängt das zurückgegebene Transkript als Text an die Nachricht.
 
-Ein Status-Pill am Anhang zeigt den Fortschritt — _Transkribiere…_, _Transkribiert_ oder _Konnte nicht transkribiert werden_. Du kannst die Transkription pro Anhang überspringen oder eine fehlgeschlagene wiederholen. Eine Nachricht mit noch laufender Audio-Transkription kann erst gesendet werden, wenn jeder Anhang transkribiert, übersprungen oder fehlgeschlagen ist.
+Ein Status-Pill am Anhang zeigt den Fortschritt — _Transkribiere…_, _Transkribiert_ oder _Konnte nicht transkribiert werden_. Du kannst die Transkription pro Anhang überspringen oder eine fehlgeschlagene erneut versuchen. Eine Nachricht mit einem ausstehenden Audio-Anhang lässt sich erst senden, wenn jeder Anhang transkribiert, übersprungen oder als fehlgeschlagen markiert ist.
 
-Damit das funktioniert, muss ein Admin ein Anbieter-Modell mit dem Tag `transcription` konfigurieren — siehe [KI-Anbieter](/de/platform/admin/providers). Transkriptions-Aufrufe werden pro Audio-Minute abgerechnet und im Nutzungs-Ledger neben den Chat-Tokens erfasst.
+Transkription braucht ein Anbieter-Modell mit Tag `transcription` — Admins konfigurieren das einmalig unter [KI-Anbieter](/de/platform/admin/providers). Transkriptions-Aufrufe werden pro Audio-Minute abgerechnet und im Nutzungs-Ledger neben den Chat-Tokens erfasst.
 
-## Größen- und Mengenbegrenzungen
+## Grössen- und Mengen-Limits
 
-- **Maximale Dateigröße:** 100 MB pro Datei (Standard). Admins können pro MIME-Typ eine strengere Grenze setzen (z. B. 25 MB für Audio) in der [Upload-Richtlinie](/de/platform/admin/governance#upload-policy).
+Die Standard-Obergrenzen für Anhänge pro Nachricht:
+
+- **Pro Datei:** 100 MB standardmäßig. Admins können pro MIME-Typ eine niedrigere Obergrenze setzen (zum Beispiel 25 MB für Audio) in der [Upload-Richtlinie](/de/platform/admin/governance#upload-policy).
 - **Audio-Dauer:** Audio- und Video-Uploads sind auf 4 Stunden Audio begrenzt. Längere Dateien werden beim Upload abgelehnt — teile die Aufnahme in kürzere Abschnitte.
-- **Maximale Dateien pro Nachricht:** 10. Für Massen-Imports nutze stattdessen die [Wissensdatenbank](/de/platform/workspace/knowledge-base).
+- **Dateien pro Nachricht:** 10. Für Massen-Aufnahme ist die [Wissensdatenbank](/de/platform/workspace/knowledge-base) die richtige Oberfläche — sie indiziert den Inhalt einmal, und jeder Agent in der Organisation kann ihn durchsuchen.
 
-## Wo Anhänge landen
+## Was nach der Verarbeitung mit der Datei passiert
 
-Im Chat angehängte Dateien bleiben bei der Konversation — sie werden nicht automatisch in die gemeinsame Wissensdatenbank aufgenommen. Wenn du willst, dass die KI eine Datei für spätere Konversationen behält, lade sie separat in die Wissensdatenbank hoch.
+Im Chat angehängte Dateien bleiben bei der Konversation — sie wandern nicht automatisch in die gemeinsame Wissensdatenbank. Eine Konversation zu löschen, löscht auch ihre Anhänge, sofern die [Aufbewahrungsrichtlinie](/de/platform/admin/governance) deiner Organisation sie nicht länger hält.
 
-Das Löschen einer Konversation löscht auch ihre Anhänge, sofern deine Organisations-[Aufbewahrungsrichtlinie](/de/platform/admin/governance) sie nicht länger aufbewahrt.
+## Sicherheit und PII
 
-## Sicherheit
-
-Uploads werden vor dem Eintreffen beim Modell auf Viren und blockierte MIME-Typen geprüft. Wenn der Admin der Organisation [PII-Erkennung](/de/platform/admin/governance) aktiviert hat, werden aus Anhängen extrahierte Texte denselben Regeln unterworfen wie getippte Nachrichten — markierte Entitäten werden redigiert, bevor der Agent die Eingabe sieht.
+Jeder Upload wird auf Viren und blockierte MIME-Typen geprüft, bevor er das Modell erreicht. Hat deine Organisation die [PII-Erkennung](/de/platform/admin/governance) aktiviert, wird aus Anhängen extrahierter Text denselben Regeln unterworfen wie getippte Nachrichten — markierte Entitäten werden redigiert, bevor der Agent die Eingabe sieht.
 
 ## Wo das einsetzt
 
-Anhänge sind der Einmal-Pfad: eine Datei, die die KI in dieser Konversation sehen soll und danach vergessen darf. Für Dateien, die die KI über Konversationen hinweg abrufen können soll, nimm stattdessen die [Wissensdatenbank](/de/platform/workspace/knowledge-base) — sie indiziert den Inhalt einmal, und jeder Agent in der Organisation kann ihn durchsuchen. Beide Pfade nutzen dieselbe Parsing-Pipeline; der Unterschied ist die Lebensdauer und das Publikum.
+Anhänge sind der Einmal-Pfad: eine Datei, die die KI in dieser Konversation sehen soll und danach vergessen darf. Für Dateien, die die KI über Konversationen hinweg abrufen können soll, indiziert die [Wissensdatenbank](/de/platform/workspace/knowledge-base) den Inhalt einmal, und jeder Agent in der Organisation kann ihn durchsuchen. Beide Pfade nutzen dieselbe Parsing-Pipeline; der Unterschied ist die Lebensdauer und das Publikum.

@@ -1,44 +1,45 @@
 ---
-title: Fehlerbehebung
-description: Symptom-zuerst-Karte der Probleme, die Betreiber auf einer laufenden Tale-Instanz tatsächlich treffen, mit den Fixes, die in der Praxis funktionieren.
+title: Fehlersuche
+description: Symptom-zuerst-Karte der Probleme, die Operatoren auf einer laufenden Tale-Instanz tatsächlich treffen, mit den Behebungen, die in der Praxis funktionieren.
 ---
 
-Diese Seite ordnet die Probleme, die Betreiber auf einer laufenden Tale-Instanz tatsächlich getroffen haben, den Fixes zu, die funktioniert haben. Die Liste ist bewusst kurz — umfassende Fehlermodi-Kataloge verleiten dazu, am eigentlichen Symptom vorbeizuscrollen. Lies die Unter-Überschriften, bis eine zu dem passt, was du siehst, und lies dann die Prosa darunter. Was hier nicht aufgeführt ist, kommt selten genug vor, dass der Diagnose-Pfad in jedem Fall derselbe ist: Logs lesen, dann ein Issue eröffnen.
+Diese Seite kartiert die Probleme, die Operatoren auf einer laufenden Tale-Instanz getroffen haben, zu den Behebungen, die funktioniert haben. Die Liste ist absichtlich kurz — ein vollständiger Katalog aller Fehlermodi verleitet dazu, am passenden Symptom vorbeizulesen. Überfliege die Unter-Überschriften, bis eine passt, dann lies die Prosa darunter; alles, was nicht hier steht, ist selten genug, dass der Diagnose-Pfad in jedem Fall derselbe ist: lies die Logs, dann reiche ein Issue ein.
 
-Für jedes Symptom, das unten nicht erscheint, legen das `--verbose`-Flag der `tale`-CLI plus die Container-Logs (siehe [Operations — Logs](/de-CH/self-hosted/operate/observability/operations#viewing-logs)) fast immer die Ursache frei. Wenn das nicht reicht, öffne ein Issue auf [GitHub Issues](https://github.com/tale-project/tale/issues) und hänge die Verbose-Ausgabe an.
+Für jedes Symptom, das nicht unten steht, bringen das `--verbose`-Flag der `tale`-CLI plus die Per-Service-Container-Logs (siehe [Betrieb — Logs](/de-CH/self-hosted/operate/observability/operations#logs)) fast immer die Ursache an die Oberfläche. Wenn das nicht reicht, reiche bei [GitHub Issues](https://github.com/tale-project/tale/issues) mit der ausführlichen CLI-Ausgabe und dem relevanten Log-Auszug ein.
 
-## Platform meldet nie ready
+## Die Platform meldet nie bereit
 
-Ein frischer Container braucht bis zu drei Minuten, bevor `/tmp/platform-ready` landet, weil das Entrypoint wartet, bis die Env-Sync fertig ist und `bunx convex deploy` das Function-Set hochgeschoben hat, bevor es gesund signalisiert. Die `200 OK`-Zeilen der Proxy-Health-Probe kommen lange davor an — sie bedeuten **nicht**, dass die UI erreichbar ist.
+Ein frischer `platform`-Container braucht bis zu drei Minuten, bis `/tmp/platform-ready` landet, weil der Entrypoint wartet, bis die Env-Synchronisation fertig ist und `bunx convex deploy` die Funktionsmenge geschoben hat, bevor er gesund signalisiert. Die `200 OK`-Zeilen von der Proxy-Health-Probe kommen lange davor an — sie bedeuten nicht, dass die UI erreichbar ist.
 
-Beobachte `docker compose logs -f platform` und warte auf die Zeile `Tale Dev v0.x.x  Ready.`. Bleibt sie aus, sind drei Ursachen typisch: ein nicht erreichbarer `convex`-Service (der Platform-Deploy-Schritt braucht ihn oben), ein verkorkstes Secret in `.env`, das die Env-Sync ablehnt (suche `[env-sync] rejecting key` in den Convex-Logs), oder zu wenig RAM auf dem Host, sodass der grüne Deploy neben dem blauen nicht starten kann. Die Blue-Green-Topologie setzt 12 GB voraus; auf 8-GB-Hosts wird der grüne Container abgewürgt, bevor er deployt.
+Beobachte `docker compose logs -f platform` und warte auf die Zeile `Tale Dev v0.x.x  Ready.`. Wenn sie nie kommt, sind drei Ursachen häufig. Die häufigste ist ein nicht erreichbarer `convex`-Dienst — der Deploy-Schritt der Platform braucht Convex hoch, bevor er Funktionen schieben kann, also zieht ein convex-Container, der beim Boot crasht, die Platform mit sich. Die zweite ist ein fehlerhaftes Geheimnis in `.env`, das die Env-Synchronisation ablehnt; achte auf `[env-sync] rejecting key` in den convex-Logs. Die dritte ist Host-RAM: die Blue-Green-Topologie fährt beide Farben während des Wechsels, und auf einem 8-GB-Host wird der green-Container vor dem Deploy gekillt. Den Host auf 12 GB anheben ist die Behebung.
 
 ## "DB_PASSWORD must be set" auf jedem Dienst
 
-`DB_PASSWORD` blockiert vier Dienste und meldet sich aus jedem mit leicht unterschiedlichem Wortlaut:
+`DB_PASSWORD` steuert vier Dienste, und jeder zeigt einen leicht anderen Fehler, wenn der Wert fehlt:
 
 - `ERROR: DB_PASSWORD or POSTGRES_PASSWORD must be set` vom Datenbank-Container.
 - `ERROR: DB_PASSWORD or POSTGRES_URL must be set` von der Platform.
 - `ERROR: DB_PASSWORD or RAG_DATABASE_URL must be set` vom RAG-Dienst.
 - `ERROR: DB_PASSWORD or CRAWLER_DATABASE_URL must be set` vom Crawler.
 
-Öffne `.env` und setze `DB_PASSWORD` auf einen nicht-leeren Wert. Starte `tale start` (oder `docker compose up`) neu — die Variable wird beim Container-Start gelesen, ein laufender Stack zieht den neuen Wert erst, wenn du ihn runterfährst und wieder hochfährst. Wenn du an ein externes Postgres anschliesst, setze stattdessen `POSTGRES_URL` und lass `DB_PASSWORD` leer; die vier Dienste lesen dann die URL direkt. Das vollständige Muster steht in [Linux-Server-Installation — Externe Datenbank nutzen](/de-CH/self-hosted/install/linux-server#externe-datenbank-nutzen).
+Öffne `.env`, setze `DB_PASSWORD` auf einen nicht leeren Wert und fahre `tale start` (oder `docker compose up`) erneut. Die Variable wird beim Container-Start gelesen, also nimmt ein laufender Stack sie nicht auf, bevor du ihn runterfährst und wieder hoch. Beim Verbinden mit einem externen Postgres setze stattdessen `POSTGRES_URL` und lass `DB_PASSWORD` ungesetzt — die vier Dienste lesen dann die URL direkt. Das vollständige Muster lebt unter [Produktions-Deployment — Externe Datenbank verwenden](/de-CH/self-hosted/install/linux-server#using-an-external-database).
 
-## Anbieter-Schlüssel-Änderungen wirken nicht
+## Anbieter-Schlüssel-Änderungen greifen nicht
 
-Anbieter-Konfiguration (`$TALE_CONFIG_DIR/providers/<name>.json` und die `.secrets.json`-Schwester) wird vom Convex-Container überwacht — Speichern unter **Einstellungen > Anbieter** oder direktes Bearbeiten der Datei lösen denselben Reload aus. Zwei Fälle brechen das:
+Die Anbieter-Konfiguration unter `$TALE_CONFIG_DIR/providers/<name>.json` (und die passende `.secrets.json`) wird vom convex-Container beobachtet — Speichern aus **Einstellungen > Anbieter** oder Bearbeiten der Datei von Hand löst denselben Reload aus. Zwei Fälle brechen das.
 
-- **Die Secrets-Datei ist SOPS-verschlüsselt, aber `SOPS_AGE_KEY` ist nicht mehr gesetzt.** Das Dateiformat ist selbst-beschreibend, also weigert sich der Loader, verschlüsselten Inhalt mit Klartext zu überschreiben, um Datenverlust zu vermeiden. Stelle den Age-Schlüssel wieder her oder lösche die verschlüsselte Datei, bevor du neu speicherst. Der vollständige Ablauf steht in [Anbieter — Modi wechseln](/de-CH/self-hosted/configuration/providers#modi-wechseln).
-- **Du hast die Datei im schreibbaren Container-Mount bearbeitet.** Tales Compose mountet `convex-data:/app/data` für den Convex-Dienst schreibbar und denselben Volume nur-lesbar für Platform/RAG/Crawler. Bearbeite die Dateien vom Host aus (`$TALE_CONFIG_DIR` auf dem Host wird in `/app/data/platform-config` im Convex-Container abgebildet) oder nutze die UI; in-Container-`vi` gegen den nur-lesbaren Mount versagt für die Geschwister-Dienste still.
+Der erste ist die SOPS-verschlüsselte Secrets-Datei, wenn `SOPS_AGE_KEY` nicht mehr gesetzt ist. Das Dateiformat ist selbstbeschreibend, also weigert sich der Loader, verschlüsselten Inhalt mit Klartext zu überschreiben, um Datenverlust zu verhindern — es würde sonst aussehen, als hätte der Operator seine Secrets-Storage still herabgestuft. Stelle den age-Schlüssel wieder her oder lösche die verschlüsselte Datei vor dem erneuten Speichern. Der vollständige Ablauf steht unter [Anbieter — Modi wechseln](/de-CH/self-hosted/configuration/providers#switching-modes).
 
-## Dokumente bleiben für immer "indiziert"
+Der zweite ist, wenn die Datei aus dem falschen Mount bearbeitet wird. Tales Compose mountet `convex-data:/app/data` schreibbar auf dem convex-Dienst und dasselbe Volume schreibgeschützt auf platform, RAG und crawler. Bearbeite die Dateien vom Host (der Host-Pfad, der im convex-Container auf `/app/data/platform-config` gemappt ist) oder nutze die UI; ein In-Container-`vi` gegen den schreibgeschützten Mount scheitert still für Geschwister-Dienste und erreicht den Watcher nie.
 
-Die Dokumenten-Indizierung ist eine mehrstufige Pipeline: Der RAG-Dienst extrahiert Text, zerlegt ihn in Chunks, erzeugt Embeddings und schreibt sie mit Vektor-Einträgen nach ParadeDB. Ein hundertseitiges PDF dauert Minuten; ein tausendseitiger Export kann eine halbe Stunde brauchen. Den Fortschritt zeigt **Wissen > Dokumente** pro Datei.
+## Dokumente bleiben für immer "indizierend"
 
-Wenn die Indizierung dauerhaft hängt, dominieren zwei Ursachen: Der mit `embedding` getaggte Anbieter ist falsch konfiguriert oder rate-limitiert (prüfe `docker compose logs rag` auf `provider error`-Zeilen), oder pgvector fehlt auf dem externen Postgres, an das du Tale angeschlossen hast. Der zweite Fall taucht in den RAG-Logs als `extension "vector" is not available` auf; installiere pgvector auf der externen Instanz wie in [Linux-Server-Installation — Externe Datenbank nutzen](/de-CH/self-hosted/install/linux-server#externe-datenbank-nutzen) beschrieben.
+Die Dokumenten-Indizierung ist eine mehrstufige Pipeline: der RAG-Dienst extrahiert Text, splittet ihn in Chunks, erzeugt Embeddings gegen einen `embedding`-getaggten Anbieter und schreibt die Chunks und Vektor-Einträge in ParadeDB. Ein hundertseitiges PDF braucht Minuten; ein tausendseitiger Export kann eine halbe Stunde dauern. Der Fortschritt ist pro Datei unter **Wissen > Dokumente** sichtbar.
 
-## Wo du Hilfe findest
+Wenn die Indizierung unbegrenzt stockt, dominieren zwei Ursachen. Der `embedding`-getaggte Anbieter ist entweder fehlkonfiguriert oder ratelimitiert — prüfe `docker compose logs rag` auf `provider error`-Zeilen, die den fehlschlagenden Anbieter und den vom vorgelagerten Dienst zurückgegebenen HTTP-Status benennen. Oder der externe Postgres, auf den du Tale ausgerichtet hast, hat die `vector`-Erweiterung nicht; das Symptom ist `extension "vector" is not available` in den RAG-Logs. Installiere pgvector auf der externen Instanz gemäss [Produktions-Deployment — Externe Datenbank verwenden](/de-CH/self-hosted/install/linux-server#using-an-external-database).
 
-Logs sind die erste Anlaufstelle — `docker compose logs -f` für einen Live-Stream, `tale logs <service> --tail 200`, wenn eine Instanz schon unter `tale deploy` läuft. Der Container-Smoke-Test (`bun run docker:test`) validiert den vollen Stack aus einem sauberen Zustand und fängt Port-Konflikte und Dependency-Drift auf einem Entwickler-Host.
+## Wo Hilfe zu finden ist
 
-Für Probleme, die ein Log-Lesen überleben, eröffne auf [GitHub Issues](https://github.com/tale-project/tale/issues) ein Issue mit der Verbose-CLI-Ausgabe und dem `compose.yml`-Snippet, das du fährst. Sicherheits-relevante Funde gehen stattdessen durch [Sicherheitshinweise](/de-CH/self-hosted/operate/security/advisories), wo ein privater Entwurf der öffentlichen Bekanntmachung vorausgeht, bis ein Patch verfügbar ist.
+Logs sind der erste Ort, an dem man nachsieht — `docker compose logs -f` für einen Live-Stream, `tale logs <service> --tail 200`, wenn der Stack unter `tale deploy` läuft. Der Container-Smoke-Test (`bun run docker:test`) validiert den vollen Stack aus einem sauberen Zustand und fängt Port-Konflikte und Abhängigkeits-Drift auf einem Entwicklungs-Host, bevor sie die Produktion erreichen.
+
+Für Probleme, die ein Log-Lesen überleben, reiche bei [GitHub Issues](https://github.com/tale-project/tale/issues) mit der ausführlichen CLI-Ausgabe und dem `compose.yml`-Ausschnitt ein, den du fährst. Sicherheitsrelevante Funde gehen stattdessen über [Sicherheitshinweise](/de-CH/self-hosted/operate/security/advisories), wo ein privater Entwurf der öffentlichen Bekanntgabe zuvorkommt, bis ein Patch verfügbar ist.

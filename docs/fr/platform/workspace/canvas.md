@@ -1,62 +1,50 @@
 ---
 title: Canevas
-description: Visualise, édite et révise les artéfacts générés par l’IA — HTML, code, SVG, diagrammes Mermaid et Markdown — dans un panneau dédié que l’IA peut patcher en place.
+description: Visualise, édite et révise les artéfacts générés par l'IA — HTML, code, SVG, diagrammes Mermaid et Markdown — dans un panneau latéral que l'IA peut patcher en place d'un tour à l'autre.
 ---
 
-Le canevas est un panneau latéral à côté du chat pour visualiser et éditer les **artéfacts** générés par l’IA — HTML exécutable, illustrations SVG, diagrammes Mermaid, documents Markdown ou snippets de code. Chaque artéfact existe en dehors du flux de messages et garde une identité stable sur toute la conversation, donc l’IA peut le réviser de façon incrémentale au lieu de réémettre le document entier à chaque correction.
+Canevas est un panneau latéral qui s'ouvre à côté du chat pour visualiser et éditer les **artéfacts** générés par l'IA : HTML exécutable, illustrations SVG, diagrammes Mermaid, documents Markdown ou extraits de code. Chaque artéfact vit en dehors du flux de messages et garde une identité stable sur toute la conversation, donc l'IA peut le réviser de façon incrémentale au lieu de réémettre le document entier à chaque correction. Imagine un brief marketing que l'IA esquisse et que tu resserres, un diagramme que tu fais étendre, ou une petite maquette HTML qui passe par trois tours de retours — chacun se termine sur un artéfact unique, pas trois messages.
 
-## Cycle de vie d’un artéfact
+Le public, c'est toute personne dans le chat. Pas de verrou de rôle ; quiconque peut discuter peut aussi ouvrir et éditer les artéfacts qu'une conversation produit.
 
-Quand l’IA décide de produire quelque chose d’exécutable ou de révisable, elle appelle l’outil `artifact_create`. Le nouvel artéfact :
+## Comment le cycle de vie d'un artéfact fonctionne
 
-- apparaît comme une carte dans la **barre d’artéfacts** au-dessus du chat.
-- s’ouvre automatiquement dans le panneau canevas à la première création.
-- diffuse son contenu en direct dans l’iframe pendant que l’IA tape.
+Quand l'IA décide de produire quelque chose d'exécutable ou de révisable, elle appelle l'outil `artifact_create`. Le nouvel artéfact apparaît comme une carte dans la barre des **Artéfacts** au-dessus du chat, s'ouvre automatiquement dans le panneau Canevas à la première création, et diffuse son contenu en direct dans le panneau pendant que l'IA tape. Pour le réviser, l'IA appelle `artifact_edit` sur la même identité — les petites modifications utilisent `mode: 'patch'` (blocs recherche-remplacement) ; les grandes réécritures utilisent `mode: 'rewrite'`. Dans les deux cas, Canevas se re-rend en place, donc tu ne remontes jamais pour trouver la dernière version.
 
-Pour le réviser, l’IA appelle `artifact_edit` sur le même artéfact. Les petites modifications utilisent `mode: 'patch'` (blocs de recherche-remplacement) ; les grandes réécritures utilisent `mode: 'rewrite'`. Dans les deux cas, le canevas se re-rend en place — pas besoin de remonter pour trouver la dernière version.
+Pendant que l'IA écrit ou patche, la carte montre un indicateur de progression et l'en-tête de Canevas affiche **L'IA écrit…** ou **L'IA modifie…**.
 
-## Types d’artéfacts pris en charge
+## Types d'artéfact pris en charge
 
-| Type         | Aperçu                               | Édition                 | Notes                                            |
-| ------------ | ------------------------------------ | ----------------------- | ------------------------------------------------ |
-| **HTML**     | aperçu rendu dans une iframe sandbox | éditeur source HTML     | les scripts tournent en sandbox.                 |
-| **SVG**      | graphique vectoriel rendu            | éditeur source SVG      | utilise le même moteur que HTML.                 |
-| **Mermaid**  | diagramme rendu                      | éditeur DSL Mermaid     | charge la lib Mermaid à la première utilisation. |
-| **Markdown** | texte riche formaté                  | éditeur source Markdown | rend avec la mise en forme Markdown standard.    |
-| **Code**     | affichage avec coloration (Shiki)    | éditeur texte brut      | supporte tous les langages courants.             |
+Canevas rend cinq formes d'artéfact, chacune avec sa paire aperçu / éditeur de source :
 
-## Barre d’artéfacts
+| Type         | Aperçu                                       | Édition                 | Notes                                                     |
+| ------------ | -------------------------------------------- | ----------------------- | --------------------------------------------------------- |
+| **HTML**     | aperçu rendu dans une iframe sandbox         | éditeur source HTML     | Les scripts tournent en environnement sandbox.            |
+| **SVG**      | graphique vectoriel rendu                    | éditeur source SVG      | Utilise le même moteur de rendu que HTML.                 |
+| **Mermaid**  | diagramme rendu                              | éditeur DSL Mermaid     | La librairie Mermaid se charge à la première utilisation. |
+| **Markdown** | texte riche formaté                          | éditeur source Markdown | Rendu avec la mise en forme Markdown standard.            |
+| **Code**     | affichage avec coloration syntaxique (Shiki) | éditeur texte brut      | Prend en charge les langages de programmation courants.   |
 
-Une bande horizontale au-dessus du chat liste chaque artéfact du fil courant. Chaque carte affiche le titre, l’icône de type et la révision actuelle (`v3`, `v4`, …). Clique sur une carte pour l’ouvrir dans le canevas.
+## La barre des Artéfacts
 
-Pendant que l’IA écrit ou patche un artéfact, la carte montre un spinner et l’en-tête du canevas affiche **L’IA écrit…** ou **L’IA modifie…**.
+Une bande horizontale au-dessus du chat liste chaque artéfact du fil courant. Chaque carte affiche le titre, une icône de type et la révision actuelle (`v3`, `v4`, …). Clique sur une carte pour l'ouvrir dans Canevas. Les cartes restent visibles sur toute la conversation, donc un artéfact créé douze messages plus tôt est à un clic.
 
-## Actions de la barre d’outils
+## Actions de la barre d'outils
 
-L’en-tête du canevas comprend :
+L'en-tête de Canevas porte les actions qui s'appliquent à l'artéfact ouvert. **Modifier** bascule le panneau en éditeur de source ; clique sur **Aperçu** (la même bascule) pour revenir à la sortie rendue. **Appliquer les modifications** valide tes modifications comme nouvelle révision — le bouton apparaît dès que tu as modifié et que l'IA n'est pas en train d'écrire. **Copier** copie le contenu affiché dans le presse-papiers. **Télécharger** sauvegarde le contenu comme fichier avec l'extension adaptée (`.html`, `.mmd`, `.svg`, `.md` ou l'extension du langage pour le code). **Plein écran** étend le panneau au viewport entier ; `Échap` ou l'icône de réduction le ramène à la taille ancrée. **Fermer le canevas** ferme le panneau.
 
-- **bascule Modifier / Aperçu** — passe entre l’édition de la source et l’aperçu du rendu.
-- **Appliquer les modifications** — enregistre tes modifications comme nouvelle révision. Apparaît seulement si tu as modifié et que l’IA n’écrit pas.
-- **Copier** — copie le contenu affiché dans le presse-papiers.
-- **Télécharger** — télécharge comme fichier avec l’extension adaptée (`.html`, `.mmd`, `.svg`, `.md` ou l’extension de langage du code).
-- **Plein écran** — agrandit le panneau au viewport entier. Appuie sur `Échap` ou clique l’icône de réduction pour sortir.
-- **Fermer le canevas** — ferme le panneau.
+## Modifier et appliquer
 
-## Éditer et appliquer
+Pour modifier l'artéfact à la main au lieu de demander à l'IA, clique sur l'icône crayon — le contenu validé se charge dans un éditeur de source. Fais les modifications, clique sur l'icône œil pour prévisualiser, et sur **Appliquer les modifications** pour les valider comme nouvelle révision. Tes modifications sont enregistrées avec `editKind: 'user'` dans l'historique, donc le journal des révisions de l'artéfact montre qui a changé quoi.
 
-1. Clique l’icône **crayon** pour entrer en mode édition. Le contenu actuel est chargé dans un éditeur de texte.
-2. Modifie le contenu.
-3. Clique l’icône **œil** pour voir le rendu.
-4. Clique **Appliquer les modifications** pour valider comme nouvelle révision. L’IA voit ta version modifiée au tour suivant et peut patcher à partir de là.
+L'IA voit ta version modifiée au tour suivant et patche à partir de là. C'est la boucle autour de laquelle le panneau Canevas est construit — un dialogue rapide, sur place, entre toi et l'IA, sur un document persistant.
 
-Les éditions utilisateur sont enregistrées comme nouvelle révision (`editKind: 'user'`) pour que l’historique de l’artéfact montre qui a changé quoi.
+## Redimensionner et mise en page
 
-## Redimensionner
-
-Fais glisser le bord gauche du panneau pour le redimensionner. Largeur minimale : 320 px ; maximale : 900 px.
+Fais glisser le bord gauche du panneau Canevas pour le redimensionner. Le panneau a une largeur minimale de 320 pixels et une maximale de 900 pixels, donc la colonne de chat n'est jamais poussée hors écran.
 
 ## Où ça s'inscrit
 
-Canevas est l'atelier pour les artefacts générés par l'IA. Le chat est là où tu demandes ; Canevas est là où la sortie structurée de l'IA (une maquette HTML, un diagramme Mermaid, un extrait de code) prend sa forme persistante. Sans Canevas, chaque révision réémettrait le document entier dans le flux de chat ; avec Canevas, l'artefact a une identité stable que l'IA peut patcher en place d'un tour à l'autre.
+Canevas est l'atelier pour les artéfacts générés par l'IA. Le chat, c'est là où tu demandes ; Canevas, c'est là où la sortie structurée de l'IA — une maquette HTML, un diagramme Mermaid, un brief Markdown, un extrait de code — prend sa forme persistante. Sans Canevas, chaque révision réémettrait le document entier dans le flux de chat ; avec Canevas, l'artéfact a une identité stable que l'IA peut patcher en place d'un tour à l'autre.
 
-Pour déclencher un artefact, demande à l'IA quelque chose que Canevas peut rendre — un graphique, un diagramme, une petite page HTML, un brief Markdown. Pour modifier un artefact toi-même, ouvre l'éditeur de source et clique **Appliquer** ; l'IA voit la version éditée au tour suivant et peut patcher à partir de là.
+Pour déclencher un artéfact, demande à l'IA quelque chose que Canevas sait rendre — un graphique, un diagramme, une petite page HTML, un document Markdown. Pour réviser un artéfact toi-même, ouvre l'éditeur de source et clique sur **Appliquer les modifications** ; l'IA reprend tes modifications au tour suivant et patche à partir de là.

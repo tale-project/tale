@@ -1,12 +1,12 @@
 ---
 title: Willkommen bei Tale
-description: Souveräne KI-Plattform — chatten mit eigenen Dokumenten, eigene Agents bauen, Automatisierungen ausführen und Kundenkonversationen verwalten, auf Hardware unter deiner Kontrolle.
+description: Souveräne KI-Plattform — mit eigenen Dokumenten chatten, eigene Agents bauen, Automatisierungen ausführen und Kundenkonversationen verwalten, auf Hardware unter deiner Kontrolle.
 kind: index
 ---
 
-Tale ist eine souveräne KI-Plattform: chatte mit Modellen über deine eigenen Dokumente, baue eigene Agents, die einen Job von Anfang bis Ende erledigen, lass mehrstufige Automatisierungen im Hintergrund laufen, und verwalte Kundenkonversationen aus einem Posteingang — mit deiner Wahl an KI-Anbietern und deinen Daten an eine Region gebunden, die du kontrollierst. Die Plattform kommt in zwei Editionen, [Cloud](/de/cloud) und [selbst gehostet](/de/self-hosted), und jede Funktion, jede API und jede Rolle ist zwischen beiden identisch. Der einzige Unterschied ist, wer die Plattform betreibt.
+Tale ist eine souveräne KI-Plattform: chatte mit Modellen über deine eigenen Dokumente, baue eigene Agents, die einen Job von Anfang bis Ende erledigen, lass mehrstufige Automatisierungen im Hintergrund laufen und verwalte Kundenkonversationen aus einem Posteingang — mit der KI-Anbieter-Auswahl deiner Wahl und deinen Daten gebunden an eine Region, die du kontrollierst. Die Plattform kommt in zwei Editionen, [Cloud](/de/cloud) und [selbst gehostet](/de/self-hosted), und jede Funktion, jede API und jede Rolle ist zwischen beiden identisch. Der einzige Unterschied: wer die Plattform betreibt.
 
-Diese Seite ist die Eingangstür für beide Editionen und jede Rolle. Wähle die Edition, die dazu passt, wie Tale gehostet wird, und springe dann in den Bereich, der zu deiner täglichen Arbeit passt. Wenn du die Edition schon kennst und gleich zur Funktionsreferenz willst, geh direkt zu [Platform](/de/platform) — der kanonischen Dokumentation jeder nutzerseitigen Funktion, identisch über beide Editionen.
+Diese Seite ist die Eingangstür für beide Editionen und jede Rolle. Wähle die Edition, die zu deiner Hosting-Variante passt, und springe dann in den Bereich, der zu deiner täglichen Arbeit passt. Wenn du die Edition schon kennst und gleich zur Funktionsreferenz willst, geh direkt zu [Platform](/de/platform) — der kanonischen Dokumentation jeder nutzerseitigen Funktion, identisch über beide Editionen.
 
 ## Wähle eine Edition
 
@@ -24,7 +24,7 @@ Tale liefert sechs Rollen — Inhaber, Admin, Entwickler, Redakteur, Mitglied un
 - **[Entwickler](/de/platform/developer/overview)** — baue Agents, Automatisierungen und Integrationen; verwalte API-Schlüssel, Webhooks und strukturierte Daten-Entitäten.
 - **[Admin](/de/platform/admin/overview)** — konfiguriere Mitglieder und Rollen, Teams, KI-Anbieter, Branding, Governance-Richtlinien und das Audit-Log.
 
-Wenn du Tale mit anderen Systemen integrierst oder zum Quellcode beiträgst, ist [Develop](/de/develop/api-reference) der Bereich zum Öffnen — REST-API, Webhooks, das Integrationen-SDK und Contributor-Workflows leben alle dort.
+Wenn du Tale mit anderen Systemen integrierst oder zum Quellcode beiträgst, ist [Develop](/de/develop/api-reference) der richtige Bereich — REST-API, Webhooks, das Integrationen-SDK und Contributor-Workflows leben alle dort.
 
 ## Was Tale auszeichnet
 
@@ -32,15 +32,9 @@ Vier Eigenschaften, die die meisten Teams gegen die Alternativen abwägen:
 
 - **Deine Daten, deine Region.** Cloud bindet jeden Mandanten an die Schweiz oder die EU, mit expliziter Subprozessor-Offenlegung und der Option, eigene KI-Schlüssel mitzubringen. Selbst gehostet verlässt das Netzwerk vollständig — Prompts, Dokumenteninhalte und Embeddings passieren Tales Infrastruktur nie.
 - **Jedes Modell, pro Agent austauschbar.** OpenAI, Anthropic, Google, Mistral, Meta, DeepSeek, Moonshot, Qwen — oder selbst gehostete Modelle über Ollama, vLLM oder LocalAI — austauschbar pro Agent ohne Re-Indexierung, ohne Re-Training, ohne Migration.
-- **Ein Produkt für die ganze Organisation.** Sechs Rollen decken Nur-Lese-Betrachter bis hin zu Organisations-Inhabern ab, organisiert in Teams mit eingeschränktem Wissenszugriff. Mitglieder chatten mit Agents; Redakteure pflegen; Entwickler bauen Automatisierungen; Admins regieren.
-- **Compliance, die du deinem Auditor zeigen kannst.** ISO-27001- und SOC-2-zertifiziert, schweizerisch (Ruler GmbH), DSGVO-konform per Voreinstellung — mit Audit-Logs und Werkzeugen für Anfragen betroffener Personen direkt eingebaut.
+- **Ein Produkt für die ganze Organisation.** Sechs Rollen decken Nur-Lese-Betrachter bis Organisations-Inhaber ab, organisiert in Teams mit eingeschränktem Wissenszugriff. Mitglieder chatten mit Agents; Redakteure pflegen; Entwickler bauen Automatisierungen; Admins regieren.
+- **Compliance, die du deinem Auditor zeigen kannst.** Betrieben von der Ruler GmbH in der Schweiz, DSGVO-konform per Voreinstellung — mit Audit-Logs und Werkzeugen für Anfragen betroffener Personen direkt eingebaut, und der Zertifizierungslage dokumentiert unter [Cloud](/de/cloud).
 
 ## Wo das einsetzt
 
-Der Page-Shape-Vertrag behandelt diesen Index als Eingangstür, nicht als Rundgang. Sobald du Edition und Rolle gewählt hast, ist der nächste sinnvolle Schritt einer von:
-
-- [Platform](/de/platform) — die kanonische Funktionsreferenz, identisch über beide Editionen. Starte hier, sobald du im Produkt bist.
-- [Cloud-Onboarding](/de/cloud) oder [Selbst-hosted-Installation](/de/self-hosted) — editionsspezifischer Aufbau. Überspringe diesen Schritt, falls Tale für dich bereits läuft.
-- [Tutorials](/de/tutorials/overview) — rollenindizierte Worked-Examples, von Anfang bis Ende, auf einer frischen Instanz.
-
-Für Quellcode, Issues und Release-Ankündigungen sind [GitHub](https://github.com/tale-project/tale) und [tale.dev](https://tale.dev) die kanonischen Kanäle.
+Sobald Edition und Rolle gewählt sind, liegt der Rest der Doku einen Klick entfernt. [Platform](/de/platform) ist die kanonische Funktionsreferenz und gilt identisch für Cloud und selbst gehostet, also fängt jeder, der schon im Produkt steht, dort an; [Cloud](/de/cloud) und [selbst gehostet](/de/self-hosted) decken die editionsspezifische Schicht darüber ab. [Tutorials](/de/tutorials/overview) führt rollenindizierte Beispiele Schritt für Schritt auf einer frischen Instanz durch, und [Develop](/de/develop/api-reference) ist der Einstiegspunkt für Integratoren und Mitwirkende. Quellcode, Issues und Release-Ankündigungen leben auf [GitHub](https://github.com/tale-project/tale) und [tale.dev](https://tale.dev).
