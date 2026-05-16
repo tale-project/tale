@@ -215,6 +215,9 @@ export const synthesizeChunk = action({
           input: text,
           voice: modelData.voice,
           response_format: modelData.audioFormat,
+          ...(modelData.instructions
+            ? { instructions: modelData.instructions }
+            : {}),
         }),
         timeoutMs: FETCH_TIMEOUT_MS,
         maxResponseBytes: MAX_AUDIO_BYTES,

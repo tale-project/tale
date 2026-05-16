@@ -267,6 +267,24 @@ const modelDefinitionSchema = z.object({
     )
     .optional(),
   /**
+   * Default natural-language tone/style prompt for TTS models that accept an
+   * `instructions` field (OpenAI `gpt-4o-mini-tts`). Steers warmth, pacing,
+   * and language consistency. Falls back to no instruction when omitted.
+   */
+  defaultInstructions: z.string().min(1).max(2000).optional(),
+  /**
+   * Locale → instructions mapping. Same lookup pattern as `voicesByLocale`:
+   * full locale first, then base, then `defaultInstructions`. Each entry
+   * should be written in the language it will steer (in-language prompts
+   * produce the best results with OpenAI's TTS).
+   */
+  instructionsByLocale: z
+    .record(
+      z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/),
+      z.string().min(1).max(2000),
+    )
+    .optional(),
+  /**
    * Output audio format for TTS models. Defaults to mp3 when omitted.
    * `pcm` is raw 24 kHz mono int16 — choose only when the client can
    * play `audio/L16; rate=24000` (most browsers can; some older Safari

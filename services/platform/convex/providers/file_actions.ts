@@ -578,6 +578,8 @@ export const resolveModelData = internalAction({
     centsPerMillionCharacters: v.optional(v.number()),
     defaultVoice: v.optional(v.string()),
     voicesByLocale: v.optional(v.record(v.string(), v.string())),
+    defaultInstructions: v.optional(v.string()),
+    instructionsByLocale: v.optional(v.record(v.string(), v.string())),
     audioFormat: v.optional(
       v.union(
         v.literal('mp3'),
@@ -692,6 +694,8 @@ export const resolveModelData = internalAction({
         centsPerMillionCharacters: definition.cost?.centsPerMillionCharacters,
         defaultVoice: definition.defaultVoice,
         voicesByLocale: definition.voicesByLocale,
+        defaultInstructions: definition.defaultInstructions,
+        instructionsByLocale: definition.instructionsByLocale,
         audioFormat: definition.audioFormat,
         providerOptions,
       };
@@ -735,6 +739,8 @@ export const resolveModelByTag = internalAction({
     centsPerMillionCharacters: v.optional(v.number()),
     defaultVoice: v.optional(v.string()),
     voicesByLocale: v.optional(v.record(v.string(), v.string())),
+    defaultInstructions: v.optional(v.string()),
+    instructionsByLocale: v.optional(v.record(v.string(), v.string())),
     audioFormat: v.optional(
       v.union(
         v.literal('mp3'),
@@ -797,6 +803,8 @@ export const resolveModelByTag = internalAction({
               definition.cost?.centsPerMillionCharacters,
             defaultVoice: definition.defaultVoice,
             voicesByLocale: definition.voicesByLocale,
+            defaultInstructions: definition.defaultInstructions,
+            instructionsByLocale: definition.instructionsByLocale,
             audioFormat: definition.audioFormat,
             providerOptions: mergeModelLevel(
               provider.config.providerOptions,
@@ -835,6 +843,8 @@ export const resolveModelByTag = internalAction({
           centsPerMillionCharacters: definition.cost?.centsPerMillionCharacters,
           defaultVoice: definition.defaultVoice,
           voicesByLocale: definition.voicesByLocale,
+          defaultInstructions: definition.defaultInstructions,
+          instructionsByLocale: definition.instructionsByLocale,
           audioFormat: definition.audioFormat,
           providerOptions: mergeModelLevel(
             provider.config.providerOptions,

@@ -24,11 +24,15 @@
       "voicesByLocale": {
         "en": "alloy",
         "de": "nova",
-        "fr": "shimmer",
         "de-CH": "nova",
-        "zh": "nova",
-        "ja": "shimmer",
-        "ko": "shimmer"
+        "fr": "shimmer"
+      },
+      "defaultInstructions": "Speak in a warm, natural conversational tone, with appropriate emotion and pacing. Sound like a friendly person talking, not a news anchor.",
+      "instructionsByLocale": {
+        "en": "Speak in a warm, natural conversational tone, with appropriate emotion and pacing. Sound like a friendly person talking, not a news anchor.",
+        "de": "Sprich in einem warmen, natürlichen Gesprächston mit passender Emotion und Sprechgeschwindigkeit. Klinge wie eine freundliche Person, nicht wie ein Nachrichtensprecher.",
+        "de-CH": "Sprich in einem warmen, natürlichen Gesprächston mit passender Emotion und Sprechgeschwindigkeit. Klinge wie eine freundliche Person, nicht wie ein Nachrichtensprecher.",
+        "fr": "Parle d'une voix chaleureuse et naturelle, avec une émotion et un rythme appropriés. Sois comme une personne amicale qui parle, pas comme un présentateur de journal télévisé."
       },
       "cost": {
         "centsPerMillionCharacters": 200

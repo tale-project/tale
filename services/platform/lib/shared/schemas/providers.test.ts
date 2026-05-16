@@ -163,6 +163,82 @@ describe('providerJsonSchema', () => {
       });
       expect(result.success).toBe(true);
     });
+
+    it('accepts a TTS model with defaultInstructions and instructionsByLocale', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        models: [
+          {
+            id: 'tts/v1',
+            displayName: 'TTS v1',
+            tags: ['text-to-speech'],
+            defaultVoice: 'alloy',
+            defaultInstructions: 'Speak warmly.',
+            instructionsByLocale: {
+              en: 'Speak warmly in English.',
+              de: 'Sprich freundlich.',
+            },
+          },
+        ],
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        const model = result.data.models[0];
+        expect(model.defaultInstructions).toBe('Speak warmly.');
+        expect(model.instructionsByLocale?.de).toBe('Sprich freundlich.');
+      }
+    });
+
+    it('accepts a TTS model with neither instructions field (instructions are optional)', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        models: [
+          {
+            id: 'tts/v1',
+            displayName: 'TTS v1',
+            tags: ['text-to-speech'],
+            defaultVoice: 'alloy',
+          },
+        ],
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.models[0].defaultInstructions).toBeUndefined();
+        expect(result.data.models[0].instructionsByLocale).toBeUndefined();
+      }
+    });
+
+    it('rejects instructionsByLocale with an invalid locale key', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        models: [
+          {
+            id: 'tts/v1',
+            displayName: 'TTS v1',
+            tags: ['text-to-speech'],
+            defaultVoice: 'alloy',
+            instructionsByLocale: { english: 'Speak warmly.' },
+          },
+        ],
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects defaultInstructions longer than 2000 characters', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        models: [
+          {
+            id: 'tts/v1',
+            displayName: 'TTS v1',
+            tags: ['text-to-speech'],
+            defaultVoice: 'alloy',
+            defaultInstructions: 'x'.repeat(2001),
+          },
+        ],
+      });
+      expect(result.success).toBe(false);
+    });
   });
 
   describe('back-compat (no .strict on model/cost)', () => {
