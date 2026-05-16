@@ -83,7 +83,6 @@ const SKIP_RE = /(\.test\.tsx?$|\.stories\.tsx?$|\.bench\.tsx?$)/;
 // (tests, stories, benchmarks, fixtures). Helper or fixture files inside
 // would otherwise count as translation usage and mask orphan keys.
 const PRUNE_DIRS = new Set([
-  '__tests__',
   'tests',
   'stories',
   '__stories__',

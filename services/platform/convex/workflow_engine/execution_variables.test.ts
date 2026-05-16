@@ -1,0 +1,191 @@
+/**
+ * Integration tests for workflow execution variable updates
+ *
+ * Tests updateExecutionVariables logic including storage cleanup.
+ */
+
+import { describe, it, expect, vi } from 'vitest';
+
+import type { Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
+import { INTERMEDIATE_STORAGE_RETENTION_MS } from '../workflows/executions/cleanup_execution_storage';
+import { updateExecutionVariables } from '../workflows/executions/update_execution_variables';
+
+function createMockCtx(executionOverrides: Record<string, unknown> = {}) {
+  const execution = {
+    _id: 'exec_1' as Id<'wfExecutions'>,
+    organizationId: 'org_1',
+    status: 'running',
+    variables: '{}',
+    variablesStorageId: undefined,
+    ...executionOverrides,
+  };
+
+  const scheduledJobs: { delay: number; args: Record<string, unknown> }[] = [];
+
+  return {
+    db: {
+      get: vi.fn().mockResolvedValue(execution),
+      patch: vi.fn(),
+    },
+    storage: {
+      delete: vi.fn(),
+    },
+    scheduler: {
+      runAfter: vi.fn(
+        async (delay: number, _fn: unknown, args: Record<string, unknown>) => {
+          scheduledJobs.push({ delay, args });
+        },
+      ),
+    },
+    _scheduledJobs: scheduledJobs,
+  };
+}
+
+describe('updateExecutionVariables', () => {
+  describe('inline variable updates', () => {
+    it('should patch execution with serialized variables', async () => {
+      const ctx = createMockCtx();
+
+      await updateExecutionVariables(ctx as unknown as MutationCtx, {
+        executionId: 'exec_1' as Id<'wfExecutions'>,
+        variablesSerialized: '{"updated": true}',
+      });
+
+      expect(ctx.db.patch).toHaveBeenCalledWith(
+        'exec_1',
+        expect.objectContaining({
+          variables: '{"updated": true}',
+          updatedAt: expect.any(Number),
+        }),
+      );
+    });
+
+    it('should set variablesStorageId to undefined for inline updates', async () => {
+      const ctx = createMockCtx();
+
+      await updateExecutionVariables(ctx as unknown as MutationCtx, {
+        executionId: 'exec_1' as Id<'wfExecutions'>,
+        variablesSerialized: '{"inline": true}',
+      });
+
+      expect(ctx.db.patch).toHaveBeenCalledWith(
+        'exec_1',
+        expect.objectContaining({
+          variablesStorageId: undefined,
+        }),
+      );
+    });
+  });
+
+  describe('storage variable updates', () => {
+    it('should set new storage ID when provided', async () => {
+      const ctx = createMockCtx();
+
+      await updateExecutionVariables(ctx as unknown as MutationCtx, {
+        executionId: 'exec_1' as Id<'wfExecutions'>,
+        variablesSerialized: '{"_storageRef":"new_id"}',
+        variablesStorageId: 'new_id' as Id<'_storage'>,
+      });
+
+      expect(ctx.db.patch).toHaveBeenCalledWith(
+        'exec_1',
+        expect.objectContaining({
+          variablesStorageId: 'new_id',
+        }),
+      );
+    });
+  });
+
+  describe('storage cleanup', () => {
+    it('should schedule deferred deletion when transitioning from storage to inline', async () => {
+      const ctx = createMockCtx({ variablesStorageId: 'old_storage' });
+
+      await updateExecutionVariables(ctx as unknown as MutationCtx, {
+        executionId: 'exec_1' as Id<'wfExecutions'>,
+        variablesSerialized: '{"inline": true}',
+      });
+
+      expect(ctx.storage.delete).not.toHaveBeenCalled();
+      expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
+        INTERMEDIATE_STORAGE_RETENTION_MS,
+        expect.anything(),
+        { storageId: 'old_storage' },
+      );
+    });
+
+    it('should schedule deferred deletion when storage ID changes', async () => {
+      const ctx = createMockCtx({ variablesStorageId: 'old_storage' });
+
+      await updateExecutionVariables(ctx as unknown as MutationCtx, {
+        executionId: 'exec_1' as Id<'wfExecutions'>,
+        variablesSerialized: '{"_storageRef":"new_storage"}',
+        variablesStorageId: 'new_storage' as Id<'_storage'>,
+      });
+
+      expect(ctx.storage.delete).not.toHaveBeenCalled();
+      expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
+        INTERMEDIATE_STORAGE_RETENTION_MS,
+        expect.anything(),
+        { storageId: 'old_storage' },
+      );
+    });
+
+    it('should not schedule deletion when IDs are the same', async () => {
+      const ctx = createMockCtx({ variablesStorageId: 'same_id' });
+
+      await updateExecutionVariables(ctx as unknown as MutationCtx, {
+        executionId: 'exec_1' as Id<'wfExecutions'>,
+        variablesSerialized: '{"_storageRef":"same_id"}',
+        variablesStorageId: 'same_id' as Id<'_storage'>,
+      });
+
+      expect(ctx.storage.delete).not.toHaveBeenCalled();
+      expect(ctx.scheduler.runAfter).not.toHaveBeenCalled();
+    });
+
+    it('should not schedule deletion when no old storage exists', async () => {
+      const ctx = createMockCtx();
+
+      await updateExecutionVariables(ctx as unknown as MutationCtx, {
+        executionId: 'exec_1' as Id<'wfExecutions'>,
+        variablesSerialized: '{}',
+      });
+
+      expect(ctx.storage.delete).not.toHaveBeenCalled();
+      expect(ctx.scheduler.runAfter).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('edge cases', () => {
+    it('should no-op when execution is deleted (null)', async () => {
+      const ctx = createMockCtx();
+      ctx.db.get.mockResolvedValue(null);
+
+      const result = await updateExecutionVariables(
+        ctx as unknown as MutationCtx,
+        {
+          executionId: 'exec_1' as Id<'wfExecutions'>,
+          variablesSerialized: '{"data": true}',
+        },
+      );
+
+      expect(result).toBeNull();
+      expect(ctx.db.patch).not.toHaveBeenCalled();
+    });
+
+    it('should no-op when no serialized variables provided', async () => {
+      const ctx = createMockCtx();
+
+      const result = await updateExecutionVariables(
+        ctx as unknown as MutationCtx,
+        {
+          executionId: 'exec_1' as Id<'wfExecutions'>,
+        },
+      );
+
+      expect(result).toBeNull();
+      expect(ctx.db.patch).not.toHaveBeenCalled();
+    });
+  });
+});

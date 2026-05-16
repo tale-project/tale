@@ -19,12 +19,7 @@ const REFERENCE_DIRS: [string, string][] = [
   ['examples', 'examples'],
 ];
 
-const SKIP_DIRS = new Set([
-  '.history',
-  '__tests__',
-  '_generated',
-  'node_modules',
-]);
+const SKIP_DIRS = new Set(['.history', '_generated', 'node_modules']);
 const SKIP_EXTENSIONS = [
   '.test.ts',
   '.test.js',
