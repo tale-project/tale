@@ -22,9 +22,10 @@ interface LocaleSyncProps {
  *
  *   - web / docs: locale comes from the URL (`useCurrentLocale()`); the host
  *     route renders `<LocaleSync locale={...} />` inside the I18nProvider.
- *   - platform: locale comes from the user's saved preference + browser
- *     detection (`useLocale()`); the I18nProvider renders `<LocaleSync />`
- *     once the detected value is known.
+ *   - platform / template services: locale comes from the user's saved
+ *     preference + browser detection (`useLocale()` from
+ *     `@tale/ui/i18n/locale-provider`); the service's `I18nProvider` renders
+ *     `<LocaleSync />` once the detected value is known.
  *
  * Reads the i18n instance via `useTranslation()` so it picks up whichever
  * singleton the surrounding `<I18nextProvider>` injected.

@@ -1,4 +1,5 @@
 import { ConvexBetterAuthProvider } from '@convex-dev/better-auth/react';
+import { AppShell } from '@tale/ui/app-shell';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
 import { LazyMotion, domAnimation } from 'framer-motion';
@@ -6,13 +7,12 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { BrandingProvider } from '@/app/components/branding/branding-provider';
-import { ThemeProvider } from '@/app/components/theme/theme-provider';
 import { BackupCodesDialogProvider } from '@/app/features/settings/account/components/backup-codes-dialog-provider';
-import { LocaleProvider } from '@/app/hooks/use-locale';
 import { authClient } from '@/lib/auth-client';
-import { I18nProvider } from '@/lib/i18n/i18n-provider';
+import { i18n } from '@/lib/i18n/i18n';
 import { SiteUrlProvider } from '@/lib/site-url-context';
-import '@/lib/i18n/i18n';
+import { loadDayjsLocale } from '@/lib/utils/date/format';
+
 import { convexQueryClient, queryClient, router } from './router';
 
 import './globals.css';
@@ -28,21 +28,21 @@ createRoot(root).render(
         client={convexQueryClient.convexClient}
         authClient={authClient}
       >
-        <LocaleProvider>
-          <I18nProvider>
-            <ThemeProvider defaultTheme="system">
-              <QueryClientProvider client={queryClient}>
-                <LazyMotion features={domAnimation} strict>
-                  <BrandingProvider>
-                    <BackupCodesDialogProvider>
-                      <RouterProvider router={router} />
-                    </BackupCodesDialogProvider>
-                  </BrandingProvider>
-                </LazyMotion>
-              </QueryClientProvider>
-            </ThemeProvider>
-          </I18nProvider>
-        </LocaleProvider>
+        <AppShell
+          i18n={i18n}
+          locale={{ mode: 'client', onChange: loadDayjsLocale }}
+          theme
+        >
+          <QueryClientProvider client={queryClient}>
+            <LazyMotion features={domAnimation} strict>
+              <BrandingProvider>
+                <BackupCodesDialogProvider>
+                  <RouterProvider router={router} />
+                </BackupCodesDialogProvider>
+              </BrandingProvider>
+            </LazyMotion>
+          </QueryClientProvider>
+        </AppShell>
       </ConvexBetterAuthProvider>
     </SiteUrlProvider>
   </StrictMode>,

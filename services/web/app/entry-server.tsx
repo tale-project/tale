@@ -1,3 +1,4 @@
+import { AppShell } from '@tale/ui/app-shell';
 import {
   RouterProvider,
   createMemoryHistory,
@@ -6,9 +7,7 @@ import {
 import { StrictMode } from 'react';
 import { renderToString } from 'react-dom/server';
 
-import '@/lib/i18n/i18n';
 import { i18n } from '@/lib/i18n/i18n';
-import { I18nProvider } from '@/lib/i18n/i18n-provider';
 import { detectInitialLocale, resolveRegionalLocale } from '@/lib/i18n/locales';
 
 import { routeTree } from './routeTree.gen';
@@ -37,9 +36,9 @@ export async function render(url: string): Promise<RenderResult> {
 
   const html = renderToString(
     <StrictMode>
-      <I18nProvider>
+      <AppShell i18n={i18n}>
         <RouterProvider router={router} />
-      </I18nProvider>
+      </AppShell>
     </StrictMode>,
   );
 

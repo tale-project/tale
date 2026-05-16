@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { IconButton } from '@tale/ui/icon-button';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
@@ -16,7 +17,6 @@ import {
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { useListPage } from '@/app/hooks/use-list-page';
-import { useLocale } from '@/app/hooks/use-locale';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { resolveProviderLocale } from '@/lib/shared/utils/resolve-provider-locale';

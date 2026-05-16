@@ -1,7 +1,9 @@
 'use client';
 
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Skeleton } from '@tale/ui/skeleton';
+import { useTheme } from '@tale/ui/theme';
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import {
   LogOut,
@@ -15,7 +17,6 @@ import {
 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
-import { useTheme } from '@/app/components/theme/theme-provider';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Tabs } from '@/app/components/ui/navigation/tabs';
 import {
@@ -28,7 +29,6 @@ import { Text } from '@/app/components/ui/typography/text';
 import { useChangelogNotification } from '@/app/hooks/use-changelog-notification';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
-import { useLocale } from '@/app/hooks/use-locale';
 import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
 import { getEnv } from '@/lib/env';

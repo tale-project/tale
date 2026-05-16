@@ -25,7 +25,7 @@ vi.mock('@/lib/utils/shiki', () => ({
 }));
 
 // Mock theme provider
-vi.mock('@/app/components/theme/theme-provider', () => ({
+vi.mock('@tale/ui/theme', () => ({
   useTheme: () => ({ resolvedTheme: 'dark' }),
 }));
 

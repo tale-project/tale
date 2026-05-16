@@ -1,12 +1,9 @@
-import { act, render, renderHook, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { renderHook, act, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { LocaleProvider, useLocale } from '../use-locale';
+import { render, screen } from '@/test/utils/render';
 
-vi.mock('@/lib/utils/date/format', () => ({
-  loadDayjsLocale: vi.fn(),
-}));
+import { LocaleProvider, useLocale } from './locale-provider';
 
 beforeEach(() => {
   localStorage.clear();
@@ -51,8 +48,6 @@ describe('useLocale', () => {
   // not propagate to <LocaleSync> (which triggers i18n.changeLanguage). The
   // bug surfaced as a picker that only "worked" after a page refresh.
   it('shares a single locale across every consumer of the context', async () => {
-    const user = userEvent.setup();
-
     function Reader() {
       const { locale } = useLocale();
       return <span data-testid="reader">{locale}</span>;
@@ -67,7 +62,7 @@ describe('useLocale', () => {
       );
     }
 
-    render(
+    const { user } = render(
       <LocaleProvider>
         <Reader />
         <Picker />
@@ -77,5 +72,33 @@ describe('useLocale', () => {
     await user.click(screen.getByRole('button', { name: 'switch' }));
 
     expect(screen.getByTestId('reader')).toHaveTextContent('de-DE');
+  });
+
+  // Platform passes `loadDayjsLocale` here. Verifying the hook fires on both
+  // detection and `setLocale()` ensures any locale-tied lazy resource gets
+  // the new value without consumers needing their own useEffect.
+  it('invokes onLocaleChange on mount and after setLocale', async () => {
+    localStorage.setItem('user-locale', 'fr-FR');
+    const onLocaleChange = vi.fn();
+
+    const { result } = renderHook(() => useLocale(), {
+      wrapper: ({ children }) => (
+        <LocaleProvider onLocaleChange={onLocaleChange}>
+          {children}
+        </LocaleProvider>
+      ),
+    });
+
+    await waitFor(() => {
+      expect(onLocaleChange).toHaveBeenCalledWith('fr-FR');
+    });
+
+    act(() => {
+      result.current.setLocale('de-DE');
+    });
+
+    await waitFor(() => {
+      expect(onLocaleChange).toHaveBeenCalledWith('de-DE');
+    });
   });
 });

@@ -1,5 +1,6 @@
 'use client';
 
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { useMemo } from 'react';
 
 import {
@@ -9,7 +10,6 @@ import {
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { Field, FieldGroup } from '@/app/components/ui/forms/field';
 import { Text } from '@/app/components/ui/typography/text';
-import { useLocale } from '@/app/hooks/use-locale';
 import { useT } from '@/lib/i18n/client';
 import { formatNumber } from '@/lib/utils/format/number';
 

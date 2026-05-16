@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { IconButton } from '@tale/ui/icon-button';
 import { Separator } from '@tale/ui/separator';
 import { Download, X, Loader2 } from 'lucide-react';
@@ -17,7 +18,6 @@ import { useLegalHoldByTarget } from '@/app/features/settings/governance/hooks/q
 import { LegalHoldBadge } from '@/app/features/settings/governance/legal-hold/legal-hold-badge';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useFormatDate } from '@/app/hooks/use-format-date';
-import { useLocale } from '@/app/hooks/use-locale';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useToast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';

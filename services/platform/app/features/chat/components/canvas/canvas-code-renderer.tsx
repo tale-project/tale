@@ -1,5 +1,6 @@
 'use client';
 
+import { useTheme } from '@tale/ui/theme';
 import {
   memo,
   useDeferredValue,
@@ -10,7 +11,6 @@ import {
   useState,
 } from 'react';
 
-import { useTheme } from '@/app/components/theme/theme-provider';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { highlightCode } from '@/lib/utils/shiki';

@@ -1,5 +1,6 @@
 'use client';
 
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Dayjs } from 'dayjs';
 import { useCallback, useMemo } from 'react';
 
@@ -12,8 +13,6 @@ import {
   FormatDateOptions,
   DateTranslations,
 } from '@/lib/utils/date/format';
-
-import { useLocale } from './use-locale';
 
 /**
  * Hook that combines locale management with date formatting functionality.

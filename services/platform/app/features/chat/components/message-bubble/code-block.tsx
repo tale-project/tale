@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { useTheme } from '@tale/ui/theme';
 import { CheckIcon, CopyIcon } from 'lucide-react';
 import {
   ComponentPropsWithoutRef,
@@ -11,7 +12,6 @@ import {
   useState,
 } from 'react';
 
-import { useTheme } from '@/app/components/theme/theme-provider';
 import { useT } from '@/lib/i18n/client';
 import { highlightCode } from '@/lib/utils/shiki';
 

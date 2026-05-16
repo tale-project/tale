@@ -31,8 +31,8 @@ vi.mock('@/app/hooks/use-toast', () => ({
 }));
 
 const localeMock = vi.fn(() => ({ locale: 'en' }));
-vi.mock('@/app/hooks/use-locale', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/app/hooks/use-locale')>()),
+vi.mock('@tale/ui/i18n/locale-provider', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tale/ui/i18n/locale-provider')>()),
   useLocale: () => localeMock(),
 }));
 

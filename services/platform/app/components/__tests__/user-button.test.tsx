@@ -42,7 +42,7 @@ vi.mock('@/app/hooks/use-changelog-notification', () => ({
 
 // Mock theme
 const mockSetTheme = vi.fn();
-vi.mock('@/app/components/theme/theme-provider', () => ({
+vi.mock('@tale/ui/theme', () => ({
   useTheme: () => ({
     theme: 'system',
     resolvedTheme: 'light',
