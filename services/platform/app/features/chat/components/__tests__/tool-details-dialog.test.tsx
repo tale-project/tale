@@ -5,7 +5,8 @@ import { render } from '@/test/utils/render';
 
 import { ToolDetailsDialog } from '../tool-details-dialog';
 
-vi.mock('@/app/hooks/use-locale', () => ({
+vi.mock('@/app/hooks/use-locale', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/app/hooks/use-locale')>()),
   useLocale: () => ({ locale: 'en-US', setLocale: vi.fn() }),
 }));
 

@@ -13,7 +13,8 @@ vi.mock('@tanstack/react-router', () => ({
   useParams: () => ({ id: 'test-org-id' }),
 }));
 
-vi.mock('@/app/hooks/use-locale', () => ({
+vi.mock('@/app/hooks/use-locale', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/app/hooks/use-locale')>()),
   useLocale: () => ({ locale: 'en-US' }),
 }));
 

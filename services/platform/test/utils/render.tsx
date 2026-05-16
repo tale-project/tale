@@ -2,6 +2,7 @@ import { render, RenderOptions } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ReactElement, ReactNode } from 'react';
 
+import { LocaleProvider } from '../../app/hooks/use-locale';
 import { I18nProvider } from '../../lib/i18n/i18n-provider';
 
 interface WrapperProps {
@@ -9,7 +10,11 @@ interface WrapperProps {
 }
 
 function AllProviders({ children }: WrapperProps) {
-  return <I18nProvider>{children}</I18nProvider>;
+  return (
+    <LocaleProvider>
+      <I18nProvider>{children}</I18nProvider>
+    </LocaleProvider>
+  );
 }
 
 function customRender(

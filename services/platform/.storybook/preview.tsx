@@ -11,6 +11,7 @@ import { useMemo, useState } from 'react';
 import type { DecoratorFunction } from 'storybook/internal/types';
 
 import { ThemeContext } from '../app/components/theme/theme-provider';
+import { LocaleProvider } from '../app/hooks/use-locale';
 import { I18nProvider } from '../lib/i18n/i18n-provider';
 
 import '../app/globals.css';
@@ -56,9 +57,11 @@ function WithProviders({
 
   return (
     <ThemeContext.Provider value={themeValue}>
-      <I18nProvider>
-        <RouterProvider router={router} defaultComponent={() => <Story />} />
-      </I18nProvider>
+      <LocaleProvider>
+        <I18nProvider>
+          <RouterProvider router={router} defaultComponent={() => <Story />} />
+        </I18nProvider>
+      </LocaleProvider>
     </ThemeContext.Provider>
   );
 }
