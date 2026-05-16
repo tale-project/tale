@@ -28,6 +28,7 @@ import { InlineEditInput } from './inline-edit-input';
 import { InlineMemoryProposals } from './inline-memory-proposals';
 import { MessageBubble } from './message-bubble';
 import { ThinkingAnimation } from './thinking-animation';
+import { VoiceOutputAnnouncer } from './voice-output-announcer';
 
 /**
  * Compute the response area min-height so that scrolling to bottom
@@ -552,6 +553,10 @@ export function ChatMessages({
 
   return (
     <VoiceOutputProvider>
+      {/* Sibling of the chat log so voice-mode state transitions are
+          announced exactly once, not amplified by the parent log's
+          aria-live region. */}
+      <VoiceOutputAnnouncer />
       <div
         className="mx-auto flex w-full max-w-(--chat-max-width) flex-col"
         role="log"

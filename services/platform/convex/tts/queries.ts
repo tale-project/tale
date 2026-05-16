@@ -98,7 +98,18 @@ export const getMessageChunks = query({
  * found" with "forbidden" keeps probing useless for outsiders.
  */
 export const getChunkForServe = internalQuery({
-  args: { chunkId: v.string(), userId: v.string() },
+  // `email` is threaded through so the membership check can fall back to
+  // email lookup when the JWT's `userId` no longer matches the stored
+  // member row (account linking / migration / JWT issued before the user
+  // record was updated). Without the fallback, mid-migration users get
+  // 404s for audio while the sibling `getMessageChunks` subscription —
+  // which goes through the same fallback — still works, producing a
+  // surprising silent-bubble UX.
+  args: {
+    chunkId: v.string(),
+    userId: v.string(),
+    email: v.optional(v.string()),
+  },
   returns: v.union(
     v.null(),
     v.object({
@@ -119,6 +130,7 @@ export const getChunkForServe = internalQuery({
     try {
       await getOrganizationMember(ctx, chunk.organizationId, {
         userId: args.userId,
+        email: args.email,
       });
     } catch (err) {
       console.debug(

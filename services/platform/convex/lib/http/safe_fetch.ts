@@ -263,6 +263,31 @@ async function readBodyWithCap(
   return new TextDecoder('utf-8').decode(merged);
 }
 
+/**
+ * Header names that carry credentials and must be stripped on cross-host
+ * redirects. Browsers do this automatically; Node `fetch` does not, so an
+ * attacker who controls a redirect target on an allowlisted-but-different
+ * host can otherwise harvest the upstream provider's `Authorization`
+ * bearer token. Comparison is case-insensitive.
+ */
+const CROSS_HOST_SENSITIVE_HEADERS: ReadonlySet<string> = new Set([
+  'authorization',
+  'cookie',
+  'proxy-authorization',
+  'x-api-key',
+]);
+
+function stripCrossHostSensitiveHeaders(
+  headers: Record<string, string>,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [name, value] of Object.entries(headers)) {
+    if (CROSS_HOST_SENSITIVE_HEADERS.has(name.toLowerCase())) continue;
+    out[name] = value;
+  }
+  return out;
+}
+
 export async function safeFetch(
   rawUrl: string,
   options: SafeFetchOptions = {},
@@ -308,6 +333,7 @@ export async function safeFetch(
 
   try {
     let currentUrl = rawUrl;
+    let currentHeaders = headers;
     let redirectsFollowed = 0;
     let response: Response;
 
@@ -315,7 +341,7 @@ export async function safeFetch(
       try {
         response = await fetch(currentUrl, {
           method,
-          headers,
+          headers: currentHeaders,
           body,
           redirect: 'manual',
           signal: controller.signal,
@@ -358,6 +384,14 @@ export async function safeFetch(
 
       const nextUrl = new URL(location, currentUrl);
       validateUrl(nextUrl.toString(), allowedHosts);
+      // Drop credential-carrying headers on cross-host hops so an
+      // attacker who controls a redirect target on a second allowlisted
+      // host can't harvest the upstream provider's bearer token.
+      if (
+        nextUrl.host.toLowerCase() !== new URL(currentUrl).host.toLowerCase()
+      ) {
+        currentHeaders = stripCrossHostSensitiveHeaders(currentHeaders);
+      }
       currentUrl = nextUrl.toString();
     }
 
@@ -426,6 +460,7 @@ export async function safeFetchBinary(
 
   try {
     let currentUrl = rawUrl;
+    let currentHeaders = headers;
     let redirectsFollowed = 0;
     let response: Response;
 
@@ -433,7 +468,7 @@ export async function safeFetchBinary(
       try {
         response = await fetch(currentUrl, {
           method,
-          headers,
+          headers: currentHeaders,
           body,
           redirect: 'manual',
           signal: controller.signal,
@@ -476,6 +511,13 @@ export async function safeFetchBinary(
 
       const nextUrl = new URL(location, currentUrl);
       validateUrl(nextUrl.toString(), allowedHosts);
+      // Drop credential-carrying headers on cross-host hops — see
+      // `safeFetch` above for the threat model.
+      if (
+        nextUrl.host.toLowerCase() !== new URL(currentUrl).host.toLowerCase()
+      ) {
+        currentHeaders = stripCrossHostSensitiveHeaders(currentHeaders);
+      }
       currentUrl = nextUrl.toString();
     }
 

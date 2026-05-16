@@ -2073,7 +2073,14 @@
       "voiceOutputErrorRateLimited": "Voice rate limit hit — retrying",
       "voiceOutputErrorBudget": "Voice budget reached for this period",
       "voiceOutputErrorTransient": "Voice service unavailable — retrying",
-      "voiceOutputErrorDecode": "Could not play voice audio — tap to retry"
+      "voiceOutputErrorDecode": "Could not play voice audio — tap to retry",
+      "voiceOutputErrorMessageCharLimit": "Reply too long for voice — stopping here",
+      "voiceOutputErrorForbidden": "Voice provider blocked by host policy",
+      "voiceOutputErrorChunkLimit": "Voice limit reached for this reply",
+      "voiceOutputAnnounceSpeaking": "Voice output speaking",
+      "voiceOutputAnnounceStopped": "Voice output stopped",
+      "voiceOutputAnnounceBlocked": "Voice output blocked — activate the player to listen",
+      "voiceOutputAnnounceError": "Voice output failed"
     },
     "searchChat": "Search chat",
     "hideSearch": "Hide search",
@@ -4822,7 +4829,8 @@
       "saved": "Saved.",
       "discarded": "Discarded.",
       "deleted": "Deleted.",
-      "preferencesUpdated": "Preferences updated."
+      "preferencesUpdated": "Preferences updated.",
+      "voiceOutputEnabledButProviderMissing": "Voice output is on, but no text-to-speech provider is configured. Ask an admin to add one in Settings → AI providers."
     }
   },
   "dataNotice": {

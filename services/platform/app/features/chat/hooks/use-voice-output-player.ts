@@ -6,7 +6,11 @@ import { getEnv } from '@/lib/env';
 
 import { getPrimedAudioElement } from '../utils/prime-audio';
 import { useVoiceChunks } from './use-voice-output';
-import { useVoiceOutputCoordinator } from './voice-output-context';
+import {
+  useVoiceAnnouncerWriter,
+  useVoiceOutputCoordinator,
+  useVoicePreReservationError,
+} from './voice-output-context';
 
 type ChunkRecord = {
   chunkId: string;
@@ -74,6 +78,17 @@ export function useVoiceOutputPlayer(opts: {
 }): VoicePlayerState {
   const coordinator = useVoiceOutputCoordinator();
   const chunks = useVoiceChunks(opts.messageId, opts.threadId);
+  // Per-message pre-reservation error (BUDGET_EXCEEDED,
+  // MESSAGE_CHAR_LIMIT, RATE_LIMITED, forbidden, …) surfaced by the
+  // chunker via `voice-output-context`'s sink. Merged into `errorCode`
+  // below so the indicator's switch can act on it.
+  const preReservationError = useVoicePreReservationError(opts.messageId);
+  // Announcer writer: every state transition publishes to the
+  // chat-level live region so screen-reader users hear "Voice output
+  // playing", "Voice output blocked", etc. without nesting an
+  // aria-live span inside the per-message indicator (which over-
+  // announced against the parent chat log).
+  const announce = useVoiceAnnouncerWriter();
   const [state, setState] = useState<VoicePlayerStateName>('idle');
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioListenersRef = useRef<{
@@ -358,6 +373,22 @@ export function useVoiceOutputPlayer(opts: {
     hasAutoStartedRef.current = false;
   }, [opts.enabled, stop]);
 
+  // Publish state transitions to the chat-level announcer so screen-
+  // reader users hear playback changes. Skipping no-op (state === prev)
+  // and the initial `idle → idle` mount means SR gets exactly one
+  // announcement per real transition — never per chunk advance, never
+  // per re-render.
+  const prevStateRef = useRef<VoicePlayerStateName>('idle');
+  useEffect(() => {
+    const prev = prevStateRef.current;
+    prevStateRef.current = state;
+    if (state === prev) return;
+    if (state === 'playing') announce('playing');
+    else if (state === 'blocked') announce('blocked');
+    else if (state === 'error') announce('error');
+    else if (state === 'idle' && prev === 'playing') announce('stopped');
+  }, [state, announce]);
+
   // Stop playback when the tab goes hidden. The browser stops emitting
   // sound in many cases (depending on mediaSession), but the `<audio>`
   // element keeps its `timeupdate` callbacks firing — wasting battery
@@ -401,8 +432,14 @@ export function useVoiceOutputPlayer(opts: {
     readyChunkCount > 0 &&
     decodeFailureCountRef.current >= readyChunkCount;
 
+  // Precedence: chunk-row failure (terminal, server already wrote it)
+  // → pre-reservation error (chunker couldn't even create a row) →
+  // synthetic AUDIO_DECODE (client-side playback failure on every
+  // server-ready chunk).
   const errorCode =
-    chunkErrorCode ?? (allDecodeFailed ? 'AUDIO_DECODE' : undefined);
+    chunkErrorCode ??
+    preReservationError ??
+    (allDecodeFailed ? 'AUDIO_DECODE' : undefined);
 
   const hasAudio = (chunks?.length ?? 0) > 0;
 

@@ -91,6 +91,43 @@ describe('sanitizeError', () => {
         input: 'oauth ?client_secret=cs_abcdef1234567890',
         mustNotContain: 'cs_abcdef1234567890',
       },
+      {
+        name: 'Authorization with custom ApiKey scheme',
+        input: 'failed with Authorization: ApiKey custom-scheme-token-xyz',
+        mustNotContain: 'custom-scheme-token-xyz',
+      },
+      {
+        name: 'Authorization with Token scheme',
+        input: 'rejected: Authorization: Token abcd1234efgh5678',
+        mustNotContain: 'abcd1234efgh5678',
+      },
+      {
+        name: 'GitHub fine-grained PAT',
+        input:
+          'auth github_pat_11ABCDEFG0aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa rejected',
+        mustNotContain:
+          'github_pat_11ABCDEFG0aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      },
+      {
+        name: 'Convex deploy key',
+        input: 'deploy via convex_dev_a1b2c3d4e5f6g7h8i9j0k1l2m3n4 failed',
+        mustNotContain: 'convex_dev_a1b2c3d4e5f6g7h8i9j0k1l2m3n4',
+      },
+      {
+        name: 'JSON password field',
+        input: 'body: {"username":"alice","password":"hunter2supersecret"}',
+        mustNotContain: 'hunter2supersecret',
+      },
+      {
+        name: 'JSON client_secret field',
+        input: '{"client_id":"abc","client_secret":"cs_leaky_value_42"}',
+        mustNotContain: 'cs_leaky_value_42',
+      },
+      {
+        name: 'JSON access_token field',
+        input: '{"access_token":"oauth_bearer_a1b2c3"}',
+        mustNotContain: 'oauth_bearer_a1b2c3',
+      },
     ];
 
     for (const { name, input, mustNotContain } of cases) {
@@ -105,6 +142,24 @@ describe('sanitizeError', () => {
   it('preserves the query-string key when redacting a query secret', () => {
     const out = sanitizeError('GET ...?api_key=abcd1234efgh5678 failed');
     expect(out).toContain('api_key=[REDACTED]');
+  });
+
+  it('preserves the JSON key when redacting a body secret', () => {
+    const out = sanitizeError('body {"password":"hunter2supersecret"}');
+    expect(out).toContain('"password":');
+    expect(out).toContain('[REDACTED]');
+    expect(out).not.toContain('hunter2supersecret');
+  });
+
+  it('redacts the full token after a custom Authorization scheme', () => {
+    // Authorization redaction consumes through end-of-line. Content on
+    // subsequent lines must survive so multi-line error bodies stay
+    // diagnosable.
+    const out = sanitizeError(
+      'Authorization: ApiKey supersecret-token-1234\nfollow-up line prose',
+    );
+    expect(out).not.toContain('supersecret-token-1234');
+    expect(out).toContain('follow-up line prose');
   });
 
   it('handles a non-Error input by stringifying it first', () => {

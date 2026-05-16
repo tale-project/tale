@@ -14,7 +14,10 @@ const SECRET_PATTERNS: ReadonlyArray<RegExp> = [
   // HTTP Authorization variants. The bearer-token regex deliberately covers
   // the full URL-safe token alphabet so JWT-shaped tokens are caught too.
   /Bearer\s+[A-Za-z0-9._\-~+/=]+/gi,
-  /Authorization:\s*\S+/gi,
+  // Authorization redaction must consume the rest of the line, not just the
+  // scheme word. `\S+` only matches the scheme on multi-token schemes like
+  // `Authorization: ApiKey <token>` and leaves the token exposed.
+  /Authorization:[^\r\n]*/gi,
   /Basic\s+[A-Za-z0-9+/=]+/gi,
   /x-api-key:\s*\S+/gi,
   // URL-embedded credentials: `https://user:pass@host/...`.
@@ -26,6 +29,10 @@ const SECRET_PATTERNS: ReadonlyArray<RegExp> = [
   /\bAIza[0-9A-Za-z_-]{10,}/g,
   /\bxox[abprs]-[0-9A-Za-z-]{10,}/g,
   /\bgh[psorw]_[A-Za-z0-9]{20,}/g,
+  // GitHub fine-grained PATs (separate prefix from classic ghp_/ghs_/etc).
+  /\bgithub_pat_[A-Za-z0-9_]{40,}/g,
+  // Convex deploy keys, e.g. `convex_dev_…` / `convex_prod_…`.
+  /\bconvex_[a-z]+_[A-Za-z0-9_-]{20,}/g,
   // JWTs: three dot-separated base64url segments. Length floor guards
   // against accidentally matching version strings like `1.2.3`.
   /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g,
@@ -34,6 +41,9 @@ const SECRET_PATTERNS: ReadonlyArray<RegExp> = [
   // |sig) to cover the OAuth/auth-flow keys commonly seen in safe-fetch
   // redirect-loop logs.
   /([?&](?:api[_-]?key|token|secret|signature|sig|password|passwd|pwd|access_token|refresh_token|client_secret|auth)=)[^&\s]+/gi,
+  // JSON body fields carrying credentials. Preserve the key for forensic
+  // value while redacting the value. Case-insensitive on the key only.
+  /("(?:password|passwd|pwd|api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|secret)"\s*:\s*)"[^"]*"/gi,
 ];
 
 const REDACTED = '[REDACTED]';
@@ -51,6 +61,9 @@ function applyRedactors(input: string): string {
       // at *which* secret was scrubbed.
       const queryPrefix = match.match(/^([?&][^=]+=)/);
       if (queryPrefix) return `${queryPrefix[1]}${REDACTED}`;
+      // Preserve the JSON key for the same reason.
+      const jsonPrefix = match.match(/^("(?:[^"\\]|\\.)+"\s*:\s*)/);
+      if (jsonPrefix) return `${jsonPrefix[1]}"${REDACTED}"`;
       return REDACTED;
     });
   }

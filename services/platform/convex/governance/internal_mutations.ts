@@ -499,6 +499,15 @@ export async function recordTtsUsageInline(
         characterCount: (match.characterCount ?? 0) + args.characterCount,
         costEstimate: match.costEstimate + args.costEstimateCents,
         requestCount: match.requestCount + 1,
+        // Mid-period provider swap: the aggregate row was written under
+        // the old provider but the new write is from the new provider.
+        // Patch the field only when the row had no provider set yet, so
+        // the Top Models bucket attributes new usage to the actual
+        // provider rather than the historical one. Mirrors the LLM
+        // path's reconcile at line 265-267 above.
+        ...(args.provider !== undefined && match.provider === undefined
+          ? { provider: args.provider }
+          : {}),
       });
     } else {
       await ctx.db.insert('usageLedger', {

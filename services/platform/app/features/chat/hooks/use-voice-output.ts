@@ -8,6 +8,8 @@ import { api } from '@/convex/_generated/api';
 import { MAX_TTS_CHUNK_CHARS } from '@/lib/shared/constants/tts';
 import { parseMarkers } from '@/lib/utils/marker-parser';
 
+import { useVoicePreReservationErrorSink } from './voice-output-context';
+
 const MIN_CHUNK_CHARS = 12;
 const MAX_IN_FLIGHT = 3;
 // Post-stream coalescing: when a reply has finished streaming and the
@@ -37,6 +39,33 @@ const RETRY_BASE_DELAY_MS = 1500;
 const CONTENTION_BASE_DELAY_MS = 100;
 // Module-level fallback splitter for environments without Intl.Segmenter.
 const FALLBACK_SENTENCE_BOUNDARY = /(?<=[.!?。！？])\s+|\n{2,}/g;
+
+/**
+ * Extract a Convex error's structured `code` (set via `new ConvexError({
+ * code, message })` on the server). Used by the chunker to surface
+ * pre-reservation errors to the indicator's error-code path. Returns
+ * `undefined` for plain `Error` instances so the catch can fall back to
+ * a generic message.
+ *
+ * Defensive: Convex's typed error object lives on `err.data.code` but
+ * actions reserialise it to a plain `Error` across the action boundary,
+ * with the structured payload sometimes stringified into `err.message`.
+ * Try both shapes.
+ */
+function extractConvexErrorCode(err: unknown): string | undefined {
+  if (err && typeof err === 'object' && 'data' in err) {
+    const data = (err as { data?: unknown }).data;
+    if (data && typeof data === 'object' && 'code' in data) {
+      const code = (data as { code?: unknown }).code;
+      if (typeof code === 'string') return code;
+    }
+  }
+  if (err instanceof Error) {
+    const match = err.message.match(/"code"\s*:\s*"([A-Z_]+)"/);
+    if (match?.[1]) return match[1];
+  }
+  return undefined;
+}
 
 // Honor the requirement's "in the user's or conversation's language" clause:
 // when chunk text is dominantly CJK, override the UI locale so the resolver
@@ -214,6 +243,15 @@ export function useVoiceOutputChunker(opts: {
   organizationId: string | undefined;
   text: string;
   isStreaming: boolean;
+  /**
+   * Wall-clock timestamp (ms) when this message was created. The chunker
+   * compares it against its mount time and skips processing for any
+   * message that predates the mount — preventing the "navigate to a
+   * thread with 50 prior assistant messages, voice ON, fire 50 chunker
+   * actions" history-fan-out hazard (server idempotency catches them,
+   * but the action call count matters for rate limiting and observability).
+   */
+  messageCreatedAt: number;
 }): void {
   const { locale } = useLocale();
   const synthesize = useAction(api.tts.synthesize.synthesizeChunk);
@@ -224,10 +262,36 @@ export function useVoiceOutputChunker(opts: {
   const lastMessageIdRef = useRef<string | undefined>(undefined);
   const fenceOpenRef = useRef(false);
   const retryAttemptsRef = useRef(new Map<number, number>());
+  // Mirror `enabled` into a ref so the retry-backoff `setTimeout`
+  // callback can drop pending retries when the user toggles voice off
+  // mid-backoff. Without this gate, a 1.5s retry timer kept firing
+  // synth calls after the indicator stopped, blasting the rate limiter
+  // and re-billing the org for chunks the user had explicitly silenced.
+  const enabledRef = useRef(opts.enabled);
+  useEffect(() => {
+    enabledRef.current = opts.enabled;
+  }, [opts.enabled]);
+  // Hook-mount wall-clock so any message with `messageCreatedAt < mount`
+  // is treated as history and skipped. Mirrors the player hook's pattern
+  // at use-voice-output-player.ts. Set once and never reset — message
+  // change inside the same mount keeps the original mount time.
+  const mountTimeRef = useRef(Date.now());
+  // Pre-reservation error sink: errors that happen BEFORE a chunk row
+  // exists (BUDGET_EXCEEDED, MESSAGE_CHAR_LIMIT, forbidden,
+  // TTS_CHUNK_LIMIT, etc., raised by `reserveChunk` and thrown out of
+  // the action) never reach the indicator's chunk-row `errorCode`
+  // path. We surface them via the per-message error sink owned by
+  // `voice-output-context`, which the player merges into its
+  // `errorCode` projection. See `useVoicePreReservationErrorSink`.
+  const errorSink = useVoicePreReservationErrorSink();
 
   // Reset on message change so a new assistant bubble starts at index 0.
+  // Also clear any stale pre-reservation error for the *previous* message
+  // — leaving it dangling would surface on the indicator after the user
+  // moved on.
   useEffect(() => {
     if (opts.messageId !== lastMessageIdRef.current) {
+      const prior = lastMessageIdRef.current;
       cursorRef.current = 0;
       indexRef.current = 0;
       inFlightRef.current = 0;
@@ -235,8 +299,10 @@ export function useVoiceOutputChunker(opts: {
       fenceOpenRef.current = false;
       retryAttemptsRef.current = new Map();
       lastMessageIdRef.current = opts.messageId;
+      if (prior) errorSink.clear(prior);
+      if (opts.messageId) errorSink.clear(opts.messageId);
     }
-  }, [opts.messageId]);
+  }, [opts.messageId, errorSink]);
 
   const runNext = useCallback(() => {
     while (inFlightRef.current < MAX_IN_FLIGHT && queueRef.current.length > 0) {
@@ -285,12 +351,25 @@ export function useVoiceOutputChunker(opts: {
                 // Drop the retry if the message has since unmounted /
                 // moved on — `messageId` change resets the maps.
                 if (lastMessageIdRef.current !== payload.messageId) return;
+                // Drop the retry if the user toggled voice off during
+                // backoff; otherwise the timer keeps re-billing the org
+                // for chunks the user has explicitly silenced.
+                if (!enabledRef.current) return;
                 enqueueSynthesis(payload, attempt + 1);
                 runNext();
               }, delay);
             }
           })
           .catch((err) => {
+            // Pre-reservation throws (BUDGET_EXCEEDED, MESSAGE_CHAR_LIMIT,
+            // RATE_LIMITED, forbidden, TTS_CHUNK_LIMIT, …) come out of
+            // the action as plain Errors with a `ConvexError`-wrapped
+            // `data.code`. Surface the code through the per-message
+            // sink so the indicator's `errorMessageForCode()` can show
+            // an actionable message — without this, the only signal was
+            // a `console.error` no user ever reads.
+            const code = extractConvexErrorCode(err);
+            if (code) errorSink.set(payload.messageId, code);
             console.error('[tts] synthesize action failed', err);
           })
           .finally(() => {
@@ -299,12 +378,19 @@ export function useVoiceOutputChunker(opts: {
           });
       });
     },
-    [synthesize, runNext],
+    [synthesize, runNext, errorSink],
   );
 
   useEffect(() => {
     if (!opts.enabled) return;
     if (!opts.messageId || !opts.threadId || !opts.organizationId) return;
+    // Skip messages that pre-date the chunker's mount — those are
+    // history-load artifacts, not fresh assistant output. Without this
+    // gate, opening a thread with N old assistant messages would fire N
+    // `synthesizeChunk` actions on mount. Server idempotency suppresses
+    // duplicate provider calls, but the action count still burns rate
+    // limit + observability budget.
+    if (opts.messageCreatedAt < mountTimeRef.current) return;
     // Strip structured-response markers and drop the NEXT_STEPS suggestion-
     // chip section before chunking. parseMarkers buffers partial markers
     // mid-stream via pendingText, so this is safe to call on every tick.
@@ -352,22 +438,43 @@ export function useVoiceOutputChunker(opts: {
 
     const segments = segmentSentences(tail, locale, opts.isStreaming);
 
+    // Fence-state snapshot: `stripMarkdown` mutates `fenceOpenRef` per
+    // segment to track open/close ``` markers across calls. When the
+    // last segment is short-mid-stream and we roll the cursor back to
+    // re-segment on the next tick, the fence ref would otherwise stay
+    // advanced — the SAME segment then gets re-processed against an
+    // already-flipped fence state, producing either code-blocks read
+    // aloud (extra toggle) or prose silently swallowed (skipped toggle).
+    // Snapshot before the loop; only commit on segments that survive
+    // the MIN_CHUNK_CHARS gate.
+    const fenceSnapshot = { current: fenceOpenRef.current };
+
     let consumed = 0;
+    let committedFence = fenceSnapshot.current;
     for (const { end, segment } of segments) {
-      const cleaned = stripMarkdown(segment, fenceOpenRef);
+      const cleaned = stripMarkdown(segment, fenceSnapshot);
       consumed = end;
       if (cleaned.length === 0) {
         // Whitespace-only segment (blank line between paragraphs). The
         // cursor must still advance — waiting for "more text" here would
-        // never help, since the segment can never grow.
+        // never help, since the segment can never grow. Fence state did
+        // not change for whitespace-only content; keep `committedFence`.
+        committedFence = fenceSnapshot.current;
         continue;
       }
       if (cleaned.length < MIN_CHUNK_CHARS && opts.isStreaming) {
         // Non-empty but too short mid-stream: roll cursor back so the
-        // sentence is re-segmented once more text arrives.
+        // sentence is re-segmented once more text arrives. Also roll
+        // back the fence ref to the last committed snapshot so the
+        // re-segmentation on the next tick sees the same fence state
+        // we entered with — without this, the open/close toggles
+        // inside the rolled-back segment have already flipped the live
+        // fence and would flip it again on retry, desyncing.
+        fenceSnapshot.current = committedFence;
         consumed = Math.max(0, end - segment.length);
         break;
       }
+      committedFence = fenceSnapshot.current;
       const text =
         cleaned.length > MAX_TTS_CHUNK_CHARS
           ? cleaned.slice(0, MAX_TTS_CHUNK_CHARS)
@@ -386,6 +493,11 @@ export function useVoiceOutputChunker(opts: {
       );
     }
     cursorRef.current += consumed;
+    // Commit the fence state that corresponds to the content we actually
+    // consumed. On break (short-final-segment) the snapshot was already
+    // rolled back to `committedFence` above; on full loop completion the
+    // snapshot equals committedFence anyway.
+    fenceOpenRef.current = fenceSnapshot.current;
     runNext();
   }, [
     opts.enabled,
@@ -394,6 +506,7 @@ export function useVoiceOutputChunker(opts: {
     opts.organizationId,
     opts.text,
     opts.isStreaming,
+    opts.messageCreatedAt,
     enqueueSynthesis,
     locale,
     runNext,

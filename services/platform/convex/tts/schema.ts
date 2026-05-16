@@ -2,6 +2,7 @@ import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
 import { audioFormatLiterals } from '../../lib/shared/schemas/providers';
+import { ttsErrorCodeLiterals } from './error_codes';
 
 /**
  * Per-chunk TTS audio for streaming voice-mode output. One row per
@@ -64,10 +65,14 @@ export const ttsAudioChunksTable = defineTable({
     v.literal('ready'),
     v.literal('failed'),
   ),
-  // Stable `TtsErrorCode` literal — see `synthesize.ts`. Free-form detail
-  // is never written here because this field is fan-out to every org
-  // member via `getMessageChunks` subscriptions.
-  error: v.optional(v.string()),
+  // Stable `TtsErrorCode` literal — see `error_codes.ts` for the source
+  // of truth. Free-form detail is never written here because this field
+  // is fan-out to every org member via `getMessageChunks` subscriptions;
+  // narrowing to a closed union enforces that contract at the validator
+  // boundary so an accidental `err.message` leak fails the write.
+  error: v.optional(
+    v.union(...ttsErrorCodeLiterals.map((literal) => v.literal(literal))),
+  ),
   // Identity token returned by `reserveChunk` and verified on every
   // subsequent mark-* mutation. Renewed on each stale-pending overwrite
   // so a slow action holding the prior token can't land its write on the

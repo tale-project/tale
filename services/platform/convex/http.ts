@@ -225,6 +225,11 @@ http.route({
     const chunk = await ctx.runQuery(internal.tts.queries.getChunkForServe, {
       chunkId,
       userId: session.user.id,
+      // Email fallback handles mid-migration users (account linking, JWT
+      // userId drift) so the audio route stays consistent with the
+      // sibling `getMessageChunks` subscription, which already does the
+      // same fallback via `getOrganizationMember`.
+      email: session.user.email,
     });
     if (!chunk) {
       // Either the chunk doesn't exist or the caller isn't a member of

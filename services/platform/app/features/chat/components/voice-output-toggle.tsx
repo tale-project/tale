@@ -82,7 +82,18 @@ export function VoiceOutputToggle({
         onClick={onClick}
         aria-label={tooltip}
         aria-pressed={ariaPressed}
-        className={cn(!overriding && 'opacity-60', className)}
+        // `min-h-11 min-w-11` enforces WCAG 2.2 AA Target Size minimum
+        // (44x44 css px) on mobile while keeping the desktop hit
+        // target compact via the underlying `size-icon` variant.
+        // Inheriting state previously used `opacity-60` which dropped
+        // the ghost-variant foreground to ~2.3:1 against the chat
+        // header background — below AA's 3:1 non-text threshold. The
+        // design-token `text-muted-foreground` is contract-AA.
+        className={cn(
+          'min-h-11 min-w-11',
+          !overriding && 'text-muted-foreground',
+          className,
+        )}
       >
         {effective.enabled ? (
           <Volume2 className="size-5" />

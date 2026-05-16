@@ -2073,7 +2073,14 @@
       "voiceOutputErrorRateLimited": "Sprach-Limit erreicht — neuer Versuch läuft",
       "voiceOutputErrorBudget": "Sprach-Budget für diesen Zeitraum aufgebraucht",
       "voiceOutputErrorTransient": "Sprach-Dienst nicht erreichbar — neuer Versuch läuft",
-      "voiceOutputErrorDecode": "Audio konnte nicht abgespielt werden — tippe zum erneuten Versuch"
+      "voiceOutputErrorDecode": "Audio konnte nicht abgespielt werden — tippe zum erneuten Versuch",
+      "voiceOutputErrorMessageCharLimit": "Antwort zu lang für Sprachausgabe — gestoppt",
+      "voiceOutputErrorForbidden": "Sprach-Anbieter durch Host-Richtlinie blockiert",
+      "voiceOutputErrorChunkLimit": "Sprach-Limit für diese Antwort erreicht",
+      "voiceOutputAnnounceSpeaking": "Sprachausgabe läuft",
+      "voiceOutputAnnounceStopped": "Sprachausgabe gestoppt",
+      "voiceOutputAnnounceBlocked": "Sprachausgabe blockiert — Wiedergabe aktivieren, um zuzuhören",
+      "voiceOutputAnnounceError": "Sprachausgabe fehlgeschlagen"
     },
     "searchChat": "Chat durchsuchen",
     "hideSearch": "Suche ausblenden",
@@ -4822,7 +4829,8 @@
       "saved": "Gespeichert.",
       "discarded": "Verworfen.",
       "deleted": "Gelöscht.",
-      "preferencesUpdated": "Einstellungen aktualisiert."
+      "preferencesUpdated": "Einstellungen aktualisiert.",
+      "voiceOutputEnabledButProviderMissing": "Sprachausgabe ist aktiviert, aber kein Text-zu-Sprache-Anbieter ist konfiguriert. Bitte eine admin-berechtigte Person, einen Anbieter unter Einstellungen → KI-Anbieter hinzuzufügen."
     }
   },
   "dataNotice": {

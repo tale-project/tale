@@ -298,6 +298,20 @@ async function getOrgPeriodUsage(
  * the call about to fire. Without the prospective add, parallel chunks of a
  * single message can each individually pass the cap and then collectively
  * blow past it — exactly the round-2 file 03 finding 1 hazard.
+ *
+ * Residual race (documented, not closed): N concurrent `reserveChunk` calls
+ * that all read totals before any of them writes a ledger row will each see
+ * `usage.costEstimate` at the same value and each project only their own
+ * prospective add. Convex serialises mutations on the SAME aggregate row via
+ * OCC retry, so the race only surfaces when the aggregate row doesn't yet
+ * exist for the period (first call after midnight, etc.) — in that case the
+ * 10-racer-each-with-6¢-chunk worst case in round-1 finding 11-H1 is bounded
+ * by the per-message char cap (`MAX_TTS_CHARS_PER_MESSAGE = 50_000` in
+ * `lib/shared/constants/tts.ts`) and the client's `MAX_IN_FLIGHT = 3`. Worst
+ * case overshoot per assistant reply at OpenAI tts-1 rates: ~8¢. Acceptable
+ * for demo-stage. The structural fix (per-chunk provisional ledger row that
+ * a) is visible to subsequent reservations and b) is patched/dropped on
+ * mark-ready/mark-failed) is tracked as a follow-up issue.
  */
 export function checkRuleAgainstUsage(
   rule: BudgetRule,

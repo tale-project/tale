@@ -17,6 +17,7 @@ import { rateLimiter } from '../lib/rate_limiter';
 import { assertSelfAndOrgMember } from '../lib/rls/auth/assert_self_and_org_member';
 import { assertThreadAccess } from '../lib/rls/auth/can_access_thread';
 import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
+import { ttsErrorCodeLiterals } from './error_codes';
 
 // Lazy GC parameters. ~7-day retention matches the schema docstring;
 // PASS_LIMIT bounds work per trigger so a backlog doesn't stall a sweep.
@@ -35,9 +36,12 @@ const CLEANUP_PASS_LIMIT = 64;
  */
 const PROSPECTIVE_TTS_CENTS_PER_M_CHARS = 1500;
 
-// Mirror of synthesize.ts FETCH_TIMEOUT_MS for the pending-watchdog horizon.
-// Keeping it in mutations.ts avoids a circular import on the Node action.
-const PENDING_STALE_MS = 60_000 * 3;
+// Pending-watchdog horizon. Sized at `FETCH_TIMEOUT_MS + 30s` so a chunk
+// whose action timed out (provider hang for the full 60s) plus generous
+// teardown slack is still considered live, but a crashed/killed action
+// becomes overwritable within 90s instead of stranding the chunk row in
+// `pending` for three minutes.
+const PENDING_STALE_MS = 60_000 + 30_000;
 
 /**
  * Patch the current user's global voice-output default. Affects all new
@@ -403,6 +407,63 @@ export const reserveChunk = internalMutation({
       createdAt: attemptCreatedAt,
       attemptCreatedAt,
     });
+    // Post-insert dedupe: Convex has no unique index, and the initial
+    // `existing` lookup at the top of this handler can miss a row that a
+    // concurrent transaction inserted in parallel — both writers see no
+    // existing row, both insert. Re-query by `(messageId, index)` after
+    // our insert; if more than one row materialised, deterministically
+    // keep the earliest by `_creationTime` and drop the rest (including
+    // possibly our own row). Convex serialises writes per-document but
+    // not across the indexed range, so this is the smallest contract we
+    // can enforce without a serialising rate-limiter on every reserve.
+    const sameKey = await ctx.db
+      .query('ttsAudioChunks')
+      .withIndex('by_message', (q) =>
+        q.eq('messageId', args.messageId).eq('index', args.index),
+      )
+      .collect();
+    if (sameKey.length > 1) {
+      sameKey.sort((a, b) => a._creationTime - b._creationTime);
+      const winner = sameKey[0];
+      for (const dup of sameKey.slice(1)) {
+        // db.delete first; storage.delete is best-effort (no blob is
+        // attached at reserve-time anyway since storageId is filled in
+        // by markChunkReadyAndRecordUsage, but guard for safety).
+        await ctx.db.delete(dup._id);
+        if (dup.storageId) {
+          try {
+            await ctx.storage.delete(dup.storageId);
+          } catch (err) {
+            console.warn(
+              '[tts.reserveChunk] dedupe storage.delete failed',
+              err,
+            );
+          }
+        }
+      }
+      // Cross-field identity guard mirrors the early-`existing` path —
+      // refuse to hand back a row whose thread/org doesn't match the
+      // caller's claim. Eliminates the case where both racers belonged
+      // to different threads (theoretically impossible under current
+      // call paths but defended for symmetry).
+      if (
+        winner.threadId !== args.threadId ||
+        winner.organizationId !== organizationId
+      ) {
+        throw new ConvexError({
+          code: 'forbidden',
+          message: 'TTS chunk identity mismatch after dedupe.',
+        });
+      }
+      return {
+        kind: 'reserved' as const,
+        chunkId: winner._id,
+        attemptCreatedAt: winner.attemptCreatedAt ?? winner.createdAt,
+        organizationId,
+        userId: user.userId,
+        teamId,
+      };
+    }
     return {
       kind: 'reserved' as const,
       chunkId,
@@ -603,7 +664,14 @@ export const markChunkFailed = internalMutation({
   args: {
     chunkId: v.id('ttsAudioChunks'),
     attemptCreatedAt: v.number(),
-    error: v.string(),
+    // Narrowed to the closed `TtsErrorCode` union — see `schema.ts`. A
+    // wider `v.string()` here would silently bypass the schema's
+    // `v.union(...)` validator at the patch site below and leak free-
+    // form text (potential PII) into the fan-out `getMessageChunks`
+    // subscription.
+    error: v.union(
+      ...ttsErrorCodeLiterals.map((literal) => v.literal(literal)),
+    ),
   },
   returns: v.object({ stale: v.boolean() }),
   handler: async (ctx, args) => {

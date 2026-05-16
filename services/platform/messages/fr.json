@@ -2073,7 +2073,14 @@
       "voiceOutputErrorRateLimited": "Limite vocale atteinte — nouvelle tentative en cours",
       "voiceOutputErrorBudget": "Budget vocal épuisé pour cette période",
       "voiceOutputErrorTransient": "Service vocal indisponible — nouvelle tentative en cours",
-      "voiceOutputErrorDecode": "Lecture audio impossible — touche pour réessayer"
+      "voiceOutputErrorDecode": "Lecture audio impossible — touche pour réessayer",
+      "voiceOutputErrorMessageCharLimit": "Réponse trop longue pour la voix — arrêt ici",
+      "voiceOutputErrorForbidden": "Fournisseur vocal bloqué par la politique d'hôte",
+      "voiceOutputErrorChunkLimit": "Limite vocale atteinte pour cette réponse",
+      "voiceOutputAnnounceSpeaking": "Lecture vocale en cours",
+      "voiceOutputAnnounceStopped": "Lecture vocale arrêtée",
+      "voiceOutputAnnounceBlocked": "Lecture vocale bloquée — active la lecture pour écouter",
+      "voiceOutputAnnounceError": "Échec de la sortie vocale"
     },
     "searchChat": "Rechercher dans le chat",
     "hideSearch": "Masquer la recherche",
@@ -4822,7 +4829,8 @@
       "saved": "Enregistré.",
       "discarded": "Ignoré.",
       "deleted": "Supprimé.",
-      "preferencesUpdated": "Préférences mises à jour."
+      "preferencesUpdated": "Préférences mises à jour.",
+      "voiceOutputEnabledButProviderMissing": "La sortie vocale est activée, mais aucun fournisseur de synthèse vocale n'est configuré. Demande à une personne admin d'en ajouter un dans Paramètres → Fournisseurs IA."
     }
   },
   "dataNotice": {

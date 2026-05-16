@@ -401,6 +401,18 @@ export const getCapability = action({
         modelId: model.modelId,
       };
     } catch (err) {
+      // `UNKNOWN_VOICE` means the TTS model resolved but neither
+      // `voicesByLocale['en']` nor `defaultVoice` matched. An org that
+      // wired up `voicesByLocale: { de: ... }` only is still capable —
+      // synthesis will pick a real voice from the caller's actual locale
+      // at synth time. Capability probe should report `available: true`
+      // so the settings UI doesn't render the "provider unavailable"
+      // banner. We can't fill in providerName/modelId without re-running
+      // the resolver, which is acceptable — those fields are
+      // informational on the capability response.
+      if (err instanceof Error && err.message.startsWith('UNKNOWN_VOICE:')) {
+        return { available: true };
+      }
       console.warn(
         '[tts.getCapability] resolveTtsModel failed',
         sanitizeError(err),

@@ -40,6 +40,7 @@ import {
   hasSopsKey,
   invalidateSecretsCache,
 } from '../lib/sops';
+import { sanitizeError } from '../lib/utils/sanitize_secrets';
 import { requireDeveloperSettingsAccess, requireOrgMembership } from './auth';
 import { NoProviderAvailableError } from './errors';
 import type { ProviderJson, ProviderReadResult } from './file_utils';
@@ -336,7 +337,7 @@ export const readProvider = action({
     } catch (err) {
       console.warn(
         `Provider "${args.providerName}": failed to read model key overrides`,
-        err instanceof Error ? err.message : String(err),
+        sanitizeError(err),
       );
     }
 
@@ -381,7 +382,7 @@ export const listProviders = action({
           } catch (err) {
             console.warn(
               `Provider "${name}": failed to read model key overrides`,
-              err instanceof Error ? err.message : String(err),
+              sanitizeError(err),
             );
           }
 
@@ -538,7 +539,7 @@ export const deleteProvider = action({
     } catch (err) {
       console.warn(
         `[deleteProvider] failed to write audit log for ${args.providerName}`,
-        err instanceof Error ? err.message : String(err),
+        sanitizeError(err),
       );
     }
     return null;
@@ -1079,9 +1080,11 @@ export const fetchProviderModels = action({
       // Don't echo the upstream body to the caller — that would let an
       // attacker who somehow got past the policy gate use this as a partial
       // read primitive against an unresponsive-to-Authorization endpoint.
-      // Log the body server-side for ops visibility.
+      // Log the body server-side for ops visibility, sanitised so a
+      // 4xx response containing the very API key we sent doesn't leak it
+      // into ops logs.
       console.warn(
-        `[fetchProviderModels] non-2xx ${response.status} from ${url}: ${response.body.slice(0, 500)}`,
+        `[fetchProviderModels] non-2xx ${response.status} from ${url}: ${sanitizeError(response.body, 500)}`,
       );
       throw new ConvexError({
         code: 'PROVIDER_FETCH_FAILED',
@@ -1955,7 +1958,7 @@ async function maybeAuditForceOverwrite(
   } catch (err) {
     console.warn(
       `[saveProviderSecret] failed to write force-overwrite audit log for ${args.providerName}`,
-      err instanceof Error ? err.message : String(err),
+      sanitizeError(err),
     );
   }
 }
@@ -2013,9 +2016,11 @@ export const hasProviderSecret = action({
       // Other failures (zod-shape, decrypt-with-wrong-key): file exists but
       // unusable. Still mask as configured to avoid losing the "click Save"
       // affordance — the actual save will surface a clearer error.
+      // Sanitise the err message because a SOPS / decrypt-failure error
+      // can include partial cleartext.
       console.warn(
         `Provider "${args.providerName}": secrets file unreadable`,
-        err instanceof Error ? err.message : String(err),
+        sanitizeError(err),
       );
       return '••••••••••';
     }

@@ -8,27 +8,32 @@ import { NoProviderAvailableError } from '../providers/errors';
  * Stable error tokens written to `ttsAudioChunks.error`. The client keys
  * recovery UX on these codes (e.g. surface "configure a provider" for
  * `NO_PROVIDER`, "tap to retry" for `RATE_LIMITED`, etc.) so producing them
- * correctly is part of the contract.
+ * correctly is part of the contract. The array is the single source of
+ * truth — `schema.ts` builds its `error` field validator from it so the
+ * persisted shape can never drift from the runtime classifier.
  */
-export type TtsErrorCode =
-  | 'NO_PROVIDER'
-  | 'UNKNOWN_MODEL'
-  | 'UNKNOWN_PROVIDER'
-  | 'UNKNOWN_VOICE'
-  | 'HOST_POLICY'
-  | 'RATE_LIMITED'
+export const ttsErrorCodeLiterals = [
+  'NO_PROVIDER',
+  'UNKNOWN_MODEL',
+  'UNKNOWN_PROVIDER',
+  'UNKNOWN_VOICE',
+  'HOST_POLICY',
+  'RATE_LIMITED',
   // Distinct from `RATE_LIMITED`: arises when the rate-limiter shard's
   // OCC retries exhaust under burst contention. The actual quota isn't
   // exhausted — the limiter just couldn't pick a free shard fast enough.
   // Client backs off much shorter (50-150ms jitter) than for `RATE_LIMITED`
   // (which honors the server's `retryAfter`).
-  | 'CONTENTION'
-  | 'BUDGET_EXCEEDED'
-  | 'MESSAGE_CHAR_LIMIT'
-  | 'TIMEOUT'
-  | 'PROVIDER_4XX'
-  | 'PROVIDER_5XX'
-  | 'PROVIDER_ERROR';
+  'CONTENTION',
+  'BUDGET_EXCEEDED',
+  'MESSAGE_CHAR_LIMIT',
+  'TIMEOUT',
+  'PROVIDER_4XX',
+  'PROVIDER_5XX',
+  'PROVIDER_ERROR',
+] as const;
+
+export type TtsErrorCode = (typeof ttsErrorCodeLiterals)[number];
 
 export interface ClassifiedFailure {
   code: TtsErrorCode;

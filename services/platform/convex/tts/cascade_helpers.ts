@@ -52,6 +52,14 @@ export async function cascadeDeleteMessageChildren(
       ) {
         continue;
       }
+      // Delete the DB row first, then the blob. Convex `_storage` writes
+      // are out-of-band and not rolled back on transaction abort: a
+      // post-blob abort would leave the row pointing at a dead storageId
+      // (404 on `/api/tts-audio`). Reversed order means a `db.delete`
+      // failure aborts cleanly with both row+blob intact; a later
+      // `storage.delete` failure only leaks a blob, which the daily
+      // `gcOrgTtsChunks` cron sweeps as defence-in-depth.
+      await ctx.db.delete(chunk._id);
       if (chunk.storageId) {
         try {
           await ctx.storage.delete(chunk.storageId);
@@ -62,7 +70,6 @@ export async function cascadeDeleteMessageChildren(
           );
         }
       }
-      await ctx.db.delete(chunk._id);
       deleted += 1;
     }
   }
@@ -95,6 +102,9 @@ export async function cascadeOnTtsForMemberRemoved(
       .take(PAGE_SIZE);
     if (page.length === 0) break;
     for (const row of page) {
+      // db.delete before storage.delete — see comment in
+      // `cascadeDeleteMessageChildren` for the rationale.
+      await ctx.db.delete(row._id);
       if (row.storageId) {
         try {
           await ctx.storage.delete(row.storageId);
@@ -105,7 +115,6 @@ export async function cascadeOnTtsForMemberRemoved(
           );
         }
       }
-      await ctx.db.delete(row._id);
       deleted += 1;
     }
     if (page.length < PAGE_SIZE) break;
@@ -162,6 +171,9 @@ export const gcOrgTtsChunks = internalMutation({
         )
         .take(ROWS_PER_ORG_PER_RUN);
       for (const row of stale) {
+        // db.delete before storage.delete — see comment in
+        // `cascadeDeleteMessageChildren` for the rationale.
+        await ctx.db.delete(row._id);
         if (row.storageId) {
           try {
             await ctx.storage.delete(row.storageId);
@@ -169,7 +181,6 @@ export const gcOrgTtsChunks = internalMutation({
             console.warn('[tts.gcOrgTtsChunks] storage.delete failed', err);
           }
         }
-        await ctx.db.delete(row._id);
         rowsDeleted += 1;
       }
     }

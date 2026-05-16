@@ -233,12 +233,18 @@ function MessageBubbleComponent({
     message.role === 'assistant' && message.isStreaming;
   const voiceMode = useVoiceModeEffective(message.threadId);
   useVoiceOutputChunker({
-    enabled: voiceMode.enabled && !isUser,
+    // Gate on assistant role explicitly. `!isUser` would let system
+    // messages through (chat-messages.tsx coerces every non-user role
+    // to 'assistant' for rendering, but the underlying `message.role`
+    // is preserved here) and the chunker would synthesize system text
+    // intended for the model, not the user.
+    enabled: voiceMode.enabled && message.role === 'assistant',
     messageId: message.id,
     threadId: message.threadId,
     organizationId,
     text: message.content ?? '',
     isStreaming: !!isAssistantStreaming,
+    messageCreatedAt: message.timestamp.getTime(),
   });
 
   const handleEditClick = useCallback(() => {

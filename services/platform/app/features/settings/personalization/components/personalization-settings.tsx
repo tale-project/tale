@@ -35,6 +35,46 @@ import {
 
 const CUSTOM_INSTRUCTIONS_MAX_CHARS = 4000;
 
+/**
+ * Module-level capability-probe cache keyed by `organizationId`.
+ *
+ * `getCapability` is a Node `action` rate-limited at 12/min/user. The
+ * settings page re-mounts on every navigation (route change, StrictMode
+ * double-invoke) and the probe burns a token each time — a few quick
+ * tab swaps and the limiter trips, the catch branch silently flips the
+ * UI to "provider unavailable", and the user sees a false negative.
+ *
+ * Caching the in-flight promise per org collapses repeated mounts to
+ * one network call. Result is also cached so a remount within the
+ * same session reuses the resolved value without re-issuing the
+ * action. Cache is in-memory only — page reload re-probes, which is
+ * correct (admin may have wired up a provider in another tab).
+ *
+ * Phase 5 (deferred) converts `getCapability` to a Convex `query` so
+ * this cache becomes unnecessary.
+ */
+type CapabilityProbe = (args: {
+  organizationId: string;
+}) => Promise<{ available: boolean }>;
+
+const capabilityProbeCache = new Map<string, Promise<{ available: boolean }>>();
+
+function probeCapability(
+  fn: CapabilityProbe,
+  organizationId: string,
+): Promise<{ available: boolean }> {
+  const cached = capabilityProbeCache.get(organizationId);
+  if (cached) return cached;
+  const inflight = fn({ organizationId }).catch((err) => {
+    // On failure, drop the entry so a subsequent mount can retry
+    // rather than being stuck with a rejected promise forever.
+    capabilityProbeCache.delete(organizationId);
+    throw err;
+  });
+  capabilityProbeCache.set(organizationId, inflight);
+  return inflight;
+}
+
 export function PersonalizationSettings() {
   const organizationId = useOrganizationId();
   if (!organizationId) {
@@ -272,7 +312,7 @@ function VoiceOutputSection({
 
   useEffect(() => {
     let cancelled = false;
-    void getCapability({ organizationId })
+    void probeCapability(getCapability, organizationId)
       .then((r) => {
         if (!cancelled) setProviderAvailable(r.available);
       })
@@ -313,7 +353,20 @@ function VoiceOutputSection({
           if (next) primeAudio();
           try {
             await setVoiceOutput({ organizationId, enabled: next });
-            toast({ title: t('toasts.preferencesUpdated') });
+            // Branch the success toast on `providerAvailable`. When the
+            // user flips voice ON in an org with no TTS provider wired
+            // up, a green "Preferences updated" toast falsely implies
+            // voice will work — they then hear silence on the next
+            // reply. Surface the gap as a destructive toast pointing
+            // to the providers page.
+            if (next && providerAvailable === false) {
+              toast({
+                title: t('toasts.voiceOutputEnabledButProviderMissing'),
+                variant: 'destructive',
+              });
+            } else {
+              toast({ title: t('toasts.preferencesUpdated') });
+            }
           } catch (err) {
             toast({
               title: errorMessage(err, t('errors.saveFailed')),
@@ -322,7 +375,10 @@ function VoiceOutputSection({
           }
         }}
       />
-      {providerAvailable === false && enabled && (
+      {/* Show the provider-unavailable hint whenever the org has no TTS
+          provider configured — including when voice is currently OFF,
+          so users can see the prerequisite before they opt in. */}
+      {providerAvailable === false && (
         <Text variant="muted" className="mt-2 text-xs">
           {t('page.voiceOutput.providerUnavailable')}{' '}
           <Link
