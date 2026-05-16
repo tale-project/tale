@@ -175,11 +175,16 @@ http.route({
  * carries `organizationId` + `threadId`, so we can require the caller to
  * be a current member of the chunk's org before streaming the blob.
  *
- * Designed for the chained `<audio>` playback path — `Cache-Control:
- * private, max-age=600` lets the browser keep a short cache, but the URL
- * is bound to the session cookie so a third party intercepting the URL
- * can't replay it. Revocation on member removal is instantaneous (the
- * GDPR cascade has already deleted the row by then).
+ * Designed for the chained `<audio>` playback path. Identity is resolved
+ * from the Better Auth session cookie via `auth.api.getSession()` rather
+ * than `ctx.auth.getUserIdentity()` — native `<audio>` elements can't
+ * attach an `Authorization: Bearer` header, but they do send same-origin
+ * cookies, which is what the rest of the cookie-authenticated routes in
+ * this file rely on. `Cache-Control: private, max-age=600` lets the
+ * browser keep a short cache, and `Vary: Cookie` binds the cached bytes
+ * to the session so a third party intercepting the URL can't replay it.
+ * Revocation on member removal is instantaneous (the GDPR cascade has
+ * already deleted the row by then).
  */
 http.route({
   path: '/api/tts-audio',
@@ -191,8 +196,9 @@ http.route({
       return new Response('Missing chunkId', { status: 400 });
     }
 
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity || !identity.subject) {
+    const auth = createAuth(ctx);
+    const session = await auth.api.getSession({ headers: req.headers });
+    if (!session?.user) {
       return new Response('Unauthenticated', { status: 401 });
     }
 
@@ -218,7 +224,7 @@ http.route({
 
     const chunk = await ctx.runQuery(internal.tts.queries.getChunkForServe, {
       chunkId,
-      userId: identity.subject,
+      userId: session.user.id,
     });
     if (!chunk) {
       // Either the chunk doesn't exist or the caller isn't a member of
