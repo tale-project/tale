@@ -5,7 +5,7 @@
       "description": "Selbst gehostete KI-Plattform für datensensible Organisationen — lokale KI-Modelle, Agenten und Automatisierungen auf deiner eigenen Infrastruktur. ISO-27001- und SOC-2-zertifiziert."
     },
     "pricing": {
-      "title": "Preise — einfach und transparent",
+      "title": "Preise",
       "description": "Zwei Arten, Tale zu betreiben: verwaltetes Enterprise mit Skalierbarkeit oder die Open-Source-Community-Edition. Preis pro Nutzer, in CHF oder EUR."
     },
     "contact": {
@@ -169,7 +169,7 @@
       },
       "pricing": {
         "q": "Bietet ihr auch Hardware an?",
-        "a": "Ja, wir können auch Hardware bereitstellen (Miete, Leasing, Kauf usw.). Erwähn es einfach, wenn du uns kontaktierst."
+        "a": "Ja — wir stellen Hardware bereit, als Miete, Leasing oder Kauf. Sag uns bei deiner Anfrage Bescheid, und wir schlagen die passende Konfiguration vor."
       },
       "integrations": {
         "q": "Kann ich meine eigene Hardware und KI-Modelle nutzen?",
@@ -240,7 +240,7 @@
       "feature1": "Selbst gehostet oder Cloud",
       "feature2": "Professionell gewartet (ISO 27001 & SOC 2 zertifiziert)",
       "feature3": "DSGVO-konform",
-      "feature4": "Email-, Telefon- und Remote-Support",
+      "feature4": "E-Mail-, Telefon- und Remote-Support",
       "feature5": "Installation und laufende Wartung",
       "feature7": "Einfluss auf die Produkt-Roadmap"
     },
@@ -261,7 +261,7 @@
         "communityDeployment": "Selbst gehostet",
         "paidDeployment": "Cloud, selbst gehostet",
         "paidCompliance": "DSGVO-konform, ISO 27001 & SOC 2 zertifiziert",
-        "proSupport": "Email-Support",
+        "proSupport": "E-Mail-Support",
         "enterpriseSupport": "Telefon/SMS-Support, WhatsApp-Support, Remote-Support, Professional Services",
         "installationFee": {
           "CH": "CHF 1.990",
@@ -286,7 +286,7 @@
         "piiRedaction": "PII-Schwärzung",
         "customDpa": "Individueller AVV",
         "customDpaInfo": "Wir akzeptieren auch individuelle Auftragsverarbeitungsverträge mit unseren Kunden.",
-        "emailSupport": "Email-Support",
+        "emailSupport": "E-Mail-Support",
         "emailSupportInfo": "Antworten innerhalb Geschäftszeiten: Mo–Fr, 08:00–17:00 (MEZ/MESZ).",
         "phoneSupport": "Telefon-Support",
         "phoneSupportInfo": "Verfügbar innerhalb Geschäftszeiten: Mo–Fr, 08:00–17:00 (MEZ/MESZ).",
@@ -301,7 +301,7 @@
     "extras": {
       "training": {
         "title": "KI-Schulungen",
-        "description": "Schulungen, die dein Team befähigen, reale KI-Lösungen zu entwickeln und einzusetzen — entdecke unsere",
+        "description": "Schulungen, die dein Team befähigen, reale KI-Lösungen zu entwickeln und einzusetzen — sieh dir unsere",
         "linkLabel": "KI-Schulungen",
         "suffix": "."
       },
@@ -437,7 +437,7 @@
     "fieldInterests": "Interessiert an",
     "fieldMessage": "Zusätzlicher Kommentar (optional)",
     "placeholderName": "Vollständigen Namen eingeben",
-    "placeholderEmail": "Email-Adresse eingeben",
+    "placeholderEmail": "E-Mail-Adresse eingeben",
     "placeholderPhone": "Telefonnummer eingeben",
     "placeholderCompany": "Firmennamen eingeben",
     "placeholderMessage": "Beschreib dein Projekt. Alle geteilten Projektdetails behandeln wir vertraulich.",
@@ -457,21 +457,21 @@
     "fieldCompany": "Unternehmen (optional)",
     "fieldMessage": "Nachricht",
     "placeholderName": "Vollständigen Namen eingeben",
-    "placeholderEmail": "Email-Adresse eingeben",
+    "placeholderEmail": "E-Mail-Adresse eingeben",
     "placeholderCompany": "Firmennamen eingeben",
     "placeholderMessage": "Teil uns ein paar Details mit, damit wir deine Anforderungen besser verstehen. Alle geteilten Projektdetails behandeln wir vertraulich.",
     "submit": "Kontakt aufnehmen"
   },
   "forms": {
-    "email": "Email",
+    "email": "E-Mail",
     "honeypotLabel": "Website",
     "privacyPrefix": "Ich bestätige, dass ich die",
     "privacyLink": "Datenschutzerklärung gelesen habe",
     "privacyRequired": "Du musst die Datenschutzerklärung akzeptieren",
     "errors": {
-      "generic": "Etwas ist schiefgelaufen. Bitte erneut versuchen.",
-      "rateLimited": "Zu viele Anfragen. Bitte einen Moment warten und erneut versuchen.",
-      "tooFast": "Moment — bitte überprüf deine Angaben vor dem Absenden."
+      "generic": "Etwas ist schiefgelaufen. Versuch es erneut.",
+      "rateLimited": "Zu viele Anfragen. Warte einen Moment, dann versuch es erneut.",
+      "tooFast": "Moment — prüf deine Angaben, bevor du absendest."
     },
     "success": {
       "title": "Danke — wir haben es erhalten",
@@ -481,7 +481,7 @@
   },
   "productMockChat": {
     "userMessage": "Wie sieht unsere Rückgaberegelung für KI-Hardware aus?",
-    "assistantMessage": "Unsere Hardware kommt mit einem 30-tägigen Rückgaberecht und einer 2-jährigen Garantie. Soll ich die Email-Antwort entwerfen?",
+    "assistantMessage": "Unsere Hardware kommt mit einem 30-tägigen Rückgaberecht und einer 2-jährigen Garantie. Soll ich die E-Mail-Antwort entwerfen?",
     "attachAriaLabel": "Anhängen",
     "inputPlaceholder": "Stell eine Frage zu deinen Daten…",
     "sendAriaLabel": "Senden"

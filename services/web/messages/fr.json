@@ -169,7 +169,7 @@
       },
       "pricing": {
         "q": "Le matériel est-il aussi proposé ?",
-        "a": "Oui, nous pouvons aussi fournir du matériel (location, leasing, achat, etc.). Mentionne-le simplement lorsque tu nous contactes."
+        "a": "Oui — nous fournissons aussi du matériel, en location, en leasing ou à l'achat. Mentionne-le quand tu nous contactes, et on te propose la configuration adaptée."
       },
       "integrations": {
         "q": "Puis-je utiliser mon propre matériel et mes propres modèles d'IA ?",
@@ -301,7 +301,7 @@
     "extras": {
       "training": {
         "title": "Formations IA",
-        "description": "Des formations qui dotent tes équipes des compétences nécessaires pour concevoir et déployer des solutions d'IA concrètes — découvre nos",
+        "description": "Des formations qui dotent tes équipes des compétences nécessaires pour concevoir et déployer des solutions d'IA concrètes — va voir nos",
         "linkLabel": "formations IA",
         "suffix": "."
       },
@@ -463,7 +463,7 @@
     "submit": "Prendre contact"
   },
   "forms": {
-    "email": "Email",
+    "email": "Courriel",
     "honeypotLabel": "Site web",
     "privacyPrefix": "Je confirme avoir lu la",
     "privacyLink": "politique de confidentialité",

@@ -1,72 +1,1458 @@
 {
-  "_note": "Generated-by-hand (for now) glossary consumed by services/docs/tests/terminology.test.ts. Keep in sync with .agents/terminology/TERMINOLOGY_*.md — the markdown files are the human source of truth; this JSON is the machine-readable projection. Each entry in enToLocale[locale] maps an English product term to the shipped UI translation that docs in that locale must use. Entries where the English term equals the locale term are loanwords — not flagged. formalPronouns lists words that indicate the wrong politeness form; docs must use the informal form.",
-  "enToLocale": {
-    "de": {
-      "Prompt Library": "Prompt-Bibliothek",
-      "Knowledge Base": "Wissensdatenbank",
-      "Workspace": "Arbeitsbereich",
-      "Settings": "Einstellungen",
-      "Chat with AI": "Chat mit KI",
-      "Conversations": "Konversationen",
-      "Automation": "Automatisierung",
-      "Automations": "Automatisierungen",
-      "Integration": "Integration",
-      "Integrations": "Integrationen",
-      "Approval": "Genehmigung",
-      "Approvals": "Genehmigungen",
-      "Research plan": "Recherche-Plan",
-      "Todo list": "Recherche-Plan",
-      "Todo List": "Recherche-Plan",
-      "Owner": "Inhaber",
-      "Owners": "Inhaber",
-      "Developer": "Entwickler",
-      "Developers": "Entwickler",
-      "Member": "Mitglied",
-      "Members": "Mitglieder",
-      "Disabled": "Deaktiviert",
-      "Provider": "Anbieter",
-      "Providers": "Anbieter",
-      "Canvas": "Canvas",
-      "Composer": "Composer",
-      "Arena Mode": "Arena-Modus"
-    },
-    "fr": {
-      "Canvas": "Canevas",
-      "Prompt Library": "Bibliothèque de prompts",
-      "Knowledge base": "Base de connaissances",
-      "Knowledge Base": "Base de connaissances",
-      "Workspace": "Espace de travail",
-      "Settings": "Paramètres",
-      "Chat with AI": "Discuter avec l'IA",
-      "Conversations": "Conversations",
-      "Automation": "Automatisation",
-      "Automations": "Automatisations",
-      "Integration": "Intégration",
-      "Integrations": "Intégrations",
-      "Approval": "Approbation",
-      "Approvals": "Approbations",
-      "Research plan": "Plan de recherche",
-      "Todo list": "Plan de recherche",
-      "Todo List": "Plan de recherche",
-      "Owner": "Propriétaire",
-      "Owners": "Propriétaires",
-      "Developer": "Développeur",
-      "Developers": "Développeurs",
-      "Editor": "Éditeur",
-      "Editors": "Éditeurs",
-      "Member": "Membre",
-      "Members": "Membres",
-      "Disabled": "Désactivé",
-      "Provider": "Fournisseur",
-      "Providers": "Fournisseurs",
-      "Website": "Site web",
-      "Websites": "Sites web",
-      "Arena Mode": "Mode Arène",
-      "Composer": "Composeur"
-    }
+  "_note": "Machine-readable projection of the term contract. Holds only the flat `terms[]` list and its meta. Test-data lists (formal pronouns, noun-gender map) live in `services/docs/tests/data/` as TypeScript modules. Doctrine that uses tables for illustration (style conventions, marketing softeners, anti-pattern drift→target pairs, toast conventions, error-message patterns, deCH overrides) lives in the TERMINOLOGY*.md files alongside this JSON. The split: term lookup → here; test inputs → tests/data/; doctrine + reference tables → MD.",
+  "_fallbackRules": "Each term entry has a required `en` field. Optional locale fields override: `de_ch` falls back to `de`, which falls back to `en`; `fr` falls back to `en`. A term with only `en` set (no `de`, `fr`, `de_ch`) is used unchanged in every locale — typical of brands, acronyms, code identifiers, and established loanwords (`Workflow`, `Dashboard`, `Webhook`).",
+  "_categories": {
+    "brand": "Brand and product names (Tale, Convex, OpenRouter, GitHub). Always English everywhere.",
+    "acronym": "Initialisms (AI, LLM, API, MCP). Some have native expansions (AI → KI/IA); the abbreviation itself usually stays English.",
+    "codeIdentifier": "Environment variables, CLI flags, file paths, API paths, i18n keys, JSON keys. International — never translate. Documented by category; individual identifiers are not enumerated here.",
+    "role": "The six platform roles (Owner/Admin/Developer/Editor/Member/Disabled). DE/FR UIs ship translated forms.",
+    "feature": "Product features and UI surfaces (Knowledge base, Chat with AI, Canvas, Composer).",
+    "knowledgeEntity": "Knowledge-base entity types managed by the user (Customer, Vendor, Product, Document, Folder).",
+    "technicalVocab": "Universal tech terms (Token, Prompt, Webhook, Pipeline). Bucket 2 in most cases — kept English in DE/FR.",
+    "actionVerb": "Button labels and menu actions (Save, Delete, Edit, Log in).",
+    "deploymentVocab": "Install/operate/configure terms (Self-hosted, On-premises, Open source, Zero-downtime).",
+    "loanword": "Bucket 2 — established English loanword used unchanged in DE/FR. `de`/`fr` either omitted or equal to `en`.",
+    "gitDomain": "Bucket 2a — Git/source-control vocabulary (Pull Request, Merge, Rebase). Stays English in DE/FR. Half-translated forms fail review.",
+    "translateBucket": "Bucket 3 — must translate. `de` and `fr` differ from `en`; EN form is rejected in DE/FR prose by `terminology-loanword.test.ts`.",
+    "abbreviation": "Shorthand forms used in tooltips and tight UI (e.g., z. B., p. ex.). `_note` carries the expansion."
   },
-  "formalPronouns": {
-    "de": ["Sie", "Ihnen", "Ihre", "Ihrer", "Ihres", "Ihrem"],
-    "fr": ["vous", "votre", "vos", "Vous", "Votre", "Vos"]
-  }
+  "terms": [
+    {
+      "key": "brand_tale",
+      "category": "brand",
+      "en": "Tale"
+    },
+    {
+      "key": "brand_convex",
+      "category": "brand",
+      "en": "Convex"
+    },
+    {
+      "key": "brand_openrouter",
+      "category": "brand",
+      "en": "OpenRouter"
+    },
+    {
+      "key": "brand_claude",
+      "category": "brand",
+      "en": "Claude"
+    },
+    {
+      "key": "brand_openai",
+      "category": "brand",
+      "en": "OpenAI"
+    },
+    {
+      "key": "brand_anthropic",
+      "category": "brand",
+      "en": "Anthropic"
+    },
+    {
+      "key": "brand_google",
+      "category": "brand",
+      "en": "Google"
+    },
+    {
+      "key": "brand_mistral",
+      "category": "brand",
+      "en": "Mistral"
+    },
+    {
+      "key": "brand_meta",
+      "category": "brand",
+      "en": "Meta"
+    },
+    {
+      "key": "brand_deepseek",
+      "category": "brand",
+      "en": "DeepSeek"
+    },
+    {
+      "key": "brand_moonshot",
+      "category": "brand",
+      "en": "Moonshot"
+    },
+    {
+      "key": "brand_qwen",
+      "category": "brand",
+      "en": "Qwen"
+    },
+    {
+      "key": "brand_github",
+      "category": "brand",
+      "en": "GitHub"
+    },
+    {
+      "key": "brand_slack",
+      "category": "brand",
+      "en": "Slack"
+    },
+    {
+      "key": "brand_gmail",
+      "category": "brand",
+      "en": "Gmail"
+    },
+    {
+      "key": "brand_outlook",
+      "category": "brand",
+      "en": "Outlook"
+    },
+    {
+      "key": "brand_shopify",
+      "category": "brand",
+      "en": "Shopify"
+    },
+    {
+      "key": "brand_microsoft",
+      "category": "brand",
+      "en": "Microsoft"
+    },
+    {
+      "key": "brand_docker",
+      "category": "brand",
+      "en": "Docker"
+    },
+    {
+      "key": "brand_kubernetes",
+      "category": "brand",
+      "en": "Kubernetes"
+    },
+    {
+      "key": "brand_prometheus",
+      "category": "brand",
+      "en": "Prometheus"
+    },
+    {
+      "key": "brand_grafana",
+      "category": "brand",
+      "en": "Grafana"
+    },
+    {
+      "key": "brand_ollama",
+      "category": "brand",
+      "en": "Ollama"
+    },
+    {
+      "key": "brand_vllm",
+      "category": "brand",
+      "en": "vLLM"
+    },
+    {
+      "key": "brand_localai",
+      "category": "brand",
+      "en": "LocalAI"
+    },
+    {
+      "key": "brand_authelia",
+      "category": "brand",
+      "en": "Authelia"
+    },
+    {
+      "key": "brand_authentik",
+      "category": "brand",
+      "en": "Authentik"
+    },
+    {
+      "key": "brand_oauth2proxy",
+      "category": "brand",
+      "en": "oauth2-proxy"
+    },
+    {
+      "key": "brand_meetily",
+      "category": "brand",
+      "en": "Meetily"
+    },
+    {
+      "key": "brand_sentry",
+      "category": "brand",
+      "en": "Sentry"
+    },
+    {
+      "key": "brand_dockerCompose",
+      "category": "brand",
+      "en": "Docker Compose"
+    },
+    {
+      "key": "acronym_ai",
+      "category": "acronym",
+      "en": "AI",
+      "de": "KI",
+      "fr": "IA",
+      "_note": "Künstliche Intelligenz / Intelligence artificielle. The acronym itself stays in its native form per locale."
+    },
+    {
+      "key": "acronym_llm",
+      "category": "acronym",
+      "en": "LLM"
+    },
+    {
+      "key": "acronym_api",
+      "category": "acronym",
+      "en": "API"
+    },
+    {
+      "key": "acronym_mcp",
+      "category": "acronym",
+      "en": "MCP",
+      "_note": "Model Context Protocol. Expand on first use per page."
+    },
+    {
+      "key": "acronym_rag",
+      "category": "acronym",
+      "en": "RAG"
+    },
+    {
+      "key": "acronym_oidc",
+      "category": "acronym",
+      "en": "OIDC"
+    },
+    {
+      "key": "acronym_saml",
+      "category": "acronym",
+      "en": "SAML"
+    },
+    {
+      "key": "acronym_pii",
+      "category": "acronym",
+      "en": "PII",
+      "fr": "DCP",
+      "_note": "personally identifiable information / personenbezogene Daten / données à caractère personnel. Expand on first use."
+    },
+    {
+      "key": "acronym_sops",
+      "category": "acronym",
+      "en": "SOPS"
+    },
+    {
+      "key": "acronym_tls",
+      "category": "acronym",
+      "en": "TLS"
+    },
+    {
+      "key": "acronym_ssl",
+      "category": "acronym",
+      "en": "SSL"
+    },
+    {
+      "key": "acronym_url",
+      "category": "acronym",
+      "en": "URL"
+    },
+    {
+      "key": "acronym_uri",
+      "category": "acronym",
+      "en": "URI"
+    },
+    {
+      "key": "acronym_http",
+      "category": "acronym",
+      "en": "HTTP"
+    },
+    {
+      "key": "acronym_https",
+      "category": "acronym",
+      "en": "HTTPS"
+    },
+    {
+      "key": "acronym_json",
+      "category": "acronym",
+      "en": "JSON"
+    },
+    {
+      "key": "acronym_yaml",
+      "category": "acronym",
+      "en": "YAML"
+    },
+    {
+      "key": "acronym_xml",
+      "category": "acronym",
+      "en": "XML"
+    },
+    {
+      "key": "acronym_sql",
+      "category": "acronym",
+      "en": "SQL"
+    },
+    {
+      "key": "acronym_cli",
+      "category": "acronym",
+      "en": "CLI"
+    },
+    {
+      "key": "acronym_sdk",
+      "category": "acronym",
+      "en": "SDK"
+    },
+    {
+      "key": "acronym_ide",
+      "category": "acronym",
+      "en": "IDE"
+    },
+    {
+      "key": "acronym_ci",
+      "category": "acronym",
+      "en": "CI"
+    },
+    {
+      "key": "acronym_cd",
+      "category": "acronym",
+      "en": "CD"
+    },
+    {
+      "key": "acronym_saas",
+      "category": "acronym",
+      "en": "SaaS"
+    },
+    {
+      "key": "acronym_vpc",
+      "category": "acronym",
+      "en": "VPC"
+    },
+    {
+      "key": "acronym_rbac",
+      "category": "acronym",
+      "en": "RBAC"
+    },
+    {
+      "key": "acronym_2fa",
+      "category": "acronym",
+      "en": "2FA"
+    },
+    {
+      "key": "acronym_mfa",
+      "category": "acronym",
+      "en": "MFA"
+    },
+    {
+      "key": "acronym_sso",
+      "category": "acronym",
+      "en": "SSO"
+    },
+    {
+      "key": "acronym_totp",
+      "category": "acronym",
+      "en": "TOTP"
+    },
+    {
+      "key": "role_owner",
+      "category": "role",
+      "en": "Owner",
+      "de": "Inhaber",
+      "fr": "Propriétaire"
+    },
+    {
+      "key": "role_owners",
+      "category": "role",
+      "en": "Owners",
+      "de": "Inhaber",
+      "fr": "Propriétaires"
+    },
+    {
+      "key": "role_admin",
+      "category": "role",
+      "en": "Admin"
+    },
+    {
+      "key": "role_developer",
+      "category": "role",
+      "en": "Developer",
+      "de": "Entwickler",
+      "fr": "Développeur"
+    },
+    {
+      "key": "role_developers",
+      "category": "role",
+      "en": "Developers",
+      "de": "Entwickler",
+      "fr": "Développeurs"
+    },
+    {
+      "key": "role_editor",
+      "category": "role",
+      "en": "Editor",
+      "de": "Redakteur",
+      "fr": "Éditeur",
+      "_lintExclude": ["de"],
+      "_note": "Not enforced by lint in DE because the same English word also appears as a UI loanword for visual/IDE editors (`Workflow-Editor`, `KI-Editor`). Translate role-context occurrences by hand."
+    },
+    {
+      "key": "role_editors",
+      "category": "role",
+      "en": "Editors",
+      "de": "Redakteure",
+      "fr": "Éditeurs",
+      "_lintExclude": ["de"],
+      "_note": "Plural of role_editor — same DE lint exclusion."
+    },
+    {
+      "key": "role_member",
+      "category": "role",
+      "en": "Member",
+      "de": "Mitglied",
+      "fr": "Membre"
+    },
+    {
+      "key": "role_members",
+      "category": "role",
+      "en": "Members",
+      "de": "Mitglieder",
+      "fr": "Membres"
+    },
+    {
+      "key": "role_disabled",
+      "category": "role",
+      "en": "Disabled",
+      "de": "Deaktiviert",
+      "fr": "Désactivé"
+    },
+    {
+      "key": "feature_agent",
+      "category": "feature",
+      "en": "Agent",
+      "_note": "Capitalised when naming a Tale agent; lowercase as a general AI term. Established loanword in DE/FR."
+    },
+    {
+      "key": "feature_chatWithAI",
+      "category": "feature",
+      "en": "Chat with AI",
+      "de": "Chat mit KI",
+      "fr": "Discuter avec l'IA",
+      "_note": "Matches UI label `navigation.chatWithAI`."
+    },
+    {
+      "key": "feature_conversations",
+      "category": "feature",
+      "en": "Conversations",
+      "de": "Konversationen",
+      "_note": "Multi-channel inbox feature. Matches UI label `navigation.conversations`. Singular `Konversation`/`Conversation` mirrors `Thread`."
+    },
+    {
+      "key": "feature_workflow",
+      "category": "feature",
+      "en": "Workflow",
+      "_note": "One word. Established loanword in DE/FR."
+    },
+    {
+      "key": "feature_automation",
+      "category": "feature",
+      "en": "Automation",
+      "de": "Automatisierung",
+      "fr": "Automatisation",
+      "_note": "Matches UI label `navigation.automations`. Distinct from Workflow — do not use interchangeably."
+    },
+    {
+      "key": "feature_automations",
+      "category": "feature",
+      "en": "Automations",
+      "de": "Automatisierungen",
+      "fr": "Automatisations"
+    },
+    {
+      "key": "feature_integration",
+      "category": "feature",
+      "en": "Integration",
+      "fr": "Intégration",
+      "_note": "Matches UI label `navigation.integrations`. Same root in DE — no override."
+    },
+    {
+      "key": "feature_integrations",
+      "category": "feature",
+      "en": "Integrations",
+      "de": "Integrationen",
+      "fr": "Intégrations"
+    },
+    {
+      "key": "feature_dashboard",
+      "category": "feature",
+      "en": "Dashboard",
+      "_note": "One word. Established loanword."
+    },
+    {
+      "key": "feature_knowledge",
+      "category": "feature",
+      "en": "Knowledge",
+      "de": "Wissen",
+      "fr": "Connaissances",
+      "_note": "Top-level feature area the knowledge base sits inside."
+    },
+    {
+      "key": "feature_knowledgeBase",
+      "category": "feature",
+      "en": "Knowledge base",
+      "de": "Wissensdatenbank",
+      "fr": "Base de connaissances",
+      "_note": "Two words in EN (sentence case in prose). Single compound noun in DE."
+    },
+    {
+      "key": "feature_workspace",
+      "category": "feature",
+      "en": "Workspace",
+      "de": "Arbeitsbereich",
+      "fr": "Espace de travail",
+      "_note": "One word in EN."
+    },
+    {
+      "key": "feature_canvas",
+      "category": "feature",
+      "en": "Canvas",
+      "fr": "Canevas",
+      "_note": "Capitalised when naming the feature; lowercase in prose. Matches UI label `chat.canvas.title`. Loanword in DE; calqued in FR."
+    },
+    {
+      "key": "feature_composer",
+      "category": "feature",
+      "en": "Composer",
+      "fr": "Composeur",
+      "_note": "Chat input area. Capitalise when naming the UI element."
+    },
+    {
+      "key": "feature_promptLibrary",
+      "category": "feature",
+      "en": "Prompt library",
+      "de": "Prompt-Bibliothek",
+      "fr": "Bibliothèque de prompts",
+      "_note": "Sentence case in prose. Matches UI label `chat.promptLibrary`."
+    },
+    {
+      "key": "feature_arenaMode",
+      "category": "feature",
+      "en": "Arena Mode",
+      "de": "Arena-Modus",
+      "fr": "Mode Arène",
+      "_note": "Title case in EN. Matches UI label `chat.arena.title`."
+    },
+    {
+      "key": "feature_researchPlan",
+      "category": "feature",
+      "en": "Research plan",
+      "de": "Recherche-Plan",
+      "fr": "Plan de recherche",
+      "_note": "Agent to-do pane. The i18n key is `todoList.title`; the product name is Research plan. Never use Todo list/Liste de tâches/Todo-Liste in user-facing prose."
+    },
+    {
+      "key": "feature_approval",
+      "category": "feature",
+      "en": "Approval",
+      "de": "Genehmigung",
+      "fr": "Approbation",
+      "_note": "Singular. Never Freigabe in DE or Validation in FR."
+    },
+    {
+      "key": "feature_approvals",
+      "category": "feature",
+      "en": "Approvals",
+      "de": "Genehmigungen",
+      "fr": "Approbations",
+      "_note": "Plural — the workspace view. Matches UI label `contextApprovals`."
+    },
+    {
+      "key": "feature_humanInputRequest",
+      "category": "feature",
+      "en": "Human input request",
+      "de": "Benutzeranfrage",
+      "fr": "Demande utilisateur",
+      "_note": "Workflow step that pauses for a typed answer."
+    },
+    {
+      "key": "feature_locationRequest",
+      "category": "feature",
+      "en": "Location request",
+      "de": "Standortanfrage",
+      "fr": "Demande de localisation",
+      "_note": "Workflow step that asks for a location. Matches UI label `locationRequest.title`."
+    },
+    {
+      "key": "feature_auditLog",
+      "category": "feature",
+      "en": "Audit log",
+      "de": "Audit-Log",
+      "fr": "Journal d'audit",
+      "_note": "Two words in EN; hyphenated compound in DE."
+    },
+    {
+      "key": "feature_legalHold",
+      "category": "feature",
+      "en": "Legal hold",
+      "de": "Aufbewahrungs-Pflicht",
+      "fr": "Conservation légale",
+      "_note": "Legal-technical compound. DE: both `Aufbewahrungs-Pflicht` and the loanword `Legal Hold` are used; pick one per page. FR: `Legal hold` acceptable as loanword in technical sections."
+    },
+    {
+      "key": "feature_mcpServer",
+      "category": "feature",
+      "en": "MCP server",
+      "de": "MCP-Server",
+      "fr": "Serveur MCP",
+      "_note": "Model Context Protocol server. Lowercase `server` in EN; hyphenated compound in DE."
+    },
+    {
+      "key": "feature_mcpServers",
+      "category": "feature",
+      "en": "MCP servers",
+      "de": "MCP-Server",
+      "fr": "Serveurs MCP",
+      "_note": "Plural form. DE is the same as singular."
+    },
+    {
+      "key": "feature_changelog",
+      "category": "feature",
+      "en": "What's new",
+      "de": "Was ist neu",
+      "fr": "Nouveautés",
+      "_note": "In-app changelog feature. Shipped UI label, not the internal i18n key `changelog`."
+    },
+    {
+      "key": "feature_dataSubjectRequest",
+      "category": "feature",
+      "en": "Data subject request",
+      "de": "Anfrage betroffener Personen",
+      "fr": "Demande de personne concernée",
+      "_note": "GDPR Art. 17 erasure receipt. Matches shipped UI labels."
+    },
+    {
+      "key": "feature_dataSubjectRequests",
+      "category": "feature",
+      "en": "Data subject requests",
+      "de": "Anfragen betroffener Personen",
+      "fr": "Demandes de personnes concernées"
+    },
+    {
+      "key": "feature_emailProvider",
+      "category": "feature",
+      "en": "Email provider",
+      "de": "E-Mail-Anbieter",
+      "fr": "Fournisseur d'e-mail",
+      "_note": "For the Conversations inbox."
+    },
+    {
+      "key": "feature_statusPage",
+      "category": "feature",
+      "en": "Status page",
+      "de": "Status-Seite",
+      "fr": "Page de statut",
+      "_note": "Public /status surface."
+    },
+    {
+      "key": "feature_featureFlag",
+      "category": "feature",
+      "en": "Feature flag",
+      "de": "Feature-Flag",
+      "fr": "Indicateur de fonctionnalité",
+      "_note": "Hyphenated in DE."
+    },
+    {
+      "key": "entity_website",
+      "category": "knowledgeEntity",
+      "en": "Website",
+      "_note": "Matches UI label `websites.title`. Loanword in DE; FR uses `Site web`."
+    },
+    {
+      "key": "entity_websites",
+      "category": "knowledgeEntity",
+      "en": "Websites",
+      "fr": "Sites web"
+    },
+    {
+      "key": "entity_customer",
+      "category": "knowledgeEntity",
+      "en": "Customer",
+      "de": "Kunde",
+      "fr": "Client",
+      "_note": "Matches UI label `customers.title`."
+    },
+    {
+      "key": "entity_customers",
+      "category": "knowledgeEntity",
+      "en": "Customers",
+      "de": "Kunden",
+      "fr": "Clients"
+    },
+    {
+      "key": "entity_vendor",
+      "category": "knowledgeEntity",
+      "en": "Vendor",
+      "de": "Lieferant",
+      "fr": "Fournisseur",
+      "_note": "Matches UI label `vendors.title`. In FR overloads with `Provider` — use `Fournisseur IA` to disambiguate."
+    },
+    {
+      "key": "entity_vendors",
+      "category": "knowledgeEntity",
+      "en": "Vendors",
+      "de": "Lieferanten",
+      "fr": "Fournisseurs"
+    },
+    {
+      "key": "entity_product",
+      "category": "knowledgeEntity",
+      "en": "Product",
+      "de": "Produkt",
+      "fr": "Produit"
+    },
+    {
+      "key": "entity_products",
+      "category": "knowledgeEntity",
+      "en": "Products",
+      "de": "Produkte",
+      "fr": "Produits"
+    },
+    {
+      "key": "entity_document",
+      "category": "knowledgeEntity",
+      "en": "Document",
+      "de": "Dokument",
+      "_note": "A file uploaded to the knowledge base."
+    },
+    {
+      "key": "entity_documents",
+      "category": "knowledgeEntity",
+      "en": "Documents",
+      "de": "Dokumente"
+    },
+    {
+      "key": "entity_thread",
+      "category": "knowledgeEntity",
+      "en": "Conversation",
+      "de": "Konversation",
+      "fr": "Conversation",
+      "_note": "User-facing term. `Thread` stays only in code (`threads` table) and a few internal API surfaces."
+    },
+    {
+      "key": "entity_folder",
+      "category": "knowledgeEntity",
+      "en": "Folder",
+      "de": "Ordner",
+      "fr": "Dossier"
+    },
+    {
+      "key": "tech_token",
+      "category": "technicalVocab",
+      "en": "Token",
+      "_note": "Established loanword. LLM token."
+    },
+    {
+      "key": "tech_prompt",
+      "category": "technicalVocab",
+      "en": "Prompt",
+      "_note": "Established loanword."
+    },
+    {
+      "key": "tech_webhook",
+      "category": "technicalVocab",
+      "en": "Webhook",
+      "_note": "One word. Established loanword."
+    },
+    {
+      "key": "tech_provider",
+      "category": "translateBucket",
+      "en": "Provider",
+      "de": "Anbieter",
+      "fr": "Fournisseur",
+      "_note": "Bucket 3. Used for LLM and email providers. FR: use `Fournisseur IA` to disambiguate from the KB-entity Vendor."
+    },
+    {
+      "key": "tech_providers",
+      "category": "translateBucket",
+      "en": "Providers",
+      "de": "Anbieter",
+      "fr": "Fournisseurs"
+    },
+    {
+      "key": "tech_settings",
+      "category": "technicalVocab",
+      "en": "Settings",
+      "de": "Einstellungen",
+      "fr": "Paramètres",
+      "_note": "Never `Preferences` or `Options` in EN."
+    },
+    {
+      "key": "tech_apiKey",
+      "category": "technicalVocab",
+      "en": "API key",
+      "de": "API-Schlüssel",
+      "fr": "Clé API",
+      "_note": "Hyphenated compound in DE."
+    },
+    {
+      "key": "tech_user",
+      "category": "technicalVocab",
+      "en": "User",
+      "de": "Nutzer",
+      "fr": "Utilisateur",
+      "_note": "Tale ships `Nutzer` (not `Benutzer`) in DE."
+    },
+    {
+      "key": "tech_browser",
+      "category": "technicalVocab",
+      "en": "Browser",
+      "fr": "Navigateur",
+      "_note": "Loanword in DE; native in FR."
+    },
+    {
+      "key": "tech_status",
+      "category": "technicalVocab",
+      "en": "Status",
+      "fr": "Statut",
+      "_note": "Loanword in DE; native in FR. `État` also acceptable in FR."
+    },
+    {
+      "key": "tech_tool",
+      "category": "technicalVocab",
+      "en": "Tool",
+      "_note": "In product context (agent tools), `Tool` is the industry term in DE and FR. Use `Werkzeug` / `outil` only in metaphors."
+    },
+    {
+      "key": "tech_pipeline",
+      "category": "loanword",
+      "en": "Pipeline",
+      "_note": "Established loanword across DE/FR (DevOps / data-engineering sense)."
+    },
+    {
+      "key": "tech_cache",
+      "category": "loanword",
+      "en": "Cache",
+      "_note": "Established loanword."
+    },
+    {
+      "key": "tech_snapshot",
+      "category": "loanword",
+      "en": "Snapshot",
+      "_note": "Loanword. FR `instantané` acceptable in long-form prose."
+    },
+    {
+      "key": "tech_endpoint",
+      "category": "loanword",
+      "en": "Endpoint",
+      "_note": "Loanword. FR `point de terminaison` acceptable in long-form prose."
+    },
+    {
+      "key": "tech_payload",
+      "category": "loanword",
+      "en": "Payload",
+      "_note": "Loanword. FR `charge utile` acceptable in long-form prose."
+    },
+    {
+      "key": "tech_throttling",
+      "category": "loanword",
+      "en": "Throttling",
+      "_note": "Loanword."
+    },
+    {
+      "key": "tech_rateLimit",
+      "category": "technicalVocab",
+      "en": "Rate limit",
+      "de": "Rate-Limit",
+      "fr": "Limite de requêtes",
+      "_note": "Two words in EN. Hyphenated loanword in DE; native phrase in FR (loanword acceptable in technical sections)."
+    },
+    {
+      "key": "tech_email",
+      "category": "translateBucket",
+      "en": "Email",
+      "de": "E-Mail",
+      "fr": "Courriel",
+      "_note": "Bucket 3. One word in EN. DE always hyphenated `E-Mail`. FR prose uses `courriel`; space-tight UI may abbreviate to `Email`."
+    },
+    {
+      "key": "tech_header",
+      "category": "translateBucket",
+      "en": "Header",
+      "de": "Kopfzeile",
+      "fr": "En-tête",
+      "_note": "Bucket 3. Never leave as `Header` in DE/FR prose outside HTTP-header code contexts."
+    },
+    {
+      "key": "tech_headers",
+      "category": "translateBucket",
+      "en": "Headers",
+      "de": "Kopfzeilen",
+      "fr": "En-têtes",
+      "_note": "Plural form."
+    },
+    {
+      "key": "tech_request",
+      "category": "translateBucket",
+      "en": "Request",
+      "de": "Anfrage",
+      "fr": "Requête",
+      "_note": "Bucket 3. HTTP / API request. Use `HTTP-Anfrage` / `requête HTTP` for clarity if needed."
+    },
+    {
+      "key": "tech_requests",
+      "category": "translateBucket",
+      "en": "Requests",
+      "de": "Anfragen",
+      "fr": "Requêtes"
+    },
+    {
+      "key": "tech_response",
+      "category": "loanword",
+      "en": "Response",
+      "_note": "Loanword in both DE and FR."
+    },
+    {
+      "key": "tech_helpCenter",
+      "category": "translateBucket",
+      "en": "Help Center",
+      "de": "Hilfe-Center",
+      "fr": "Centre d'aide",
+      "_note": "Bucket 3. Native compound in DE; native phrase in FR."
+    },
+    {
+      "key": "tech_billing",
+      "category": "translateBucket",
+      "en": "Billing",
+      "de": "Abrechnung",
+      "fr": "Facturation",
+      "_note": "Bucket 3."
+    },
+    {
+      "key": "tech_salesResearch",
+      "category": "translateBucket",
+      "en": "Sales Research",
+      "de": "Vertriebs-Recherche",
+      "fr": "Recherche commerciale",
+      "_note": "Bucket 3. Often appears as a sample agent name — translate the example too."
+    },
+    {
+      "key": "tech_engineering",
+      "category": "translateBucket",
+      "en": "Engineering",
+      "fr": "Ingénierie",
+      "_note": "Established loanword in DE. In FR, prose uses `Ingénierie`; loanword acceptable only in job-title contexts."
+    },
+    {
+      "key": "tech_draft",
+      "category": "translateBucket",
+      "en": "Draft",
+      "de": "Entwurf",
+      "fr": "Brouillon",
+      "_note": "Bucket 3. Matches the shipped UI."
+    },
+    {
+      "key": "tech_drafts",
+      "category": "translateBucket",
+      "en": "Drafts",
+      "de": "Entwürfe",
+      "fr": "Brouillons",
+      "_note": "Plural of tech_draft. Bucket 3."
+    },
+    {
+      "key": "tech_attachment",
+      "category": "translateBucket",
+      "en": "Attachment",
+      "de": "Anhang",
+      "fr": "Pièce jointe",
+      "_note": "Bucket 3."
+    },
+    {
+      "key": "tech_attachments",
+      "category": "translateBucket",
+      "en": "Attachments",
+      "de": "Anhänge",
+      "fr": "Pièces jointes",
+      "_note": "Plural of tech_attachment. Bucket 3."
+    },
+    {
+      "key": "tech_backup",
+      "category": "technicalVocab",
+      "en": "Backup",
+      "fr": "Sauvegarde",
+      "_note": "Noun. The verb `back up` translates as `sichern` (DE) / `sauvegarder` (FR)."
+    },
+    {
+      "key": "tech_healthCheck",
+      "category": "technicalVocab",
+      "en": "Health check",
+      "de": "Health-Check",
+      "_note": "Two words in EN. Hyphenated loanword in DE; FR keeps the loanword (`Vérification de santé` acceptable in long-form)."
+    },
+    {
+      "key": "tech_reverseProxy",
+      "category": "technicalVocab",
+      "en": "Reverse proxy",
+      "de": "Reverse-Proxy",
+      "_note": "Two words in EN. Hyphenated loanword in DE; FR keeps the loanword (`Proxy inverse` acceptable in long-form)."
+    },
+    {
+      "key": "tech_background",
+      "category": "technicalVocab",
+      "en": "Background",
+      "de": "Hintergrund",
+      "fr": "Arrière-plan",
+      "_note": "In tech sense (background job, background refresh)."
+    },
+    {
+      "key": "tech_foreground",
+      "category": "technicalVocab",
+      "en": "Foreground",
+      "de": "Vordergrund",
+      "fr": "Premier plan"
+    },
+    {
+      "key": "verb_save",
+      "category": "actionVerb",
+      "en": "Save",
+      "de": "Speichern",
+      "fr": "Enregistrer",
+      "_note": "FR: `Sauvegarder` only for backup operations."
+    },
+    {
+      "key": "verb_delete",
+      "category": "actionVerb",
+      "en": "Delete",
+      "de": "Löschen",
+      "fr": "Supprimer"
+    },
+    {
+      "key": "verb_edit",
+      "category": "actionVerb",
+      "en": "Edit",
+      "de": "Bearbeiten",
+      "fr": "Modifier"
+    },
+    {
+      "key": "verb_cancel",
+      "category": "actionVerb",
+      "en": "Cancel",
+      "de": "Abbrechen",
+      "fr": "Annuler"
+    },
+    {
+      "key": "verb_confirm",
+      "category": "actionVerb",
+      "en": "Confirm",
+      "de": "Bestätigen",
+      "fr": "Confirmer"
+    },
+    {
+      "key": "verb_close",
+      "category": "actionVerb",
+      "en": "Close",
+      "de": "Schließen",
+      "de_ch": "Schliessen",
+      "fr": "Fermer"
+    },
+    {
+      "key": "verb_add",
+      "category": "actionVerb",
+      "en": "Add",
+      "de": "Hinzufügen",
+      "fr": "Ajouter"
+    },
+    {
+      "key": "verb_remove",
+      "category": "actionVerb",
+      "en": "Remove",
+      "de": "Entfernen",
+      "fr": "Retirer",
+      "_note": "FR: `Retirer` for collections (retirer un membre), `Supprimer` for deletion."
+    },
+    {
+      "key": "verb_create",
+      "category": "actionVerb",
+      "en": "Create",
+      "de": "Erstellen",
+      "fr": "Créer"
+    },
+    {
+      "key": "verb_duplicate",
+      "category": "actionVerb",
+      "en": "Duplicate",
+      "de": "Duplizieren",
+      "fr": "Dupliquer",
+      "_note": "EN: not `Copy` for entities — `Copy` is clipboard operations."
+    },
+    {
+      "key": "verb_send",
+      "category": "actionVerb",
+      "en": "Send",
+      "de": "Senden",
+      "fr": "Envoyer"
+    },
+    {
+      "key": "verb_receive",
+      "category": "actionVerb",
+      "en": "Receive",
+      "de": "Empfangen",
+      "fr": "Recevoir"
+    },
+    {
+      "key": "verb_approve",
+      "category": "actionVerb",
+      "en": "Approve",
+      "de": "Genehmigen",
+      "fr": "Approuver"
+    },
+    {
+      "key": "verb_reject",
+      "category": "actionVerb",
+      "en": "Reject",
+      "de": "Ablehnen",
+      "fr": "Rejeter",
+      "_note": "FR: `Refuser` also acceptable."
+    },
+    {
+      "key": "verb_publish",
+      "category": "actionVerb",
+      "en": "Publish",
+      "de": "Veröffentlichen",
+      "fr": "Publier"
+    },
+    {
+      "key": "verb_archive",
+      "category": "actionVerb",
+      "en": "Archive",
+      "de": "Archivieren",
+      "fr": "Archiver"
+    },
+    {
+      "key": "verb_restore",
+      "category": "actionVerb",
+      "en": "Restore",
+      "de": "Wiederherstellen",
+      "fr": "Restaurer"
+    },
+    {
+      "key": "verb_enable",
+      "category": "actionVerb",
+      "en": "Enable",
+      "de": "Aktivieren",
+      "fr": "Activer"
+    },
+    {
+      "key": "verb_disable",
+      "category": "actionVerb",
+      "en": "Disable",
+      "de": "Deaktivieren",
+      "fr": "Désactiver"
+    },
+    {
+      "key": "verb_logIn",
+      "category": "actionVerb",
+      "en": "Log in",
+      "de": "Anmelden",
+      "fr": "Se connecter",
+      "_note": "EN: two words as verb (`Log in`); one word as noun (`Login`). DE: not `Einloggen`. FR: not `Se logger`."
+    },
+    {
+      "key": "verb_logOut",
+      "category": "actionVerb",
+      "en": "Log out",
+      "de": "Abmelden",
+      "fr": "Se déconnecter"
+    },
+    {
+      "key": "verb_signUp",
+      "category": "actionVerb",
+      "en": "Sign up",
+      "de": "Registrieren",
+      "fr": "S'inscrire",
+      "_note": "Verb. Noun: `Signup`."
+    },
+    {
+      "key": "verb_upload",
+      "category": "actionVerb",
+      "en": "Upload",
+      "de": "Hochladen",
+      "fr": "Téléverser",
+      "_note": "Verb. DE noun `Upload` also acceptable. FR noun: `téléversement`."
+    },
+    {
+      "key": "verb_download",
+      "category": "actionVerb",
+      "en": "Download",
+      "de": "Herunterladen",
+      "fr": "Télécharger",
+      "_note": "Verb. DE noun `Download` also acceptable."
+    },
+    {
+      "key": "verb_backUp",
+      "category": "actionVerb",
+      "en": "Back up",
+      "de": "Sichern",
+      "fr": "Sauvegarder",
+      "_note": "Verb. Noun: `Backup` (EN/DE) / `sauvegarde` (FR)."
+    },
+    {
+      "key": "verb_setUp",
+      "category": "actionVerb",
+      "en": "Set up",
+      "de": "Einrichten",
+      "fr": "Configurer",
+      "_note": "Verb. Noun: `Setup` (EN/DE). FR: `Installer` also acceptable."
+    },
+    {
+      "key": "deploy_selfHosted",
+      "category": "translateBucket",
+      "en": "Self-hosted",
+      "de": "selbst gehostet",
+      "fr": "Auto-hébergé",
+      "_note": "Bucket 3. EN hyphenated. DE two words, lowercase unless starting a sentence. FR hyphenated."
+    },
+    {
+      "key": "deploy_onPremises",
+      "category": "deploymentVocab",
+      "en": "On-premises",
+      "fr": "Sur site",
+      "_note": "EN: with final `s`, never `on-premise`. DE: loanword. FR: prefer `sur site` over loanword."
+    },
+    {
+      "key": "deploy_openSource",
+      "category": "deploymentVocab",
+      "en": "Open source",
+      "de": "Open Source",
+      "_note": "EN two words. DE: capitalise both words as a noun. FR: invariable loanword (same form)."
+    },
+    {
+      "key": "deploy_zeroDowntime",
+      "category": "deploymentVocab",
+      "en": "Zero-downtime",
+      "de": "Zero-Downtime",
+      "_note": "Hyphenated. Loanword in DE/FR."
+    },
+    {
+      "key": "deploy_blueGreen",
+      "category": "deploymentVocab",
+      "en": "Blue-green",
+      "de": "Blue-Green",
+      "_note": "Hyphenated. Loanword in DE/FR."
+    },
+    {
+      "key": "deploy_openAiCompatible",
+      "category": "deploymentVocab",
+      "en": "OpenAI-compatible",
+      "de": "OpenAI-kompatibel",
+      "fr": "Compatible OpenAI"
+    },
+    {
+      "key": "deploy_airGapped",
+      "category": "deploymentVocab",
+      "en": "Air-gapped",
+      "de": "Air-Gap",
+      "_note": "EN/DE: hyphenated. DE noun `Air-Gap`, adjective `abgeschottet`. FR: `Isolé du réseau` acceptable in long-form prose."
+    },
+    {
+      "key": "deploy_dataResidency",
+      "category": "deploymentVocab",
+      "en": "Data residency",
+      "de": "Datenresidenz",
+      "fr": "Résidence des données",
+      "_note": "Two words in EN; native phrase in DE/FR."
+    },
+    {
+      "key": "deploy_team",
+      "category": "deploymentVocab",
+      "en": "Team",
+      "fr": "Équipe",
+      "_note": "Loanword in DE (matches UI); native in FR."
+    },
+    {
+      "key": "deploy_branding",
+      "category": "loanword",
+      "en": "Branding",
+      "_note": "Loanword across locales."
+    },
+    {
+      "key": "loan_workflow",
+      "category": "loanword",
+      "en": "Workflow",
+      "_note": "The universal noun for a multi-step automation. `Arbeitsablauf` / `flux de travail` would feel like translation."
+    },
+    {
+      "key": "loan_dashboard",
+      "category": "loanword",
+      "en": "Dashboard",
+      "_note": "Universal across the industry."
+    },
+    {
+      "key": "loan_cloud",
+      "category": "loanword",
+      "en": "Cloud",
+      "_note": "Universal noun for managed-SaaS. `Wolke` would be wrong."
+    },
+    {
+      "key": "loan_webhook",
+      "category": "loanword",
+      "en": "Webhook",
+      "_note": "No native equivalent in either language."
+    },
+    {
+      "key": "loan_prompt",
+      "category": "loanword",
+      "en": "Prompt",
+      "_note": "Standard term for AI-prompt input."
+    },
+    {
+      "key": "loan_token",
+      "category": "loanword",
+      "en": "Token"
+    },
+    {
+      "key": "loan_server",
+      "category": "loanword",
+      "en": "Server"
+    },
+    {
+      "key": "loan_canvas",
+      "category": "loanword",
+      "en": "Canvas",
+      "fr": "Canevas",
+      "_note": "Loanword in DE; calqued in FR — match the shipped UI."
+    },
+    {
+      "key": "loan_composer",
+      "category": "loanword",
+      "en": "Composer",
+      "fr": "Composeur"
+    },
+    {
+      "key": "loan_status",
+      "category": "loanword",
+      "en": "Status",
+      "fr": "Statut"
+    },
+    {
+      "key": "loan_integration",
+      "category": "loanword",
+      "en": "Integration",
+      "fr": "Intégration"
+    },
+    {
+      "key": "loan_tool",
+      "category": "loanword",
+      "en": "Tool",
+      "_note": "In product context (`an agent's tools`), `Tool` is the industry term. Use `Werkzeug` / `outil` only in metaphors."
+    },
+    {
+      "key": "loan_pipeline",
+      "category": "loanword",
+      "en": "Pipeline"
+    },
+    {
+      "key": "loan_team",
+      "category": "loanword",
+      "en": "Team",
+      "fr": "Équipe"
+    },
+    {
+      "key": "git_pullRequest",
+      "category": "gitDomain",
+      "en": "Pull Request",
+      "_note": "Plural in DE prose: `Pull Requests` (no German plural ending). Avoid `Pull Anfrage`."
+    },
+    {
+      "key": "git_pullRequests",
+      "category": "gitDomain",
+      "en": "Pull Requests"
+    },
+    {
+      "key": "git_codeReview",
+      "category": "gitDomain",
+      "en": "Code Review",
+      "_note": "Avoid `Code-Review-Prozess` — drop the `-Prozess` suffix; `Code Review` is already the noun."
+    },
+    {
+      "key": "git_merge",
+      "category": "gitDomain",
+      "en": "Merge",
+      "_note": "Verb form in DE prose: `mergen` (lowercase, native conjugation). Avoid `Verschmelzung`."
+    },
+    {
+      "key": "git_rebase",
+      "category": "gitDomain",
+      "en": "Rebase",
+      "_note": "Verb: `rebasen`. Avoid `Neugründung`, `Neubasierung`."
+    },
+    {
+      "key": "git_branch",
+      "category": "gitDomain",
+      "en": "Branch",
+      "_note": "Plural: `Branches`. Avoid `Zweig` (literal translation; reads as undigested German)."
+    },
+    {
+      "key": "git_commit",
+      "category": "gitDomain",
+      "en": "Commit",
+      "_note": "Verb: `committen`. Plural: `Commits`."
+    },
+    {
+      "key": "git_push",
+      "category": "gitDomain",
+      "en": "Push",
+      "_note": "Verb: `pushen`. Avoid `hochladen` in the Git context."
+    },
+    {
+      "key": "git_pull",
+      "category": "gitDomain",
+      "en": "Pull",
+      "_note": "Verb: `pullen`. Distinct from `Pull Request`."
+    },
+    {
+      "key": "git_fork",
+      "category": "gitDomain",
+      "en": "Fork",
+      "_note": "Verb: `forken`."
+    },
+    {
+      "key": "git_diff",
+      "category": "gitDomain",
+      "en": "Diff",
+      "_note": "Avoid `Unterschied` in the Git context."
+    },
+    {
+      "key": "git_issue",
+      "category": "gitDomain",
+      "en": "Issue",
+      "_note": "Plural: `Issues`. Avoid `Tickets` unless the issue tracker uses that word."
+    },
+    {
+      "key": "git_repository",
+      "category": "gitDomain",
+      "en": "Repository",
+      "_note": "Plural: `Repositories`. Native `Repositorien` is correct but uncommon."
+    },
+    {
+      "key": "git_tag",
+      "category": "gitDomain",
+      "en": "Tag",
+      "_note": "Plural: `Tags`."
+    },
+    {
+      "key": "git_release",
+      "category": "gitDomain",
+      "en": "Release",
+      "_note": "Plural: `Releases`."
+    },
+    {
+      "key": "git_checkout",
+      "category": "gitDomain",
+      "en": "Checkout",
+      "_note": "Verb: `auschecken` is acceptable native; `Checkout` is fine as a noun."
+    },
+    {
+      "key": "git_main",
+      "category": "gitDomain",
+      "en": "main",
+      "_note": "The default branch name. Don't translate."
+    },
+    {
+      "key": "abbr_eg",
+      "category": "abbreviation",
+      "en": "e.g.",
+      "de": "z. B.",
+      "fr": "p. ex.",
+      "_note": "for example / zum Beispiel / par exemple. DE uses non-breaking space between period and letter (Duden)."
+    },
+    {
+      "key": "abbr_ie",
+      "category": "abbreviation",
+      "en": "i.e.",
+      "de": "d. h.",
+      "fr": "c.-à-d.",
+      "_note": "that is / das heißt / c'est-à-dire."
+    }
+  ],
+  "version": "5.0.0",
+  "_versionNote": "v5.0.0 — slim glossary. The JSON holds only term lookup data (terms[]) and category metadata. Test-data lists (formalPronouns, nounGenders) moved to services/docs/tests/data/*.ts; doctrine tables (styleConventions, marketingSofteners, antiPatternExamples, toastConventions, errorMessagePatterns, antiPatterns, deCH) moved back into the TERMINOLOGY*.md files."
 }

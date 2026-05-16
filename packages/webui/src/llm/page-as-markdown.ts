@@ -10,7 +10,7 @@ interface RenderParams {
   frontmatter: Record<string, string | boolean | number> | null;
   /** Markdown body (no leading frontmatter). */
   body: string;
-  /** Origin used to absolutise relative links, e.g. `https://docs.tale.dev`. */
+  /** Origin used to absolutise relative links, e.g. `https://example.com/docs`. */
   siteUrl: string;
 }
 

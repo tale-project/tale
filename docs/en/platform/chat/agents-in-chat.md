@@ -1,32 +1,36 @@
 ---
-title: Using agents in chat
-description: Pick specialised agents from the chat input to change how Tale answers.
+title: Agents in chat
+description: Pick a specialised agent from the composer to scope knowledge, restrict tools, and route conversations through the right voice.
 ---
 
-An agent is a version of the AI tailored for a specific purpose — a support agent, a sales agent, a research agent, and so on. Each agent has its own instructions, knowledge access, and tool permissions. You pick which agent handles a conversation from the **agent selector** in the chat input.
+An agent is a version of the AI tailored for a specific job — a support agent answering customer questions from the help-centre folder, a sales-research agent allowed to call the web, an internal-research agent with read-only access to engineering documents. Each agent carries its own instructions, knowledge scope, and tool permissions, and the chat composer lets you pick which agent answers a given conversation. The audience is anyone in the product: Members pick agents the team has shipped, Editors and Developers build new ones.
 
-## Switching agents
+This page covers the runtime behaviour of agents inside chat — switching the active agent, reading conversation starters, watching delegation hand the conversation off to a specialist. The mental model for what an agent _is_ lives at [Agent concepts](/platform/agents/concepts); building one is at [Create an agent](/platform/agents/create).
 
-1. Click the **bot** icon in the bottom-left of the chat input.
-2. A list opens with the default chat agent at the top, followed by any custom agents your team has built.
-3. Click the agent you want. The conversation's title bar updates to show the active agent.
+## Switch the active agent
 
-Each conversation remembers its selected agent. Starting a new chat resets to the default.
+To route a conversation through a specific agent, open the agent selector (the bot icon in the bottom-left of the composer), scroll to the agent, and click it. The next message goes to the new agent's instructions, knowledge scope, and tools; the conversation header updates to show the active agent. Switching mid-conversation is allowed — the new agent reads the existing transcript before its first reply, so the context isn't lost.
 
-## Agent conversation starters
+Each conversation remembers its selected agent. Starting a new chat resets the picker to the default Assistant that ships with Tale.
 
-When you start a fresh conversation with an agent that has **conversation starters** configured, a row of clickable suggestions appears. Click one to send it as your first message — it's faster than typing, and it's a good way to discover what the agent is built for.
+## Conversation starters
 
-## Why switch agents?
+When the active agent has **starters** configured, a row of clickable suggestions appears on a fresh conversation. Click one to send it as the first message — it's faster than typing the prompt by hand, and it's a good way to see what the agent was built to handle. Starters are configured per agent on the **Agents > [agent] > Starters** tab; an agent with no starters shows an empty composer.
 
-- **Better answers on narrow topics** — a support agent has been pointed at support documents only, so it doesn't get distracted by unrelated knowledge.
-- **Restricted tools** — a read-only research agent can't modify data, so you can ask it exploratory questions without worrying about accidental changes.
-- **Different tone** — agents can be configured with different voices, output formats, and strictness.
+## Why switch agents
 
-## Handoffs (delegation)
+Three reasons readers reach for a non-default agent. A narrower knowledge scope gives sharper answers — a support agent that searches only the help-centre folder doesn't get distracted by internal engineering documents. A trimmer tool list keeps exploratory questions safe — a read-only research agent with every write operation toggled off can't accidentally update a ticket. A different voice changes the output shape — agents can be configured with distinct tones, output formats (Markdown, JSON, plain prose), and strictness.
 
-Some agents are configured to **delegate** to other agents when the topic drifts. If you ask a general support agent a billing question, it might hand off to a specialised billing agent automatically. When that happens, the conversation shows a short note explaining the switch.
+The single biggest quality lever is the agent's instructions. Most "the AI keeps doing X" complaints trace back to a missing or wrong sentence in the system prompt, not a wrong model.
 
-## Creating your own agent
+## Delegation hand-offs
 
-If you have Editor permissions or higher, you can build agents for your team. See [Create an agent](/platform/agents/create).
+Some agents are configured to **delegate** to specialists when the topic drifts. If a general support agent receives a billing question and has a billing-specialist agent registered as a delegation target, it hands the conversation off automatically. The hand-off shows in the transcript as a short note naming the new agent, and replies from that point onwards come from the delegate's instructions.
+
+Delegation is opt-in per agent. To enable it, open the agent's **Delegation** tab and pick which agents it can hand off to, with the topic or condition that triggers the hand-off. The configuration surface is documented at [Create an agent](/platform/agents/create).
+
+## Where this fits
+
+The agent picker is how the right specialist answers each question — instead of forcing one generic Assistant to cover every topic, you pick the agent built for the topic. Member roles can use whatever the team has shipped; Editor or higher is required to build a new agent.
+
+To build a specialist, start with [Agent concepts](/platform/agents/concepts) for the four-knob mental model, then walk [Create an agent](/platform/agents/create) end to end.

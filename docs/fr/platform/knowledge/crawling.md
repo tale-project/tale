@@ -5,12 +5,12 @@ description: Configure le crawler de Tale pour indexer des sites externes pour l
 
 Le crawler de Tale visite les pages d’un domaine que tu lui indiques, extrait le contenu texte et l’indexe dans la base de connaissances à côté de tes documents téléversés. L’agent IA peut alors répondre aux questions en s’appuyant sur ce contenu — "Quel est notre tarif actuel sur le site ?", "Quelles fonctionnalités ont changé dans les release notes v3 ?".
 
-Cette page cible Éditeur/Développeur. Pour le parcours utilisateur (ajouter simplement un site), voir [Base de connaissances](/fr/platform/workspace/knowledge-base).
+Cette page cible Éditeur/Développeur. Pour le parcours utilisateur (ajouter un site depuis le chat), voir [Base de connaissances](/fr/platform/workspace/knowledge-base).
 
 ## Ce que fait le crawler
 
 1. Récupère l’URL fournie et parse le HTML.
-2. Découvre les pages liées sur le même domaine.
+2. Trouve les pages liées sur le même domaine.
 3. Récupère chaque page découverte et répète jusqu’à la limite d’URLs découvertes du domaine.
 4. Convertit chaque page en texte propre (supprime navigation, footers, pubs).
 5. Indexe le texte dans le store de connaissances partagé avec l’URL de la page comme source.
@@ -51,4 +51,10 @@ Si un crawl ne remonte pas les pages attendues :
 
 ## Supprimer un site
 
-Supprimer un site suivi depuis **Base de connaissances > Sites web** retire tout le contenu indexé de ce site. C’est immédiat — l’IA ne les trouvera plus.
+Supprimer un site suivi depuis **Base de connaissances > Sites web** retire tout le contenu indexé de ce site. C'est immédiat — l'IA ne les trouvera plus.
+
+## Où ça s'inscrit
+
+Le crawling est le chemin d'import en masse pour le contenu web public. Il existe parce que copier un centre d'aide article par article dans la base de connaissances est un travail répétitif qui passe mal à l'échelle ; pointer le crawler vers le domaine importe tout en un mouvement. Une fois le contenu en base de connaissances, il se lit à l'identique des documents téléversés — même recherche, mêmes agents, mêmes contrôles d'accès.
+
+Pour ingérer des fichiers OneDrive ou d'autres sources authentifiées, utilise l'intégration correspondante dans [Intégrations — aperçu](/fr/platform/integrations/overview). Pour le workflow utilisateur final d'ajout d'un site depuis le chat, voir [Base de connaissances](/fr/platform/workspace/knowledge-base).

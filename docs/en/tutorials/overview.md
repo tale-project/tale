@@ -3,21 +3,26 @@ title: Tutorials
 description: Task-oriented, end-to-end walkthroughs for every Tale role.
 ---
 
-Tutorials are step-by-step walkthroughs that take you from "I want to do X" to a working result. They sit alongside the [Platform](/platform) reference — reference describes what every feature does, tutorials show how to combine features into a concrete outcome. Use Platform when you already know the feature and need detail; use this section when you want a guided path.
+The Tutorials section is the worked-example layer of Tale's documentation. Each page takes a single outcome — an agent that answers product-support questions, a script that calls Tale from a CI job, an Office add-in that routes through your instance — and walks every step needed to reach it on a fresh instance. They sit alongside the [Platform](/platform) reference: reference describes what every feature does in isolation, tutorials show how to combine features into a concrete result.
 
-The tutorials are grouped by role so you land on content you can actually execute. Permissions follow the [six-role model](/platform/admin/members-and-roles); if a tutorial lives under Admin, you need an Admin or Owner seat to finish it.
+Tutorials are grouped by the role that owns the task, so you land on content you can actually execute with the permissions you have. Permissions follow the [six-role model](/platform/admin/members-and-roles) — if a tutorial sits under Admin, you need an Admin or Owner seat to finish it.
 
-## By role
+## How a tutorial is shaped
 
-- **Member** — [Chat effectively](/tutorials/member/chat-effectively): combine agents, attachments, and dictation into a daily workflow.
-- **Editor** — [Build your first agent end to end](/tutorials/editor/first-agent-end-to-end): create an agent, attach knowledge, test, and publish a version.
-- **Developer** — [Call Tale from a script](/tutorials/developer/call-tale-from-a-script) and [Trigger an automation via webhook](/tutorials/developer/trigger-automation-via-webhook).
-- **Admin** — [Word & Excel add-in](/tutorials/admin/office-add-in), [Meeting transcription](/tutorials/admin/meeting-transcription), and [Connect a local provider](/tutorials/admin/connect-local-provider).
+Every tutorial follows the same shape: a short opening that names the outcome and the prerequisites, a **Before you begin** section that lists exactly what you need, numbered single-move steps with a verification line for each, a **Troubleshooting** section covering the three or four issues that actually come up, and a closing that names where the building block plugs in next. Integration tutorials (Office add-in, Meetily, local provider) carry an extra **Privacy notes** or **Trust boundary** section that names what crosses the network in each direction.
 
-## Prerequisites that apply to every tutorial
+If a step looks like it does two things at once, read it again — every step has one move and one verification. Skipping a section assuming you already have its prerequisite is the most common way a tutorial fails halfway through; the next step usually depends on the exact field the skipped section configures.
 
-- A Tale instance you can reach — Cloud or [self-hosted](/self-hosted).
-- An account in that instance. Role-gated tutorials say so at the top.
-- For tutorials that call the API, an API key from **Settings > API Keys**. Creation is Admin-only; see [Members and roles](/platform/admin/members-and-roles).
+## Pages in this section
 
-If a step assumes something not listed above, the tutorial spells it out in its own prerequisites section.
+- **[Chat effectively](/tutorials/member/chat-effectively)** — Member-role tutorial that combines the agent selector, attachments, dictation, and Canvas into a daily chat workflow.
+- **[Build your first agent end to end](/tutorials/editor/first-agent-end-to-end)** — Editor-role tutorial that takes you from an empty agent page to a versioned, knowledge-scoped agent your team can pick in chat.
+- **[Call Tale from a script](/tutorials/developer/call-tale-from-a-script)** — Developer-role tutorial that issues a chat request from cURL and Python against Tale's OpenAI-compatible API.
+- **[Trigger an automation via webhook](/tutorials/developer/trigger-automation-via-webhook)** — Developer-role tutorial that wires an external system into a Tale workflow via the unique webhook URL.
+- **[Word & Excel add-in](/tutorials/admin/office-add-in)** — Admin-role integration tutorial that routes a sideloaded AI panel inside Microsoft 365 through a Tale agent.
+- **[Meeting transcription](/tutorials/admin/meeting-transcription)** — Admin-role integration tutorial that pairs Tale with Meetily so raw audio stays on the laptop and only the transcript reaches your instance.
+- **[Connect a local provider](/tutorials/admin/connect-local-provider)** — Admin-role integration tutorial that adds Ollama or vLLM as a Tale AI provider so model inference stays inside your network.
+
+## Where this fits
+
+The tutorials cover the four canonical entry points into Tale — Member, Editor, Developer, Admin — and three integration pairings on top. For the conceptual model behind each tutorial, the corresponding page under [Platform](/platform) is the reference; for the API and SDK surfaces the developer tutorials build on, [Develop](/develop/api-reference) is one tab over.

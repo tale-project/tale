@@ -1,41 +1,65 @@
 ---
 title: Chatter efficacement
-description: Combiner agents, pièces jointes et dictée dans un workflow quotidien avec Tale.
+description: Combiner agents, pièces jointes, dictée et Canevas dans un workflow quotidien avec Tale.
 ---
 
-La plupart des Membres utilisent le chat de la même façon chaque jour : choisir le bon agent, déposer du contexte, demander, affiner. Ce tutoriel déroule cette boucle end-to-end pour que tu obtiennes des réponses ancrées sur les données de ton organisation, pas la sortie générique d’un modèle. Il enchaîne trois fonctionnalités déjà visibles dans l’UI — le [sélecteur d’agent](/fr/platform/chat/agents-in-chat), les [pièces jointes](/fr/platform/chat/attachments) et la dictée — dans un workflow réutilisable pour tes vraies tâches.
+La plupart des Membres utilisent le chat Tale de la même façon chaque jour : choisir le bon agent, déposer le contexte, demander, itérer. Ce tutoriel parcourt cette boucle pour que tes réponses soient ancrées dans le savoir de ton organisation, pas dans une sortie de modèle générique. La référence fonctionnelle de chaque étape vit sous [Chat](/fr/platform/chat/basics) ; cette page assemble les pièces en un workflow répétable.
 
-Le flux tient en moins de cinq minutes une fois que tu l’as fait une fois. Il te faut un accès Membre ou supérieur, rien d’autre.
+La boucle entière dure moins de cinq minutes une fois que tu l'as faite une fois. Le résultat à la fin est une conversation qui produit des réponses que tu transmettrais.
+
+## Avant de commencer
+
+Il te faut un accès Membre ou supérieur dans l'instance Tale où tu es connecté — chaque compte connecté sauf `Désactivé` peut utiliser le chat. Au moins un agent doit exister dans l'organisation ; l'agent de chat général est livré par défaut, donc ce prérequis est rempli sur chaque instance. Pas de setup externe, pas de clé API, pas de permission admin nécessaire.
 
 ## Étape 1 — Choisir le bon agent
 
-Ouvre **Chat** dans la barre latérale et clique le sélecteur d’agent en bas à gauche du composeur. Par défaut, c’est l’agent de chat général, qui cherche dans tout le savoir de l’organisation. Si ton équipe a créé des agents spécialisés — un agent support, un agent relecture juridique, un agent recherche commerciale — bascule sur celui dont le savoir et les outils collent à ta tâche. Un agent plus étroit produit presque toujours de meilleures réponses.
+Un agent dédié cherche dans une portion plus étroite de la base de connaissances et suit un prompt système plus serré, ce qui produit presque toujours une réponse plus nette que l'agent de chat général. Ouvre **Chat** dans la barre latérale et clique sur le sélecteur d'agent en bas à gauche du composer ; la liste déroulante montre chaque agent que ton rôle peut voir.
 
-Si tu hésites, commence par celui dont la description est la plus proche. Tu peux changer en cours de conversation ; le nouvel agent garde l’historique.
+Choisis celui dont la description colle le plus près à ta tâche — un agent `product-support` pour une question client, un agent `legal-review` pour une clause de contrat, l'agent de chat par défaut pour le reste. Si tu ne sais pas, démarre avec le plus proche et change en cours de conversation : le nouvel agent garde l'historique des messages.
 
-## Étape 2 — Donner du contexte via les pièces jointes
+L'étape a fonctionné quand le nom d'affichage de l'agent apparaît au-dessus du composer et que le placeholder reflète ses lanceurs de conversation.
 
-Glisse le fichier ou l’image à regarder sur la fenêtre de chat, ou clique l’icône trombone. Les pièces jointes sont traitées avant l’envoi, donc l’agent les voit en lisant ta question. Les types supportés sont listés dans [pièces jointes](/fr/platform/chat/attachments) — PDF, documents Office, images, et la plupart des fichiers de code.
+## Étape 2 — Donner du contexte via des pièces jointes
 
-Les pièces jointes restent attachées à la conversation, pas à la base de connaissances partagée. Si le fichier doit être disponible à tous plus tard, passe par la [base de connaissances](/fr/platform/workspace/knowledge-base) à la place.
+Les pièces jointes laissent l'agent lire le fichier exact dont tu parles, au lieu de deviner depuis sa mémoire. Glisse un fichier ou une image sur la fenêtre de chat, ou clique sur l'icône trombone du composer. Les types pris en charge — PDF, documents Office, images, audio, vidéo, et la plupart des fichiers de code — sont listés dans [Pièces jointes](/fr/platform/chat/attachments) ; les fichiers hors de la liste sont rejetés avant l'envoi.
 
-## Étape 3 — Dicter quand c’est plus rapide que taper
+Les pièces jointes restent limitées à la conversation, pas à la base de connaissances partagée. Si le fichier doit être interrogeable par tout le monde plus tard, téléverse-le via la [base de connaissances](/fr/platform/workspace/knowledge-base) — il y est indexé une fois et réutilisé par chaque agent.
 
-En marchant, pour résumer un appel, ou simplement quand tu penses plus vite que tu ne tapes : clique l’icône micro dans le composeur et parle. La dictée tourne dans ton navigateur (Web Speech API), l’audio ne quitte pas ton appareil. La transcription apparaît dans le champ au fil de la voix ; tu peux la corriger avant d’envoyer.
+L'étape a fonctionné quand le fichier apparaît comme une puce sous le composer, avec son nom et sa taille, et que la première réponse de l'agent fait référence à son contenu.
 
-La dictée n’est pas un mode, c’est un outil par message — active, parle, désactive, envoie.
+## Étape 3 — Dicter quand parler va plus vite que taper
+
+L'icône micro du composer active la dictée du navigateur ; l'audio est traité localement par la Web Speech API et la transcription se déverse dans le champ pendant que tu parles. Les octets audio n'atteignent pas les serveurs Tale — seul le texte reconnu quitte ton appareil.
+
+Active le micro, dis la question, désactive-le, et corrige la transcription avant d'envoyer. La dictée est un outil par requête, pas un mode : il n'y a pas de préférence à régler, et aucune trace ne reste une fois le message envoyé.
+
+L'étape a fonctionné quand la transcription apparaît dans le champ pendant que tu parles.
 
 ## Étape 4 — Itérer sur la réponse
 
-Une première réponse est rarement la bonne. Utilise des relances courtes pour resserrer : « résume en trois points », « maintenant en français », « cite le document utilisé », « réécris pour un lecteur non technique ». L’agent garde tout le fil en contexte, chaque relance profite du tour précédent.
+La première réponse est rarement la dernière. Les courtes relances sont le chemin le plus rapide pour préciser : `résume en trois points`, `maintenant en anglais`, `cite le document utilisé`, `réécris pour un lecteur non technique`. L'agent garde tout le fil en contexte, donc chaque relance bénéficie du tour précédent — pas besoin de répéter ce que tu as déjà dit.
 
-Quand tu atteins un résultat réutilisable, enregistre-le dans la [Bibliothèque de prompts](/fr/platform/workspace/prompt-library) — la prochaine fois, le même point de départ est à un clic.
+Quand tu atterris sur un résultat qui mérite d'être réutilisé, enregistre le prompt dans la [bibliothèque de prompts](/fr/platform/workspace/prompt-library). La prochaine fois, le même point de départ est à un clic du composer.
 
-## Étape 5 — Voir les artéfacts dans le Canevas quand ce n’est pas que du texte
+L'étape a fonctionné quand la réponse suivante de l'agent répond visiblement à la contrainte ajoutée dans la relance.
 
-Si l’agent renvoie du HTML exécutable, un SVG, un diagramme Mermaid ou un long document Markdown, il crée un **artéfact** qui s’ouvre automatiquement dans le volet latéral du Canevas et apparaît dans la barre d’artéfacts au-dessus du chat. Le Canevas te donne aperçu en direct, édition de la source et export — bien plus lisible qu’une bulle de chat qui défile, et l’IA peut réviser l’artéfact en place quand tu demandes des corrections. Voir [Canevas](/fr/platform/workspace/canvas) pour la liste complète des actions.
+## Étape 5 — Voir les artefacts dans Canevas quand c'est plus que du texte
 
-## Ensuite
+Un long document Markdown, une page HTML exécutable, un SVG ou un diagramme Mermaid est difficile à lire dans une bulle de chat. Quand l'agent en produit un, Tale l'ouvre automatiquement comme artefact dans le panneau latéral [Canevas](/fr/platform/workspace/canvas) et le liste dans la barre Artefacts au-dessus du chat — aperçu en direct, vue source, et export vivent tous dans le panneau Canevas.
 
-- Construis un agent calibré pour ton équipe : [Construire ton premier agent end-to-end](/fr/tutorials/editor/first-agent-end-to-end) (rôle Éditeur).
-- Apprends les raccourcis clavier : [AI chat — Raccourcis clavier](/fr/platform/chat/basics#raccourcis-clavier).
+Demande à l'agent de réviser l'artefact sur place (`rends le diagramme horizontal`, `ajoute une deuxième colonne`) et Canevas le met à jour sans produire de nouvelle bulle.
+
+L'étape a fonctionné quand le panneau Canevas s'ouvre à droite avec l'artefact rendu, et que la bulle de chat affiche un court résumé au lieu du contenu complet.
+
+## Dépannage
+
+- **L'agent répond depuis le mauvais savoir** — l'agent a accès à un ensemble de dossiers trop large. Bascule vers un agent plus étroit ou demande au propriétaire de l'agent de restreindre son onglet **Base de connaissances**. La cartographie complète vit dans [Concepts d'agent — Base de connaissances](/fr/platform/agents/concepts#knowledge).
+- **La pièce jointe a été téléversée mais l'agent l'ignore** — le fichier dépasse le budget de contexte du modèle ou son type n'est pas dans l'ensemble pris en charge. Essaie un fichier plus petit ou convertis en PDF ; [Pièces jointes](/fr/platform/chat/attachments) liste les types et limites pris en charge.
+- **L'icône micro n'apparaît pas** — le navigateur ne prend pas en charge la Web Speech API (anciens builds Firefox, certaines WebView embarquées) ou le site n'a pas la permission micro. Bascule sur Chrome, Edge ou Safari, et accorde la permission quand on te la demande.
+- **Le panneau Canevas ne s'ouvre pas** — la sortie de l'agent n'est pas assez longue ou ne correspond à aucun format d'artefact. Demande explicitement un artefact HTML, Mermaid ou Markdown dans le prompt.
+
+## Où ça s'inscrit
+
+La même boucle en cinq étapes couvre presque tout le travail quotidien de chat d'un Membre : agent, contexte, demander, itérer, sortir les artefacts de la bulle quand ils méritent une autre place. Les raccourcis qui donnent la vitesse — glisser-déposer pour les pièces jointes, dictée, sélecteur d'agent, bibliothèque de prompts — vivent tous dans le composer ; la mémoire musculaire rend la boucle proche d'une barre de recherche au-dessus du savoir de ton organisation.
+
+Quand tu cherches un agent plus ajusté que ceux disponibles, [Construire ton premier agent end-to-end](/fr/tutorials/editor/first-agent-end-to-end) déroule la création — ça demande le rôle Éditeur. Pour les raccourcis clavier qui compressent encore la boucle, [Chat — Bases — Raccourcis clavier](/fr/platform/chat/basics#keyboard-shortcuts) porte la liste complète.

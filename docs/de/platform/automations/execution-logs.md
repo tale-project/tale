@@ -1,43 +1,64 @@
 ---
 title: Ausführungslogs
-description: Vergangene Workflow-Runs untersuchen, Fehler debuggen und mit Anpassungen neu laufen lassen.
+description: Vergangene Automatisierungs-Läufe lesen, Fehler debuggen und mit neuer Eingabe erneut starten.
 ---
 
-Der **Ausführungen**-Tab jedes Workflows listet jeden Lauf — ob per Zeitplan, Event, Webhook oder manuell gestartet — mit Zeitstempeln, Dauer, Endstatus und Schritt-für-Schritt-Details.
+Der **Ausführungen**-Tab jeder Automatisierung ist die Pro-Lauf-Aufzeichnung von allem, was versucht hat, sie zu starten — Zeitpläne, Webhooks, Ereignisse und manuelle Läufe gleichermassen. Jede Zeile ist ein Lauf, jede Zeile klappt sich zur Schritt-für-Schritt-Spur von Eingaben, Ausgaben und Fehlern auf, die ihn produziert hat. Hier landet ein Entwickler oder Admin, wenn eine Drittanbieter-API nachts `400` zurückgegeben hat und die Frage lautet „welcher Schritt, mit welcher Payload, gegen welches Modell".
 
-## Was ein Ausführungs-Datensatz zeigt
+Läufe werden gemäss der [Aufbewahrungsrichtlinie](/de/platform/admin/governance#aufbewahrung) der Organisation aufbewahrt. Jenseits dieses Horizonts werden Zeilen vom täglichen Aufräum-Job hart gelöscht; langfristiges Debugging heisst, die Spur zu kopieren, bevor das passiert.
 
-Klicke in der **Ausführungen**-Tabelle auf eine Zeile, um das Detail-Panel zu öffnen:
+## Ein durchgearbeiteter Fehlschlag
 
-- **Übersicht** — Trigger-Typ, Start- und Endzeit, Dauer, Endstatus und das vollständige Input-Payload.
-- **Schritte** — jeder Schritt mit Status (erfolgreich, fehlgeschlagen, übersprungen), Input, Output, Dauer und etwaiger Fehlermeldung.
-- **Variablen** — die Workflow-Variablen zum Zeitpunkt des Laufs (hilfreich, falls du sie seither geändert hast).
-- **Roh** — die JSON-Trace des gesamten Laufs, per Kopier-Button exportierbar.
+Klicke auf eine beliebige Zeile, um sie auszuklappen. Das Detail-Panel zeigt eine JSON-Ansicht des ganzen Laufs, strukturiert wie folgt:
 
-Fehlgeschlagene Schritte sind standardmäßig aufgeklappt, damit du den Fehler ohne Klick siehst.
+```json
+{
+  "execution": {
+    "id": "exe_…",
+    "status": "failed",
+    "startedAt": "2026-05-15T09:12:04.317Z",
+    "completedAt": "2026-05-15T09:12:06.842Z",
+    "triggeredBy": "webhook",
+    "error": "Shopify returned 400: 'price' must be a positive number"
+  },
+  "metadata": { … trigger source, webhook token id, idempotency key … },
+  "variables": { … workflow variables at run time … },
+  "journal": [
+    { "step": "Start", "status": "completed", "input": { … }, "output": { … } },
+    { "step": "Fetch order", "status": "completed", "output": { … } },
+    { "step": "Create line item", "status": "failed", "error": { … } }
+  ]
+}
+```
+
+Das Feld `journal` trägt die Last — jeder Schritt, der gelaufen ist, wird in Reihenfolge aufgezeichnet, mit der buchstäblichen Eingabe, der erzeugten Ausgabe und dem Fehler, falls einer geworfen wurde. Fehlgeschlagene Schritte bleiben standardmässig aufgeklappt, damit der Fehler sich selbst zeigt, ohne dass du durch Geschwister suchst.
 
 ## Filtern und Suchen
 
-Die **Ausführungen**-Tabelle unterstützt:
+Die Filterleiste über der Tabelle deckt die Fälle ab, nach denen du am häufigsten greifst.
 
-- **Status-Filter** — erfolgreich, fehlgeschlagen, laufend, abgebrochen.
-- **Zeitbereich** — letzte Stunde, letzte 24 Stunden, letzte 7 Tage, benutzerdefiniert.
-- **Trigger-Filter** — Zeitplan, Event, Webhook, manuell.
-- **Textsuche** — über Trigger-Namen, Fehlermeldungen und Schritt-Inputs/Outputs.
+| Filter              | Werte                                                                                   |
+| ------------------- | --------------------------------------------------------------------------------------- |
+| **Status**          | `running`, `completed`, `failed`, `pending`.                                            |
+| **Ausgelöst durch** | `schedule`, `manual`, `event`, `webhook`, `api`, `system`.                              |
+| **Zeitraum**        | Heute, letzte 7 Tage, letzte 30 Tage, alle Zeiten oder ein eigenes Von/Bis.             |
+| **Suche**           | Exakter Treffer auf die Lauf-ID; nützlich, wenn du die ID aus einem Fehlerbericht hast. |
 
-## Neu starten
+Die Tabelle lädt die jüngsten Läufe seitenweise und blättert beim Tiefer-Scrollen unendlich weiter. Filter kombinieren sich — `status: failed` plus `triggered by: webhook` plus die letzten 24 Stunden grenzt auf „was ist seit heute Morgen an eingehendem Verkehr explodiert" ein.
 
-Aus dem Detail-Panel einer Ausführung kannst du:
+## Erneut starten
 
-- **Mit gleichem Input erneut ausführen** — eine neue Ausführung mit demselben Input starten. Nützlich, wenn sich der Workflow geändert hat und du einen vergangenen Request erneut durchspielen willst.
-- **Mit anderem Input erneut ausführen** — das Input-Payload vor dem erneuten Lauf bearbeiten. Nützlich für das Debuggen von Edge Cases.
+Aus einer ausgeklappten Zeile spielen zwei Aktionen den Lauf erneut ab:
 
-Erneute Läufe erscheinen als neue Ausführungen — der Originalsatz bleibt erhalten.
+- **Mit gleicher Eingabe erneut starten** beginnt einen frischen Lauf mit der ursprünglichen Payload. Nützlich, wenn sich die Automatisierung seit dem ursprünglichen Fehlschlag geändert hat und du den Fix bestätigen willst.
+- **Mit anderer Eingabe erneut starten** öffnet die Payload in einem Editor, sodass du sie vor dem Feuern anpassen kannst. Nützlich, um Edge Cases abzuklopfen — ändere ein Feld, beobachte, welcher Schritt anders verzweigt.
 
-## Aufbewahrung
-
-Ausführungs-Datensätze werden gemäß der [Aufbewahrungsrichtlinie](/de/platform/admin/governance) deiner Organisation aufbewahrt. Standardmäßig bleiben Schritt-Details 90 Tage erhalten, Zusammenfassungs-Datensätze ein Jahr.
+Erneute Läufe landen als neue Zeilen im **Ausführungen**-Tab; der ursprüngliche Fehlschlag bleibt an Ort und Stelle, damit die Audit-Spur intakt bleibt.
 
 ## Alarme
 
-Konfiguriere Alarme im **Alarme**-Tab des Workflows, damit ein Admin per Email benachrichtigt wird, wenn ein Workflow fehlschlägt, länger als ein Schwellwert läuft oder einen Fehler erzeugt, der einem Muster entspricht. Für Workflow-übergreifende Alarme (z. B. "mehr als 5 Fehlschläge pro Stunde über alle Workflows") nutze [Operations](/de/self-hosted/operate/observability/operations).
+Der **Alarme**-Tab einer Automatisierung erlaubt dir, Fehlschlag-Benachrichtigungen an die E-Mail eines Admins zu verdrahten — feuern, wenn ein Lauf fehlschlägt, wenn er über einen Schwellwert hinaus läuft oder wenn der Fehler zu einem Muster passt. Die Alarme pro Automatisierung decken den Pro-Automatisierungs-Fall ab; für „mehr als fünf Fehlschläge in der letzten Stunde über jede Automatisierung in der Organisation" greife stattdessen zu [Operations](/de/self-hosted/operate/observability/operations) — das trägt die organisationsweite Aufrollung, die die Alarm-Oberfläche absichtlich nicht trägt.
+
+## Wo das einsetzt
+
+Ausführungslogs sind die Pro-Automatisierungs-Debug-Oberfläche — der **Ausführungen**-Tab auf der Automatisierung vor dir. Für die organisationsweite Aufrollung (Gesamtläufe, Erfolgsquote, Top-Automatisierungen nach Volumen) ist [Automatisierungs-Metriken](/de/platform/automations/metrics) das Dashboard. Für organisationsweite Fehler-Trends, die Automatisierungen und Chat mischen, ist [Operations](/de/self-hosted/operate/observability/operations) die richtige Oberfläche, einen Tab daneben.

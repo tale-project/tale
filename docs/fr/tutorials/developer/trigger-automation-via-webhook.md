@@ -1,75 +1,99 @@
 ---
 title: Déclencher une automatisation via webhook
-description: Brancher un système externe sur un workflow Tale via une requête webhook signée.
+description: Brancher un système externe sur un workflow Tale via une URL webhook à jeton unique.
 ---
 
-Les triggers webhook transforment tout événement externe — un submit de formulaire, un hook de système amont, une étape CI/CD — en un run d’automatisation Tale. Le service externe POST du JSON sur une URL que tu contrôles ; le workflow démarre avec ce payload en entrée. Ce tutoriel déroule : créer un workflow minimal, exposer son webhook, envoyer une requête signée, vérifier la livraison. La référence est dans [Webhooks](/fr/develop/webhooks) et [Triggers](/fr/platform/automations/triggers).
+Les déclencheurs webhook transforment chaque événement externe — soumission de formulaire, hook d'un système amont, étape CI, slash command Slack — en un lancement de workflow Tale. Le service externe envoie du JSON en POST à une URL qui contient un jeton unique ; le jeton est l'identifiant, et le workflow démarre avec ce JSON comme entrée. Ce tutoriel déroule la création d'un workflow minimal, l'exposition de son webhook, l'envoi d'une requête et la vérification de la livraison. La référence vit dans [Webhooks](/fr/develop/webhooks) et [Déclencheurs](/fr/platform/automations/triggers).
 
-Il te faut un accès Développeur. Une instance Tale joignable en HTTPS par l’appelant externe suffit — rien d’autre à prévoir.
+Le résultat à la fin est un workflow appelable depuis l'extérieur que tu peux piloter depuis n'importe quel client HTTPS.
 
-## Étape 1 — Créer un workflow avec un trigger webhook
+## Avant de commencer
 
-Ouvre **Automatisations** dans la barre latérale et clique **Nouveau workflow**. Donne-lui un nom (`incoming-order-intake`) et ouvre l’étape **Start**. Dans **Triggers**, ajoute un **Trigger webhook**. Tale génère une URL unique de la forme :
+Il te faut un rôle qui peut créer et publier des workflows — Propriétaire, Admin ou Développeur conviennent. Il te faut aussi une instance Tale joignable en HTTPS depuis l'endroit où tourne l'appelant externe ; pour un test local l'appelant est ton portable, en production c'est le système amont qui fait le POST. Pas de compte de service externe, pas de clé API — le jeton webhook est son propre identifiant.
+
+## Étape 1 — Créer un workflow avec un déclencheur webhook
+
+Ouvre **Automatisations** dans la barre latérale et clique sur **Créer un workflow**. Donne-lui un slug (`incoming-order-intake`) — les slugs sont compatibles URL et permanents en pratique, puisque l'URL webhook ne contient rien d'autre qui identifie le workflow. Ouvre le panneau **Déclencheurs** et ajoute un déclencheur **Webhook**. Tale génère une URL unique de la forme :
 
 ```text
-https://<ton-instance-tale>/api/webhooks/workflow/<workflow-id>
+https://<ton-instance-tale>/api/workflows/wh/<TOKEN>
 ```
 
-Définis un **secret webhook** — n’importe quelle chaîne à forte entropie. C’est le secret partagé qui sert à signer et à vérifier les requêtes. Stocke-le dans le gestionnaire de secrets de ton appelant.
+Le jeton fait 64 caractères hexadécimaux et est le seul identifiant — quiconque détient l'URL peut poster des événements vers le workflow. Traite-la comme tu traiterais une clé API : range-la dans le gestionnaire de secrets de l'appelant, ne la commit jamais.
 
-## Étape 2 — Ajouter une étape qui utilise le payload
+L'étape a fonctionné quand le panneau de déclencheur montre l'URL et un bouton « Copier » à côté.
 
-Le corps du webhook devient l’entrée du workflow. Ajoute une étape **LLM** après Start et référence l’entrée dans le prompt :
+## Étape 2 — Référencer la charge utile dans une étape
+
+Le corps du POST devient l'entrée du workflow, adressable comme `{{ trigger.body }}` dans chaque étape. Ajoute une étape **LLM** après le déclencheur et référence l'entrée dans le prompt :
 
 ```text
-Classe cette prise de commande en urgent, normal ou à rappeler :
+Classifie cette saisie de commande comme urgent, normal ou follow-up.
 
+Charge utile :
 {{ trigger.body | json }}
 ```
 
-Voir [Workflows](/fr/platform/automations/workflows) pour la palette d’étapes complète et la syntaxe des variables.
+Le filtre `| json` rend tout le corps comme chaîne JSON que le modèle peut lire. La syntaxe complète des filtres et variables vit dans [Workflows](/fr/platform/automations/workflows).
 
-Sauvegarde le workflow et passe-le en **Publier** pour que le webhook soit actif.
+L'étape a fonctionné quand l'aperçu de l'étape montre le prompt avec le marqueur de placeholder encore visible (le corps se résout à l'exécution, pas à l'aperçu).
 
-## Étape 3 — Appeler le webhook depuis l’extérieur
+## Étape 3 — Publier et appeler le webhook
 
-Tale signe chaque requête entrante avec HMAC-SHA-256 si un secret est défini. L’appelant doit faire de même ; Tale rejette les requêtes non signées ou mal signées.
+Enregistre le workflow et bascule **Publier** pour que le déclencheur soit en ligne ; les workflows non publiés rejettent les POST webhook avec `403`. Appelle ensuite l'URL depuis ton appelant :
 
 ```bash
-BODY='{"customerId":"c-42","priority":"high","lines":3}'
-SIG="sha256=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$WEBHOOK_SECRET" | sed 's/.* //')"
-
-curl -X POST "https://<ton-instance-tale>/api/webhooks/workflow/<workflow-id>" \
+curl -X POST "https://<ton-instance-tale>/api/workflows/wh/<TOKEN>" \
   -H "Content-Type: application/json" \
-  -H "X-Tale-Signature: $SIG" \
-  -d "$BODY"
+  -d '{"customerId":"c-42","priority":"high","lines":3}'
 ```
 
-Réponse :
+Le POST renvoie immédiatement un `200 OK` avec un petit corps :
 
 ```json
-{ "executionId": "exec_..." }
+{ "status": "accepted", "workflowSlug": "incoming-order-intake" }
 ```
 
-Le POST revient immédiatement avec un ID d’exécution — le workflow tourne de manière asynchrone.
+Le workflow lui-même tourne de manière asynchrone. Tale planifie l'exécution dans une file d'arrière-plan ; l'appelant ne bloque jamais en attendant la sortie du workflow.
 
-## Étape 4 — Vérifier le run
+L'étape a fonctionné quand le statut de réponse est `200` et que le corps correspond à la forme ci-dessus.
 
-Ouvre le workflow et clique l’onglet **Executions**. Filtre par ID d’exécution ou par horodatage ; tu vois le payload du trigger, l’entrée et la sortie de chaque étape, et le temps total. C’est là que tu débogues les échecs. Voir [Journaux d’exécution](/fr/platform/automations/execution-logs) pour la vue complète.
+## Étape 4 — Vérifier l'exécution
 
-## Étape 5 — Ajouter retries et idempotence (durcissement prod)
+Ouvre l'onglet **Exécutions** du workflow pour voir l'exécution. Chaque ligne montre la charge utile du déclencheur, les entrées et sorties de chaque étape, et la durée totale. Filtre par horodatage ou statut pour trouver une exécution précise. Cet onglet est la surface canonique de débogage — quand une étape échoue, son message d'erreur et sa stack trace sont ici, pas dans la réponse HTTP.
 
-- **Retries :** Tale retente les réponses non-2xx en backoff exponentiel jusqu’à cinq tentatives. Si ton appelant retente de son côté, chaque tentative doit envoyer le même body — sinon la signature ne tiendra pas.
-- **Idempotence :** inclue un ID de requête stable dans le body (`requestId`). La première étape du workflow peut brancher sur « cet ID a-t-il déjà été vu ? » pour éviter que des livraisons en double ne produisent des effets en double.
-- **Rotation du secret :** change le secret dans l’UI Tale, propage-le à la config de l’appelant, puis redéploie. Un court recouvrement est inévitable ; un fail-open bref est acceptable si c’est viable chez toi.
+L'étape a fonctionné quand l'onglet Exécutions montre une nouvelle ligne avec la charge utile envoyée et un statut `succeeded` vert.
+
+## Étape 5 — Ajouter l'idempotence pour des relances sûres
+
+Si ton appelant relance de lui-même — réseau capricieux, étape CI qui tourne deux fois, webhook Stripe livré plus d'une fois — les POST en double déclencheront des exécutions en double. Envoie un en-tête `X-Idempotency-Key` stable pour rendre les relances côté appelant sûres ; Tale reconnaît la deuxième livraison et renvoie l'exécution originale sans en démarrer une nouvelle.
+
+```bash
+curl -X POST "https://<ton-instance-tale>/api/workflows/wh/<TOKEN>" \
+  -H "Content-Type: application/json" \
+  -H "X-Idempotency-Key: order-2026-05-15-42" \
+  -d '{"customerId":"c-42","priority":"high","lines":3}'
+```
+
+Une livraison en double renvoie :
+
+```json
+{ "status": "duplicate", "executionId": "exec_..." }
+```
+
+Choisis une clé stable d'une relance à l'autre et unique d'un événement distinct à l'autre — la plupart des appelants utilisent l'ID d'événement amont.
+
+L'étape a fonctionné quand un second POST avec la même clé renvoie `status: "duplicate"` et qu'aucune nouvelle ligne n'apparaît dans **Exécutions**.
 
 ## Dépannage
 
-- **401 invalid signature** — le body signé n’est pas identique octet par octet à celui envoyé (souvent à cause d’un middleware qui pretty-print le JSON).
-- **404 workflow not found** — le workflow a été supprimé ou son ID a changé ; recopie l’URL depuis l’étape Start.
-- **5xx** — regarde l’onglet Executions pour l’étape qui échoue. Le corps de réponse HTTP contient le résumé d’erreur.
+- **404 Invalid webhook token** — le jeton dans l'URL est faux, ou le déclencheur a été supprimé puis recréé (la régénération frappe un nouveau jeton). Recopie l'URL depuis le panneau Déclencheurs du workflow.
+- **403 Webhook is disabled** — l'interrupteur du déclencheur est éteint, ou le workflow lui-même n'est pas publié. Active les deux dans le panneau Déclencheurs.
+- **400 Invalid JSON payload** — le corps de requête n'est pas du JSON valide, souvent parce qu'un middleware côté appelant a retiré des guillemets ou envoyé un corps form-encoded. Envoie du JSON brut avec `Content-Type: application/json`.
+- **429 Rate limit exceeded** — l'IP de l'appelant a dépassé la limite par IP. Bride l'appelant ou répartis sur plus de workflows.
 
-## Ensuite
+## Où ça s'inscrit
 
-- Croiser avec [Webhooks](/fr/develop/webhooks) pour des exemples de vérification de signature en Node et Python.
-- Utiliser les webhooks d’agent plutôt que de workflow, quand tu veux une réponse d’agent directe sans couche d’automatisation : [Webhooks](/fr/develop/webhooks).
+Tu as maintenant un système externe qui peut piloter un workflow Tale : un point de terminaison HTTPS, un identifiant à jeton unique, une exécution asynchrone, et un onglet Exécutions où chaque étape est débogable. La même forme — jeton dans l'URL, réponse `202`-like immédiate, exécution asynchrone — s'applique à toute source que tu peux brancher, d'un webhook Stripe à un job CI à un slash command Slack, en ne changeant que l'appelant.
+
+S'il te faut une réponse directe d'un agent plutôt qu'un lancement de workflow, le même protocole s'applique aux webhooks d'agent sous [Webhooks — Webhooks d'agent](/fr/develop/webhooks#agent-webhooks). Pour recevoir des webhooks sortants de Tale dans ton propre service, [Webhooks](/fr/develop/webhooks) couvre le côté vérification.

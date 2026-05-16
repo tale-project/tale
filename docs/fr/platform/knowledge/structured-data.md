@@ -1,9 +1,9 @@
 ---
 title: Données structurées
-description: Gère Produits, Clients et Fournisseurs comme enregistrements structurés interrogeables par l’IA.
+description: Gère Produits, Clients et Fournisseurs comme enregistrements structurés interrogeables par l'IA.
 ---
 
-Les sections de données structurées de la base de connaissances stockent des enregistrements métier que l’agent IA peut interroger à côté des documents et sites. Contrairement aux documents libres, les entrées structurées ont des champs fixes et peuvent être importées en masse.
+Les données structurées sont la moitié lignes-et-colonnes de la base de connaissances — les trois sections (**Produits**, **Clients**, **Fournisseurs**) qui stockent des enregistrements métier avec des champs fixes que l'agent IA peut interroger à côté des documents et des sites web crawlés. Le public visé : Éditeur ou Développeur qui entretient ces enregistrements, un par un ou par import CSV. Cette page couvre ce que contient chaque section, le format CSV, et comment restreindre quelles entités voit un agent donné.
 
 ## Produits
 
@@ -19,7 +19,7 @@ Valeurs de statut valides : `active`, `inactive`, `draft`, `archived`. Valeurs i
 
 ## Clients
 
-La section Clients stocke ta liste de clients. Chaque client a une adresse email, une locale, un statut et des métadonnées personnalisées optionnelles. Les clients importés ont par défaut le statut `churned`.
+La section Clients stocke ta liste de clients. Chaque client a une adresse de courriel, une locale, un statut et des métadonnées personnalisées optionnelles. Les clients importés ont par défaut le statut `churned`.
 
 Import CSV :
 
@@ -36,3 +36,9 @@ La section Fournisseurs stocke les enregistrements de fournisseurs et partenaire
 ## Utiliser des données structurées dans les agents
 
 Les enregistrements structurés sont indexés dans le même store que les documents. Les agents avec accès aux connaissances peuvent chercher sur tous les types. Pour limiter un agent à un sous-ensemble — par exemple un agent commercial qui ne voit que Produits et Clients — configure son onglet Base de connaissances. Voir [Créer un agent](/fr/platform/agents/create).
+
+## Où cela s'insère
+
+Les données structurées sont la moitié de la base de connaissances qui a des lignes et des colonnes, plutôt que des paragraphes et des titres. La moitié texte libre (documents, sites web crawlés) est pour le contenu en prose ; cette moitié-ci est pour les entités — les catalogues, listes de clients et enregistrements de fournisseurs que l'IA cite quand elle répond à des questions domaine-spécifiques. Les deux moitiés sont indexées dans le même store et joignables via la même recherche de connaissances ; un agent qui s'ancre dans les deux les mêle de façon fluide.
+
+Pour la moitié texte libre, [Base de connaissances](/fr/platform/workspace/knowledge-base) couvre le téléversement de documents et le crawling de sites. Pour les contrôles côté agent qui décident quelles entités voient les agents, [Créer un agent → Connaissances](/fr/platform/agents/create) est la page suivante.

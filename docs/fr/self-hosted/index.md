@@ -1,30 +1,47 @@
 ---
 title: Tale auto-hébergé
-description: Exploite Tale sur ton infrastructure — installe, configure, opère.
+description: Exploite Tale sur ta propre infrastructure — installe avec la CLI, configure avec des variables d'environnement, upgrade avec `tale deploy`.
+kind: index
 ---
 
-L’édition auto-hébergée de Tale tourne dans ton VPC, dans ton data center ou dans un environnement isolé du réseau (air-gap). Tu récupères la plateforme complète sous forme de bundle Docker Compose, que tu mets à jour avec une seule commande (`tale deploy`). Les certifications sont les mêmes qu’en Cloud — ISO 27001, SOC 2 Type II et conformité RGPD — mais l’exploitation t’appartient. Chaque fonctionnalité visible par l’utilisateur est identique à l’édition [Cloud](/fr/cloud) managée ; cette section couvre uniquement ce qui s’ajoute quand tu fais tourner ta propre instance.
+Tale auto-hébergé est le même produit que l'édition [Cloud](/fr/cloud), packagé en une stack Docker Compose à six conteneurs que tu fais tourner sur ta propre infrastructure. La CLI `tale` l'installe, des variables d'environnement et des fichiers JSON sous `TALE_CONFIG_DIR` le configurent, et `tale deploy` l'upgrade en blue-green pour que les utilisateurs ne voient jamais une fenêtre de maintenance. Cette section s'adresse à l'opérateur qui dresse l'instance et la maintient en route ; les utilisateurs finaux — Membres, Éditeurs, Développeurs, Admins — lisent [Platform](/fr/platform), identique en Cloud et auto-hébergé.
 
-Tout ce que Membre, Éditeur, Développeur ou Admin utilisent au quotidien — chat, base de connaissances, agents, automatisations, administration de l’organisation, permissions des rôles — vit dans [Platform](/fr/platform) et s’applique aux deux éditions. Cette section s’adresse à l’opérateur qui installe, met à jour, supervise et sauvegarde l’instance.
+Trois fils traversent chaque page ci-dessous. **Installer** couvre le chemin d'une box fraîche jusqu'à une instance qui tourne, sur un laptop ou sur un serveur Linux de production. **Configurer** catalogue les boutons qui existent — variables d'environnement, fichiers fournisseurs, bornes de rétention — et où chacun vit sur disque. **Exploiter** est le régime de croisière — observabilité, dépannage, avis de sécurité, notes de version, les surfaces d'authentification qui branchent Tale à ton fournisseur d'identité.
+
+## Dans cette section
+
+Les pages ci-dessous suivent l'ordre dans lequel un opérateur les atteint typiquement : choisir un chemin d'installation, lire une fois la référence de configuration, puis vivre sur les pages d'exploitation.
+
+- **[Aperçu auto-hébergé](/fr/self-hosted/overview)** — opérateurs qui évaluent la plateforme. Les six conteneurs, où chacun tourne, ce que fait chaque port et chaque volume.
+- **[Démarrage rapide](/fr/self-hosted/install/quickstart)** — premiers installateurs sur Linux, macOS ou Windows. Installation locale via la CLI `tale` en une dizaine de minutes.
+- **[Déploiement en production](/fr/self-hosted/install/linux-server)** — opérateurs qui déploient sur un serveur de production. TLS, reverse proxies, déploiements en sous-chemin, Postgres externe, upgrades blue-green.
+- **[Référence des variables d'environnement](/fr/self-hosted/configuration/environment-reference)** — chaque variable d'environnement que Tale lit, groupée par surface, avec valeurs par défaut tirées de `.env.example` et des chargeurs.
+- **[Fournisseurs](/fr/self-hosted/configuration/providers)** — fichiers JSON fournisseurs, schéma des coûts, règles de passthrough passerelle / fournisseur direct, et comment pointer Tale vers un Ollama, vLLM ou LocalAI local.
+- **[Rétention](/fr/self-hosted/configuration/retention)** — le modèle à trois couches fichier/env/UI, les seize catégories de données, le job de nettoyage nocturne, et le chemin d'effacement RGPD.
+- **[Authentification](/fr/self-hosted/admin/authentication)** — mot de passe, SSO Microsoft Entra ID, et intégration par en-têtes HTTP de confiance avec un reverse proxy d'authentification en amont.
+- **[Architecture des conteneurs](/fr/self-hosted/operate/container-architecture)** — comment les six services se connectent sur le réseau Docker interne, la carte des volumes, la forme des health-checks, et la topologie blue-green.
+- **[Exploitation](/fr/self-hosted/operate/observability/operations)** — métriques Prometheus, flux de logs, sondes de santé, budgets d'image, tests de smoke des conteneurs.
+- **[Dépannage](/fr/self-hosted/operate/observability/troubleshooting)** — la poignée de problèmes que les opérateurs rencontrent vraiment, chacun en forme symptôme-cause-correction.
+- **[Avis de sécurité](/fr/self-hosted/operate/security/advisories)** — comment les CVE sont coordonnés, comment les opérateurs s'abonnent, à quoi ressemble le partage de responsabilité entre Ruler GmbH et l'opérateur pour les patchs.
+- **[Format des notes de version](/fr/self-hosted/operate/release-notes/format)** — la forme canonique des notes de version GitHub, l'ordre des sections, ce que tout opérateur devrait survoler avant `tale upgrade`.
 
 ## Installer ton instance
 
-Commence par l’[aperçu auto-hébergé](/fr/self-hosted/overview) pour l’architecture et les services, puis suis le [guide d’installation sur serveur Linux](/fr/self-hosted/install/linux-server) pas à pas. TLS, reverse-proxies et déploiements en sous-chemin y sont également traités.
+Deux chemins d'installation, choisis selon l'environnement.
 
-## Configurer
+- **Laptop ou poste local.** Lis le [Démarrage rapide](/fr/self-hosted/install/quickstart). Un `tale init`, un `tale start`, ouvre `https://localhost` — assez pour évaluer le produit, donner une démo ou développer contre la plateforme. TLS auto-signé par défaut, donc la première visite affiche un avertissement navigateur que tu cliques.
+- **Serveur Linux de production.** Lis [Déploiement en production](/fr/self-hosted/install/linux-server). Vraie domaine, TLS Let's Encrypt, topologie blue-green qui survit aux upgrades sans fenêtre de maintenance, Postgres externe en option. C'est le chemin canonique pour mettre Tale devant une équipe.
 
-- [Référence des variables d’environnement](/fr/self-hosted/configuration/environment-reference) — chaque variable lue par Tale, regroupée par service.
-- [Rétention](/fr/self-hosted/configuration/retention) — règles de conservation des données, table par table.
-- [Authentification](/fr/self-hosted/admin/authentication) — mot de passe, SSO (Microsoft Entra ID) ou en-têtes de confiance. Spécifique à l’auto-hébergement parce que piloté par des variables d’environnement.
+Une fois l'instance debout, chaque Membre, Éditeur, Développeur et Admin que tu intègres lit [Platform](/fr/platform). Rien dans les sections indexées par rôle là-bas ne change entre les éditions — la différence est le tab d'où ils viennent.
 
-## Opérer
+## Configurer et exploiter
 
-- [Architecture des conteneurs](/fr/self-hosted/operate/container-architecture) — comment les services s’emboîtent.
-- [Observabilité](/fr/self-hosted/operate/observability/operations) — métriques, journaux et sondes de santé.
-- [Dépannage](/fr/self-hosted/operate/observability/troubleshooting) — isoler un problème sur une instance en production.
-- [Avis de sécurité](/fr/self-hosted/operate/security/advisories) — responsabilités de patch et suivi des CVE.
-- [Notes de version](/fr/self-hosted/operate/release-notes/format) — comment lire les notes de version, avec des consignes d’upgrade par version.
+Après l'installation, deux surfaces côté opérateur comptent au quotidien.
 
-## Fonctionnalités et administration
+La surface de **configuration** est `.env` et `TALE_CONFIG_DIR`. Chaque bouton runtime est soit une variable d'environnement lue au démarrage du conteneur, soit un fichier JSON surveillé sur disque ; la [Référence des variables d'environnement](/fr/self-hosted/configuration/environment-reference) est exhaustive et les pages [Fournisseurs](/fr/self-hosted/configuration/providers) et [Rétention](/fr/self-hosted/configuration/retention) sont les pendants fichier-JSON.
 
-La documentation des fonctionnalités (chat, agents, automatisations, connaissances, intégrations) et toute l’administration de l’organisation (membres, rôles, équipes, image de marque, gouvernance, fournisseurs d’IA, analytique) se trouve dans [Platform](/fr/platform). Les guides par rôle destinés aux utilisateurs finaux y vivent également.
+La surface d'**exploitation** est la forme à long terme du Tale qui tourne. Les métriques Prometheus vivent sur chaque service, les logs structurés vont sur le stdout Docker, les sondes de santé pilotent les décisions de cutover blue-green. [Exploitation](/fr/self-hosted/operate/observability/operations) est l'index ; [Dépannage](/fr/self-hosted/operate/observability/troubleshooting) est la carte symptôme-à-correction quand quelque chose part de travers sur une instance vivante.
+
+## Où ça s'inscrit
+
+L'auto-hébergement est la section de l'opérateur. Le produit lui-même — chat, agents, automatisations, connaissances, intégrations, admin — vit une seule fois sous [Platform](/fr/platform) et se lit à l'identique ici. Croise les pages d'installation quand tu dresses l'instance, la référence de configuration quand une valeur doit changer, les pages d'exploitation quand quelque chose va mal en production. Pour les contributions au code source et l'API, [Develop](/fr/develop/api-reference) est une section plus loin.

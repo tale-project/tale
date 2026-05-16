@@ -23,7 +23,7 @@ Steuere, welche Modelle bestimmten Teams oder Nutzern verfügbar sind. Beschrän
 
 ### Budgets
 
-Setze Ausgabelimits pro Nutzer, pro Team oder für die ganze Organisation. Konfiguriere Zeitraum (täglich, wöchentlich, monatlich) und die Aktion bei Limit-Überschreitung — warnen, neue Requests blockieren oder Chat ganz deaktivieren.
+Setze Ausgabelimits pro Nutzer, pro Team oder für die ganze Organisation. Konfiguriere Zeitraum (täglich, wöchentlich, monatlich) und die Aktion bei Limit-Überschreitung — warnen, neue Anfragen blockieren oder Chat ganz deaktivieren.
 
 ### Upload-Richtlinie {#upload-policy}
 
@@ -63,11 +63,19 @@ Eine blockierte Nachricht erreicht das Modell nie, ein blockiertes Token wird de
 
 #### PII-Erkennung {#pii-detection}
 
-Aktiviere automatische Erkennung und Maskierung (oder Blockierung) personenbezogener Daten in Nachrichten. Eingebaute Muster decken Email, Telefon, Kreditkarten- und IBAN-Nummern, US-Adressen und einige nationale Ausweise ab; eigene Regex-Regeln ergänzen interne Formate (Mitarbeiter-ID, Ticket-Nummern, Produkt-SKUs). Jedes Muster wählt seinen eigenen Durchsetzungsmodus. Erkannte PII in Anhängen durchläuft dieselbe Pipeline wie getippte Nachrichten.
+Aktiviere automatische Erkennung personenbezogener Daten in Nachrichten. Eingebaute Muster decken **E-Mail, Telefon, Kreditkarte, IBAN, IP-Adresse, SSN, CVC, Geburtsdaten, Postadressen (43 Sprachen) sowie nationale Ausweise und Reisepässe** ab (Personalausweis, NIR, DNI/NIE, Codice Fiscale, BSN, PESEL, UK-NI-Nummer, kanadische SIN, irische PPS, Aadhaar, chinesischer 身份证, japanische My Number, koreanische RRN und 30+ weitere). Jeder Ausweistyp nutzt die kanonische Prüfsumme (ICAO 9303, Luhn, mod-11, Verhoeff, mod-23), damit zufällige Zeichenketten keine Treffer auslösen. Eigene Regex-Regeln ergänzen interne Formate (Mitarbeiter-ID, Ticket-Nummern, Produkt-SKUs). Erkannte PII in Anhängen durchläuft dieselbe Pipeline wie getippte Nachrichten.
+
+Drei Durchsetzungsmodi:
+
+- **Maskieren** — jeden Treffer durch einen festen Platzhalter ersetzen (`[EMAIL]`, `[PHONE]`, …). Empfohlen für Audit-Logs und gespeicherten Chat-Verlauf, in denen der Originalwert nicht mehr benötigt wird. Einbahnstrasse: das Original ist weg.
+- **Blockieren** — die gesamte Nachricht ablehnen. Empfohlen, wenn deine Richtlinie keinerlei PII an Upstream-Modelle erlaubt.
+- **Tokenisieren** — jeden Treffer durch ein stabiles indiziertes Token ersetzen (`[EMAIL_1]`, `[PHONE_1]`) und eine pro-Nachricht-Zuordnung im Speicher halten. Das Modell sieht nur die Tokens; die Antwort enthält die Originaldaten wieder. Empfohlen für die natürlichste Nutzererfahrung ohne Schutzverlust. Die Zuordnung bleibt nur für den Round-Trip im Speicher und wird danach verworfen — niemals geloggt.
+
+Ein eingebautes **Test-Playground** unter Einstellungen → Governance → PII zeigt den gesamten Round-Trip live: Tippe einen Satz und beobachte Erkennung → Tokenisierung → simulierte KI-Antwort → Wiederherstellung in Echtzeit. Fahre über eine markierte Stelle, um den erkannten Datentyp zu sehen (übersetzt).
 
 #### Moderations-Anbieter
 
-Schicke Chat-Nachrichten an einen externen Klassifikator — OpenAI Moderation, Azure Content Safety, Perspective oder einen beliebigen HTTPS-Endpunkt, der Kategorie-Scores zurückgibt. Wähle ein eingebautes Preset, dann sind URL, Header, Request-Template und Response-Parser für dich ausgefüllt; für alles andere wählst du _Custom JSONPath_ und mappst die Felder selbst. Der API-Schlüssel wird serverseitig AES-verschlüsselt gespeichert und in jedem Header-Wert als `{secretPlaceholder}` referenziert. Mit dem Button **Verbindung testen** schickst du eine Beispielnachricht über den echten Anbieter-Pfad — er prüft Schlüssel, Endpunkt, Request-Template, Response-Parser und Kategorie-Mappings in einem Round-Trip, ohne eine Konversation zu schreiben.
+Schicke Chat-Nachrichten an einen externen Klassifikator — OpenAI Moderation, Azure Content Safety, Perspective oder einen beliebigen HTTPS-Endpunkt, der Kategorie-Scores zurückgibt. Wähle ein eingebautes Preset, dann sind URL, Kopfzeile, Anfrage-Template und Response-Parser für dich ausgefüllt; für alles andere wählst du _Custom JSONPath_ und mappst die Felder selbst. Der API-Schlüssel wird serverseitig AES-verschlüsselt gespeichert und in jedem Kopfzeile-Wert als `{secretPlaceholder}` referenziert. Mit dem Button **Verbindung testen** schickst du eine Beispielnachricht über den echten Anbieter-Pfad — er prüft Schlüssel, Endpunkt, Anfrage-Template, Response-Parser und Kategorie-Mappings in einem Round-Trip, ohne eine Konversation zu schreiben.
 
 Aus SSRF-Schutz wird nur der konfigurierte Host kontaktiert; Redirects zu anderen Hosts werden abgewiesen. Parallele Aufrufe sind pro Organisation rate-limitiert, damit ein einzelner Chat-Burst dein Moderations-Kontingent nicht erschöpft.
 
@@ -80,3 +88,9 @@ Sieh Token-Verbrauch, Kosten-Aufschlüsselung und Nutzungs-Trends über die gesa
 Eine zeitlich geordnete Aufzeichnung wichtiger Aktionen in der Organisation. Kategorien umfassen Authentifizierungs-Events, Mitglieder-Änderungen, Daten-Operationen, Integrationen-Updates, Workflow-Publishings, Sicherheits-Events und Admin-Aktionen. Nützlich für Compliance und Fehlersuche.
 
 Admins können Audit-Logs per Button über der Log-Tabelle als **CSV** oder **JSON** exportieren. Exports respektieren den aktuell aktiven Kategorie-Filter.
+
+## Wo das hingehört
+
+Governance ist der Vertrag zwischen der Richtlinie deiner Organisation und dem, was Tale physisch auf der Platte tut. Die Aufbewahrung grenzt ein, wie lange Daten leben. Anfragen betroffener Personen liefern die DSGVO-Maschinerie für Export und Löschung. Aufbewahrungspflichten setzen Löschungen während einer Ermittlung aus. Das Audit-Log beweist, was passiert ist. Jede dieser Schrauben ist eine Stellschraube; der Cleanup-Runner, der die Aufbewahrung durchsetzt, liest sie alle zu Beginn jedes Laufs.
+
+Die Konfiguration auf dieser Seite ist organisationsbezogen (Admins setzen sie über die UI). Für die operatorbezogenen Schrauben, die den Cleanup-Runner selbst regeln — die Umgebungsvariablen, den Audit-Pepper für PII-Hashing, das Legal-Hold-Cooldown — siehe [Aufbewahrung](/de/self-hosted/configuration/retention).

@@ -1,165 +1,28 @@
 ---
 title: Construire une intégration
-description: Écrire un connecteur Tale — config.json, connector.ts, APIs sandbox et empaquetage.
+description: Écrire un connecteur Tale — config.json, connector.ts, l'API sandbox et l'empaquetage.
 ---
 
-Un connecteur, c’est un `config.json` plus un `connector.ts` (ou `.js`) plus une icône. Le manifeste déclare l’identité de l’intégration, l’authentification, les hôtes autorisés et les opérations nommées qu’elle expose ; le code du connecteur exécute chaque opération dans un sandbox. Les intégrations SQL sont un cas particulier — elles ne livrent pas de code, seulement des requêtes paramétrées dans le manifeste.
+Un connecteur Tale est un répertoire : un manifeste `config.json`, un `connector.ts` optionnel (connecteurs REST) ou des templates SQL seuls (connecteurs SQL), et une icône. Le manifeste déclare l'identité, la forme d'authentification, les hôtes autorisés et les opérations nommées qu'expose l'intégration ; le code du connecteur exécute chaque opération dans une sandbox isolée à surface API petite et contrôlée. Cette page est la référence d'écriture — le schéma, le contrat de sandbox, les règles d'empaquetage.
 
-Cette page est la référence d’écriture. Elle suppose que tu as déjà lu l’[aperçu des intégrations](/fr/platform/integrations/overview) pour les concepts côté utilisateur. Pour le workflow d’éditeur avec des assistants IA, voir [Développement assisté par IA](/fr/develop/ai-assisted-development).
+Le public, ce sont les développeurs qui écrivent un nouveau connecteur. Pour les concepts côté utilisateur (ce qu'est une intégration, comment une organisation en ajoute une), [Aperçu des intégrations](/fr/platform/integrations/overview) est l'entrée ; pour l'écriture assistée par IA du manifeste, [Développement assisté par l'IA](/fr/develop/ai-assisted-development) couvre le flux éditeur.
 
 ## Disposition des fichiers
 
-Un connecteur vit dans un seul dossier. Le nom du dossier est le **slug** — l’identifiant stable utilisé par la plateforme ; ce n’est pas un champ de `config.json`.
+Un connecteur vit dans un seul répertoire. Le nom du répertoire est le **slug** — l'identifiant stable utilisé par Tale en interne ; ce n'est pas un champ de `config.json`.
 
 ```text
 integrations/<slug>/
-├── config.json     ← manifeste (requis)
-├── connector.ts    ← code sandboxé (connecteurs REST uniquement)
-└── icon.svg        ← affichée dans la liste Ajouter une intégration
+├── config.json     ← manifeste (obligatoire)
+├── connector.ts    ← code en sandbox (connecteurs REST uniquement)
+└── icon.svg        ← affiché dans la liste Ajouter une intégration
 ```
 
-Deux façons de livrer ce dossier : pose-le dans le dossier `integrations/` d’un projet créé par `tale init`, ou zippe les fichiers et téléverse-les via **Paramètres > Intégrations > Ajouter une intégration** (max 1 Mo). Les deux chemins produisent le même état serveur.
+Deux chemins amènent le répertoire dans une instance Tale : le déposer dans le dossier `integrations/` d'un projet échafaudé par `tale init`, ou zipper les fichiers et les téléverser via **Paramètres > Intégrations > Ajouter une intégration** (limite 1 Mo). Les deux produisent le même état côté serveur.
 
-## Schéma `config.json`
+## Exemple travaillé — Tavily
 
-Le manifeste est validé côté serveur contre un schéma Zod dans [services/platform/lib/shared/schemas/integrations.ts](https://github.com/tale-project/tale/blob/main/services/platform/lib/shared/schemas/integrations.ts). Les champs ci-dessous sont la surface canonique ; consulte la source en cas de doute.
-
-| Champ                  | Requis               | Type                                                                | Ce qu’il fait                                                                                                                   |
-| ---------------------- | -------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `title`                | oui                  | string (1-200)                                                      | Nom lisible affiché dans la liste des intégrations.                                                                             |
-| `description`          | non                  | string (≤2000)                                                      | Résumé d’une phrase à côté du titre.                                                                                            |
-| `version`              | non                  | integer                                                             | Incrémente quand les opérations ou les formes de paramètres changent, pour que les consommateurs détectent le drift.            |
-| `type`                 | non                  | `'rest_api'` \| `'sql'`                                             | Par défaut `rest_api`. Mets `sql` pour les connecteurs base de données.                                                         |
-| `authMethod`           | oui                  | `'api_key'` \| `'bearer_token'` \| `'basic_auth'` \| `'oauth2'`     | La méthode d’authentification requise par ce connecteur.                                                                        |
-| `supportedAuthMethods` | non                  | tableau du même enum                                                | Quand un connecteur accepte plusieurs méthodes ; l’utilisateur choisit à l’installation.                                        |
-| `secretBindings`       | non                  | string[]                                                            | Noms des clés de credentials que le connecteur lit à l’exécution via `secrets.get('<key>')`. L’UI demande exactement celles-ci. |
-| `allowedHosts`         | non                  | string[]                                                            | Allow-list réseau. Le connecteur ne peut joindre que les hôtes listés.                                                          |
-| `operations`           | connecteurs rest_api | tableau d’`Operation`                                               | Les opérations REST nommées exposées par le connecteur. Voir [Forme d’une opération](#operation-shape).                         |
-| `oauth2Config`         | connecteurs oauth2   | `{ authorizationUrl, tokenUrl, scopes? }`                           | Endpoints du authorization-code flow.                                                                                           |
-| `sqlConnectionConfig`  | connecteurs sql      | `{ engine, readOnly?, options?, security? }`                        | `engine` vaut `'mssql'`, `'postgres'` ou `'mysql'`. `readOnly` est un indice pour l’UI ; le compte DB est la vraie barrière.    |
-| `sqlOperations`        | connecteurs sql      | tableau de `SqlOperation`                                           | Requêtes nommées avec placeholders. Voir [Connecteurs SQL](#connecteurs-sql).                                                   |
-| `connectionConfig`     | non                  | `{ domain?, apiVersion?, apiEndpoint?, timeout?, rateLimit?, ... }` | Indices de connexion optionnels ; clés supplémentaires acceptées.                                                               |
-| `capabilities`         | non                  | `{ canSync?, canPush?, canWebhook?, syncFrequency? }`               | Déclare des capacités optionnelles que la plateforme peut planifier (ex. sync périodique).                                      |
-| `exposeAsCapability`   | non                  | `{ label, icon?, tooltip?, order? }`                                | Expose cette intégration comme capacité nommée dans l’UI.                                                                       |
-| `setupGuide`           | non                  | string (≤5000)                                                      | Markdown rendu sous **Guide de configuration** dans le manage dialog. Indique où générer les clés, quels scopes, etc.           |
-| `metadata`             | non                  | object                                                              | Métadonnées libres pour l’outillage ; non interprétées par la plateforme.                                                       |
-
-## Forme d’une opération {#operation-shape}
-
-Une opération REST décrit une action appelable. L’agent choisit une opération par `name` et fournit des paramètres validés ; ton `connector.ts` dispatche sur `ctx.operation` et utilise `ctx.params`.
-
-| Champ              | Requis | Type                  | Ce qu’il fait                                                                                         |
-| ------------------ | ------ | --------------------- | ----------------------------------------------------------------------------------------------------- |
-| `name`             | oui    | string                | Identifiant stable utilisé par l’agent. Snake_case par convention.                                    |
-| `title`            | non    | string                | Label lisible dans la liste des opérations en UI.                                                     |
-| `description`      | non    | string                | Ce que fait l’opération et quand l’utiliser. L’agent lit ça — écris pour le LLM, pas pour l’humain.   |
-| `operationType`    | non    | `'read'` \| `'write'` | Pilote la porte d’approbation. Par défaut, comportement style read si omis.                           |
-| `requiresApproval` | non    | boolean               | Force la carte d’approbation même sur un read, ou la saute sur un write réellement sûr.               |
-| `requiredScopes`   | non    | string[]              | Scopes OAuth dont cette opération a besoin ; remontés à l’utilisateur lors de la connexion.           |
-| `parametersSchema` | non    | JSON Schema (object)  | JSON Schema standard. Aujourd’hui seul `type: 'object'` avec `properties` et `required` est exploité. |
-
-Un exemple REST compact, tiré de [examples/integrations/tavily/config.json](https://github.com/tale-project/tale/blob/main/examples/integrations/tavily/config.json) :
-
-```json
-{
-  "name": "search",
-  "title": "Search the web",
-  "description": "Search the open web via Tavily. Use 'basic' depth for quick facts, 'advanced' for deeper research.",
-  "operationType": "read",
-  "parametersSchema": {
-    "type": "object",
-    "required": ["query"],
-    "properties": {
-      "query": {
-        "type": "string",
-        "description": "Natural-language search query. Be specific."
-      },
-      "max_results": {
-        "type": "number",
-        "description": "Max results to return (1-10)."
-      }
-    }
-  }
-}
-```
-
-## Le sandbox du connecteur
-
-Le code du connecteur ne tourne pas comme du Node ordinaire. Il est transpilé et exécuté dans un contexte isolé avec une petite surface d’API contrôlée. Planifie en conséquence : pas de `fs`, pas de `child_process`, pas d’`import` arbitraire, pas de `process.env`, pas de `fetch` ambiant. Les seuls effets de bord disponibles sont HTTP via `ctx.http` et lecture de credentials via `ctx.secrets`.
-
-### `ConnectorContext`
-
-Chaque opération reçoit un objet contexte. La forme :
-
-```typescript
-interface ConnectorContext {
-  operation: string; // nom de l'opération invoquée
-  params: Record<string, unknown>; // validé contre parametersSchema
-  http: HttpApi;
-  secrets: SecretsApi;
-  base64Encode(input: string): string;
-  base64Decode(input: string): string;
-}
-
-interface HttpApi {
-  get(url: string, options?: HttpMethodOptions): HttpResponse;
-  post(url: string, options?: BodyMethodOptions): HttpResponse;
-  put(url: string, options?: BodyMethodOptions): HttpResponse;
-  patch(url: string, options?: BodyMethodOptions): HttpResponse;
-  delete(url: string, options?: BodyMethodOptions): HttpResponse;
-}
-
-interface HttpMethodOptions {
-  headers?: Record<string, string>;
-  responseType?: 'base64'; // demander un body encodé base64 pour téléchargements binaires
-}
-
-interface BodyMethodOptions extends HttpMethodOptions {
-  body?: string; // payload déjà sérialisé (ex. JSON.stringify(...))
-  binaryBody?: string; // body de requête encodé base64
-}
-
-interface HttpResponse {
-  status: number;
-  statusText: string;
-  headers: Record<string, string>;
-  body: unknown;
-  text(): string;
-  json(): unknown;
-}
-
-interface SecretsApi {
-  get(key: string): string | undefined;
-}
-```
-
-Le client `http` ne joint que les hôtes listés dans `allowedHosts`. Une requête vers autre chose échoue avant l’appel réseau.
-
-### Ce que le sandbox ne fournit pas
-
-- **Aucune builtin Node** — pas de `fs`, `child_process`, `crypto`, `path`, `os`, `net`. Utilise `base64Encode`/`base64Decode` pour le binaire ; pour le hashing ou la signature, fais-le côté serveur ou pré-calcule.
-- **Pas d’`import` ni `require` au niveau racine** — écris du code autonome. Les déclarations TypeScript en haut de fichier sont retirées au transpile et n’existent que pour l’éditeur.
-- **Pas de variables d’environnement** — lis chaque credential via `ctx.secrets.get(...)`.
-- **Pas de travail en arrière-plan** — `setTimeout`, `setInterval` et les promesses non awaited ne font pas partie du contrat. Une opération s’exécute jusqu’au bout de manière synchrone (le sandbox traite ta fonction comme synchrone) et renvoie une valeur.
-
-## Les deux fonctions qu’un connecteur exporte
-
-Un connecteur définit deux fonctions : une pour valider la connexion à l’installation, une pour exécuter les opérations.
-
-| Fonction              | Quand elle tourne                                                         | Ce qu’elle doit faire                                                                                                                   |
-| --------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `testConnection(ctx)` | Quand l’utilisateur clique **Tester la connexion** dans le manage dialog. | La requête authentifiée la moins coûteuse que l’API supporte. Lance un `Error` clair avec une indication de remédiation en cas d’échec. |
-| `execute(ctx)`        | À chaque invocation d’opération.                                          | Dispatcher sur `ctx.operation`, valider les entrées, appeler l’API, mettre en forme la réponse. Lancer `Error` pour tout échec.         |
-
-Les deux peuvent être exportées soit comme un seul objet `connector` (Tavily, Discord) soit comme fonctions de niveau racine ; les deux formes sont acceptées. La forme objet est recommandée parce qu’elle garde les deux entrées proches d’une liste d’opérations et rend la table de dispatch évidente.
-
-Par convention, un `execute` réussi renvoie un objet de la forme `{ success: true, operation, data, count?, cost?: { cents }, timestamp }`. La plateforme n’impose pas cette forme, mais agents et logs d’exécution la rendent proprement.
-
-## Exemple de bout en bout — Tavily
-
-Voici l’image la plus compacte de bout en bout, tirée de [examples/integrations/tavily/](https://github.com/tale-project/tale/tree/main/examples/integrations/tavily).
-
-Le manifeste déclare la méthode d’auth, l’hôte allow-listé, le secret binding et deux opérations :
+Avant de parcourir le schéma complet, voici l'image end-to-end la plus petite. Tavily est un service de recherche web hébergé ; le manifeste déclare la méthode d'auth, l'hôte sur la liste blanche, la liaison de secret et deux opérations :
 
 ```json
 {
@@ -184,11 +47,11 @@ Le manifeste déclare la méthode d’auth, l’hôte allow-listé, le secret bi
       }
     }
   ],
-  "setupGuide": "1. Sign up at https://tavily.com\n2. Create an API key\n3. Paste it below and Test connection."
+  "setupGuide": "1. S'inscrire sur https://tavily.com\n2. Créer une clé API\n3. La coller ci-dessous et Test connection."
 }
 ```
 
-Le connecteur exporte `testConnection` (une sonde authentifiée pas chère) et `execute` (dispatch vers les helpers par opération) :
+Le connecteur exporte deux fonctions — `testConnection` pour le sondage du dialogue de gestion, et `execute` pour le dispatch à l'exécution :
 
 ```typescript
 const API_BASE = 'https://api.tavily.com';
@@ -227,13 +90,164 @@ const connector = {
 };
 ```
 
-Note la forme des messages d’erreur — ils disent à l’utilisateur quoi faire (`Verify the API key`), pas seulement que ça a échoué. Les erreurs de `testConnection` apparaissent inline dans le manage dialog ; celles d’`execute` apparaissent dans la réponse de l’agent et le log d’exécution. Rends-les actionnables.
+Remarque la forme des messages d'erreur — ils nomment ce que l'utilisateur doit faire (`Verify the API key`), pas juste qu'une chose a échoué. Les erreurs de `testConnection` apparaissent inline dans le dialogue de gestion ; celles d'`execute` apparaissent dans la réponse de l'agent et dans le journal d'exécution. Les deux appartiennent au même registre d'action.
 
-Le fichier complet à [tavily/connector.ts](https://github.com/tale-project/tale/blob/main/examples/integrations/tavily/connector.ts) montre les helpers par opération, un utilitaire `handleHttpError` qui mappe les statuts à des messages lisibles, et la troncature des résultats pour garder l’usage de tokens prévisible. Reprends ces motifs.
+Le fichier complet sous [tavily/connector.ts](https://github.com/tale-project/tale/blob/main/examples/integrations/tavily/connector.ts) couvre les helpers par opération, un utilitaire `handleHttpError` et le tronçonnage des résultats pour garder la consommation de tokens prévisible.
+
+## Schéma `config.json`
+
+Le manifeste est validé côté serveur contre un schéma Zod dans [services/platform/lib/shared/schemas/integrations.ts](https://github.com/tale-project/tale/blob/main/services/platform/lib/shared/schemas/integrations.ts).
+
+| Nom                    | Type                                                                | Obligatoire          | Description                                                                                                                            |
+| ---------------------- | ------------------------------------------------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `title`                | string (1–200)                                                      | Oui                  | Nom lisible affiché dans la liste des intégrations.                                                                                    |
+| `description`          | string (≤ 2000)                                                     | Non                  | Résumé en une phrase affiché à côté du titre.                                                                                          |
+| `version`              | integer                                                             | Non                  | Incrémenter quand des opérations ou des formes de paramètres changent pour que les consommateurs détectent la dérive.                  |
+| `type`                 | `'rest_api'` \| `'sql'`                                             | Non                  | Défaut `rest_api`. Mets `sql` pour les connecteurs de base de données.                                                                 |
+| `authMethod`           | `'api_key'` \| `'bearer_token'` \| `'basic_auth'` \| `'oauth2'`     | Oui                  | La méthode d'authentification dont ce connecteur a besoin.                                                                             |
+| `supportedAuthMethods` | array du même enum                                                  | Non                  | À utiliser quand un connecteur accepte plus d'une méthode d'auth ; l'utilisateur choisit à l'installation.                             |
+| `secretBindings`       | array of strings                                                    | Non                  | Noms des clés d'identifiants que le connecteur lit à l'exécution via `secrets.get('<key>')`. L'UI demande exactement ceux-là.          |
+| `allowedHosts`         | array of strings                                                    | Non                  | Liste blanche réseau. Le connecteur ne peut pas atteindre des hôtes hors de cette liste.                                               |
+| `operations`           | array of `Operation`                                                | connecteurs rest_api | Les opérations REST nommées que le connecteur expose. Voir [Forme d'opération](#forme-doperation).                                     |
+| `oauth2Config`         | `{ authorizationUrl, tokenUrl, scopes? }`                           | connecteurs oauth2   | Endpoints pour le flux authorization-code.                                                                                             |
+| `sqlConnectionConfig`  | `{ engine, readOnly?, options?, security? }`                        | connecteurs sql      | `engine` est `'mssql'`, `'postgres'` ou `'mysql'`. `readOnly` est un hint pour l'UI ; le compte de base de données est la vraie porte. |
+| `sqlOperations`        | array of `SqlOperation`                                             | connecteurs sql      | Requêtes nommées avec placeholders de paramètres. Voir [Connecteurs SQL](#connecteurs-sql).                                            |
+| `connectionConfig`     | `{ domain?, apiVersion?, apiEndpoint?, timeout?, rateLimit?, ... }` | Non                  | Indications de connexion optionnelles ; les clés supplémentaires sont acceptées.                                                       |
+| `capabilities`         | `{ canSync?, canPush?, canWebhook?, syncFrequency? }`               | Non                  | Déclare des capacités optionnelles que la plateforme peut planifier (par ex. sync périodique).                                         |
+| `exposeAsCapability`   | `{ label, icon?, tooltip?, order? }`                                | Non                  | Faire apparaître cette intégration comme une capacité nommée dans l'UI.                                                                |
+| `setupGuide`           | string (≤ 5000)                                                     | Non                  | Markdown rendu sous **Configuration guide** dans le dialogue de gestion. Dis où générer les clés, quels scopes, etc.                   |
+| `metadata`             | object                                                              | Non                  | Métadonnées libres pour l'outillage ; non interprétées par la plateforme.                                                              |
+
+## Forme d'opération
+
+Une opération REST décrit une action appelable. L'agent choisit une opération par `name` et fournit des paramètres validés ; `connector.ts` dispatche sur `ctx.operation`.
+
+| Nom                | Type                  | Obligatoire | Description                                                                                            |
+| ------------------ | --------------------- | ----------- | ------------------------------------------------------------------------------------------------------ |
+| `name`             | string                | Oui         | Identifiant stable que l'agent utilise. Convention : snake_case.                                       |
+| `title`            | string                | Non         | Étiquette lisible dans la liste d'opérations de l'UI.                                                  |
+| `description`      | string                | Non         | Ce que fait l'opération et quand l'utiliser. L'agent lit ça — écris pour le modèle, pas pour l'humain. |
+| `operationType`    | `'read'` \| `'write'` | Non         | Pilote la porte d'approbation. Défaut comportement read-like quand omis.                               |
+| `requiresApproval` | boolean               | Non         | Force la carte d'approbation même sur un read, ou la saute sur un write réellement sûr.                |
+| `requiredScopes`   | array of strings      | Non         | Scopes OAuth nécessaires à cette opération ; montrés à l'utilisateur lors de la connexion.             |
+| `parametersSchema` | JSON Schema (object)  | Non         | JSON Schema standard. Seul `type: 'object'` avec `properties` et `required` est exploité aujourd'hui.  |
+
+Un exemple compact tiré du manifeste Tavily :
+
+```json
+{
+  "name": "search",
+  "title": "Search the web",
+  "description": "Search the open web via Tavily. Use 'basic' depth for quick facts, 'advanced' for deeper research.",
+  "operationType": "read",
+  "parametersSchema": {
+    "type": "object",
+    "required": ["query"],
+    "properties": {
+      "query": {
+        "type": "string",
+        "description": "Natural-language search query. Be specific."
+      },
+      "max_results": {
+        "type": "number",
+        "description": "Max results to return (1–10)."
+      }
+    }
+  }
+}
+```
+
+## La sandbox du connecteur
+
+Le code de connecteur ne tourne pas comme du Node ordinaire. Il est transpilé et exécuté dans un contexte isolé à surface API petite et contrôlée : pas de `fs`, pas de `child_process`, pas d'`import` arbitraire, pas de `process.env`, pas de `fetch` ambiant. Les seuls effets de bord disponibles sont HTTP via `ctx.http` et lecture d'identifiants via `ctx.secrets`. C'est la limite de confiance : toute autre capacité reste dans le runtime hôte.
+
+### `ConnectorContext`
+
+Chaque opération reçoit un objet de contexte de la forme ci-dessous :
+
+```typescript
+interface ConnectorContext {
+  operation: string; // le nom de l'opération invoquée
+  params: Record<string, unknown>; // validé contre parametersSchema
+  http: HttpApi;
+  secrets: SecretsApi;
+  base64Encode(input: string): string;
+  base64Decode(input: string): string;
+  files?: FilesApi; // injecté uniquement si le runtime fournit un storage provider
+}
+
+interface HttpApi {
+  get(url: string, options?: HttpMethodOptions): HttpResponse;
+  post(url: string, options?: BodyMethodOptions): HttpResponse;
+  put(url: string, options?: BodyMethodOptions): HttpResponse;
+  patch(url: string, options?: BodyMethodOptions): HttpResponse;
+  delete(url: string, options?: BodyMethodOptions): HttpResponse;
+}
+
+interface HttpMethodOptions {
+  headers?: Record<string, string>;
+  responseType?: 'base64'; // demander un corps base64 pour les téléchargements binaires
+}
+
+interface BodyMethodOptions extends HttpMethodOptions {
+  body?: string; // payload déjà sérialisée (par ex. JSON.stringify(...))
+  binaryBody?: string; // corps de requête encodé en base64
+}
+
+interface HttpResponse {
+  status: number;
+  statusText: string;
+  headers: Record<string, string>;
+  body: unknown;
+  text(): string;
+  json(): unknown;
+}
+
+interface SecretsApi {
+  get(key: string): string | undefined;
+}
+
+interface FilesApi {
+  download(
+    url: string,
+    options: { headers?: Record<string, string>; fileName: string },
+  ): FileReference;
+  store(
+    data: string,
+    options: {
+      encoding: 'base64' | 'utf-8';
+      contentType: string;
+      fileName: string;
+    },
+  ): FileReference;
+}
+```
+
+Le client `http` n'atteint que les hôtes listés dans `allowedHosts`. Tout le reste échoue avant l'appel réseau.
+
+### Ce que la sandbox ne fournit pas
+
+- **Pas de built-ins Node.** Pas de `fs`, `child_process`, `crypto`, `path`, `os`, `net`. Utilise `base64Encode` / `base64Decode` pour la gestion binaire ; pour le hashing ou la signature, fais-le côté serveur ou pré-calcule.
+- **Pas d'`import` ou `require` au top-level.** Écris du code autonome. Les déclarations de types TypeScript en haut de fichier sont retirées au transpile et n'existent que pour le support éditeur.
+- **Pas de variables d'environnement.** Lis chaque identifiant via `ctx.secrets.get(...)`.
+- **Pas de travail en arrière-plan.** `setTimeout`, `setInterval` et les promises non awaited ne font pas partie du contrat. Une opération s'exécute synchrone jusqu'au bout (la sandbox traite ta fonction comme synchrone) et renvoie une valeur.
+
+## Les deux fonctions qu'exporte un connecteur
+
+Un connecteur définit deux fonctions — une pour valider une connexion à l'installation, une pour exécuter les opérations.
+
+| Fonction              | Quand elle tourne                                                          | Ce qu'elle doit faire                                                                                             |
+| --------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `testConnection(ctx)` | Quand l'utilisateur clique **Test connection** dans le dialogue de gestion | Faire la requête authentifiée la moins coûteuse possible. Lever un `Error` clair avec un indice en cas d'échec.   |
+| `execute(ctx)`        | À chaque invocation d'opération                                            | Dispatcher sur `ctx.operation`, valider les entrées, appeler l'API, façonner la réponse. Lever `Error` à l'échec. |
+
+Les deux peuvent être exportées soit comme un objet littéral `connector` unique (comme Tavily et Discord) soit comme fonctions top-level ; les deux formes sont acceptées. La forme objet est recommandée parce qu'elle met les points d'entrée à côté d'une liste d'opérations et rend la table de dispatch évidente.
+
+Par convention, un `execute` réussi renvoie un objet de la forme `{ success: true, operation, data, count?, cost?: { cents }, timestamp }`. La plateforme n'impose pas cette forme, mais les agents et le journal d'exécution la rendent proprement quand elle est présente.
 
 ## Connecteurs SQL
 
-Les intégrations SQL sautent `connector.ts` complètement. La plateforme exécute les requêtes que tu déclares dans le manifeste contre la base configurée ; tu n’écris que le SQL et le schéma de paramètres.
+Les intégrations SQL sautent entièrement `connector.ts`. La plateforme exécute les requêtes déclarées dans le manifeste contre la base configurée ; tu écris seulement le SQL et le schéma de paramètres, rien d'autre.
 
 ```json
 {
@@ -256,28 +270,26 @@ Les intégrations SQL sautent `connector.ts` complètement. La plateforme exécu
 }
 ```
 
-Les placeholders utilisent `@paramName`, mappés sur les clés de `parametersSchema.properties`. Marque les requêtes mutantes avec `operationType: 'write'` et (généralement) `requiresApproval: true` ; la plateforme les passera par le flux d’approbation. Voir [examples/integrations/protel/config.json](https://github.com/tale-project/tale/blob/main/examples/integrations/protel/config.json) pour un connecteur PMS hôtelier complet avec une vingtaine d’opérations en lecture et une poignée de writes gated par approbation.
+Les placeholders utilisent `@paramName`, mappés contre `parametersSchema.properties`. Marque les requêtes qui mutent avec `operationType: 'write'` et le plus souvent `requiresApproval: true` pour que le flow d'approbation se déclenche. Voir [examples/integrations/protel/config.json](https://github.com/tale-project/tale/blob/main/examples/integrations/protel/config.json) pour un connecteur PMS hôtelier complet avec vingt-plus opérations read et une poignée de writes sous approbation.
 
-`sqlConnectionConfig.engine` accepte `'mssql'`, `'postgres'` ou `'mysql'`. Les `security.maxResultRows` et `security.queryTimeoutMs` optionnels sont des plafonds que la plateforme applique en sus de ce que la base permet.
+`sqlConnectionConfig.engine` accepte `'mssql'`, `'postgres'` ou `'mysql'`. Les optionnels `security.maxResultRows` et `security.queryTimeoutMs` sont des plafonds que la plateforme impose en plus de ce que la base elle-même permet — défense en profondeur, pas un substitut à un compte de base en lecture seule.
 
 ## Empaquetage et livraison
 
-- **Flux projet.** Pose `integrations/<slug>/{config.json, connector.ts, icon.svg}` dans un projet `tale init`. La plateforme recharge à chaud ; sauvegarder applique le changement.
-- **Flux upload UI.** Zippe les fichiers (ou téléverse-les individuellement) via **Paramètres > Intégrations > Ajouter une intégration**. Le paquet total est plafonné à 1 Mo.
-- **Versionnage.** Incrémente `version` dans `config.json` dès que tu changes l’ensemble d’opérations ou la forme d’un paramètre, pour que les consommateurs voient le drift.
-- **Icônes.** SVG, PNG, JPG ou WebP, sous 256 Ko. SVG rend le mieux en thèmes clair et sombre.
-- **Slugs.** Le nom de dossier est le slug. Garde-le stable entre versions ; le renommer est un breaking change.
+- **Flux projet.** Dépose `integrations/<slug>/{config.json, connector.ts, icon.svg}` dans un projet `tale init`. La plateforme recharge à chaud ; enregistrer applique le changement.
+- **Téléversement UI.** Zippe les mêmes fichiers (ou téléverse-les un à un) via **Paramètres > Intégrations > Ajouter une intégration**. Le paquet total est plafonné à 1 Mo.
+- **Versionnage.** Incrémenter `version` dans `config.json` à chaque fois que tu changes l'ensemble des opérations ou une forme de paramètre, pour que les consommateurs puissent détecter la dérive.
+- **Icônes.** SVG, PNG, JPG ou WebP, sous 256 Ko. SVG rend le plus proprement dans les deux thèmes.
+- **Slugs.** Le nom du répertoire est le slug. Renommer est un changement cassant — chaque installation référence le connecteur par slug.
 
-## Erreurs courantes à éviter
+## Erreurs fréquentes
 
-- **Boucles longues ou résultats sans limite.** Les opérations doivent revenir vite avec des données paginées ou tronquées. Le connecteur Tavily plafonne à 5 résultats et tronque chaque page à 2 000 caractères — sers-t’en de référence.
-- **Secrets en dur dans le code.** N’incorpore jamais de clés API ou de jetons dans `connector.ts`. Lis-les toujours via `ctx.secrets.get('<binding>')` et déclare le binding dans `secretBindings`.
-- **Hôtes non listés dans `allowedHosts`.** Une requête vers un hôte non listé échoue. Ajoute chaque base URL que le connecteur touche, y compris les cibles de redirection dont tu dépends.
-- **Messages d’erreur vagues.** `Failed` n’est pas actionnable. Dis à l’utilisateur quel credential est faux, quel scope manque, ou quel quota a été dépassé.
-- **Oubli de `operationType: 'write'` sur les calls mutants.** Sans ça, la porte d’approbation ne s’enclenche pas et un write peut s’exécuter sans surveillance.
+- **Boucles longues ou ensembles de résultats non bornés.** Les opérations devraient revenir vite avec des données paginées ou tronquées. Le connecteur Tavily plafonne les résultats à 5 et tronque chaque page à 2 000 caractères — réutilise le motif.
+- **Secrets dans le code.** Ne jamais incorporer une clé API ou un jeton dans `connector.ts`. Toujours lire via `ctx.secrets.get('<binding>')` et déclarer la liaison dans `secretBindings`.
+- **Hôtes pas dans `allowedHosts`.** Une requête vers un hôte non listé échoue avant de quitter la sandbox. Ajoute chaque URL de base que le connecteur touche, y compris les cibles de redirection.
+- **Messages d'erreur vagues.** `Failed` n'est pas exploitable. Dis à l'utilisateur quel identifiant est faux, quel scope manque, ou quel quota a été dépassé.
+- **`operationType: 'write'` manquant sur les appels mutants.** Sans, la porte d'approbation ne s'engage pas et un write peut tourner sans supervision.
 
-## Pages liées
+## Où ça s'inscrit
 
-- [Aperçu des intégrations](/fr/platform/integrations/overview) — concepts et consommation des connecteurs.
-- [Développement assisté par IA](/fr/develop/ai-assisted-development) — utiliser Claude Code, Cursor, GitHub Copilot ou Windsurf pour écrire des connecteurs contre le code de référence de la plateforme.
-- [Référence API](/fr/develop/api-reference) — l’API Tale elle-même, distincte des connecteurs.
+Construire une intégration est le flux d'auteur de connecteur. À partir d'ici, le manifeste s'installe sur les instances Tale ; une fois installé, les opérations du connecteur apparaissent comme outils dans [Créer un agent](/fr/platform/agents/create) et comme étapes dans les [Workflows](/fr/platform/automations/workflows) d'automatisation. Pour la surface de consommation côté opérateur, [Aperçu des intégrations](/fr/platform/integrations/overview) est la référence canonique ; pour l'écriture assistée par IA du manifeste lui-même, [Développement assisté par l'IA](/fr/develop/ai-assisted-development) est le workflow. La surface API Tale — distincte des connecteurs — vit sous [Référence API](/fr/develop/api-reference).

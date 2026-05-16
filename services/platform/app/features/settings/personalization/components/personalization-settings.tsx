@@ -19,6 +19,7 @@ import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import type { Doc } from '@/convex/_generated/dataModel';
+import { DEFAULT_DOCS_URL } from '@/lib/docs-url';
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-guards';
 
@@ -68,7 +69,7 @@ function PersonalizationSettingsInner({
           {t('page.description')}
         </Text>
         <a
-          href="https://docs.tale.dev/legal/personalization"
+          href={`${DEFAULT_DOCS_URL}/legal/personalization`}
           target="_blank"
           rel="noopener noreferrer"
           className="mt-2 inline-block text-sm underline"

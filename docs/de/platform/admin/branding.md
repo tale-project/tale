@@ -1,32 +1,37 @@
 ---
 title: Branding
-description: Plattformname, Logo, Favicon und Markenfarben für deine Organisation anpassen.
+description: App-Name, Logo, Favicon und Markenfarben anpassen, damit die laufende App nach deiner Organisation aussieht und nicht nach Tale.
 ---
 
-Mit Branding passen Admins an, wie Tale für alle in der Organisation aussieht. Änderungen gelten für Browser-Tab, Navigationsleiste, Emails und Benachrichtigungs-Header.
+Branding ist die kosmetische Schicht über Tale. Sie ersetzt das Wort „Tale" im Browser-Tab und in der Kopfzeile durch den Namen deiner Organisation, tauscht Logo und Favicon und legt die zwei Farben fest, die App-weit für Schaltflächen und Hervorhebungen verwendet werden. Zielgruppe sind Admins — bei jeder anderen Rolle ist die Schaltfläche ausgeblendet — und der Zweck ist, die Momente zu reduzieren, in denen ein Mitglied Tale öffnet und einen Namen sieht, der nicht der eigene ist. Änderungen gelten organisationsweit, sobald sie gespeichert sind; ein Reload auf anderen Clients ist nicht nötig.
 
-Verfügbare Optionen unter **Einstellungen > Branding**:
+Branding ändert nicht, was das Produkt tut oder welche Modelle verfügbar sind. Dafür sind [KI-Anbieter](/de/platform/admin/providers) und [Richtlinien](/de/platform/admin/governance) die richtigen Seiten.
 
-| Option             | Beschreibung                                                   |
-| ------------------ | -------------------------------------------------------------- |
-| **Anwendungsname** | Ersetzt "Tale" im Browser-Tab und im Header.                   |
-| **Logo**           | Bild in der Navigationsleiste. Ersetzt das Standard-Tale-Logo. |
-| **Favicon**        | Icon im Browser-Tab. Eigene Bilder für Hell- und Dunkelmodus.  |
-| **Brand-Farbe**    | Primärfarbe für Buttons und aktive Zustände.                   |
-| **Akzentfarbe**    | Sekundärfarbe für Highlights und Badges.                       |
+## Verfügbare Optionen
 
-Änderungen werden für jeden Nutzer der Organisation sofort angewendet — andere Clients müssen nicht neu laden.
+Das Formular liegt unter **Einstellungen > Branding** und zeigt einen Bildschirm voll Optionen.
 
-## Logo und Favicon
+| Option          | Beschreibung                                                                                                                                                                                                             |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **App-Name**    | Ersetzt „Tale" im Browser-Tab-Titel und im Seitenkopf. Platzhalter: `z. B. Acme GmbH`.                                                                                                                                   |
+| **Text-Logo**   | Optionaler kurzer Text, der neben dem Logo-Bild in der Navigation erscheint — nützlich, wenn das Bild allein den Namen nicht trägt.                                                                                      |
+| **Logo**        | Das Bild in der Navigationsleiste. Lade PNG, JPEG oder SVG hoch; SVG empfiehlt sich für scharfes Rendering auf jeder Viewport-Größe. Getrennte Hell- und Dunkel-Modus-Varianten lassen je ein eigenes Logo pro Theme zu. |
+| **Favicon**     | Das 64 × 64 Icon, das Tale dem Browser-Tab ausliefert. Wie beim Logo werden Hell- und Dunkel-Varianten angenommen.                                                                                                       |
+| **Markenfarbe** | Primärfarbe — verwendet für Schaltflächen, aktive Zustände, Fokus-Ringe.                                                                                                                                                 |
+| **Akzentfarbe** | Sekundärfarbe — verwendet für Hervorhebungen und Badges.                                                                                                                                                                 |
 
-- Für das Logo kannst du PNG, JPEG oder SVG hochladen. SVG wird für gestochen scharfes Rendering in allen Größen empfohlen.
-- Favicons sollten quadratische PNGs mit mindestens 512 × 512 px sein. Tale skaliert sie automatisch für die verschiedenen Browser-Größen.
-- Mit Hell- und Dunkelmodus-Varianten kannst du ein dunkles Logo auf hellem Hintergrund für Hell und ein helles Logo auf dunklem Hintergrund für Dunkel nutzen.
+Das Formular zeigt eine Live-Branding-Vorschau, sodass Farbe und Logo sichtbar sind, bevor du speicherst.
+
+## Hell- und Dunkel-Varianten
+
+Sowohl Logo als auch Favicon nehmen getrennte Dateien für Hell- und Dunkel-Modus an. Der aktive Modus folgt der Theme-Wahl jedes Nutzers — eingestellt unter [Deine Einstellungen](/de/platform/member/preferences) — wodurch eine einzige Marke zwei visuell unterschiedliche Logos ausliefern kann, ohne einen expliziten Modus-Umschalter im UI. Lädst du nur eine Variante hoch, verwendet Tale sie für beide Modi.
 
 ## Farben
 
-Farben werden als Hex-Codes eingegeben. Die Plattform erzwingt ein Kontrastverhältnis von 4.5:1 zum Hintergrund — liegt die gewählte Farbe darunter, erscheint eine Accessibility-Warnung und der Farbwähler schlägt eine naheliegende Alternative vor, die den Kontrast besteht.
+Farben werden als Hex-Codes eingegeben. Tale prüft jede gewählte Farbe gegen das Kontrastverhältnis zum Hintergrund und warnt, wenn der Wert unter das 4,5:1-Verhältnis fällt, das WCAG AA für normalen Text verlangt; die Farbwahl schlägt eine nahe Alternative vor, die den Kontrast besteht. Die Warnung blockiert das Speichern nicht — du kannst sie überstimmen, wenn das Markenbuch es verlangt — aber das Audit-Log hält die Überstimmung fest.
 
-## Zurücksetzen
+## Wo das hingehört
 
-Klicke das Reset-Icon neben einem Feld, um es auf den Tale-Standard zurückzusetzen. Zurücksetzen von Anwendungsname und Logo gemeinsam stellt das Standard-Tale-Branding wieder her.
+Branding ist die oberflächliche Anpassungs-Schicht. Es ändert, wie Tale sich dem Team und den Empfängern der Team-E-Mails präsentiert; es ändert nicht, was das Produkt tut, welche Modelle existieren oder was Rollen dürfen. Behandle die Einstellungen hier als günstig und reversibel — jedes Feld hat ein Zurücksetzen-Symbol, das die Tale-Voreinstellung mit einem Klick wiederherstellt, sodass du experimentieren kannst, ohne dich festzulegen.
+
+Für die tiefer greifenden Anpassungs-Oberflächen — das Modell-Menü, die Aufbewahrungsrichtlinie, die Rollen-Matrix — sind [KI-Anbieter](/de/platform/admin/providers), [Richtlinien](/de/platform/admin/governance) und [Mitglieder und Rollen](/de/platform/admin/members-and-roles) die richtigen Seiten.

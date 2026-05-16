@@ -1,89 +1,81 @@
 ---
-title: AI chat
-description: Use the AI chat assistant to explore data, attach files, and select agents.
+title: Chat with AI
+description: The conversational workspace where you ask questions, attach files, pick an agent, and watch a multi-step plan unfold in plain language.
 ---
 
-The AI Chat is the main interface for working with Tale's AI. It is a conversation workspace where you can ask questions, request actions, and explore your data in plain language.
+Chat with AI is Tale's main conversational surface — the place where every role in the product first meets the AI. You write a question in the composer at the bottom of the screen, optionally attach files or pick a specialised agent, and the AI works through the answer in plain language: searching the knowledge base, calling integrations, building artifacts in the Canvas pane, walking a multi-step plan when the question is broad. This page covers the composer itself, the surrounding panes, and the keyboard reach.
 
-## Using the chat
+The deeper features each have their own page. Attachments handling, the agent picker, Arena Mode for model comparison, Canvas for editable artifacts, the Prompt library, and the Research plan side pane all live one click away in the sidebar.
 
-- Access: Navigate to Chat in the left sidebar.
-- To start a new conversation, click the plus icon in the top toolbar or press `Alt + Ctrl + N` (`Option + Cmd + N` on Mac).
-- Each conversation is saved to your history and can be searched or renamed later.
+## Open a conversation
 
-## Sending messages
+Chat with AI is the first item in the left sidebar. To start a new conversation, click the plus icon in the top toolbar or press `Alt + Ctrl + N` (`Option + Cmd + N` on macOS). Every conversation saves automatically the moment you send the first message, so closing the browser mid-thought never loses work.
 
-Type in the input area at the bottom of the screen. The Enter key sends your message. Use Shift+Enter for a new line within a message. The input area grows automatically as you type.
+## Send messages
 
-## File attachments
+The composer sits at the bottom of the screen. Press `Enter` to send the message; `Shift + Enter` inserts a newline within the same message. The composer grows as you type — there's no hard length limit beyond the model's context window. Click **Stop generating** to interrupt the AI mid-reply; partial output stays in the thread, so you keep whatever is already useful.
 
-You can attach files to any message by clicking the paperclip icon or dragging files into the chat window. Supported file types include:
+## Attach files
 
-- Images: PNG, JPEG, GIF, WebP. The agent analyzes the visual content.
-- Documents: PDF, DOCX, XLSX, PPTX, TXT, Markdown. The agent reads the content.
-- Code files: JS, TS, Python, and most common source file formats.
-- Audio: MP3, M4A, WAV, OGG, WebM. The audio is transcribed server-side and the transcript is passed to the agent.
-- Video: MP4, MOV, MKV, WebM, AVI, MPEG, 3GP, M4V. The audio track is extracted, transcribed, and passed to the agent — visual content is not sent.
+To send a file with a message, click the paperclip icon or drag the file onto the composer. Tale processes the upload before the message reaches the model — a spinner shows per file, with a separate transcription status for audio and video. The full set of accepted formats:
 
-Files are uploaded before the message is sent. A loading spinner shows for each file while it uploads; audio and video attachments also show a transcription status until they finish processing. See [Chat attachments](/platform/chat/attachments) for the full pipeline.
+- **Images:** PNG, JPEG, GIF, WebP. The agent analyses the visual content.
+- **Documents:** PDF, DOCX, XLSX, PPTX, TXT, Markdown. The agent reads the extracted text.
+- **Code files:** JavaScript, TypeScript, Python, and the common source-file formats.
+- **Audio:** MP3, M4A, WAV, OGG, WebM. The audio track is transcribed server-side and the transcript is passed to the agent.
+- **Video:** MP4, MOV, MKV, WebM, AVI, MPEG, 3GP, M4V. The audio track is extracted, transcribed, and passed to the agent — visual content is not sent.
 
-## Selecting an agent
+The full pipeline (size limits, transcription billing, PII handling) lives at [Chat attachments](/platform/chat/attachments).
 
-The agent selector is in the bottom-left corner of the input area, shown as a bot icon. Use it to choose which AI agent handles your conversation. The default is the system chat agent. Custom agents your team has built also appear here.
+## Pick an agent
 
-## Chat history
+The agent selector is the bot icon in the bottom-left of the composer. To route a conversation through a specific agent, open the selector and pick it — the default is the system assistant that ships with Tale; custom agents your team has built appear below it. Switching the agent mid-conversation is allowed, and the new agent reads the existing transcript before its first reply.
 
-Click the clock icon in the top toolbar to open the history sidebar. You can:
+The agent's instructions, knowledge scope, and enabled tools determine what the chat can do. The runtime behaviour for swapping agents and reading conversation starters lives at [Using agents in chat](/platform/chat/agents-in-chat); the mental model behind the four knobs lives at [Agent concepts](/platform/agents/concepts).
 
-- Browse all past conversations, grouped by date
-- Click a conversation to open it
-- Double-click a conversation title to rename it inline
-- Use the three-dot menu to rename or delete a conversation
-- Search across all conversations with `Ctrl+K` or `Cmd+K` on Mac
+## Browse history
 
-## What the chat agent can do
+The clock icon in the top toolbar opens the History sidebar. Past conversations are grouped by date — click one to open it, double-click a title to rename it inline, or use the three-dot menu to archive or delete. To search across every conversation, press `Ctrl + K` (`Cmd + K` on macOS) and type — subject and message bodies are indexed.
 
-The default chat agent can handle:
+## What the default assistant can do
 
-| Tool category         | What you can ask                                                         |
-| --------------------- | ------------------------------------------------------------------------ |
-| Knowledge base search | Ask questions answered by your uploaded documents and crawled websites   |
-| Web search            | Search the internet for current information                              |
-| Document handling     | Parse and analyze PDF, Word, PowerPoint, Excel, and text files           |
-| Image analysis        | Describe, analyze, or extract information from images                    |
-| Audio transcription   | Transcribe attached audio or video files so the agent can summarise them |
+The agent that ships with Tale is wired with the broadest set of tools so a fresh organisation has something useful out of the gate. The five tool categories on the default Assistant:
 
-## Arena mode
+| Tool category         | What you can ask                                                          |
+| --------------------- | ------------------------------------------------------------------------- |
+| Knowledge-base search | Questions answered by your uploaded documents and crawled websites.       |
+| Web search            | Current information from the public internet.                             |
+| Document handling     | Parse and analyse PDF, Word, PowerPoint, Excel, and text files inline.    |
+| Image analysis        | Describe, analyse, or extract information from attached images.           |
+| Audio transcription   | Transcribe attached audio or video files so the agent can summarise them. |
 
-Arena Mode lets you compare two AI models on the same prompt. Click the **Swords** icon in the input toolbar, select two models, and send a message. Both models respond in parallel in a split view. Record a verdict to mark which response was better.
+Custom agents you build start with the same defaults; you narrow them. The build flow walks the steps at [Create an agent](/platform/agents/create).
 
-See [Arena mode](/platform/chat/arena-mode) for full details.
+## Arena Mode
+
+Arena Mode runs the same prompt through two models in parallel and shows the responses side by side. To compare models on a real prompt, click the **Swords** icon in the input toolbar, pick two models, and send a message — both responses stream into a split view. Record a verdict to flag which response was better; the verdicts accumulate as a per-model comparison record under usage analytics.
+
+The full doctrine lives at [Arena Mode](/platform/chat/arena-mode).
 
 ## Canvas
 
-When the AI generates a runnable HTML page, an SVG, a Mermaid diagram, a markdown document, or a code snippet, it creates an **artifact** that appears as a card in the Artifacts bar above the chat and auto-opens in the Canvas pane. Canvas provides live preview, source editing, and export. The AI can revise the artifact in place across turns — small fixes don't require re-generating the whole document.
+When the AI produces runnable HTML, an SVG, a Mermaid diagram, a Markdown document, or a code snippet, it creates an **artifact** — a card in the Artifacts bar above the chat that auto-opens in the Canvas pane. The artifact has a stable identity across the whole conversation, so small fixes don't require regenerating the whole document — the AI patches it in place across turns.
 
-See [Canvas](/platform/workspace/canvas) for full details.
+The full doctrine lives at [Canvas](/platform/workspace/canvas).
 
 ## Prompt library
 
-Save and reuse prompt templates across your organization. Open the Prompt Library from the chat input toolbar to browse, search, and insert saved prompts. You can also save any chat message as a prompt template directly from the conversation.
+To reuse a prompt template across the team, open the Prompt library from the composer toolbar — every saved prompt is searchable and insertable with one click. To save the prompt you wrote, open the message's three-dot menu and pick **Save as prompt**; scope it to yourself, your team, or the whole organisation.
 
-See [Prompt library](/platform/workspace/prompt-library) for full details.
+The full doctrine lives at [Prompt library](/platform/workspace/prompt-library).
 
 ## Research plan
 
-For multi-step questions that require planning — broad research, comparisons across many sources, summaries that pull from several documents and the web — the agent breaks the work into a **Research plan** and works through it step by step. The plan opens automatically as a side pane the first time the agent emits a todo for the conversation; you can pin it open or close it from the strip on the right edge of the chat.
+Broad questions that need planning — multi-source research, comparisons, summaries across several documents and the web — get broken into a **Research plan**. The plan opens automatically as a side pane the first time the agent emits a todo for the conversation; pin it open from the strip on the right edge of the chat, or close it when you want the full message stream back.
 
-Each todo shows a status (pending, running, done, failed), a one-line summary, and the sources the agent has captured for that step — knowledge-base hits, retrieved web pages, and any integration results. The plan updates live as the agent finishes each step, so you watch the agent's reasoning unfold instead of waiting for one long answer at the end.
+Each todo shows a status (pending, running, done, failed), a one-line summary, and the sources the agent has captured for that step — knowledge-base hits, retrieved web pages, integration results. The plan updates live as the agent finishes each step, so you watch the reasoning unfold instead of waiting for one long answer at the end.
 
-You can intervene without breaking the run:
-
-- **Collapse a step** to hide its sources when the list gets long.
-- **Reorder** by sending a follow-up message — the agent revises remaining todos based on your feedback.
-- **Stop** with the standard stop button on the composer — partial results stay in the thread, and the failed-todo count is shown at the top of the plan.
-
-The Research plan is read-only — you don't edit todos directly. Steer the run with regular chat messages.
+You can intervene without breaking the run. Collapse a step to hide its sources when the list grows long. Reorder by sending a follow-up message — the agent revises remaining todos based on your feedback. Stop with the composer's stop button — partial results stay in the thread, and the failed-todo count shows at the top of the plan. The plan itself is read-only; steer the run with regular chat messages.
 
 ## Keyboard shortcuts
 
@@ -91,4 +83,10 @@ The Research plan is read-only — you don't edit todos directly. Steer the run 
 | ---------------------- | ---------------- | ------------------ |
 | New chat               | `Alt + Ctrl + N` | `Option + Cmd + N` |
 | Search chats           | `Ctrl + K`       | `Cmd + K`          |
-| Toggle history sidebar | `Ctrl + H`       | `Cmd + H`          |
+| Toggle History sidebar | `Ctrl + H`       | `Cmd + H`          |
+
+## Where this fits
+
+Chat is the front door for everything the AI can do. The agents, the knowledge, the tools — every other surface in Tale either feeds the chat (curating the knowledge base, building agents, configuring providers) or replaces it for cases where the chat shape is wrong (automations for unattended work, the API for scripts). Most readers live in this one page; the rest of the platform reads as either _how to make chat better_ or _what to do when chat isn't the right surface_.
+
+To make chat sharper for the team, the natural next step is a purpose-built agent — start with [Agent concepts](/platform/agents/concepts) for the mental model, then walk through [Build your first agent end to end](/tutorials/editor/first-agent-end-to-end).

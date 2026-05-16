@@ -25,17 +25,17 @@
     "actions": {
       "save": "Speichern",
       "saveChanges": "Änderungen speichern",
-      "saving": "Wird gespeichert...",
+      "saving": "Speichern...",
       "cancel": "Abbrechen",
       "delete": "Löschen",
-      "deleting": "Wird gelöscht...",
+      "deleting": "Lösche...",
       "edit": "Bearbeiten",
-      "adding": "Wird hinzugefügt...",
+      "adding": "Füge hinzu...",
       "create": "Erstellen",
       "close": "Schließen",
       "confirm": "Bestätigen",
       "back": "Zurück",
-      "loading": "Wird geladen...",
+      "loading": "Lädt...",
       "done": "Fertig",
       "duplicate": "Duplizieren",
       "view": "Anzeigen",
@@ -60,16 +60,16 @@
       "itemsSelected": "{count, plural, one {# Element ausgewählt} other {# Elemente ausgewählt}}",
       "confirmDeleteTitle": "{count, plural, one {# Element} other {# Elemente}} löschen",
       "confirmDeleteDescription": "Möchtest du {count, plural, one {dieses Element} other {diese {count} Elemente}} wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
-      "deleteSuccess": "{count, plural, one {# Element} other {# Elemente}} erfolgreich gelöscht",
+      "deleteSuccess": "{count, plural, one {# Element} other {# Elemente}} gelöscht",
       "deleteFailed": "Einige Elemente konnten nicht gelöscht werden",
-      "deleting": "Wird gelöscht..."
+      "deleting": "Lösche..."
     },
     "upload": {
       "clickToUpload": "Klicken zum Hochladen",
-      "supportedFormats": ".xlsx, .xls oder .csv",
+      "supportedFormats": ".xlsx,.xls oder.csv",
       "pickADate": "Datum auswählen",
       "dropFilesHere": "Dateien hier ablegen zum Hochladen",
-      "acceptHint": "JSON-Dateien, Ordner oder .zip-Archive",
+      "acceptHint": "JSON-Dateien, Ordner oder.zip-Archive",
       "pickFiles": "Dateien wählen",
       "pickFolder": "Ordner wählen",
       "pickZip": "ZIP wählen",
@@ -83,7 +83,7 @@
     },
     "labels": {
       "name": "Name",
-      "email": "Email",
+      "email": "E-Mail",
       "status": "Status",
       "phone": "Telefon",
       "source": "Quelle",
@@ -120,7 +120,7 @@
     },
     "validation": {
       "required": "{field} ist erforderlich",
-      "email": "Bitte gib eine gültige Email-Adresse ein",
+      "email": "Bitte gib eine gültige E-Mail-Adresse ein",
       "invalidJson": "Ungültiges JSON-Format",
       "uploadFile": "Bitte lade eine Datei hoch",
       "unsupportedFileType": "Nicht unterstützter Dateityp",
@@ -299,7 +299,7 @@
       "actions": "Aktionen",
       "created": "Erstellt",
       "description": "Beschreibung",
-      "email": "Email",
+      "email": "E-Mail",
       "product": "Produkt",
       "scanned": "Gescannt",
       "stock": "Bestand",
@@ -309,22 +309,22 @@
     "cells": {
       "unknown": "Unbekannt",
       "empty": "-",
-      "noEmail": "Keine Email"
+      "noEmail": "Keine E-Mail"
     }
   },
   "toast": {
     "success": {
-      "saved": "Änderungen erfolgreich gespeichert",
-      "deleted": "Erfolgreich gelöscht",
-      "profileUpdated": "Profil erfolgreich aktualisiert",
-      "passwordChanged": "Passwort erfolgreich geändert",
-      "passwordSet": "Passwort erfolgreich festgelegt",
-      "organizationUpdated": "Organisation erfolgreich aktualisiert",
+      "saved": "Änderungen gespeichert",
+      "deleted": "Gelöscht",
+      "profileUpdated": "Profil aktualisiert",
+      "passwordChanged": "Passwort geändert",
+      "passwordSet": "Passwort festgelegt",
+      "organizationUpdated": "Organisation aktualisiert",
       "newMemberCreated": "Neues Mitglied erstellt und zur Organisation hinzugefügt",
       "existingUserAdded": "Bestehender Benutzer zur Organisation hinzugefügt",
-      "automationDuplicated": "Automatisierung erfolgreich dupliziert",
-      "automationRenamed": "Automatisierung erfolgreich umbenannt",
-      "brandingUpdated": "Branding erfolgreich aktualisiert"
+      "automationDuplicated": "Automatisierung dupliziert",
+      "automationRenamed": "Automatisierung umbenannt",
+      "brandingUpdated": "Branding aktualisiert"
     },
     "error": {
       "saveFailed": "Änderungen konnten nicht gespeichert werden",
@@ -343,7 +343,7 @@
       "title": "Mitglied hinzufügen"
     },
     "memberAdded": {
-      "title": "Mitglied erfolgreich hinzugefügt",
+      "title": "Mitglied hinzugefügt",
       "credentialsWarning": "Wichtig: Speichere diese Zugangsdaten jetzt — sie werden nicht erneut angezeigt.",
       "existingUserNotice": "Dieser Benutzer hatte bereits ein Konto, es wurden keine neuen Zugangsdaten erstellt. Er kann sich mit seinem bestehenden Passwort anmelden."
     },
@@ -367,16 +367,16 @@
     }
   },
   "auth": {
-    "email": "Email",
+    "email": "E-Mail",
     "password": "Passwort",
-    "emailPlaceholder": "Gib deine Email-Adresse ein",
+    "emailPlaceholder": "Gib deine E-Mail-Adresse ein",
     "passwordPlaceholder": "Gib Dein Passwort ein",
     "login": {
       "loginTitle": "Anmelden",
       "signingIn": "Anmeldung läuft...",
       "loginButton": "Anmelden",
       "continueWithSso": "Weiter mit SSO",
-      "wrongCredentials": "Falsche Email oder falsches Passwort",
+      "wrongCredentials": "Falsche E-Mail oder falsches Passwort",
       "accountLockedGeneric": "Konto wegen wiederholter Fehlversuche vorübergehend gesperrt. Bitte später erneut versuchen oder einen Administrator kontaktieren.",
       "accountLockedSeconds": "Konto vorübergehend gesperrt. In {seconds, plural, one {# Sekunde} other {# Sekunden}} erneut versuchen oder einen Administrator kontaktieren.",
       "accountLockedMinutes": "Konto vorübergehend gesperrt. In {minutes, plural, one {# Minute} other {# Minuten}} erneut versuchen oder einen Administrator kontaktieren.",
@@ -387,18 +387,18 @@
         "description": "Das Zurücksetzen des Passworts wird von deiner Organisation verwaltet."
       },
       "toast": {
-        "success": "Erfolgreich angemeldet"
+        "success": "Angemeldet"
       }
     },
     "signup": {
       "signupTitle": "Erstelle Dein Konto",
-      "creating": "Wird erstellt...",
+      "creating": "Erstelle...",
       "createButton": "Erstellen",
-      "accountCreated": "Konto erfolgreich erstellt!",
-      "wrongCredentials": "Falsche Email oder falsches Passwort"
+      "accountCreated": "Konto erstellt!",
+      "wrongCredentials": "Falsche E-Mail oder falsches Passwort"
     },
     "validation": {
-      "emailRequired": "Email ist erforderlich",
+      "emailRequired": "E-Mail ist erforderlich",
       "passwordMinLength": "Passwort muss mindestens {n} Zeichen lang sein",
       "passwordLowercase": "Passwort muss einen Kleinbuchstaben enthalten",
       "passwordUppercase": "Passwort muss einen Großbuchstaben enthalten",
@@ -469,7 +469,7 @@
     },
     "setPassword": {
       "title": "Passwort festlegen",
-      "description": "Dein Konto verwendet externe Anmeldung. Lege ein Passwort fest, um dich auch mit Email und Passwort anmelden zu können.",
+      "description": "Dein Konto verwendet externe Anmeldung. Lege ein Passwort fest, um dich auch mit E-Mail und Passwort anmelden zu können.",
       "newPassword": "Neues Passwort",
       "confirmPassword": "Passwort bestätigen"
     }
@@ -480,7 +480,7 @@
       "profile": {
         "name": "Anzeigename",
         "namePlaceholder": "Gib deinen Namen ein",
-        "email": "Email",
+        "email": "E-Mail",
         "nameRequired": "Name ist erforderlich"
       },
       "security": {
@@ -507,23 +507,23 @@
       "deleteDialogTitle": "Organisation löschen",
       "deleteDialogDescription": "„{name}\" löschen? Damit werden Agents, Workflows, Anbieter und Integrationen entfernt. Mitglieder verlieren den Zugriff. Dies kann nicht rückgängig gemacht werden.",
       "deleteConfirmAction": "Organisation löschen",
-      "deleteLoading": "Wird gelöscht…",
+      "deleteLoading": "Lösche…",
       "deleteSuccess": "Organisation gelöscht",
       "deleteFailed": "Organisation konnte nicht gelöscht werden",
       "organizationName": "Organisationsname",
       "companyNameRequired": "Firmenname ist erforderlich",
       "enterCompanyName": "Gib deinen Firmennamen ein",
-      "organizationCreated": "Organisation erfolgreich erstellt!",
-      "creating": "Wird erstellt...",
+      "organizationCreated": "Organisation erstellt!",
+      "creating": "Erstelle...",
       "editMember": "Mitglied bearbeiten",
       "removeMember": "Mitglied entfernen",
-      "memberUpdated": "Mitglied erfolgreich aktualisiert",
+      "memberUpdated": "Mitglied aktualisiert",
       "memberUpdateFailed": "Mitglied konnte nicht aktualisiert werden",
-      "memberRemoved": "Mitglied erfolgreich entfernt",
+      "memberRemoved": "Mitglied entfernt",
       "memberRemoveFailed": "Mitglied konnte nicht entfernt werden",
       "twoFactorResetSuccess": "Zwei-Faktor zurückgesetzt — das Mitglied muss sich bei der nächsten Anmeldung neu einrichten",
       "twoFactorResetFailed": "Zwei-Faktor-Authentifizierung konnte nicht zurückgesetzt werden",
-      "emailCannotChange": "Email kann nicht geändert werden",
+      "emailCannotChange": "E-Mail kann nicht geändert werden",
       "cannotChangeOwnRole": "Du kannst deine eigene Rolle nicht ändern",
       "updatePassword": "Passwort aktualisieren",
       "enterNewPassword": "Neues Passwort eingeben",
@@ -532,7 +532,7 @@
       "adminSecurityWarning": "Warnung: Deine Organisation muss aus Sicherheitsgründen mindestens 2 Admins haben. Du kannst den letzten Admin nicht entfernen.",
       "transferOwnership": "Inhaberschaft übertragen",
       "transferOwnershipConfirmation": "Möchtest du die Inhaberschaft wirklich an {name} übertragen? Du wirst zum Admin herabgestuft.",
-      "ownershipTransferred": "Inhaberschaft erfolgreich übertragen",
+      "ownershipTransferred": "Inhaberschaft übertragen",
       "ownershipTransferFailed": "Inhaberschaft konnte nicht übertragen werden"
     },
     "teams": {
@@ -550,7 +550,7 @@
       "deleteConfirmation": "Möchtest du das Team {name} wirklich löschen? Alle Mitglieder werden aus diesem Team entfernt. Diese Aktion kann nicht rückgängig gemacht werden.",
       "teamDeleted": "Team gelöscht",
       "teamDeleteFailed": "Team konnte nicht gelöscht werden",
-      "teamCreated": "Team erfolgreich erstellt",
+      "teamCreated": "Team erstellt",
       "teamCreatedDescription": "Team {name} wurde mit {count} {count, plural, one {Mitglied} other {Mitgliedern}} erstellt.",
       "teamCreateFailed": "Team konnte nicht erstellt werden",
       "teamUpdated": "Team aktualisiert",
@@ -564,7 +564,7 @@
       "teamName": "Teamname",
       "teamNamePlaceholder": "Teamname eingeben...",
       "saveChanges": "Änderungen speichern",
-      "loadingMembers": "Wird geladen...",
+      "loadingMembers": "Lädt...",
       "unknownMember": "Unbekannt",
       "memberChecklistHint": "Ein Mitglied kann mehreren Teams angehören. Wenn niemand ausgewählt wird, wirst du automatisch hinzugefügt.",
       "description": "Teams innerhalb deiner Organisation erstellen und verwalten für granulare Zugriffskontrolle"
@@ -621,7 +621,7 @@
       },
       "createDialog": {
         "continue": "Weiter",
-        "creating": "Wird erstellt...",
+        "creating": "Erstelle...",
         "model": "Modell",
         "modelPlaceholder": "Modell auswählen",
         "modelSearch": "Modelle suchen…",
@@ -630,7 +630,7 @@
       "uploadDialog": {
         "menuItem": "Aus Datei hochladen…",
         "title": "Agents hochladen",
-        "description": "Importiere Agent-JSON-Dateien, Ordner oder .zip-Archive. Jede .json-Datei wird als eigener Agent installiert.",
+        "description": "Importiere Agent-JSON-Dateien, Ordner oder.zip-Archive. Jede.json-Datei wird als eigener Agent installiert.",
         "toastSuccess": "Agents importiert"
       },
       "general": {
@@ -833,22 +833,22 @@
         "disconnected": "Getrennt",
         "disconnectFailed": "Trennung fehlgeschlagen"
       },
-      "connectionSuccessful": "Verbindung erfolgreich",
+      "connectionSuccessful": "Verbindung",
       "connectionTestFailed": "Verbindungstest fehlgeschlagen",
       "failedToTestConnection": "Verbindung konnte nicht getestet werden",
       "oauthConnectedTitle": "Integration verbunden",
-      "oauthConnectedDescription": "OAuth-Autorisierung war erfolgreich. Deine Integration ist jetzt aktiv.",
+      "oauthConnectedDescription": "OAuth-Autorisierung war. Deine Integration ist jetzt aktiv.",
       "oauthErrorTitle": "Verbindung fehlgeschlagen",
       "oauthErrorDescription": "OAuth-Autorisierung fehlgeschlagen. Bitte versuche es erneut.",
       "disconnecting": "Wird getrennt...",
       "disconnect": "Trennen",
-      "disconnectedSuccessfully": "{provider} erfolgreich getrennt.",
+      "disconnectedSuccessfully": "{provider} getrennt.",
       "failedToDisconnect": "{provider} konnte nicht getrennt werden, bitte versuche es erneut.",
-      "updateSuccessful": "Aktualisierung erfolgreich",
+      "updateSuccessful": "Aktualisierung",
       "updateFailed": "Aktualisierung fehlgeschlagen",
       "upload": {
         "addDialogTitle": "Integration hinzufügen",
-        "uploadDescription": "Lade ein einzelnes .zip-Paket hoch oder wähle config.json + connector.js/.ts + Symbol einzeln aus (max. 1 MB gesamt).",
+        "uploadDescription": "Lade ein einzelnes.zip-Paket hoch oder wähle config.json + connector.js/.ts + Symbol einzeln aus (max. 1 MB gesamt).",
         "dropZoneLabel": "Integrationspaket hochladen",
         "dropOrClick": "Dateien hierher ziehen oder zum Durchsuchen klicken",
         "dropHere": "Dateien hier ablegen",
@@ -868,7 +868,7 @@
         "readOnly": "Nur lesen",
         "maxResultRows": "Max. Ergebniszeilen",
         "queryTimeout": "Abfrage-Timeout (ms)",
-        "creating": "Wird erstellt...",
+        "creating": "Erstelle...",
         "createIntegration": "Integration installieren",
         "createSuccess": "Integration erstellt",
         "createFailed": "Integration konnte nicht erstellt werden",
@@ -906,8 +906,8 @@
         "clientId": "Client-ID",
         "clientSecret": "Client-Secret",
         "scopes": "Berechtigungen",
-        "savingCredentials": "Wird gespeichert...",
-        "credentialsSaved": "Zugangsdaten erfolgreich gespeichert",
+        "savingCredentials": "Speichern...",
+        "credentialsSaved": "Zugangsdaten gespeichert",
         "credentialsSaveFailed": "Zugangsdaten konnten nicht gespeichert werden",
         "updateCredentials": "Zugangsdaten aktualisieren",
         "reauthorize": "Erneut autorisieren",
@@ -919,7 +919,7 @@
         "updateIntegration": "Integration aktualisieren",
         "updateIntegrationDescription": "Lade neue config.json und connector.js/.ts hoch, um Connector-Code und Operationen zu aktualisieren.",
         "dropFilesToUpdate": "Dateien hierher ziehen oder zum Durchsuchen klicken",
-        "acceptedUpdateFormats": "config.json + connector.js/.ts (oder .zip), max. 1 MB",
+        "acceptedUpdateFormats": "config.json + connector.js/.ts (oder.zip), max. 1 MB",
         "applyUpdate": "Aktualisierung anwenden",
         "applyingUpdate": "Wird angewendet...",
         "updateSuccess": "Integration aktualisiert",
@@ -956,9 +956,9 @@
         "description": "Teams und Rollen automatisch über Microsoft Entra ID SSO bereitstellen.",
         "validationError": "Validierungsfehler",
         "allFieldsRequired": "Alle Felder sind erforderlich",
-        "configureSuccessful": "Konfiguration erfolgreich",
-        "updateSuccessful": "Aktualisierung erfolgreich",
-        "ssoConfigured": "SSO-Anbieter wurde erfolgreich konfiguriert",
+        "configureSuccessful": "Konfiguration",
+        "updateSuccessful": "Aktualisierung",
+        "ssoConfigured": "SSO-Anbieter wurde konfiguriert",
         "configureFailed": "Konfiguration fehlgeschlagen",
         "configureError": "SSO-Anbieter konnte nicht konfiguriert werden",
         "disconnected": "Getrennt",
@@ -970,8 +970,8 @@
         "sourceJobTitle": "Jobtitel",
         "sourceAppRole": "App-Rolle",
         "addRule": "Regel hinzufügen",
-        "testSuccessful": "Verbindung erfolgreich",
-        "testSuccessfulDescription": "SSO-Zugangsdaten wurden erfolgreich validiert",
+        "testSuccessful": "Verbindung",
+        "testSuccessfulDescription": "SSO-Zugangsdaten wurden validiert",
         "testFailed": "Verbindung fehlgeschlagen",
         "testFailedDescription": "SSO-Zugangsdaten konnten nicht validiert werden",
         "testError": "Beim Testen der Verbindung ist ein Fehler aufgetreten",
@@ -1003,7 +1003,7 @@
         "testPassed": "Gültig",
         "testing": "Wird getestet...",
         "title": "SSO-Konfiguration",
-        "updating": "Wird aktualisiert..."
+        "updating": "Aktualisiere..."
       }
     },
     "providers": {
@@ -1049,7 +1049,7 @@
       "forbiddenDeveloperSettings": "Du hast keine Berechtigung, die Anbieter-Konfiguration zu ändern.",
       "providerOptions": {
         "providerLevelTitle": "Erweitert — Provider-Optionen",
-        "providerLevelDescription": "Freies JSON, das wortgetreu als zusätzliche Request-Body-Felder an jedes Modell dieses Anbieters weitergeleitet wird. Die Struktur wird vom Upstream-API vorgegeben — Tale interpretiert diese Felder nicht, sondern reicht sie nur durch.\n\nWelche Knöpfe verfügbar sind, hängt davon ab, ob es sich beim Upstream um ein Routing-Gateway oder einen direkten Inferenz-Anbieter handelt:\n\nGateways aggregieren mehrere Backends und exponieren Routing-Steuerungen:\n• OpenRouter — Routing-Optionen unter einem Top-Level-Schlüssel \"provider\" (Quantisierung, Fallback-Richtlinie, erlaubte Backends usw. wählen):\n    { \"provider\": { \"quantizations\": [\"fp8\"], \"allow_fallbacks\": false } }\n• Vercel AI Gateway — routet primär über das Modell-ID-Präfix und HTTP-Header; Body-Level-Passthrough ist auf Observability-Felder wie \"metadata\" beschränkt:\n    { \"metadata\": { \"tale_agent\": \"support\" } }\n\nDirekte Anbieter hosten ihre eigenen Modelle — es gibt keine Routing-Schicht und kein \"quantizations\"-Feld; die Präzision ist beim Deployment festgelegt. Deren Passthrough-Felder sind Modellverhaltens-Knöpfe auf oberster Body-Ebene:\n• OpenAI:\n    { \"service_tier\": \"priority\", \"parallel_tool_calls\": false }\n• Together AI:\n    { \"safety_model\": \"meta-llama/Llama-Guard-4-12B\", \"repetition_penalty\": 1.1 }\n\nFür die genauen Feldnamen und akzeptierten Werte die API-Dokumentation des jeweiligen Anbieters konsultieren.",
+        "providerLevelDescription": "Freies JSON, das wortgetreu als zusätzliche Request-Body-Felder an jedes Modell dieses Anbieters weitergeleitet wird. Die Struktur wird vom Upstream-API vorgegeben — Tale interpretiert diese Felder nicht, sondern reicht sie nur durch.\n\nWelche Knöpfe verfügbar sind, hängt davon ab, ob es sich beim Upstream um ein Routing-Gateway oder einen direkten Inferenz-Anbieter handelt:\n\nGateways aggregieren mehrere Backends und exponieren Routing-Steuerungen:\n• OpenRouter — Routing-Optionen unter einem Top-Level-Schlüssel \"provider\" (Quantisierung, Fallback-Richtlinie, erlaubte Backends usw. wählen):\n { \"provider\": { \"quantizations\": [\"fp8\"], \"allow_fallbacks\": false } }\n• Vercel AI Gateway — routet primär über das Modell-ID-Präfix und HTTP-Header; Body-Level-Passthrough ist auf Observability-Felder wie \"metadata\" beschränkt:\n { \"metadata\": { \"tale_agent\": \"support\" } }\n\nDirekte Anbieter hosten ihre eigenen Modelle — es gibt keine Routing-Schicht und kein \"quantizations\"-Feld; die Präzision ist beim Deployment festgelegt. Deren Passthrough-Felder sind Modellverhaltens-Knöpfe auf oberster Body-Ebene:\n• OpenAI:\n { \"service_tier\": \"priority\", \"parallel_tool_calls\": false }\n• Together AI:\n { \"safety_model\": \"meta-llama/Llama-Guard-4-12B\", \"repetition_penalty\": 1.1 }\n\nFür die genauen Feldnamen und akzeptierten Werte die API-Dokumentation des jeweiligen Anbieters konsultieren.",
         "modelLevelTitle": "Erweitert — Provider-Optionen",
         "modelLevelDescription": "Freies JSON, das mit den Anbieter-Standards zusammengeführt und als zusätzliche Request-Body-Felder weitergeleitet wird. Die Struktur folgt dem Upstream-API und unterscheidet sich je nach Anbieter — Tale reicht das JSON wortgetreu durch, ohne es zu interpretieren.",
         "modelLevelHelp": "Beispiele — Gateways und direkte Anbieter exponieren unterschiedliche Arten von Knöpfen:\n• OpenRouter (Gateway): { \"provider\": { \"quantizations\": [\"fp8\"] } } — ein Backend nach Quantisierung anpinnen\n• Vercel AI Gateway (Gateway): { \"metadata\": { \"tale_agent\": \"support\" } } — Observability-Tag (Routing meist über Header oder Modell-Präfix)\n• OpenAI (direkt): { \"service_tier\": \"priority\" } — eine SLA-Stufe wählen\n• Together AI (direkt): { \"safety_model\": \"meta-llama/Llama-Guard-4-12B\" } — Moderation anwenden\n\nDirekte Anbieter exponieren Quantisierung nicht als Request-Feld — stattdessen eine andere Modell-ID wählen. Schlüssel wie model / messages / max_tokens / temperature werden abgelehnt — diese auf Agent-Ebene konfigurieren. Leere Eingabe entfernt die Überschreibung.",
@@ -1074,9 +1074,9 @@
       "overwriteUndecryptableDescription": "Die Secrets-Datei des Anbieters unter {path} konnte nicht gelesen werden ({reason}). Beim Speichern wird die bestehende Datei verworfen — der vorherige Schlüssel kann daraus nicht wiederhergestellt werden. Fortfahren?",
       "overwriteAnywayConfirm": "Trotzdem überschreiben",
       "encryptedNoKeyTitle": "Anbieter-Secrets sind verschlüsselt, aber kein Schlüssel ist gesetzt",
-      "encryptedNoKeyDescription": "Die Secrets-Datei unter {path} ist SOPS-verschlüsselt, aber weder SOPS_AGE_KEY noch SOPS_AGE_KEY_FILE ist in .env gesetzt. Setze einen Wert zum Entschlüsseln oder speichere unten einen neuen API-Schlüssel, um die verschlüsselte Datei zu überschreiben.",
+      "encryptedNoKeyDescription": "Die Secrets-Datei unter {path} ist SOPS-verschlüsselt, aber weder SOPS_AGE_KEY noch SOPS_AGE_KEY_FILE ist in.env gesetzt. Setze einen Wert zum Entschlüsseln oder speichere unten einen neuen API-Schlüssel, um die verschlüsselte Datei zu überschreiben.",
       "save": "Speichern",
-      "saving": "Wird gespeichert...",
+      "saving": "Speichern...",
       "saveKey": "Schlüssel speichern",
       "editGeneral": "Details bearbeiten",
       "editGeneralTitle": "Allgemeine Details bearbeiten",
@@ -1152,8 +1152,8 @@
     "form": {
       "name": "Name",
       "namePlaceholder": "Vollständigen Namen eingeben",
-      "email": "Email",
-      "emailPlaceholder": "Email-Adresse eingeben",
+      "email": "E-Mail",
+      "emailPlaceholder": "E-Mail-Adresse eingeben",
       "password": "Passwort",
       "passwordPlaceholder": "Passwort eingeben",
       "role": "Rolle",
@@ -1381,7 +1381,7 @@
       "restore": "Wiederherstellen",
       "noDifferences": "Keine Unterschiede gefunden",
       "loadFailed": "Verlauf konnte nicht geladen werden",
-      "restoreSuccess": "Version erfolgreich wiederhergestellt",
+      "restoreSuccess": "Version wiederhergestellt",
       "restoreFailed": "Version konnte nicht wiederhergestellt werden"
     },
     "form": {
@@ -1530,13 +1530,13 @@
       "tabTemplate": "Aus Vorlage",
       "namePlaceholder": "z. B. Social-Media-Workflow",
       "descriptionPlaceholder": "Beschreibe, was diese Automatisierung tut...",
-      "creating": "Wird erstellt...",
+      "creating": "Erstelle...",
       "continue": "Weiter"
     },
     "uploadDialog": {
       "menuItem": "Aus Datei hochladen…",
       "title": "Automatisierungen hochladen",
-      "description": "Importiere Workflow-JSON-Dateien, Ordner oder .zip-Archive. Jede .json-Datei wird als eigene Automatisierung installiert.",
+      "description": "Importiere Workflow-JSON-Dateien, Ordner oder.zip-Archive. Jede.json-Datei wird als eigene Automatisierung installiert.",
       "toastSuccess": "Automatisierungen importiert"
     },
     "templates": {
@@ -1584,7 +1584,7 @@
       "validationErrors": "Validierungsfehler",
       "validationWarnings": "Warnungen",
       "stepSaveFailed": "Schritt konnte nicht gespeichert werden",
-      "saving": "Wird gespeichert...",
+      "saving": "Speichern...",
       "resizePanel": "Panel-Größe ändern",
       "stepEditor": "Schritt-Editor"
     },
@@ -1603,7 +1603,7 @@
       "title": "Schritt erstellen",
       "description": "Neuen Schritt zum ausgewählten Workflow hinzufügen",
       "namePlaceholder": "analyze_data",
-      "creating": "Wird erstellt...",
+      "creating": "Erstelle...",
       "createButton": "Schritt erstellen",
       "type": "Typ",
       "types": {
@@ -1619,7 +1619,7 @@
       }
     },
     "toast": {
-      "created": "Automatisierung erfolgreich erstellt",
+      "created": "Automatisierung erstellt",
       "createFailed": "Automatisierung konnte nicht erstellt werden"
     },
     "validation": {
@@ -1635,7 +1635,7 @@
       "previewImage": "Vorschau {filename}",
       "fallbackImage": "Bild",
       "fallbackFile": "Datei",
-      "loading": "Wird geladen...",
+      "loading": "Lädt...",
       "notFound": "Automatisierung nicht gefunden.",
       "welcome": "Hallo! Ich bin dein Automatisierungsassistent. Ich kann dir helfen, diese Automatisierung zu erstellen, zu bearbeiten und zu besprechen. Was möchtest du tun?",
       "errorMessage": "Es tut mir leid, ein Fehler ist aufgetreten. Bitte versuche es erneut oder prüfe die Konsole für Details.",
@@ -1656,7 +1656,7 @@
       "dryRunning": "Wird simuliert...",
       "dryRun": {
         "button": "Probelauf",
-        "success": "Probelauf erfolgreich abgeschlossen",
+        "success": "Probelauf abgeschlossen",
         "failed": "Probelauf hat Probleme gefunden",
         "errors": "Fehler",
         "warnings": "Warnungen",
@@ -1703,26 +1703,26 @@
       "close": "Schließen",
       "reopen": "Erneut öffnen",
       "messagesSent": "Nachrichten gesendet",
-      "messagesSentDescription": "{successCount} Nachrichten erfolgreich gesendet{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}}",
+      "messagesSentDescription": "{successCount} Nachrichten gesendet{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}}",
       "sendFailed": "Nachrichten konnten nicht gesendet werden",
       "resolved": "Konversationen abgeschlossen",
-      "resolvedDescription": "{successCount} Konversationen erfolgreich abgeschlossen{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}}",
+      "resolvedDescription": "{successCount} Konversationen abgeschlossen{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}}",
       "resolveFailed": "Konversationen konnten nicht abgeschlossen werden",
       "reopened": "Konversationen erneut geöffnet",
-      "reopenedDescription": "{successCount} Konversationen erfolgreich erneut geöffnet{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}}",
+      "reopenedDescription": "{successCount} Konversationen erneut geöffnet{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}}",
       "reopenFailed": "Konversationen konnten nicht erneut geöffnet werden",
       "selectedCount": "{count, plural, one {# ausgewählt} other {# ausgewählt}}",
       "archive": "Archivieren",
       "unarchive": "Dearchivieren",
       "archived": "Konversationen archiviert",
-      "archivedDescription": "{successCount} Konversationen erfolgreich archiviert{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}}",
+      "archivedDescription": "{successCount} Konversationen archiviert{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}}",
       "archiveFailed": "Konversationen konnten nicht archiviert werden",
       "unarchived": "Konversationen dearchiviert",
-      "unarchivedDescription": "{successCount} Konversationen erfolgreich dearchiviert{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}}",
+      "unarchivedDescription": "{successCount} Konversationen dearchiviert{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}}",
       "unarchiveFailed": "Konversationen konnten nicht dearchiviert werden",
       "markSpam": "Als Spam markieren",
       "markedAsSpam": "Konversationen als Spam markiert",
-      "markedAsSpamDescription": "{successCount} Konversationen erfolgreich als Spam markiert{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}}",
+      "markedAsSpamDescription": "{successCount} Konversationen als Spam markiert{failedCount, plural, =0 {} other {, {failedCount} fehlgeschlagen}}",
       "spamFailed": "Konversationen konnten nicht als Spam markiert werden"
     },
     "header": {
@@ -1735,11 +1735,11 @@
       "markAsSpam": "Als Spam markieren",
       "markingAsSpam": "Wird als Spam markiert...",
       "toast": {
-        "closed": "Konversation wurde erfolgreich geschlossen.",
+        "closed": "Konversation wurde geschlossen.",
         "closeFailed": "Beim Schließen der Konversation ist ein unerwarteter Fehler aufgetreten.",
-        "reopened": "Konversation wurde erfolgreich erneut geöffnet.",
+        "reopened": "Konversation wurde erneut geöffnet.",
         "reopenFailed": "Beim erneuten Öffnen der Konversation ist ein unerwarteter Fehler aufgetreten.",
-        "markedAsSpam": "Konversation wurde erfolgreich als Spam markiert.",
+        "markedAsSpam": "Konversation wurde als Spam markiert.",
         "markAsSpamFailed": "Beim Markieren der Konversation als Spam ist ein unerwarteter Fehler aufgetreten."
       }
     },
@@ -1755,7 +1755,7 @@
     },
     "attachment": {
       "download": "Herunterladen",
-      "downloading": "Wird heruntergeladen...",
+      "downloading": "Lade herunter...",
       "attachments": "{count, plural, one {# Anhang} other {# Anhänge}}"
     },
     "panel": {
@@ -1767,7 +1767,7 @@
       "noMessages": "Noch keine Nachrichten",
       "invalidFileAttachment": "Ungültiger Dateianhang",
       "defaultSubject": "Re: Konversation",
-      "customerEmailNotFound": "Email kann nicht gesendet werden: Kunden-Email nicht gefunden",
+      "customerEmailNotFound": "E-Mail kann nicht gesendet werden: Kunden-E-Mail nicht gefunden",
       "replySubjectPrefix": "Re: {subject}",
       "loadFailed": "Konversation konnte nicht geladen werden",
       "loadFailedDescription": "Beim Laden dieser Konversation ist ein Fehler aufgetreten.",
@@ -1779,8 +1779,8 @@
       "unarchive": "Dearchivieren",
       "notSpam": "Kein Spam",
       "delete": "Löschen",
-      "deleting": "Wird gelöscht...",
-      "deleteSuccess": "Konversation erfolgreich gelöscht.",
+      "deleting": "Lösche...",
+      "deleteSuccess": "Konversation gelöscht.",
       "deleteFailed": "Konversation konnte nicht gelöscht werden.",
       "showEarlierMessages": "{count} frühere {count, plural, one {Nachricht} other {Nachrichten}} anzeigen"
     },
@@ -1789,8 +1789,8 @@
     },
     "activate": {
       "title": "Konversationen aktivieren",
-      "description": "Verbinde deine Email, um mit Konversationen zu beginnen",
-      "connectEmail": "Email verbinden"
+      "description": "Verbinde deine E-Mail, um mit Konversationen zu beginnen",
+      "connectEmail": "E-Mail verbinden"
     },
     "filter": {
       "label": "Nach Lesestatus filtern",
@@ -1840,7 +1840,7 @@
     "questionTitle": "Frage",
     "submit": "Antwort absenden",
     "statusResponded": "Beantwortet",
-    "statusProcessing": "Wird verarbeitet",
+    "statusProcessing": "Verarbeite…",
     "respondedByAt": "Beantwortet von {name} am {date}",
     "stopWorkflow": "Stopp",
     "stopWorkflowTooltip": "Den laufenden Workflow stoppen",
@@ -1881,10 +1881,10 @@
     "rejectTooltip": "Workflow-Erstellung abbrechen",
     "stepsCount": "{count} Schritte",
     "copyAriaLabel": "Workflow-Konfiguration kopieren",
-    "createdSuccessfully": "Workflow erfolgreich erstellt",
+    "createdSuccessfully": "Workflow erstellt",
     "statusExecuting": "Workflow-Erstellung läuft...",
     "statusCompletedFailed": "Workflow-Erstellung wurde genehmigt, ist aber fehlgeschlagen.",
-    "statusCompletedSuccess": "Workflow wurde erfolgreich erstellt.",
+    "statusCompletedSuccess": "Workflow wurde erstellt.",
     "statusRejected": "Workflow-Erstellung wurde abgebrochen.",
     "errorCreateFailed": "Workflow konnte nicht erstellt werden"
   },
@@ -1898,10 +1898,10 @@
     "versionLabel": "Version:",
     "slugLabel": "Slug:",
     "copyAriaLabel": "Aktualisierungskonfiguration kopieren",
-    "updatedSuccessfully": "Workflow erfolgreich aktualisiert",
+    "updatedSuccessfully": "Workflow aktualisiert",
     "statusExecuting": "Aktualisierung wird angewendet...",
     "statusCompletedFailed": "Aktualisierung wurde genehmigt, konnte aber nicht angewendet werden.",
-    "statusCompletedSuccess": "Workflow wurde erfolgreich aktualisiert.",
+    "statusCompletedSuccess": "Workflow wurde aktualisiert.",
     "statusRejected": "Workflow-Aktualisierung wurde abgebrochen.",
     "errorApplyFailed": "Aktualisierung konnte nicht angewendet werden"
   },
@@ -1918,7 +1918,7 @@
     "executionRunningStep": "Schritt wird ausgeführt: {step}",
     "executionRunningStepWithProgress": "Schritt wird ausgeführt: {step} (Iteration {current}/{total})",
     "executionElapsed": "Läuft seit {duration}",
-    "executionCompleted": "Erfolgreich abgeschlossen",
+    "executionCompleted": "Abgeschlossen",
     "executionFailed": "Ausführung fehlgeschlagen",
     "viewDetails": "Ausführungsdetails anzeigen",
     "showOutput": "Ausgabe anzeigen",
@@ -1947,7 +1947,7 @@
     "rejectTooltip": "Speicherung dieses Dokuments ablehnen",
     "rejectTooltipBatch": "Alle Dokumentspeicherungen ablehnen",
     "savedSuccessfully": "In deinen Dokumenten gespeichert",
-    "savedPartially": "{success} von {total} Dateien erfolgreich gespeichert",
+    "savedPartially": "{success} von {total} Dateien gespeichert",
     "statusExecuting": "Dokumente werden gespeichert...",
     "statusCompletedFailed": "Dieses Dokument wurde genehmigt, konnte aber nicht gespeichert werden.",
     "statusCompletedSuccess": "Dieses Dokument wurde in deinen Dokumenten gespeichert.",
@@ -1959,12 +1959,12 @@
   "integrationApproval": {
     "approve": "Genehmigen",
     "reject": "Ablehnen",
-    "executedSuccessfully": "Erfolgreich ausgeführt",
+    "executedSuccessfully": "Ausgeführt",
     "approveTooltip": "Diese Operation genehmigen und ausführen",
     "rejectTooltip": "Diese Operation ablehnen",
     "statusExecuting": "Operation wird ausgeführt...",
     "statusCompletedFailed": "Diese Operation wurde genehmigt, ist aber bei der Ausführung fehlgeschlagen.",
-    "statusCompletedSuccess": "Diese Operation wurde genehmigt und erfolgreich ausgeführt.",
+    "statusCompletedSuccess": "Diese Operation wurde genehmigt und ausgeführt.",
     "statusRejected": "Diese Operation wurde abgelehnt.",
     "errorApproveFailed": "Operation konnte nicht genehmigt werden",
     "moreParameters": "+{count} weitere",
@@ -2089,7 +2089,7 @@
     "audioDurationExceeded": "{names}: Audio länger als das Limit von {maxHours} Stunden. Bitte in kürzere Segmente aufteilen.",
     "fileTypeNotAllowed": "{names}: Dateityp nicht erlaubt laut Upload-Richtlinie.",
     "fileUploaded": "Datei hochgeladen",
-    "uploadedSuccessfully": "{filename} erfolgreich hochgeladen",
+    "uploadedSuccessfully": "{filename} hochgeladen",
     "uploadFailed": "Upload fehlgeschlagen",
     "failedToUpload": "{filename} konnte nicht hochgeladen werden",
     "tooManyFiles": "Zu viele Dateien",
@@ -2180,7 +2180,7 @@
       "untitled": "Unbenannter Chat",
       "renameChat": "Chat umbenennen",
       "loadMore": "Mehr laden",
-      "loadingMore": "Wird geladen...",
+      "loadingMore": "Lädt...",
       "generating": "Antwort wird generiert",
       "awaitingInput": "Wartet auf deine Eingabe",
       "legalHold": {
@@ -2231,7 +2231,7 @@
     "forkBoundary": "Von deinem eigenen Chat geforkt",
     "notFound": "Dieser Chat ist nicht verfügbar.",
     "forkChat": "Chat forken",
-    "forkSuccess": "Chat erfolgreich geforkt",
+    "forkSuccess": "Chat geforkt",
     "forkFailed": "Chat konnte nicht geforkt werden",
     "share": {
       "title": "Chat teilen",
@@ -2249,7 +2249,7 @@
       "unshareFailed": "Teilen konnte nicht beendet werden",
       "sharedChat": "Geteilter Chat",
       "forkChat": "Diesen Chat forken",
-      "forkSuccess": "Chat erfolgreich geforkt",
+      "forkSuccess": "Chat geforkt",
       "forkFailed": "Chat konnte nicht geforkt werden",
       "readOnlyBanner": "Du siehst einen geteilten Chat im Lesemodus",
       "sharedIndicator": "Geteilt",
@@ -2392,7 +2392,7 @@
       "folderName": "Ordnername",
       "folderNamePlaceholder": "Ordnername eingeben",
       "nameRequired": "Ordnername ist erforderlich",
-      "creating": "Wird erstellt...",
+      "creating": "Erstelle...",
       "created": "Ordner erstellt",
       "createFailed": "Ordner konnte nicht erstellt werden",
       "duplicateName": "Ein Ordner mit diesem Namen existiert bereits"
@@ -2439,7 +2439,7 @@
       }
     },
     "preview": {
-      "loading": "Wird geladen...",
+      "loading": "Lädt...",
       "failedToLoad": "Dokument konnte nicht geladen werden",
       "downloadComplete": "Download abgeschlossen",
       "downloadFile": "Datei herunterladen",
@@ -2449,7 +2449,7 @@
       "downloadFailed": "Datei konnte nicht heruntergeladen werden",
       "notAvailable": "Vorschau nicht verfügbar",
       "notAvailableDescription": "Dieser Dateityp kann nicht in der Vorschau angezeigt werden. Bitte lade die Datei herunter, um den Inhalt anzuzeigen.",
-      "downloading": "Wird heruntergeladen...",
+      "downloading": "Lade herunter...",
       "download": "Herunterladen",
       "document": "Dokument",
       "title": "Dokumentvorschau",
@@ -2493,11 +2493,11 @@
       "dropZoneDescription": "PDF, DOCX, XLSX, CSV bis zu {maxSize} MB",
       "retryUpload": "Upload erneut versuchen",
       "retry": "Erneut versuchen",
-      "documentsUploadedSuccessfully": "{count} {count, plural, one {Dokument} other {Dokumente}} erfolgreich hochgeladen",
+      "documentsUploadedSuccessfully": "{count} {count, plural, one {Dokument} other {Dokumente}} hochgeladen",
       "unsupportedFileType": "Nicht unterstützter Dateityp",
       "unsupportedFileTypeDescription": "{name} ist kein unterstütztes Format. Unterstützte Formate: PDF, DOCX, XLSX, CSV, TXT, PPTX, Bilder.",
-      "extensionBlocked": "{name}: .{ext}-Dateien sind durch die Upload-Richtlinie blockiert.",
-      "extensionNotAllowed": "{name}: .{ext} ist nicht erlaubt. Erlaubte Typen: {allowed}.",
+      "extensionBlocked": "{name}:.{ext}-Dateien sind durch die Upload-Richtlinie blockiert.",
+      "extensionNotAllowed": "{name}:.{ext} ist nicht erlaubt. Erlaubte Typen: {allowed}.",
       "uploadDocuments": "Hochladen"
     },
     "ocr": {
@@ -2536,8 +2536,8 @@
       "syncingItems": "{count} Elemente werden in den Speicher synchronisiert...",
       "importCompleted": "Import abgeschlossen",
       "syncCompleted": "Synchronisierung abgeschlossen",
-      "filesImportedCount": "{count} von {total} Dateien erfolgreich importiert",
-      "filesSyncedCount": "{count} von {total} Dateien erfolgreich synchronisiert",
+      "filesImportedCount": "{count} von {total} Dateien importiert",
+      "filesSyncedCount": "{count} von {total} Dateien synchronisiert",
       "importFailed": "Import fehlgeschlagen",
       "syncFailed": "Synchronisierung fehlgeschlagen",
       "importItems": "{count} {count, plural, one {Element} other {Elemente}} importieren",
@@ -2565,7 +2565,7 @@
       "dialog": {
         "indexed": {
           "title": "Dokument indexiert",
-          "description": "Dieses Dokument wurde erfolgreich indexiert und ist für die RAG-Suche verfügbar.",
+          "description": "Dieses Dokument wurde indexiert und ist für die RAG-Suche verfügbar.",
           "indexedOn": "Indexiert am:"
         },
         "failed": {
@@ -2615,7 +2615,7 @@
         "status": "Status"
       },
       "toast": {
-        "success": "Produkt erfolgreich aktualisiert",
+        "success": "Produkt aktualisiert",
         "error": "Produkt konnte nicht aktualisiert werden"
       }
     },
@@ -2626,18 +2626,18 @@
         "status": "Status"
       },
       "toast": {
-        "success": "Produkt erfolgreich erstellt",
+        "success": "Produkt erstellt",
         "error": "Produkt konnte nicht erstellt werden"
       }
     },
     "import": {
       "uploadProducts": "Produkte hochladen",
       "uploadFile": "Bitte lade eine Datei hoch",
-      "success": "Import erfolgreich",
-      "successDescription": "{success} Produkte erfolgreich importiert{failed, select, 0 {} other {, {failed} fehlgeschlagen}}",
+      "success": "Import",
+      "successDescription": "{success} Produkte importiert{failed, select, 0 {} other {, {failed} fehlgeschlagen}}",
       "error": "Produkte konnten nicht importiert werden",
       "clickToUpload": "Klicken zum Hochladen",
-      "supportedFormats": ".xlsx, .xls oder .csv",
+      "supportedFormats": ".xlsx,.xls oder.csv",
       "expectedColumns": "Erwartete Spalten: name, description, imageUrl, stock, price, currency, category, status",
       "draftStatusNote": "Importierte Produkte werden standardmässig mit dem Status \"Entwurf\" erstellt.",
       "errorCodes": {
@@ -2646,7 +2646,7 @@
     },
     "actions": {
       "deleteFailed": "Produkt konnte nicht gelöscht werden",
-      "deleteSuccess": "Produkt erfolgreich gelöscht"
+      "deleteSuccess": "Produkt gelöscht"
     },
     "delete": {
       "title": "Produkt löschen",
@@ -2690,7 +2690,7 @@
       "upload": "Upload",
       "fromShopify": "Von Shopify",
       "syncBusinessData": "Geschäftsdaten synchronisieren",
-      "formatHint": "Format: Email, Name (optional), Sprache (optional). Ein Kunde pro Zeile.",
+      "formatHint": "Format: E-Mail, Name (optional), Sprache (optional). Ein Kunde pro Zeile.",
       "localeHint": "Sprache kann ein beliebiger BCP 47-Tag sein (z. B. en, en-US, de-DE, zh-Hans).",
       "statusNote": "Importierte Kunden werden als (Aktiv) markiert",
       "expectedColumns": "Erwartete Spalten: email, name, locale"
@@ -2703,12 +2703,12 @@
       "manualEntry": "Manuelle Eingabe"
     },
     "thisCustomer": "diesen Kunden",
-    "updateSuccess": "Kunde erfolgreich aktualisiert",
+    "updateSuccess": "Kunde aktualisiert",
     "updateError": "Kunde konnte nicht aktualisiert werden",
     "name": "Name",
     "namePlaceholder": "Kundenname eingeben",
-    "email": "Email",
-    "emailPlaceholder": "Email-Adresse eingeben",
+    "email": "E-Mail",
+    "emailPlaceholder": "E-Mail-Adresse eingeben",
     "locale": "Sprache",
     "localePlaceholder": "z. B. en-US",
     "status": "Status",
@@ -2718,15 +2718,15 @@
       "syncNotImplemented": "Automatische Synchronisierung ist noch nicht implementiert",
       "provideData": "Bitte gib Daten ein",
       "noValidData": "Keine gültigen Kundendaten gefunden",
-      "success": "Import erfolgreich",
-      "successDescription": "{success} Kunden erfolgreich importiert{failed, select, 0 {} other {, {failed} fehlgeschlagen}}",
+      "success": "Import",
+      "successDescription": "{success} Kunden importiert{failed, select, 0 {} other {, {failed} fehlgeschlagen}}",
       "noneImported": "Es wurden keine Kunden importiert",
       "error": "Importfehler",
       "addCustomers": "Kunden hinzufügen",
       "uploadCustomers": "Kunden hochladen",
       "import": "Importieren",
       "errorCodes": {
-        "duplicate_email": "Ein Kunde mit dieser Email existiert bereits",
+        "duplicate_email": "Ein Kunde mit dieser E-Mail existiert bereits",
         "duplicate_external_id": "Ein Kunde mit dieser externen ID existiert bereits",
         "unknown": "Ein unerwarteter Fehler ist aufgetreten"
       }
@@ -2757,11 +2757,11 @@
     "noneImported": "Es wurden keine Lieferanten importiert",
     "name": "Name",
     "thisVendor": "diesen Lieferanten",
-    "updateSuccess": "Lieferant erfolgreich aktualisiert",
+    "updateSuccess": "Lieferant aktualisiert",
     "updateError": "Lieferant konnte nicht aktualisiert werden",
     "namePlaceholder": "Lieferantenname eingeben",
-    "email": "Email",
-    "emailPlaceholder": "Email-Adresse eingeben",
+    "email": "E-Mail",
+    "emailPlaceholder": "E-Mail-Adresse eingeben",
     "locale": "Sprache",
     "localePlaceholder": "z. B. en-US",
     "filter": {
@@ -2774,11 +2774,11 @@
     "import": {
       "selectDataSource": "Bitte wähle eine Datenquelle",
       "provideData": "Bitte gib Lieferantendaten ein",
-      "success": "Import erfolgreich",
-      "successDescription": "{success} Lieferanten erfolgreich importiert{failed, select, 0 {} other {, {failed} fehlgeschlagen}}",
+      "success": "Import",
+      "successDescription": "{success} Lieferanten importiert{failed, select, 0 {} other {, {failed} fehlgeschlagen}}",
       "error": "Lieferanten konnten nicht importiert werden",
       "errorCodes": {
-        "duplicate_email": "Ein Lieferant mit dieser Email existiert bereits",
+        "duplicate_email": "Ein Lieferant mit dieser E-Mail existiert bereits",
         "duplicate_external_id": "Ein Lieferant mit dieser externen ID existiert bereits",
         "unknown": "Ein unerwarteter Fehler ist aufgetreten"
       }
@@ -2811,16 +2811,16 @@
       "scanIntervalRequired": "Scan-Intervall ist erforderlich"
     },
     "toast": {
-      "addSuccess": "Website erfolgreich hinzugefügt",
+      "addSuccess": "Website hinzugefügt",
       "addError": "Website konnte nicht hinzugefügt werden",
       "addErrorDuplicate": "Diese Website wurde bereits hinzugefügt",
-      "updateSuccess": "Website erfolgreich aktualisiert",
+      "updateSuccess": "Website aktualisiert",
       "updateError": "Website konnte nicht aktualisiert werden",
       "fetchPagesError": "Seiten konnten nicht geladen werden",
       "searchError": "Suche fehlgeschlagen",
       "deleteError": "Website konnte nicht gelöscht werden"
     },
-    "adding": "Wird hinzugefügt...",
+    "adding": "Füge hinzu...",
     "viewDialog": {
       "title": "Website-Details",
       "domain": "Domain",
@@ -2855,7 +2855,7 @@
         "scanning": "Wird gescannt",
         "active": "Aktiv",
         "error": "Fehler",
-        "deleting": "Wird gelöscht"
+        "deleting": "Lösche…"
       },
       "interval": {
         "60m": "Jede Stunde",
@@ -3132,7 +3132,7 @@
   },
   "governance": {
     "title": "Richtlinien",
-    "toastSavedTitle": "Änderungen erfolgreich gespeichert",
+    "toastSavedTitle": "Änderungen gespeichert",
     "toastSaveFailedTitle": "Änderungen konnten nicht gespeichert werden",
     "systemPrompt": {
       "title": "System-Prompt",
@@ -3146,7 +3146,7 @@
       "charCount": "{count} / {max} Zeichen",
       "charLimitExceeded": "Zeichenlimit überschritten",
       "save": "Speichern",
-      "saving": "Wird gespeichert...",
+      "saving": "Speichern...",
       "saved": "System-Prompt wurde aktualisiert",
       "saveFailed": "System-Prompt konnte nicht gespeichert werden"
     },
@@ -3331,15 +3331,15 @@
       },
       "customers": {
         "title": "Kunden",
-        "description": "Pro-Org CRM-Datensätze: Name, Email, Adresse, Locale, Metadaten."
+        "description": "Pro-Org CRM-Datensätze: Name, E-Mail, Adresse, Locale, Metadaten."
       },
       "vendors": {
         "title": "Lieferanten",
-        "description": "Pro-Org Lieferantendatensätze: Name, Email, Telefon, Adresse, Freitext-Notizen."
+        "description": "Pro-Org Lieferantendatensätze: Name, E-Mail, Telefon, Adresse, Freitext-Notizen."
       },
       "externalConversations": {
         "title": "Externe Konversationen",
-        "description": "Top-Level-Kundenkanal-Posteingang (Email/Chat-Integrationen). Kaskadiert zu Nachrichteninhalten."
+        "description": "Top-Level-Kundenkanal-Posteingang (E-Mail/Chat-Integrationen). Kaskadiert zu Nachrichteninhalten."
       },
       "messageMetadata": {
         "title": "Nachrichten-Metadaten",
@@ -3739,10 +3739,10 @@
       "testDefaultText": "I want to kill everyone in this building",
       "testing": "Teste…",
       "runTest": "Test ausführen",
-      "testPass": "Aufruf erfolgreich — keine Kategorien zutreffend",
-      "testFlagged": "Aufruf erfolgreich — geflaggt",
-      "testBlocked": "Aufruf erfolgreich — würde blockieren",
-      "testModified": "Aufruf erfolgreich — würde maskieren",
+      "testPass": "Aufruf — keine Kategorien zutreffend",
+      "testFlagged": "Aufruf — geflaggt",
+      "testBlocked": "Aufruf — würde blockieren",
+      "testModified": "Aufruf — würde maskieren",
       "testNotConfigured": "Nicht konfiguriert",
       "testStepError": "Schritt-Fehler ({errorClass})",
       "testResultHttpStatus": "HTTP-Status",
@@ -3761,7 +3761,7 @@
       "presetOpenaiActive": "OpenAI Moderation",
       "presetPerspective": "Perspective API verwenden",
       "presetPerspectiveActive": "Perspective API",
-      "presetPerspectiveNote": "Perspective authentifiziert per URL-Query-Parameter, nicht per Header. Nach dem Anwenden des Presets öffne „Endpoint“ und hänge ?key=DEIN_PERSPECTIVE_KEY an die URL an. (Das unten verschlüsselte API-Schlüsselfeld wird von Perspective nicht verwendet.)"
+      "presetPerspectiveNote": "Perspective authentifiziert per URL-Query-Parameter, nicht per Header. Nach dem Anwenden des Presets öffne „Endpoint“ und hänge?key=DEIN_PERSPECTIVE_KEY an die URL an. (Das unten verschlüsselte API-Schlüsselfeld wird von Perspective nicht verwendet.)"
     },
     "groups": {
       "contentAndModels": "Inhalte & Modelle",
@@ -3920,13 +3920,13 @@
           "description": "Inhalte für Rechtsstreitigkeiten, Audits oder eDiscovery aufbewahren. Setze einen Custodian-Hold auf einen bestimmten Benutzer oder einen organisationsweiten Hold. Eine Begründung ist Pflicht und wird im Audit-Log erfasst.",
           "targetTypeLabel": "Zieltyp",
           "userPickerLabel": "Benutzer",
-          "userPickerPlaceholder": "Nach Name oder Email suchen",
+          "userPickerPlaceholder": "Nach Name oder E-Mail suchen",
           "userPickerEmpty": "Keine passenden Benutzer.",
           "orgWarning": "Organisationsweite Holds frieren ALLE Aufbewahrung für jede Entität in diesem Tenant ein. Es handelt sich um eine bewusste, im Audit-Log erfasste Aktion — prüfe den Fallkontext, bevor du fortfährst.",
           "orgConfirmLabel": "{phrase} eingeben, um zu bestätigen",
           "orgConfirmDescription": "Pflicht für organisationsweite Holds. Der Senden-Button bleibt deaktiviert, bis die Phrase exakt übereinstimmt.",
           "reasonLabel": "Begründung",
-          "reasonPlaceholder": "z. B. Beweissicherungs-Hold für Acme ./. Co. (Az. 2026-04)",
+          "reasonPlaceholder": "z. B. Beweissicherungs-Hold für Acme./. Co. (Az. 2026-04)",
           "matterLabel": "Fall (optional)",
           "matterPlaceholder": "Fall auswählen oder anlegen",
           "matterCreateNew": "Neuen Fall anlegen…",
@@ -3955,7 +3955,7 @@
           "editTitle": "Fall bearbeiten",
           "description": "Verwandte Holds unter einem Fall gruppieren. Beim späteren Schließen werden Freigabeanträge für alle verknüpften Holds eingereicht.",
           "nameLabel": "Name",
-          "namePlaceholder": "z. B. Acme ./. Co. (2026-04)",
+          "namePlaceholder": "z. B. Acme./. Co. (2026-04)",
           "caseNumberLabel": "Aktenzeichen (optional)",
           "descriptionLabel": "Beschreibung (optional)",
           "submitCreate": "Fall anlegen",
@@ -4195,7 +4195,7 @@
           "title": "Löschungsanfrage einreichen",
           "description": "Erfasst einen Art.-17-Beleg für die ausgewählte Person und führt die Kaskade asynchron aus. Die Identitätsprüfung liegt beim einreichenden Admin — bestätige die Identität über euren Prozess, bevor du fortfährst.",
           "userPickerLabel": "Person",
-          "userPickerPlaceholder": "Nach Name oder Email suchen",
+          "userPickerPlaceholder": "Nach Name oder E-Mail suchen",
           "userPickerEmpty": "Keine passenden Mitglieder.",
           "reasonCodeLabel": "Rechtsgrund",
           "reasonCodeDescription": "DSGVO Art. 17(1)(a)–(f) plus operativer Vertragsbeendigungs-Grund.",
@@ -4304,7 +4304,7 @@
       "searchPlaceholder": "Prompts suchen...",
       "loading": "Prompts werden geladen...",
       "loadMore": "Mehr laden",
-      "loadingMore": "Wird geladen..."
+      "loadingMore": "Lädt..."
     },
     "emptyState": {
       "title": "Noch keine Prompts",
@@ -4472,7 +4472,7 @@
       "apiKey": "API Key",
       "oauth2": "OAuth 2.0",
       "save": "Server speichern",
-      "saving": "Wird gespeichert...",
+      "saving": "Speichern...",
       "cancel": "Abbrechen",
       "connectionSection": "Verbindung",
       "authSection": "Authentifizierung"

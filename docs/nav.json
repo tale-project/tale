@@ -109,7 +109,10 @@
         },
         {
           "label": "integrations",
-          "pages": ["platform/integrations/overview"]
+          "pages": [
+            "platform/integrations/overview",
+            "platform/integrations/mcp-servers"
+          ]
         },
         {
           "label": "member",
@@ -134,7 +137,8 @@
             "platform/admin/governance",
             "platform/admin/data-subject-requests",
             "platform/admin/two-factor-authentication",
-            "platform/admin/usage-analytics"
+            "platform/admin/usage-analytics",
+            "platform/admin/changelog"
           ]
         }
       ]
@@ -175,6 +179,7 @@
         "develop/webhooks",
         "develop/ai-assisted-development",
         "develop/integrations",
+        "develop/status-page",
         "develop/contributing-docker"
       ]
     }

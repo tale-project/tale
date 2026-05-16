@@ -1,47 +1,51 @@
 ---
-title: Erste Schritte als Mitglied
-description: Anmelden, chatten, die Wissensdatenbank durchsuchen sowie geteilte Konversationen und Freigaben lesen — die Tag-1-Orientierung für Mitglieder.
+title: Mitglied
+description: Der Nur-Lese-Konsumenten-Sitz — anmelden, mit KI und Agents chatten, in der Wissensdatenbank stöbern, geteilte Konversationen und Freigaben lesen. Die Tag-eins-Orientierung des Mitglieds.
 ---
 
-Willkommen bei Tale. Als **Mitglied** hast du lesenden Zugriff auf den Arbeitsbereich deiner Organisation: Du kannst mit KI-Modellen und Agenten chatten, die Wissensdatenbank durchsuchen sowie Konversationen und Freigaben lesen, die mit dir geteilt wurden. Redakteure und Entwickler in deiner Organisation erstellen die Inhalte; Mitglieder nutzen sie.
+Ein **Mitglied** in Tale ist der Nur-Lese-Konsumenten-Sitz. Du meldest dich an, chattest mit KI-Modellen und Agents, die dein Team aufgesetzt hat, stöberst in der Wissensdatenbank, die deine Redakteure pflegen, und liest die Konversationen und Freigaben, die mit dir geteilt sind. Du lädst keine Dokumente hoch, erstellst keine Agents und änderst keine Einstellung, die andere betrifft — diese Oberflächen sind Redakteuren, Entwicklern und Admins vorbehalten. Diese Seite ist für Menschen, die zum ersten Mal in Tale einsteigen, und für alle, die nur jemals die Konsumenten-Seite des Produkts brauchen.
 
-Wenn du selbst eine Tale-Instanz installieren oder betreiben willst, siehe [Lokaler Schnellstart](/de/self-hosted/install/quickstart) oder [Produktions-Deployment](/de/self-hosted/install/linux-server).
+Es gibt nichts zu installieren — Tale läuft komplett im Browser. Falls du zusätzlich eine Tale-Instanz selbst installieren oder betreiben musst, decken [Lokaler Schnellstart](/de/self-hosted/install/quickstart) und [Produktions-Deployment](/de/self-hosted/install/linux-server) das ab, und der Rest des Selbst-gehostet-Bereichs deckt den Plattform-Betrieb ab.
+
+## Ein Mitglieds-Tag
+
+Ein typischer Tag startet auf der Home-Seite mit einem frischen Chat. Du stellst dem Modell eine Frage, die das Team dokumentiert hat; der Agent greift das relevante Dokument automatisch auf und antwortet mit einer Zitation, die zum Original zurück verlinkt. Später wirft eine Redakteurin ein neues Produkt-PDF in die Wissensdatenbank; deine nächste Frage zu diesem Produkt fädelt die neue Information ohne dein Zutun in die Antwort ein. Teilt ein Teammitglied eine Konversation, taucht sie unter **Konversationen** auf; wartet ein Workflow auf eine menschliche Entscheidung, die deine Rolle sehen darf, erscheint sie unter **Freigaben** (nur-lesend — das Urteil gehört einem Redakteur).
 
 ## Anmelden
 
-Es ist nichts zu installieren — Tale läuft vollständig im Browser. Dein Admin schaltet dich auf eine von drei Arten frei, je nachdem, wie deine Organisation konfiguriert ist.
+Dein Admin bringt dich über eine von drei Methoden hinein, je nachdem, wie die Organisation konfiguriert ist.
 
-- **Email und Passwort.** Dein Admin legt dein Konto unter **Einstellungen → Mitglieder** mit einem initialen Passwort an und teilt es dir mit. Du wirst beim ersten Login aufgefordert, es zu ändern.
-- **SSO (Microsoft Entra).** Melde dich mit deinem vorhandenen Microsoft-Konto an; dein Tale-Konto wird beim ersten Anmelden automatisch angelegt.
-- **Reverse Proxy (Trusted Headers).** Wenn Tale hinter Authelia, Authentik, oauth2-proxy o. ä. läuft, authentifiziert dich der Proxy und dein Konto wird bei der ersten Anfrage automatisch angelegt.
+- **E-Mail und Passwort.** Dein Admin legt das Konto aus **Einstellungen > Mitglieder** mit einem Anfangs-Passwort an und teilt es dir. Beim ersten Anmelden musst du es ändern.
+- **SSO (Microsoft Entra ID).** Du meldest dich mit deinem bestehenden Microsoft-Konto an; dein Tale-Konto wird beim ersten Mal automatisch angelegt.
+- **Reverse-Proxy (vertrauenswürdige Kopfzeilen).** Sitzt Tale hinter Authelia, Authentik, oauth2-proxy oder ähnlich, authentifiziert dich der Proxy und dein Konto wird bei der ersten Anfrage automatisch angelegt.
 
-Wenn du dich nicht anmelden kannst, frage deinen Admin, welche Methode aktiv ist. (Admins: siehe [Authentifizierung](/de/self-hosted/admin/authentication) für die instanzweite Konfiguration.)
+Kannst du dich nicht anmelden, frage deinen Admin, welche Methode aktiv ist. Admins: siehe [Authentifizierung](/de/self-hosted/admin/authentication) für die instanzweite Konfiguration.
 
 ## Was du tun kannst
 
-### Chat
+### Chatten
 
-Starte eine Konversation auf der Startseite. Wähle ein Modell, schreibe eine Nachricht und antworte. Der Chat-Eingabebereich unterstützt zusätzlich:
+Starte eine Konversation aus der Home-Seite. Wähle ein Modell aus der Auswahl, tippe eine Nachricht und sende sie. Die Eingabe nimmt auch:
 
-- Dateien anhängen (Bilder, PDFs, Dokumente) — siehe [Anhänge](/de/platform/chat/attachments).
-- Einen Agent erwähnen, den ein Redakteur oder Entwickler erstellt hat — siehe [Agents im Chat](/de/platform/chat/agents-in-chat).
-- Zwei Modelle nebeneinander vergleichen im [Arena-Modus](/de/platform/chat/arena-mode).
+- Datei-Anhänge — Bilder, PDFs, Audio, Video. Siehe [Chat-Anhänge](/de/platform/chat/attachments) für die vollständige Liste und die je-Typ-Verarbeitung.
+- Eine `@`-Erwähnung eines Agents, den deine Redakteurin oder dein Entwickler veröffentlicht hat. Siehe [Agents im Chat](/de/platform/chat/agents-in-chat).
+- Zwei Modelle nebeneinander im [Arena-Modus](/de/platform/chat/arena-mode), wenn die Frage „Welches Modell antwortet besser?" lautet.
 
-Vollständige Feature-Referenz: [Chat-Grundlagen](/de/platform/chat/basics).
+Vollständige Referenz: [Chat-Grundlagen](/de/platform/chat/basics).
 
-### Wissensdatenbank durchsuchen
+### Wissensdatenbank durchstöbern
 
-Die Wissensdatenbank enthält Dokumente, die deine Organisation hochgeladen oder gecrawlt hat. Durchsuche sie, öffne Dokumente und referenziere sie im Chat. Als Mitglied kannst du nichts hochladen oder löschen — das ist Aufgabe der Redakteure. Siehe [Wissensdatenbank](/de/platform/workspace/knowledge-base).
+Die Wissensdatenbank hält die Dokumente, die deine Organisation hochgeladen oder gecrawlt hat. Du kannst sie durchsuchen, Dokumente öffnen und aus dem Chat referenzieren. Als Mitglied kannst du nicht hochladen oder löschen — das ist eine Redakteurs-Aufgabe. Siehe [Wissensdatenbank](/de/platform/workspace/knowledge-base).
 
 ### Konversationen und Freigaben lesen
 
-- **[Konversationen](/de/platform/workspace/conversations)** — geteilte Chat-Threads von Kolleg:innen.
-- **[Freigaben](/de/platform/workspace/approvals)** — Outputs aus Automatisierungen, die auf eine menschliche Prüfung warten. Mitglieder können lesen; nur Redakteure und höher entscheiden.
+- **[Konversationen](/de/platform/workspace/conversations)** — Kunden-Threads, die mit dir geteilt sind. Nur-lesend in der Mitglieds-Rolle; Redakteure und höher können antworten.
+- **[Freigaben](/de/platform/workspace/approvals)** — Ausgaben aus Automatisierungen, die auf ein menschliches Urteil warten. Du kannst lesen; Redakteure und höher entscheiden.
 
 ## Konto personalisieren
 
-Display-Name, Sprache, Theme und Benachrichtigungseinstellungen findest du im Avatar-Menü. Details: [Einstellungen](/de/platform/member/preferences).
+Setze Anzeigename, Sprache, Theme und Benachrichtigungs-Voreinstellungen aus dem Avatar-Menü. Die Details stehen auf [Deine Einstellungen](/de/platform/member/preferences).
 
-## Mehr machen?
+## Wo das hingehört
 
-Mitglieder haben nur lesenden Zugriff. Um Agenten zu erstellen, Wissen zu bearbeiten oder Automatisierungen auszuführen, frage deinen Admin nach einer Rollenerhöhung. Die vollständige Rollenmatrix steht unter [Mitglieder und Rollen](/de/platform/admin/members-and-roles).
+Mitglieder sind die Nur-Lese-Konsumenten — der Sitz, der für Menschen gemacht ist, die die KI nutzen, ohne sie zu kuratieren. Um Agents zu erstellen, Wissen zu bearbeiten oder Automatisierungen zu fahren, frag einen Admin, deine Rolle auf Redakteur oder Entwickler hochzustufen. Die kanonische Rollen-Matrix lebt unter [Mitglieder und Rollen](/de/platform/admin/members-and-roles); die rollenspezifischen Landungen ([Redakteur](/de/platform/editor/overview), [Entwickler](/de/platform/developer/overview)) beschreiben, was jede Hochstufung freischaltet.

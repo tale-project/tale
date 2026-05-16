@@ -12,7 +12,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const PAGE_URL = 'https://docs.tale.dev/platform/agents/concepts';
+const PAGE_URL = 'https://example.com/docs/platform/agents/concepts';
 const MARKDOWN_URL = `${PAGE_URL}.md`;
 
 export const Default: Story = {

@@ -1,55 +1,50 @@
 ---
 title: Produktions-Deployment
-description: Tale auf einen Produktionsserver mit der Tale-CLI und Zero-Downtime-Blue-Green-Deployment bringen.
+description: Tale auf einem Produktionsserver deployen mit der Tale-CLI und Blue-Green-Deployments ohne Ausfallzeit.
 ---
 
-## Voraussetzungen
+Das Produktions-Deployment ist der kanonische Weg, um selbst gehostetes Tale einem Team vorzulegen — ein Linux-Server mit echter Domain, echten TLS-Zertifikaten und der Blue-Green-Topologie, die Upgrades ohne Wartungsfenster übersteht. Die `tale`-CLI macht die schwere Arbeit: sie zieht die richtigen Images, fährt Migrationen aus, startet die neuen Container neben den alten und schwenkt den Traffic erst um, nachdem die neue Version ihre Health-Checks besteht. Ein fehlgeschlagenes Deploy lässt die vorherige Version weiter ausliefern und nichts Sichtbares bricht.
 
-- Ein Linux-Server mit Docker Engine 24.0+.
-- Mindestens 8 GB RAM (12 GB empfohlen für Zero-Downtime-Deployments).
-- Die Ports 80 und 443 in der Firewall geöffnet.
-- Eine Domain, die auf deinen Server zeigt.
+Diese Anleitung nimmt an, dass du Tale bereits auf einem Laptop evaluiert hast. Falls nicht, läuft der [Lokale Quickstart](/de/self-hosted/install/quickstart) in Minuten und nutzt dieselbe CLI; komm hierher zurück, wenn die Instanz außerhalb deines Rechners erreichbar sein soll.
+
+## Bevor du beginnst
+
+- Ein Linux-Server mit Docker Engine 24.0 oder neuer.
+- Mindestens 8 GB RAM, 12 GB empfohlen, damit das Blue-Green-Deploy Luft hat, beide Farben parallel zu fahren.
+- Ports 80 und 443 auf der Firewall offen; die ACME-Validierung braucht beide, und so auch der Produktions-Proxy.
+- Ein Domainname mit einem A-Record (oder AAAA-Record), der auf den Server zeigt.
+- Ein API-Schlüssel von einem KI-Anbieter — OpenRouter ist die empfohlene Voreinstellung; jeder OpenAI-kompatible Endpunkt funktioniert.
+
+Wenn deine Umgebung einen verwalteten Postgres statt der gebündelten Datenbank verlangt, überfliege [Externe Datenbank verwenden](#using-an-external-database) unten, bevor du startest — er ändert ein paar `.env`-Werte und fügt einen manuellen Init-Schritt hinzu.
 
 ## Image-Größen
 
-Tale lädt vorgebaute Images aus der GitHub Container Registry. Aktuelle Image-Größen:
+Tale zieht Multi-Architektur-Images (amd64 + arm64) vom GitHub Container Registry. Der erste Pull beläuft sich auf rund 4,4 GB komprimiert insgesamt; spätere Updates laden nur geänderte Layer.
 
-| Dienst   | Image                                     | Größe   |
-| -------- | ----------------------------------------- | ------- |
-| Platform | `ghcr.io/tale-project/tale/tale-platform` | ~320 MB |
-| Convex   | `ghcr.io/tale-project/tale/tale-convex`   | ~485 MB |
-| Crawler  | `ghcr.io/tale-project/tale/tale-crawler`  | ~1.9 GB |
-| RAG      | `ghcr.io/tale-project/tale/tale-rag`      | ~515 MB |
-| DB       | `ghcr.io/tale-project/tale/tale-db`       | ~1.1 GB |
-| Proxy    | `ghcr.io/tale-project/tale/tale-proxy`    | ~88 MB  |
+| Dienst     | Image                                     | Komprimierte Größe |
+| ---------- | ----------------------------------------- | ------------------ |
+| `proxy`    | `ghcr.io/tale-project/tale/tale-proxy`    | ~88 MB             |
+| `platform` | `ghcr.io/tale-project/tale/tale-platform` | ~320 MB            |
+| `convex`   | `ghcr.io/tale-project/tale/tale-convex`   | ~485 MB            |
+| `rag`      | `ghcr.io/tale-project/tale/tale-rag`      | ~515 MB            |
+| `crawler`  | `ghcr.io/tale-project/tale/tale-crawler`  | ~1,9 GB            |
+| `db`       | `ghcr.io/tale-project/tale/tale-db`       | ~1,1 GB            |
 
-> **Tipp:** Der erste Pull lädt ca. 4,4 GB (komprimiert). Folgende Updates laden nur geänderte Layer.
+## Die CLI installieren
 
-## Die Tale-CLI installieren
-
-Die Tale-CLI ist der empfohlene Weg, Produktions-Deployments zu verwalten. Installation:
+Die `tale`-CLI ist eine einzige Binärdatei, die jeden Schritt in dieser Anleitung treibt. Das Installationsskript schreibt nach `/usr/local/bin/tale`:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash
 ```
 
-Oder lade die Binary direkt von [GitHub Releases](https://github.com/tale-project/tale/releases):
-
-```bash
-curl -fsSL https://github.com/tale-project/tale/releases/latest/download/tale_linux \
-  -o /usr/local/bin/tale
-chmod +x /usr/local/bin/tale
-```
-
-### Bestimmte Version festlegen
-
-Um eine bestimmte CLI-Version statt des neuesten Releases zu installieren, setze die Umgebungsvariable `VERSION`:
+Um eine bestimmte Version statt des neuesten Releases anzuheften, setze die Umgebungsvariable `VERSION` auf das Installationsskript:
 
 ```bash
 VERSION=0.9.0 curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash
 ```
 
-Oder lade die Binary direkt mit dem Version-Tag in der URL:
+Oder lade die Binärdatei direkt von einem Release-Tag herunter — dieselbe Multi-Architektur-Binärdatei wird für jedes Release veröffentlicht:
 
 ```bash
 curl -fsSL https://github.com/tale-project/tale/releases/download/v0.9.0/tale_linux \
@@ -57,22 +52,22 @@ curl -fsSL https://github.com/tale-project/tale/releases/download/v0.9.0/tale_li
 chmod +x /usr/local/bin/tale
 ```
 
-Verfügbare Versionen listet die [GitHub-Releases-Seite](https://github.com/tale-project/tale/releases).
+Die vollständige Liste der Releases steht auf der Seite [GitHub Releases](https://github.com/tale-project/tale/releases).
 
-## Erste Einrichtung
+## Schritt 1 — Deployment-Verzeichnis initialisieren
 
-### Schritt 1: Deployment-Verzeichnis anlegen
+Wähle ein Verzeichnis auf dem Server, das die `.env`-Datei und lokale Konfiguration hält. Das übliche Muster ist `~/tale`:
 
 ```bash
 mkdir ~/tale && cd ~/tale
 tale init
 ```
 
-Dies legt deine `.env`-Datei mit sicher generierten Secrets an.
+`tale init` schreibt eine `.env`-Datei mit automatisch erzeugten Secrets — `BETTER_AUTH_SECRET`, `ENCRYPTION_SECRET_HEX`, `INSTANCE_SECRET` und einen `SOPS_AGE_KEY` für den SOPS-verschlüsselten Anbieter-Secret-Modus. Es legt auch die Beispiel-Anbieter-Konfigurationen unter `examples/providers/` ab und gerüstet `TALE_CONFIG_DIR`. Das Verzeichnis ist die Wahrheitsquelle für diese Instanz; alles, was `tale deploy` liest, lebt hier oder in `.env`.
 
-### Schritt 2: Environment konfigurieren
+## Schritt 2 — Die Umgebung konfigurieren
 
-Öffne `.env` und setze die erforderlichen Werte:
+Öffne `.env` und setze die erforderlichen Werte. Der minimale Produktions-Satz sind fünf Variablen:
 
 ```dotenv
 HOST=yourdomain.com
@@ -82,140 +77,103 @@ TLS_EMAIL=admin@yourdomain.com
 DB_PASSWORD=a-strong-database-password
 ```
 
-Alle verfügbaren Optionen in der [Environment-Referenz](/de/self-hosted/configuration/environment-reference).
+`SITE_URL` muss der URL entsprechen, die Nutzer tatsächlich im Browser erreichen. Wenn dein Reverse-Proxy oder Load Balancer TLS auf einem nicht standardmäßigen Port terminiert, nimm ihn auf (`https://yourdomain.com:8443`). Die [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference) katalogisiert jede Variable, die Tale liest — Domain, TLS, Secrets, Datenbank, Monitoring, SSO, vertrauenswürdige HTTP-Kopfzeilen — mit Voreinstellungen aus `.env.example`.
 
-### Schritt 3: Deployen
+## Schritt 3 — Deployen
 
 ```bash
 tale deploy
 ```
 
-Die CLI lädt vorgebaute Images, startet alle Dienste, wartet auf Health-Checks und meldet, wenn die Plattform bereit ist. Beim ersten Deploy werden auch Datenbank und Proxy gestartet.
+Das erste Deploy zieht jedes Image, startet die Datenbank und den Proxy und bringt die Platform hoch, sobald die Abhängigkeiten gesund sind. Spätere Deploys verwenden die laufende Datenbank und den laufenden Proxy weiter und rollen nur die Anwendungsdienste. Die CLI meldet, wenn jeder Container seinen Health-Check besteht und wenn die Platform `/api/health` aus dem internen Netz beantwortet.
 
-## Deployments verwalten
+Hänge `--dry-run` an, um vor dem Anwenden eine Vorschau zu bekommen; hänge `--all` an, um auch die Infrastruktur-Dienste (`db`, `proxy`) zu aktualisieren, die die CLI sonst nach der ersten Installation in Ruhe lässt.
 
-### Auf eine neue Version upgraden
+## Tagesbetrieb
 
-`tale deploy` deployt immer die Version der laufenden CLI-Binary, ein Upgrade besteht also aus zwei Schritten:
-
-```bash
-tale upgrade            # 1. CLI auf das neueste Release aktualisieren
-tale deploy             # 2. Neue Version ausrollen
-```
-
-#### Auf eine bestimmte Version migrieren oder downgraden
+`tale deploy` ist die Zugmaschine, aber ein paar andere Befehle gehören zum Dauerrhythmus dazu.
 
 ```bash
-tale upgrade --version 0.9.0       # CLI auf v0.9.0 wechseln (up oder down)
-tale deploy                        # Diese Version ausrollen
+tale status                      # Aktive Farbe (blau oder grün), laufende Container, Gesundheit
+tale logs platform               # Logs für einen Dienst nachverfolgen
+tale logs platform --follow      # Dasselbe als Stream
+tale logs db --tail 100          # Letzte 100 Zeilen der Datenbank
+tale cleanup                     # Inaktive Container der vorherigen Farbe entfernen
+tale reset --force               # Jeden Container entfernen (Bestätigung nötig)
 ```
 
-`--version` akzeptiert `0.9.0` oder `v0.9.0`. Downgrades sind erlaubt, aber **forward-only Schema-Änderungen gelten weiterhin** — siehe [Schema-Kompatibilität und Rollback](#schema-kompatibilität-und-rollback). Verfügbare Versionen listet die [GitHub-Releases-Seite](https://github.com/tale-project/tale/releases).
+### Upgrades
 
-#### Vor dem Upgrade
-
-Lies die [Release Notes](https://github.com/tale-project/tale/releases) auf Breaking Changes und Migrationshinweise. Sichere die Datenbank — das Postgres-Volume enthält alle Plattformdaten und hochgeladenen Dateien. Wenn die Instanz produktionskritisch ist, teste das Upgrade vorher auf einer Staging-Instanz; `tale init` in einem separaten Verzeichnis auf einem anderen Host gibt dir einen isolierten Stack.
-
-### Deploy
+Ein Versionssprung ist zwei Befehle: die CLI-Binärdatei aktualisieren, dann redeployen.
 
 ```bash
-tale deploy             # Aktuelle CLI-Version deployen
-tale deploy --dry-run   # Änderungen ohne Deploy anzeigen
-tale deploy --all       # Infrastruktur-Dienste (DB, Proxy) mitaktualisieren
+tale upgrade                     # Das neueste CLI-Release ziehen
+tale deploy                      # Die neue Version ausrollen
 ```
 
-### Status prüfen
+Um eine bestimmte Version anzuheften (hoch oder runter), übergib `--version`:
 
 ```bash
-tale status
+tale upgrade --version 0.9.0
+tale deploy
 ```
 
-Zeigt die aktive Deployment-Farbe (Blue oder Green), laufende Container und Gesundheit.
-
-### Logs ansehen
-
-```bash
-tale logs platform
-tale logs platform --follow
-tale logs db --tail 100
-```
+Lies die Release-Notes vor dem Upgrade. Breaking-Changes und Migrationshinweise stehen auf der Seite [GitHub Releases](https://github.com/tale-project/tale/releases), formatiert nach [Release-Notes-Format](/de/self-hosted/operate/release-notes/format). Für produktionskritische Instanzen lass dasselbe `tale upgrade` plus `tale deploy`-Paar zuerst auf einer Staging-Instanz laufen; `tale init` in einem separaten Verzeichnis auf einem anderen Host gibt dir einen isolierten Stack.
 
 ### Rollback
 
 ```bash
-tale rollback                       # Zur vorherigen Version zurück
-tale rollback --version 0.9.0       # Zu einer bestimmten Version zurück
+tale rollback                    # Auf die vorherige Version zurück
+tale rollback --version 0.9.0    # Auf eine bestimmte Version zurück
 ```
 
-> **Nur Vorwärts-Schema-Änderungen.** `tale rollback` tauscht nur Container-Images, **nicht** Convex-Daten oder Indexes. Siehe [Schema-Kompatibilität und Rollback](#schema-kompatibilität-und-rollback) für Details.
+`tale rollback` tauscht Container-Images. Es rollt das Convex-Schema oder die Daten nicht zurück. Siehe [Schema-Kompatibilität und Rollback](#schema-compatibility-and-rollback) für die Fälle, in denen das zählt.
 
-### Cleanup
+## Zero-Downtime-Upgrades
 
-```bash
-tale cleanup            # Inaktive Container entfernen
-tale reset --force      # ALLE Container entfernen (Bestätigung nötig)
+Die CLI deployt Blue-Green: die neue Farbe startet neben der laufenden Farbe, der Proxy wartet, bis sie ihre Health-Checks besteht, dann schwenkt er den Traffic um und lässt die alte Farbe ausbluten. Deshalb springt die RAM-Empfehlung von 8 GB auf 12 GB — `platform`, `rag` und `crawler` existieren während des Umschaltens zweifach. Die Dienste `db` und `proxy` sind geteilt und werden nie verdoppelt.
+
+```text
+1. green startet.
+2. greens Container bestehen ihre Health-Checks.
+3. proxy schwenkt den Traffic von blue auf green.
+4. blue blutet aus und stoppt.
 ```
 
-## Zero-Downtime-Deployment
+Falls green nie gesund meldet, routet der Proxy weiter zu blue und `tale deploy` schlägt mit angehängten Container-Logs fehl. Nichts Sichtbares bricht.
 
-Die CLI nutzt eine Blue-Green-Deployment-Strategie. Beim Deploy einer neuen Version:
+## TLS
 
-1. starten neue Container neben den alten;
-2. bestätigen Health-Checks, dass die neue Version bereit ist;
-3. wird der Traffic auf die neue Version umgeschaltet;
-4. werden alte Container gedraint und entfernt.
+`TLS_MODE` ist der einzige Schalter, der wählt, wie Zertifikate ausgestellt werden. Drei Werte; nimm den passenden.
 
-Dafür sind mindestens **12 GB RAM** nötig, weil beide Versionen während der Umschaltung gleichzeitig laufen. Datenbank und Proxy sind geteilt und werden nicht dupliziert.
-
-## TLS-Konfiguration
-
-### Let's Encrypt (empfohlen)
+### Let's Encrypt (für Produktion empfohlen)
 
 ```dotenv
 TLS_MODE=letsencrypt
 TLS_EMAIL=admin@yourdomain.com
 ```
 
-Caddy stellt automatisch vertrauenswürdige TLS-Zertifikate aus und erneuert sie. Die Ports 80 und 443 müssen öffentlich erreichbar sein.
+Caddy stellt automatisch vertrauenswürdige Zertifikate aus und erneuert sie. Ports 80 und 443 müssen vom öffentlichen Internet erreichbar sein — die HTTP-01-Challenge von ACME läuft über Port 80, und HTTPS-Verkehr antwortet auf 443.
 
-### Selbstsigniert (Entwicklung)
+### Selbstsigniert (Entwicklung und Demos)
 
 ```dotenv
 TLS_MODE=selfsigned
 ```
 
-Erzeugt ein selbstsigniertes Zertifikat. Browser zeigen eine Sicherheitswarnung. Um es auf dem Host zu vertrauen:
+Caddy erzeugt ein lokales Zertifikat. Browser zeigen eine "Verbindung ist nicht privat"-Warnung, bis du dem Zertifikat vertraust. Auf dem Host vertrauen:
 
 ```bash
 docker exec tale-proxy caddy trust
 ```
 
-### Externes TLS (hinter einem Reverse-Proxy)
+### Extern (hinter einem vorgelagerten Reverse-Proxy)
 
 ```dotenv
 TLS_MODE=external
 ```
 
-Caddy lauscht nur auf HTTP (Port 80). Dein Reverse-Proxy übernimmt die TLS-Terminierung.
-
-## Hinter einem Reverse-Proxy
-
-Wenn Tale hinter einem TLS-terminierenden Reverse-Proxy läuft (z. B. nginx, Traefik, Cloudflare Tunnel):
-
-```dotenv
-HOST=yourdomain.com
-SITE_URL=https://yourdomain.com
-TLS_MODE=external
-```
-
-`SITE_URL` muss der URL entsprechen, die Nutzer im Browser aufrufen. Bei einem nicht-standardmäßigen Port diesen mit angeben (z. B. `SITE_URL=https://yourdomain.com:8443`).
-
-Caddy lauscht dann nur auf HTTP (Port 80). Dein Reverse-Proxy muss:
-
-- TLS terminieren und den gesamten Traffic (inkl. WebSocket) an Tale auf Port 80 weiterleiten;
-- die Header `X-Forwarded-Proto` und `X-Forwarded-For` setzen.
-
-Beispiel-Konfiguration für nginx:
+Caddy lauscht nur auf HTTP. Dein Reverse-Proxy (nginx, Traefik, HAProxy, Cloudflare Tunnel) terminiert TLS und leitet auf Port 80 an Tale weiter. Der Reverse-Proxy muss auch WebSocket-Upgrades weiterleiten, weil der Realtime-Kanal von Convex über WS läuft.
 
 ```nginx
 map $http_upgrade $connection_upgrade {
@@ -227,7 +185,7 @@ server {
     listen 443 ssl;
     server_name yourdomain.com;
 
-    # ... deine TLS-Zertifikatskonfiguration ...
+    # ... TLS-Zertifikat-Konfiguration ...
 
     location / {
         proxy_pass http://tale-server:80;
@@ -242,7 +200,7 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $connection_upgrade;
 
-        # Lange Timeouts für Convex-WebSocket-Sync-Verbindungen
+        # Langer Timeout für Convex-WebSocket-Sync-Verbindungen
         proxy_read_timeout 86400s;
         proxy_send_timeout 86400s;
 
@@ -253,7 +211,7 @@ server {
 
 ## Subpath-Deployment
 
-Wenn dein Reverse-Proxy Tale unter einem Unterpfad bedient (z. B. `https://yourdomain.com/tale/`), setze die Environment-Variable `BASE_PATH`:
+Wenn dein Reverse-Proxy Tale unter einem Pfadpräfix ausliefert (`https://yourdomain.com/tale/`), setze `BASE_PATH`, damit die SPA die richtigen Asset-URLs ausgibt:
 
 ```dotenv
 HOST=yourdomain.com
@@ -262,61 +220,45 @@ TLS_MODE=external
 BASE_PATH=/tale
 ```
 
-Caddy entfernt das Subpath-Präfix intern — dein Reverse-Proxy muss es **nicht** strippen. Leite einfach den gesamten Traffic unter dem Subpath unverändert weiter (Hinweis: kein Trailing-Slash bei `proxy_pass`):
+Caddy entfernt das Präfix intern — dein vorgelagerter Proxy leitet den vollen Pfad unverändert weiter. Kein abschließender Schrägstrich auf `proxy_pass`:
 
 ```nginx
 location /tale/ {
     proxy_pass http://tale-server:80;
-    # ... dieselben Header und WebSocket-Config wie oben ...
+    # ... gleiche Kopfzeilen und WebSocket-Konfiguration wie oben ...
 }
 ```
 
-**Bekannte Einschränkungen:**
+Das Convex Dashboard unter `/convex-dashboard` ist aktuell unter einem Subpath-Deployment nicht erreichbar.
 
-- Das Convex Dashboard (`/convex-dashboard`) ist unter Subpath-Deployments nicht erreichbar.
+## Externe Datenbank verwenden
 
-## Externe Datenbank nutzen
+Der gebündelte `db`-Container liefert ParadeDB (Postgres 16 + pgvector + pg_search) und funktioniert von Haus aus. Wenn du eine verwaltete Datenbank brauchst, Datenresidenz in einem bestimmten Cluster oder einen bestehenden Postgres-Pool, können sich die vier Datenbank-Dienste stattdessen mit jeder externen Postgres-Instanz verbinden.
 
-Tale liefert einen ParadeDB-Container (PostgreSQL 16 + pgvector + pg_search) mit, aber die Architektur unterstützt auch die Anbindung an eine externe PostgreSQL-Instanz. Nützlich, wenn deine Organisation eine Managed Database verlangt, Datenresidenz-Vorgaben einhält oder einen bestehenden PostgreSQL-Cluster nutzen will.
+Die externe Instanz muss ein paar Anforderungen erfüllen:
 
-### Anforderungen
+| Anforderung                 | Detail                                                   |
+| --------------------------- | -------------------------------------------------------- |
+| Postgres-Version            | 16 oder neuer                                            |
+| `pgvector`-Erweiterung      | Erforderlich für Vektor- und semantische Suche           |
+| `pg_search`-Erweiterung     | Optional — BM25-Volltextsuche degradiert ohne sie sauber |
+| Datenbanken                 | `tale` (Platform) und `tale_knowledge` (RAG und Crawler) |
+| Schemas in `tale_knowledge` | `public_web` (Crawler) und `private_knowledge` (RAG)     |
 
-Deine externe PostgreSQL-Instanz muss erfüllen:
-
-| Anforderung                    | Details                                                                       |
-| ------------------------------ | ----------------------------------------------------------------------------- |
-| PostgreSQL-Version             | 16+                                                                           |
-| pgvector-Extension             | Pflicht für Vektor-/Semantik-Suche.                                           |
-| pg_search-Extension (ParadeDB) | Optional — BM25-Volltextsuche wird elegant deaktiviert, wenn nicht verfügbar. |
-| Datenbanken                    | `tale` (Platform-Daten) und `tale_knowledge` (RAG + Crawler-Daten).           |
-| Schemas in `tale_knowledge`    | `public_web` (Crawler) und `private_knowledge` (RAG).                         |
-
-### Konfiguration
-
-Setze `POSTGRES_URL` in deiner `.env`, damit alle Dienste die externe DB nutzen:
+Tale aus `.env` auf die externe Instanz ausrichten:
 
 ```dotenv
 POSTGRES_URL=postgresql://tale:your-password@your-db-host:5432
 ```
 
-Du kannst einzelne Service-Verbindungen überschreiben, falls nötig:
-
-| Variable               | Dienst  | Beschreibung                                                             |
-| ---------------------- | ------- | ------------------------------------------------------------------------ |
-| `POSTGRES_URL`         | alle    | Basis-Connection-URL (ohne DB-Namen).                                    |
-| `RAG_DATABASE_URL`     | RAG     | vollständige URL inkl. DB-Name, überschreibt `POSTGRES_URL` für RAG.     |
-| `CRAWLER_DATABASE_URL` | Crawler | vollständige URL inkl. DB-Name, überschreibt `POSTGRES_URL` für Crawler. |
-
-Bei Service-spezifischen URLs den DB-Namen angeben:
+`POSTGRES_URL` ist die Basis-URL ohne Datenbanknamen. Convex hängt `tale` an, und die Python-Dienste leiten `tale_knowledge` von derselben Basis ab. Wenn ein Dienst einen anderen Host braucht (der RAG-Dienst auf einer Read-Replika zum Beispiel), überschreibe pro Dienst:
 
 ```dotenv
-RAG_DATABASE_URL=postgresql://tale:your-password@your-db-host:5432/tale_knowledge
+RAG_DATABASE_URL=postgresql://tale:your-password@rag-replica:5432/tale_knowledge
 CRAWLER_DATABASE_URL=postgresql://tale:your-password@your-db-host:5432/tale_knowledge
 ```
 
-### Datenbank-Initialisierung
-
-Der mitgelieferte DB-Container führt Init-Skripte beim ersten Start automatisch aus. Mit externer DB musst du sie manuell laufen lassen. Die Skripte liegen in `services/db/init-scripts/` und sind nummeriert:
+Der gebündelte `db`-Container fährt seine Init-Skripte beim ersten Boot; eine externe Instanz sieht sie nie, also musst du sie vor dem ersten `tale deploy` manuell anwenden:
 
 ```bash
 for f in services/db/init-scripts/*.sql; do
@@ -324,21 +266,20 @@ for f in services/db/init-scripts/*.sql; do
 done
 ```
 
-Dann offene Migrationen anwenden. Installiere [dbmate](https://github.com/amacneil/dbmate) lokal (`brew install dbmate` auf macOS; für Linux/Windows siehe README des Repositories), oder nutze Docker, wenn du nichts lokal installieren willst:
+Dann die dbmate-Migrationen gegen `tale_knowledge` fahren:
 
 ```bash
-# Mit lokal installiertem dbmate:
-dbmate -u "postgresql://tale:your-password@your-db-host:5432/tale_knowledge" -d services/db/migrations/db/migrations up
+# Mit dbmate lokal installiert (brew install dbmate auf macOS):
+dbmate -u "postgresql://tale:your-password@your-db-host:5432/tale_knowledge" \
+  -d services/db/migrations/db/migrations up
 
-# Oder per Docker (keine lokale Installation nötig):
+# Oder einmalig per Docker:
 docker run --rm -v "$PWD/services/db/migrations/db/migrations:/db/migrations" \
   amacneil/dbmate \
   -u "postgresql://tale:your-password@your-db-host:5432/tale_knowledge" up
 ```
 
-### Den mitgelieferten DB-Container abschalten
-
-Nach der Konfiguration einer externen Datenbank kannst du verhindern, dass der eingebaute `db`-Container startet. Lege eine `compose.override.yml` im Deployment-Verzeichnis an:
+Zum Schluss verhindere, dass der gebündelte `db`-Container startet, indem du ein `compose.override.yml` neben deine `.env` legst:
 
 ```yaml
 services:
@@ -346,78 +287,67 @@ services:
     profiles: ['disabled']
 ```
 
-So bleibt die Service-Definition bestehen (damit `depends_on`-Referenzen nicht brechen), startet aber nur, wenn du das Profil `disabled` explizit anforderst.
+Das Override behält die Service-Definition (damit `depends_on`-Referenzen weiter auflösen), startet den Container aber nie.
 
 ## Schema-Kompatibilität und Rollback
 
-Tale-Deployments sind nicht automatisch rollback-sicher, wenn deine Code-Änderung das Convex-Schema ändert. Convex-Daten bleiben unabhängig vom Anwendungscode bestehen, und `tale rollback` tauscht nur Container-Images — nicht den DB-Zustand.
+Tale-Deployments sind nicht automatisch rollback-sicher, wenn deine Code-Änderung das Convex-Schema verändert. Convex-Daten bleiben unabhängig vom Anwendungs-Image bestehen, und `tale rollback` tauscht nur Container — nie die Daten.
 
-### Sichere Änderungen (rollback-freundlich)
+### Sichere Änderungen
 
-- Neue **optionale** Felder zu bestehenden Tabellen.
-- Neue Tabellen.
-- Neue Indexes.
-- Neue Queries/Mutations/Actions.
-- Entfernen von Feldern, die der alte Code bereits als optional tolerierte.
+- Optionale Felder zu bestehenden Tabellen hinzufügen.
+- Neue Tabellen hinzufügen.
+- Neue Indizes hinzufügen.
+- Neue Queries, Mutationen oder Aktionen hinzufügen.
+- Felder entfernen, die der alte Code bereits als optional duldete.
 
-### Riskante Änderungen (nur vorwärts)
+### Riskante Änderungen
 
-- **Pflicht**feld zu einer bestehenden Tabelle hinzufügen.
+- Ein erforderliches Feld zu einer bestehenden Tabelle hinzufügen.
 - Ein Feld umbenennen.
 - Den Typ eines Feldes ändern.
-- Ein Pflichtfeld entfernen, auf das der neue Code angewiesen ist.
-- Denormalisierte Dokumente restrukturieren.
+- Ein erforderliches Feld entfernen, auf das der neue Code angewiesen ist.
+- Denormalisierte Dokumente umstrukturieren.
 
-### Empfohlenes Muster: Expand-Contract
+### Expand-Contract
 
-Für jede "riskante" Änderung in **zwei Versionen** releasen:
+Für jede riskante Änderung liefere zwei Releases.
 
-1. **Expand** — neue Form neben der alten einführen. Code schreiben, der beide Formen verarbeitet. Bestehende Daten in die neue Form migrieren (einmaliger Backfill). Rollback ist sicher, weil beide Formen funktionieren.
-2. **Contract** — sobald der Expand-Release lange genug stabil in Produktion war, folgt ein Release, der die alte Form entfernt. Dieser ist nur-vorwärts, aber zu diesem Zeitpunkt sind die Daten garantiert in der neuen Form.
+Das erste Release **expandiert**: es fügt die neue Form neben der alten hinzu, schreibt Code, der beide bedient, und migriert bestehende Daten über eine einmalige Backfill-Mutation auf die neue Form. Beide Formen funktionieren, also ist das Release sicher rollback-fähig. Das zweite Release **kontrahiert**: sobald die Produktion auf dem expandierten Release lange genug gelaufen ist, um Stabilität zu bestätigen, entfernt das Folge-Release die alte Form. Bis dahin ist garantiert, dass die Daten in der neuen Form vorliegen, also kann das Contract-Release reine Vorwärtsbewegung sein.
 
 ### Blue-Green-Übergangsfenster
 
-Weil `convex deploy` die Function-Menge atomar ersetzt, gibt es beim Blue-Green-Cutover ein kurzes (~10–30 s) Fenster, in dem Nutzer der alten Platform-Farbe die neuen Function-Signaturen rufen könnten:
+Der Deploy-Schritt schiebt die neue Convex-Funktionsmenge atomar. Für ein kurzes Fenster — rund 10 bis 30 Sekunden — können offene Sessions auf der alten Farbe Funktionssignaturen aufrufen, die zur neuen Form passen:
 
-1. `green`-Platform startet und pusht Functions V2 an Convex.
-2. Convex serviert V2 an alle — einschließlich offener Sessions auf `blue`.
-3. Caddys Health-Check erkennt `green` als gesund und schwenkt Traffic; `blue` drained.
-4. Browser-Clients reconnecten und holen den neuen Platform-Code.
+```text
+1. green platform startet, fährt `bunx convex deploy` gegen den convex-Dienst aus.
+2. Convex liefert jetzt V2-Funktionen an jeden Client, einschließlich offener blue-Sessions.
+3. Der Proxy bemerkt, dass green gesund ist, und schwenkt den Traffic.
+4. Browser-Clients verbinden neu und ziehen den neuen Platform-Code.
+```
 
-Wenn V2 Functions entfernt oder umbenennt, sehen `blue`-Nutzer während des Fensters Fehler — behandle "Function entfernen/umbenennen" also als riskante Änderung und folge dem Expand-Contract-Muster.
+Wenn V2 Funktionen entfernt oder umbenennt, sehen die verbundenen Clients von blue Fehler während des Fensters. Behandle "Funktion entfernen oder umbenennen" als riskante Änderung und folge Expand-Contract.
 
-## Vulnerability-Scanning
+## Schwachstellenscans
 
-Alle Tale-Images werden im CI/CD-Release-Prozess mit [Trivy](https://trivy.dev/) auf Schwachstellen geprüft. Scan-Ergebnisse werden pro Release in den GitHub-Security-Tab hochgeladen.
-
-Lokalen Vulnerability-Scan ausführen:
+Jedes Tale-Image wird mit [Trivy](https://trivy.dev/) in der CI-Release-Pipeline gescannt; Ergebnisse werden gegen das Release-Tag in die GitHub-Security-Registerkarte hochgeladen. Den Scan lokal gegen die Images auf deinem Host laufen lassen:
 
 ```bash
 bun run docker:test:vulnerability
 ```
 
-Berichte landen im Verzeichnis `trivy-reports/`. Siehe [Container-Architektur](/de/self-hosted/operate/container-architecture) für Image-Details.
+Berichte landen in `trivy-reports/`. Die Image-Ebene-Prüfungen (OCI-Labels, Nicht-Root-Nutzer, Größenbudgets, keine Secrets in Layern) sind durch `bun run docker:test:image` abgedeckt. Die [Contributing-Docker-Anleitung](/de/develop/contributing-docker) listet jede Prüfung auf, die die CI fährt.
 
 ## Image-Versionierung
 
-Images werden in der GitHub Container Registry mit zwei Tags publiziert:
-
-- **Versions-Tag** (z. B. `1.2.0`) — unveränderlich, zeigt auf einen bestimmten Build.
-- **`latest`** — veränderlich, zeigt immer auf das neueste Release.
-
-Beide Tags beinhalten Multi-Architecture-Manifests (amd64 + arm64).
+Images werden mit zwei Tags veröffentlicht. Versions-Tags (`1.2.0`) sind unveränderlich und zeigen auf einen bestimmten Build; `latest` ist veränderlich und folgt dem neuesten Release. Beide tragen Multi-Architektur-Manifeste für amd64 und arm64.
 
 ```bash
-# Eine bestimmte Version pullen
 docker pull ghcr.io/tale-project/tale/tale-platform:1.2.0
-
-# Das neueste Release pullen
 docker pull ghcr.io/tale-project/tale/tale-platform:latest
 ```
 
-### Eine bestimmte Image-Version festschreiben
-
-`tale deploy` wählt Images anhand der CLI-Version. Um einzelne Service-Images unabhängig zu pinnen — zum Beispiel um ein einzelnes neues Image zu testen, ohne den ganzen Stack zu upgraden — lege eine `compose.override.yml` neben deine `.env`:
+Um einen Dienst auf eine bestimmte Version anzuheften, ohne den Rest des Stacks zu upgraden — etwa zum Testen eines einzelnen Images oder um nur den Crawler vorwärtszurollen — leg ein `compose.override.yml` neben `.env`:
 
 ```yaml
 services:
@@ -425,20 +355,20 @@ services:
     image: ghcr.io/tale-project/tale/tale-platform:1.2.0
 ```
 
-`tale deploy` führt das Override automatisch zusammen.
+`tale deploy` mergt das Override automatisch.
 
-## Zugriff aufs Convex-Dashboard
+## Convex Dashboard
 
-Tale enthält ein eingebettetes Convex-Backend. Das Convex-Dashboard erlaubt dir, die Datenbank zu inspizieren, Function-Logs zu sehen und Hintergrundjobs zu verwalten.
+Das gebündelte Convex-Backend liefert ein Dashboard zum Inspizieren der Datenbank, zum Ansehen von Funktionslogs und zum Verwalten von Hintergrundjobs. Es lauscht hinter dem Proxy auf `/convex-dashboard` und verlangt für jede Sitzung einen Admin-Schlüssel.
 
-1. Einen Admin-Schlüssel erzeugen:
+Den Admin-Schlüssel erzeugen:
 
 ```bash
-./scripts/get-admin-key.sh
+tale convex admin
 ```
 
-2. Den Schlüssel aus der Ausgabe kopieren.
-3. `https://yourdomain.com/convex-dashboard` im Browser öffnen.
-4. Den Admin-Schlüssel auf Nachfrage einfügen.
+Den Schlüssel ins Dashboard einfügen, wenn danach gefragt wird. Das Dashboard gibt direkten Lese- und Schreibzugriff auf jede Sammlung in Convex, also teile Admin-Schlüssel nur mit vertrauenswürdigen Operatoren.
 
-> **Hinweis:** Das Convex-Dashboard gibt direkten Lese- und Schreibzugriff auf alle Daten. Teile Admin-Schlüssel nur mit vertrauenswürdigen Teammitgliedern.
+## Wo das einsetzt
+
+Das Produktions-Deployment ist der kanonische Weg für selbst gehostetes Tale. Sobald die Instanz erreichbar ist, katalogisiert die [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference) jeden hier berührten Knopf und jeden, den die Anleitung in der Voreinstellung gelassen hat; [Authentifizierung](/de/self-hosted/admin/authentication) bindet die Instanz an deinen Identitäts-Anbieter; [Betrieb](/de/self-hosted/operate/observability/operations) deckt ab, was zu scrapen, zu loggen und zu alarmieren ist, sobald Traffic fließt. Für alles, was Endnutzer nach dem Login tun, liest sich [Platform](/de/platform) in Cloud und Selbsthosting identisch.

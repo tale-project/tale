@@ -1,37 +1,40 @@
 ---
 title: Approvals
-description: Review and approve or reject actions queued by automations and agents directly in the chat interface.
+description: Review, approve, or reject actions that automations and agents queue up for human sign-off, directly inside the chat conversation.
 ---
 
-Automations and AI agents can be configured to pause at certain steps and wait for human approval before proceeding. When an approval is needed, it appears as an inline card in your chat conversation.
+Approvals are inline cards that appear in a chat conversation when an automation or AI agent reaches a step gated for human sign-off. The card carries the full context — which workflow or tool triggered it, what action it wants to take, what data it would use — and offers **Approve** and **Reject** buttons that run or cancel the action in place. The audience is anyone in the conversation when an approval lands; the cards arrive in line with the messages they belong to, so the reviewer doesn't change surface to make a decision.
+
+This page covers the seven approval shapes you can encounter, the review flow on each card, and how the two interactive variants (human input requests and location requests) differ from the standard approve-or-reject pair.
 
 ## Approval types
 
-| Type                  | What it asks for                                                              |
-| --------------------- | ----------------------------------------------------------------------------- |
-| Integration operation | Permission to execute a REST API or SQL query through a connected integration |
-| Workflow creation     | Permission to create a new automation workflow                                |
-| Workflow execution    | Permission to run an existing workflow with specific parameters               |
-| Workflow update       | Permission to modify an existing workflow's steps or configuration            |
-| Document write        | Permission to create or save one or more files to the knowledge base          |
-| Human input request   | A paused workflow asking you to fill in information before it continues       |
-| Location request      | Permission to access your browser location for a location-aware task          |
+The seven cards that can appear in a conversation, each gated for a different reason:
 
-## Reviewing an approval
+| Type                  | What it asks for                                                                    |
+| --------------------- | ----------------------------------------------------------------------------------- |
+| Integration operation | Permission to execute a REST API call or SQL query through a connected integration. |
+| Workflow creation     | Permission to create a new automation workflow.                                     |
+| Workflow execution    | Permission to run an existing workflow with specific parameters.                    |
+| Workflow update       | Permission to modify an existing workflow's steps or configuration.                 |
+| Document write        | Permission to create or save one or more files to the knowledge base.               |
+| Human input request   | A paused workflow asking the reviewer to fill in information before it continues.   |
+| Location request      | Permission to access the browser's location for a location-aware task.              |
 
-When an agent or automation needs approval, a card appears in the chat with the full context: which workflow or tool triggered it, what action it wants to take, and what data it would use.
+## Review an approval
 
-Each card includes:
+Every card shares the same shape. A header identifies the approval type and the actor (the workflow or agent that raised it). A details section you can expand shows the parameters, the file list, or the workflow steps — whatever the action would touch. The two buttons at the bottom run or cancel the action.
 
-- A header identifying the approval type
-- Detailed metadata you can expand (parameters, file lists, workflow steps)
-- **Approve** and **Reject** buttons
-
-Click **Approve** to let the action proceed. The card updates to show execution progress and the final result. Click **Reject** to cancel it. The agent receives a notification that the action was rejected and can adjust its approach.
+To let the action proceed, click **Approve**. The card switches to an execution view showing live progress, then the final result. To cancel it, click **Reject** (some cards use a context-specific label like **Cancel workflow creation** or **Reject this operation**). The agent receives a notification that the action was rejected and adjusts its approach on the next turn.
 
 ## Human input and location requests
 
-Some approvals are interactive rather than simple approve/reject decisions:
+Two of the seven types are interactive rather than simple approve-or-reject decisions. Human input requests display a form with fields the paused workflow needs — text inputs, dropdowns, yes/no toggles — and submitting the response resumes the workflow with the answers attached. Location requests ask for your browser's geolocation: click **Share location** to grant access (the browser shows its native permission prompt) or **Deny** to refuse.
 
-- **Human input requests** display a form with fields (text, dropdowns, yes/no) that a paused workflow needs you to fill in. Submit your response to resume the workflow.
-- **Location requests** ask for your browser location. Click **Share location** to grant access or deny the request.
+For both shapes, the conversation is paused until the reviewer responds. The card shows _Waiting for input_ in the agent's transcript so the chat history stays readable.
+
+## Where this fits
+
+Approvals are the in-the-loop control surface. They exist because some actions — billing operations, mass email, production data writes — shouldn't run autonomously even when the agent has the technical capability. The card pattern is the same whether the request comes from an [agent](/platform/agents/concepts) calling an integration's write operation, an automation reaching a step gated for review, or an MCP server's tool flagged `requiresApproval: true`.
+
+To gate a specific integration operation behind approval, the per-operation flag lives on the integration's configuration page in [Settings > Integrations](/platform/integrations/overview). To require approval before a workflow step runs, the workflow editor exposes the same flag on each step.

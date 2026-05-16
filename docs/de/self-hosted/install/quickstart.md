@@ -3,114 +3,112 @@ title: Lokaler Schnellstart
 description: Tale lokal mit Docker Desktop in etwa zehn Minuten starten — für Evaluierung, Demos und Beiträge.
 ---
 
-Das hier ist der schnellste Weg, eine lokale Tale-Instanz auf deinem Laptop laufen zu lassen. Nutze diesen Schnellstart, um das Produkt zu evaluieren, eine Demo zu zeigen oder gegen die Plattform zu entwickeln. Für eine öffentlich erreichbare Instanz mit TLS und unterbrechungsfreien Upgrades folge stattdessen dem [Produktions-Deployment](/de/self-hosted/install/linux-server).
+Der lokale Schnellstart ist der schnellste Weg, eine laufende Tale-Instanz auf deinen Laptop zu bringen. Die `tale`-CLI erledigt die Installation — ein Befehl gerüstet das Projekt, ein Befehl startet den Stack, dann ein Browser auf `https://localhost`. Nutze ihn, um das Produkt zu evaluieren, einem Team eine Demo zu zeigen oder am Quelltext zu schrauben. Für eine öffentliche Instanz mit echtem TLS und Upgrades ohne Ausfallzeit folge stattdessen [Produktions-Deployment](/de/self-hosted/install/linux-server).
 
-## Voraussetzungen
+Diese Anleitung nimmt einen Entwickler-Laptop mit installiertem Docker Desktop an. Alles unten nutzt dieselbe CLI, die auch in Produktion läuft — die einzigen Unterschiede sind der TLS-Modus (selbstsigniert als Voreinstellung) und dass alle Ports lokal aus Entwicklungsbequemlichkeit exponiert sind.
 
-| Software       | Mindestversion | Bezugsquelle                                   |
-| -------------- | -------------- | ---------------------------------------------- |
-| Docker Desktop | 24.0+          | https://www.docker.com/products/docker-desktop |
+## Bevor du beginnst
 
-### API-Schlüssel besorgen
+- **Docker Desktop 24.0 oder neuer** — installiert und laufend. Die Linux-, macOS- und Windows-Builds funktionieren alle.
+- **Ein API-Schlüssel von OpenRouter** — kostenlos auf [openrouter.ai](https://openrouter.ai) erstellbar. OpenRouter gibt dir über einen einzigen Schlüssel Zugriff auf hunderte Modelle. Jeder OpenAI-kompatible Endpunkt funktioniert, einschließlich eines lokalen Ollama-Servers; OpenRouter ist die empfohlene Voreinstellung, weil sie am meisten abdeckt.
 
-Tale nutzt standardmäßig OpenRouter als KI-Gateway, das dir über einen einzigen API-Schlüssel Zugriff auf Hunderte von Modellen gibt.
+Hol den Schlüssel aus dem Bereich **Keys** im OpenRouter-Dashboard, sobald du ein Konto hast, und halte ihn bereit — `tale init` fragt während der Einrichtung danach.
 
-Erstelle ein kostenloses Konto auf https://openrouter.ai, erzeuge im Kontomenü unter **Keys** einen neuen API-Schlüssel und kopiere ihn, um ihn während der Einrichtung einzufügen.
+## Schritt 1 — Die CLI installieren
 
-> **Tipp:** Jeder OpenAI-kompatible Anbieter funktioniert, auch eine lokale Ollama-Instanz. OpenRouter ist wegen der Modellvielfalt und einfachen Preisgestaltung der empfohlene Standard.
-
-## Einrichtung
-
-### Schritt 1: CLI installieren
-
-**Linux / macOS:**
+Die `tale`-CLI ist eine Binärdatei, die den vollen Lebenszyklus fährt: init, start, upgrade, deploy, logs, rollback. Das Installationsskript schreibt unter Linux und macOS nach `/usr/local/bin/tale`:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash
 ```
 
-**Windows (PowerShell):**
+Unter Windows läuft es über PowerShell:
 
 ```powershell
 irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.ps1 | iex
 ```
 
-> **Bestimmte Version festlegen:** Beide Installer berücksichtigen die Umgebungsvariable `VERSION`. Auf Linux/macOS: `VERSION=0.9.0 curl -fsSL …/install-cli.sh | bash`, auf Windows: `$env:VERSION = '0.9.0'; irm …/install-cli.ps1 | iex`. Verfügbare Tags listet die [GitHub-Releases-Seite](https://github.com/tale-project/tale/releases).
-
-Oder lade die Binary direkt — ersetze `latest` durch einen Version-Tag (z. B. `v0.9.0`), um zu pinnen:
+Beide Installer respektieren eine `VERSION`-Umgebungsvariable, um eine bestimmte Version anzuheften:
 
 ```bash
-# Linux
-curl -fsSL https://github.com/tale-project/tale/releases/latest/download/tale_linux \
-  -o /usr/local/bin/tale
-chmod +x /usr/local/bin/tale
+VERSION=0.9.0 curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash
 ```
 
-### Schritt 2: Projekt anlegen
+```powershell
+$env:VERSION = '0.9.0'
+irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.ps1 | iex
+```
+
+Verfügbare Tags stehen auf der Seite [GitHub Releases](https://github.com/tale-project/tale/releases). Wenn du das Installationsskript überspringen willst, ist die Binärdatei auch als direkter Download an jedem Release-Tag verfügbar.
+
+## Schritt 2 — Ein Projekt erstellen
+
+Wähle ein Verzeichnis und fahre `tale init`:
 
 ```bash
 tale init my-project
 cd my-project
 ```
 
-Die CLI fragt nach deiner Domain, dem API-Schlüssel und dem TLS-Modus. Sicherheits-Secrets (`BETTER_AUTH_SECRET`, `ENCRYPTION_SECRET_HEX`) werden automatisch erzeugt.
+Die CLI fragt nach Domain (Voreinstellung `localhost`), OpenRouter-Schlüssel und TLS-Modus (Voreinstellung `selfsigned`). Sie schreibt eine `.env`-Datei mit automatisch erzeugten Secrets — `BETTER_AUTH_SECRET`, `ENCRYPTION_SECRET_HEX`, `INSTANCE_SECRET` und einen `SOPS_AGE_KEY` für den SOPS-verschlüsselten Anbieter-Secret-Modus. Das Projektverzeichnis ist die Wahrheitsquelle für diese Instanz: `.env` hält die Secrets, `TALE_CONFIG_DIR` hält die Anbieter-, Aufbewahrungs- und Agent-JSON-Dateien.
 
-> **Tipp:** `tale init` legt zusätzlich Konfigurationsdateien für KI-Editoren (Claude Code, Cursor, GitHub Copilot, Windsurf) ab und extrahiert den Plattform-Quellcode nach `.tale/reference/`. Öffne dein Projekt in einem dieser Editoren, um Agents, Workflows und Integrationen in natürlicher Sprache zu erstellen und zu bearbeiten. Siehe [AI-assisted development](/de/develop/ai-assisted-development).
+`tale init` legt auch Konfigurationsdateien für KI-Editoren ab (Claude Code, Cursor, GitHub Copilot, Windsurf) und entpackt den Platform-Quelltext nach `.tale/reference/`, sodass du das Projekt in einem KI-unterstützten Editor öffnen und Agents, Workflows und Integrationen in natürlicher Sprache erstellen kannst. Das vollständige Muster steht unter [KI-unterstützte Entwicklung](/de/develop/ai-assisted-development).
 
-### Schritt 3: Tale starten
+## Schritt 3 — Tale starten
 
 ```bash
 tale start
 ```
 
-Warte auf `Tale Dev v0.x.x  Ready.` Health-Check-Meldungen während des Starts sind normal — warte auf die `Ready`-Zeile, bevor du den Browser öffnest.
+Health-Check-Meldungen strömen, während die Dienste hochfahren — das ist erwartet. Warte auf die Zeile `Tale Dev v0.x.x  Ready.`, bevor du den Browser öffnest; der `platform`-Container braucht bei einem Kaltstart bis zu drei Minuten, weil der Entrypoint wartet, bis die Env-Synchronisation fertig ist und `bunx convex deploy` die Funktionsmenge geschoben hat, bevor er gesund signalisiert.
 
-### Schritt 4: App öffnen
-
-Gehe in deinem Browser auf https://localhost (oder deine konfigurierte Domain). Beim ersten Aufruf landest du auf einer Sign-up-Seite, um dein Admin-Konto zu erstellen.
-
-> **Warnung wegen selbstsigniertem Zertifikat.** Der TLS-Modus `selfsigned` erzeugt ein lokales Zertifikat, daher zeigt der Browser beim ersten Aufruf eine „Ihre Verbindung ist nicht privat“-Warnung. Klick dich durch (Chrome: **Erweitert → Weiter**, Firefox: **Erweitert → Risiko akzeptieren**). Für ein öffentliches Deployment wähle bei `tale init` `letsencrypt` oder folge dem [Produktions-Deployment](/de/self-hosted/install/linux-server)-Leitfaden.
-
-## Täglicher Ablauf
-
-### Starten und Stoppen
+Um im Hintergrund zu fahren, übergib `--detach`:
 
 ```bash
-tale start              # Alle Dienste starten
-tale start --detach     # Im Hintergrund starten
+tale start --detach
 ```
 
-Um die Dienste zu stoppen, ohne Daten zu verlieren:
+## Schritt 4 — Die App öffnen
+
+Öffne `https://localhost` (oder welche Domain du auch immer bei `tale init` konfiguriert hast). Der erste Besuch führt dich auf eine Registrierungsseite — der erste registrierte Nutzer wird Inhaber der Instanz.
+
+Das selbstsignierte Zertifikat löst beim ersten Besuch eine Browser-Warnung aus. Klick durch (Chrome: **Erweitert → Weiter**; Firefox: **Erweitert → Risiko akzeptieren**); die Warnung ist für `TLS_MODE=selfsigned` erwartet. Für eine öffentliche Instanz wähle bei `tale init` `letsencrypt` oder folge [Produktions-Deployment](/de/self-hosted/install/linux-server).
+
+## Tagesrhythmus
+
+`tale start` und `docker compose down` sind das Start/Stopp-Paar, das du am häufigsten nutzt.
 
 ```bash
-# Stoppt die Container, behält aber die Volumes (deine Daten).
-# Niemals -v hinzufügen: das löscht Datenbank, Uploads und Crawler-Status — keine Wiederherstellung möglich.
-docker compose -p tale-dev down
+tale start                       # Alle Dienste im Vordergrund starten
+tale start --detach              # Im Hintergrund starten
+docker compose -p tale-dev down  # Container stoppen, Volumes (und Daten) behalten
 ```
 
-Das Flag `-p tale-dev` ist erforderlich, weil `tale start` ein Compose-Projekt namens `tale-dev` anlegt, statt eine Standard-`docker-compose.yml` zu verwenden.
+Die Option `-p tale-dev` ist nötig, weil `tale start` diesen Compose-Projektnamen verwendet und nicht eine Standard-`docker-compose.yml`. **Hänge nie `-v` an den `down`-Befehl** — er löscht jedes benannte Volume, also die Datenbank, jede hochgeladene Datei und den Crawler-Zustand. Es gibt keine Wiederherstellung.
 
 ### Upgrade
 
 ```bash
-tale upgrade                       # Auf das neueste Release aktualisieren und Projektdateien synchronisieren
-tale upgrade --version 0.9.0       # Auf eine bestimmte Version migrieren oder downgraden
+tale upgrade                       # Das neueste Release ziehen und Projektdateien synchronisieren
+tale upgrade --version 0.9.0       # Migrieren oder zurück auf eine bestimmte Version
 tale start                         # Mit der neuen Version neu starten
 ```
 
-Breaking Changes stehen in den [Release Notes](https://github.com/tale-project/tale/releases).
+Lies die [Release-Notes](https://github.com/tale-project/tale/releases) vor dem Upgrade; Breaking-Changes und Migrationshinweise werden gemäß [Release-Notes-Format](/de/self-hosted/operate/release-notes/format) explizit ausgewiesen.
 
-### Backend-Daten ansehen
+### Convex-Daten inspizieren
+
+Das gebündelte Convex-Backend liefert ein Dashboard zum Inspizieren von Sammlungen, Funktionslogs und Hintergrundjobs. Erzeuge einen Admin-Schlüssel und öffne dann das Dashboard:
 
 ```bash
-tale convex admin       # Admin-Schlüssel für das Convex-Dashboard erzeugen
+tale convex admin
 ```
 
-Öffne `/convex-dashboard` im Browser und füge den Schlüssel ein, um die Datenbank zu inspizieren, Function-Logs zu sehen und Hintergrundjobs zu verwalten.
+Öffne `/convex-dashboard` im Browser und füge den Schlüssel ein. Das Dashboard gibt direkten Lese- und Schreibzugriff auf alles in Convex, also halte den Schlüssel lokal.
 
-## Alternative: aus Quellcode bauen
+## Aus dem Quelltext bauen
 
-Wenn du zu Tale beitragen oder den Plattform-Code anpassen willst, kannst du statt der vorgebauten Images aus dem Quellcode starten.
+Wenn du beitragen oder die Plattform anpassen möchtest, fahre aus einem Checkout statt aus vorgefertigten Images. Das Repository klonen, die Beispiel-Env kopieren und die Platzhalter-Secrets ersetzen:
 
 ```bash
 git clone https://github.com/tale-project/tale.git
@@ -118,15 +116,13 @@ cd tale
 cp .env.example .env
 ```
 
-Bearbeite `.env` und ersetze die Beispielwerte:
+Die `.env.example` liefert Platzhalter-Secrets aus, die ersetzt werden müssen, bevor der Stack startet. Generiere frische Werte:
 
-| Variable                | Wie du sie setzt                                 |
-| ----------------------- | ------------------------------------------------ |
-| `BETTER_AUTH_SECRET`    | `openssl rand -base64 32`                        |
-| `ENCRYPTION_SECRET_HEX` | `openssl rand -hex 32`                           |
-| `DB_PASSWORD`           | Ein beliebiges Passwort für die lokale Datenbank |
-
-> **Wichtig:** Die Datei `.env.example` enthält Platzhalter-Secrets, die vor dem Start ersetzt werden müssen.
+| Variable                | Generieren mit                        |
+| ----------------------- | ------------------------------------- |
+| `BETTER_AUTH_SECRET`    | `openssl rand -base64 32`             |
+| `ENCRYPTION_SECRET_HEX` | `openssl rand -hex 32`                |
+| `DB_PASSWORD`           | Beliebiges Passwort für die lokale DB |
 
 Dann bauen und starten:
 
@@ -134,10 +130,16 @@ Dann bauen und starten:
 docker compose up --build
 ```
 
-Für einen schnelleren Edit-Reload-Zyklus nutze den Development-Override, der deine lokalen Quellverzeichnisse in die Container mountet:
+Für einen schnelleren Edit-Reload-Zyklus leg das Entwicklungs-Override auf, das deinen lokalen Quelltext in die Container bindet:
 
 ```bash
 docker compose -f compose.yml -f compose.dev.yml up --build
 ```
 
-Nach Änderungen an Dockerfiles oder Abhängigkeiten kannst du mit `bun run docker:test` einen Smoke-Test fahren. Der [Contributing-Docker-Guide](/de/develop/contributing-docker) beschreibt Image-Validierung und Vulnerability-Scan-Skripte.
+Nach Änderungen an einer `Dockerfile` oder einer Abhängigkeit fahre `bun run docker:test`, um den Build zu rauchprüfen. Die [Contributing-Docker-Anleitung](/de/develop/contributing-docker) deckt die Image-Validierungs- und Schwachstellenscan-Skripte ab.
+
+## Wo das einsetzt
+
+Was du jetzt hast, ist eine laufende Tale-Instanz auf `localhost` mit Beispiel-Agents, Beispielwissen und einem konfigurierten KI-Anbieter. Das reicht, um das Produkt zu evaluieren, es einem Team zu demonstrieren oder gegen die Plattform zu entwickeln. Es reicht nicht, um es jemandem außerhalb deines Laptops zugänglich zu machen — der Schnellstart nutzt selbstsigniertes TLS, fährt jeden Dienst auf einem Container und überspringt die Blue-Green-Topologie, die Upgrades ohne Wartungsfenster übersteht.
+
+Wenn du bereit bist, Tale Nutzern vorzulegen, läuft [Produktions-Deployment](/de/self-hosted/install/linux-server) dieselbe Installation mit echter Domain, echtem TLS und dem Blue-Green-Roll. Für den Rest der Operator-Oberfläche — Observability, Aufbewahrung, Sicherheitshinweise — ist [Betrieb](/de/self-hosted/operate/observability/operations) der Index.

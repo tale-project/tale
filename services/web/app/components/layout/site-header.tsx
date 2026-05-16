@@ -5,12 +5,8 @@ import { useRouterState } from '@tanstack/react-router';
 import { useEffect } from 'react';
 
 import { LocalizedLink } from '@/app/components/layout/localized-link';
+import { DOCS_URL } from '@/lib/docs-url';
 import { useT } from '@/lib/i18n/client';
-
-// Vite injects VITE_DOCS_URL at build time. Defaults to the canonical
-// docs.tale.dev origin; can be overridden (e.g. https://tale.dev/docs)
-// for path-based deployments where docs ship under the marketing domain.
-const DOCS_URL = import.meta.env.VITE_DOCS_URL ?? 'https://docs.tale.dev';
 
 interface NavItem {
   key: 'features' | 'pricing';

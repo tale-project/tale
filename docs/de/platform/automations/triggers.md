@@ -1,56 +1,62 @@
 ---
 title: Trigger
-description: Wie Workflows starten — Zeitpläne, Events, Webhooks und manuelle Starts.
+description: Wie Automatisierungen starten — Zeitpläne, Webhooks, Ereignisse und manuelle Ausführungen.
 ---
 
-Jeder Workflow braucht mindestens einen Trigger. Der Trigger definiert, _wann_ der Workflow startet und _mit welchem Input_. Ein Workflow kann mehrere Trigger gleicher oder unterschiedlicher Art haben.
+Ein Trigger benennt den Moment, in dem eine Automatisierung startet, und den Input, mit dem sie startet. Tale liefert vier Arten — Zeitpläne, Webhooks, Ereignisse und manuelle Ausführungen — und eine Automatisierung kann jede Mischung davon tragen, sodass derselbe Fan-out auf einem nächtlichen Zeitplan und bei jedem eingehenden Webhook eines externen Systems laufen kann. Diese Seite ist für den Entwickler oder höher gedacht, der eine Automatisierung verdrahtet; die Konfigurationsoberfläche ist der Tab **Trigger** auf jeder Automatisierung.
 
-Trigger werden auf dem **Start**-Schritt des Workflows konfiguriert.
+## Zeitpläne
 
-## Zeitplan-Trigger
+Ein Zeitplan lässt die Automatisierung nach der Uhr laufen. Öffne **Trigger > Zeitpläne > Zeitplan hinzufügen** und gib entweder direkt einen Cron-Ausdruck ein (`0 9 * * 1-5` läuft an Werktagen um 09:00) oder beschreibe in natürlicher Sprache, was du willst — „jeden Werktag um 9 Uhr" — und lass den KI-Assistenten übersetzen. Die fünf Schnellvorlagen (alle 5 Minuten, stündlich, täglich, wöchentlich, monatlich) decken die üblichen Fälle ab, ohne zu tippen.
 
-Lasse den Workflow nach Zeitplan laufen.
+Jeder Zeitplan läuft in **UTC**. Wenn dein Team in einer anderen Zeitzone denkt, rechne vor dem Speichern um — `0 9 * * 1-5` ist 09:00 UTC, das sind 10:00 in Zürich im Winter und 11:00 im Sommer. Das Feld **Workflow-Variablen** im Zeitplan-Formular lässt dich ein JSON-Payload pinnen, mit dem die Ausführung startet; es ist aus dem Eingabeschema der Automatisierung vorausgefüllt, sodass im Normalfall Werte angepasst werden statt die Struktur neu zu schreiben.
 
-- Gib einen Cron-Ausdruck direkt ein (`0 9 * * 1-5` läuft um 9 Uhr UTC an Werktagen).
-- Oder nutze den KI-Assistenten neben dem Feld, um Cron aus natürlicher Sprache zu erzeugen ("jeden Werktag um 9 Uhr").
-- Quick-Presets: alle 5 Minuten, stündlich, täglich, wöchentlich, monatlich.
+## Webhooks
 
-Alle Zeitpläne laufen in **UTC**. Wenn dein Team in einer anderen Zeitzone ist, rechne vor dem Eintragen um.
+Ein Webhook gibt der Automatisierung eine URL, auf die externe Aufrufer einen POST schicken können. Öffne **Trigger > Webhooks > Webhook hinzufügen** und Tale erzeugt eine URL der Form:
 
-## Event-Trigger
+```text
+https://<dein-tale-host>/api/workflows/wh/<token>
+```
 
-Lasse den Workflow laufen, wenn in Tale etwas passiert.
+Das Token in der URL ist die Zugangsberechtigung — wer es besitzt, kann die Automatisierung feuern, behandle es also wie einen API-Schlüssel. Lege es im Secret-Store des aufrufenden Systems ab, rotiere es durch Löschen und Neu-Anlegen des Webhooks und prüfe es bei Auffälligkeiten über das [Audit-Log](/de/platform/admin/governance#audit-log). Es gibt keine separate Signatur-Kopfzeile.
 
-| Event                      | Beispiel-Einsatz                                          |
-| -------------------------- | --------------------------------------------------------- |
-| Neuer Kunde hinzugefügt    | Eine Willkommens-Email senden.                            |
-| Neue Konversation geöffnet | Die Konversation basierend auf der Kundenhistorie taggen. |
-| Genehmigung angefordert    | Einen Slack-Kanal benachrichtigen.                        |
-| Dokument hochgeladen       | Metadaten extrahieren und klassifizieren.                 |
-| Produktbestand ≤ Schwelle  | Nachbestellen oder die Beschaffung alarmieren.            |
+Ein funktionierender Aufruf sieht so aus:
 
-Jeder Event-Typ unterstützt optionale Filter. Der Filter greift, bevor der Workflow startet — unpassende Events werden still übersprungen.
+```bash
+curl -X POST https://your-tale-host/api/workflows/wh/abc123def456 \
+  -H "Content-Type: application/json" \
+  -d '{"orderId": "ord_42", "amount": 199.00}'
+```
 
-## Webhook-Trigger
+Der Body wird als JSON geparst und steht der Automatisierung als Input zur Verfügung. Die Antwort ist `{ "status": "accepted", "workflowSlug": "..." }` bei einem frischen Aufruf. Schick eine Kopfzeile `X-Idempotency-Key` mit einem eindeutigen Wert mit, falls das aufrufende System dieselbe Anfrage wiederholen könnte — Tale erkennt den Retry und antwortet mit `{ "status": "duplicate", "executionId": "..." }`, statt einen zweiten Lauf zu starten.
 
-Jeder Workflow bekommt eine eigene Webhook-URL, an die du POSTen kannst. Nutze Webhook-Trigger, wenn etwas außerhalb von Tale den Workflow starten soll — ein Formular-Submit, ein Upstream-System-Event, ein CI/CD-Hook.
+Webhooks sind pro Quell-IP ratenbegrenzt, damit ein lärmender Aufrufer die Engine nicht erschöpft; Aufrufe jenseits des Limits geben `429` zurück. Die vollständige Anfrage-/Antwort-Referenz, inklusive Signaturen für das alte Tale-signierte Schema auf älteren Webhook-Formen, liegt unter [Webhooks](/de/develop/webhooks).
 
-- Der Request-Body steht jedem Schritt als Workflow-Input zur Verfügung.
-- Füge ein Webhook-Secret hinzu, um Request-Authentizität zu prüfen. Tale prüft den Header `X-Tale-Signature` und lehnt nicht passende Requests ab.
-- Die Webhook-URL ist auf dem Start-Schritt und im **Konfiguration**-Tab des Workflows sichtbar.
+## Ereignisse
 
-Siehe [Webhooks](/de/develop/webhooks) für detaillierte Request-/Response-Formate und Signatur-Verifizierungs-Code.
+Ein Ereignis-Trigger lässt die Automatisierung laufen, wenn innerhalb von Tale etwas passiert. Öffne **Trigger > Ereignisse > Ereignis-Trigger hinzufügen**, wähle einen Ereignistyp und füge einen Filter hinzu, falls das Ereignis einen braucht.
 
-## Manuelle Trigger
+| Ereignistyp                     | Feuert, wenn                                                                 |
+| ------------------------------- | ---------------------------------------------------------------------------- |
+| `customer.created`              | Ein Kundendatensatz wird angelegt (manuell, per Import oder über die API).   |
+| `customer.updated`              | Ein Kundendatensatz wird geändert.                                           |
+| `customer.deleted`              | Ein Kundendatensatz wird gelöscht.                                           |
+| `conversation.created`          | Eine neue Konversation wird im Posteingang eröffnet.                         |
+| `conversation.message_received` | Eine Antwort trifft auf einer bestehenden Konversation ein.                  |
+| `conversation.closed`           | Eine Konversation wird als geschlossen markiert.                             |
+| `workflow.completed`            | Eine andere Automatisierung beendet sich erfolgreich. Nach Quelle filterbar. |
 
-Der **Ausführen**-Button auf jedem Workflow erlaubt einen manuellen Start mit eigenem Input. Nützlich für:
+Der Filter wird ausgewertet, bevor die Automatisierung startet — nicht passende Ereignisse werden übersprungen, ohne dass ein Lauf auf dem Tab **Ausführungen** zurückbleibt. Insbesondere das Ereignis `workflow.completed` ist der Weg, Automatisierungen zu verketten: eine endet, eine andere greift ihren Output auf und führt die Arbeit fort.
 
-- einen neuen Workflow testen, bevor du ihn einplanst;
-- einmalige Runs, wenn der Workflow existiert, aber nicht automatisch laufen soll;
-- Backfills anstoßen.
+## Manuelle Ausführungen
 
-Manuelle Läufe erscheinen genau wie andere Läufe im **Ausführungen**-Tab.
+Der Button **Automatisierung testen** im Editor und die Aktion **Ausführen** auf einer veröffentlichten Automatisierung feuern beide eine einmalige Ausführung mit dem Input, den du angibst. Manuelle Ausführungen teilen sich die Engine mit geplanten und Webhook-Ausführungen, tauchen aber auf dem Tab **Ausführungen** mit der Trigger-Quelle `manual` auf — nützlich, um eine neue Automatisierung vor dem Planen auszuprobieren, für einmalige Nachzieher und um ein Payload aus einem vergangenen Fehllauf nach dem Beheben des Fehlers erneut zu spielen.
 
-## Mehrere Trigger auf einem Workflow
+## Mehrere Trigger auf einer Automatisierung
 
-Ein Workflow kann z. B. sowohl per Zeitplan (jede Stunde) als auch per Webhook (on-demand) getriggert werden. Jede Ausführung zeigt, welcher Trigger sie gestartet hat.
+Eine Automatisierung mit zwei Triggern — etwa einem nächtlichen Zeitplan und einem eingehenden Webhook — läuft einmal pro feuerndem Trigger. Jeder Lauf hält fest, welcher Trigger ihn gestartet hat, sodass der Tab **Ausführungen** und das Metriken-Dashboard beide die Quellenverteilung zeigen, ohne die Spur pro Lauf zu verlieren. Trigger zu mischen ist der richtige Schritt, wenn dieselbe Arbeit nach Uhr und auf Abruf laufen muss; dupliziere die Automatisierung nicht, nur um einen anderen Trigger zuzuweisen.
+
+## Wo das hingehört
+
+Trigger sind die Grenze zwischen Tale und allem, was eine Automatisierung starten will. Die vier Arten decken nahezu jede Form von „jetzt starten" ab: regelmäßige Arbeit nach Zeitplan, reaktive Arbeit auf ein Ereignis, integrierte Arbeit auf einen Webhook, Ausnahmen auf eine manuelle Ausführung. Die entwicklungsseitige Referenz für die Webhook-URL-Form, Idempotenz und Ratenlimits ist [Webhooks](/de/develop/webhooks); die Spur pro Lauf, die jeder Trigger hinterlässt, sind die [Ausführungsprotokolle](/de/platform/automations/execution-logs).

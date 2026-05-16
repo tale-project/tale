@@ -5,7 +5,7 @@ description: Tales Crawler konfigurieren, um externe Websites für KI-Suche zu i
 
 Tales Crawler besucht Seiten einer Domain, die du angibst, extrahiert den Textinhalt und indiziert ihn in die Wissensdatenbank neben deinen hochgeladenen Dokumenten. Der KI-Agent kann dann Fragen beantworten, die sich auf diesen Inhalt stützen — "Wie ist unser aktueller Preis auf der Website?", "Welche Features sind in den v3-Release-Notes neu?".
 
-Diese Seite ist für Redakteur/Entwickler. Für den Endnutzer-Workflow (eine Website einfach hinzufügen) siehe [Wissensdatenbank](/de/platform/workspace/knowledge-base).
+Diese Seite ist für Redakteur/Entwickler. Für den Endnutzer-Workflow (eine Website aus dem Chat hinzufügen) siehe [Wissensdatenbank](/de/platform/workspace/knowledge-base).
 
 ## Was der Crawler tut
 
@@ -36,7 +36,7 @@ Jeder Rescan vergleicht gegen den letzten Fetch. Unveränderte Seiten werden nic
 ## Rücksicht auf die Ziel-Site
 
 - Der Crawler beachtet `robots.txt`. Disallowed-Pfade werden übersprungen.
-- Requests sind ratelimit-begrenzt (standardmässig ein Fetch pro 2 Sekunden pro Domain), um das Ziel nicht zu überlasten.
+- Anfragen sind ratelimit-begrenzt (standardmässig ein Fetch pro 2 Sekunden pro Domain), um das Ziel nicht zu überlasten.
 - Der User-Agent ist `TaleCrawler/1.0 (+https://tale.dev/crawler)`, damit Website-Betreiber den Traffic identifizieren können.
 
 Für Sites mit Auth oder angepasstem User-Agent konfiguriere stattdessen eine REST-API-Integration — siehe [Integrationen – Überblick](/de/platform/integrations/overview).
@@ -52,3 +52,9 @@ Wenn ein Crawl Seiten nicht findet, die du erwartest:
 ## Eine Site entfernen
 
 Eine Site aus **Wissen > Websites** zu löschen, entfernt alle indizierten Inhalte dieser Site. Das geschieht sofort — die KI findet diese Seiten danach nicht mehr.
+
+## Wo das einsetzt
+
+Crawling ist der Bulk-Import-Pfad für öffentliche Web-Inhalte. Er existiert, weil Artikel für Artikel aus einem Help-Center in die Wissensdatenbank kopieren Beschäftigungsarbeit ist, die schlecht skaliert; den Crawler auf die Domain zu richten, holt alles in einem Zug rein. Sobald Inhalt in der Wissensdatenbank ist, liest er sich identisch zu hochgeladenen Dokumenten — dieselbe Suche, dieselben Agents, dieselben Zugriffskontrollen.
+
+Für das Aufnehmen von OneDrive-Dateien oder anderen authentifizierten Quellen nutze die entsprechende Integration in [Integrationen – Überblick](/de/platform/integrations/overview). Für den Endnutzer-Workflow zum Hinzufügen einer Website aus dem Chat siehe [Wissensdatenbank](/de/platform/workspace/knowledge-base).

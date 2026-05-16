@@ -1,101 +1,129 @@
 ---
 title: Mitglieder und Rollen
-description: Verwalten, wer Zugriff auf deine Organisation hat und was dort erlaubt ist.
+description: Die kanonische Berechtigungsmatrix der sechs Rollen — wer in einer Tale-Organisation was sieht und tut, und wie Admins Mitglieder einladen, bearbeiten und entfernen.
 ---
 
-Tale nutzt sechs Rollen. Jeder Nutzer hat genau eine Rolle innerhalb einer Organisation. Dieselbe Person kann in verschiedenen Organisationen unterschiedliche Rollen haben.
+Jede Person in einer Tale-Organisation hat genau eine von sechs Rollen, und diese Rolle entscheidet, welche Bildschirme sie sieht, welche Schaltflächen aktiv sind und welche API-Aufrufe durchgehen. Diese Seite ist für Admins und Inhaber, die die Organisation betreiben, und sie dient gleichzeitig als kanonische Referenz, auf die der Rest der Doku verweist, wenn eine Funktion „Redakteur oder höher" oder „nur Entwickler" verlangt. Dieselbe Person kann in verschiedenen Organisationen verschiedene Rollen halten — Rollen gelten pro Organisation, nicht pro Nutzer.
+
+Die Rollen-Liste ist geschlossen: `Inhaber`, `Admin`, `Entwickler`, `Redakteur`, `Mitglied`, `Deaktiviert`. Es gibt keinen Baukasten für eigene Rollen, und die Matrix unten ist die Quelle der Wahrheit — wenn eine Schaltfläche für deine Rolle ausgeblendet ist, steht der Grund hier.
 
 ## Mitglieder verwalten
 
-Die Mitglieder-Tabelle unter **Einstellungen > Mitglieder** listet alle Nutzer der Organisation mit Email, Anzeigename, Rolle und Beitrittsdatum. Admins können:
+Öffne **Einstellungen > Mitglieder**. Die Tabelle listet alle Nutzer der Organisation mit E-Mail, Anzeigename, Rolle und Beitrittsdatum sowie einem Aktionsmenü pro Zeile für Admins.
 
-- **Mitglieder hinzufügen** — Email, optionales Passwort, Anzeigename und Rolle eingeben. Existiert die Email bereits in Tale, wird der Nutzer der Organisation hinzugefügt, ohne dass ein neues Konto entsteht.
-- **Mitglieder bearbeiten** — Anzeigename, Rolle oder ein neues Passwort für ein Mitglied setzen.
-- **Mitglieder entfernen** — das Mitglied aus der Organisation entfernen. Das Konto wird nicht gelöscht; der Nutzer verliert lediglich den Zugriff.
+- **Mitglied hinzufügen** — öffnet einen Dialog für E-Mail, optionales Anfangs-Passwort, Anzeigename und Rolle. Existiert die E-Mail bereits in Tale, wird dieses Konto der Organisation zugewiesen, statt ein Duplikat zu erzeugen. Neue Konten mit Passwort werden mit **Nutzer muss das Passwort beim Login aktualisieren** markiert, damit das Anfangs-Passwort die erste Anmeldung nicht überlebt.
+- **Mitglied bearbeiten** — Anzeigename, Rolle oder neues Passwort setzen. Admins können ihre eigene Rolle nicht aus diesem Dialog heraus ändern (dafür gibt es weiter unten **Eigentümerschaft übertragen**). Einen Admin auf eine niedrigere Rolle herabzustufen wird blockiert, wenn dadurch weniger als zwei Admins in der Organisation übrig bleiben.
+- **Zwei-Faktor zurücksetzen** — deaktiviert die TOTP-Einrichtung des Mitglieds, beendet alle aktiven Sitzungen und erzwingt eine neue Einrichtung beim nächsten Login. Greife darauf zurück, wenn jemand seinen Authenticator verloren und alle Backup-Codes aufgebraucht hat. Jede Zurücksetzung wird im Audit-Log festgehalten.
+- **Mitglied entfernen** — löst das Mitglied aus dieser Organisation. Das zugrunde liegende Konto bleibt bestehen; der Zugriff auf andere Organisationen, in denen es Mitglied ist, bleibt erhalten.
+- **Eigentümerschaft übertragen** — nur für den aktuellen Inhaber verfügbar. Befördert das gewählte Mitglied zum Inhaber und stuft den bisherigen Inhaber auf Admin herab. Jede Organisation hat genau einen Inhaber.
 
-Für Authentifizierungsoptionen (Passwort, Microsoft Entra ID SSO, Trusted Headers) siehe [Authentifizierung](/de/self-hosted/admin/authentication).
+Für die Anmelde-Mechanik (Passwort, Microsoft Entra ID SSO, vertrauenswürdige Reverse-Proxy-Kopfzeilen, Passwort-Rotation) siehe [Authentifizierung](/de/self-hosted/admin/authentication). Für die organisationsweite Zwei-Faktor-Richtlinie siehe [Zwei-Faktor-Authentifizierung](/de/platform/admin/two-factor-authentication).
 
-## Rollen-Übersicht
+## Die sechs Rollen
 
-| Rolle       | Wen sie adressiert                                                                                                                      |
-| ----------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Inhaber     | Ersteller der Organisation. Gleiche Berechtigungen wie Admin plus Eigentums-Übertragung.                                                |
-| Admin       | Vollständige Kontrolle über die Organisation. Verwaltet Mitglieder, Einstellungen, Integrationen und sämtliche Inhalte.                 |
-| Entwickler  | Für Engineers und Integrationen-Builder. Vollzugriff auf Daten, aber keine Verwaltung von Mitgliedern oder Organisations-Einstellungen. |
-| Redakteur   | Für Content- und Support-Teams. Legt Wissensbasis-Inhalte an, bearbeitet Konversationen, verwaltet Agents und bestätigt Aktionen.       |
-| Mitglied    | Nur-Lese-Zugriff. Kann den KI-Chat zum Erkunden von Daten nutzen, aber keinen Content anlegen oder bearbeiten.                          |
-| Deaktiviert | Gesperrtes Konto. Kein Zugriff auf Funktionen.                                                                                          |
+| Rolle       | Wozu diese Rolle gedacht ist                                                                                                                                                                       |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Inhaber     | Die Person, die die Organisation erstellt hat. Gleiche Berechtigungen wie Admin, plus Eigentümerschaft übertragen und Organisation löschen. Genau ein Inhaber pro Organisation.                    |
+| Admin       | Volle Kontrolle über die Organisation. Verwaltet Mitglieder, Anbieter, Branding, Richtlinien, Aufbewahrung, Audit-Log und alles, was darunter steht.                                               |
+| Entwickler  | Der Sitz fürs Bauen und Integrieren. Erstellt und bearbeitet Agents und Automatisierungen, konfiguriert Integrationen und MCP-Server, verwaltet API-Schlüssel. Kein Zugriff auf Admin-Oberflächen. |
+| Redakteur   | Der Kuratierungs-Sitz. Lädt Wissen hoch und bearbeitet es, verwaltet Produkte, Kunden, Lieferanten und Websites, antwortet in Konversationen, entscheidet Freigaben und bearbeitet Agents.         |
+| Mitglied    | Nur-Lese-Konsument. Chattet mit KI und Agents, liest die Wissensdatenbank, liest Konversationen und Freigaben. Kann keine dieser Oberflächen beschreiben.                                          |
+| Deaktiviert | Gesperrtes Konto. Anmeldung wird für diese Organisation abgelehnt. Der zugrunde liegende Nutzer-Datensatz bleibt, damit das Konto durch eine Rollen-Änderung reaktiviert werden kann.              |
+
+`Inhaber` ist eine strikte Obermenge von `Admin` — jede Admin-Berechtigung weiter unten gehört auch dem Inhaber. Die Matrix führt ab hier `Admin` auf, um die Spalten kurz zu halten.
 
 ## Berechtigungs-Matrix
 
+Die Matrix ist nach Produktbereich gegliedert. `✓` heißt, die Rolle hat die Aktion; `—` heißt, die Aktion ist für die Rolle ausgeblendet oder wird abgelehnt.
+
 ### KI-Chat
 
-| Funktion                         | Mitglied | Redakteur | Entwickler | Admin |
+| Aktion                           | Mitglied | Redakteur | Entwickler | Admin |
 | -------------------------------- | -------- | --------- | ---------- | ----- |
 | Nachrichten erstellen und senden | ✓        | ✓         | ✓          | ✓     |
 | Eigenen Chat-Verlauf sehen       | ✓        | ✓         | ✓          | ✓     |
-| Agent auswählen                  | ✓        | ✓         | ✓          | ✓     |
+| Im Chat einen Agent auswählen    | ✓        | ✓         | ✓          | ✓     |
 
 ### Wissensdatenbank
 
-| Funktion                                   | Mitglied | Redakteur | Entwickler | Admin |
-| ------------------------------------------ | -------- | --------- | ---------- | ----- |
-| Alle Wissens-Einträge sehen                | ✓        | ✓         | ✓          | ✓     |
-| Dokumente hochladen / bearbeiten / löschen | —        | ✓         | ✓          | ✓     |
-| Produkte, Kunden, Lieferanten verwalten    | —        | ✓         | ✓          | ✓     |
-| Website-Crawling konfigurieren             | —        | ✓         | ✓          | ✓     |
+| Aktion                                        | Mitglied | Redakteur | Entwickler | Admin |
+| --------------------------------------------- | -------- | --------- | ---------- | ----- |
+| Alle Wissens-Einträge sehen                   | ✓        | ✓         | ✓          | ✓     |
+| Dokumente hochladen, bearbeiten oder löschen  | —        | ✓         | ✓          | ✓     |
+| Produkte, Kunden, Lieferanten verwalten       | —        | ✓         | ✓          | ✓     |
+| Website-Crawling hinzufügen und konfigurieren | —        | ✓         | ✓          | ✓     |
 
 ### Konversationen
 
-| Funktion                                | Mitglied | Redakteur | Entwickler | Admin |
-| --------------------------------------- | -------- | --------- | ---------- | ----- |
-| Konversationen sehen                    | ✓        | ✓         | ✓          | ✓     |
-| Kunden antworten                        | —        | ✓         | ✓          | ✓     |
-| Schließen / wieder öffnen / archivieren | —        | ✓         | ✓          | ✓     |
-| Als Spam markieren                      | —        | ✓         | ✓          | ✓     |
+| Aktion                                             | Mitglied | Redakteur | Entwickler | Admin |
+| -------------------------------------------------- | -------- | --------- | ---------- | ----- |
+| Konversationen sehen                               | ✓        | ✓         | ✓          | ✓     |
+| Kunden antworten                                   | —        | ✓         | ✓          | ✓     |
+| Konversation schließen, erneut öffnen, archivieren | —        | ✓         | ✓          | ✓     |
+| Konversation als Spam markieren                    | —        | ✓         | ✓          | ✓     |
 
 ### Freigaben
 
-| Funktion                         | Mitglied | Redakteur | Entwickler | Admin |
+| Aktion                           | Mitglied | Redakteur | Entwickler | Admin |
 | -------------------------------- | -------- | --------- | ---------- | ----- |
 | Offene Freigaben sehen           | ✓        | ✓         | ✓          | ✓     |
 | Aktionen freigeben oder ablehnen | —        | ✓         | ✓          | ✓     |
 
 ### Agents
 
-| Funktion                        | Mitglied | Redakteur | Entwickler | Admin |
+| Aktion                          | Mitglied | Redakteur | Entwickler | Admin |
 | ------------------------------- | -------- | --------- | ---------- | ----- |
 | Agent-Liste sehen               | —        | ✓         | ✓          | ✓     |
-| Agents erstellen und bearbeiten | —        | ✓         | ✓          | ✓     |
+| Agent erstellen oder bearbeiten | —        | ✓         | ✓          | ✓     |
+| Agent löschen                   | —        | ✓         | ✓          | ✓     |
 
 ### Automatisierungen
 
-| Funktion                                     | Mitglied | Redakteur | Entwickler | Admin |
-| -------------------------------------------- | -------- | --------- | ---------- | ----- |
-| Automatisierungs-Liste sehen                 | —        | —         | ✓          | ✓     |
-| Automatisierungen erstellen und bearbeiten   | —        | —         | ✓          | ✓     |
-| Automatisierungen publizieren und aktivieren | —        | —         | ✓          | ✓     |
-| Ausführungslogs sehen                        | —        | —         | ✓          | ✓     |
+| Aktion                                         | Mitglied | Redakteur | Entwickler | Admin |
+| ---------------------------------------------- | -------- | --------- | ---------- | ----- |
+| Automatisierungs-Liste sehen                   | —        | —         | ✓          | ✓     |
+| Automatisierung erstellen oder bearbeiten      | —        | —         | ✓          | ✓     |
+| Automatisierung veröffentlichen und aktivieren | —        | —         | ✓          | ✓     |
+| Ausführungslogs sehen                          | —        | —         | ✓          | ✓     |
 
-### Integrationen und API
+### Integrationen, MCP, API-Schlüssel
 
-| Funktion                               | Mitglied | Redakteur | Entwickler | Admin |
-| -------------------------------------- | -------- | --------- | ---------- | ----- |
-| Integrationen sehen                    | —        | —         | ✓          | ✓     |
-| Integrationen konfigurieren            | —        | —         | ✓          | ✓     |
-| API-Schlüssel erstellen und widerrufen | —        | —         | ✓          | ✓     |
+| Aktion                                  | Mitglied | Redakteur | Entwickler | Admin |
+| --------------------------------------- | -------- | --------- | ---------- | ----- |
+| Integrationen sehen                     | —        | —         | ✓          | ✓     |
+| Integrationen konfigurieren             | —        | —         | ✓          | ✓     |
+| MCP-Server konfigurieren                | —        | —         | ✓          | ✓     |
+| API-Schlüssel erstellen oder widerrufen | —        | —         | ✓          | ✓     |
 
 ### Organisations-Administration
 
-| Funktion                                  | Mitglied | Redakteur | Entwickler | Admin |
-| ----------------------------------------- | -------- | --------- | ---------- | ----- |
-| Organisations-Einstellungen sehen         | —        | —         | —          | ✓     |
-| Organisationsname und Branding bearbeiten | —        | —         | —          | ✓     |
-| Mitglieder hinzufügen und entfernen       | —        | —         | —          | ✓     |
-| Rollen der Mitglieder ändern              | —        | —         | —          | ✓     |
+| Aktion                                                        | Mitglied | Redakteur | Entwickler | Admin |
+| ------------------------------------------------------------- | -------- | --------- | ---------- | ----- |
+| Organisations-Einstellungen sehen                             | —        | —         | —          | ✓     |
+| Organisationsname und Branding bearbeiten                     | —        | —         | —          | ✓     |
+| KI-Anbieter konfigurieren                                     | —        | —         | —          | ✓     |
+| Richtlinien konfigurieren (Budgets, Aufbewahrung, Guardrails) | —        | —         | —          | ✓     |
+| Audit-Log lesen und exportieren                               | —        | —         | —          | ✓     |
+| Mitglieder hinzufügen oder entfernen                          | —        | —         | —          | ✓     |
+| Rollen der Mitglieder ändern                                  | —        | —         | —          | ✓     |
+| Teams verwalten                                               | —        | —         | —          | ✓     |
+| Anfragen betroffener Personen einreichen                      | —        | —         | —          | ✓     |
 
-## Authentifizierung
+### Nur für den Inhaber
 
-Tale unterstützt Email/Passwort, Microsoft Entra ID SSO und Trusted Headers. Alle Methoden lassen sich gleichzeitig nutzen.
+Nur der Inhaber kann das hier:
 
-Die vollständige Einrichtung beschreibt die [Authentifizierungs-Anleitung](/de/self-hosted/admin/authentication).
+- **Eigentümerschaft übertragen** an ein anderes Mitglied (stuft den bisherigen Inhaber auf Admin herab).
+- **Organisation löschen** — entfernt deren Agents, Automatisierungen, Anbieter und Integrationen; alle Mitglieder verlieren den Zugriff. Das lässt sich nicht rückgängig machen.
+
+## Wie Rollen-Prüfungen erzwungen werden
+
+Rollen werden serverseitig bei jedem Lese-, Schreib- und Hintergrund-Aufruf geprüft — die ausgeblendeten Schaltflächen im UI sind eine Bequemlichkeit, nicht die Schranke. Eine Seite, die „nicht erscheinen sollte", wird trotzdem mit dem Fehler „unzureichende Rolle" abgelehnt, wenn du sie per URL ansteuerst. Die Rolle Deaktiviert umgeht die übrige Matrix: Der Zugriff-verweigert-Bildschirm ist die einzige Oberfläche, die ein deaktivierter Nutzer sieht.
+
+Die Zwei-Admins-Mindestregel wird beim Wechsel der Rolle und beim Entfernen von Mitgliedern erzwungen, damit eine Organisation nie ohne oder mit nur einem Admin dasteht. Diese Regel bindet den Inhaber nicht: Eine Organisation mit einem Inhaber und einem Admin ist zulässig, weil der Inhaber selbst Admin ist.
+
+## Wo das hingehört
+
+Mitglieder und Rollen ist die Seite, die jede andere Admin-Seite voraussetzt. [Authentifizierung](/de/self-hosted/admin/authentication) entscheidet, _wer sich überhaupt anmelden darf_ und über welche Methode; [KI-Anbieter](/de/platform/admin/providers) entscheidet, _welche Modelle die Organisation auf Kosten bringt_; [Richtlinien](/de/platform/admin/governance) entscheidet, _welche Regeln für ihr Tun gelten_ — keine dieser Fragen hat eine nützliche Antwort, bevor du entschieden hast, wer was darf, und das lebt hier.
+
+Der nächste Schritt hängt davon ab, weshalb du gekommen bist. Für die Anmeldung jenseits von E-Mail und Passwort deckt [Authentifizierung](/de/self-hosted/admin/authentication) SSO und vertrauenswürdige Kopfzeilen ab. Um Wissen und Konversationen über die Organisation hinweg zu trennen, ist [Teams](/de/platform/admin/teams) die Seite. Um zu prüfen, wer was getan hat, lebt das Audit-Log unter [Richtlinien](/de/platform/admin/governance).

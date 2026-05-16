@@ -1,128 +1,45 @@
 ---
 title: Dépannage
-description: Solutions aux problèmes courants et où trouver de l’aide.
+description: Carte symptôme-d'abord des problèmes que les opérateurs rencontrent vraiment sur une instance Tale en marche, avec les correctifs qui ont tenu en pratique.
 ---
 
-## Problèmes courants
+Cette page cartographie les problèmes que les opérateurs ont rencontrés sur une instance Tale en marche avec les correctifs qui ont fonctionné. La liste est courte exprès — un catalogue exhaustif de modes de défaillance encourage à survoler le symptôme qui correspond au tien. Parcours les sous-titres jusqu'à ce qu'un colle, puis lis la prose en dessous ; tout ce qui n'est pas listé ici est assez rare pour que le chemin de diagnostic soit le même dans tous les cas : lis les journaux, puis ouvre une issue.
 
-### "Docker Engine not found" sous Windows
+Pour tout symptôme qui n'est pas ci-dessous, le drapeau `--verbose` du CLI `tale` plus les journaux de conteneur par service (voir [Exploitation — Journaux](/fr/self-hosted/operate/observability/operations#logs)) font presque toujours remonter la cause racine. Quand ça ne suffit pas, ouvre une issue sur [GitHub Issues](https://github.com/tale-project/tale/issues) avec la sortie verbose du CLI et l'extrait de journal pertinent attaché.
 
-Docker Desktop n’est pas lancé. Ouvre-le depuis le menu Démarrer ou la barre des tâches, attends que le moteur devienne vert, puis relance ta commande.
+## La plateforme ne reporte jamais sain
 
-### Le navigateur affiche un avertissement de certificat
+Un conteneur `platform` frais met jusqu'à trois minutes avant que `/tmp/platform-ready` atterrisse, parce que l'entrypoint attend que la synchronisation d'environnement finisse et que `bunx convex deploy` pousse le jeu de fonctions avant de signaler sain. Les lignes `200 OK` de la sonde de santé du proxy arrivent bien avant — elles ne veulent pas dire que l'interface est joignable.
 
-Tale utilise un certificat auto-signé en dev local. Tu peux passer outre l’avertissement ou le supprimer de manière permanente avec :
+Surveille `docker compose logs -f platform` et attends la ligne `Tale Dev v0.x.x  Ready.`. Si elle n'arrive jamais, trois causes sont courantes. La plus fréquente est un service `convex` injoignable — l'étape de déploiement de la plateforme a besoin que Convex soit en marche avant de pouvoir pousser les fonctions, donc un conteneur Convex qui crashe au démarrage entraîne la plateforme avec lui. La deuxième est un secret mal formé dans `.env` que la synchronisation d'environnement rejette ; cherche `[env-sync] rejecting key` dans les journaux Convex. La troisième est la RAM de l'hôte : la topologie blue-green fait tourner les deux couleurs pendant la bascule, et sur un hôte 8 Go le conteneur green est tué avant son déploiement. Monter l'hôte à 12 Go est la correction.
 
-```bash
-docker exec tale-proxy caddy trust
-```
+## « DB_PASSWORD must be set » sur chaque service
 
-Puis redémarre ton navigateur.
+`DB_PASSWORD` gate quatre services, et chacun fait remonter une erreur légèrement différente quand la valeur manque :
 
-### Platform ne charge pas après `docker compose up`
+- `ERROR: DB_PASSWORD or POSTGRES_PASSWORD must be set` depuis le conteneur de base de données.
+- `ERROR: DB_PASSWORD or POSTGRES_URL must be set` depuis la plateforme.
+- `ERROR: DB_PASSWORD or RAG_DATABASE_URL must be set` depuis le service RAG.
+- `ERROR: DB_PASSWORD or CRAWLER_DATABASE_URL must be set` depuis le crawler.
 
-Attends le message Ready dans les logs. Ça peut prendre jusqu’à deux minutes. Les messages `200 OK` de health check avant ça ne veulent pas dire que l’UI est prête.
+Ouvre `.env`, pose `DB_PASSWORD` sur une valeur non vide et relance `tale start` (ou `docker compose up`). La variable est lue au démarrage du conteneur, donc un stack en marche ne la prend pas tant que tu ne l'arrêtes pas et ne le redémarres pas. Quand tu te connectes à un Postgres externe, pose `POSTGRES_URL` à la place et laisse `DB_PASSWORD` non défini — les quatre services lisent alors l'URL directement. Le schéma complet vit sur [Déploiement en production — Utiliser une base de données externe](/fr/self-hosted/install/linux-server#using-an-external-database).
 
-### Les réponses IA sont lentes ou échouent
+## Les éditions de clé de fournisseur ne prennent pas effet
 
-Vérifie ta clé API fournisseur dans Paramètres > Fournisseurs IA. Causes courantes :
+La configuration de fournisseur sous `$TALE_CONFIG_DIR/providers/<name>.json` (et le `.secrets.json` correspondant) est surveillée par le conteneur Convex — enregistrer depuis **Paramètres > Fournisseurs IA** ou éditer le fichier à la main déclenche le même rechargement. Deux cas cassent ça.
 
-- Clé API expirée ou révoquée. Régénère-la sur openrouter.ai et mets-la à jour.
-- Crédit insuffisant sur ton compte OpenRouter.
-- Le modèle configuré n’est pas disponible pour ton tier.
-- Problème réseau entre le serveur Tale et l’API OpenRouter.
+Le premier, c'est le fichier de secrets chiffré SOPS quand `SOPS_AGE_KEY` n'est plus défini. Le format de fichier est auto-descriptif, donc le loader refuse d'écraser du contenu chiffré avec du texte clair pour empêcher la perte de données — ça aurait l'air d'un opérateur qui aurait silencieusement rétrogradé son stockage de secrets. Restaure la clé age, ou supprime le fichier chiffré avant de réenregistrer. Le flux complet est sur [Fournisseurs — Changer de mode](/fr/self-hosted/configuration/providers#switching-modes).
 
-### Les documents ne sont pas cherchables après upload
+Le deuxième, c'est quand le fichier est édité depuis le mauvais point de montage. Le compose de Tale monte `convex-data:/app/data` en écriture sur le service convex, et le même volume en lecture seule sur platform, RAG et crawler. Édite les fichiers depuis l'hôte (le chemin hôte mappé dans `/app/data/platform-config` sur le conteneur convex) ou passe par l'interface ; un `vi` en conteneur contre le montage en lecture seule échoue silencieusement pour les services voisins et n'atteint jamais la veille.
 
-L’indexation tourne en arrière-plan. Après l’upload, le service RAG extrait le texte, le découpe en morceaux, génère les embeddings et écrit dans la base. Les gros fichiers comme des PDF de centaines de pages peuvent prendre plusieurs minutes. Regarde l’indicateur de statut dans Base de connaissances > Documents.
+## Les documents restent « en indexation » indéfiniment
 
-### Le crawling ne remonte aucune page
+L'indexation de documents est un pipeline en plusieurs étapes : le service RAG extrait le texte, le découpe en morceaux, génère des embeddings contre un fournisseur tagué embedding, et écrit les morceaux et les entrées vectorielles dans ParadeDB. Un PDF de cent pages prend quelques minutes ; un export de mille pages peut prendre une demi-heure. La progression est visible par fichier sous **Base de connaissances > Documents**.
 
-Après ajout d’un site, le crawler fait un premier passage de la page d’accueil et des liens trouvés. Ça prend quelques minutes selon la taille. Si le compteur reste à 0, regarde `docker compose logs crawler` pour des erreurs. Causes courantes : problèmes SSL sur le site cible ou blocages `robots.txt`.
+Quand l'indexation se bloque indéfiniment, deux causes dominent. Le fournisseur tagué embedding est soit mal configuré, soit en train de rate-limiter — regarde `docker compose logs rag` pour des lignes `provider error` qui nomment le fournisseur défaillant et le code HTTP que l'amont a retourné. Ou le Postgres externe sur lequel tu as pointé Tale n'a pas l'extension `vector` ; le symptôme est `extension "vector" is not available` dans les journaux RAG. Installe pgvector sur l'instance externe d'après [Déploiement en production — Utiliser une base de données externe](/fr/self-hosted/install/linux-server#using-an-external-database).
 
-### Un service échoue avec "DB_PASSWORD must be set"
+## Où trouver de l'aide
 
-Tous les services qui se connectent à la DB demandent que `DB_PASSWORD` soit défini dans `.env`. Si tu vois :
+Les journaux sont le premier endroit où regarder — `docker compose logs -f` pour un flux en direct, `tale logs <service> --tail 200` quand le stack tourne sous `tale deploy`. Le smoke test des conteneurs (`bun run docker:test`) valide le stack complet depuis un état propre et attrape les conflits de port et la dérive de dépendances sur un hôte de développement avant qu'ils n'atteignent la production.
 
-- `ERROR: DB_PASSWORD or POSTGRES_PASSWORD must be set` (base)
-- `ERROR: DB_PASSWORD or POSTGRES_URL must be set` (platform)
-- `ERROR: DB_PASSWORD or RAG_DATABASE_URL must be set` (RAG)
-
-ouvre ton `.env` et assure-toi que `DB_PASSWORD` a une valeur non vide. À la première installation, choisis n’importe quel mot de passe. Si tu comptais sur le défaut, définis-le explicitement maintenant.
-
-### Mot de passe Admin oublié
-
-Si tu es verrouillé hors de ton compte Admin, un autre Admin peut réinitialiser ton mot de passe depuis Paramètres > Membres > ligne du membre > Modifier > Définir le mot de passe. Si aucun Admin n’est disponible, quelqu’un avec accès Docker peut utiliser le Convex Dashboard pour mettre à jour l’enregistrement utilisateur directement.
-
-## Problèmes de build et de conteneurs
-
-### Docker build échoue avec "parent snapshot does not exist"
-
-Corruption du cache Docker BuildKit. Fix : purger le cache.
-
-```bash
-docker builder prune -f
-```
-
-Puis relancer le build.
-
-### Port déjà utilisé
-
-Si `docker compose up` échoue parce que les ports (5432, 8001, 8002, 80, 443) sont pris par d’autres services, utilise l’override test qui mappe sur des ports non conflictuels :
-
-```bash
-docker compose -f compose.yml -f compose.test.yml --env-file .env.test -p tale-test up -d --build
-```
-
-Il utilise les ports 15432, 18001, 18002, 10080 et 10443.
-
-### Taille d’image inattendue après modifications
-
-Si une image Docker grossit beaucoup après tes changements :
-
-1. Vérifie que les nouvelles dépendances sont installées avec `--no-install-recommends` (apt) ou `--no-cache-dir` (pip/uv).
-2. Assure-toi que les dépendances de build restent en stage builder (pas copiées vers runtime).
-3. Lance le checker de budget de taille :
-
-```bash
-bun run docker:test:image
-```
-
-4. Utilise `dive` pour voir quels layers sont les plus gros :
-
-```bash
-dive <image>
-```
-
-Voir [Contributing Docker guide](/fr/develop/contributing-docker) pour des techniques de réduction.
-
-### La DB affiche des erreurs duplicate key au démarrage
-
-Au premier démarrage, la DB peut afficher un message tel que :
-
-```
-ERROR: duplicate key value violates unique constraint
-```
-
-C’est inoffensif. Ça arrive quand le script d’init de l’extension `uuid-ossp` tourne de façon idempotente. L’extension est déjà installée par l’image ParadeDB de base et le script gère le conflit proprement.
-
-### Le health check d’un conteneur échoue en permanence
-
-Si un service reste en `starting` ou `unhealthy` :
-
-1. Regarde les logs :
-
-```bash
-docker compose logs <service> --tail=50
-```
-
-2. Vérifie que `.env` contient toutes les variables requises (notamment `DB_PASSWORD`, `OPENAI_API_KEY`).
-3. Vérifie que les dépendances sont saines (ex. platform dépend de db, rag, crawler).
-4. Pour platform : laisse jusqu’à 5 minutes pour que le framework Convex compile et déploie les fonctions au cold start.
-
-## Obtenir de l’aide
-
-- Logs : `docker compose logs -f` est toujours le premier endroit où regarder.
-- Tests conteneurs : `bun run docker:test` valide tout le stack.
-- GitHub Issues : https://github.com/tale-project/tale/issues.
-- Convex Dashboard : utile pour inspecter les données brutes et les logs de fonctions lors du debug backend.
+Pour les problèmes qui survivent à une lecture de journal, ouvre une issue sur [GitHub Issues](https://github.com/tale-project/tale/issues) avec la sortie verbose du CLI et le fragment de `compose.yml` que tu fais tourner. Les découvertes liées à la sécurité passent par [Avis de sécurité](/fr/self-hosted/operate/security/advisories) à la place, où un brouillon privé précède la divulgation publique jusqu'à ce qu'un correctif soit disponible.

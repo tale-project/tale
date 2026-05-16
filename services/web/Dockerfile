@@ -45,7 +45,7 @@ COPY packages/ui ./packages/ui
 COPY packages/webui ./packages/webui
 COPY services/web ./services/web
 
-ARG WEB_DOCS_URL=https://docs.tale.dev
+ARG WEB_DOCS_URL=https://tale.dev/docs
 ENV NODE_ENV=production \
     WEB_DOCS_URL=${WEB_DOCS_URL} \
     VITE_DOCS_URL=${WEB_DOCS_URL}

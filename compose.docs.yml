@@ -1,7 +1,7 @@
 # =============================================================================
 # Tale Docs (Documentation site) — Standalone Docker Compose
 # =============================================================================
-# The documentation site at docs.tale.dev runs independently of the platform
+# The documentation site at tale.dev/docs runs independently of the platform
 # stack and has its own environment file at services/docs/.env.example.
 #
 # Usage:
@@ -22,7 +22,7 @@ services:
       args:
         VERSION: ${VERSION:-dev}
         DOCS_BASE_URL: ${DOCS_BASE_URL:-/}
-        DOCS_SITE_URL: ${DOCS_SITE_URL:-https://docs.tale.dev}
+        DOCS_SITE_URL: ${DOCS_SITE_URL:-https://tale.dev/docs}
 
     env_file:
       - services/docs/.env

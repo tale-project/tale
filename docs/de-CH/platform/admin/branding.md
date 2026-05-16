@@ -3,13 +3,13 @@ title: Branding
 description: Plattformname, Logo, Favicon und Markenfarben für deine Organisation anpassen.
 ---
 
-Mit Branding passen Admins an, wie Tale für alle in der Organisation aussieht. Änderungen gelten für Browser-Tab, Navigationsleiste, Emails und Benachrichtigungs-Header.
+Mit Branding passen Admins an, wie Tale für alle in der Organisation aussieht. Änderungen gelten für Browser-Tab, Navigationsleiste, E-Mails und Benachrichtigungs-Kopfzeile.
 
 Verfügbare Optionen unter **Einstellungen > Branding**:
 
 | Option             | Beschreibung                                                   |
 | ------------------ | -------------------------------------------------------------- |
-| **Anwendungsname** | Ersetzt "Tale" im Browser-Tab und im Header.                   |
+| **Anwendungsname** | Ersetzt "Tale" im Browser-Tab und im Kopfzeile.                |
 | **Logo**           | Bild in der Navigationsleiste. Ersetzt das Standard-Tale-Logo. |
 | **Favicon**        | Icon im Browser-Tab. Eigene Bilder für Hell- und Dunkelmodus.  |
 | **Brand-Farbe**    | Primärfarbe für Buttons und aktive Zustände.                   |

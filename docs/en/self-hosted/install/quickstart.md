@@ -3,114 +3,112 @@ title: Local quickstart
 description: Run Tale locally with Docker Desktop in about ten minutes — for evaluation, demos, and contributing.
 ---
 
-This is the fastest way to get a local Tale instance running on your laptop. Use this quickstart to evaluate the product, run a demo, or develop against the platform. For a public-facing instance with TLS and zero-downtime upgrades, follow the [production deployment](/self-hosted/install/linux-server) guide instead.
+The local quickstart is the fastest way to put a running Tale instance on your laptop. The `tale` CLI handles the install — one command to scaffold the project, one command to start the stack, then a browser at `https://localhost`. Use it to evaluate the product, run a demo for a team, or hack on the source. For a public instance with real TLS and zero-downtime upgrades, follow [Production deployment](/self-hosted/install/linux-server) instead.
 
-## Prerequisites
+This walk-through assumes a developer laptop with Docker Desktop installed. Everything below uses the same CLI that runs in production — the only differences are the TLS mode (self-signed by default) and that all ports are exposed locally for development convenience.
 
-| Software       | Minimum version | Where to get it                                |
-| -------------- | --------------- | ---------------------------------------------- |
-| Docker Desktop | 24.0+           | https://www.docker.com/products/docker-desktop |
+## Before you begin
 
-### Get an API key
+- **Docker Desktop 24.0 or newer** — installed and running. The Linux, macOS, and Windows builds all work.
+- **An OpenRouter API key** — free to create at [openrouter.ai](https://openrouter.ai). OpenRouter gives you access to hundreds of models through one key. Any OpenAI-compatible endpoint works, including a local Ollama server; OpenRouter is the recommended default because it covers the most ground.
 
-Tale uses OpenRouter as its default AI gateway, which gives you access to hundreds of models through a single API key.
+Pull the key from the **Keys** section of the OpenRouter dashboard once you have an account, then keep it handy — `tale init` will prompt for it during setup.
 
-Create a free account at https://openrouter.ai, generate a new API key from the **Keys** section of your account dashboard, and copy it so you can paste it during setup.
+## Step 1 — Install the CLI
 
-> **Tip:** Any OpenAI-compatible provider works, including a local Ollama instance. OpenRouter is the recommended default for its model variety and simple pricing.
-
-## Setup
-
-### Step 1: Install the CLI
-
-**Linux / macOS:**
+The `tale` CLI is one binary that runs the full lifecycle: init, start, upgrade, deploy, logs, rollback. The installer script writes to `/usr/local/bin/tale` on Linux and macOS:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash
 ```
 
-**Windows (PowerShell):**
+On Windows, use PowerShell:
 
 ```powershell
 irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.ps1 | iex
 ```
 
-> **Pin a specific version:** Both installers honor a `VERSION` environment variable. Run `VERSION=0.9.0 curl -fsSL …/install-cli.sh | bash` on Linux/macOS, or `$env:VERSION = '0.9.0'; irm …/install-cli.ps1 | iex` on Windows. Available tags are on the [GitHub Releases](https://github.com/tale-project/tale/releases) page.
-
-Or download the binary directly — replace `latest` with a tag (e.g. `v0.9.0`) to pin:
+Both installers honour a `VERSION` environment variable for pinning a specific release:
 
 ```bash
-# Linux
-curl -fsSL https://github.com/tale-project/tale/releases/latest/download/tale_linux \
-  -o /usr/local/bin/tale
-chmod +x /usr/local/bin/tale
+VERSION=0.9.0 curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash
 ```
 
-### Step 2: Create a project
+```powershell
+$env:VERSION = '0.9.0'
+irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.ps1 | iex
+```
+
+Available tags are on the [GitHub Releases](https://github.com/tale-project/tale/releases) page. If you'd rather skip the installer, the binary is also available as a direct download from each release tag.
+
+## Step 2 — Create a project
+
+Pick a directory and run `tale init`:
 
 ```bash
 tale init my-project
 cd my-project
 ```
 
-The CLI prompts for your domain, API key, and TLS mode. Security secrets (`BETTER_AUTH_SECRET`, `ENCRYPTION_SECRET_HEX`) are generated automatically.
+The CLI prompts for the domain (default `localhost`), the OpenRouter key, and the TLS mode (default `selfsigned`). It writes a `.env` file with auto-generated secrets — `BETTER_AUTH_SECRET`, `ENCRYPTION_SECRET_HEX`, `INSTANCE_SECRET`, and a `SOPS_AGE_KEY` for the SOPS-encrypted provider secrets mode. The project directory is the source of truth for this instance: `.env` holds the secrets, `TALE_CONFIG_DIR` holds the provider, retention, and agent JSON files.
 
-> **Tip:** `tale init` also drops configuration files for AI-powered editors (Claude Code, Cursor, GitHub Copilot, Windsurf) and extracts the platform source to `.tale/reference/`. Open the project in any of these editors to create and edit agents, workflows, and integrations in natural language. See [AI-assisted development](/develop/ai-assisted-development).
+`tale init` also drops config files for AI editors (Claude Code, Cursor, GitHub Copilot, Windsurf) and extracts the platform source to `.tale/reference/`, so you can open the project in an AI-assisted editor and create agents, workflows, and integrations in natural language. The full pattern is on [AI-assisted development](/develop/ai-assisted-development).
 
-### Step 3: Start Tale
+## Step 3 — Start Tale
 
 ```bash
 tale start
 ```
 
-Wait for `Tale Dev v0.x.x  Ready.` Health-check messages while services boot are normal — wait for the `Ready` line before opening your browser.
+Health-check messages stream while services boot — that's expected. Wait for the `Tale Dev v0.x.x  Ready.` line before opening the browser; the platform container takes up to three minutes on a cold boot because the entrypoint waits for env sync to finish and `bunx convex deploy` to push the function set before signalling healthy.
 
-### Step 4: Open the app
+To run in the background, pass `--detach`:
 
-Go to https://localhost (or your configured domain). The first visit takes you to a sign-up page to create your Admin account.
+```bash
+tale start --detach
+```
 
-> **Self-signed certificate warning.** The default `selfsigned` TLS mode generates a local certificate, so your browser will show a "Your connection is not private" warning the first time. Click through (Chrome: **Advanced → Proceed**, Firefox: **Advanced → Accept the Risk**). For a public deployment, choose `letsencrypt` during `tale init` or follow the [production deployment](/self-hosted/install/linux-server) guide.
+## Step 4 — Open the app
+
+Open `https://localhost` (or whatever domain you configured during `tale init`). The first visit takes you to a sign-up page — the first user to register becomes the Owner of the instance.
+
+The self-signed certificate triggers a browser warning on the first visit. Click through (Chrome: **Advanced → Proceed**; Firefox: **Advanced → Accept the Risk**); the warning is expected for `TLS_MODE=selfsigned`. For a public-facing instance, pick `letsencrypt` during `tale init` or follow [Production deployment](/self-hosted/install/linux-server).
 
 ## Daily workflow
 
-### Start and stop
+`tale start` and `docker compose down` are the start/stop pair you use most.
 
 ```bash
-tale start              # Start all services
-tale start --detach     # Start in background
+tale start                       # Start all services in the foreground
+tale start --detach              # Start in the background
+docker compose -p tale-dev down  # Stop containers, keep volumes (and data)
 ```
 
-To stop while keeping your data:
-
-```bash
-# Stops containers but keeps volumes (your data).
-# Never add -v: it deletes the database, uploads, crawler state — there is no recovery.
-docker compose -p tale-dev down
-```
-
-The `-p tale-dev` flag is required because `tale start` uses that compose project name rather than a standard `docker-compose.yml`.
+The `-p tale-dev` flag is required because `tale start` uses that compose project name rather than a default `docker-compose.yml`. **Never add `-v` to the `down` command** — it deletes every named volume, which means the database, every uploaded file, and the crawler state. There is no recovery.
 
 ### Upgrade
 
 ```bash
-tale upgrade                       # Update to the latest release and sync project files
+tale upgrade                       # Pull the latest release and sync project files
 tale upgrade --version 0.9.0       # Migrate or downgrade to a specific version
 tale start                         # Restart with the new version
 ```
 
-Breaking changes are called out in the [release notes](https://github.com/tale-project/tale/releases).
+Read the [release notes](https://github.com/tale-project/tale/releases) before upgrading; breaking changes and migration notes are called out explicitly per [Release notes format](/self-hosted/operate/release-notes/format).
 
-### Inspect backend data
+### Inspect Convex data
+
+The bundled Convex backend ships a dashboard for inspecting collections, function logs, and background jobs. Generate an admin key, then open the dashboard:
 
 ```bash
-tale convex admin       # Generate an admin key for the Convex Dashboard
+tale convex admin
 ```
 
-Open `/convex-dashboard` in your browser and paste the key to inspect the database, view function logs, and manage background jobs.
+Open `/convex-dashboard` in your browser and paste the key. The dashboard gives direct read and write access to everything in Convex, so keep the key local.
 
-## Alternative: build from source
+## Build from source
 
-If you want to contribute to Tale or customize the platform, run from source instead of pulling pre-built images.
+If you want to contribute or customise the platform, run from a checkout instead of pulling prebuilt images. Clone the repository, copy the example env, and replace the placeholder secrets:
 
 ```bash
 git clone https://github.com/tale-project/tale.git
@@ -118,15 +116,13 @@ cd tale
 cp .env.example .env
 ```
 
-Edit `.env` and replace the example values:
+The `.env.example` ships with placeholder secrets that must be replaced before the stack starts. Generate fresh values:
 
-| Variable                | How to fill it in                   |
+| Variable                | Generate with                       |
 | ----------------------- | ----------------------------------- |
 | `BETTER_AUTH_SECRET`    | `openssl rand -base64 32`           |
 | `ENCRYPTION_SECRET_HEX` | `openssl rand -hex 32`              |
 | `DB_PASSWORD`           | Any password for the local database |
-
-> **Important:** `.env.example` ships with placeholder secrets that must be replaced before starting.
 
 Then build and start:
 
@@ -134,10 +130,16 @@ Then build and start:
 docker compose up --build
 ```
 
-For a faster edit-reload cycle, use the development override which mounts your local source into the containers:
+For a faster edit-reload cycle, layer in the development override that bind-mounts your local source into the containers:
 
 ```bash
 docker compose -f compose.yml -f compose.dev.yml up --build
 ```
 
-After modifying Dockerfiles or dependencies, run `bun run docker:test` to smoke-test the build. See the [Contributing Docker guide](/develop/contributing-docker) for image validation and vulnerability scan scripts.
+After modifying a `Dockerfile` or a dependency, run `bun run docker:test` to smoke-test the build. The [Contributing Docker guide](/develop/contributing-docker) covers the image validation and vulnerability scan scripts.
+
+## Where this gets used
+
+What you have now is a working Tale instance on `localhost` with sample agents, sample knowledge, and a configured AI provider. That's enough to evaluate the product, demo it to a team, or develop against the platform. It's not enough to expose to anyone outside your laptop — the quickstart uses self-signed TLS, runs every service on one container, and skips the blue-green topology that survives upgrades without a maintenance window.
+
+When you're ready to put Tale in front of users, [Production deployment](/self-hosted/install/linux-server) walks the same install with a real domain, real TLS, and the blue-green roll. For the rest of the operator surface — observability, retention, advisories — [Operations](/self-hosted/operate/observability/operations) is the index.

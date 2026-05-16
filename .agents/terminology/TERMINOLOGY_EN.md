@@ -1,101 +1,112 @@
 # English (en) terminology
 
-English is the source locale. Every translated string in the platform UI and in `docs/` derives from an English original; when the two drift, the English form is the authoritative reference. Cross-locale rules (length parity, tone, placeholders) live in [`TERMINOLOGY.md`](TERMINOLOGY.md) — read that file first.
+English is the source locale. Every translated string in the platform UI and in `docs/` derives from an English original; when the two drift, the English form is the authoritative reference. The cross-locale rules — voice, the loanword policy, length parity, plurals, placeholders, dates, numbers — live in [`TERMINOLOGY.md`](TERMINOLOGY.md). Read that file first.
 
-This file exists to freeze the English spellings of Tale's product vocabulary, so that the same concept does not appear under three different names across the codebase.
+**Where things live.** The doctrine (voice rules, anti-pattern descriptions, principles, illustrative drift→target tables) lives in this file. Term lookups — product feature names, knowledge-base entities, technical vocabulary, action verbs, deployment vocabulary, the Git-domain table, role names — live as flat entries in [`GLOSSARY.json`](GLOSSARY.json) under `terms[]`. Test-data lists (formal pronouns, German noun-gender map) live as TypeScript modules in [`services/docs/tests/data/`](../../services/docs/tests/data/).
 
-## Product features
+---
 
-Proper nouns. Capitalize when naming the feature; use lowercase in running prose where the feature name becomes a common noun (`in the canvas`, `open the knowledge base`).
+## 1 · The English voice
 
-| Term                 | Preferred form       | Notes                                                                                                                                              |
-| -------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Agent                | Agent                | Capitalized when referring to a Tale agent; lowercase as a general AI term.                                                                        |
-| Chat / Chat with AI  | Chat with AI         | The conversational AI feature. Matches UI label `navigation.chatWithAI`. Use plain `Chat` only when the surrounding sentence makes it unambiguous. |
-| Conversations        | Conversations        | The multi-channel inbox feature. Matches UI label `navigation.conversations`. Distinct from `Thread` (the data-model term).                        |
-| Workflow             | Workflow             | One word.                                                                                                                                          |
-| Automation(s)        | Automation(s)        | Distinct from Workflow — do not use the two interchangeably. Matches UI label `navigation.automations`.                                            |
-| Integration(s)       | Integration(s)       | Matches UI label `navigation.integrations`.                                                                                                        |
-| Dashboard            | Dashboard            | One word.                                                                                                                                          |
-| Knowledge base       | Knowledge base       | Two words, lowercase except at the start of a sentence.                                                                                            |
-| Knowledge            | Knowledge            | The top-level feature area the knowledge base sits inside.                                                                                         |
-| Workspace            | Workspace            | One word.                                                                                                                                          |
-| Canvas               | Canvas               | Capitalized when naming the feature; lowercase in prose (`in the canvas`). Matches UI label `chat.canvas.title`.                                   |
-| Composer             | Composer             | The chat input area. Capitalize when naming the UI element.                                                                                        |
-| Prompt library       | Prompt library       | Two words, sentence case in prose. Matches UI label `chat.promptLibrary`.                                                                          |
-| Arena Mode           | Arena Mode           | Title case, matches UI label `chat.arena.title`.                                                                                                   |
-| Research plan        | Research plan        | The agent to-do pane. The i18n key is `todoList.title`, but the **product name is "Research plan"** — never use "Todo list" in user-facing prose.  |
-| Approval / Approvals | Approval / Approvals | Singular for one pending action; plural for the workspace view. Matches UI label `contextApprovals`.                                               |
-| Human input request  | Human input request  | A workflow step that pauses for a typed answer. Matches the UI label for the approval type.                                                        |
-| Location request     | Location request     | A workflow step that asks for a location. Matches UI label `locationRequest.title`.                                                                |
+Tale's English copy reads as one narrator. The reader is a capable peer who landed cold from a search result.
 
-## Knowledge-base entities
+- **Second person.** `You`, never `we`, never `the user`. Marketing addresses the prospective customer in the same voice as the signed-in product.
+- **Informal but precise.** Contractions where they read naturally (`don't`, `won't`, `you'll`) — but never slang. Tale is not a meme; it's a product.
+- **Imperative for instructions.** `Run tale deploy` — not `You can run tale deploy`, not `Please run tale deploy`, not `It is recommended to run tale deploy`.
+- **No exclamation marks** outside literal code.
+- **Why before what.** Every command, every config knob, every UI walkthrough names the consequence — what happens in production, what breaks, what the alternative would have meant.
 
-These are concrete entity types the user manages in the knowledge base. They are features _and_ nouns, so they appear throughout the UI, API, and docs.
+### Marketing softeners — strike on sight
 
-| Term                 | Preferred form       | Notes                                                                                                                                          |
-| -------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| Website / Websites   | Website / Websites   | Matches UI label `websites.title`.                                                                                                             |
-| Customer / Customers | Customer / Customers | Matches UI label `customers.title`.                                                                                                            |
-| Vendor / Vendors     | Vendor / Vendors     | Matches UI label `vendors.title`.                                                                                                              |
-| Product / Products   | Product / Products   | Matches UI label `products.title`.                                                                                                             |
-| Document / Documents | Document / Documents | A file uploaded to the knowledge base.                                                                                                         |
-| Thread               | **Conversation**     | In user-facing prose, the product term is **Conversation**. `Thread` only lives in code (the `threads` table) and a few internal API surfaces. |
+| Strike          | Replace with                                                |
+| --------------- | ----------------------------------------------------------- |
+| simply          | (delete; describe the step without softening)               |
+| easy            | (delete; let the demonstration carry the claim)             |
+| powerful        | (delete or replace with concrete capability)                |
+| seamless        | (delete; describe the missing-step that makes it seamless)  |
+| just            | (delete)                                                    |
+| please          | (delete; imperative does the work)                          |
+| feel free to    | (delete)                                                    |
+| discover        | (replace with `see`, `read`, or `open`)                     |
+| unleash         | (delete)                                                    |
+| effortlessly    | (delete)                                                    |
+| straightforward | (delete; the demonstration shows it)                        |
+| intuitive       | (delete; let the screenshot or walkthrough carry the claim) |
 
-## Technical vocabulary
+These trigger reviewer rejection on sight. If the thing is easy, the surrounding evidence is the right place to demonstrate it.
 
-Universal tech terms. Most stay as-is across locales.
+### Anti-pattern catalogue (English)
 
-| Term       | Preferred form | Notes                                                                                  |
-| ---------- | -------------- | -------------------------------------------------------------------------------------- |
-| AI         | AI             | Not `A.I.` or `Artificial Intelligence`.                                               |
-| API        | API            |                                                                                        |
-| LLM        | LLM            |                                                                                        |
-| Token      | Token          |                                                                                        |
-| Prompt     | Prompt         |                                                                                        |
-| Webhook    | Webhook        | One word.                                                                              |
-| Provider   | Provider       | Used for LLM and email providers.                                                      |
-| PII        | PII            | Expand as `personally identifiable information` on first use per long-form doc.        |
-| MCP server | MCP server     | Model Context Protocol server. Lowercase `server`; expand `MCP` on first use per page. |
-| Settings   | Settings       | Not `Preferences` or `Options`.                                                        |
+The failure modes English copy drifts into when the voice slips.
 
-## Actions and state verbs
+- **First-person we.** `We recommend you click Save` → `Click Save. The provider is reachable from agents on the next request.` Tale's docs describe a product the reader operates; the author is invisible.
+- **The Royal "It is".** `It is important to note that…` → delete. `It is recommended to run tale deploy` → `Run tale deploy.`
+- **The Naked Command.** `Click Save.` (no why) → `Click Save. The provider is reachable from agents on the next request.`
+- **The Hype Sentence.** `Tale's powerful automation engine lets you simply discover the seamless way to build workflows.` → `Tale's automation engine runs multi-step workflows on schedules, events, and webhooks.`
+- **Status Chatter.** `Note: this changed in v1.6.` → delete; release notes carry the version history.
+- **Capitalisation Drift.** `Knowledge Base`, `Prompt Library`, `Todo List` → `Knowledge base`, `Prompt library`, `Research plan` (sentence case + correct product name).
 
-These appear as button labels, menu items, and toast messages. Keep them short and imperative.
+---
 
-| Term                 | Preferred form       | Notes                                                                                                                  |
-| -------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Log in / Log out     | Log in / Log out     | Two words as a verb. `Login` / `Logout` one word as a noun or adjective.                                               |
-| Sign up              | Sign up              | Verb. `Signup` as noun or adjective.                                                                                   |
-| Set up               | Set up               | Verb. `Setup` as noun.                                                                                                 |
-| Back up              | Back up              | Verb. `Backup` as noun.                                                                                                |
-| Upload / Download    | Upload / Download    | Verb and noun use the same form.                                                                                       |
-| Save / Delete / Edit | Save / Delete / Edit |                                                                                                                        |
-| Email                | Email                | One word, no hyphen. Capitalize as a label (`Email`), lowercase in prose (`email`). Reads more naturally than `Email`. |
+## 2 · Product vocabulary
 
-## Deployment vocabulary
+Every concrete term — features, knowledge-base entities, technical vocabulary, actions, deployment terms, Git-domain — lives as a flat entry in [`GLOSSARY.json`](GLOSSARY.json) under `terms[]`. Filter by `category` to find features, knowledgeEntities, technicalVocab, actionVerbs, deploymentVocab, role, brand, acronym, codeIdentifier, loanword, gitDomain, translateBucket, or abbreviation.
 
-Terms that appear in install, operate, and configuration docs.
+The rules that govern those entries:
 
-| Term              | Preferred form    | Notes                                                           |
-| ----------------- | ----------------- | --------------------------------------------------------------- |
-| Self-hosted       | Self-hosted       | Hyphenated adjective (`a self-hosted platform`).                |
-| On-premises       | On-premises       | With final `s`. Never `on-premise`.                             |
-| Open source       | Open source       | Two words, both as adjective (`open source platform`) and noun. |
-| Zero-downtime     | Zero-downtime     | Hyphenated adjective.                                           |
-| Blue-green        | Blue-green        | Hyphenated adjective.                                           |
-| OpenAI-compatible | OpenAI-compatible | Hyphenated.                                                     |
+- **Capitalise when naming the feature**; lowercase when the word becomes a common noun (`in the canvas`, `open the knowledge base`).
+- **Sentence case in prose**, not title case. `## Agent concepts`, not `## Agent Concepts`. Product names that ship with intentional capitalisation (`Arena Mode`) preserve it.
+- **Match the shipped UI verbatim.** When the glossary and the UI disagree, the UI wins — update the glossary in the same PR.
+- **One term per concept across the corpus.** Don't alternate between `Chat` and `Chat with AI`, `Conversations` and `Inbox`, `Approval` and `Sign-off`. The glossary names the canonical form.
 
-## Role names
+The `Thread` / `Conversation` rule is worth its own line: in user-facing prose, the product term is **Conversation**. `Thread` only lives in code (the `threads` table) and a few internal API surfaces. The same rule applies in every locale.
 
-Tale's six roles are proper nouns: **Owner**, **Admin**, **Developer**, **Editor**, **Member**, **Disabled**. Capitalize when naming the role (`a Member can view chat history`). Use lowercase when the word is generic (`members of your team use the app to…`). Never abbreviate — `Admin.` and `Mem.` are not acceptable.
+---
 
-## Style rules
+## 3 · Toasts and error messages
+
+Button labels and menu items are short and imperative. Verb/noun pairings follow the two-word/one-word convention — `set up` (verb) / `setup` (noun); `log in` (verb) / `login` (noun); `back up` (verb) / `backup` (noun).
+
+### Toast conventions
+
+State-change confirmations follow one pattern. Past tense, no period, the noun first. **Strike `Successfully`** — the toast is the success signal; the adverb is redundant.
+
+| Pattern            | Example              |
+| ------------------ | -------------------- |
+| `<Noun> <verb-ed>` | `Agent saved`        |
+| `<Noun> <verb-ed>` | `Provider deleted`   |
+| `<Noun> <verb-ed>` | `Workflow published` |
+
+### Error message patterns
+
+Error messages name what happened and what to do next, one sentence ending with a period. Never blame the reader. Name the field or action that failed when context doesn't make it obvious. The cross-locale pattern table lives in [`TERMINOLOGY.md`](TERMINOLOGY.md) §5.
+
+---
+
+## 4 · Style rules
 
 - **Oxford comma** in lists of three or more.
-- **Straight quotes** (`"..."`) everywhere — running prose, UI strings, and code blocks. Tale's English docs do not use the typographic `“…”`; ASCII keeps grep simple and avoids drift between the two forms.
-- **Apostrophes:** straight ASCII `'` everywhere — contractions (`don't`), possessives (`Tale's`), and quoted strings. The English docs do not use the typographic `’`; keep them ASCII so search and grep stay simple.
+- **Straight quotes** (`"…"`) everywhere — running prose, UI strings, code blocks. Tale's English docs do not use typographic `"…"`; ASCII keeps grep simple.
+- **Apostrophes:** straight ASCII `'` everywhere — contractions (`don't`), possessives (`Tale's`), quoted strings.
 - **En-dash** (`–`) for numeric ranges (`5–10 minutes`); **em-dash** (`—`) for parenthetical asides — like this.
-- **ISO dates** (`2026-04-19`) in docs prose, log output, and frontmatter. Wall-clock times in the UI render through `useFormatDate()` and use the user's locale format.
+- **ISO dates** (`2026-04-19`) in docs prose, log output, frontmatter. Wall-clock times render through `useFormatDate()` and follow the user's locale.
 - **12-hour clock** with lowercase `am`/`pm` in user-facing copy (`9 am`, `10:30 pm`). **24-hour** in technical contexts (cron expressions, server logs).
-- **Verb/noun pairings** keep the two-word/one-word pattern — `set up` (verb) / `setup` (noun); `log in` (verb) / `login` (noun); `sign up` / `signup`; `back up` / `backup`.
+- **Numbers under ten** in prose are spelled out (`three providers`, `five steps`) except when paired with units (`5 GB`, `3 ms`).
+- **Capitalisation in headings** is sentence case — not title case. Proper nouns and product names keep their canonical form.
+- **Role names** are proper nouns when naming the role (`an Editor can upload`), lowercase when generic (`a markdown editor`). Never abbreviated (`Admin.`, `Mem.`).
+
+### Date and number formatting
+
+| Surface             | Format                               |
+| ------------------- | ------------------------------------ |
+| Date in prose       | `April 19, 2026` or `2026-04-19`     |
+| ISO date in code    | `2026-04-19`                         |
+| Decimal in prose    | `2.5 GB`                             |
+| Thousands separator | `1,000` or `1000`                    |
+| Time, wall clock    | `9 am`, `10:30 pm` (lowercase am/pm) |
+| Time, server-side   | UTC, 24-hour                         |
+| Units               | `MB`, `GB`, `s`, `ms`                |
+| Currency            | `$100`, `€100`, `CHF 100`            |
+| Percent             | `5%` (no space)                      |
+| Quote marks         | `"text"` (ASCII straight everywhere) |
+| Apostrophe          | `'` (ASCII everywhere)               |
