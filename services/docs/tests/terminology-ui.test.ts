@@ -36,26 +36,43 @@ describe('UI terminology drift', () => {
     const target = walkDocs().filter((rel) => localeOf(rel, locales) !== 'en');
     const terms = loadGlossary().terms;
 
+    // Precompile per-locale enforcement once; compiling regexes per line × term timed out CI.
+    const enforcedByLocale = new Map<
+      string,
+      { key: string; en: string; localised: string; re: RegExp }[]
+    >();
     for (const rel of target) {
       const locale = localeOf(rel, locales);
+      if (enforcedByLocale.has(locale)) continue;
+      enforcedByLocale.set(
+        locale,
+        terms
+          .filter((term) => shouldEnforce(term, locale))
+          .map((term) => ({
+            key: term.key,
+            en: term.en,
+            localised: resolveForm(term, locale),
+            re: new RegExp(`(^|[^A-Za-z])${escapeRegex(term.en)}(?![A-Za-z])`),
+          })),
+      );
+    }
+
+    for (const rel of target) {
+      const locale = localeOf(rel, locales);
+      const enforced = enforcedByLocale.get(locale) ?? [];
       const raw = fs
         .readFileSync(path.join(CONTENT_ROOT, rel), 'utf8')
         .replaceAll('\r\n', '\n');
       const { body } = parseFrontmatter(raw);
 
       for (const { line, text } of iterProseLines(body)) {
-        for (const term of terms) {
-          if (!shouldEnforce(term, locale)) continue;
-          const localised = resolveForm(term, locale);
-          const re = new RegExp(
-            `(^|[^A-Za-z])${escapeRegex(term.en)}(?![A-Za-z])`,
-          );
+        for (const { key, en, localised, re } of enforced) {
           if (re.test(text)) {
             findings.push({
               file: rel,
               line,
               rule: 'ui-term-drift',
-              detail: `"${term.en}" should be "${localised}" (matches shipped UI label; key=${term.key})`,
+              detail: `"${en}" should be "${localised}" (matches shipped UI label; key=${key})`,
             });
           }
         }
