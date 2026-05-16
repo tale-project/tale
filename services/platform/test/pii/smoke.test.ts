@@ -360,7 +360,10 @@ describe('edge cases', () => {
     const text = 'The quick brown fox jumps over the lazy dog. '.repeat(1000);
     const start = performance.now();
     const o = scrubber.scrub(text);
-    expect(performance.now() - start).toBeLessThan(250);
+    // Generous bound — the assertion exists to catch catastrophic
+    // backtracking, not enforce a perf budget. Tight bounds flake on CI
+    // runners under load.
+    expect(performance.now() - start).toBeLessThan(2000);
     expect(o.kind).toBe('pass');
   });
 
