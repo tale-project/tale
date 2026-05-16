@@ -32,26 +32,42 @@ describe('translate-bucket loanwords', () => {
     const target = walkDocs().filter((rel) => localeOf(rel, locales) !== 'en');
     const terms = termsByCategory('translateBucket');
 
+    // Precompile per-locale enforcement once; compiling regexes per line × term timed out CI.
+    const enforcedByLocale = new Map<
+      string,
+      { en: string; native: string; re: RegExp }[]
+    >();
     for (const rel of target) {
       const locale = localeOf(rel, locales);
+      if (enforcedByLocale.has(locale)) continue;
+      enforcedByLocale.set(
+        locale,
+        terms
+          .map((term) => ({
+            en: term.en,
+            native: resolveForm(term, locale),
+            re: new RegExp(`(^|[^A-Za-z])${escapeRegex(term.en)}(?![A-Za-z])`),
+          }))
+          .filter((entry) => entry.native !== entry.en),
+      );
+    }
+
+    for (const rel of target) {
+      const locale = localeOf(rel, locales);
+      const enforced = enforcedByLocale.get(locale) ?? [];
       const raw = fs
         .readFileSync(path.join(CONTENT_ROOT, rel), 'utf8')
         .replaceAll('\r\n', '\n');
       const { body } = parseFrontmatter(raw);
 
       for (const { line, text } of iterProseLines(body)) {
-        for (const term of terms) {
-          const native = resolveForm(term, locale);
-          if (native === term.en) continue;
-          const re = new RegExp(
-            `(^|[^A-Za-z])${escapeRegex(term.en)}(?![A-Za-z])`,
-          );
+        for (const { en, native, re } of enforced) {
           if (re.test(text)) {
             findings.push({
               file: rel,
               line,
               rule: 'loanword-untranslated',
-              detail: `translate-bucket term left English: "${term.en}" → "${native}"`,
+              detail: `translate-bucket term left English: "${en}" → "${native}"`,
             });
           }
         }
