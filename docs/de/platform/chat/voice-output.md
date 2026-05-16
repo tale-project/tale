@@ -9,8 +9,8 @@ Die Sprachausgabe liest die Antworten des Assistenten vor, während sie streamen
 
 Die Sprachausgabe ist standardmäßig aus. Es gibt zwei Stellen, an denen du sie steuerst:
 
-- **Pro-Thread-Schalter.** Ein Lautsprecher-Symbol neben dem Modell-Auswähler im Chat-Header. Der Klick wechselt drei Zustände: _Folgt Standard_ (deine globale Voreinstellung), _explizit an_ (nur dieser Thread) und _explizit aus_ (nur dieser Thread).
-- **Globaler Standard.** Unter **Einstellungen → Personalisierung → Sprachausgabe** kannst du den Standard einschalten. Neue Konversationen lesen dann Antworten vor, bis du sie im Chat-Header überschreibst.
+- **Pro-Thread-Schalter.** Ein Lautsprecher-Symbol in der Chat-Kopfzeile (oben rechts, neben „Teilen"). Der Klick wechselt drei Zustände: _Folgt Standard_ (deine globale Voreinstellung), _explizit an_ (nur dieser Thread) und _explizit aus_ (nur dieser Thread).
+- **Globaler Standard.** Unter **Einstellungen → Personalisierung → Sprachausgabe** kannst du den Standard einschalten. Neue Konversationen lesen dann Antworten vor, bis du sie in der Chat-Kopfzeile überschreibst.
 
 Wenn du die Sprachausgabe in einer Sitzung zum ersten Mal aktivierst, schaltet der Klick gleichzeitig das Audio-System des Browsers frei. Ohne diese Geste verweigern Mobile Safari und strengere Chromium-Builds die automatische Wiedergabe; der Indikator auf jeder Nachricht zeigt dann „Sprachwiedergabe blockiert — tippe zum Abspielen", bis du tippst.
 
@@ -41,7 +41,7 @@ Wenn du den Thread mitten in der Wiedergabe wechselst, stoppt das Audio sauber. 
 | Bernsteinfarbener Lautsprecher „Tippe zum Abspielen" | Browser hat Autoplay blockiert. Tippe den Indikator an, um die Wiedergabe zu starten.                                                                                              |
 | Rotes Warn-Symbol, „… fehlgeschlagen"                | Synthese ist bei jedem Versuch gescheitert. Hover für den klassifizierten Grund (kein Anbieter, Rate-Limit, Budget erreicht, vorübergehender Ausfall). Klick zum erneuten Versuch. |
 
-Vorübergehende Fehler (Rate-Limit, kurzes 5xx, Timeout) werden bis zu zweimal mit exponentiellem Backoff automatisch wiederholt. Terminale Fehler (kein Anbieter konfiguriert, falsche Anmeldedaten, Budget überschritten) werden nicht wiederholt; der Indikator zeigt sie per Tooltip und der Antworttext bleibt am Bildschirm lesbar.
+Rate-Limit- und Rate-Limiter-Contention-Fehler werden bis zu zweimal mit exponentiellem Backoff automatisch wiederholt. Anbieter-5xx, Timeouts und andere Fehler (kein Anbieter konfiguriert, falsche Anmeldedaten, Budget überschritten) werden nicht automatisch wiederholt; der Indikator zeigt sie per Tooltip und du tippst zum erneuten Versuch. Der Antworttext bleibt am Bildschirm lesbar.
 
 ## Kosten und Quota
 

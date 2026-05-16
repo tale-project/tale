@@ -221,7 +221,7 @@ Hol einen Schlüssel auf [openrouter.ai/keys](https://openrouter.ai/keys) und f�
 cp examples/providers/openai.json $TALE_CONFIG_DIR/providers/
 ```
 
-Trage deinen OpenAI-Schlüssel einmal über **Einstellungen > KI-Anbieter > OpenAI** ein. Die Datei deklariert sowohl `whisper-1` (Transkription) als auch `gpt-4o-mini-tts` (Text-zu-Sprache) samt der passenden `defaults`-Einträge, sodass Audio- und Video-Anhänge im Chat hierhin geroutet werden und der Sprach-Schalter im Chat-Header für die [Sprachausgabe](/de/platform/chat/voice-output) OpenAI nutzt. Den Endbenutzer-Blick findest du unter [Chat-Anhänge](/de/platform/chat/attachments#audio-und-video-transkription). Ohne diese Datei greift die Sprachausgabe stillschweigend auf die im Browser eingebaute `speechSynthesis` zurück.
+Trage deinen OpenAI-Schlüssel einmal über **Einstellungen > KI-Anbieter > OpenAI** ein. Die Datei deklariert sowohl `whisper-1` (Transkription) als auch `gpt-4o-mini-tts` (Text-zu-Sprache) samt der passenden `defaults`-Einträge, sodass Audio- und Video-Anhänge im Chat hierhin geroutet werden und der Sprach-Schalter in der Chat-Kopfzeile für die [Sprachausgabe](/de/platform/chat/voice-output) OpenAI nutzt. Den Endbenutzer-Blick findest du unter [Chat-Anhänge](/de/platform/chat/attachments#audio-und-video-transkription). Ohne diese Datei greift die Sprachausgabe stillschweigend auf die im Browser eingebaute `speechSynthesis` zurück.
 
 TTS-spezifische Felder eines Modell-Eintrags:
 

@@ -23,11 +23,6 @@ import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_
 const CHUNK_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const CLEANUP_PASS_LIMIT = 64;
 
-// Re-export the chunk-count cap so existing callers don't need to update
-// imports. The numeric source of truth lives in
-// `lib/shared/constants/tts.ts` so the client and server share it.
-export const MAX_CHUNKS_PER_MESSAGE = MAX_TTS_CHUNKS_PER_MESSAGE;
-
 /**
  * Conservative cents-per-million-characters used for the *prospective*
  * budget check inside `reserveChunk`. The real per-model rate isn't known
@@ -111,7 +106,7 @@ export const setThreadVoiceOutputOverride = mutation({
 
 /**
  * Internal: reserve a chunk row in `'pending'` status. Returns one of:
- *  - `{ kind: 'ready', storageId, audioUrl, voice, format }` — existing ready chunk reused
+ *  - `{ kind: 'ready', storageId, voice, format }` — existing ready chunk reused
  *  - `{ kind: 'pending-in-flight' }` — another writer holds the slot
  *  - `{ kind: 'reserved', chunkId, attemptCreatedAt, organizationId, userId,
  *      teamId }` — fresh reservation
@@ -139,12 +134,19 @@ export const reserveChunk = internalMutation({
     index: v.number(),
     text: v.string(),
     locale: v.string(),
+    // Per-model rate the action resolved before calling this mutation. When
+    // provided, used as the prospective-cost rate for the budget check
+    // instead of `PROSPECTIVE_TTS_CENTS_PER_M_CHARS`. Optional because the
+    // action may not have resolved the model yet (cache-hit / pending-in-
+    // flight short-circuits skip the resolver). Leaving it at the static
+    // default for those paths is fine — they don't bill, so the check is
+    // moot anyway.
+    prospectiveCostCentsPerMChars: v.optional(v.number()),
   },
   returns: v.union(
     v.object({
       kind: v.literal('ready'),
       storageId: v.id('_storage'),
-      audioUrl: v.optional(v.string()),
       voice: v.optional(v.string()),
       format: v.optional(
         v.union(...audioFormatLiterals.map((literal) => v.literal(literal))),
@@ -174,11 +176,11 @@ export const reserveChunk = internalMutation({
     if (
       !Number.isInteger(args.index) ||
       args.index < 0 ||
-      args.index >= MAX_CHUNKS_PER_MESSAGE
+      args.index >= MAX_TTS_CHUNKS_PER_MESSAGE
     ) {
       throw new ConvexError({
         code: 'TTS_CHUNK_LIMIT',
-        message: `TTS chunk index must be in [0, ${MAX_CHUNKS_PER_MESSAGE}).`,
+        message: `TTS chunk index must be in [0, ${MAX_TTS_CHUNKS_PER_MESSAGE}).`,
       });
     }
 
@@ -232,7 +234,6 @@ export const reserveChunk = internalMutation({
         return {
           kind: 'ready' as const,
           storageId: existing.storageId,
-          audioUrl: existing.audioUrl,
           voice: existing.voice,
           format: existing.format,
         };
@@ -269,6 +270,14 @@ export const reserveChunk = internalMutation({
       // Skip the row we're about to overwrite — its old text is being
       // replaced, not added to.
       if (existing && row._id === existing._id) continue;
+      // Skip terminally-failed rows that never made it to the ledger.
+      // They never billed the org and the user is likely retrying after
+      // fixing config (provider key, voice spelling, etc.); counting
+      // them would let a sequence of repaired retries falsely trip the
+      // per-message cap. Pending and ready rows still count.
+      if (row.status === 'failed' && row.usageRecordedAt === undefined) {
+        continue;
+      }
       existingChars += row.text.length;
     }
     if (existingChars + args.text.length > MAX_TTS_CHARS_PER_MESSAGE) {
@@ -316,7 +325,7 @@ export const reserveChunk = internalMutation({
     // attempt the call at all.
     const prospectiveCostCents = estimateTtsCostCents(
       args.text.length,
-      PROSPECTIVE_TTS_CENTS_PER_M_CHARS,
+      args.prospectiveCostCentsPerMChars ?? PROSPECTIVE_TTS_CENTS_PER_M_CHARS,
     );
     const budget = await checkBudget(
       ctx,
@@ -367,9 +376,9 @@ export const reserveChunk = internalMutation({
         modelId: undefined,
         format: undefined,
         storageId: undefined,
-        audioUrl: undefined,
         userId: user.userId,
         teamId,
+        agentSlug: meta.agentSlug,
       });
       return {
         kind: 'reserved' as const,
@@ -386,6 +395,7 @@ export const reserveChunk = internalMutation({
       organizationId,
       userId: user.userId,
       teamId,
+      agentSlug: meta.agentSlug,
       index: args.index,
       text: args.text,
       status: 'pending',
@@ -457,16 +467,15 @@ export const markChunkReadyAndRecordUsage = internalMutation({
       return { stale: true };
     }
 
-    // Memoise the public storage URL so the subscriber query doesn't have
-    // to call `ctx.storage.getUrl` on every tick. The URL is stable for the
-    // lifetime of the blob, so a one-time write here scales to O(1)
-    // resolution per chunk for the entire 7-day retention window.
-    const audioUrl = (await ctx.storage.getUrl(args.storageId)) ?? undefined;
-
+    // Note: we deliberately don't pre-resolve a storage URL. The
+    // `audioUrl` field on the schema is deprecated — subscribers fetch
+    // audio through the authenticated `/api/tts-audio` route keyed on
+    // `chunkId`. Skipping the URL pre-resolution saves one round-trip
+    // per chunk write and matches the security model (per-request
+    // membership check beats bearer-replayable URL).
     await ctx.db.patch(args.chunkId, {
       status: 'ready',
       storageId: args.storageId,
-      audioUrl,
       voice: args.voice,
       providerName: args.providerName,
       modelId: args.modelId,
@@ -475,12 +484,26 @@ export const markChunkReadyAndRecordUsage = internalMutation({
       usageRecordedAt: Date.now(),
     });
 
-    if (row.userId !== undefined) {
+    // `reserveChunk` always writes `userId` on both insert and overwrite
+    // branches, so a `pending` row reaching this point without it is a
+    // bug — surface it loudly via console.error rather than silently
+    // skipping the ledger write (which would bill nothing for a real
+    // chunk). The schema keeps the field optional purely for back-compat
+    // on pre-userId rows; those can never be in `pending` status today.
+    if (!row.userId) {
+      console.error(
+        '[tts.markReady] pending row missing userId; skipping ledger write',
+        { chunkId: args.chunkId },
+      );
+    } else {
       await recordTtsUsageInline(ctx, {
         organizationId: row.organizationId,
         userId: row.userId,
         teamId: row.teamId,
-        agentSlug: TTS_SLUG,
+        // Real assistant slug when the thread is attached to one;
+        // `TTS_SLUG` is the sentinel fallback for unattached threads so
+        // the row still has an attribution key.
+        agentSlug: row.agentSlug ?? TTS_SLUG,
         model: args.modelId,
         provider: args.providerName,
         characterCount: args.characterCount,
@@ -493,16 +516,31 @@ export const markChunkReadyAndRecordUsage = internalMutation({
     // would mean 200 throwaway dispatches per long message, of which only
     // the first does any real work (the `cleanup:tts` limiter gates the
     // rest). Doing it once per message keeps the dispatcher backlog small.
+    //
+    // Wrapped in try/catch so a scheduler hiccup (queue full / unhealthy
+    // / quota) doesn't roll back the entire mutation. Without the catch,
+    // a scheduling failure aborts the ledger insert + status flip above,
+    // and the action's compensating `ctx.storage.delete` then drops the
+    // just-stored blob — every cleanup-dispatcher blip would surface as
+    // a silent chunk failure with no observable cause. Cleanup is best-
+    // effort; the daily `gcOrgTtsChunks` cron is the authoritative sweep.
     if (row.index === 0) {
-      await ctx.scheduler.runAfter(
-        0,
-        internal.tts.mutations.maybeCleanupChunks,
-        {
-          threadId: row.threadId,
-          olderThanMs: CHUNK_RETENTION_MS,
-          limit: CLEANUP_PASS_LIMIT,
-        },
-      );
+      try {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.tts.mutations.maybeCleanupChunks,
+          {
+            threadId: row.threadId,
+            olderThanMs: CHUNK_RETENTION_MS,
+            limit: CLEANUP_PASS_LIMIT,
+          },
+        );
+      } catch (err) {
+        console.warn(
+          '[tts.markReady] failed to schedule maybeCleanupChunks; daily cron will catch the backlog',
+          err,
+        );
+      }
     }
 
     return { stale: false };

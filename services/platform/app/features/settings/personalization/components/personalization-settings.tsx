@@ -86,10 +86,7 @@ function PersonalizationSettingsInner({
         prefs={prefs ?? null}
         organizationId={organizationId}
       />
-      <VoiceOutputSection
-        prefs={prefs ?? null}
-        organizationId={organizationId}
-      />
+      <VoiceOutputSection prefs={prefs} organizationId={organizationId} />
       <SavedMemoriesSection memories={approvedMemories ?? []} />
       <PendingMemoriesSection memories={pendingMemories ?? []} />
     </Stack>
@@ -254,13 +251,20 @@ function VoiceOutputSection({
   prefs,
   organizationId,
 }: {
-  prefs: Doc<'userPreferences'> | null;
+  // `undefined` is the convex `useQuery` loading state; `null` is the
+  // explicit "no userPreferences row exists" answer; otherwise the doc.
+  // Distinguishing the three matters because the previous collapse-to-null
+  // rendered the Switch unchecked during the loading window — a user tap
+  // in that window would write `false` to a row whose true value was
+  // `true`, silently flipping their setting.
+  prefs: Doc<'userPreferences'> | null | undefined;
   organizationId: string;
 }) {
   const { t } = useT('personalization');
   const { toast } = useToast();
   const setVoiceOutput = useMutation(api.tts.mutations.setUserVoiceOutput);
   const getCapability = useAction(api.tts.synthesize.getCapability);
+  const isLoading = prefs === undefined;
   const enabled = prefs?.voiceOutput === true;
   const [providerAvailable, setProviderAvailable] = useState<boolean | null>(
     null,
@@ -284,6 +288,11 @@ function VoiceOutputSection({
   return (
     <PageSection title={t('page.voiceOutput.label')} titleSize="base">
       <Switch
+        // Disable the control until `prefs` resolves so a tap during the
+        // loading window can't write `false` over a stored `true` (the
+        // previous bug). The disabled window is brief — a single Convex
+        // round-trip — and is preferable to a silent flip.
+        disabled={isLoading}
         checked={enabled}
         // Pass `label` so the Radix Switch root receives an accessible
         // name — without it the screen reader announces just "switch,
@@ -291,16 +300,17 @@ function VoiceOutputSection({
         // because it isn't programmatically associated with the control.
         label={t('page.voiceOutput.label')}
         description={t('page.voiceOutput.description')}
-        // Removed `disabled={providerAvailable === null}` — a slow or
-        // failing capability check would otherwise leave the user
-        // unable to turn voice off at all. The capability state is
-        // surfaced below as inline help, not as a hard gate.
-        aria-busy={providerAvailable === null}
+        // `disabled` above is gated only on `prefs` loading. The
+        // capability-check state is surfaced as inline help below
+        // rather than disabling the control — a slow / failing
+        // capability check would otherwise leave the user unable to
+        // turn voice off at all.
+        aria-busy={isLoading || providerAvailable === null}
         onCheckedChange={async (next) => {
           // Prime synchronously inside the gesture — the gesture token does
           // not survive the awaited mutation below, so playback from the
           // next streamed reply would otherwise hit NotAllowedError.
-          if (next) void primeAudio();
+          if (next) primeAudio();
           try {
             await setVoiceOutput({ organizationId, enabled: next });
             toast({ title: t('toasts.preferencesUpdated') });

@@ -83,6 +83,13 @@ export function useVoiceOutputPlayer(opts: {
   const nextIndexRef = useRef(0);
   const activeRef = useRef(false);
   const chunksRef = useRef<ChunkRecord[] | undefined>(undefined);
+  // Counter incremented every time the `<audio>` element emits an `error`
+  // for a ready chunk (decode failure, 404 on the audio route, etc.). When
+  // every ready chunk has failed and the message is no longer streaming,
+  // we surface a synthetic `AUDIO_DECODE` error code to the indicator so
+  // the user sees an actionable error instead of an inexplicable silence.
+  // Reset on every `play()` so retries don't inherit prior failures.
+  const decodeFailureCountRef = useRef(0);
   // Index of the chunk currently playing (or `null` when idle). Guards
   // against `tryAdvance()` restarting an in-flight chunk every time the
   // chunks subscription fires — without this, each new ready chunk that
@@ -96,6 +103,14 @@ export function useVoiceOutputPlayer(opts: {
   const mountTimeRef = useRef(Date.now());
   // One-shot guard so each (messageId, mount) pair auto-plays at most once.
   const hasAutoStartedRef = useRef(false);
+
+  // Mirrors `opts.isStreaming` into a ref so `tryAdvance` can branch on it
+  // without taking a dependency on the latest prop value (which would churn
+  // the callback identity and re-fire dependent effects on every token).
+  const isStreamingRef = useRef(opts.isStreaming);
+  useEffect(() => {
+    isStreamingRef.current = opts.isStreaming;
+  }, [opts.isStreaming]);
 
   const tryAdvanceRef = useRef<() => boolean>(() => false);
 
@@ -155,7 +170,18 @@ export function useVoiceOutputPlayer(opts: {
           // transfers to the same element that will actually play the
           // chunks. Falls back to a fresh `new Audio()` in environments
           // where the singleton couldn't be constructed (SSR, etc.).
-          audioRef.current = getPrimedAudioElement() ?? new Audio();
+          const primed = getPrimedAudioElement();
+          if (primed) {
+            audioRef.current = primed;
+          } else {
+            const fallback = new Audio();
+            // Match `getPrimedAudioElement()` so the fallback also plays
+            // in-line on iOS Safari (no full-screen takeover) and keeps
+            // bytes buffered across the chunked-swap path.
+            fallback.setAttribute('playsinline', '');
+            fallback.preload = 'auto';
+            audioRef.current = fallback;
+          }
         }
         const el = audioRef.current;
         detachAudioListeners();
@@ -167,14 +193,18 @@ export function useVoiceOutputPlayer(opts: {
           tryAdvanceRef.current();
         };
         const onError = () => {
-          // Decode / fetch failure on a chunk the server marked ready —
-          // skip it (the chunk row carries no errorCode in this case, so
-          // we only log; the indicator stays in its current state and the
-          // next chunk continues the playback).
+          // Decode / fetch failure on a chunk the server marked ready.
+          // Skip it (the chunk row carries no errorCode for this path
+          // because the server side succeeded). Bump the failure counter
+          // so we can surface a synthetic `AUDIO_DECODE` code via the
+          // indicator when every ready chunk in this run has failed —
+          // without it, a permanently broken audio response yields pure
+          // silence with no actionable signal for the user.
           console.warn(
             '[tts.player] audio element decode error; skipping chunk',
             chunk.index,
           );
+          decodeFailureCountRef.current += 1;
           detachAudioListeners();
           currentChunkIndexRef.current = null;
           nextIndexRef.current = chunk.index + 1;
@@ -200,7 +230,14 @@ export function useVoiceOutputPlayer(opts: {
             // StrictMode double-mount + cleanup races produce AbortError
             // when a previous `play()` is interrupted by `pause()` /
             // `src` swap. Not a user-facing failure — the new attempt
-            // takes over, no state change needed.
+            // takes over, no state change needed. Logged at debug so a
+            // genuine AbortError outside the StrictMode / handoff path
+            // would still leave a forensic trail (per CLAUDE.md
+            // no-empty-catch).
+            console.debug(
+              '[tts.player] play() aborted by cleanup race (benign)',
+              err,
+            );
           } else {
             console.error('[tts.player] play() rejected', err);
             setState('error');
@@ -231,7 +268,13 @@ export function useVoiceOutputPlayer(opts: {
     const target = list.find((c) => c.index === nextIndexRef.current);
     if (!target) {
       const maxIndex = list[list.length - 1].index;
-      if (nextIndexRef.current > maxIndex) {
+      // Only retire when we've run past the highest known index AND the
+      // message is no longer streaming. While streaming, the chunker may
+      // still emit `nextIndexRef.current` next; if we go idle here, the
+      // subscription effect at line 248 short-circuits on `!activeRef`
+      // and we never auto-resume — voice cuts out partway through any
+      // fast-network reply where playback catches up to the chunker.
+      if (nextIndexRef.current > maxIndex && !isStreamingRef.current) {
         activeRef.current = false;
         coordinator.release(stopRef.current);
         setState('idle');
@@ -252,11 +295,27 @@ export function useVoiceOutputPlayer(opts: {
     }
   }, [chunks, tryAdvance]);
 
+  // When streaming ends, re-run `tryAdvance` so a player parked at the
+  // streaming "wait for next chunk" gate can retire cleanly. Without this,
+  // a player that already passed the last index would stay in `'playing'`
+  // until the next chunks update (which may never come).
+  useEffect(() => {
+    if (!opts.isStreaming && activeRef.current) {
+      tryAdvance();
+    }
+  }, [opts.isStreaming, tryAdvance]);
+
   const play = useCallback(() => {
-    coordinator.claim(stopRef.current);
-    activeRef.current = true;
-    nextIndexRef.current = 0;
-    tryAdvance();
+    // Await coordinator handoff so the outgoing player's media-element
+    // teardown settles before this player reassigns `el.src`. Fire-and-
+    // forget: the surrounding click / auto-play handler doesn't need
+    // to await playback startup, only the claim handshake.
+    void coordinator.claim(stopRef.current).then(() => {
+      decodeFailureCountRef.current = 0;
+      activeRef.current = true;
+      nextIndexRef.current = 0;
+      tryAdvance();
+    });
   }, [coordinator, tryAdvance]);
 
   // Auto-play: fires once per (messageId, mount) only when a ready chunk
@@ -325,9 +384,25 @@ export function useVoiceOutputPlayer(opts: {
   // can branch on it (review H6a: surface chunk.error). Stored shape is
   // `"<CODE>: <detail>"` or just `<CODE>`; take the head.
   const failed = chunks?.find((c) => c.status === 'failed');
-  const errorCode = failed?.error
+  const chunkErrorCode = failed?.error
     ? failed.error.split(':')[0]?.trim() || undefined
     : undefined;
+
+  // Synthetic `AUDIO_DECODE` surfaces when every server-ready chunk
+  // failed on the client side (the `<audio>` element's `error` event
+  // fired for each). Only published once the message is no longer
+  // streaming AND at least one chunk failed; otherwise an in-flight
+  // streaming message that happens to have a transient decode glitch
+  // on one chunk would flash an error before the next chunk recovers.
+  const readyChunkCount =
+    chunks?.filter((c) => c.status === 'ready').length ?? 0;
+  const allDecodeFailed =
+    !opts.isStreaming &&
+    readyChunkCount > 0 &&
+    decodeFailureCountRef.current >= readyChunkCount;
+
+  const errorCode =
+    chunkErrorCode ?? (allDecodeFailed ? 'AUDIO_DECODE' : undefined);
 
   const hasAudio = (chunks?.length ?? 0) > 0;
 

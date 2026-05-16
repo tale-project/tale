@@ -42,13 +42,22 @@ export const ttsAudioChunksTable = defineTable({
   // Team attribution captured at reserve time so the ledger row carries
   // team budget context. Mirrors the optional `teamId` on `usageLedger`.
   teamId: v.optional(v.string()),
+  // Agent slug captured at reserve time so per-assistant voice cost rolls
+  // up correctly in `topAgents` / `topModels`. Optional because legacy
+  // rows pre-date this field and threads without an attached agent simply
+  // omit it (ledger writer falls back to the `TTS_SLUG` sentinel).
+  agentSlug: v.optional(v.string()),
   index: v.number(),
   text: v.string(),
   storageId: v.optional(v.id('_storage')),
-  // Pre-resolved storage URL. Set when the row flips to `'ready'` so the
-  // subscriber query (`getMessageChunks`) doesn't have to call
-  // `ctx.storage.getUrl` on every tick — a long message of N chunks would
-  // otherwise pay O(N) storage round-trips per subscription tick.
+  /**
+   * @deprecated Retained for back-compat on existing rows; not written by
+   * current code. Subscribers fetch audio via the `/api/tts-audio` HTTP
+   * route keyed by `chunkId`, which is authenticated per-request rather
+   * than handing out a bearer-replayable storage URL. Kept on the schema
+   * (optional) so rows written before the field was retired still pass
+   * the read validator.
+   */
   audioUrl: v.optional(v.string()),
   status: v.union(
     v.literal('pending'),
@@ -64,9 +73,15 @@ export const ttsAudioChunksTable = defineTable({
   // so a slow action holding the prior token can't land its write on the
   // refreshed row. Optional because legacy rows pre-date this field.
   attemptCreatedAt: v.optional(v.number()),
-  // Wall-clock timestamp of the successful ledger write. Lets a retry
-  // detect partial-completion (storage stored but ledger never written)
-  // and avoid double-billing.
+  /**
+   * Wall-clock timestamp of the successful ledger write. Currently
+   * informational only: idempotency is enforced by `status === 'pending'`
+   * + `attemptCreatedAt` identity, not by consulting this field. Retained
+   * on the schema so the per-message char-cap aggregator (see
+   * `reserveChunk`) can cheaply distinguish "failed but never billed"
+   * rows from "failed after billing" — only the latter contribute to the
+   * cap.
+   */
   usageRecordedAt: v.optional(v.number()),
   locale: v.string(),
   voice: v.optional(v.string()),

@@ -342,12 +342,20 @@ export function checkRuleAgainstUsage(
 }
 
 /**
- * Collect warnings for usage that exceeds the warning threshold but is still allowed.
+ * Collect warnings for usage that exceeds the warning threshold but is still
+ * allowed. The cost-warning includes `prospectiveCostCents` in the
+ * projection so a TTS chunk that would push usage past the warning
+ * threshold (but stays under the hard cap) emits a `COST_WARNING` — without
+ * the projection, the warning UX silently drops for exactly the parallel-
+ * chunks scenario the prospective add was introduced to fix. Token /
+ * request warnings are unchanged because no caller plumbs prospective
+ * tokens or requests.
  */
 function collectWarnings(
   limits: EffectiveLimits,
   usage: UsageTotals,
   period: string,
+  prospectiveCostCents: number = 0,
 ): BudgetWarning[] {
   const threshold = limits.warningThresholdPercent;
   if (threshold == null) return [];
@@ -368,12 +376,13 @@ function collectWarnings(
   }
 
   if (limits.maxCostCents != null) {
-    const percent = (usage.costEstimate / limits.maxCostCents) * 100;
-    if (percent >= threshold && usage.costEstimate < limits.maxCostCents) {
+    const projectedCost = usage.costEstimate + prospectiveCostCents;
+    const percent = (projectedCost / limits.maxCostCents) * 100;
+    if (percent >= threshold && projectedCost < limits.maxCostCents) {
       warnings.push({
         code: 'COST_WARNING',
         period,
-        used: usage.costEstimate,
+        used: projectedCost,
         limit: limits.maxCostCents,
         percent: Math.round(percent),
       });
@@ -496,7 +505,9 @@ export async function checkBudget(
     }
 
     // Collect warnings for approaching limits
-    allWarnings.push(...collectWarnings(limits, userUsage, period));
+    allWarnings.push(
+      ...collectWarnings(limits, userUsage, period, prospectiveCostCents),
+    );
 
     // Check team aggregate usage when limits came from team-scoped rules
     for (const teamId of limits.effectiveTeamIds) {

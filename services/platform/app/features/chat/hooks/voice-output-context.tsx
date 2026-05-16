@@ -24,14 +24,21 @@ import {
 type Stopper = () => void;
 
 interface VoiceOutputCoordinator {
-  /** Make `stopper` the active player; preempts the previous active. */
-  claim(stopper: Stopper): void;
+  /** Make `stopper` the active player; preempts the previous active.
+   * Returns a Promise that resolves after the outgoing stopper has run
+   * AND one microtask has elapsed — the microtask gap lets the outgoing
+   * player's `pause()`/`load()` settle the prior `play()` Promise on the
+   * shared singleton `<audio>` element before the incoming player swaps
+   * `src` and calls `play()` again. Without this, WebKit can conflate
+   * the pause+src-swap+play into one task and reject the *new* play()
+   * with AbortError, leaving the indicator in `'playing'` but silent. */
+  claim(stopper: Stopper): Promise<void>;
   /** Detach `stopper` only if it is currently active. */
   release(stopper: Stopper): void;
 }
 
 const noopCoordinator: VoiceOutputCoordinator = {
-  claim: () => {},
+  claim: () => Promise.resolve(),
   release: () => {},
 };
 
@@ -44,13 +51,17 @@ const VoiceOutputContext = createContext(noopCoordinator);
  */
 export function VoiceOutputProvider({ children }: { children: ReactNode }) {
   const activeRef = useRef<Stopper | null>(null);
-  const claim = useCallback((stopper: Stopper) => {
+  const claim = useCallback(async (stopper: Stopper) => {
     if (activeRef.current && activeRef.current !== stopper) {
       try {
         activeRef.current();
       } catch (err) {
         console.warn('[voice-output] previous stopper threw', err);
       }
+      // Yield one microtask so the outgoing player's media-element
+      // teardown settles before the new player touches the shared
+      // singleton element.
+      await Promise.resolve();
     }
     activeRef.current = stopper;
   }, []);

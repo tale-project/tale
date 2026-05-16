@@ -2069,10 +2069,11 @@
       "voiceOutputLoading": "Préparation de la voix…",
       "voiceOutputBlocked": "Lecture vocale bloquée — touche pour lire",
       "voiceOutputError": "Échec de la sortie vocale",
-      "voiceOutputErrorProvider": "Fournisseur vocal non configuré — ouvre Paramètres → Fournisseurs d'IA",
+      "voiceOutputErrorProvider": "Fournisseur vocal non configuré — ouvre Paramètres → Fournisseurs IA",
       "voiceOutputErrorRateLimited": "Limite vocale atteinte — nouvelle tentative en cours",
       "voiceOutputErrorBudget": "Budget vocal épuisé pour cette période",
-      "voiceOutputErrorTransient": "Service vocal indisponible — nouvelle tentative en cours"
+      "voiceOutputErrorTransient": "Service vocal indisponible — nouvelle tentative en cours",
+      "voiceOutputErrorDecode": "Lecture audio impossible — touche pour réessayer"
     },
     "searchChat": "Rechercher dans le chat",
     "hideSearch": "Masquer la recherche",
@@ -2357,7 +2358,7 @@
     "errorHintContentFilter": "Le message a été signalé par le filtre de contenu. Essaie de reformuler ton message.",
     "errorHintContextLength": "La conversation est trop longue pour la fenêtre de contexte du modèle. Essaie de démarrer un nouveau chat.",
     "errorHintCreditExhausted": "Le plafond de crédits du fournisseur d'IA a été dépassé. Contacte ton administrateur pour ajouter des crédits.",
-    "errorHintMissingApiKey": "Aucune clé API n'est encore configurée pour cette organisation. Ouvre Paramètres → Fournisseurs d'IA et ajoute-en une pour commencer à discuter.",
+    "errorHintMissingApiKey": "Aucune clé API n'est encore configurée pour cette organisation. Ouvre Paramètres → Fournisseurs IA et ajoute-en une pour commencer à discuter.",
     "errorHintModelNotFound": "Le modèle sélectionné est introuvable ou indisponible. Contacte ton administrateur.",
     "errorHintProviderError": "Le fournisseur d'IA rencontre temporairement des problèmes. Merci de réessayer dans un instant.",
     "errorHintRateLimited": "Trop de requêtes. Merci de patienter un moment et réessayer.",
@@ -4574,6 +4575,7 @@
       "directApi": "Appel API direct",
       "integration": "Intégration",
       "transcription": "Transcription",
+      "tts": "Sortie vocale",
       "period": {
         "label": "Période",
         "last7Days": "7 derniers jours",

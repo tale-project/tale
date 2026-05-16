@@ -9,7 +9,7 @@ Voice output reads the assistant's replies aloud as they stream. It synthesises 
 
 Voice output is off by default. There are two places to control it:
 
-- **Per-thread toggle.** A speaker icon next to the model selector in the chat header. Click cycles through three states: _follow default_ (your global preference), _explicitly on_ (this thread only), and _explicitly off_ (this thread only).
+- **Per-thread toggle.** A speaker icon in the chat header (top-right, next to Share). Click cycles through three states: _follow default_ (your global preference), _explicitly on_ (this thread only), and _explicitly off_ (this thread only).
 - **Global default.** In **Settings → Personalization → Voice output**, switch the default on. New conversations will speak replies until you override them in the chat header.
 
 The first time you turn voice on in a session, the click also unlocks the browser's audio system. Without that gesture, mobile Safari and stricter Chromium builds will refuse to play synthesised audio automatically, and the indicator on each message will show "Voice playback blocked — tap to play" until you tap.
@@ -41,7 +41,7 @@ If you switch threads mid-playback, audio stops cleanly. Past assistant messages
 | Amber speaker, "Tap to play" | Browser blocked autoplay. Tap the indicator to start playback.                                                                                   |
 | Red alert icon, "…failed"    | Synthesis errored on every retry. Hover for the classified reason (no provider, rate-limited, budget reached, transient outage). Click to retry. |
 
-Transient errors (rate-limit, brief 5xx, timeout) auto-retry up to two times with exponential backoff. Terminal errors (no provider configured, bad credentials, budget exceeded) do not retry; the indicator surfaces them with a tooltip and the assistant text remains readable on-screen.
+Rate-limit and rate-limiter contention errors auto-retry up to two times with exponential backoff. Provider 5xx, timeout, and other errors (no provider configured, bad credentials, budget exceeded) do not auto-retry; the indicator surfaces them with a tooltip and you tap to retry. The assistant text remains readable on-screen.
 
 ## Cost and quota
 

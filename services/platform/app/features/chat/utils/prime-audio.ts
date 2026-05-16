@@ -7,7 +7,7 @@
  * priming, the first chunk that arrives over the streaming TTS pipeline
  * would reject with `NotAllowedError`.
  *
- * The round-2 review found two related defects in the prior
+ * The round-2 review found three related defects in the prior
  * silent-muted-WAV approach:
  *
  *  1. **`muted = true` plus 0-sample data is a no-op on WebKit**. iOS
@@ -40,6 +40,7 @@ interface AudioContextGlobals {
 
 function getOrCreateContext(): AudioContext | null {
   if (typeof window === 'undefined') return null;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- feature-detect WebKit's prefixed constructor; `AudioContextGlobals` only marks both as optional
   const globals = window as unknown as AudioContextGlobals;
   const Ctor = globals.AudioContext ?? globals.webkitAudioContext;
   if (!Ctor) return null;
@@ -54,30 +55,30 @@ function getOrCreateContext(): AudioContext | null {
 }
 
 /**
- * Consume the current user-activation token by resuming a WebAudio
- * context and scheduling a single zero-gain buffer source. Must be
- * called synchronously inside a user-gesture handler — moving it after
- * an `await` loses the activation.
+ * Consume the current user-activation token by scheduling a zero-gain
+ * `BufferSource` and (asynchronously) resuming the WebAudio context.
+ *
+ * **Must run synchronously through `source.start()`**: WebKit consumes
+ * the user-activation token at the first `await`, so any work that
+ * needs the token (notably `source.start()`) must be scheduled before
+ * any `await` is reached. The `ctx.resume()` call is fire-and-forget
+ * at the end — its promise is allowed to settle whenever, since the
+ * activation was already banked by the synchronous source-start above.
  *
  * Safe to call multiple times: resuming an already-running context is
- * a no-op, and the zero-gain source is too short to produce audible
- * artifacts. The returned promise resolves when the prime succeeds,
- * rejects when the browser refuses (no remedy here — the player will
- * fall back to `'blocked'` and a real gesture on the indicator).
+ * a no-op, and the 1-sample zero-gain source is inaudible.
  */
-export async function primeAudio(): Promise<void> {
+export function primeAudio(): void {
   const ctx = getOrCreateContext();
   if (!ctx) return;
   try {
-    if (ctx.state === 'suspended') {
-      await ctx.resume();
-    }
     // Pre-warm the singleton playback element inside the same gesture
     // so the activation token transfers when the player picks it up.
     getPrimedAudioElement();
-    // Schedule a zero-gain buffer source to confirm WebKit accepts the
-    // unlock. The 1-sample source is short enough to be inaudible even
-    // before the gain node clamps it.
+    // Schedule a zero-gain buffer source synchronously to bank the
+    // activation. WebKit accepts a started `BufferSource` as a
+    // legitimate audio start even on a suspended context (the schedule
+    // queues against `currentTime` and plays once the context resumes).
     const buffer = ctx.createBuffer(1, 1, 22050);
     const source = ctx.createBufferSource();
     source.buffer = buffer;
@@ -87,6 +88,14 @@ export async function primeAudio(): Promise<void> {
     gain.connect(ctx.destination);
     source.start();
     source.stop(ctx.currentTime + 0.001);
+    // Fire-and-forget resume. MUST NOT be awaited above the source
+    // schedule: an `await` here drops the activation on WebKit and
+    // the unlock silently fails.
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch((err) => {
+        console.warn('[tts.prime] resume rejected', err);
+      });
+    }
   } catch (err) {
     console.warn('[tts.prime] silent prime rejected', err);
   }

@@ -23,13 +23,15 @@ interface UsageLedgerDiscriminators {
 
 // Classify a usageLedger row by precedence over its natural discriminators.
 // Order matters: integrationName beats audioDurationSec because a hypothetical
-// audio-bearing integration is still an integration row first.
+// audio-bearing integration is still an integration row first. TTS rows are
+// identified by `characterCount` alone — character-billing is unique to TTS
+// in the current schema, so the discriminator works regardless of whether
+// the row carries the synthetic `TTS_SLUG` (legacy) or a real assistant
+// `agentSlug` (post per-assistant-attribution).
 export function classifyUsageRow(row: UsageLedgerDiscriminators): UsageRowKind {
   if (row.integrationName !== undefined) return 'integration';
   if (row.audioDurationSec !== undefined) return 'transcription';
-  if (row.characterCount !== undefined && row.agentSlug === TTS_SLUG) {
-    return 'tts';
-  }
+  if (row.characterCount !== undefined) return 'tts';
   return 'llm';
 }
 

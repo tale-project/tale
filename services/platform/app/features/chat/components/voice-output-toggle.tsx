@@ -48,7 +48,7 @@ export function VoiceOutputToggle({
           ? false
           : null;
     // Only prime when we're about to flip voice ON for this thread.
-    if (willEnable === true) void primeAudio();
+    if (willEnable === true) primeAudio();
     if (effective.source !== 'thread') {
       void setOverride({ threadId, override: !effective.enabled });
       return;

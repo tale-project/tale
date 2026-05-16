@@ -2072,7 +2072,8 @@
       "voiceOutputErrorProvider": "Voice provider not configured — open Settings → AI providers",
       "voiceOutputErrorRateLimited": "Voice rate limit hit — retrying",
       "voiceOutputErrorBudget": "Voice budget reached for this period",
-      "voiceOutputErrorTransient": "Voice service unavailable — retrying"
+      "voiceOutputErrorTransient": "Voice service unavailable — retrying",
+      "voiceOutputErrorDecode": "Could not play voice audio — tap to retry"
     },
     "searchChat": "Search chat",
     "hideSearch": "Hide search",
@@ -4550,6 +4551,7 @@
       "directApi": "Direct API",
       "integration": "Integration",
       "transcription": "Transcription",
+      "tts": "Voice output",
       "period": {
         "label": "Period",
         "last7Days": "Last 7 days",

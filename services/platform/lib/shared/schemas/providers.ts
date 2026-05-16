@@ -215,70 +215,67 @@ export const audioFormatLiterals = [
 ] as const;
 export type AudioFormat = (typeof audioFormatLiterals)[number];
 
-const modelDefinitionSchema = z
-  .object({
-    id: z.string().min(1).max(200),
-    displayName: z.string().min(1).max(200),
-    description: z.string().max(1000).optional(),
-    tags: z.array(modelTagSchema).min(1),
-    dimensions: z.number().int().positive().optional(),
-    maxOutputTokens: z.number().int().positive().optional(),
-    supportsStructuredOutputs: z.boolean().optional(),
-    fallbackModelId: z.string().min(1).max(200).optional(),
-    baseUrl: z.string().url().optional(),
-    imageGenerationMode: imageGenerationModeSchema.optional(),
-    cost: z
-      .object({
-        inputCentsPerMillion: z.number().nonnegative().finite().optional(),
-        outputCentsPerMillion: z.number().nonnegative().finite().optional(),
-        /**
-         * For image-generation models that charge per image rather than per
-         * token. When set, cost tracking for this model uses
-         * `imageCount * imageCentsPerImage` directly, bypassing token math.
-         */
-        imageCentsPerImage: z.number().nonnegative().finite().optional(),
-        /**
-         * For transcription models billed per minute of audio (e.g. OpenAI
-         * whisper-1 at $0.006/min = 0.6). Used by
-         * `estimateTranscriptionCostCents` to compute ledger entries.
-         */
-        centsPerAudioMinute: z.number().nonnegative().finite().optional(),
-        /**
-         * For text-to-speech models billed per character of input text
-         * (e.g. OpenAI tts-1 at $15/M chars = 1500). When the upstream
-         * meter is per-token (e.g. gpt-4o-mini-tts), operators supply a
-         * char-approximation here; the value is used directly by
-         * `estimateTtsCostCents` without conversion.
-         */
-        centsPerMillionCharacters: z.number().nonnegative().finite().optional(),
-      })
-      .strict()
-      .optional(),
-    /**
-     * Default voice for TTS models when no locale-specific voice matches.
-     */
-    defaultVoice: z.string().min(1).max(100).optional(),
-    /**
-     * Locale → voice mapping for TTS models. Keys are BCP-47 codes or base
-     * language codes; resolver tries the full locale first, then the base.
-     */
-    voicesByLocale: z
-      .record(
-        z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/),
-        z.string().min(1).max(100),
-      )
-      .optional(),
-    /**
-     * Output audio format for TTS models. Defaults to mp3 when omitted.
-     * `pcm` is raw 24 kHz mono int16 — choose only when the client can
-     * play `audio/L16; rate=24000` (most browsers can; some older Safari
-     * cannot). `opus` is served as Ogg-Opus container, supported on
-     * macOS 14+ / iOS 17+ Safari.
-     */
-    audioFormat: z.enum(audioFormatLiterals).optional(),
-    providerOptions: providerOptionsSchema,
-  })
-  .strict();
+const modelDefinitionSchema = z.object({
+  id: z.string().min(1).max(200),
+  displayName: z.string().min(1).max(200),
+  description: z.string().max(1000).optional(),
+  tags: z.array(modelTagSchema).min(1),
+  dimensions: z.number().int().positive().optional(),
+  maxOutputTokens: z.number().int().positive().optional(),
+  supportsStructuredOutputs: z.boolean().optional(),
+  fallbackModelId: z.string().min(1).max(200).optional(),
+  baseUrl: z.string().url().optional(),
+  imageGenerationMode: imageGenerationModeSchema.optional(),
+  cost: z
+    .object({
+      inputCentsPerMillion: z.number().nonnegative().finite().optional(),
+      outputCentsPerMillion: z.number().nonnegative().finite().optional(),
+      /**
+       * For image-generation models that charge per image rather than per
+       * token. When set, cost tracking for this model uses
+       * `imageCount * imageCentsPerImage` directly, bypassing token math.
+       */
+      imageCentsPerImage: z.number().nonnegative().finite().optional(),
+      /**
+       * For transcription models billed per minute of audio (e.g. OpenAI
+       * whisper-1 at $0.006/min = 0.6). Used by
+       * `estimateTranscriptionCostCents` to compute ledger entries.
+       */
+      centsPerAudioMinute: z.number().nonnegative().finite().optional(),
+      /**
+       * For text-to-speech models billed per character of input text
+       * (e.g. OpenAI tts-1 at $15/M chars = 1500). When the upstream
+       * meter is per-token (e.g. gpt-4o-mini-tts), operators supply a
+       * char-approximation here; the value is used directly by
+       * `estimateTtsCostCents` without conversion.
+       */
+      centsPerMillionCharacters: z.number().nonnegative().finite().optional(),
+    })
+    .optional(),
+  /**
+   * Default voice for TTS models when no locale-specific voice matches.
+   */
+  defaultVoice: z.string().min(1).max(100).optional(),
+  /**
+   * Locale → voice mapping for TTS models. Keys are BCP-47 codes or base
+   * language codes; resolver tries the full locale first, then the base.
+   */
+  voicesByLocale: z
+    .record(
+      z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/),
+      z.string().min(1).max(100),
+    )
+    .optional(),
+  /**
+   * Output audio format for TTS models. Defaults to mp3 when omitted.
+   * `pcm` is raw 24 kHz mono int16 — choose only when the client can
+   * play `audio/L16; rate=24000` (most browsers can; some older Safari
+   * cannot). `opus` is served as Ogg-Opus container, supported on
+   * macOS 14+ / iOS 17+ Safari.
+   */
+  audioFormat: z.enum(audioFormatLiterals).optional(),
+  providerOptions: providerOptionsSchema,
+});
 
 export type ModelDefinition = z.infer<typeof modelDefinitionSchema>;
 
@@ -335,23 +332,24 @@ export const providerJsonSchema = z
       .optional(),
   })
   .superRefine((data, ctx) => {
-    if (!data.defaults) return;
-    const modelMap = new Map(data.models.map((m) => [m.id, m]));
-    for (const [tag, modelId] of Object.entries(data.defaults)) {
-      if (modelId === undefined) continue;
-      const model = modelMap.get(modelId);
-      if (!model) {
-        ctx.addIssue({
-          code: 'custom',
-          message: `defaults.${tag} references unknown model "${modelId}"`,
-          path: ['defaults', tag],
-        });
-      } else if (!(model.tags as readonly string[]).includes(tag)) {
-        ctx.addIssue({
-          code: 'custom',
-          message: `defaults.${tag} references model "${modelId}" which lacks the "${tag}" tag`,
-          path: ['defaults', tag],
-        });
+    if (data.defaults) {
+      const modelMap = new Map(data.models.map((m) => [m.id, m]));
+      for (const [tag, modelId] of Object.entries(data.defaults)) {
+        if (modelId === undefined) continue;
+        const model = modelMap.get(modelId);
+        if (!model) {
+          ctx.addIssue({
+            code: 'custom',
+            message: `defaults.${tag} references unknown model "${modelId}"`,
+            path: ['defaults', tag],
+          });
+        } else if (!(model.tags as readonly string[]).includes(tag)) {
+          ctx.addIssue({
+            code: 'custom',
+            message: `defaults.${tag} references model "${modelId}" which lacks the "${tag}" tag`,
+            path: ['defaults', tag],
+          });
+        }
       }
     }
     // Cross-field check (M5): every model tagged `'text-to-speech'` must
@@ -359,7 +357,10 @@ export const providerJsonSchema = z
     // `voicesByLocale` — otherwise `resolveTtsModel` throws `UNKNOWN_VOICE`
     // at first synthesis and the config bug surfaces only after a user
     // action. Catching it at config-load time gives operators an
-    // immediate, actionable error.
+    // immediate, actionable error. Runs regardless of whether `defaults`
+    // is present — the previous early-return on `!data.defaults`
+    // bypassed this check for providers that don't pin a default
+    // text-to-speech model.
     for (const model of data.models) {
       if (!(model.tags as readonly string[]).includes('text-to-speech')) {
         continue;

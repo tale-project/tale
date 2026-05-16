@@ -196,6 +196,26 @@ http.route({
       return new Response('Unauthenticated', { status: 401 });
     }
 
+    // Mirror the `/storage` route: an authenticated user could otherwise
+    // hammer this path to force unbounded `ctx.storage.get` reads on rows
+    // they're already entitled to see. Cost-only protection (no data
+    // leak — membership is still gated by `getChunkForServe`).
+    const trusted = await loadTrustedProxies(ctx);
+    const ip = getClientIp(req.headers, trusted);
+    try {
+      await checkIpRateLimit(ctx, 'security:tts-audio-fetch', ip);
+    } catch (error) {
+      if (error instanceof RateLimitExceededError) {
+        return new Response('Rate limit exceeded', {
+          status: 429,
+          headers: {
+            'Retry-After': String(Math.ceil(error.retryAfter / 1000)),
+          },
+        });
+      }
+      throw error;
+    }
+
     const chunk = await ctx.runQuery(internal.tts.queries.getChunkForServe, {
       chunkId,
       userId: identity.subject,

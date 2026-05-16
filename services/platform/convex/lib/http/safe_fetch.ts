@@ -289,8 +289,15 @@ export async function safeFetch(
     try {
       const ownHost = new URL(rawUrl).hostname.toLowerCase();
       if (ownHost) allowedHosts = [ownHost];
-    } catch {
-      // let validateUrl surface the invalid-URL error below
+    } catch (err) {
+      // Intentional swallow: `validateUrl` below produces the canonical
+      // `invalid_url` SafeFetchError for malformed URLs. The debug log
+      // keeps a forensic trail per CLAUDE.md's no-silent-swallow rule
+      // without trying to recover here.
+      console.debug(
+        '[safe_fetch] auto-allowlist URL parse failed; deferring to validateUrl',
+        err,
+      );
     }
   }
 
@@ -400,8 +407,15 @@ export async function safeFetchBinary(
     try {
       const ownHost = new URL(rawUrl).hostname.toLowerCase();
       if (ownHost) allowedHosts = [ownHost];
-    } catch {
-      // let validateUrl surface the invalid-URL error below
+    } catch (err) {
+      // Intentional swallow: `validateUrl` below produces the canonical
+      // `invalid_url` SafeFetchError for malformed URLs. The debug log
+      // keeps a forensic trail per CLAUDE.md's no-silent-swallow rule
+      // without trying to recover here.
+      console.debug(
+        '[safe_fetch] auto-allowlist URL parse failed; deferring to validateUrl',
+        err,
+      );
     }
   }
 

@@ -6,12 +6,12 @@ import type { MutationCtx } from '../_generated/server';
 const PAGE_SIZE = 200;
 // 7 days — matches the retention contract documented on `ttsAudioChunks`.
 const CHUNK_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
-// Per-run budget for the daily org sweep. Convex hard-kills mutations at
-// the 1-minute timeout, so an unbounded sweep on a single org would never
-// finish. 50 organisations × 1000 rows each is well under the budget and
-// covers the largest realistic backlog for the demo deployment.
+// Per-run budget for the daily org sweep. Convex mutations have a ~16K
+// document-read budget and a 1-minute timeout. MAX_ORGS_PER_RUN ×
+// (1 probe + ROWS_PER_ORG_PER_RUN) must stay well under 16K.
+// 50 × (1 + 200) = ~10K reads — comfortable margin.
 const MAX_ORGS_PER_RUN = 50;
-const ROWS_PER_ORG_PER_RUN = 1000;
+const ROWS_PER_ORG_PER_RUN = 200;
 
 /**
  * Delete every TTS chunk row and `_storage` blob owned by the listed
@@ -123,6 +123,13 @@ export async function cascadeOnTtsForMemberRemoved(
  * existed: queries cannot call `ctx.scheduler`, so the only GC trigger was
  * `markChunkReady` (write path). Threads that synthesize once and then go
  * idle never get their old rows reaped without this cron.
+ *
+ * Two-phase shape so we never burn the 16K mutation read budget on rows we
+ * don't intend to touch:
+ *   1. Probe `.first()` on `by_org_createdAt` with `gt(organizationId, ...)`
+ *      to advance to the next distinct org. One row read per org found.
+ *   2. Per-org indexed query bounded by `lt(createdAt, cutoff)` plus
+ *      `.take(ROWS_PER_ORG_PER_RUN)` so fresh rows never load.
  */
 export const gcOrgTtsChunks = internalMutation({
   args: {},
@@ -132,40 +139,42 @@ export const gcOrgTtsChunks = internalMutation({
   }),
   handler: async (ctx) => {
     const cutoff = Date.now() - CHUNK_RETENTION_MS;
-    const seenOrgs = new Set<string>();
     let orgsScanned = 0;
     let rowsDeleted = 0;
 
-    // Iterate by `by_org_createdAt` — sorted by `(organizationId, createdAt)`
-    // — so all of an org's rows arrive consecutively. We stop after the
-    // first MAX_ORGS_PER_RUN unique orgs are processed.
-    let perOrgRemaining = ROWS_PER_ORG_PER_RUN;
-    let currentOrg: string | null = null;
+    let cursor: string | undefined;
+    while (orgsScanned < MAX_ORGS_PER_RUN) {
+      const probe = await ctx.db
+        .query('ttsAudioChunks')
+        .withIndex('by_org_createdAt', (q) =>
+          cursor === undefined ? q : q.gt('organizationId', cursor),
+        )
+        .first();
+      if (!probe) break;
+      const orgId = probe.organizationId;
+      orgsScanned += 1;
+      cursor = orgId;
 
-    for await (const row of ctx.db.query('ttsAudioChunks')) {
-      if (row.organizationId !== currentOrg) {
-        if (!seenOrgs.has(row.organizationId)) {
-          if (seenOrgs.size >= MAX_ORGS_PER_RUN) break;
-          seenOrgs.add(row.organizationId);
-          orgsScanned = seenOrgs.size;
+      const stale = await ctx.db
+        .query('ttsAudioChunks')
+        .withIndex('by_org_createdAt', (q) =>
+          q.eq('organizationId', orgId).lt('createdAt', cutoff),
+        )
+        .take(ROWS_PER_ORG_PER_RUN);
+      for (const row of stale) {
+        if (row.storageId) {
+          try {
+            await ctx.storage.delete(row.storageId);
+          } catch (err) {
+            console.warn('[tts.gcOrgTtsChunks] storage.delete failed', err);
+          }
         }
-        currentOrg = row.organizationId;
-        perOrgRemaining = ROWS_PER_ORG_PER_RUN;
+        await ctx.db.delete(row._id);
+        rowsDeleted += 1;
       }
-      if (perOrgRemaining <= 0) continue;
-      if (row.createdAt >= cutoff) continue;
-      if (row.storageId) {
-        try {
-          await ctx.storage.delete(row.storageId);
-        } catch (err) {
-          console.warn('[tts.gcOrgTtsChunks] storage.delete failed', err);
-        }
-      }
-      await ctx.db.delete(row._id);
-      rowsDeleted += 1;
-      perOrgRemaining -= 1;
     }
 
+    console.info('[tts.gcOrgTtsChunks] done', { orgsScanned, rowsDeleted });
     return { orgsScanned, rowsDeleted };
   },
 });

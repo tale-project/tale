@@ -98,24 +98,32 @@ export function VoiceOutputIndicator(props: VoiceOutputIndicatorProps) {
     icon = <Volume2 className="size-4" />;
   }
 
+  // The surrounding `<ChatMessages>` already wraps the message stream in a
+  // `role="log" aria-live="polite"` region. Nesting another `aria-live`
+  // span here caused screen readers to over-announce: every state flip on
+  // every assistant bubble fired through the parent log too, multiplied
+  // by the number of mounted indicators. The button's `aria-label` plus
+  // `aria-pressed` already convey the interactive state on focus; the
+  // tooltip surfaces the human-readable label on hover.
   return (
-    <>
-      <Tooltip content={label} side="bottom">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="p-1"
-          aria-label={actionLabel}
-          aria-pressed={speaking}
-          onClick={onClick}
-        >
-          {icon}
-        </Button>
-      </Tooltip>
-      <span className="sr-only" aria-live="polite">
-        {label}
-      </span>
-    </>
+    <Tooltip content={label} side="bottom">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="p-1"
+        aria-label={actionLabel}
+        aria-pressed={speaking}
+        // While the loading branch is active, `onClick` is a no-op. Mark
+        // the button disabled so SR / keyboard users don't activate an
+        // inert affordance (WCAG 4.1.2 Name/Role/Value). Visual styling
+        // continues to show the spinner.
+        disabled={showLoading}
+        aria-busy={showLoading}
+        onClick={onClick}
+      >
+        {icon}
+      </Button>
+    </Tooltip>
   );
 }
 
@@ -136,6 +144,11 @@ function errorMessageForCode(
     case 'TIMEOUT':
     case 'PROVIDER_5XX':
       return t('voice.voiceOutputErrorTransient');
+    // Synthetic client-side code raised by use-voice-output-player when
+    // every server-ready chunk's `<audio>` element decode/fetch failed —
+    // distinct from the server-classified codes above.
+    case 'AUDIO_DECODE':
+      return t('voice.voiceOutputErrorDecode');
     case 'PROVIDER_4XX':
     case 'HOST_POLICY':
     case 'PROVIDER_ERROR':

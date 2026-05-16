@@ -2072,7 +2072,8 @@
       "voiceOutputErrorProvider": "Sprach-Anbieter nicht konfiguriert — öffne Einstellungen → KI-Anbieter",
       "voiceOutputErrorRateLimited": "Sprach-Limit erreicht — neuer Versuch läuft",
       "voiceOutputErrorBudget": "Sprach-Budget für diesen Zeitraum aufgebraucht",
-      "voiceOutputErrorTransient": "Sprach-Dienst nicht erreichbar — neuer Versuch läuft"
+      "voiceOutputErrorTransient": "Sprach-Dienst nicht erreichbar — neuer Versuch läuft",
+      "voiceOutputErrorDecode": "Audio konnte nicht abgespielt werden — tippe zum erneuten Versuch"
     },
     "searchChat": "Chat durchsuchen",
     "hideSearch": "Suche ausblenden",
@@ -4550,6 +4551,7 @@
       "directApi": "Direkter API-Aufruf",
       "integration": "Integration",
       "transcription": "Transkription",
+      "tts": "Sprachausgabe",
       "period": {
         "label": "Zeitraum",
         "last7Days": "Letzte 7 Tage",
@@ -4792,7 +4794,7 @@
       },
       "voiceOutput": {
         "label": "Sprachausgabe (Standard)",
-        "description": "Wenn aktiviert, werden Antworten in neuen Chats in deiner Oberflächensprache vorgelesen. Im Chat-Header kannst du die Sprachausgabe weiterhin separat ein- oder ausschalten.",
+        "description": "Wenn aktiviert, werden Antworten in neuen Chats in deiner Oberflächensprache vorgelesen. In der Chat-Kopfzeile kannst du die Sprachausgabe weiterhin separat ein- oder ausschalten.",
         "providerUnavailable": "Kein Text-zu-Sprache-Anbieter konfiguriert. Sprachausgabe steht erst zur Verfügung, wenn ein Admin unter Einstellungen → KI-Anbieter ein TTS-Modell hinzufügt.",
         "configureProvider": "Anbieter einrichten"
       },

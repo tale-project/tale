@@ -114,6 +114,90 @@ describe('providerJsonSchema', () => {
       });
       expect(result.success).toBe(false);
     });
+
+    it('rejects a TTS model with neither defaultVoice nor voicesByLocale', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        models: [
+          {
+            id: 'tts/v1',
+            displayName: 'TTS v1',
+            tags: ['text-to-speech'],
+          },
+        ],
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(
+          result.error.issues.some((i) => i.message.includes('defaultVoice')),
+        ).toBe(true);
+      }
+    });
+
+    it('rejects a TTS model with empty voicesByLocale and no defaultVoice', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        models: [
+          {
+            id: 'tts/v1',
+            displayName: 'TTS v1',
+            tags: ['text-to-speech'],
+            voicesByLocale: {},
+          },
+        ],
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('accepts a TTS model with only defaultVoice set', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        models: [
+          {
+            id: 'tts/v1',
+            displayName: 'TTS v1',
+            tags: ['text-to-speech'],
+            defaultVoice: 'alloy',
+          },
+        ],
+      });
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe('back-compat (no .strict on model/cost)', () => {
+    it('accepts an unknown __comment field on a model entry', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        models: [
+          {
+            id: 'test/model-1',
+            displayName: 'Test Model 1',
+            tags: ['chat'],
+            __comment: 'operator note retained for the next config rev',
+          },
+        ],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts an unknown field on a cost block', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        models: [
+          {
+            id: 'test/model-1',
+            displayName: 'Test Model 1',
+            tags: ['chat'],
+            cost: {
+              centsPerMillionInputTokens: 100,
+              __note: 'reviewed 2026-04 — confirm at next renewal',
+            },
+          },
+        ],
+      });
+      expect(result.success).toBe(true);
+    });
   });
 
   describe('defaults validation', () => {

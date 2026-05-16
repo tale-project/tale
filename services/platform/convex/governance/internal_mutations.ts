@@ -533,32 +533,3 @@ export async function recordTtsUsageInline(
     }
   }
 }
-
-/**
- * Record a TTS (text-to-speech) synthesis call to the usage ledger. Billed per
- * character of input rather than per token — `inputTokens`/`outputTokens` stay
- * at 0 and `characterCount` carries the billable unit. Aggregated per
- * (org, user, period, team, agent, model) so a streaming reply that produces
- * many small chunks compresses into a single ledger row per period.
- *
- * Wraps `recordTtsUsageInline` so external callers (e.g. test fixtures or
- * future non-action paths) can use the same logic via `ctx.runMutation`.
- */
-export const recordTtsUsage = internalMutation({
-  args: {
-    organizationId: v.string(),
-    userId: v.string(),
-    teamId: v.optional(v.string()),
-    agentSlug: v.string(),
-    model: v.string(),
-    provider: v.string(),
-    characterCount: v.number(),
-    costEstimateCents: v.number(),
-    timestamp: v.number(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    await recordTtsUsageInline(ctx, args);
-    return null;
-  },
-});

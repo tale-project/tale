@@ -112,12 +112,20 @@ export const getChunkForServe = internalQuery({
 
     // Membership gate — the caller must be a current member of the org
     // that owns this chunk. Use `getOrganizationMember` directly to avoid
-    // depending on the action-context auth helper here.
+    // depending on the action-context auth helper here. The catch logs
+    // (per CLAUDE.md no-empty-catch) but conflates not-found / not-member
+    // / DB-error into a single `null` so probing reveals nothing
+    // beyond "chunk inaccessible".
     try {
       await getOrganizationMember(ctx, chunk.organizationId, {
         userId: args.userId,
       });
-    } catch {
+    } catch (err) {
+      console.debug(
+        '[tts.getChunkForServe] membership check failed',
+        { userId: args.userId, organizationId: chunk.organizationId },
+        err,
+      );
       return null;
     }
 

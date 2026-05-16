@@ -30,7 +30,10 @@ const SECRET_PATTERNS: ReadonlyArray<RegExp> = [
   // against accidentally matching version strings like `1.2.3`.
   /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g,
   // Query-string secrets — common keys carrying a credential in the URL.
-  /([?&](?:api[_-]?key|token|secret|signature|sig)=)[^&\s]+/gi,
+  // Expanded beyond the original short list (api_key|token|secret|signature
+  // |sig) to cover the OAuth/auth-flow keys commonly seen in safe-fetch
+  // redirect-loop logs.
+  /([?&](?:api[_-]?key|token|secret|signature|sig|password|passwd|pwd|access_token|refresh_token|client_secret|auth)=)[^&\s]+/gi,
 ];
 
 const REDACTED = '[REDACTED]';

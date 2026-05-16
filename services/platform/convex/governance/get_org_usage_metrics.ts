@@ -206,11 +206,14 @@ export async function getOrgUsageMetrics(
     agentBucket.tokens += row.totalTokens;
     agentBucket.costCents += row.costEstimate;
 
-    // Top Models is LLM-only — integration rows lack a model and transcription
-    // rows have model+provider but tokens=0 (billed per audio minute), so
-    // including them would render misleading "0 tokens" entries.
+    // Top Models includes LLM and TTS rows — both carry model + provider.
+    // Integration rows lack a model; transcription rows are billed per
+    // audio minute with tokens=0, so they're excluded to avoid misleading
+    // "0 tokens" entries. TTS rows also have tokens=0 (billed per
+    // character), so the sort defaults to cost (see comment below) — the
+    // request-count and cost columns remain meaningful.
     if (
-      kind === 'llm' &&
+      (kind === 'llm' || kind === 'tts') &&
       row.model !== undefined &&
       row.provider !== undefined
     ) {

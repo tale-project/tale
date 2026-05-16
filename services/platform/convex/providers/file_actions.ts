@@ -1236,7 +1236,7 @@ async function runTranscriptionProbe(
  * response is binary audio (any `audio/*` content type). Cost is well under
  * a tenth of a cent on OpenAI's gpt-4o-mini-tts. The voice defaults to the
  * provider's `defaultVoice`; if neither default nor any locale entry is set,
- * we fall back to OpenAI's `'alloy'` to keep the probe self-contained.
+ * we report a probe failure rather than guess a vendor-specific voice id.
  */
 async function runTtsProbe(
   baseUrl: string,
@@ -1264,6 +1264,22 @@ async function runTtsProbe(
     });
     const latencyMs = Date.now() - start;
     if (response.status >= 200 && response.status < 300) {
+      // Defence against a gateway that fronts the TTS endpoint with a 200
+      // JSON envelope ("ok": true, no audio) — without the content-type
+      // check the probe falsely greens. The audio/* family covers every
+      // configurable response_format (mp3, opus, aac, flac, wav, pcm).
+      const contentType =
+        response.headers.get('content-type')?.toLowerCase() ?? '';
+      if (!contentType.startsWith('audio/')) {
+        return {
+          modelId,
+          tag: 'text-to-speech',
+          ok: false,
+          latencyMs,
+          status: response.status,
+          error: `expected audio/* response, got ${contentType || 'unknown'}`,
+        };
+      }
       return { modelId, tag: 'text-to-speech', ok: true, latencyMs };
     }
     return {
@@ -1606,21 +1622,39 @@ export const testProviderConnection = action({
       } else if (isTranscription) {
         probes.push(runTranscriptionProbe(config.baseUrl, apiKey, model.id));
       } else if (isTextToSpeech) {
+        // Schema's `superRefine` (lib/shared/schemas/providers.ts) rejects
+        // TTS models that have neither `defaultVoice` nor a non-empty
+        // `voicesByLocale`, so the resolution below always finds a voice.
+        // The previous `?? 'alloy'` fallback was OpenAI-specific dead code
+        // that would have shipped a wrong voice id to non-OpenAI providers.
         const probeVoice =
           model.defaultVoice ??
           (model.voicesByLocale
             ? Object.values(model.voicesByLocale)[0]
-            : undefined) ??
-          'alloy';
-        probes.push(
-          runTtsProbe(
-            config.baseUrl,
-            apiKey,
-            model.id,
-            probeVoice,
-            model.audioFormat ?? 'mp3',
-          ),
-        );
+            : undefined);
+        if (!probeVoice) {
+          // Defence in depth — should be unreachable per the schema
+          // guarantee above; surface loudly rather than guessing.
+          probes.push(
+            Promise.resolve({
+              modelId: model.id,
+              tag: 'text-to-speech' as const,
+              ok: false,
+              latencyMs: 0,
+              error: 'TTS model has no defaultVoice or voicesByLocale entries',
+            }),
+          );
+        } else {
+          probes.push(
+            runTtsProbe(
+              config.baseUrl,
+              apiKey,
+              model.id,
+              probeVoice,
+              model.audioFormat ?? 'mp3',
+            ),
+          );
+        }
       } else if (isImageGeneration) {
         // All image-generation modes use a /v1/models membership check.
         // Direct invocation isn't safe to probe: `images-api` bills per image

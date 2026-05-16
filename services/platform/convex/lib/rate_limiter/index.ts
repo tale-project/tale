@@ -181,6 +181,17 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 100,
     period: MINUTE,
   },
+  // Per-IP throttle on the TTS audio-serve HTTP route. Mirrors the
+  // `security:storage-access` shape since the cost shape is identical: an
+  // authenticated user could hammer `/api/tts-audio?chunkId=…` to force
+  // unbounded Convex storage reads on rows they're already entitled to
+  // see. Cost-only (no data leak — the route already gates on org
+  // membership) so the limit is set marginally higher than storage.
+  'security:tts-audio-fetch': {
+    kind: 'fixed window',
+    rate: 120,
+    period: MINUTE,
+  },
   'security:image-proxy': {
     kind: 'fixed window',
     rate: 200,
@@ -285,6 +296,22 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   },
 
   // ============================================
+  // TIER 7: Governance (Fixed Window)
+  // High-blast-radius admin actions
+  // ============================================
+  // Per-admin daily filing limit for GDPR Art 17 erasure requests.
+  // Caps blast radius from a compromised admin credential / scripted
+  // abuse / runaway approval-bot. Default: 5 requests/admin/day. Daily
+  // limit is overridable per-org via `dsar_governance` policy (the org
+  // policy sets the bucket consumption guard; this limiter is a
+  // platform-level floor).
+  'governance:dsar_request': {
+    kind: 'fixed window',
+    rate: 5,
+    period: DAY,
+  },
+
+  // ============================================
   // TIER 8: TTS (Token Bucket)
   // Voice-output synthesis bills per character to upstream provider;
   // keep abuse bounded even for authenticated users.
@@ -314,21 +341,17 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     capacity: 400,
     shards: 4,
   },
-
-  // ============================================
-  // TIER 7: Governance (Fixed Window)
-  // High-blast-radius admin actions
-  // ============================================
-  // Per-admin daily filing limit for GDPR Art 17 erasure requests.
-  // Caps blast radius from a compromised admin credential / scripted
-  // abuse / runaway approval-bot. Default: 5 requests/admin/day. Daily
-  // limit is overridable per-org via `dsar_governance` policy (the org
-  // policy sets the bucket consumption guard; this limiter is a
-  // platform-level floor).
-  'governance:dsar_request': {
-    kind: 'fixed window',
-    rate: 5,
-    period: DAY,
+  // Per-user gate on `getCapability` action. The personalization page
+  // calls it on mount; a malicious script could probe arbitrary
+  // organizationIds and fill the *target* org's audit log via
+  // `logCapabilityProbeDenied`. Cap at 12/min/user (legitimate UI usage
+  // is 1-2 calls/hour); 20 capacity absorbs a tab-multi-mount burst.
+  'tts:capability-probe:user': {
+    kind: 'token bucket',
+    rate: 12,
+    period: MINUTE,
+    capacity: 20,
+    shards: 4,
   },
 });
 

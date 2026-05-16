@@ -9,7 +9,6 @@ import { MAX_TTS_CHUNK_CHARS } from '@/lib/shared/constants/tts';
 import { parseMarkers } from '@/lib/utils/marker-parser';
 
 const MIN_CHUNK_CHARS = 12;
-const MAX_CHUNK_CHARS = MAX_TTS_CHUNK_CHARS;
 const MAX_IN_FLIGHT = 3;
 // Post-stream coalescing: when a reply has finished streaming and the
 // remaining text is shorter than this, emit it as a single chunk instead
@@ -131,8 +130,17 @@ function stripMarkdown(
       .replace(/^\s*(?:-\s*){3,}$/gm, '')
       // emoji / pictographs — gpt-4o-mini-tts can pronounce isolated
       // emoji as random syllables (the "z dot" artifact users hear at
-      // the end of short replies). Strip them; text rendering keeps them.
-      .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '')
+      // the end of short replies). The Unicode property escape covers
+      // every emoji-shaped glyph including transport and supplemental
+      // symbols — the previous hand-rolled \u{1F300}-\u{1FAFF}\u{2600}-
+      // \u{27BF} ranges missed common pictographs like ⚓ / ⏰. Regional
+      // indicators (flag pairs like 🇺🇸), zero-width joiners, and
+      // variation selectors are stripped in separate passes because the
+      // lint rule rejects combining sequences inside one character class.
+      .replace(/\p{Extended_Pictographic}/gu, '')
+      .replace(/[\u{1F1E6}-\u{1F1FF}]/gu, '')
+      .replace(/‍/g, '')
+      .replace(/️/g, '')
       // collapse runs of whitespace
       .replace(/\s+/g, ' ')
       .trim()
@@ -154,7 +162,6 @@ function segmentSentences(
     const seg = new Intl.Segmenter(locale || undefined, {
       granularity: 'sentence',
     });
-    let cursor = 0;
     for (const part of seg.segment(text)) {
       const end = part.index + part.segment.length;
       // While the stream is still active, the final partial segment can be
@@ -163,9 +170,7 @@ function segmentSentences(
       const isLast = end === text.length;
       if (isLast && partial) continue;
       out.push({ end, segment: part.segment });
-      cursor = end;
     }
-    void cursor;
     return out;
   }
   FALLBACK_SENTENCE_BOUNDARY.lastIndex = 0;
@@ -364,8 +369,8 @@ export function useVoiceOutputChunker(opts: {
         break;
       }
       const text =
-        cleaned.length > MAX_CHUNK_CHARS
-          ? cleaned.slice(0, MAX_CHUNK_CHARS)
+        cleaned.length > MAX_TTS_CHUNK_CHARS
+          ? cleaned.slice(0, MAX_TTS_CHUNK_CHARS)
           : cleaned;
       const myIndex = indexRef.current++;
       enqueueSynthesis(

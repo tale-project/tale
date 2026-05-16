@@ -137,4 +137,26 @@ describe('cascadeOnOrgDeleted', () => {
       expect.arrayContaining(['mem_a', 'mem_b', 'pref_a', 'tts_a']),
     );
   });
+
+  it('pages through TTS chunks when a single org has more than PAGE_SIZE rows', async () => {
+    // PAGE_SIZE is 200 inside the cascade; seed >1 page worth to verify the
+    // page-then-loop actually re-enters and doesn't truncate at one page.
+    // Mock `take()` empties `remaining`, so seeding 250 rows + asking the
+    // cascade to delete all of them validates the second iteration ran.
+    const ttsRows: FakeRow[] = Array.from({ length: 250 }, (_, i) => ({
+      _id: `tts_${i}`,
+      organizationId: 'o_1',
+    }));
+    const { ctx, deleted, lastIndexUsed } = createCtx({
+      by_organizationId: [],
+      by_org_createdAt: ttsRows,
+    });
+
+    await cascadeOnOrgDeleted(ctx, 'o_1');
+
+    expect(deleted).toHaveLength(250);
+    // Two pages of TTS sweep + the memories + prefs queries = 4 index uses.
+    const ttsCalls = lastIndexUsed.filter((u) => u.name === 'by_org_createdAt');
+    expect(ttsCalls.length).toBeGreaterThanOrEqual(2);
+  });
 });
