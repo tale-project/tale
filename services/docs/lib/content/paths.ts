@@ -1,4 +1,5 @@
 import type { SupportedLocale } from '@/lib/i18n/locales';
+import { DEFAULT_DOCS_SITE_URL } from '@/lib/site-url';
 
 // Vite replaces `import.meta.env.VITE_DOCS_SITE_URL` at build time so the
 // constant is available in the browser. Build scripts (Node/Bun) override
@@ -12,7 +13,7 @@ function resolveSiteUrl(): string {
     const fromNode = process.env?.DOCS_SITE_URL;
     if (typeof fromNode === 'string' && fromNode.length > 0) return fromNode;
   }
-  return 'https://docs.tale.dev';
+  return DEFAULT_DOCS_SITE_URL;
 }
 
 const SITE_URL = resolveSiteUrl();

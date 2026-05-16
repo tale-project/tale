@@ -47,7 +47,7 @@ L'onglet Connaissances te laisse aussi téléverser des **documents d'agent** �
 
 Pour suggérer des premiers messages sur un chat neuf, ouvre l'onglet Amorces et ajoute des entrées d'amorce. Chaque amorce a un **titre** (la suggestion cliquable) et un **prompt** (le message envoyé au clic). Les amorces réduisent la friction pour écrire le premier message et sont un bon moyen de montrer ce que l'agent sait gérer.
 
-Un agent sans amorces affiche simplement un composeur vide sur un chat neuf — la fonctionnalité est opt-in.
+Un agent sans amorces affiche un composeur vide sur un chat neuf — la fonctionnalité est opt-in.
 
 ## Délégation
 

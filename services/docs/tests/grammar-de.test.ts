@@ -1,169 +1,151 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { describe, it } from 'vitest';
 
-import { CONTENT_ROOT, discoverLocales, localeOf, walkDocs } from './_helpers';
-import { NOUN_GENDERS_DE } from './data/noun-genders-de';
+import { NOUN_GENDERS_DE, type Gender } from './data/noun-genders-de';
+import { assertNoFindings, type Finding } from './lib/findings';
+import { iterProseLines, parseFrontmatter } from './lib/markdown';
+import { CONTENT_ROOT } from './lib/paths';
+import { escapeRegex } from './lib/regex';
+import { localeOf, walkDocs } from './lib/walk';
 
 /**
- * Warn-only German gender-agreement check.
+ * German indefinite-article + gender agreement, hard-fail.
  *
- * Flags the most common class of translation bug the audit caught — an
- * indefinite article (and optional adjective) that disagrees in case+gender
- * with the noun it governs. Example from the rewrite audit:
+ * Catches the most common class of translation bug — an indefinite article
+ * that disagrees in case+gender with the noun it governs:
  *
- *   `einen einmaligen [SECURITY]-Warnung`  (masculine accusative on a feminine noun)
+ *   `einen einmaligen Warnung`  (masc-acc article on a feminine noun)
+ *   `eine Token`                (fem article on a neuter noun)
+ *   `einer Anbieter`            (fem dat/gen article on a masculine noun)
  *
- * The closed list of nouns lives in `data/noun-genders-de.ts`. Indefinite-
- * article mismatches against that list are detectable with a regex; definite-
- * article cases (der/die/das/dem/den/des) are ambiguous across case+number
- * and are deliberately out of scope for v1 of this check.
+ * The closed list of nouns lives in `data/noun-genders-de.ts`. Definite-
+ * article cases (`der/die/das/dem/den/des`) are ambiguous across
+ * case+number and are deliberately out of scope.
  *
- * Status: warn-only. Promote to hard-fail after the rewrite is in and
- * after a sweep clears the existing corpus.
+ * ## Precision tightening (vs the legacy `grammar-de.test.ts`)
+ *
+ * The old regex matched any tracked noun within two words of an article,
+ * which produced false positives like `einen Chunk pro Token` — here the
+ * article governs `Chunk`, not `Token`. Two fixes:
+ *
+ *   1. **Stop at prepositions.** A negative lookahead in the
+ *      "in-between word" repetition aborts the match when one of the
+ *      prepositions in `STOP_PREPOSITIONS` appears between article and
+ *      noun. `pro`, `mit`, `für`, `von`, etc. all end the noun phrase.
+ *
+ *   2. **Lowercase-leading in-between words.** Adjectives start with a
+ *      lowercase letter in attributive position; a capitalised word in
+ *      between would be another noun, meaning we're already past the noun
+ *      the article governs. We restrict in-between words to
+ *      `[a-zäöüß][\w-]*`.
+ *
+ * The combined effect is precise enough to land hard-fail.
  */
 
-type Finding = {
-  file: string;
-  line: number;
+interface MatchInfo {
   match: string;
-  article: string;
+  article: keyof typeof ARTICLE_ALLOWED;
   noun: string;
-  nounGender: 'm' | 'f' | 'n';
-};
-
-function stripFrontmatter(content: string): string {
-  if (!content.startsWith('---\n')) return content;
-  const end = content.indexOf('\n---\n', 4);
-  if (end === -1) return content;
-  return content.slice(end + 5);
-}
-
-function stripFences(text: string): string {
-  let out = '';
-  let inFence = false;
-  let marker: string | null = null;
-  for (const line of text.split('\n')) {
-    const m = /^\s*(```+|~~~+)/.exec(line);
-    if (m) {
-      const ch = m[1][0];
-      if (!inFence) {
-        inFence = true;
-        marker = ch;
-      } else if (ch === marker) {
-        inFence = false;
-        marker = null;
-      }
-      out += '\n';
-      continue;
-    }
-    out += inFence ? '\n' : line + '\n';
-  }
-  return out;
-}
-
-function maskInlineCode(line: string): string {
-  return line.replace(/`[^`]*`/g, ' ');
-}
-
-function maskUrls(line: string): string {
-  return line.replace(/\bhttps?:\/\/\S+/g, ' ').replace(/\(\/[^)\s]+\)/g, ' ');
-}
-
-function escapeRegex(s: string): string {
-  return s.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+  nounGender: Gender;
 }
 
 /**
- * Articles whose case+gender is unambiguous. For each article, list the
- * noun genders it CAN govern. A mismatch against the noun's gender is a
- * bug.
+ * Articles whose case+gender combination is unambiguous. Each article maps
+ * to the noun genders it CAN govern. A mismatch is a bug.
  *
- *   einen — masculine accusative only → noun must be m
- *   eine  — feminine nom/acc          → noun must be f
- *   einem — masc/neut dative          → noun must be m or n
- *   einer — fem dat/gen               → noun must be f
- *   eines — masc/neut genitive        → noun must be m or n
+ *   einen — masc acc            → m
+ *   eine  — fem nom/acc         → f
+ *   einem — masc/neut dat       → m, n
+ *   einer — fem dat/gen         → f
+ *   eines — masc/neut gen       → m, n
  *
- * `ein` is omitted: it covers masc nom AND neut nom/acc, which makes it
- * ambiguous when followed by `Plan` (m) vs `Modell` (n).
+ * `ein` is omitted: ambiguous between masc-nom and neut-nom/acc.
  */
-const ARTICLE_ALLOWED: Record<string, ReadonlyArray<'m' | 'f' | 'n'>> = {
-  einen: ['m'],
-  eine: ['f'],
-  einem: ['m', 'n'],
-  einer: ['f'],
-  eines: ['m', 'n'],
-};
+const ARTICLE_ALLOWED = {
+  einen: ['m'] as Gender[],
+  eine: ['f'] as Gender[],
+  einem: ['m', 'n'] as Gender[],
+  einer: ['f'] as Gender[],
+  eines: ['m', 'n'] as Gender[],
+} as const;
 
-const ARTICLE_WORDS = Object.keys(ARTICLE_ALLOWED).join('|');
+/**
+ * Prepositions that end the noun phrase governed by the article. When one
+ * appears between the article and the next tracked noun, the article does
+ * not govern that noun — the preposition opens a new phrase.
+ */
+const STOP_PREPOSITIONS = [
+  'pro',
+  'mit',
+  'für',
+  'fuer',
+  'von',
+  'aus',
+  'bei',
+  'nach',
+  'seit',
+  'zu',
+  'gegen',
+  'ohne',
+  'um',
+  'durch',
+  'als',
+  'in',
+  'an',
+  'auf',
+  'unter',
+  'über',
+];
 
-const locales = discoverLocales();
-const dePages = walkDocs().filter((rel) => {
-  const loc = localeOf(rel, locales);
-  return loc === 'de' || loc === 'de-CH';
-});
+describe('German indefinite-article gender agreement', () => {
+  it('rejects einen/eine/einem/einer/eines that disagree with the governed noun', () => {
+    const findings: Finding[] = [];
+    const pages = walkDocs().filter((rel) => {
+      const loc = localeOf(rel);
+      return loc === 'de' || loc === 'de-CH';
+    });
 
-const nounGenders = NOUN_GENDERS_DE;
+    const articleAlt = Object.keys(ARTICLE_ALLOWED).join('|');
+    const nounAlt = Object.keys(NOUN_GENDERS_DE).map(escapeRegex).join('|');
+    const prepAlt = STOP_PREPOSITIONS.map(escapeRegex).join('|');
 
-describe('docs German gender agreement (warn-only)', () => {
-  it('loaded noun-genders data', () => {
-    expect(Object.keys(nounGenders).length).toBeGreaterThan(0);
-  });
-
-  it('warns when an indefinite article disagrees with the noun it governs', () => {
-    const nounAlternation = Object.keys(nounGenders).map(escapeRegex).join('|');
-    // Match: indefinite article, optional one or two adjective-like words,
-    // then a tracked noun. The adjective gap allows constructs like
-    // `eine kurze Warnung` or `einen unerwarteten kritischen Fehler`.
+    // Article, then up to two lowercase-leading adjective-like words,
+    // none of which is a preposition, then a tracked noun. The noun must
+    // not be followed by `-` — that means it's part of a compound (e.g.
+    // `Token-URL`, `Token-basierte Anmeldeberechtigung`) and the article
+    // governs the compound head, not the prefix.
     const pattern = new RegExp(
-      `\\b(${ARTICLE_WORDS})\\s+(?:[A-Za-zÄÖÜäöüß-]+\\s+){0,2}(${nounAlternation})\\b`,
+      `\\b(${articleAlt})\\s+(?:(?!(?:${prepAlt})\\b)[a-zäöüß][\\wäöüß-]*\\s+){0,2}(${nounAlt})(?![-\\wäöüß])`,
       'g',
     );
 
-    const findings: Finding[] = [];
-
-    for (const rel of dePages) {
+    for (const rel of pages) {
       const raw = fs
         .readFileSync(path.join(CONTENT_ROOT, rel), 'utf8')
         .replaceAll('\r\n', '\n');
-      const stripped = stripFences(stripFrontmatter(raw));
-      stripped.split('\n').forEach((line, idx) => {
-        const masked = maskUrls(maskInlineCode(line));
-        for (const m of masked.matchAll(pattern)) {
+      const { body } = parseFrontmatter(raw);
+
+      for (const { line, text } of iterProseLines(body)) {
+        for (const m of text.matchAll(pattern)) {
           const article = m[1] as keyof typeof ARTICLE_ALLOWED;
           const noun = m[2];
-          const nounGender = nounGenders[noun];
+          const nounGender = NOUN_GENDERS_DE[noun];
+          if (!nounGender) continue; // unknown noun — already filtered by regex
           const allowed = ARTICLE_ALLOWED[article];
-          if (!allowed.includes(nounGender)) {
-            findings.push({
-              file: rel,
-              line: idx + 1,
-              match: m[0],
-              article,
-              noun,
-              nounGender,
-            });
-          }
+          if (allowed.includes(nounGender)) continue;
+          const info: MatchInfo = { match: m[0], article, noun, nounGender };
+          findings.push({
+            file: rel,
+            line,
+            rule: 'grammar-de-article-gender',
+            detail: `"${info.match}" — article "${info.article}" disagrees with ${info.noun} (${info.nounGender})`,
+          });
         }
-      });
+      }
     }
 
-    if (findings.length > 0) {
-      const formatted = findings
-        .map(
-          (f) =>
-            `  ${f.file}:${f.line} "${f.match}" — article "${f.article}" disagrees with ${f.noun} (${f.nounGender})`,
-        )
-        .join('\n');
-      console.warn(
-        `grammar-de (${findings.length} gender-agreement warning(s)):\n${formatted}`,
-      );
-    }
-
-    // Warn-only for now. Flip the next line to a strict assertion once the
-    // rewrite sweep clears the existing corpus.
-    expect(findings.length).toBeGreaterThanOrEqual(0);
+    assertNoFindings(findings, 'German article/gender disagreement');
   });
 });

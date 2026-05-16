@@ -47,11 +47,11 @@ Der Wissen-Tab lässt dich auch **Agent-Dokumente** hochladen — Dateien, auf d
 
 Um erste Nachrichten bei einem frischen Chat vorzuschlagen, öffne den Starter-Tab und füge Starter-Einträge hinzu. Jeder Starter hat einen **Titel** (den klickbaren Vorschlag) und einen **Prompt** (die Nachricht, die beim Klick gesendet wird). Starter senken die Hürde, die erste Nachricht zu schreiben, und sind ein guter Weg zu zeigen, wofür der Agent gebaut wurde.
 
-Ein Agent ohne Starter zeigt bei einem frischen Chat einfach einen leeren Composer — das Feature ist opt-in.
+Ein Agent ohne Starter zeigt bei einem frischen Chat einen leeren Composer — das Feature ist opt-in.
 
 ## Delegation
 
-Damit der Agent Konversationen an Spezialisten übergibt, wenn das Thema driftet, öffne den Delegation-Tab und wähle Ziel-Agents. Für jedes Ziel benennst du das Thema oder die Bedingung, die die Übergabe auslöst; der Agent leitet dann passende Konversationen an den gewählten Delegaten weiter. Die Übergabe erscheint im Transkript als kurze Notiz mit dem Namen des neuen Agents, und Antworten ab diesem Punkt kommen aus den Anweisungen des Delegaten.
+Um den Agent Konversationen an Spezialisten übergeben zu lassen, sobald das Thema driftet, öffne den Delegation-Tab und wähle Ziel-Agents. Für jedes Ziel benennst du das Thema oder die Bedingung, die die Übergabe auslöst; der Agent leitet dann passende Konversationen an den gewählten Delegaten weiter. Die Übergabe erscheint im Transkript als kurze Notiz mit dem Namen des neuen Agents, und Antworten ab diesem Punkt kommen aus den Anweisungen des Delegaten.
 
 Delegation ist opt-in. Ein Agent ohne Delegationsziele beantwortet jedes Thema selbst.
 

@@ -160,7 +160,7 @@ bun run docker:test:vulnerability
 
 Runs Trivy against each image. Reports land in `trivy-reports/`. Known false positives go in `.trivyignore`:
 
-```
+```text
 CVE-2023-12345    # false positive: function not reachable
 ```
 
@@ -190,7 +190,7 @@ graph LR
     D --> E["Trigger CLI build"]
 ```
 
-The container test gate pulls the just-pushed images and runs smoke tests plus image validation before manifests are created — that's the last chance to catch a regression before the tag is tagged.
+The container test gate pulls the newly pushed images and runs smoke tests plus image validation before manifests are created — that's the last chance to catch a regression before the tag is tagged.
 
 ## Common pitfalls
 

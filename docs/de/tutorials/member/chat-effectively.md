@@ -47,13 +47,13 @@ Der Schritt hat funktioniert, wenn die nächste Antwort des Agents sichtbar auf 
 
 Ein langes Markdown-Dokument, eine lauffähige HTML-Seite, ein SVG oder ein Mermaid-Diagramm ist in einer Chat-Blase schlecht lesbar. Wenn der Agent so etwas erzeugt, öffnet Tale es automatisch als Artefakt im Seitenbereich [Canvas](/de/platform/workspace/canvas) und listet es in der Artefakt-Leiste über dem Chat — Live-Vorschau, Quellansicht und Export liegen alle im Canvas-Bereich.
 
-Bitte den Agent, das Artefakt direkt zu überarbeiten (`mach das Diagramm horizontal`, `füge eine zweite Spalte hinzu`), und Canvas aktualisiert es, ohne eine neue Chat-Blase zu erzeugen.
+Fordere den Agent auf, das Artefakt direkt zu überarbeiten (`mach das Diagramm horizontal`, `füge eine zweite Spalte hinzu`), und Canvas aktualisiert es, ohne eine neue Chat-Blase zu erzeugen.
 
 Der Schritt hat funktioniert, wenn sich der Canvas-Bereich rechts mit dem gerenderten Artefakt öffnet und die Chat-Blase eine kurze Zusammenfassung statt des vollen Inhalts zeigt.
 
 ## Fehlerbehebung
 
-- **Der Agent antwortet aus dem falschen Wissen** — der Agent hat Zugriff auf zu viele Ordner. Wechsle zu einem engeren Agent oder bitte den Besitzer des Agents, seinen **Wissen**-Tab einzuschränken. Die volle Zuordnung liegt in [Agent-Konzepte — Wissen](/de/platform/agents/concepts#knowledge).
+- **Der Agent antwortet aus dem falschen Wissen** — der Agent hat Zugriff auf zu viele Ordner. Wechsle zu einem engeren Agent oder lasse den Besitzer des Agents den **Wissen**-Tab einschränken. Die volle Zuordnung liegt in [Agent-Konzepte — Wissen](/de/platform/agents/concepts#knowledge).
 - **Der Anhang wurde hochgeladen, aber der Agent ignoriert ihn** — die Datei ist größer als das Kontext-Budget des Modells oder ihr Typ ist nicht in der unterstützten Liste. Probier eine kleinere Datei oder konvertiere zu PDF; [Anhänge](/de/platform/chat/attachments) listet die unterstützten Typen und Limits.
 - **Das Mikrofon-Symbol erscheint nicht** — der Browser unterstützt die Web Speech API nicht (ältere Firefox-Builds, manche eingebetteten WebViews) oder die Seite hat keine Mikrofon-Berechtigung. Wechsle zu Chrome, Edge oder Safari und erteile die Berechtigung, wenn du gefragt wirst.
 - **Der Canvas-Bereich öffnet sich nicht** — der Output des Agents ist nicht lang genug oder passt zu keinem Artefakt-Format. Frage im Prompt explizit nach einem HTML-, Mermaid- oder Markdown-Artefakt.

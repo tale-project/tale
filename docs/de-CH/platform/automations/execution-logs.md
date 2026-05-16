@@ -31,7 +31,7 @@ Die **Ausführungen**-Tabelle unterstützt:
 
 Aus dem Detail-Panel einer Ausführung kannst du:
 
-- **Mit gleichem Input erneut ausführen** — eine neue Ausführung mit demselben Input starten. Nützlich, wenn sich der Workflow geändert hat und du einen vergangenen Anfrage erneut durchspielen willst.
+- **Mit gleichem Input erneut ausführen** — eine neue Ausführung mit demselben Input starten. Nützlich, wenn sich der Workflow geändert hat und du einen vergangenen Lauf erneut durchspielen willst.
 - **Mit anderem Input erneut ausführen** — das Input-Payload vor dem erneuten Lauf bearbeiten. Nützlich für das Debuggen von Edge Cases.
 
 Erneute Läufe erscheinen als neue Ausführungen — der Originalsatz bleibt erhalten.

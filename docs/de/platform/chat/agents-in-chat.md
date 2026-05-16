@@ -15,7 +15,7 @@ Jede Konversation merkt sich den gewählten Agent. Ein neuer Chat setzt den Sele
 
 ## Gesprächseinstiege
 
-Wenn der aktive Agent **Starter** konfiguriert hat, erscheint bei einer frischen Konversation eine Reihe klickbarer Vorschläge. Klicke einen an, um ihn als erste Nachricht zu senden — das ist schneller als Tippen und ein guter Weg, zu entdecken, wofür der Agent gebaut wurde. Starter konfigurierst du pro Agent unter **Agents > [Agent] > Starter**; ein Agent ohne Starter zeigt einfach einen leeren Composer.
+Wenn der aktive Agent **Starter** konfiguriert hat, erscheint bei einer frischen Konversation eine Reihe klickbarer Vorschläge. Klicke einen an, um ihn als erste Nachricht zu senden — das ist schneller als Tippen und zeigt sofort, wofür der Agent gebaut wurde. Starter konfigurierst du pro Agent unter **Agents > [Agent] > Starter**; ein Agent ohne Starter zeigt einen leeren Composer.
 
 ## Warum Agents wechseln
 

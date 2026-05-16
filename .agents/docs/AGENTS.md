@@ -26,11 +26,11 @@ These are the rules that fail review (or fail the test suite) when they're broke
 
 **Rule 1 — Docs ship with code.** If a pull request alters what a user sees, configures, or interacts with — a feature, a setting, an environment variable, an API response, a CLI flag, a removal — the same PR updates the docs in every base locale (`en`, `de`, `fr`). Regional variant trees (today `de-CH`; more may come) are sparse: only override pages whose wording genuinely differs from the base. Code without docs is incomplete work and does not merge.
 
-**Rule 2 — Every page has a real opening.** The block of prose between the frontmatter and the first sub-heading, list, table, or fenced code block contains at least two complete sentences, and answers three questions: _what is this_, _who is this for_, _why does it exist_. Enforced by [`services/docs/tests/opening-paragraph.test.ts`](../../services/docs/tests/opening-paragraph.test.ts).
+**Rule 2 — Every page has a real opening.** The block of prose between the frontmatter and the first sub-heading, list, table, or fenced code block contains at least two complete sentences, and answers three questions: _what is this_, _who is this for_, _why does it exist_. Enforced by [`services/docs/tests/structure-opening.test.ts`](../../services/docs/tests/structure-opening.test.ts).
 
-**Rule 3 — Every page has a real closing.** The last sub-section is named for what it does (`## Build one`, `## Where this fits`, `## Where this gets used`, `## When to reach for it`) and contains at least one paragraph of recap that names the one thing the reader should remember, then introduces the next page with a sentence of context. `## Next` and `## See also` headings whose body is a single link line are stubs and fail review. Enforced by [`services/docs/tests/closing-paragraph.test.ts`](../../services/docs/tests/closing-paragraph.test.ts).
+**Rule 3 — Every page has a real closing.** The last sub-section is named for what it does (`## Build one`, `## Where this fits`, `## Where this gets used`, `## When to reach for it`) and contains at least one paragraph of recap that names the one thing the reader should remember, then introduces the next page with a sentence of context. `## Next` and `## See also` headings whose body is a single link line are stubs and fail review. Enforced by [`services/docs/tests/structure-closing.test.ts`](../../services/docs/tests/structure-closing.test.ts).
 
-**Rule 4 — Translations match the shipped UI verbatim.** Every name of a button, menu, panel, or feature in a translated page matches the string `services/platform/messages/<locale>.json` ships, character for character. Translate-bucket English nouns — `Header`, `Request`, `Email`, `Help Center`, `Billing`, `Sales Research`, `Draft`, `Attachment`, `Self-hosted`, plus FR-only `Engineering` — never appear untranslated in DE/FR prose. Enforced by [`services/docs/tests/terminology.test.ts`](../../services/docs/tests/terminology.test.ts) and [`services/docs/tests/loanword.test.ts`](../../services/docs/tests/loanword.test.ts).
+**Rule 4 — Translations match the shipped UI verbatim.** Every name of a button, menu, panel, or feature in a translated page matches the string `services/platform/messages/<locale>.json` ships, character for character. Translate-bucket English nouns — `Header`, `Request`, `Email`, `Help Center`, `Billing`, `Sales Research`, `Draft`, `Attachment`, `Self-hosted`, plus FR-only `Engineering` — never appear untranslated in DE/FR prose. Enforced by [`services/docs/tests/terminology-ui.test.ts`](../../services/docs/tests/terminology-ui.test.ts) and [`services/docs/tests/terminology-loanword.test.ts`](../../services/docs/tests/terminology-loanword.test.ts).
 
 **Rule 5 — One narrator.** The voice on every page in every locale is the same calm, opinionated, second-person informal narrator described below. A page that drifts into marketing softening, passive bureaucracy, or first-person "we" prose fails review even if every other rule passes.
 
@@ -295,7 +295,7 @@ Named failure modes. When a reviewer flags one, they can name it; when an agent 
 
 ### Stub Closing
 
-A closing section whose heading is `## Next` / `## See also` / `## Weiter` / `## Suite` and whose body is a bullet list of bare links. Caught by `closing-paragraph.test.ts`. Fix: rename the section for what it does, replace the bullet list with a recap paragraph and a contextualised link.
+A closing section whose heading is `## Next` / `## See also` / `## Weiter` / `## Suite` and whose body is a bullet list of bare links. Caught by `structure-closing.test.ts`. Fix: rename the section for what it does, replace the bullet list with a recap paragraph and a contextualised link.
 
 ### Naked List
 
@@ -347,19 +347,19 @@ The page assumes the reader is _also_ reading another page. References to "the p
 
 ### Half-Translated Sentence
 
-DE/FR prose with English UI nouns spliced in: `Öffne **Settings > Members**`, `Téléverse dans la **Knowledge Base**`. Caught by `terminology.test.ts`. Fix: translate the noun to the shipped UI label.
+DE/FR prose with English UI nouns spliced in: `Öffne **Settings > Members**`, `Téléverse dans la **Knowledge Base**`. Caught by `terminology-ui.test.ts`. Fix: translate the noun to the shipped UI label.
 
 ### Half-Translated Compound
 
-A multi-word technical term that's translated halfway: `Pull Anfrage` (instead of `Pull Request` kept English, or a clean translation that drops the half-English form), `Code Review-Prozess`, `Merge-Anfrage`, `Branch-Zweig`. Compound terms are translated whole or kept whole, never half. The Git-domain loanwords (`Pull Request`, `Merge`, `Rebase`, `Branch`, `Commit`, `Push`, `Pull`, `Fork`, `Diff`, `Code Review`, `Issue`, `Repository`, `Tag`, `Release`) stay English in DE and FR; product-domain compounds (`Knowledge Base` → `Wissensdatenbank` in DE, `Base de connaissances` in FR) translate whole. Caught (in part) by `terminology.test.ts` and reviewers; the per-locale terminology files list the exact buckets.
+A multi-word technical term that's translated halfway: `Pull Anfrage` (instead of `Pull Request` kept English, or a clean translation that drops the half-English form), `Code Review-Prozess`, `Merge-Anfrage`, `Branch-Zweig`. Compound terms are translated whole or kept whole, never half. The Git-domain loanwords (`Pull Request`, `Merge`, `Rebase`, `Branch`, `Commit`, `Push`, `Pull`, `Fork`, `Diff`, `Code Review`, `Issue`, `Repository`, `Tag`, `Release`) stay English in DE and FR; product-domain compounds (`Knowledge Base` → `Wissensdatenbank` in DE, `Base de connaissances` in FR) translate whole. Caught directly by `terminology-compounds.test.ts` for the denylisted patterns; broader cases by reviewers. The per-locale terminology files list the exact buckets.
 
 ### Gender Slip (DE)
 
-A German article or adjective whose case+gender disagrees with the noun it governs: `einen einmaligen [SECURITY]-Warnung` (masculine accusative on a feminine noun — should be `eine einmalige`), `dem Anfrage` (dative-masculine on a feminine noun — should be `der Anfrage`). Mostly catches translation calques where the writer mapped the English determiner to the wrong German gender. Caught (warn-only) by `grammar-de.test.ts` for the closed list of high-frequency Tale nouns in `GLOSSARY.json`; reviewers cover the rest. Fix: consult the noun-gender map and rewrite.
+A German article or adjective whose case+gender disagrees with the noun it governs: `einen einmaligen [SECURITY]-Warnung` (masculine accusative on a feminine noun — should be `eine einmalige`), `dem Anfrage` (dative-masculine on a feminine noun — should be `der Anfrage`). Mostly catches translation calques where the writer mapped the English determiner to the wrong German gender. Caught (hard-fail, after precision tightening) by `grammar-de.test.ts` for the closed list of high-frequency Tale nouns in `services/docs/tests/data/noun-genders-de.ts`; reviewers cover the rest. Fix: consult the noun-gender map and rewrite.
 
 ### Pronoun Slip
 
-DE prose using `Sie`, FR prose using `vous`. Caught by `terminology.test.ts`. Fix: rewrite to the informal form.
+DE prose using `Sie`, FR prose using `vous`. Caught by `terminology-pronouns.test.ts`. Fix: rewrite to the informal form.
 
 ---
 
@@ -429,7 +429,7 @@ Translation is its own craft. The terminology skill at [`.agents/terminology/AGE
 
 **2. Same voice across locales.** The calm, opinionated narrator survives translation. The two drift modes the terminology skill catalogues — German passive bureaucracy (`Wird gespeichert…`, sentence-final `erfolgreich`) and French marketing softening (`Découvrez`, `N'hésitez pas à`) — are tone bugs, not just wording bugs. Fix the wording.
 
-**3. Pragmatic loanwords.** English shows up in DE/FR for legitimate reasons (the term is the term in the industry) and for bad reasons (the translator gave up). The terminology skill defines three buckets: _Always English_ (brand names, acronyms, code identifiers), _Established loanwords_ (`Workflow`, `Dashboard`, `Cloud`, `Webhook`, `Prompt`, `Token`, `Server`, `Canvas`, `Composer`, `Status`, `Integration`, `Tool`), and _Translate (must)_ (`Header`, `Request`, `Provider`, `Email`, `Help Center`, `Billing`, `Sales Research`, `Draft`, `Attachment`, `Self-hosted`, plus FR-only `Engineering`). The third bucket is enforced by `loanword.test.ts`.
+**3. Pragmatic loanwords.** English shows up in DE/FR for legitimate reasons (the term is the term in the industry) and for bad reasons (the translator gave up). The terminology skill defines three buckets: _Always English_ (brand names, acronyms, code identifiers), _Established loanwords_ (`Workflow`, `Dashboard`, `Cloud`, `Webhook`, `Prompt`, `Token`, `Server`, `Canvas`, `Composer`, `Status`, `Integration`, `Tool`), and _Translate (must)_ (`Header`, `Request`, `Provider`, `Email`, `Help Center`, `Billing`, `Sales Research`, `Draft`, `Attachment`, `Self-hosted`, plus FR-only `Engineering`). The third bucket is enforced by `terminology-loanword.test.ts`.
 
 ### UI labels must match the shipped string
 
@@ -474,7 +474,7 @@ When you **delete** a page:
 - **Code and diagram syntax stays put.** Inside fenced code, `<CodeGroup>`, and Mermaid DSL, translate only human-readable node labels. Never the arrows, `participant` keywords, or block structure.
 - **Brand names never translate.** Tale, Convex, OpenRouter, Claude, GitHub, Slack, Gmail, Outlook, Shopify — all stay as-is in every locale.
 - **Keep anchors stable.** Headings are slugged by the markdown renderer; when you change a heading in one locale, update every locale that links to the anchor, since the generated slug differs per locale.
-- **Maintain heading-outline parity.** [`services/docs/tests/locale-parity.test.ts`](../../services/docs/tests/locale-parity.test.ts) requires that DE and FR mirrors have the same heading levels and same fenced-code-block count as their English source. Restructuring the EN page means restructuring DE and FR in the same PR.
+- **Maintain heading-outline parity.** [`services/docs/tests/locale-outline.test.ts`](../../services/docs/tests/locale-outline.test.ts) requires that DE and FR mirrors have the same heading levels and same fenced-code-block count as their English source. Restructuring the EN page means restructuring DE and FR in the same PR.
 
 ---
 
@@ -584,25 +584,26 @@ The `test` step covers structural parity (every nav slug resolves, every page ha
 - **External links cast as internal.** `](/external-site)` is treated as in-site and 404s. External links are fully qualified (`https://…`).
 - **Committing without running `format`.** Run it first so reviewers don't wade through alignment or whitespace noise.
 - **Duplicating env var or API reference content.** The reference pages are authoritative — link to them.
-- **Page opens with one sentence and a list.** `opening-paragraph.test.ts` blocks the PR. Rewrite to 2–4 sentences with the _why_ present.
-- **Page closes with `## Next` and a single link.** `closing-paragraph.test.ts` blocks the PR. Rename the closing section, recap in one paragraph, link with context.
-- **DE / FR page leaves a translate-bucket English noun in prose.** `loanword.test.ts` blocks the PR. Use the native term from the terminology table.
-- **DE / FR uses `Sie` / `vous`.** `terminology.test.ts` blocks the PR. Rewrite to informal.
+- **Page opens with one sentence and a list.** `structure-opening.test.ts` blocks the PR. Rewrite to 2–4 sentences with the _why_ present.
+- **Page closes with `## Next` and a single link.** `structure-closing.test.ts` blocks the PR. Rename the closing section, recap in one paragraph, link with context.
+- **DE / FR page leaves a translate-bucket English noun in prose.** `terminology-loanword.test.ts` blocks the PR. Use the native term from the terminology table.
+- **DE / FR uses `Sie` / `vous`.** `terminology-pronouns.test.ts` blocks the PR. Rewrite to informal.
 
 ---
 
 ## Quick reference — the page shape contract
 
-| Surface          | Rule                                                                                                                                                                    | Test                                                               |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Opening          | 2–4 sentences of prose, with _what / who / why_                                                                                                                         | `opening-paragraph.test.ts`                                        |
-| Body             | Prose first, lists for 5+ parallel items, every heading owns a paragraph                                                                                                | review                                                             |
-| Walk-through     | `effect → location → action` order, not the other way                                                                                                                   | review                                                             |
-| Reference tables | Fixed four-column `Name / Type / Required / Description` (or `Name / Default / Description` for env vars)                                                               | review                                                             |
-| Worked example   | Reference pages lead with a runnable example, then the options table                                                                                                    | review                                                             |
-| Closing          | Named for what it does (`## Build one`, `## Where this fits`, …), recap paragraph, contextualised link                                                                  | `closing-paragraph.test.ts`                                        |
-| Voice            | Second person informal, why before what, no marketing softening                                                                                                         | review                                                             |
-| Translation      | UI labels match shipped strings; translate-bucket nouns are translated; informal pronoun; same EN heading outline                                                       | `terminology.test.ts`, `loanword.test.ts`, `locale-parity.test.ts` |
-| German grammar   | Article/adjective case+gender agrees with the noun (closed list)                                                                                                        | `grammar-de.test.ts` (warn-only)                                   |
-| Truthfulness     | Every UI label, env var, route, default verified against `services/platform/messages/<locale>.json`, `services/platform/app/`, `services/platform/convex/`, env loaders | review (Rule 6)                                                    |
-| Mechanics        | Frontmatter `title` + `description`, dash-case files, sentence-case headings, language ID on code blocks                                                                | `frontmatter.test.ts`                                              |
+| Surface          | Rule                                                                                                                                                                    | Test                                                                                                                          |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Opening          | 2–4 sentences of prose, with _what / who / why_                                                                                                                         | `structure-opening.test.ts`                                                                                                   |
+| Body             | Prose first, lists for 5+ parallel items, every heading owns a paragraph                                                                                                | review                                                                                                                        |
+| Walk-through     | `effect → location → action` order, not the other way                                                                                                                   | review                                                                                                                        |
+| Reference tables | Fixed four-column `Name / Type / Required / Description` (or `Name / Default / Description` for env vars)                                                               | review                                                                                                                        |
+| Worked example   | Reference pages lead with a runnable example, then the options table                                                                                                    | review                                                                                                                        |
+| Closing          | Named for what it does (`## Build one`, `## Where this fits`, …), recap paragraph, contextualised link                                                                  | `structure-closing.test.ts`                                                                                                   |
+| Voice (EN/DE/FR) | Second person informal, why before what, no marketing softening, no bureaucracy drift                                                                                   | `voice-en.test.ts`, `voice-de.test.ts`, `voice-fr.test.ts`                                                                    |
+| Translation      | UI labels match shipped strings; translate-bucket nouns are translated; informal pronoun; same EN heading outline                                                       | `terminology-ui.test.ts`, `terminology-loanword.test.ts`, `terminology-pronouns.test.ts`, `locale-outline.test.ts`            |
+| Compounds        | No half-translated compound terms (`Pull Anfrage`, `Code Review-Prozess`)                                                                                               | `terminology-compounds.test.ts`                                                                                               |
+| German grammar   | Article/adjective case+gender agrees with the noun (closed list, hard-fail)                                                                                             | `grammar-de.test.ts`                                                                                                          |
+| Truthfulness     | Every UI label, env var, route, default verified against `services/platform/messages/<locale>.json`, `services/platform/app/`, `services/platform/convex/`, env loaders | review (Rule 6)                                                                                                               |
+| Mechanics        | Frontmatter `title` + `description`, dash-case files, no body H1, max H4, language ID on code blocks, no `!` in prose                                                   | `frontmatter.test.ts`, `filenames.test.ts`, `structure-headings.test.ts`, `structure-code.test.ts`, `structure-prose.test.ts` |

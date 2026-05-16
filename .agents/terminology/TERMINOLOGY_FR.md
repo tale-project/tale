@@ -12,7 +12,7 @@ French translation drifts towards marketing softening, stacked nominal phrases, 
 
 ### Five rules the voice always respects
 
-**1. `tu`, never `vous`.** Across UI, marketing, and docs. Inflections (`ton`, `ta`, `tes`, `toi`) follow. Enforced by [`terminology.test.ts`](../../services/docs/tests/terminology.test.ts); the formal-pronoun denylist lives at [`services/docs/tests/data/formal-pronouns.ts`](../../services/docs/tests/data/formal-pronouns.ts).
+**1. `tu`, never `vous`.** Across UI, marketing, and docs. Inflections (`ton`, `ta`, `tes`, `toi`) follow. Enforced by [`terminology-pronouns.test.ts`](../../services/docs/tests/terminology-pronouns.test.ts); the formal-pronoun denylist lives at [`services/docs/tests/data/formal-pronouns.ts`](../../services/docs/tests/data/formal-pronouns.ts).
 
 **2. Verb-first imperatives, not nominal stacks.**
 
@@ -101,7 +101,7 @@ When the English uses an abstract noun, translate the meaning, not the noun.
 
 ### Anti-pattern 5 · English noun in the middle of a French sentence
 
-Caught by [`loanword.test.ts`](../../services/docs/tests/loanword.test.ts) for the Bucket-3 set.
+Caught by [`terminology-loanword.test.ts`](../../services/docs/tests/terminology-loanword.test.ts) for the Bucket-3 set.
 
 | Drift                                               | Target                                                                        |
 | --------------------------------------------------- | ----------------------------------------------------------------------------- |

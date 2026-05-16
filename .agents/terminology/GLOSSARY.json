@@ -13,7 +13,7 @@
     "deploymentVocab": "Install/operate/configure terms (Self-hosted, On-premises, Open source, Zero-downtime).",
     "loanword": "Bucket 2 — established English loanword used unchanged in DE/FR. `de`/`fr` either omitted or equal to `en`.",
     "gitDomain": "Bucket 2a — Git/source-control vocabulary (Pull Request, Merge, Rebase). Stays English in DE/FR. Half-translated forms fail review.",
-    "translateBucket": "Bucket 3 — must translate. `de` and `fr` differ from `en`; EN form is rejected in DE/FR prose by `loanword.test.ts`.",
+    "translateBucket": "Bucket 3 — must translate. `de` and `fr` differ from `en`; EN form is rejected in DE/FR prose by `terminology-loanword.test.ts`.",
     "abbreviation": "Shorthand forms used in tooltips and tight UI (e.g., z. B., p. ex.). `_note` carries the expansion."
   },
   "terms": [
@@ -930,12 +930,28 @@
       "_note": "Bucket 3. Matches the shipped UI."
     },
     {
+      "key": "tech_drafts",
+      "category": "translateBucket",
+      "en": "Drafts",
+      "de": "Entwürfe",
+      "fr": "Brouillons",
+      "_note": "Plural of tech_draft. Bucket 3."
+    },
+    {
       "key": "tech_attachment",
       "category": "translateBucket",
       "en": "Attachment",
       "de": "Anhang",
       "fr": "Pièce jointe",
       "_note": "Bucket 3."
+    },
+    {
+      "key": "tech_attachments",
+      "category": "translateBucket",
+      "en": "Attachments",
+      "de": "Anhänge",
+      "fr": "Pièces jointes",
+      "_note": "Plural of tech_attachment. Bucket 3."
     },
     {
       "key": "tech_backup",

@@ -14,11 +14,12 @@ import { pageAsMarkdown } from '@tale/webui/llm/page-as-markdown';
 import { buildRobotsTxt } from '@tale/webui/seo/build-robots';
 import { buildSitemap, type SitemapPage } from '@tale/webui/seo/build-sitemap';
 
+import { DEFAULT_DOCS_SITE_URL } from '../lib/site-url';
 import { listAllContent } from './walk-content';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = resolve(SCRIPT_DIR, '..', 'public');
-const SITE_URL = process.env.DOCS_SITE_URL ?? 'https://docs.tale.dev';
+const SITE_URL = process.env.DOCS_SITE_URL ?? DEFAULT_DOCS_SITE_URL;
 const BASE_LOCALES = ['en', 'de', 'fr'] as const;
 
 function pathFor(locale: string, slug: string): string {

@@ -160,7 +160,7 @@ bun run docker:test:vulnerability
 
 Lässt Trivy gegen jedes Image laufen. Reports landen in `trivy-reports/`. Bekannte False-Positives kommen in `.trivyignore`:
 
-```
+```text
 CVE-2023-12345    # false positive: function not reachable
 ```
 

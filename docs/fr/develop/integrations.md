@@ -3,7 +3,7 @@ title: Construire une intégration
 description: Écrire un connecteur Tale — config.json, connector.ts, l'API sandbox et l'empaquetage.
 ---
 
-Un connecteur Tale est un répertoire : un manifeste `config.json`, un `connector.ts` optionnel (connecteurs REST) ou simplement des templates SQL (connecteurs SQL), et une icône. Le manifeste déclare l'identité, la forme d'authentification, les hôtes autorisés et les opérations nommées qu'expose l'intégration ; le code du connecteur exécute chaque opération dans une sandbox isolée à surface API petite et contrôlée. Cette page est la référence d'écriture — le schéma, le contrat de sandbox, les règles d'empaquetage.
+Un connecteur Tale est un répertoire : un manifeste `config.json`, un `connector.ts` optionnel (connecteurs REST) ou des templates SQL seuls (connecteurs SQL), et une icône. Le manifeste déclare l'identité, la forme d'authentification, les hôtes autorisés et les opérations nommées qu'expose l'intégration ; le code du connecteur exécute chaque opération dans une sandbox isolée à surface API petite et contrôlée. Cette page est la référence d'écriture — le schéma, le contrat de sandbox, les règles d'empaquetage.
 
 Le public, ce sont les développeurs qui écrivent un nouveau connecteur. Pour les concepts côté utilisateur (ce qu'est une intégration, comment une organisation en ajoute une), [Aperçu des intégrations](/fr/platform/integrations/overview) est l'entrée ; pour l'écriture assistée par IA du manifeste, [Développement assisté par l'IA](/fr/develop/ai-assisted-development) couvre le flux éditeur.
 

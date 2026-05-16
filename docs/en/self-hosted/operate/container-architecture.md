@@ -103,7 +103,7 @@ Never run `docker compose down -v`. The `-v` flag deletes every named volume, wh
 
 ## Multi-stage build strategy
 
-Every service ends with a `FROM scratch` squash stage. That final stage flattens Docker layers so file deletions in earlier cleanup stages reclaim disk space instead of just adding masking layers; without the squash, a `rm -rf` in stage four would still cost the deleted bytes in the final image.
+Every service ends with a `FROM scratch` squash stage. That final stage flattens Docker layers so file deletions in earlier cleanup stages reclaim disk space instead of adding masking layers; without the squash, a `rm -rf` in stage four would still cost the deleted bytes in the final image.
 
 ### Platform (5 stages, post-split)
 

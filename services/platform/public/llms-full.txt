@@ -6,8 +6,8 @@ The platform is the authenticated product surface: chat with local AI models, bu
 
 For LLM-readable documentation of the platform's capabilities, see:
 
-- https://docs.tale.dev/llms.txt — index of all documentation pages
-- https://docs.tale.dev/llms-full.txt — full documentation content
+- https://tale.dev/docs/llms.txt — index of all documentation pages
+- https://tale.dev/docs/llms-full.txt — full documentation content
 
 For information about Tale as a product (pricing, hardware, contact), see:
 

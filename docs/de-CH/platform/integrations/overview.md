@@ -32,7 +32,7 @@ Jede Integration veröffentlicht eine Liste von Operationen. Eine Operation hat 
 
 ## Lesen, Schreiben und Genehmigungen
 
-Operationen mit `operationType: write` erfordern standardmässig eine Genehmigung vor der Ausführung. Wenn ein Agent oder eine Automatisierung eine solche Operation auslöst, erscheint eine Genehmigungs-Karte im Chat — ein Mensch akzeptiert oder lehnt ab, und nur bei Akzeptanz wird der Aufruf ausgeführt. Siehe [Genehmigungen](/de/platform/workspace/approvals) für den vollständigen Ablauf. Nutze das für Abrechnung-Aktionen, Massen-E-Mails, Schreibvorgänge auf Produktionsdaten und alles, wo du einen Menschen in der Schleife willst. Lese-Operationen werden ohne Genehmigungsschritt ausgeführt.
+Operationen mit `operationType: write` erfordern standardmässig eine Genehmigung vor der Ausführung. Wenn ein Agent oder eine Automatisierung eine solche Operation auslöst, erscheint eine Genehmigungs-Karte im Chat — ein Mensch akzeptiert oder lehnt ab, und nur bei Akzeptanz wird der Aufruf ausgeführt. Siehe [Genehmigungen](/de/platform/workspace/approvals) für den vollständigen Ablauf. Nutze das für Abrechnung-Aktionen, Massen-E-Mails, Schreibvorgänge auf Produktionsdaten und alles, wo ein Mensch eingebunden bleiben soll. Lese-Operationen werden ohne Genehmigungsschritt ausgeführt.
 
 ## Authentifizierung und Geheimnisse
 

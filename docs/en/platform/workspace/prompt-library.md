@@ -109,4 +109,4 @@ Each prompt tracks how many times it has been inserted. The usage count appears 
 
 The Prompt library is the reusable-text surface for the chat composer. It exists for the same reason version control exists: the prompt you wrote last week, the one that finally got the right answer, should be saved once and reachable from every conversation — not pasted from a chat-history search. Personal scopes are for drafts; team scopes are for shared playbooks; organisation-wide scopes are for canonical templates the whole company should reach for.
 
-For prompts that change the AI's behaviour permanently rather than just framing one message, edit the agent's instructions at [Create an agent](/platform/agents/create) — the instructions are the prompt that runs before _every_ message in an agent's conversation, where a library prompt is the body of one message.
+For prompts that change the AI's behaviour permanently rather than only framing one message, edit the agent's instructions at [Create an agent](/platform/agents/create) — the instructions are the prompt that runs before _every_ message in an agent's conversation, where a library prompt is the body of one message.

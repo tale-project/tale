@@ -1,34 +1,36 @@
 /**
  * Closed list of high-frequency Tale nouns with their grammatical gender.
  *
- * Consumed by `services/docs/tests/grammar-de.test.ts` (warn-only) to flag
- * indefinite-article gender disagreement (`einen einmaligen Warnung` →
- * `eine einmalige Warnung`).
+ * Consumed by `60-grammar-de.test.ts` (hard-fail after the precision
+ * tightening + corpus sweep) to flag indefinite-article gender disagreement
+ * (`einen einmaligen Warnung` → `eine einmalige Warnung`).
  *
- * Add a noun here only after verifying with Duden; ambiguous-gender words
- * (e.g. `Code Review`, where the gender depends on the German speaker)
- * are deliberately omitted.
+ * Add a noun here only after verifying with Duden. Ambiguous-gender words
+ * (e.g. `Code Review`, where the gender depends on the speaker) are
+ * deliberately omitted — the test would produce false positives.
  *
  * Codes:
  *   m = masculine
  *   f = feminine
  *   n = neuter
  */
+
 export type Gender = 'm' | 'f' | 'n';
 
 export const NOUN_GENDERS_DE: Record<string, Gender> = {
   Agent: 'm',
   Anbieter: 'm',
   Anfrage: 'f',
-  Anweisung: 'f',
   Anhang: 'm',
   Antwort: 'f',
+  Anweisung: 'f',
   Aufbewahrung: 'f',
   Ausführung: 'f',
+  Automation: 'f',
   Berechtigung: 'f',
   Commit: 'm',
-  Datenbank: 'f',
   Datei: 'f',
+  Datenbank: 'f',
   Dokument: 'n',
   Eingabe: 'f',
   Einstellung: 'f',
@@ -52,9 +54,11 @@ export const NOUN_GENDERS_DE: Record<string, Gender> = {
   Produkt: 'n',
   Provider: 'm',
   Repository: 'n',
+  Rolle: 'f',
   Schlüssel: 'm',
   Schritt: 'm',
   Server: 'm',
+  Sitzung: 'f',
   Team: 'n',
   Token: 'n',
   Tool: 'n',
@@ -64,7 +68,6 @@ export const NOUN_GENDERS_DE: Record<string, Gender> = {
   Warnung: 'f',
   Webhook: 'm',
   Website: 'f',
-  Workflow: 'm',
   Wissensdatenbank: 'f',
   Zertifizierung: 'f',
   Zugriff: 'm',

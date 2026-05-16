@@ -6,13 +6,14 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import { DEFAULT_DOCS_SITE_URL } from '../lib/site-url';
 import { listAllContent } from './walk-content';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(SCRIPT_DIR, '..');
 const DIST = resolve(ROOT, 'dist');
 const SSR_BUNDLE = resolve(ROOT, 'dist-ssr', 'entry-server.js');
-const SITE_URL = process.env.DOCS_SITE_URL ?? 'https://docs.tale.dev';
+const SITE_URL = process.env.DOCS_SITE_URL ?? DEFAULT_DOCS_SITE_URL;
 // Mount-point prefix passed to the router during SSR so it resolves URLs
 // against the same basepath the client uses. Empty for root deployments.
 const BASE_PATH = (process.env.DOCS_BASE_URL ?? '/').replace(/\/$/, '');

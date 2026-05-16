@@ -65,7 +65,7 @@ The full doctrine lives at [Canvas](/platform/workspace/canvas).
 
 ## Prompt library
 
-To reuse a prompt template across the team, open the Prompt library from the composer toolbar — every saved prompt is searchable and insertable with one click. To save the prompt you just wrote, open the message's three-dot menu and pick **Save as prompt**; scope it to yourself, your team, or the whole organisation.
+To reuse a prompt template across the team, open the Prompt library from the composer toolbar — every saved prompt is searchable and insertable with one click. To save the prompt you wrote, open the message's three-dot menu and pick **Save as prompt**; scope it to yourself, your team, or the whole organisation.
 
 The full doctrine lives at [Prompt library](/platform/workspace/prompt-library).
 

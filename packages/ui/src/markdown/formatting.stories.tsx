@@ -15,7 +15,7 @@ type Story = StoryObj<typeof meta>;
 const INLINE = `# Inline formatting
 
 Body prose with **bold**, _italic_, ~~strikethrough~~, and \`inline code\`.
-You can [link to docs](https://docs.tale.dev) or to a heading on the same
+You can [link to docs](https://example.com/docs) or to a heading on the same
 page like [#getting-started](#getting-started). External links open in a new
 tab; internal anchor links scroll smoothly.
 

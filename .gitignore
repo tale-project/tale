@@ -152,3 +152,6 @@ services/web/public/fr/
 # build artifacts under services/* (each service has its own dist/dist-ssr)
 services/*/dist
 services/*/dist-ssr
+
+# Glossary-audit script outputs — regenerated on demand, never committed
+services/docs/scripts/audit-output/

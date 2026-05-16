@@ -8,7 +8,7 @@ interface DocumentMeta {
   canonicalPath?: string;
   /** Override the site title suffix. Defaults to `Tale`. */
   siteName?: string;
-  /** Origin without trailing slash, e.g. `https://docs.tale.dev`. */
+  /** Origin without trailing slash, e.g. `https://example.com`. */
   siteUrl: string;
   /** Optional OpenGraph image URL. */
   ogImage?: string;

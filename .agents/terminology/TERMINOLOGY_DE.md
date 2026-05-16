@@ -16,7 +16,7 @@ German translation that preserves vocabulary but loses voice is still wrong. Tal
 
 ### Five rules the voice always respects
 
-**1. `du`, never `Sie`.** The informal form is used consistently across UI, marketing, and docs. Inflections (`dein`, `deine`, `dir`) follow. Enforced by [`terminology.test.ts`](../../services/docs/tests/terminology.test.ts); the formal-pronoun denylist lives at [`services/docs/tests/data/formal-pronouns.ts`](../../services/docs/tests/data/formal-pronouns.ts).
+**1. `du`, never `Sie`.** The informal form is used consistently across UI, marketing, and docs. Inflections (`dein`, `deine`, `dir`) follow. Enforced by [`terminology-pronouns.test.ts`](../../services/docs/tests/terminology-pronouns.test.ts); the formal-pronoun denylist lives at [`services/docs/tests/data/formal-pronouns.ts`](../../services/docs/tests/data/formal-pronouns.ts).
 
 **2. Active verbs in present tense.** `Speichert die Änderungen` not `Die Änderungen werden gespeichert`. UI feedback messages have an obvious agent (the system) and benefit from the active form.
 
@@ -113,7 +113,7 @@ When the English uses an abstract noun (`story`, `journey`, `posture`, `surface`
 
 ### Anti-pattern 6 · English noun in the middle of a German sentence
 
-Caught by [`loanword.test.ts`](../../services/docs/tests/loanword.test.ts) for the Bucket-3 set. The cross-locale doctrine is in [`TERMINOLOGY.md`](TERMINOLOGY.md) §2.
+Caught by [`terminology-loanword.test.ts`](../../services/docs/tests/terminology-loanword.test.ts) for the Bucket-3 set. The cross-locale doctrine is in [`TERMINOLOGY.md`](TERMINOLOGY.md) §2.
 
 | Drift                                                   | Target                                                  |
 | ------------------------------------------------------- | ------------------------------------------------------- |
@@ -150,7 +150,7 @@ Most common at sentence starts after a colon (`X: Sie halten…`), where `Sie` _
 
 ### Anti-pattern 9 · Gender slip
 
-A masculine article on a feminine noun (`einen einmaligen Warnung`), a dative-masculine on a feminine noun (`dem Anfrage`), and the rest of the class. Caught (warn-only) by [`grammar-de.test.ts`](../../services/docs/tests/grammar-de.test.ts) for the closed list of high-frequency Tale nouns. The noun-gender map lives at [`services/docs/tests/data/noun-genders-de.ts`](../../services/docs/tests/data/noun-genders-de.ts).
+A masculine article on a feminine noun (`einen einmaligen Warnung`), a dative-masculine on a feminine noun (`dem Anfrage`), and the rest of the class. Caught (hard-fail, after precision tightening) by [`grammar-de.test.ts`](../../services/docs/tests/grammar-de.test.ts) for the closed list of high-frequency Tale nouns. The noun-gender map lives at [`services/docs/tests/data/noun-genders-de.ts`](../../services/docs/tests/data/noun-genders-de.ts).
 
 | Drift                      | Target                   | Why drift fails                                              |
 | -------------------------- | ------------------------ | ------------------------------------------------------------ |

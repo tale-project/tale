@@ -246,7 +246,7 @@ Tout serveur qui parle l'API HTTP OpenAI peut être un fournisseur. Ajoute un fi
 }
 ```
 
-Ollama ne demande pas d'authentification. Mets `apiKey` à n'importe quel placeholder non vide dans le fichier de secrets — le champ est requis par le schéma, mais le runtime propage simplement la valeur vers un serveur qui l'ignore.
+Ollama ne demande pas d'authentification. Mets `apiKey` à n'importe quel placeholder non vide dans le fichier de secrets — le champ est requis par le schéma, mais le runtime propage la valeur vers un serveur qui l'ignore.
 
 ### Whisper local
 

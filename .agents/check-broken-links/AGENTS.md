@@ -26,7 +26,7 @@ cd services/docs && bun x vitest run --reporter=verbose
 For a single test file:
 
 ```bash
-cd services/docs && bun x vitest run tests/opening-paragraph.test.ts
+cd services/docs && bun x vitest run tests/structure-opening.test.ts
 ```
 
 ---
@@ -35,7 +35,13 @@ cd services/docs && bun x vitest run tests/opening-paragraph.test.ts
 
 These checks fail when the repo is structurally inconsistent — they're the guardrails for "the page exists, the nav points at it, the locales mirror each other".
 
-### `navigation-parity.test.ts`
+### `walk.test.ts`
+
+**What it checks.** Sanity — the walker finds at least one page per base locale and `discoverLocales()` includes `en`, `de`, `fr`. Runs first so a misconfigured `CONTENT_ROOT` surfaces with a clear error before anything else.
+
+**How to fix.** If this fails, the harness itself is broken — check `lib/paths.ts` and the actual `docs/` tree.
+
+### `navigation.test.ts`
 
 **What it checks.** Every slug in [`docs/nav.json`](../../docs/nav.json) resolves to a real `.md` or `.mdx` file in `en`, `de`, and `fr`.
 
@@ -51,21 +57,64 @@ These checks fail when the repo is structurally inconsistent — they're the gua
 
 **How to fix.** Add the missing field. `title` is sentence-case; `description` is one sentence completing "This page is about…".
 
-### `locale-parity.test.ts`
+### `filenames.test.ts`
 
-**What it checks.** For every page in `docs/en/`, the DE and FR mirrors keep the same heading outline (array of heading levels) and the same fenced-code-block count.
+**What it checks.** Every `.md`/`.mdx` filename and directory segment under a locale is dash-case lowercase (the locale segment itself is exempt — `de-CH` keeps its uppercase region subtag).
+
+**What it catches.** `API_Reference.md`, `apiReference.md`, `MyPage.md` — anything that would render as an ugly URL.
+
+**How to fix.** Rename the file. Grep the repo for inbound links and update them.
+
+### `locale-tree.test.ts`
+
+**What it checks.** For every page in `docs/en/`, DE and FR have a translated mirror at the same relative path. Orphans (locale pages with no English source) are also rejected.
+
+**What it catches.** A page added in EN but not yet translated, a stale DE/FR page whose English source got deleted.
+
+**How to fix.** Create the missing mirror or delete the orphan.
+
+### `locale-outline.test.ts`
+
+**What it checks.** Per-page heading-depth sequence and fenced-code-block count match between EN and each translated mirror.
 
 **What it catches.** A restructure in EN that didn't propagate to DE/FR. A heading added or removed in one locale but not the others. An accidental drop of a code block in translation.
 
 **How to fix.** Read the EN source. Restructure the failing locale to match the EN outline. If the EN page is genuinely the one that should change (rare), update DE and FR in the same PR.
 
-### `readme-parity.test.ts`
+### `readme.test.ts`
 
-**What it checks.** `README.md`, `README.de.md`, `README.fr.md` keep the same structural shape — same heading outline, same number of sections.
+**What it checks.** `README.md`, `README.de.md`, `README.fr.md` keep the same structural shape — same heading outline; the English README links to every mirror.
 
 **What it catches.** A README change in one language without the parallel updates.
 
 **How to fix.** Mirror the change across all three READMEs.
+
+### `structure-headings.test.ts`
+
+**What it checks.** No body `# X` (the frontmatter `title` renders the H1); max heading depth H4; no stub heading names (`## Next`, `## See also`, `## Suite`, …) anywhere on the page.
+
+**What it catches.** Duplicate H1, oversized heading depth, stub heading names mid-page.
+
+**How to fix.** Demote body H1 to H2; split pages whose structure runs past H4; rename stub headings for what the section does.
+
+### `structure-code.test.ts`
+
+**What it checks.** Every fenced code block declares a language identifier. Bare ` ``` ` fences fail.
+
+**What it catches.** A code block that renders without syntax highlighting because the language tag was forgotten.
+
+**How to fix.** Add the language tag (`bash`, `typescript`, `json`, `text`, `mermaid`, …) after the opening fence.
+
+### `structure-prose.test.ts`
+
+**What it checks.** Two passes over every page's prose (with code fences, inline code, and URLs masked):
+
+1. No `!` in prose outside legitimate contexts (`!=`, `!important`, link-image syntax).
+2. No status-chatter prefixes (`Updated:`, `New in vX:`, `Coming soon:`, `TODO:`, `Note that…`, `Please note:` and locale equivalents) at the start of any line.
+
+**What it catches.** Marketing exclamations; release-note metadata leaking into prose.
+
+**How to fix.** Strike the exclamation; rewrite the chatter prefix or delete the sentence.
 
 ---
 
@@ -73,37 +122,74 @@ These checks fail when the repo is structurally inconsistent — they're the gua
 
 These checks fail when a translated page contradicts the shipped UI or uses the wrong pronoun. They read [`.agents/terminology/GLOSSARY.json`](../terminology/GLOSSARY.json) (the flat `terms[]` array) and the test-data modules under [`services/docs/tests/data/`](../../services/docs/tests/data/).
 
-### `terminology.test.ts`
+### `terminology-pronouns.test.ts`
 
-**What it checks.** Two passes over every DE / FR / `de-CH` page:
+**What it checks.** Rejects `Sie`/`Ihnen`/`Ihre`/`Ihrer`/`Ihres`/`Ihrem`/`Ihren` in German and `vous`/`votre`/`vos` in French — sourced from [`tests/data/formal-pronouns.ts`](../../services/docs/tests/data/formal-pronouns.ts). Sentence-initial `Sie` in DE is heuristically allowed because it's often the third-person plural `sie` capitalised; restructure to avoid the ambiguity anyway.
 
-1. **Formal-pronoun pass.** Rejects `Sie`/`Ihnen`/`Ihre`/`Ihrer`/`Ihres`/`Ihrem` in German and `vous`/`votre`/`vos` in French — sourced from [`tests/data/formal-pronouns.ts`](../../services/docs/tests/data/formal-pronouns.ts). Sentence-initial `Sie` in DE is heuristically allowed because it's often the third-person plural `sie` capitalised; restructure to avoid the ambiguity anyway.
-2. **UI-term pass.** Iterates the `terms[]` array in [`GLOSSARY.json`](../terminology/GLOSSARY.json) and rejects the English form when (a) the entry's `category` is in the enforced set (`feature`, `role`, `knowledgeEntity`, `translateBucket`), (b) the resolved locale form differs from `en`, and (c) the entry doesn't carry `_lintExclude` for this locale. Example: `Customers` in a `docs/de/**` page is rejected (the shipped UI says `Kunden`); `Workflow` is not flagged (`category: "loanword"`, same form in all locales).
+**What it catches.** Pronoun slips in DE and FR prose.
 
-**What it catches.** Pronoun slips. UI-label drift between docs and the shipped product. Half-translated sentences (`Öffne **Settings > Members**`).
+**How to fix.** Rewrite to the informal form (`du` / `tu`). Read [`TERMINOLOGY_DE.md`](../terminology/TERMINOLOGY_DE.md) §1 or [`TERMINOLOGY_FR.md`](../terminology/TERMINOLOGY_FR.md) §1 for the voice rule.
 
-**How to fix.**
+### `terminology-ui.test.ts`
 
-- Pronoun slip: rewrite to the informal form. Read [`TERMINOLOGY_DE.md`](../terminology/TERMINOLOGY_DE.md) §1 or [`TERMINOLOGY_FR.md`](../terminology/TERMINOLOGY_FR.md) §1 for the voice rule.
-- UI-label drift: replace the English noun with the locale form. Grep `services/platform/messages/<locale>.json` for the source of truth. If the UI form has changed, update the relevant `terms[]` entry in `GLOSSARY.json` in the same PR.
+**What it checks.** Iterates the `terms[]` array in [`GLOSSARY.json`](../terminology/GLOSSARY.json) and rejects the English form when (a) the entry's `category` is in the enforced set (`feature`, `role`, `knowledgeEntity`, `translateBucket`), (b) the resolved locale form differs from `en`, and (c) the entry doesn't carry `_lintExclude` for this locale. Example: `Customers` in a `docs/de/**` page is rejected (the shipped UI says `Kunden`); `Workflow` is not flagged (`category: "loanword"`, same form in all locales).
 
-### `loanword.test.ts`
+**What it catches.** UI-label drift between docs and the shipped product. Half-translated sentences (`Öffne **Settings > Members**`).
 
-**What it checks.** Narrower variant of `terminology.test.ts`, scoped to `category === "translateBucket"` in [`GLOSSARY.json`](../terminology/GLOSSARY.json). For each Bucket-3 entry, the test rejects the English form appearing in DE/FR/de-CH page bodies (outside code fences, inline-code spans, and link URLs). Useful for the sharper, narrower error message.
+**How to fix.** Replace the English noun with the locale form. Grep `services/platform/messages/<locale>.json` for the source of truth. If the UI form has changed, update the relevant `terms[]` entry in `GLOSSARY.json` in the same PR.
+
+### `terminology-loanword.test.ts`
+
+**What it checks.** Narrower variant of `terminology-ui.test.ts`, scoped to `category === "translateBucket"` in [`GLOSSARY.json`](../terminology/GLOSSARY.json). For each Bucket-3 entry, the test rejects the English form appearing in DE/FR/de-CH page bodies (outside code fences, inline-code spans, and link URLs). Useful for the sharper, narrower error message.
 
 **What it catches.** The most common translation failure mode — leaving an English noun in DE/FR prose when a clean native equivalent exists. `Schicke deinen Request an die API.` → bug; should be `Anfrage`. `Configure ton Email Provider.` → bug; should be `fournisseur de courriel`.
 
 **How to fix.** Use the native term from the glossary entry.
 
-### `grammar-de.test.ts` (warn-only)
+### `terminology-compounds.test.ts`
+
+**What it checks.** Rejects half-translated compounds from [`tests/data/half-compounds.ts`](../../services/docs/tests/data/half-compounds.ts) — patterns like `Pull Anfrage`, `Code Review-Prozess`, `Branch-Zweig`, `Knowledge-Datenbank`.
+
+**What it catches.** A multi-word technical term split across languages.
+
+**How to fix.** Translate the compound whole or keep it whole. Git-domain compounds stay English (`Pull Request`); product compounds translate (`Knowledge Base` → `Wissensdatenbank` / `Base de connaissances`).
+
+### `voice-en.test.ts`
+
+**What it checks.** Rejects the English marketing-softener strike list (`simply`, `easy`, `easily`, `powerful`, `seamless`, `seamlessly`, `just`, `please`, `feel free to`, `discover`, `unleash`, `effortlessly`, `straightforward`, `intuitive`) in `docs/en/**`. List lives in [`tests/data/voice-strike-en.ts`](../../services/docs/tests/data/voice-strike-en.ts).
+
+**What it catches.** Marketing voice creeping into the English source.
+
+**How to fix.** Strike the word and let the demonstration carry the message.
+
+### `voice-de.test.ts`
+
+**What it checks.** Two passes over every `docs/de/**` and `docs/de-CH/**` page:
+
+1. **Strike list** from [`tests/data/voice-strike-de.ts`](../../services/docs/tests/data/voice-strike-de.ts) — `einfach`, `bequem`, `nahtlos`, `intuitiv`, `Entdecke`, …
+2. **Bureaucracy drift rules** from [`tests/data/voice-bureaucracy-de.ts`](../../services/docs/tests/data/voice-bureaucracy-de.ts) — line-initial `Wird X…` (passive present), sentence-final `erfolgreich`, line-initial `Damit`, calques like `in der Schleife` / `aus der Box`.
+
+**What it catches.** German bureaucracy drift and marketing softening.
+
+**How to fix.** Strike the softener; rewrite passive-present to active; verb-first for `Damit` openers.
+
+### `voice-fr.test.ts`
+
+**What it checks.** Rejects the French marketing-softener strike list (`Découvre/Découvrez`, `N'hésite pas à`, `tout simplement`, `il te suffit de`, `simplement`, `facilement`, `puissant`, `clé en main`, `Profite/Profitez de`, `Bénéficie/Bénéficiez de`, `s'il te plaît`, …) in `docs/fr/**`. List lives in [`tests/data/voice-strike-fr.ts`](../../services/docs/tests/data/voice-strike-fr.ts).
+
+**What it catches.** French marketing softening.
+
+**How to fix.** Strike the softener; rewrite to the imperative.
+
+### `grammar-de.test.ts`
 
 **What it checks.** Indefinite-article gender agreement for the closed list of high-frequency Tale nouns at [`tests/data/noun-genders-de.ts`](../../services/docs/tests/data/noun-genders-de.ts). For each noun with a known gender, the test scans for `einen`/`eine`/`einem`/`einer`/`eines` (with up to two adjectives in between) and flags mismatches.
 
-**What it catches.** The class of error the audit caught: `einen einmaligen Warnung` (masculine accusative on a feminine noun) → should be `eine einmalige Warnung`. `dem Anfrage` → should be `der Anfrage`. `einen Konversation` → should be `eine Konversation`.
+The regex is precision-tightened against the legacy version: a negative lookahead aborts the match when a preposition (`pro`, `mit`, `für`, `von`, `aus`, `bei`, `nach`, `seit`, `zu`, `gegen`, `ohne`, `um`, `durch`, …) appears between article and noun, and another lookahead rejects matches where the noun is followed by `-` (hyphenated compound). These two changes eliminate the `einen Chunk pro Token` and `eine Token-URL` classes of false positives.
 
-**How to fix.** Consult the noun-gender map in `noun-genders-de.ts` and rewrite the article + adjective endings to agree. Definite-article cases (`der`/`die`/`das`/`dem`/`den`/`des`) are deliberately out of scope for v1 because they're ambiguous across case+number.
+**What it catches.** `einen einmaligen Warnung` (masculine accusative on a feminine noun) → should be `eine einmalige Warnung`. `eine Token` → should be `ein Token`.
 
-**Status:** warn-only. Promote to hard-fail once the rewrite sweep clears the existing corpus.
+**How to fix.** Consult the noun-gender map in `noun-genders-de.ts` and rewrite the article + adjective endings to agree. Definite-article cases (`der`/`die`/`das`/`dem`/`den`/`des`) are deliberately out of scope because they're ambiguous across case+number.
 
 ---
 
@@ -111,7 +197,7 @@ These checks fail when a translated page contradicts the shipped UI or uses the 
 
 These checks fail when a page's _shape_ doesn't meet the contract from [`.agents/docs/AGENTS.md`](../docs/AGENTS.md): a real opening, a real closing, no stubs.
 
-### `opening-paragraph.test.ts`
+### `structure-opening.test.ts`
 
 **What it checks.** Every page (except files marked `kind: index` in frontmatter) opens with at least two sentences of prose between the frontmatter and the first sub-heading, list, table, or fenced code block.
 
@@ -123,7 +209,7 @@ These checks fail when a page's _shape_ doesn't meet the contract from [`.agents
 - **Tutorial**: `<Outcome> requires <three or four moves>. This page walks all of them. <Prerequisites in one sentence>.`
 - **Section overview**: `<Section X> is the part of Tale that does <Y>. <Audience> uses it for <Z>. <The order in which sub-pages should be read>.`
 
-### `closing-paragraph.test.ts`
+### `structure-closing.test.ts`
 
 **What it checks.** Every page closes with a real recap, not a stub. Specifically:
 
@@ -148,7 +234,7 @@ The closing's body recaps the one thing the reader should remember (one paragrap
 ## When to run
 
 - **After renaming, moving, or deleting a page.** Navigation parity, locale parity, and README parity all surface immediately.
-- **After editing any heading.** Heading text → slug; anchor links to that heading break silently. The locale-parity test surfaces heading-outline drift across locales.
+- **After editing any heading.** Heading text → slug; anchor links to that heading break silently. The `locale-outline.test.ts` test surfaces heading-outline drift across locales.
 - **After editing [`docs/nav.json`](../../docs/nav.json).** Always.
 - **After translating or rewriting a page in any locale.** All terminology + prose-quality checks.
 - **Before opening a PR** that touches `docs/` or `services/docs/`. CI runs the same suite; failing locally avoids a round-trip.
@@ -183,14 +269,19 @@ Pitfalls the suite cannot catch — review them by hand:
 
 ## How to extend the suite
 
-The test infrastructure lives at [`services/docs/tests/`](../../services/docs/tests/) with a shared helpers module at [`services/docs/tests/_helpers.ts`](../../services/docs/tests/_helpers.ts) that exposes:
+The test infrastructure lives at [`services/docs/tests/`](../../services/docs/tests/) with shared helpers under [`services/docs/tests/lib/`](../../services/docs/tests/lib/):
 
-- `CONTENT_ROOT` — the absolute path of `docs/`.
-- `walkDocs()` — every `.md`/`.mdx` path under `docs/`, relative to `CONTENT_ROOT`.
+- [`lib/paths.ts`](../../services/docs/tests/lib/paths.ts) — `CONTENT_ROOT`, `DOCS_ROOT`, `REPO_ROOT`, `MESSAGES_ROOT`, `GLOSSARY_PATH`.
+- [`lib/walk.ts`](../../services/docs/tests/lib/walk.ts) — `walkDocs()`, `discoverLocales()`, `localeOf()`, `filesInLocale()`, `BASE_LOCALES`.
+- [`lib/markdown.ts`](../../services/docs/tests/lib/markdown.ts) — `parseFrontmatter`, `stripFences`, `maskInlineCode`, `maskUrls`, `extractHeadings`, `extractCodeFences`, `iterProseLines`, `extractOpeningProse`, `extractClosingSection`.
+- [`lib/glossary.ts`](../../services/docs/tests/lib/glossary.ts) — `loadGlossary`, `resolveForm`, `termsByCategory`, `shouldEnforce`, `ENFORCED_CATEGORIES`, `isCapitalisedSentenceStart`.
+- [`lib/regex.ts`](../../services/docs/tests/lib/regex.ts) — `escapeRegex`, `wordBoundary`, `wordBoundaryDe`, `wordBoundaryFr`.
+- [`lib/findings.ts`](../../services/docs/tests/lib/findings.ts) — `Finding` type, `formatFindings`, `assertNoFindings`.
+- [`lib/rules.ts`](../../services/docs/tests/lib/rules.ts) — `StrikeEntry`, `DriftRule`, `runStrikes`, `runDriftRules` for the voice and compound tests.
 - `discoverLocales()` — every top-level locale subdirectory under `docs/` (regex `^[a-z]{2}(?:-[A-Z]{2})?$`).
 - `localeOf(relPath)` — the locale of a content-relative path.
 
-Adding a new check is two files: a new `*.test.ts` under `services/docs/tests/`, plus structured input. For term-shaped input (English → locale-form mapping), add an entry to `terms[]` in [`GLOSSARY.json`](../terminology/GLOSSARY.json). For input that isn't term-shaped (a closed wordlist, a regex set, a gender map), add a TypeScript module under [`services/docs/tests/data/`](../../services/docs/tests/data/) and import it directly — type-checked, no JSON round-trip. Follow the pattern of `loanword.test.ts` and `grammar-de.test.ts`.
+Adding a new check is two files: a new `*.test.ts` under `services/docs/tests/`, plus structured input. For term-shaped input (English → locale-form mapping), add an entry to `terms[]` in [`GLOSSARY.json`](../terminology/GLOSSARY.json). For input that isn't term-shaped (a closed wordlist, a regex set, a gender map), add a TypeScript module under [`services/docs/tests/data/`](../../services/docs/tests/data/) and import it directly — type-checked, no JSON round-trip. Use the `StrikeEntry` / `DriftRule` shapes in `lib/rules.ts` for term-list and regex-rule patterns; follow the structure of `voice-en.test.ts` / `grammar-de.test.ts`.
 
 To extend the Bucket-3 translate-must set: add a new entry to `terms[]` in [`GLOSSARY.json`](../terminology/GLOSSARY.json) with `category: "translateBucket"` and the `de` / `fr` / `de_ch` overrides. Document the rationale in the entry's `_note`.
 
@@ -198,14 +289,25 @@ To extend the Bucket-3 translate-must set: add a new entry to `terms[]` in [`GLO
 
 ## Quick reference — every check on one line
 
-| Test                        | Layer       | What it enforces                                                                               |
-| --------------------------- | ----------- | ---------------------------------------------------------------------------------------------- |
-| `navigation-parity.test.ts` | structural  | Nav slugs resolve to real files in en/de/fr.                                                   |
-| `frontmatter.test.ts`       | structural  | Every page has `title` and `description`.                                                      |
-| `locale-parity.test.ts`     | structural  | DE/FR mirror the EN heading outline and code-block count.                                      |
-| `readme-parity.test.ts`     | structural  | READMEs in en/de/fr stay structurally in sync.                                                 |
-| `terminology.test.ts`       | terminology | Informal pronouns; UI-label terms match the shipped UI per locale.                             |
-| `loanword.test.ts`          | terminology | Translate-bucket English nouns are translated in DE/FR.                                        |
-| `grammar-de.test.ts`        | terminology | German indefinite-article gender agreement on the closed `noun-genders-de.ts` set (warn-only). |
-| `opening-paragraph.test.ts` | prose       | Every page opens with ≥ 2 sentences of prose.                                                  |
-| `closing-paragraph.test.ts` | prose       | Every page closes with a real recap, not a `## Next` stub.                                     |
+| Test                            | Layer       | What it enforces                                                                         |
+| ------------------------------- | ----------- | ---------------------------------------------------------------------------------------- |
+| `walk.test.ts`                  | sanity      | Walker finds pages, base locales are present.                                            |
+| `navigation.test.ts`            | structural  | Nav slugs resolve to real files in en/de/fr.                                             |
+| `frontmatter.test.ts`           | structural  | Every page has `title` and `description`.                                                |
+| `filenames.test.ts`             | structural  | Filenames are dash-case lowercase under each locale.                                     |
+| `locale-tree.test.ts`           | structural  | DE/FR have a mirror for every English page; no orphans.                                  |
+| `locale-outline.test.ts`        | structural  | DE/FR mirror the EN heading outline and code-block count.                                |
+| `readme.test.ts`                | structural  | READMEs in en/de/fr stay structurally in sync.                                           |
+| `structure-headings.test.ts`    | structural  | No body H1, max depth H4, no stub heading names.                                         |
+| `structure-code.test.ts`        | structural  | Every fenced code block declares a language identifier.                                  |
+| `structure-prose.test.ts`       | structural  | No `!` in prose; no status-chatter prefixes.                                             |
+| `structure-opening.test.ts`     | prose       | Every page opens with ≥ 2 sentences of prose.                                            |
+| `structure-closing.test.ts`     | prose       | Every page closes with a real recap, not a stub.                                         |
+| `terminology-pronouns.test.ts`  | terminology | Informal pronouns (`du`/`tu`), no `Sie`/`vous`.                                          |
+| `terminology-ui.test.ts`        | terminology | UI-label terms match the shipped UI per locale.                                          |
+| `terminology-loanword.test.ts`  | terminology | Translate-bucket English nouns are translated in DE/FR.                                  |
+| `terminology-compounds.test.ts` | terminology | Half-translated compounds (`Pull Anfrage`, `Code Review-Prozess`, …) rejected.           |
+| `voice-en.test.ts`              | voice       | English marketing softeners (`simply`, `easy`, `just`, …) stricken.                      |
+| `voice-de.test.ts`              | voice       | German softeners + bureaucracy drift (`Wird X…`, `erfolgreich`, `Damit`).                |
+| `voice-fr.test.ts`              | voice       | French marketing softeners (`Découvrez`, `simplement`, `il vous suffit de`, …) stricken. |
+| `grammar-de.test.ts`            | terminology | German indefinite-article gender agreement, preposition-aware regex.                     |

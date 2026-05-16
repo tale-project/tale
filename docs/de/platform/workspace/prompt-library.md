@@ -99,7 +99,7 @@ Erreicht der Verlauf die Obergrenze, fällt die älteste Version heraus (FIFO) u
 
 ## Rate-Limits
 
-Mutationen auf Prompts sind pro Nutzer rate-limitiert, damit Massen-Operationen freundlich bleiben. Bei Treffer eines Limits liest ein Toast **Zu schnelles Speichern — bitte warte einen Moment vor dem nächsten Versuch**, und die Aktion läuft sauber weiter, sobald das Fenster sich zurücksetzt.
+Mutationen auf Prompts sind pro Nutzer rate-limitiert, damit Massen-Operationen freundlich bleiben. Bei Treffer eines Limits zeigt ein Toast den Hinweis, dass das Speichern zu schnell läuft, und die Aktion läuft sauber weiter, sobald das Fenster sich zurücksetzt.
 
 ## Nutzungs-Tracking
 

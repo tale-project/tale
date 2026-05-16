@@ -47,7 +47,7 @@ The Knowledge tab also lets you upload **agent documents** — files only this a
 
 To suggest first messages on a fresh chat, open the Starters tab and add starter entries. Each starter has a **title** (the clickable suggestion) and a **prompt** (the message sent when clicked). Starters reduce the friction of writing the first message and they're a good way to demonstrate what the agent was built to handle.
 
-An agent with no starters just shows an empty composer on a fresh chat — the feature is opt-in.
+An agent with no starters shows an empty composer on a fresh chat — the feature is opt-in.
 
 ## Delegation
 

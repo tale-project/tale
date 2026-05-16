@@ -4,6 +4,6 @@
 
 ## Optional
 
-- [Documentation](https://docs.tale.dev/llms.txt)
+- [Documentation](https://tale.dev/docs/llms.txt)
 - [Marketing site](https://tale.dev/llms.txt)
 - [GitHub](https://github.com/tale-project/tale)

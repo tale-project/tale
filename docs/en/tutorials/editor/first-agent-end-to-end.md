@@ -94,6 +94,6 @@ The step worked when the version header shows a fresh version number and "Publis
 
 ## Where this gets used
 
-What you built is a versioned, knowledge-scoped agent your team can pick from the chat selector — and the same agent is also reachable from automations, the public API, and the Webhook tab without any extra wiring. The four decisions you just made (instructions, knowledge, tools, model) hold across every surface where the agent runs, which is the whole point of the agent abstraction.
+What you built is a versioned, knowledge-scoped agent your team can pick from the chat selector — and the same agent is also reachable from automations, the public API, and the Webhook tab without any extra wiring. The four decisions you made (instructions, knowledge, tools, model) hold across every surface where the agent runs, which is the whole point of the agent abstraction.
 
 Two natural next moves from here: let scripts call the agent directly with [Call Tale from a script](/tutorials/developer/call-tale-from-a-script), or wire the same agent into a multi-step workflow with [Trigger an automation via webhook](/tutorials/developer/trigger-automation-via-webhook).

@@ -3,7 +3,7 @@ title: Build an integration
 description: Author a Tale connector — config.json, connector.ts, the sandbox API, and packaging.
 ---
 
-A Tale connector is one directory: a `config.json` manifest, an optional `connector.ts` (REST connectors) or just SQL templates (SQL connectors), and an icon. The manifest declares the integration's identity, authentication shape, allowed hosts, and the named operations it exposes; the connector code runs each operation inside an isolated sandbox with a small, controlled API surface. This page is the authoring reference — the schema, the sandbox contract, the packaging rules.
+A Tale connector is one directory: a `config.json` manifest, an optional `connector.ts` (REST connectors) or SQL templates alone (SQL connectors), and an icon. The manifest declares the integration's identity, authentication shape, allowed hosts, and the named operations it exposes; the connector code runs each operation inside an isolated sandbox with a small, controlled API surface. This page is the authoring reference — the schema, the sandbox contract, the packaging rules.
 
 The audience is developers writing a new connector. For the user-facing concepts (what an integration is, how an org adds one), [Integrations overview](/platform/integrations/overview) is the entry point; for AI-assisted authoring of the manifest, [AI-assisted development](/develop/ai-assisted-development) covers the editor flow.
 
@@ -90,7 +90,7 @@ const connector = {
 };
 ```
 
-Notice the error messages — they name what the user has to do (`Verify the API key`), not just that something failed. Errors from `testConnection` surface inline in the manage dialog; errors from `execute` surface in the agent's response and the execution log. Both belong in the same actionable register.
+Notice the error messages — they name what the user has to do (`Verify the API key`), not only that something failed. Errors from `testConnection` surface inline in the manage dialog; errors from `execute` surface in the agent's response and the execution log. Both belong in the same actionable register.
 
 The full file at [tavily/connector.ts](https://github.com/tale-project/tale/blob/main/examples/integrations/tavily/connector.ts) covers the per-operation helpers, an `handleHttpError` utility, and result truncation to keep token usage predictable.
 

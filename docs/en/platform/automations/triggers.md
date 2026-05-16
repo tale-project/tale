@@ -55,7 +55,7 @@ The **Test automation** button in the editor and the **Run** action on a publish
 
 ## Multiple triggers on one automation
 
-An automation with two triggers — say, a nightly schedule and an inbound webhook — runs once per trigger that fires. Every run records which trigger started it, so the **Executions** tab and the metrics dashboard both show the source breakdown without losing the per-run trace. Mixing triggers is the right move when the same work has to happen on a clock and on demand; do not duplicate the automation just to assign a different trigger.
+An automation with two triggers — say, a nightly schedule and an inbound webhook — runs once per trigger that fires. Every run records which trigger started it, so the **Executions** tab and the metrics dashboard both show the source breakdown without losing the per-run trace. Mixing triggers is the right move when the same work has to happen on a clock and on demand; do not duplicate the automation only to assign a different trigger.
 
 ## Where this fits
 

@@ -8,7 +8,7 @@
  *
  *   <blank line>
  *
- * matches the format emitted at https://docs.tale.dev/llms-full.txt so
+ * matches the format emitted at https://tale.dev/docs/llms-full.txt so
  * existing consumers stay happy.
  */
 

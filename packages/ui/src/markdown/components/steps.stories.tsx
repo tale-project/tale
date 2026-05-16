@@ -53,7 +53,7 @@ tale dev`}</code>
         </pre>
         <p>
           See the{' '}
-          <a href="https://docs.tale.dev" rel="noreferrer">
+          <a href="https://example.com/docs" rel="noreferrer">
             documentation
           </a>{' '}
           for more options.

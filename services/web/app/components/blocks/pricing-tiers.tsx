@@ -9,6 +9,7 @@ import { TierCard } from '@/app/components/blocks/tier-card';
 import { UserCountControl } from '@/app/components/blocks/user-count-control';
 import { LocalizedLink } from '@/app/components/layout/localized-link';
 import { SiteContainer } from '@/app/components/layout/site-container';
+import { DOCS_URL } from '@/lib/docs-url';
 import { useT } from '@/lib/i18n/client';
 import {
   REGION_CURRENCY,
@@ -16,10 +17,6 @@ import {
   REGIONS,
   type Region,
 } from '@/lib/pricing/region';
-
-// Vite injects VITE_DOCS_URL at build time; falls back to the canonical
-// docs.tale.dev origin for the default deployment.
-const DOCS_URL = import.meta.env.VITE_DOCS_URL ?? 'https://docs.tale.dev';
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
 

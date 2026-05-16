@@ -9,7 +9,7 @@ Diese Seite behandelt die Laufzeit: einen E-Mail-Kanal anbinden, die vier Thread
 
 ## Einen E-Mail-Kanal anbinden
 
-Damit ein Postfach in den Posteingang einfliesst, fügt ein Admin oder Entwickler es einmalig unter **Einstellungen > Integrationen** hinzu. Die leere Konversationen-Seite bringt einen Button **E-Mail anbinden** in den Vordergrund, der direkt in den Integrationen-Tab springt. Die Verbindung ist kein generischer `rest_api`-Konnektor — E-Mail hat eine eigene Konfigurationsoberfläche, abgestimmt auf IMAP+SMTP-Zugangsdaten und die OAuth-Abläufe der grossen Mail-Anbieter.
+Ein Admin oder Entwickler bindet ein Postfach einmalig unter **Einstellungen > Integrationen** an, damit es in den Posteingang einfliesst. Die leere Konversationen-Seite bringt einen Button **E-Mail anbinden** in den Vordergrund, der direkt in den Integrationen-Tab springt. Die Verbindung ist kein generischer `rest_api`-Konnektor — E-Mail hat eine eigene Konfigurationsoberfläche, abgestimmt auf IMAP+SMTP-Zugangsdaten und die OAuth-Abläufe der grossen Mail-Anbieter.
 
 Für OAuth-basierte E-Mail-Anbieter (Microsoft 365, Gmail) nimm den dedizierten OAuth-Flow auf der Integrationen-Karte des Anbieters — passwort-basiertes IMAP ist bei diesen Anbietern standardmässig deaktiviert. Für selbst gehostete oder generische IMAP+SMTP-Postfächer trägst du die Verbindungsfelder direkt ein:
 
@@ -52,6 +52,6 @@ Das Filter-Dropdown in der Toolbar engt die Liste nach Lesestatus ein (alle, gel
 
 ## Wo das einsetzt
 
-Konversationen ist Tales Kunden-Posteingang. Er existiert, weil Antwortarbeit am Kunden nicht in den Chat mit KI passt: Antworten brauchen einen Menschen in der Schleife, einen einzelnen Thread pro Kunde quer durch Kanäle und ein Protokoll, das Prüfer einsehen können. Der Agent, der die KI-Seite bedient, ist derselbe Agent, den der Rest des Arbeitsbereichs nutzt — was sich ändert, ist die Oberfläche.
+Konversationen ist Tales Kunden-Posteingang. Er existiert, weil Antwortarbeit am Kunden nicht in den Chat mit KI passt: Antworten brauchen einen Menschen, der eingebunden ist, einen einzelnen Thread pro Kunde quer durch Kanäle und ein Protokoll, das Prüfer einsehen können. Der Agent, der die KI-Seite bedient, ist derselbe Agent, den der Rest des Arbeitsbereichs nutzt — was sich ändert, ist die Oberfläche.
 
 Um zu konfigurieren, welche Konversationen automatisch entworfene Antworten bekommen, öffne den Agent unter [Agent erstellen](/de/platform/agents/create) und verdrahte das Konversations-Tool. Für Genehmigungen, die aus Kunden-Threads herausfallen — ein Antwort-Entwurf, der auf Prüfung wartet, ein Integrationen-Aufruf, der auf Freigabe wartet —, ist [Genehmigungen](/de/platform/workspace/approvals) die Oberfläche.

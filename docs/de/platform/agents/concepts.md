@@ -45,7 +45,7 @@ Die vier Knöpfe kombinieren sich zu vielen Agents aus derselben Plattform. Drei
 
 ## Wann du danach greifst
 
-Agents sind das Konversations-Primitiv in Tale. Ihr Geschwister-Primitiv ist die **Automatisierung** — ein mehrstufiges Programm, das ohne Menschen in der Schleife läuft. Die beiden lösen unterschiedliche Probleme, und die meisten Teams landen am Ende bei beidem.
+Agents sind das Konversations-Primitiv in Tale. Ihr Geschwister-Primitiv ist die **Automatisierung** — ein mehrstufiges Programm, das ohne menschliche Eingriffe läuft. Die beiden lösen unterschiedliche Probleme, und die meisten Teams landen am Ende bei beidem.
 
 | Greif zum Agent, wenn …                                              | Greif zur Automatisierung, wenn …                                                              |
 | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |

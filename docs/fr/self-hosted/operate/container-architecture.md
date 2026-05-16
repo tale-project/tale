@@ -103,7 +103,7 @@ Ne fais jamais tourner `docker compose down -v`. Le drapeau `-v` supprime chaque
 
 ## Stratégie de build multi-étapes
 
-Chaque service se termine par une étape `FROM scratch` de squash. Cette étape finale aplatit les couches Docker pour que les suppressions de fichiers dans les étapes de nettoyage précédentes récupèrent de l'espace disque au lieu d'ajouter simplement des couches de masquage ; sans le squash, un `rm -rf` à l'étape quatre coûterait encore les octets supprimés dans l'image finale.
+Chaque service se termine par une étape `FROM scratch` de squash. Cette étape finale aplatit les couches Docker pour que les suppressions de fichiers dans les étapes de nettoyage précédentes récupèrent de l'espace disque au lieu d'ajouter des couches de masquage ; sans le squash, un `rm -rf` à l'étape quatre coûterait encore les octets supprimés dans l'image finale.
 
 ### Platform (5 étapes, après scission)
 

@@ -50,4 +50,4 @@ Geänderte Blöcke zeigen Inline-Diffs, wenn die Änderung klein genug ist, um a
 
 Der Dokumenten-Vergleich ist die zielgerichtete Diff-Oberfläche für die Wissensdatenbank. Er existiert, weil das Prüfen einer Vertragsrevision, eines Richtlinien-Updates oder einer aufgefrischten Vorlage nicht in den Chat passt — das Auge braucht beide Versionen gleichzeitig sichtbar, mit den Änderungen hervorgehoben. Um zwei Versionen desselben Dokuments über die Zeit zu vergleichen, lade jede Version als separate Datei in die [Wissensdatenbank](/de/platform/workspace/knowledge-base) hoch und lass sie gegeneinander vergleichen.
 
-Für eine KI-Zusammenfassung des Diffs kopiere den Vergleichslink in einen Chat und bitte den Assistenten, die Änderungen durchzugehen; der Chat-Agent kann dieselbe RAG-Ausgabe lesen, die der Vergleichs-Dialog rendert.
+Für eine KI-Zusammenfassung des Diffs kopiere den Vergleichslink in einen Chat und lass den Assistenten die Änderungen durchgehen; der Chat-Agent kann dieselbe RAG-Ausgabe lesen, die der Vergleichs-Dialog rendert.

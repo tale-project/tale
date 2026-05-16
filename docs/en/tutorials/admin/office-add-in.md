@@ -5,7 +5,7 @@ description: Route an AI panel inside Word and Excel through your Tale instance 
 
 Microsoft Word and Excel have no built-in way to bring your own LLM endpoint, and most Office AI add-ins are locked to their vendor's cloud. [Office Agents](https://github.com/hewliyang/office-agents) is an MIT-licensed add-in that exposes an AI chat panel inside Word, Excel, and PowerPoint and accepts any OpenAI-compatible endpoint as the model backend. That makes it the best current fit for Tale: users edit their document, the panel calls a Tale agent, every request lands in your own execution logs.
 
-The outcome at the end is a sideloaded panel in Word and Excel that talks to your Tale instance — the model, knowledge scope, tone, and audit trail all live in Tale; the add-in is just the editor-side UI. Office Agents is explicitly not production-grade and isn't published to AppSource, so this tutorial covers the pilot path; the closing section names the org-wide deployment route.
+The outcome at the end is a sideloaded panel in Word and Excel that talks to your Tale instance — the model, knowledge scope, tone, and audit trail all live in Tale; the add-in is only the editor-side UI. Office Agents is explicitly not production-grade and isn't published to AppSource, so this tutorial covers the pilot path; the closing section names the org-wide deployment route.
 
 ## Before you begin
 

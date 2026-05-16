@@ -14,15 +14,16 @@ import { pageAsMarkdown } from '@tale/webui/llm/page-as-markdown';
 import { buildRobotsTxt } from '@tale/webui/seo/build-robots';
 import { buildSitemap, type SitemapPage } from '@tale/webui/seo/build-sitemap';
 
+import { DEFAULT_DOCS_URL } from '../lib/docs-url';
 import { enumerateLegalRoutes } from './legal-routes';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(SCRIPT_DIR, '..');
 const OUT_DIR = resolve(ROOT, 'public');
 const SITE_URL = 'https://tale.dev';
-// Where the docs site lives. Defaults to its canonical subdomain; can be
-// overridden (e.g. https://tale.dev/docs) for path-based deployments.
-const DOCS_URL = process.env.WEB_DOCS_URL ?? 'https://docs.tale.dev';
+// Where the docs site lives. Defaults to the canonical tale.dev/docs path;
+// can be overridden for subdomain deployments.
+const DOCS_URL = process.env.WEB_DOCS_URL ?? DEFAULT_DOCS_URL;
 
 interface MarketingRoute {
   url: string;

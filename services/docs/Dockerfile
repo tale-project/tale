@@ -47,7 +47,7 @@ COPY services/docs ./services/docs
 COPY docs ./docs
 
 ARG DOCS_BASE_URL=/
-ARG DOCS_SITE_URL=https://docs.tale.dev
+ARG DOCS_SITE_URL=https://tale.dev/docs
 ENV NODE_ENV=production \
     DOCS_BASE_URL=${DOCS_BASE_URL} \
     DOCS_SITE_URL=${DOCS_SITE_URL}

@@ -15,7 +15,7 @@ Each conversation remembers its selected agent. Starting a new chat resets the p
 
 ## Conversation starters
 
-When the active agent has **starters** configured, a row of clickable suggestions appears on a fresh conversation. Click one to send it as the first message — it's faster than typing the prompt by hand, and it's a good way to discover what the agent was built to handle. Starters are configured per agent on the **Agents > [agent] > Starters** tab; an agent with no starters just shows an empty composer.
+When the active agent has **starters** configured, a row of clickable suggestions appears on a fresh conversation. Click one to send it as the first message — it's faster than typing the prompt by hand, and it's a good way to see what the agent was built to handle. Starters are configured per agent on the **Agents > [agent] > Starters** tab; an agent with no starters shows an empty composer.
 
 ## Why switch agents
 

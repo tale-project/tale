@@ -74,11 +74,11 @@ A compound term is translated **whole** or kept **whole**. Half is always wrong.
 1. **English head + native modifier** (or vice versa): `Pull Anfrage`, `Code Review-Prozess`, `Merge-Anfrage`, `Knowledge-Datenbank`, `Branch-Zweig`. Either keep the whole English form (Bucket 2 / 2a) or use the full native equivalent — never one of each.
 2. **Translated head with a redundant English suffix**: `Workflow-Prozess`, `Webhook-Adresse-URL`, `Code Review-Vorgang`. The English term already names the thing; suffixing it with a native synonym is duplication. Drop the suffix.
 
-The rule applies to every locale and every surface. Reviewer's quick test: read the compound aloud. If the language switches mid-word, the compound is broken. Caught (in part) by the Half-Translated Compound anti-pattern in [`.agents/docs/AGENTS.md`](../docs/AGENTS.md) and by `terminology.test.ts` where the half is a known UI-bucket term. Concrete drift→target pairs live at `antiPatternExamples.de.halfTranslatedCompound` and `antiPatternExamples.fr.halfTranslatedCompound`.
+The rule applies to every locale and every surface. Reviewer's quick test: read the compound aloud. If the language switches mid-word, the compound is broken. Caught directly by [`terminology-compounds.test.ts`](../../services/docs/tests/terminology-compounds.test.ts) for the denylisted half-compound patterns; broader cases are reviewer-caught. Concrete drift→target pairs live in [`data/half-compounds.ts`](../../services/docs/tests/data/half-compounds.ts).
 
 ### Bucket 3 · Translate (must)
 
-A closed set of English nouns has clean native equivalents that a native reader expects. Leaving them English signals lazy translation. Enforced by [`loanword.test.ts`](../../services/docs/tests/loanword.test.ts).
+A closed set of English nouns has clean native equivalents that a native reader expects. Leaving them English signals lazy translation. Enforced by [`terminology-loanword.test.ts`](../../services/docs/tests/terminology-loanword.test.ts).
 
 The pairs (English → DE → FR, with rationales) live at `translateBucket.de` and `translateBucket.fr` in [`GLOSSARY.json`](GLOSSARY.json). The most common members are `Header`, `Request`, `Provider`, `Email`, `Help Center`, `Billing`, `Sales Research`, `Draft`, `Attachment`, `Self-hosted` (plus FR-only `Engineering`).
 
@@ -260,6 +260,6 @@ The contract is split across three surfaces:
 
 - **Doctrine + illustrative tables** — `TERMINOLOGY*.md` in this directory. Voice rules, anti-pattern descriptions, drift→target pairs, marketing-softener strike lists, toast conventions, error-message patterns (above), per-locale style rules, and `de-CH` overrides. Read this when you want to understand a rule.
 - **Term lookups** — [`GLOSSARY.json`](GLOSSARY.json), a single flat `terms[]` array with entries of shape `{ key, category, en, de?, fr?, de_ch?, _lintExclude?, _note? }`. Filter by `category` to find features, knowledgeEntities, technicalVocab, actionVerbs, deploymentVocab, role, brand, acronym, codeIdentifier, loanword, gitDomain, translateBucket, or abbreviation. Read this when you want the canonical form of a specific word.
-- **Test inputs** — TypeScript modules under [`services/docs/tests/data/`](../../services/docs/tests/data/). Closed lists the tests consume directly: `formal-pronouns.ts` (the `Sie/vous` denylist consumed by [`terminology.test.ts`](../../services/docs/tests/terminology.test.ts)) and `noun-genders-de.ts` (consumed by [`grammar-de.test.ts`](../../services/docs/tests/grammar-de.test.ts)).
+- **Test inputs** — TypeScript modules under [`services/docs/tests/data/`](../../services/docs/tests/data/). Closed lists the tests consume directly: `formal-pronouns.ts`, `noun-genders-de.ts`, `voice-strike-{en,de,fr}.ts`, `voice-bureaucracy-de.ts`, `half-compounds.ts`, `heading-stubs.ts`, `status-chatter.ts`.
 
 When this doctrine and the glossary disagree, the glossary wins for words; the doctrine wins for rules. When the glossary and the shipped UI disagree, the UI wins — update the glossary in the same PR.
