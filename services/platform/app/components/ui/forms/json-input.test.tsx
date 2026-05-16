@@ -5,7 +5,7 @@ import { render } from '@/test/utils/render';
 
 import { JsonInput } from './json-input';
 
-vi.mock('@/app/components/theme/theme-provider', () => ({
+vi.mock('@tale/ui/theme', () => ({
   useTheme: () => ({ theme: 'light', resolvedTheme: 'light' }),
 }));
 

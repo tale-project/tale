@@ -13,8 +13,6 @@ import {
   useState,
 } from 'react';
 
-import { loadDayjsLocale } from '@/lib/utils/date/format';
-
 const STORAGE_KEY = 'user-locale';
 
 interface LocaleContextValue {
@@ -24,11 +22,27 @@ interface LocaleContextValue {
 
 const LocaleContext = createContext<LocaleContextValue | undefined>(undefined);
 
+// Optional global injected by SSR-aware services (platform's `server.ts`
+// rewrites a placeholder in `index.html` with the request's
+// `Accept-Language` header). Declared here so the provider can read it
+// without `any`; merges with platform's identical declaration in
+// `services/platform/lib/env.ts` and is harmless for services that don't
+// inject it (the read just returns `undefined`).
+declare global {
+  interface Window {
+    __ACCEPT_LANGUAGE__?: string;
+  }
+}
+
+function readAcceptLanguageHeader(): string | undefined {
+  return window.__ACCEPT_LANGUAGE__;
+}
+
 function detectLocale(defaultLocale: string): string {
   const savedLocale = localStorage.getItem(STORAGE_KEY);
   if (savedLocale && isValidLocale(savedLocale)) return savedLocale;
 
-  const serverHeader = window.__ACCEPT_LANGUAGE__;
+  const serverHeader = readAcceptLanguageHeader();
   if (serverHeader) {
     return resolveLocale(parseAcceptLanguage(serverHeader), defaultLocale);
   }
@@ -42,29 +56,41 @@ function detectLocale(defaultLocale: string): string {
 interface LocaleProviderProps {
   children: ReactNode;
   defaultLocale?: string;
+  /**
+   * Optional side-effect run on mount with the detected locale and after every
+   * `setLocale()` call. Use it to load locale-tied resources — platform passes
+   * `loadDayjsLocale` so the matching dayjs locale is fetched lazily. Errors
+   * are not caught: callers should handle their own failure modes.
+   */
+  onLocaleChange?: (locale: string) => void | Promise<void>;
 }
 
 /**
- * Owns the user's preferred locale: detects it on mount (localStorage →
- * server-rendered Accept-Language → browser languages), persists changes to
- * localStorage, and loads the matching dayjs locale. The actual
- * `i18n.changeLanguage` + `<html lang>` synchronization is handled by
- * `<LocaleSync>` from `@tale/ui/i18n/sync`, mounted by `I18nProvider`.
+ * Owns the user's preferred locale for services that drive locale from a
+ * client-side preference rather than the URL: detects it on mount
+ * (localStorage → server-rendered `window.__ACCEPT_LANGUAGE__` → browser
+ * languages), persists changes to localStorage, and exposes a `useLocale()`
+ * hook for consumers (language picker, date formatter, etc.).
  *
- * Must be mounted ABOVE `I18nProvider` so the locale-sync bridge reads from
- * the same source as the language picker — without the shared context, the
- * picker would only update its own copy and the change would not reach
- * `<LocaleSync>` until the next page load.
+ * Mount ABOVE `<I18nProvider>` so the locale-sync bridge — usually a small
+ * `<LocaleSync>` wrapper that reads `useLocale()` — sees the same context as
+ * the language picker. Without that shared context the picker only updates
+ * its own copy and the change never reaches `<LocaleSync>` (the regression
+ * covered by `locale-provider.test.tsx`).
+ *
+ * Services like web and docs that read locale from the URL don't need this
+ * provider — they read `useCurrentLocale()` and mount `<LocaleSync>` directly.
  */
 export function LocaleProvider({
   children,
   defaultLocale = 'en-US',
+  onLocaleChange,
 }: LocaleProviderProps) {
   const [locale, setLocaleState] = useState(() => detectLocale(defaultLocale));
 
   useEffect(() => {
-    void loadDayjsLocale(locale);
-  }, [locale]);
+    if (onLocaleChange) void onLocaleChange(locale);
+  }, [locale, onLocaleChange]);
 
   const setLocale = useCallback(
     (newLocale: string) => {

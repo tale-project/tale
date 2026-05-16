@@ -1,5 +1,6 @@
 'use client';
 
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Accordion } from '@tale/ui/markdown/components/accordion';
 import { Spinner } from '@tale/ui/spinner';
 import { createFileRoute } from '@tanstack/react-router';
@@ -11,7 +12,6 @@ import { VStack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
 import { ReleaseBody } from '@/app/features/changelog/components/release-body';
 import { useChangelogNotification } from '@/app/hooks/use-changelog-notification';
-import { useLocale } from '@/app/hooks/use-locale';
 import { api } from '@/convex/_generated/api';
 import { compareVersions, filterReleasesInRange } from '@/lib/compare-versions';
 import { useT } from '@/lib/i18n/client';

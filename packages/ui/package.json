@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./app-shell": "./src/app-shell.tsx",
     "./button": "./src/components/primitives/button.tsx",
     "./icon-button": "./src/components/primitives/icon-button.tsx",
     "./image": "./src/components/primitives/image.tsx",
@@ -31,6 +32,7 @@
     "./i18n/config": "./src/i18n/config.ts",
     "./i18n/init": "./src/i18n/init.ts",
     "./i18n/init-service": "./src/i18n/init-service.ts",
+    "./i18n/locale-provider": "./src/i18n/locale-provider.tsx",
     "./i18n/locales": "./src/i18n/locales.ts",
     "./i18n/messages": "./src/i18n/messages.ts",
     "./i18n/provider": "./src/i18n/provider.tsx",

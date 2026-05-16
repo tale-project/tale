@@ -1,8 +1,8 @@
 'use client';
 
+import { useTheme } from '@tale/ui/theme';
 import { useCallback, useEffect, useState } from 'react';
 
-import { useTheme } from '@/app/components/theme/theme-provider';
 import { Text } from '@/app/components/ui/typography/text';
 import { useT } from '@/lib/i18n/client';
 import { highlightCode, resolveLanguage } from '@/lib/utils/shiki';

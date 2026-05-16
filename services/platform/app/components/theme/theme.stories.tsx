@@ -11,14 +11,16 @@ const meta: Meta = {
 Tale UI theming overview.
 
 ## Theme Setup
-The application uses a custom theme provider with system preference detection.
+Theme is wired through the shared AppShell from @tale/ui/app-shell,
+which mounts the ThemeProvider from @tale/ui/theme with system-preference
+detection.
 
 \`\`\`tsx
-import { ThemeProvider } from '@/app/components/theme/theme-provider';
+import { AppShell } from '@tale/ui/app-shell';
 
-<ThemeProvider>
+<AppShell i18n={i18n} theme={{ defaultTheme: 'system' }}>
   <App />
-</ThemeProvider>
+</AppShell>
 \`\`\`
 
 ## Theme Colors

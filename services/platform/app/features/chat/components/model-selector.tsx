@@ -2,6 +2,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Skeleton } from '@tale/ui/skeleton';
 import startCase from 'lodash/startCase';
 import { AlertTriangle, ChevronDown, Cpu } from 'lucide-react';
@@ -19,7 +20,6 @@ import {
 } from '@/app/components/ui/forms/searchable-select';
 import { useAccessibleModels } from '@/app/features/settings/governance/hooks/queries';
 import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
-import { useLocale } from '@/app/hooks/use-locale';
 import { useT } from '@/lib/i18n/client';
 import {
   expandModelVariants,

@@ -1,5 +1,7 @@
 import { withThemeByClassName } from '@storybook/addon-themes';
 import type { Preview } from '@storybook/react';
+import { AppShell } from '@tale/ui/app-shell';
+import { ThemeContext } from '@tale/ui/theme';
 import {
   RouterProvider,
   createMemoryHistory,
@@ -10,9 +12,7 @@ import {
 import { useMemo, useState } from 'react';
 import type { DecoratorFunction } from 'storybook/internal/types';
 
-import { ThemeContext } from '../app/components/theme/theme-provider';
-import { LocaleProvider } from '../app/hooks/use-locale';
-import { I18nProvider } from '../lib/i18n/i18n-provider';
+import { i18n } from '../lib/i18n/i18n';
 
 import '../app/globals.css';
 
@@ -57,11 +57,9 @@ function WithProviders({
 
   return (
     <ThemeContext.Provider value={themeValue}>
-      <LocaleProvider>
-        <I18nProvider>
-          <RouterProvider router={router} defaultComponent={() => <Story />} />
-        </I18nProvider>
-      </LocaleProvider>
+      <AppShell i18n={i18n} locale={{ mode: 'client' }}>
+        <RouterProvider router={router} defaultComponent={() => <Story />} />
+      </AppShell>
     </ThemeContext.Provider>
   );
 }

@@ -1,14 +1,11 @@
 'use client';
 
-import { ThemeAssetSync } from '@tale/ui/theme';
-
-import { useTheme } from './theme-provider';
+import { ThemeAssetSync, useTheme } from '@tale/ui/theme';
 
 /**
- * Bridges platform's local `useTheme` to the shared `ThemeAssetSync`.
- * Platform has its own theme provider (storage key `'theme'`, distinct from
- * the shared provider's `'tale-theme'`), so we can't import the shared
- * `useTheme`. The component itself is generic — only the wiring is local.
+ * Keeps favicon and theme-color meta tags aligned with the active theme.
+ * Mounted from `__root.tsx` so it always sits inside the `<AppShell>`
+ * theme tree.
  */
 export function ThemeAssets() {
   const { resolvedTheme } = useTheme();

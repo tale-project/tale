@@ -1,11 +1,10 @@
-import { ThemeProvider } from '@tale/ui/theme';
+import { AppShell } from '@tale/ui/app-shell';
 import { RouterProvider } from '@tanstack/react-router';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
-import { I18nProvider } from '@/lib/i18n/i18n-provider';
+import { i18n } from '@/lib/i18n/i18n';
 
-import '@/lib/i18n/i18n';
 import { router } from './router';
 
 import './globals.css';
@@ -14,12 +13,19 @@ import './locals.css';
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing #root element');
 
+// `<AppShell>` enforces the standard `<ThemeProvider> → <LocaleProvider>
+// → <I18nextProvider> → <LocaleSync>` stack every Tale frontend uses. Drop
+// the `locale` prop and mount `<LocaleSync locale={useCurrentLocale()} />`
+// from the root route instead if this service ships its language in the
+// URL (web/docs pattern). Drop `theme` if pinned to a single theme.
 createRoot(root).render(
   <StrictMode>
-    <ThemeProvider defaultTheme="light">
-      <I18nProvider>
-        <RouterProvider router={router} />
-      </I18nProvider>
-    </ThemeProvider>
+    <AppShell
+      i18n={i18n}
+      locale={{ mode: 'client' }}
+      theme={{ defaultTheme: 'light' }}
+    >
+      <RouterProvider router={router} />
+    </AppShell>
   </StrictMode>,
 );

@@ -1,9 +1,9 @@
+import { AppShell } from '@tale/ui/app-shell';
 import { render, RenderOptions } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ReactElement, ReactNode } from 'react';
 
-import { LocaleProvider } from '../../app/hooks/use-locale';
-import { I18nProvider } from '../../lib/i18n/i18n-provider';
+import { i18n } from '../../lib/i18n/i18n';
 
 interface WrapperProps {
   children: ReactNode;
@@ -11,9 +11,9 @@ interface WrapperProps {
 
 function AllProviders({ children }: WrapperProps) {
   return (
-    <LocaleProvider>
-      <I18nProvider>{children}</I18nProvider>
-    </LocaleProvider>
+    <AppShell i18n={i18n} locale={{ mode: 'client' }}>
+      {children}
+    </AppShell>
   );
 }
 
