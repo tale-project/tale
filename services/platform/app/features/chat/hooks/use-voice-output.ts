@@ -5,10 +5,11 @@ import { useCallback, useEffect, useRef } from 'react';
 
 import { useLocale } from '@/app/hooks/use-locale';
 import { api } from '@/convex/_generated/api';
+import { MAX_TTS_CHUNK_CHARS } from '@/lib/shared/constants/tts';
 import { parseMarkers } from '@/lib/utils/marker-parser';
 
 const MIN_CHUNK_CHARS = 12;
-const MAX_CHUNK_CHARS = 1800;
+const MAX_CHUNK_CHARS = MAX_TTS_CHUNK_CHARS;
 const MAX_IN_FLIGHT = 3;
 // Post-stream coalescing: when a reply has finished streaming and the
 // remaining text is shorter than this, emit it as a single chunk instead
@@ -16,14 +17,25 @@ const MAX_IN_FLIGHT = 3;
 // with a perceptible swap gap, so short replies otherwise sound choppy
 // (and isolated punctuation/emoji confuse the model when sent alone).
 const POST_STREAM_BATCH_MAX_CHARS = 300;
-const RETRYABLE_ERROR_CODES = new Set([
-  'RATE_LIMITED',
-  'PROVIDER_5XX',
-  'TIMEOUT',
-  'PROVIDER_ERROR',
-]);
+// Codes the client retries on. Narrowed from the prior {RATE_LIMITED,
+// PROVIDER_5XX, TIMEOUT, PROVIDER_ERROR} set per the round-2 audit:
+//  - `PROVIDER_5XX` and `TIMEOUT` retry the *provider* HTTP call, which
+//    a) re-bills the chunk against the provider, b) the upstream is often
+//    already degraded (5xx) so the chunk stays failed anyway. Surface to
+//    the user and let them retry manually via the indicator.
+//  - `PROVIDER_ERROR` is a catch-all including non-transient cases like
+//    `resolveOrgSlug` failures; the server marks it `retryable: false`,
+//    so the client agreeing means no more silent disagreement on the
+//    retry contract.
+//  - `RATE_LIMITED` (real quota exhaustion) and `CONTENTION` (rate-limiter
+//    shard OCC) are still retryable but use different backoff cadences.
+const RETRYABLE_ERROR_CODES = new Set(['RATE_LIMITED', 'CONTENTION']);
 const MAX_RETRIES_PER_CHUNK = 2;
 const RETRY_BASE_DELAY_MS = 1500;
+// `CONTENTION` is shard-OCC, not quota — back off much shorter than the
+// `RATE_LIMITED` curve. 100ms base with jitter is enough for the
+// rate-limiter library's internal retry to land on a free shard.
+const CONTENTION_BASE_DELAY_MS = 100;
 // Module-level fallback splitter for environments without Intl.Segmenter.
 const FALLBACK_SENTENCE_BOUNDARY = /(?<=[.!?。！？])\s+|\n{2,}/g;
 
@@ -182,11 +194,13 @@ function segmentSentences(
  * across renders and multi-tab races.
  *
  * Retry behaviour: when the action returns `{ status: 'failed', errorCode }`
- * with a retryable code (transient provider errors, rate limits, timeouts),
- * the chunker re-invokes `synthesizeChunk` up to `MAX_RETRIES_PER_CHUNK`
- * times with exponential backoff. Terminal codes (NO_PROVIDER, UNKNOWN_*,
- * BUDGET_EXCEEDED, PROVIDER_4XX) are not retried — the client falls back
- * to `speechSynthesis` via the player hook.
+ * with a retryable code (`RATE_LIMITED` for genuine quota exhaustion,
+ * `CONTENTION` for rate-limiter shard OCC), the chunker re-invokes
+ * `synthesizeChunk` up to `MAX_RETRIES_PER_CHUNK` times with jittered
+ * exponential backoff. Terminal codes (NO_PROVIDER, UNKNOWN_*,
+ * BUDGET_EXCEEDED, MESSAGE_CHAR_LIMIT, HOST_POLICY, PROVIDER_4XX,
+ * PROVIDER_5XX, TIMEOUT, PROVIDER_ERROR) are surfaced via the indicator —
+ * playback is provider-only, there is no browser-TTS fallback.
  */
 export function useVoiceOutputChunker(opts: {
   enabled: boolean;
@@ -249,7 +263,18 @@ export function useVoiceOutputChunker(opts: {
               RETRYABLE_ERROR_CODES.has(result.errorCode) &&
               attempt < MAX_RETRIES_PER_CHUNK
             ) {
-              const delay = RETRY_BASE_DELAY_MS * 2 ** attempt;
+              // `CONTENTION` backs off much shorter than `RATE_LIMITED`:
+              // the former is shard-OCC noise (50-150ms is enough for the
+              // limiter's internal retry to land), the latter signals true
+              // quota exhaustion. Both add jitter so a wave of failures
+              // doesn't all retry in lock-step and re-trigger the same
+              // contention or quota window.
+              const baseDelay =
+                result.errorCode === 'CONTENTION'
+                  ? CONTENTION_BASE_DELAY_MS
+                  : RETRY_BASE_DELAY_MS;
+              const jitter = 0.5 + Math.random() * 0.5;
+              const delay = baseDelay * 2 ** attempt * jitter;
               retryAttemptsRef.current.set(payload.index, attempt + 1);
               setTimeout(() => {
                 // Drop the retry if the message has since unmounted /

@@ -268,13 +268,20 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: HOUR,
   },
   // Per-thread lazy cleanup of TTS audio chunks. Gates opportunistic GC
-  // triggered from the getMessageChunks read path so storage stays bounded
-  // without a cron — at most one cleanup pass per thread per hour, no matter
-  // how many subscribers re-fire the query in that window.
+  // scheduled from `markChunkReadyAndRecordUsage` (the write path) on the
+  // first chunk of each message so a busy thread schedules at most one
+  // sweep per hour. Cross-thread orphans are reaped by the daily
+  // `gcOrgTtsChunks` cron — see `crons.ts`.
+  //
+  // Token-bucket (not fixed-window): under fixed-window, a sweep at
+  // 14:59:59 and another at 15:00:00 both pass the gate. Token-bucket
+  // with rate=1/hour and capacity=1 means a fresh token only arrives an
+  // hour after the previous one is consumed.
   'cleanup:tts': {
-    kind: 'fixed window',
+    kind: 'token bucket',
     rate: 1,
     period: HOUR,
+    capacity: 1,
   },
 
   // ============================================
@@ -284,16 +291,18 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   // ============================================
   // Per-user bucket: realistic streaming generates ~5-15 chunks per minute;
   // 60 capacity covers a multi-message session burst, refills at 40/min.
-  // 16 shards (vs 4): structured-reply chunking fires up to MAX_IN_FLIGHT=3
-  // mutations concurrently per user; 4 shards produced enough same-shard
-  // collisions that the library's internal OCC retries exhausted and the
-  // mutation surfaced an OptimisticConcurrencyControlFailure to the caller.
+  // Shards aligned with the rest of the platform (≤4): the OCC contention
+  // that previously motivated 16 is handled differently now — the action
+  // catches `OptimisticConcurrencyControlFailure` and surfaces `CONTENTION`
+  // (a distinct error code from `RATE_LIMITED`), and the client backs off
+  // with the short OCC-jitter delay instead of the quota-recovery delay.
+  // See `synthesize.ts::errorCodeFromCaught` for the mapping.
   'tts:synthesize:user': {
     kind: 'token bucket',
     rate: 40,
     period: MINUTE,
     capacity: 60,
-    shards: 16,
+    shards: 4,
   },
   // Per-org bucket: cushions cross-tenant abuse where one user can't be
   // pinned. Higher rate than per-user since multiple legitimate members
@@ -303,7 +312,7 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 200,
     period: MINUTE,
     capacity: 400,
-    shards: 16,
+    shards: 4,
   },
 
   // ============================================

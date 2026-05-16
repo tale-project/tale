@@ -290,10 +290,19 @@ async function getOrgPeriodUsage(
 /**
  * Check a single rule against usage totals and return a violation result
  * if any limit is exceeded, or null if the rule passes.
+ *
+ * `prospectiveCostCents` adds an in-flight cost estimate to `usage.costEstimate`
+ * before comparing against `maxCostCents`. Callers thread this through when the
+ * ledger is written *after* the work runs (e.g. TTS — the ledger row only
+ * lands after `ctx.storage.store` succeeds), so the retrospective totals miss
+ * the call about to fire. Without the prospective add, parallel chunks of a
+ * single message can each individually pass the cap and then collectively
+ * blow past it — exactly the round-2 file 03 finding 1 hazard.
  */
 export function checkRuleAgainstUsage(
   rule: BudgetRule,
   usage: UsageTotals,
+  prospectiveCostCents: number = 0,
 ): BudgetCheckResult | null {
   if (rule.maxTokens != null && usage.totalTokens >= rule.maxTokens) {
     return {
@@ -306,14 +315,15 @@ export function checkRuleAgainstUsage(
     };
   }
 
-  if (rule.maxCostCents != null && usage.costEstimate >= rule.maxCostCents) {
+  const projectedCost = usage.costEstimate + prospectiveCostCents;
+  if (rule.maxCostCents != null && projectedCost >= rule.maxCostCents) {
     return {
       allowed: false,
       code: 'COST_LIMIT',
       period: rule.period,
-      used: usage.costEstimate,
+      used: projectedCost,
       limit: rule.maxCostCents,
-      reason: `Cost limit reached for this ${rule.period} period ($${(usage.costEstimate / 100).toFixed(2)} / $${(rule.maxCostCents / 100).toFixed(2)})`,
+      reason: `Cost limit reached for this ${rule.period} period ($${(projectedCost / 100).toFixed(2)} / $${(rule.maxCostCents / 100).toFixed(2)})`,
     };
   }
 
@@ -398,6 +408,11 @@ function collectWarnings(
  * @param userTeamIds - the user's team memberships (not the agent's teams).
  *   Team budget rules apply when the user belongs to that team.
  * @param userRole - the user's role in the organization (e.g. 'admin', 'member').
+ * @param prospectiveCostCents - in-flight cost estimate (post-ledger callers
+ *   like TTS pass the about-to-fire chunk's cost so parallel chunks of one
+ *   message can't each individually pass the cap and collectively overshoot).
+ *   LLM callers leave at 0; the synchronous post-call ledger write is
+ *   "atomic enough" for retrospective checks against the cap.
  */
 export async function checkBudget(
   ctx: GenericQueryCtx<DataModel>,
@@ -405,6 +420,7 @@ export async function checkBudget(
   userId: string,
   userTeamIds: string[],
   userRole?: string,
+  prospectiveCostCents: number = 0,
 ): Promise<BudgetCheckResult> {
   const config = await readPolicyConfig<BudgetConfig>(
     ctx,
@@ -467,7 +483,11 @@ export async function checkBudget(
       maxCostCents: limits.maxCostCents,
       maxRequests: limits.maxRequests,
     };
-    const violation = checkRuleAgainstUsage(effectiveRule, userUsage);
+    const violation = checkRuleAgainstUsage(
+      effectiveRule,
+      userUsage,
+      prospectiveCostCents,
+    );
     if (violation) {
       return {
         ...violation,
@@ -494,7 +514,11 @@ export async function checkBudget(
         maxCostCents: limits.maxCostCents,
         maxRequests: limits.maxRequests,
       };
-      const teamViolation = checkRuleAgainstUsage(teamRule, teamUsage);
+      const teamViolation = checkRuleAgainstUsage(
+        teamRule,
+        teamUsage,
+        prospectiveCostCents,
+      );
       if (teamViolation) {
         return {
           ...teamViolation,
@@ -517,7 +541,11 @@ export async function checkBudget(
         maxCostCents: limits.orgMaxCostCents,
         maxRequests: limits.orgMaxRequests,
       };
-      const orgViolation = checkRuleAgainstUsage(orgRule, orgUsage);
+      const orgViolation = checkRuleAgainstUsage(
+        orgRule,
+        orgUsage,
+        prospectiveCostCents,
+      );
       if (orgViolation) {
         return {
           ...orgViolation,

@@ -4793,7 +4793,7 @@
       "voiceOutput": {
         "label": "Sortie vocale (par défaut)",
         "description": "Quand cette option est activée, les nouvelles conversations te lisent à voix haute les réponses de l'assistant dans la langue de ton interface. Tu peux activer ou désactiver la voix séparément dans chaque conversation depuis son en-tête.",
-        "providerUnavailable": "Aucun fournisseur de synthèse vocale configuré. Le mode vocal utilisera la synthèse intégrée au navigateur.",
+        "providerUnavailable": "Aucun fournisseur de synthèse vocale configuré. La sortie vocale ne sera disponible qu'après l'ajout d'un modèle TTS dans Paramètres → Fournisseurs IA par un administrateur.",
         "configureProvider": "Configurer un fournisseur"
       },
       "memories": {

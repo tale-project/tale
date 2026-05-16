@@ -460,6 +460,26 @@ function MessageBubbleComponent({
                 </button>
               </div>
             )}
+            {/*
+             * Streaming-time placement: the indicator's `voiceOutputLoading`
+             * branch (`!hasAudio && isStreaming`) was previously dead because
+             * the toolbar below renders only post-streaming. Mounting an
+             * inline indicator here surfaces the "Preparing voice…" state so
+             * users know synthesis is in flight before the first chunk plays.
+             */}
+            {!isUser &&
+              isAssistantStreaming &&
+              voiceMode.enabled &&
+              message.threadId && (
+                <div className="mt-2 flex items-start">
+                  <VoiceOutputIndicator
+                    enabled
+                    messageId={message.id}
+                    threadId={message.threadId}
+                    isStreaming
+                  />
+                </div>
+              )}
             {message.isFailed && (
               <div
                 className="mt-3 flex flex-col gap-2"

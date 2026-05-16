@@ -1,8 +1,17 @@
 import { ConvexError, v } from 'convex/values';
 
+import {
+  MAX_TTS_CHARS_PER_MESSAGE,
+  MAX_TTS_CHUNKS_PER_MESSAGE,
+} from '../../lib/shared/constants/tts';
+import { TTS_SLUG } from '../../lib/shared/constants/usage';
+import { audioFormatLiterals } from '../../lib/shared/schemas/providers';
 import { internal } from '../_generated/api';
 import { internalMutation, mutation } from '../_generated/server';
+import { logDenied } from '../audit_logs/helpers';
 import { checkBudget } from '../governance/budget_enforcement';
+import { estimateTtsCostCents } from '../governance/cost_estimation';
+import { recordTtsUsageInline } from '../governance/internal_mutations';
 import { resolveBudgetContext } from '../governance/resolve_budget_context';
 import { rateLimiter } from '../lib/rate_limiter';
 import { assertSelfAndOrgMember } from '../lib/rls/auth/assert_self_and_org_member';
@@ -14,12 +23,22 @@ import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_
 const CHUNK_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const CLEANUP_PASS_LIMIT = 64;
 
-// Hard cap on chunks per assistant message. Bounds cost-of-abuse: a single
-// `messageId` cannot exceed this many `(messageId, index)` rows even if the
-// caller iterates `index`. 200 covers an extraordinarily long reply
-// (~400KB of synthesised text at MAX_CHUNK_CHARS=2000) — anything beyond
-// is treated as a scripted abuse pattern, not an honest stream.
-export const MAX_CHUNKS_PER_MESSAGE = 200;
+// Re-export the chunk-count cap so existing callers don't need to update
+// imports. The numeric source of truth lives in
+// `lib/shared/constants/tts.ts` so the client and server share it.
+export const MAX_CHUNKS_PER_MESSAGE = MAX_TTS_CHUNKS_PER_MESSAGE;
+
+/**
+ * Conservative cents-per-million-characters used for the *prospective*
+ * budget check inside `reserveChunk`. The real per-model rate isn't known
+ * until the action's `resolveTtsModel` runs, so we use a high upper-mid
+ * estimate (matches OpenAI `tts-1` list pricing) so the cap errs on the
+ * side of refusing a marginal chunk rather than letting a parallel burst
+ * sneak past the limit. The post-call ledger entry uses the precise
+ * per-model rate, so the over-estimate is only a gating signal, never a
+ * billing inaccuracy.
+ */
+const PROSPECTIVE_TTS_CENTS_PER_M_CHARS = 1500;
 
 // Mirror of synthesize.ts FETCH_TIMEOUT_MS for the pending-watchdog horizon.
 // Keeping it in mutations.ts avoids a circular import on the Node action.
@@ -92,15 +111,22 @@ export const setThreadVoiceOutputOverride = mutation({
 
 /**
  * Internal: reserve a chunk row in `'pending'` status. Returns one of:
- *  - `{ kind: 'ready', storageId, voice, format }` — existing ready chunk reused
+ *  - `{ kind: 'ready', storageId, audioUrl, voice, format }` — existing ready chunk reused
  *  - `{ kind: 'pending-in-flight' }` — another writer holds the slot
- *  - `{ kind: 'reserved', chunkId, organizationId, userId }` — fresh reservation
+ *  - `{ kind: 'reserved', chunkId, attemptCreatedAt, organizationId, userId,
+ *      teamId }` — fresh reservation
  *
  * This is the single gate for every TTS synthesis: it (a) authenticates the
  * caller, (b) verifies thread access and derives the canonical organizationId
- * from thread metadata (never trusting the client arg), (c) enforces per-user
- * and per-org rate limits, (d) consults org budget policy, (e) caps chunks per
- * message, and (f) cross-checks identity on collision with an existing row.
+ * from thread metadata (never trusting the client arg), (c) cross-checks
+ * identity on collision with an existing row and short-circuits on cache hits
+ * before any cost is debited, (d) enforces per-user and per-org rate limits,
+ * (e) consults org budget policy, and (f) caps chunks per message.
+ *
+ * Cache-then-debit ordering: existing-row lookup runs BEFORE the rate-limiter
+ * and budget checks. Reactive client subscriptions can re-fire `synthesizeChunk`
+ * for chunks that are already `'ready'` (e.g. on thread revisit) and that path
+ * must not consume tokens or trip the budget — only fresh work does.
  *
  * The action calls this first; everything downstream (provider fetch, storage
  * write, ledger insert) only runs once this returns `'reserved'`.
@@ -118,15 +144,20 @@ export const reserveChunk = internalMutation({
     v.object({
       kind: v.literal('ready'),
       storageId: v.id('_storage'),
+      audioUrl: v.optional(v.string()),
       voice: v.optional(v.string()),
-      format: v.optional(v.string()),
+      format: v.optional(
+        v.union(...audioFormatLiterals.map((literal) => v.literal(literal))),
+      ),
     }),
     v.object({ kind: v.literal('pending-in-flight') }),
     v.object({
       kind: v.literal('reserved'),
       chunkId: v.id('ttsAudioChunks'),
+      attemptCreatedAt: v.number(),
       organizationId: v.string(),
       userId: v.string(),
+      teamId: v.optional(v.string()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -148,6 +179,102 @@ export const reserveChunk = internalMutation({
       throw new ConvexError({
         code: 'TTS_CHUNK_LIMIT',
         message: `TTS chunk index must be in [0, ${MAX_CHUNKS_PER_MESSAGE}).`,
+      });
+    }
+
+    // Existing-row lookup runs BEFORE cost gates so re-subscribers don't burn
+    // rate-limit tokens / trip budget checks on cache hits. Cross-field
+    // identity check defends against a leaked / guessed `messageId` paired
+    // with a thread the caller *can* access — `messageId` is `v.string()`,
+    // not an `_id`, so the index alone does not pin identity.
+    const existing = await ctx.db
+      .query('ttsAudioChunks')
+      .withIndex('by_message', (q) =>
+        q.eq('messageId', args.messageId).eq('index', args.index),
+      )
+      .first();
+    if (existing) {
+      if (
+        existing.threadId !== args.threadId ||
+        existing.organizationId !== organizationId
+      ) {
+        // Identity mismatch is a security signal: the caller knows a
+        // `messageId` that exists in a different thread / org. Audit so
+        // operators can correlate repeated probes with a specific user.
+        await logDenied(ctx, {
+          auditCtx: {
+            organizationId,
+            actor: {
+              id: user.userId,
+              email: user.email,
+              role: undefined,
+              type: 'user',
+            },
+          },
+          action: 'tts.synthesize_denied',
+          category: 'security',
+          resourceType: 'tts_audio_chunk',
+          resourceId: existing._id,
+          reason: 'identity_mismatch',
+          metadata: {
+            requestedMessageId: args.messageId,
+            requestedThreadId: args.threadId,
+            ownedThreadId: existing.threadId,
+            ownedOrganizationId: existing.organizationId,
+          },
+        });
+        throw new ConvexError({
+          code: 'forbidden',
+          message: 'TTS chunk identity mismatch.',
+        });
+      }
+      if (existing.status === 'ready' && existing.storageId) {
+        return {
+          kind: 'ready' as const,
+          storageId: existing.storageId,
+          audioUrl: existing.audioUrl,
+          voice: existing.voice,
+          format: existing.format,
+        };
+      }
+      if (existing.status === 'pending') {
+        const age = Date.now() - existing.createdAt;
+        if (age < PENDING_STALE_MS) {
+          return { kind: 'pending-in-flight' as const };
+        }
+        // Stale pending — the action that reserved this either crashed or
+        // got dropped by a deploy; treat as failed and let the new caller
+        // retry. Falls through to the overwrite branch below, which (a)
+        // refreshes `attemptCreatedAt` so the prior attempt can no longer
+        // land its `markChunkReady`/`markChunkFailed`, and (b) deletes any
+        // half-uploaded `_storage` blob so it doesn't leak.
+      }
+    }
+
+    // Per-message character cap: aggregates `text.length` across every chunk
+    // already reserved for this message and refuses if the new chunk would
+    // push the total over `MAX_TTS_CHARS_PER_MESSAGE`. Bounds worst-case
+    // spend per single assistant reply — at OpenAI tts-1 rates, the 50k
+    // cap holds one reply under ~$0.75. The full structural fix is the
+    // deferred two-component pricing model.
+    //
+    // Existing rows are counted via the cheap `by_message` index. Counts the
+    // new chunk's own text on top so a single oversize chunk still trips.
+    let existingChars = 0;
+    for await (const row of ctx.db
+      .query('ttsAudioChunks')
+      .withIndex('by_message', (q) => q.eq('messageId', args.messageId))) {
+      if (row.threadId !== args.threadId) continue;
+      if (row.organizationId !== organizationId) continue;
+      // Skip the row we're about to overwrite — its old text is being
+      // replaced, not added to.
+      if (existing && row._id === existing._id) continue;
+      existingChars += row.text.length;
+    }
+    if (existingChars + args.text.length > MAX_TTS_CHARS_PER_MESSAGE) {
+      throw new ConvexError({
+        code: 'MESSAGE_CHAR_LIMIT',
+        message: `TTS character limit reached for this message (cap ${MAX_TTS_CHARS_PER_MESSAGE}).`,
       });
     }
 
@@ -181,12 +308,23 @@ export const reserveChunk = internalMutation({
       organizationId,
       user.userId,
     );
+    const teamId = userTeamIds[0];
+    // Prospective-cost projection: add the about-to-fire chunk's estimated
+    // cost so parallel chunks of one message can't each individually pass
+    // and collectively overshoot. The action's post-call ledger write uses
+    // the precise per-model rate; this estimate only gates whether we
+    // attempt the call at all.
+    const prospectiveCostCents = estimateTtsCostCents(
+      args.text.length,
+      PROSPECTIVE_TTS_CENTS_PER_M_CHARS,
+    );
     const budget = await checkBudget(
       ctx,
       organizationId,
       user.userId,
       userTeamIds,
       userRole,
+      prospectiveCostCents,
     );
     if (!budget.allowed) {
       throw new ConvexError({
@@ -197,109 +335,165 @@ export const reserveChunk = internalMutation({
       });
     }
 
-    const existing = await ctx.db
-      .query('ttsAudioChunks')
-      .withIndex('by_message', (q) =>
-        q.eq('messageId', args.messageId).eq('index', args.index),
-      )
-      .first();
+    const attemptCreatedAt = Date.now();
+
     if (existing) {
-      // Cross-field identity check: a foreign messageId paired with a thread
-      // the caller *can* access must not be allowed to overwrite a chunk
-      // owned by a different thread/org. (`messageId` is `v.string()`, not
-      // an `_id`, so the index alone does not pin identity.)
-      if (
-        existing.threadId !== args.threadId ||
-        existing.organizationId !== organizationId
-      ) {
-        throw new ConvexError({
-          code: 'forbidden',
-          message: 'TTS chunk identity mismatch.',
-        });
-      }
-      if (existing.status === 'ready' && existing.storageId) {
-        return {
-          kind: 'ready' as const,
-          storageId: existing.storageId,
-          voice: existing.voice,
-          format: existing.format,
-        };
-      }
-      if (existing.status === 'pending') {
-        const age = Date.now() - existing.createdAt;
-        if (age < PENDING_STALE_MS) {
-          return { kind: 'pending-in-flight' as const };
-        }
-        // Stale pending — the action that reserved this either crashed or
-        // got dropped by a deploy; treat as failed and let the new caller
-        // retry. Falls through to the overwrite branch below.
-      }
       // Previously failed (or stale-pending) — overwrite to retry. Reset every
       // result-bearing field so a provider switch / model swap can't leave
       // stale metadata around for a query subscriber to read.
+      //
+      // Storage-orphan compensation: if the prior attempt had uploaded a
+      // blob (e.g. it succeeded at `ctx.storage.store` but crashed before
+      // `markChunkReady`), delete it now. Without this, every stale-pending
+      // retry that follows the upload step would leak its blob until the
+      // 7-day org sweep eventually catches it.
+      if (existing.storageId) {
+        try {
+          await ctx.storage.delete(existing.storageId);
+        } catch (err) {
+          console.warn('[tts.reserveChunk] failed to delete prior blob', err);
+        }
+      }
       await ctx.db.patch(existing._id, {
         status: 'pending' as const,
         error: undefined,
         text: args.text,
         locale: args.locale,
-        createdAt: Date.now(),
+        createdAt: attemptCreatedAt,
+        attemptCreatedAt,
+        usageRecordedAt: undefined,
         voice: undefined,
         providerName: undefined,
         modelId: undefined,
         format: undefined,
         storageId: undefined,
+        audioUrl: undefined,
+        userId: user.userId,
+        teamId,
       });
       return {
         kind: 'reserved' as const,
         chunkId: existing._id,
+        attemptCreatedAt,
         organizationId,
         userId: user.userId,
+        teamId,
       };
     }
     const chunkId = await ctx.db.insert('ttsAudioChunks', {
       messageId: args.messageId,
       threadId: args.threadId,
       organizationId,
+      userId: user.userId,
+      teamId,
       index: args.index,
       text: args.text,
       status: 'pending',
       locale: args.locale,
-      createdAt: Date.now(),
+      createdAt: attemptCreatedAt,
+      attemptCreatedAt,
     });
     return {
       kind: 'reserved' as const,
       chunkId,
+      attemptCreatedAt,
       organizationId,
       userId: user.userId,
+      teamId,
     };
   },
 });
 
-export const markChunkReady = internalMutation({
+/**
+ * Internal: atomically flip a chunk to `'ready'`, write its ledger row, and
+ * schedule cleanup. Combining these into one mutation closes three confirmed
+ * round-2 hazards in a single shot:
+ *
+ *  1. **PII cross-talk** — a stale attempt holding the prior `attemptCreatedAt`
+ *     can no longer land its `markChunkReady` on a freshly-overwritten row
+ *     because the identity check refuses the write.
+ *  2. **Ledger atomicity** — the storage flip and the ledger insert run in
+ *     one transaction, so an action crash between them can no longer leave
+ *     audio billed but un-recorded (or, conversely, recorded but never
+ *     surfaced to the user).
+ *  3. **Cleanup-dispatch storm** — the per-chunk `scheduler.runAfter` is
+ *     gated on `index === 0`, so a 200-chunk reply schedules one sweep
+ *     instead of 200.
+ *
+ * On identity-mismatch (stale attempt), the mutation deletes the incoming
+ * `storageId` blob inline and returns `{ stale: true }` so the action knows
+ * not to surface the result.
+ */
+export const markChunkReadyAndRecordUsage = internalMutation({
   args: {
     chunkId: v.id('ttsAudioChunks'),
+    attemptCreatedAt: v.number(),
     storageId: v.id('_storage'),
     voice: v.string(),
     providerName: v.string(),
     modelId: v.string(),
-    format: v.string(),
+    format: v.union(
+      ...audioFormatLiterals.map((literal) => v.literal(literal)),
+    ),
+    characterCount: v.number(),
+    costEstimateCents: v.number(),
   },
-  returns: v.null(),
+  returns: v.object({ stale: v.boolean() }),
   handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.chunkId);
+    if (
+      !row ||
+      row.status !== 'pending' ||
+      row.attemptCreatedAt !== args.attemptCreatedAt
+    ) {
+      // Stale attempt or row vanished (cascade deleted, etc.). Delete the
+      // incoming blob inline so it doesn't leak — no other code path
+      // references it.
+      try {
+        await ctx.storage.delete(args.storageId);
+      } catch (err) {
+        console.warn('[tts.markReady] failed to delete stale blob', err);
+      }
+      return { stale: true };
+    }
+
+    // Memoise the public storage URL so the subscriber query doesn't have
+    // to call `ctx.storage.getUrl` on every tick. The URL is stable for the
+    // lifetime of the blob, so a one-time write here scales to O(1)
+    // resolution per chunk for the entire 7-day retention window.
+    const audioUrl = (await ctx.storage.getUrl(args.storageId)) ?? undefined;
+
     await ctx.db.patch(args.chunkId, {
       status: 'ready',
       storageId: args.storageId,
+      audioUrl,
       voice: args.voice,
       providerName: args.providerName,
       modelId: args.modelId,
       format: args.format,
       error: undefined,
+      usageRecordedAt: Date.now(),
     });
-    // Opportunistic GC: schedule a cleanup pass for this thread. The
-    // `cleanup:tts` rate limiter inside `maybeCleanupChunks` keeps actual
-    // work to once per thread per hour regardless of how often this fires.
-    const row = await ctx.db.get(args.chunkId);
-    if (row) {
+
+    if (row.userId !== undefined) {
+      await recordTtsUsageInline(ctx, {
+        organizationId: row.organizationId,
+        userId: row.userId,
+        teamId: row.teamId,
+        agentSlug: TTS_SLUG,
+        model: args.modelId,
+        provider: args.providerName,
+        characterCount: args.characterCount,
+        costEstimateCents: args.costEstimateCents,
+        timestamp: Date.now(),
+      });
+    }
+
+    // Schedule cleanup only on chunk 0: every chunk firing the scheduler
+    // would mean 200 throwaway dispatches per long message, of which only
+    // the first does any real work (the `cleanup:tts` limiter gates the
+    // rest). Doing it once per message keeps the dispatcher backlog small.
+    if (row.index === 0) {
       await ctx.scheduler.runAfter(
         0,
         internal.tts.mutations.maybeCleanupChunks,
@@ -310,74 +504,97 @@ export const markChunkReady = internalMutation({
         },
       );
     }
+
+    return { stale: false };
+  },
+});
+
+/**
+ * Internal: write an audit-log row for a denied `getCapability` call.
+ * Called from the action's catch branch when the membership-gate query
+ * rejects — without this audit signal, an authenticated user probing
+ * arbitrary org IDs to enumerate provider configurations leaves no
+ * forensic trail. Best-effort: failure to write the audit row is swallowed
+ * so the original deny propagates to the client.
+ */
+export const logCapabilityProbeDenied = internalMutation({
+  args: {
+    organizationId: v.string(),
+    actorId: v.string(),
+    actorEmail: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    try {
+      await logDenied(ctx, {
+        auditCtx: {
+          organizationId: args.organizationId,
+          actor: {
+            id: args.actorId,
+            email: args.actorEmail,
+            role: undefined,
+            type: 'user',
+          },
+        },
+        action: 'tts.capability_probe_denied',
+        category: 'security',
+        resourceType: 'tts_capability',
+        resourceId: args.organizationId,
+        reason: 'not_org_member',
+      });
+    } catch (err) {
+      console.warn('[tts.logCapabilityProbeDenied] audit write failed', err);
+    }
     return null;
   },
 });
 
+/**
+ * Internal: flip a chunk to `'failed'` with a stable error code. `error` MUST
+ * be a `TtsErrorCode` enum literal (see `synthesize.ts`) — no free-form
+ * detail. The field is surfaced to every member of the org via
+ * `getMessageChunks`, so any free-form text risks leaking provider hostnames,
+ * input PII echoed in upstream error bodies, or sensitive config. Free-form
+ * detail belongs in `console.error` (sanitized) only.
+ *
+ * Identity contract: refuses to write when `attemptCreatedAt` doesn't match
+ * the row, so a stale attempt's late failure can't override a fresh attempt
+ * that has already succeeded or failed under a new code.
+ */
 export const markChunkFailed = internalMutation({
   args: {
     chunkId: v.id('ttsAudioChunks'),
+    attemptCreatedAt: v.number(),
     error: v.string(),
   },
-  returns: v.null(),
+  returns: v.object({ stale: v.boolean() }),
   handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.chunkId);
+    if (
+      !row ||
+      row.status !== 'pending' ||
+      row.attemptCreatedAt !== args.attemptCreatedAt
+    ) {
+      return { stale: true };
+    }
     await ctx.db.patch(args.chunkId, {
       status: 'failed',
       error: args.error,
     });
-    return null;
+    return { stale: false };
   },
 });
 
 /**
- * Opportunistic GC for old TTS chunks. Deletes up to `limit` rows older than
- * `olderThanMs` for the given thread. Called from `getMessageChunks` via the
- * `cleanup:tts` rate-limiter token (at most once per thread per hour) — never
- * from a cron — so storage stays bounded without a scheduled job that wakes
- * idle deployments.
- */
-export const cleanupOldChunks = internalMutation({
-  args: {
-    threadId: v.string(),
-    olderThanMs: v.number(),
-    limit: v.number(),
-  },
-  returns: v.object({ deleted: v.number() }),
-  handler: async (ctx, args) => {
-    if (args.limit <= 0) {
-      throw new ConvexError({
-        code: 'BAD_REQUEST',
-        message: 'limit must be positive',
-      });
-    }
-    const cutoff = Date.now() - args.olderThanMs;
-    const candidates = await ctx.db
-      .query('ttsAudioChunks')
-      .withIndex('by_thread_age', (q) =>
-        q.eq('threadId', args.threadId).lt('createdAt', cutoff),
-      )
-      .take(args.limit);
-    let deleted = 0;
-    for (const row of candidates) {
-      if (row.storageId) {
-        try {
-          await ctx.storage.delete(row.storageId);
-        } catch (err) {
-          console.warn('[tts.cleanup] failed to delete storage blob', err);
-        }
-      }
-      await ctx.db.delete(row._id);
-      deleted++;
-    }
-    return { deleted };
-  },
-});
-
-/**
- * Opportunistic cleanup trigger from the read path. Rate-limited via the
- * `cleanup:tts` token (one pass per thread per hour) so subscription chatter
- * doesn't trigger a sweep on every tick. Returns silently when the limiter
- * gates the call.
+ * Opportunistic cleanup trigger scheduled from
+ * `markChunkReadyAndRecordUsage` (the write path) on `index === 0` only.
+ * Rate-limited via the `cleanup:tts` token (one pass per thread per hour)
+ * so a burst of message-zero flips can't dispatch many sweeps in quick
+ * succession. Returns silently when the limiter gates the call.
+ *
+ * Idle threads — those that synthesize once and stop — never trigger this
+ * mutation again. The daily `gcOrgTtsChunks` cron in `crons.ts` is the
+ * cross-thread backstop that reaps them on the retention horizon.
  */
 export const maybeCleanupChunks = internalMutation({
   args: {

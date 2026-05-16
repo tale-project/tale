@@ -2,29 +2,21 @@
 
 import { ConvexError, v } from 'convex/values';
 
-import { TTS_SLUG } from '../../lib/shared/constants/usage';
+import { MAX_TTS_CHUNK_CHARS } from '../../lib/shared/constants/tts';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { action } from '../_generated/server';
 import { estimateTtsCostCents } from '../governance/cost_estimation';
+import { SafeFetchError, safeFetchBinary } from '../lib/http/safe_fetch';
 import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
+import { sanitizeError } from '../lib/utils/sanitize_secrets';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import { NoProviderAvailableError } from '../providers/errors';
 import { checkProviderHostPolicy } from '../providers/file_actions';
 import { resolveTtsModel } from '../providers/resolve_model';
 
-const MAX_CHUNK_CHARS = 2000;
 const FETCH_TIMEOUT_MS = 60_000;
 const MAX_AUDIO_BYTES = 5 * 1024 * 1024; // 5 MB hard cap on provider response
-
-function sanitizeTtsError(err: unknown): string {
-  const raw = err instanceof Error ? err.message : String(err);
-  return raw
-    .replace(/Bearer\s+[A-Za-z0-9._-]+/g, 'Bearer [REDACTED]')
-    .replace(/sk-[A-Za-z0-9_-]{10,}/g, 'sk-[REDACTED]')
-    .replace(/Authorization:\s*\S+/gi, 'Authorization: [REDACTED]')
-    .slice(0, 200);
-}
 
 const AUDIO_MIME_BY_FORMAT: Record<string, string> = {
   mp3: 'audio/mpeg',
@@ -48,7 +40,14 @@ type TtsErrorCode =
   | 'UNKNOWN_VOICE'
   | 'HOST_POLICY'
   | 'RATE_LIMITED'
+  // Distinct from `RATE_LIMITED`: arises when the rate-limiter shard's
+  // OCC retries exhaust under burst contention. The actual quota isn't
+  // exhausted — the limiter just couldn't pick a free shard fast enough.
+  // Client backs off much shorter (50-150ms jitter) than for `RATE_LIMITED`
+  // (which honors the server's `retryAfter`).
+  | 'CONTENTION'
   | 'BUDGET_EXCEEDED'
+  | 'MESSAGE_CHAR_LIMIT'
   | 'TIMEOUT'
   | 'PROVIDER_4XX'
   | 'PROVIDER_5XX'
@@ -70,7 +69,7 @@ interface ClassifiedFailure {
  * pattern in `providers/errors.ts::shouldAttemptFailover`).
  */
 function errorCodeFromCaught(err: unknown): ClassifiedFailure {
-  const detail = sanitizeTtsError(err);
+  const detail = sanitizeError(err);
   if (err instanceof NoProviderAvailableError) {
     return { code: 'NO_PROVIDER', retryable: false, detail };
   }
@@ -97,14 +96,43 @@ function errorCodeFromCaught(err: unknown): ClassifiedFailure {
     if (code === 'BUDGET_EXCEEDED') {
       return { code: 'BUDGET_EXCEEDED', retryable: false, detail };
     }
+    if (code === 'MESSAGE_CHAR_LIMIT') {
+      return { code: 'MESSAGE_CHAR_LIMIT', retryable: false, detail };
+    }
+    // `checkProviderHostPolicy` raises these three codes; without explicit
+    // branches they fall through to `PROVIDER_ERROR` and the client's
+    // `HOST_POLICY` recovery affordance never fires.
+    if (
+      code === 'INVALID_URL' ||
+      code === 'BLOCKED_HOST' ||
+      code === 'PRIVATE_HOST_BLOCKED'
+    ) {
+      return { code: 'HOST_POLICY', retryable: false, detail };
+    }
+  }
+  // `safeFetchBinary` surfaces SSRF / redirect / size violations as
+  // `SafeFetchError`; classify by `kind` so retry decisions and recovery
+  // UX match the real failure mode.
+  if (err instanceof SafeFetchError) {
+    switch (err.kind) {
+      case 'invalid_url':
+      case 'unsupported_protocol':
+      case 'private_ip':
+      case 'redirect_missing_location':
+      case 'redirect_limit_exceeded':
+        return { code: 'HOST_POLICY', retryable: false, detail };
+      case 'response_too_large':
+        return { code: 'PROVIDER_4XX', retryable: false, detail };
+      case 'timeout':
+        return { code: 'TIMEOUT', retryable: true, detail };
+      case 'upstream_error':
+      case 'network_error':
+        return { code: 'PROVIDER_ERROR', retryable: false, detail };
+    }
   }
   // Same-action throws from resolveTtsModel use `new Error('UNKNOWN_VOICE: ...')`.
   if (err instanceof Error && err.message.startsWith('UNKNOWN_VOICE:')) {
     return { code: 'UNKNOWN_VOICE', retryable: false, detail };
-  }
-  // Host-policy violation surfaces as a plain Error with a known prefix.
-  if (err instanceof Error && /host policy/i.test(err.message)) {
-    return { code: 'HOST_POLICY', retryable: false, detail };
   }
   if (err instanceof Error && err.name === 'AbortError') {
     return { code: 'TIMEOUT', retryable: true, detail };
@@ -179,10 +207,10 @@ export const synthesizeChunk = action({
         message: 'Chunk text is empty after trim.',
       });
     }
-    if (text.length > MAX_CHUNK_CHARS) {
+    if (text.length > MAX_TTS_CHUNK_CHARS) {
       throw new ConvexError({
         code: 'TTS_TEXT_TOO_LONG',
-        message: `Chunk text exceeds ${MAX_CHUNK_CHARS} characters; client must re-segment.`,
+        message: `Chunk text exceeds ${MAX_TTS_CHUNK_CHARS} characters; client must re-segment.`,
       });
     }
 
@@ -195,8 +223,9 @@ export const synthesizeChunk = action({
     // Exception: an OptimisticConcurrencyControlFailure on the rate-limiter
     // shard can leak through when many concurrent callers contend on the
     // same shard and the library's internal OCC retries exhaust. The chunk
-    // wasn't reserved, so we have no row to mark — instead surface it as a
-    // retryable `RATE_LIMITED` failure so the client backs off and retries.
+    // wasn't reserved, so we have no row to mark — surface as `CONTENTION`
+    // (distinct from `RATE_LIMITED`) so the client backs off with the
+    // short OCC jitter, not the full quota-recovery delay.
     const reservation = await ctx
       .runMutation(internal.tts.mutations.reserveChunk, {
         messageId: args.messageId,
@@ -216,7 +245,7 @@ export const synthesizeChunk = action({
         throw err;
       });
     if ('__occ' in reservation) {
-      return { status: 'failed' as const, errorCode: 'RATE_LIMITED' };
+      return { status: 'failed' as const, errorCode: 'CONTENTION' };
     }
 
     if (reservation.kind === 'ready') {
@@ -227,18 +256,26 @@ export const synthesizeChunk = action({
     }
     const chunkId = reservation.chunkId;
     const organizationId = reservation.organizationId;
-    const userId = reservation.userId;
+    const attemptCreatedAt = reservation.attemptCreatedAt;
+
+    // Helper: mark this attempt failed with `code`. The mutation's identity
+    // check refuses if the row was already overwritten by a fresher attempt,
+    // so a slow failure from a stale attempt can't trample a new pending row.
+    const markFailedAndReturn = async (code: TtsErrorCode) => {
+      await ctx.runMutation(internal.tts.mutations.markChunkFailed, {
+        chunkId,
+        attemptCreatedAt,
+        error: code,
+      });
+      return { status: 'failed' as const, errorCode: code };
+    };
 
     let orgSlug: string;
     try {
       orgSlug = await resolveOrgSlug(ctx, organizationId);
     } catch (err) {
-      const { code, detail } = errorCodeFromCaught(err);
-      await ctx.runMutation(internal.tts.mutations.markChunkFailed, {
-        chunkId,
-        error: `${code}: ${detail}`,
-      });
-      return { status: 'failed' as const, errorCode: code };
+      const { code } = errorCodeFromCaught(err);
+      return markFailedAndReturn(code);
     }
 
     let modelData;
@@ -249,11 +286,7 @@ export const synthesizeChunk = action({
       });
     } catch (err) {
       const { code } = errorCodeFromCaught(err);
-      await ctx.runMutation(internal.tts.mutations.markChunkFailed, {
-        chunkId,
-        error: code,
-      });
-      return { status: 'failed' as const, errorCode: code };
+      return markFailedAndReturn(code);
     }
 
     // Defense-in-depth: re-check host policy at synthesis time so a provider
@@ -263,21 +296,21 @@ export const synthesizeChunk = action({
     try {
       checkProviderHostPolicy(modelData.baseUrl);
     } catch (err) {
-      const { code, detail } = errorCodeFromCaught(err);
-      await ctx.runMutation(internal.tts.mutations.markChunkFailed, {
-        chunkId,
-        error: `${code}: ${detail}`,
-      });
-      return { status: 'failed' as const, errorCode: code };
+      const { code } = errorCodeFromCaught(err);
+      return markFailedAndReturn(code);
     }
 
     const url = `${modelData.baseUrl.replace(/\/+$/, '')}/audio/speech`;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    const mime =
+      AUDIO_MIME_BY_FORMAT[modelData.audioFormat] ?? 'application/octet-stream';
     let storageId: Id<'_storage'>;
-    let mime: string;
     try {
-      const response = await fetch(url, {
+      // `safeFetchBinary` enforces the size cap during the streaming read,
+      // so a chunked-transfer response can't buffer past MAX_AUDIO_BYTES
+      // before the size check fires. It also re-validates the host on every
+      // redirect hop so a 302 to the cloud metadata service can't smuggle
+      // the bearer token.
+      const response = await safeFetchBinary(url, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${modelData.apiKey}`,
@@ -289,82 +322,79 @@ export const synthesizeChunk = action({
           voice: modelData.voice,
           response_format: modelData.audioFormat,
         }),
-        signal: controller.signal,
+        timeoutMs: FETCH_TIMEOUT_MS,
+        maxResponseBytes: MAX_AUDIO_BYTES,
+        defaultContentType: mime,
       });
-      if (!response.ok) {
-        // Don't store provider error bodies verbatim — they can echo input
-        // PII or sensitive config. Surface only the status code; admins
-        // see the body in server logs.
-        const errBody = await response.text().catch((bodyErr) => {
-          console.warn('[tts] failed to read provider error body', bodyErr);
-          return '';
+      if (response.status < 200 || response.status >= 300) {
+        // Don't log the provider body — providers commonly echo input PII or
+        // sensitive config in 4xx bodies. Surface status + origin only.
+        const origin = (() => {
+          try {
+            return new URL(response.finalUrl).origin;
+          } catch {
+            return 'unknown';
+          }
+        })();
+        console.warn('[tts] provider error', {
+          status: response.status,
+          origin,
         });
-        console.warn(
-          `[tts] provider returned ${response.status}: ${errBody.slice(0, 400)}`,
-        );
         throw new Error(`TTS API ${response.status}: provider call failed`);
       }
-      // Reject obviously oversized responses before buffering — protects
-      // the Node action from OOM if a misbehaving provider streams gigabytes.
-      const contentLength = response.headers.get('content-length');
-      if (contentLength && Number(contentLength) > MAX_AUDIO_BYTES) {
-        throw new Error(
-          `TTS API 413: response too large (${contentLength} bytes)`,
-        );
-      }
-      const blob = await response.blob();
-      if (blob.size > MAX_AUDIO_BYTES) {
-        throw new Error(`TTS API 413: response too large (${blob.size} bytes)`);
-      }
-      mime =
-        AUDIO_MIME_BY_FORMAT[modelData.audioFormat] ??
-        'application/octet-stream';
       const typedBlob =
-        blob.type && blob.type !== '' ? blob : new Blob([blob], { type: mime });
+        response.body.type && response.body.type !== ''
+          ? response.body
+          : new Blob([response.body], { type: mime });
       storageId = await ctx.storage.store(typedBlob);
     } catch (err) {
-      const { code, detail } = errorCodeFromCaught(err);
-      await ctx.runMutation(internal.tts.mutations.markChunkFailed, {
-        chunkId,
-        error: `${code}: ${detail}`,
-      });
-      return { status: 'failed' as const, errorCode: code };
-    } finally {
-      clearTimeout(timeout);
+      const { code } = errorCodeFromCaught(err);
+      return markFailedAndReturn(code);
     }
 
-    await ctx.runMutation(internal.tts.mutations.markChunkReady, {
-      chunkId,
-      storageId,
-      voice: modelData.voice,
-      providerName: modelData.providerName,
-      modelId: modelData.modelId,
-      format: modelData.audioFormat,
-    });
-
-    // Record billable usage. Failure here is non-fatal for the user-facing
-    // playback path — the chunk is already `ready` and audible — so log and
-    // continue rather than rolling back.
+    // Compensating storage delete on post-store failure. Without this, any
+    // throw from `markChunkReadyAndRecordUsage` (cascade-deleted row,
+    // identity mismatch from a stale attempt, validator rejection, etc.)
+    // would orphan the just-uploaded blob until the 7-day cron eventually
+    // sweeps it. The mutation itself handles the identity-mismatch case
+    // inline; this catch covers everything else.
+    const costEstimateCents = estimateTtsCostCents(
+      text.length,
+      modelData.centsPerMillionCharacters,
+    );
     try {
-      const costEstimateCents = estimateTtsCostCents(
-        text.length,
-        modelData.centsPerMillionCharacters,
-      );
-      await ctx.runMutation(
-        internal.governance.internal_mutations.recordTtsUsage,
+      const result = await ctx.runMutation(
+        internal.tts.mutations.markChunkReadyAndRecordUsage,
         {
-          organizationId,
-          userId,
-          agentSlug: TTS_SLUG,
-          model: modelData.modelId,
-          provider: modelData.providerName,
+          chunkId,
+          attemptCreatedAt,
+          storageId,
+          voice: modelData.voice,
+          providerName: modelData.providerName,
+          modelId: modelData.modelId,
+          format: modelData.audioFormat,
           characterCount: text.length,
           costEstimateCents,
-          timestamp: Date.now(),
         },
       );
+      if (result.stale) {
+        // The mutation already deleted the blob inline. Surface as in-flight
+        // so the client doesn't render an error — the fresher attempt owns
+        // the row now.
+        return { status: 'in-flight' as const };
+      }
     } catch (err) {
-      console.warn('[tts] failed to record usage ledger entry', err);
+      try {
+        await ctx.storage.delete(storageId);
+      } catch (deleteErr) {
+        console.warn(
+          '[tts] failed to delete orphan blob on mark-ready throw',
+          deleteErr,
+        );
+      }
+      console.warn('[tts] markChunkReadyAndRecordUsage threw', err);
+      const { code } = errorCodeFromCaught(err);
+      return markFailedAndReturn(code);
     }
 
     return { status: 'ready' as const };
@@ -372,13 +402,19 @@ export const synthesizeChunk = action({
 });
 
 /**
- * Capability check the client uses to decide between provider TTS and the
- * `speechSynthesis` browser fallback up-front. Returns the configured TTS
- * model summary or `{ available: false }` when no provider has a
- * `'text-to-speech'` model.
+ * Capability check the client uses to gate the TTS toggle and the
+ * personalization-page voice section. Returns the configured TTS model
+ * summary or `{ available: false }` when no provider has a `'text-to-speech'`
+ * model for this org.
  *
- * NB: this is an `action` purely because `resolveTtsModel` calls into a
- * Node-only `runAction`. Phase 5 converts it to a query once the resolver
+ * Auth: requires the caller to be a current member of `organizationId`. The
+ * provider/model identifiers in the success response are operationally
+ * sensitive (they reveal which third-party vendor an org has wired up), so
+ * a bare `requireAuthenticatedUser` check is insufficient — without the
+ * membership gate, any logged-in user could probe arbitrary org IDs.
+ *
+ * NB: this is an `action` purely because `resolveTtsModel` runs in a Node
+ * action. Phase 5 (deferred) converts it to a query once the resolver
  * dependency is unwound.
  */
 export const getCapability = action({
@@ -389,12 +425,40 @@ export const getCapability = action({
     modelId: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
-    await requireAuthenticatedUser(ctx);
+    const user = await requireAuthenticatedUser(ctx);
+    // Cross-org probe gate: throws if the caller is not a member of the
+    // requested org. The error propagates to the client — the toggle's
+    // capability-check UI treats it as "unavailable" without distinguishing
+    // "not configured" from "not allowed", so probing reveals nothing.
+    try {
+      await ctx.runQuery(
+        internal.governance.internal_mutations
+          .requireOrganizationMemberInternal,
+        {
+          organizationId: args.organizationId,
+          userId: user.userId,
+          email: user.email,
+          name: user.name,
+        },
+      );
+    } catch (err) {
+      // Record the deny as a security signal so operators can correlate
+      // repeated probes against a specific actor. Best-effort.
+      await ctx.runMutation(internal.tts.mutations.logCapabilityProbeDenied, {
+        organizationId: args.organizationId,
+        actorId: user.userId,
+        actorEmail: user.email,
+      });
+      throw err;
+    }
     let orgSlug: string;
     try {
       orgSlug = await resolveOrgSlug(ctx, args.organizationId);
     } catch (err) {
-      console.warn('[tts.getCapability] resolveOrgSlug failed', err);
+      console.warn(
+        '[tts.getCapability] resolveOrgSlug failed',
+        sanitizeError(err),
+      );
       return { available: false };
     }
     try {
@@ -408,7 +472,10 @@ export const getCapability = action({
         modelId: model.modelId,
       };
     } catch (err) {
-      console.warn('[tts.getCapability] resolveTtsModel failed', err);
+      console.warn(
+        '[tts.getCapability] resolveTtsModel failed',
+        sanitizeError(err),
+      );
       return { available: false };
     }
   },

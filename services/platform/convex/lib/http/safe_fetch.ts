@@ -51,6 +51,14 @@ export interface SafeFetchResponse {
   finalUrl: string;
 }
 
+export interface SafeFetchBinaryResponse {
+  status: number;
+  statusText: string;
+  headers: Headers;
+  body: Blob;
+  finalUrl: string;
+}
+
 const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_MAX_RESPONSE_BYTES = 1_048_576; // 1 MB
 const DEFAULT_MAX_REDIRECTS = 5;
@@ -159,6 +167,54 @@ function validateUrl(rawUrl: string, allowedHosts: string[] | undefined): URL {
   }
 
   return parsed;
+}
+
+async function readBinaryBodyWithCap(
+  response: Response,
+  maxBytes: number,
+): Promise<{ buffer: ArrayBuffer; contentType: string }> {
+  const contentLength = response.headers.get('Content-Length');
+  if (contentLength) {
+    const declared = Number.parseInt(contentLength, 10);
+    if (Number.isFinite(declared) && declared > maxBytes) {
+      throw new SafeFetchError(
+        'response_too_large',
+        `Response Content-Length ${declared} exceeds limit ${maxBytes}`,
+        response.status,
+      );
+    }
+  }
+
+  const reader = response.body?.getReader();
+  const contentType = response.headers.get('Content-Type') ?? '';
+  if (!reader) return { buffer: new ArrayBuffer(0), contentType };
+
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      throw new SafeFetchError(
+        'response_too_large',
+        `Response body exceeded limit ${maxBytes}`,
+        response.status,
+      );
+    }
+    chunks.push(value);
+  }
+
+  const buffer = new ArrayBuffer(total);
+  const view = new Uint8Array(buffer);
+  let offset = 0;
+  for (const chunk of chunks) {
+    view.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return { buffer, contentType };
 }
 
 async function readBodyWithCap(
@@ -305,6 +361,123 @@ export async function safeFetch(
       statusText: response.statusText,
       headers: response.headers,
       body: bodyText,
+      finalUrl: currentUrl,
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/**
+ * Binary sibling of `safeFetch`. Returns the response body as a `Blob` and
+ * enforces `maxResponseBytes` during streaming reads (not after the body
+ * fully materialises), so a `Transfer-Encoding: chunked` response with no
+ * `Content-Length` header cannot OOM the action by buffering gigabytes
+ * before the size check fires.
+ *
+ * The body's MIME type prefers the response `Content-Type` header but falls
+ * back to a caller-supplied `defaultContentType` (typically derived from the
+ * caller's expected audio format) so the resulting Blob can be stored or
+ * served with a usable type even when the upstream omits the header.
+ */
+export async function safeFetchBinary(
+  rawUrl: string,
+  options: SafeFetchOptions & { defaultContentType?: string } = {},
+): Promise<SafeFetchBinaryResponse> {
+  const {
+    method = 'GET',
+    headers = {},
+    body,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    maxResponseBytes = DEFAULT_MAX_RESPONSE_BYTES,
+    maxRedirects = DEFAULT_MAX_REDIRECTS,
+    allowedHosts: callerAllowedHosts,
+    defaultContentType,
+  } = options;
+
+  let allowedHosts = callerAllowedHosts;
+  if (allowedHosts === undefined) {
+    try {
+      const ownHost = new URL(rawUrl).hostname.toLowerCase();
+      if (ownHost) allowedHosts = [ownHost];
+    } catch {
+      // let validateUrl surface the invalid-URL error below
+    }
+  }
+
+  validateUrl(rawUrl, allowedHosts);
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    let currentUrl = rawUrl;
+    let redirectsFollowed = 0;
+    let response: Response;
+
+    while (true) {
+      try {
+        response = await fetch(currentUrl, {
+          method,
+          headers,
+          body,
+          redirect: 'manual',
+          signal: controller.signal,
+        });
+      } catch (error) {
+        if (error instanceof SafeFetchError) throw error;
+        if (
+          error instanceof Error &&
+          (error.name === 'AbortError' || error.name === 'TimeoutError')
+        ) {
+          throw new SafeFetchError(
+            'timeout',
+            `Request timed out after ${timeoutMs}ms`,
+          );
+        }
+        const message = error instanceof Error ? error.message : 'unknown';
+        throw new SafeFetchError('network_error', `fetch failed: ${message}`);
+      }
+
+      if (response.status < 300 || response.status >= 400) {
+        break;
+      }
+
+      const location = response.headers.get('Location');
+      if (!location) {
+        throw new SafeFetchError(
+          'redirect_missing_location',
+          `Redirect ${response.status} missing Location header`,
+          response.status,
+        );
+      }
+
+      redirectsFollowed += 1;
+      if (redirectsFollowed > maxRedirects) {
+        throw new SafeFetchError(
+          'redirect_limit_exceeded',
+          `Exceeded ${maxRedirects} redirects`,
+        );
+      }
+
+      const nextUrl = new URL(location, currentUrl);
+      validateUrl(nextUrl.toString(), allowedHosts);
+      currentUrl = nextUrl.toString();
+    }
+
+    const { buffer, contentType } = await readBinaryBodyWithCap(
+      response,
+      maxResponseBytes,
+    );
+    const blobType =
+      contentType || defaultContentType || 'application/octet-stream';
+    const blob = new Blob([buffer], { type: blobType });
+
+    return {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+      body: blob,
       finalUrl: currentUrl,
     };
   } finally {

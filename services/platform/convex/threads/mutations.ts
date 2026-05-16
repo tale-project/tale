@@ -6,6 +6,7 @@ import { internalMutation, mutation } from '../_generated/server';
 import { authComponent } from '../auth';
 import { assertThreadAccess } from '../lib/rls/auth/can_access_thread';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { cascadeDeleteMessageChildren } from '../tts/cascade_helpers';
 import {
   archiveChatThread as archiveChatThreadHelper,
   unarchiveChatThread as unarchiveChatThreadHelper,
@@ -417,6 +418,17 @@ export const cleanupArenaBranch = mutation({
       // Delete all of A's messages
       const messageIdsA = messagesA.map((m) => m._id);
       if (messageIdsA.length > 0) {
+        // Cascade A's TTS audio chunks before deleting the messages.
+        // Without this, chunks would linger as ghost rows referencing dead
+        // `messageId`s until the daily org-sweep cron catches them — the
+        // verbatim assistant-voice PII would stay on disk for up to 7 days.
+        if (metaA.organizationId) {
+          await cascadeDeleteMessageChildren(ctx, {
+            messageIds: messageIdsA,
+            threadId: args.threadIdA,
+            organizationId: metaA.organizationId,
+          });
+        }
         await ctx.runMutation(components.agent.messages.deleteByIds, {
           messageIds: messageIdsA,
         });

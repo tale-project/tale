@@ -1,5 +1,6 @@
 import { httpRouter } from 'convex/server';
 
+import { internal } from './_generated/api';
 import { httpAction } from './_generated/server';
 import {
   listAgents as listAgentsRest,
@@ -166,6 +167,65 @@ http.route({
   path: '/api/image-proxy',
   method: 'GET',
   handler: imageProxyHandler,
+});
+
+/**
+ * Authenticated TTS audio fetch. Replaces the bearer-replayable
+ * `/storage?id=…` path that previously served voice audio: the chunk row
+ * carries `organizationId` + `threadId`, so we can require the caller to
+ * be a current member of the chunk's org before streaming the blob.
+ *
+ * Designed for the chained `<audio>` playback path — `Cache-Control:
+ * private, max-age=600` lets the browser keep a short cache, but the URL
+ * is bound to the session cookie so a third party intercepting the URL
+ * can't replay it. Revocation on member removal is instantaneous (the
+ * GDPR cascade has already deleted the row by then).
+ */
+http.route({
+  path: '/api/tts-audio',
+  method: 'GET',
+  handler: httpAction(async (ctx, req) => {
+    const url = new URL(req.url);
+    const chunkId = url.searchParams.get('chunkId');
+    if (!chunkId) {
+      return new Response('Missing chunkId', { status: 400 });
+    }
+
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity || !identity.subject) {
+      return new Response('Unauthenticated', { status: 401 });
+    }
+
+    const chunk = await ctx.runQuery(internal.tts.queries.getChunkForServe, {
+      chunkId,
+      userId: identity.subject,
+    });
+    if (!chunk) {
+      // Either the chunk doesn't exist or the caller isn't a member of
+      // the chunk's org. Conflate the two so probing reveals nothing.
+      return new Response('Not found', { status: 404 });
+    }
+
+    try {
+      const blob = await ctx.storage.get(toId<'_storage'>(chunk.storageId));
+      if (!blob) {
+        return new Response('Not found', { status: 404 });
+      }
+      const headers: Record<string, string> = {
+        'Content-Type': blob.type || 'application/octet-stream',
+        'Content-Length': blob.size.toString(),
+        'Cache-Control': 'private, max-age=600',
+        // Tell intermediaries not to cache the bytes against the URL
+        // alone; the URL is bound to the session cookie which they can't
+        // see.
+        Vary: 'Cookie',
+      };
+      return new Response(blob, { status: 200, headers });
+    } catch (error) {
+      console.error('[http /api/tts-audio] error:', error);
+      return new Response('Internal server error', { status: 500 });
+    }
+  }),
 });
 
 authComponent.registerRoutes(http, createAuth);

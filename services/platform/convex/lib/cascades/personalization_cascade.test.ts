@@ -9,11 +9,19 @@ interface FakeRow {
   _id: string;
   userId?: string;
   organizationId?: string;
+  storageId?: string;
 }
 
 function createCtx(rowsByIndex: Record<string, FakeRow[]>) {
   const deleted: string[] = [];
+  const storageDeleted: string[] = [];
   const lastIndexUsed: { name: string; eq: Record<string, unknown> }[] = [];
+  // Each `take()` empties the per-index store so a paged loop terminates
+  // after one call — matches the real Convex behaviour for a single page.
+  const remaining: Record<string, FakeRow[]> = {};
+  for (const [k, v] of Object.entries(rowsByIndex)) {
+    remaining[k] = [...v];
+  }
 
   const ctx = {
     db: {
@@ -32,6 +40,11 @@ function createCtx(rowsByIndex: Record<string, FakeRow[]>) {
             return {
               collect: async (): Promise<FakeRow[]> =>
                 rowsByIndex[indexName] ?? [],
+              take: async (n: number): Promise<FakeRow[]> => {
+                const rows = remaining[indexName] ?? [];
+                const slice = rows.splice(0, n);
+                return slice;
+              },
             };
           },
         };
@@ -40,16 +53,21 @@ function createCtx(rowsByIndex: Record<string, FakeRow[]>) {
         deleted.push(id);
       }),
     },
+    storage: {
+      delete: vi.fn(async (id: string) => {
+        storageDeleted.push(id);
+      }),
+    },
   } as never;
 
-  return { ctx, deleted, lastIndexUsed };
+  return { ctx, deleted, storageDeleted, lastIndexUsed };
 }
 
 describe('cascadeOnMemberRemoved', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('deletes (user, org) memories and prefs via the composite index', async () => {
-    const { ctx, deleted, lastIndexUsed } = createCtx({
+  it('deletes (user, org) memories, prefs, and TTS chunks via composite indexes', async () => {
+    const { ctx, deleted, storageDeleted, lastIndexUsed } = createCtx({
       by_user_org_status_deleted_created: [
         { _id: 'mem_1', userId: 'u_1', organizationId: 'o_1' },
         { _id: 'mem_2', userId: 'u_1', organizationId: 'o_1' },
@@ -57,24 +75,37 @@ describe('cascadeOnMemberRemoved', () => {
       by_userId_organizationId: [
         { _id: 'pref_1', userId: 'u_1', organizationId: 'o_1' },
       ],
+      // GDPR Art 17 sweep — TTS chunks the member ever synthesized.
+      by_user_org: [
+        {
+          _id: 'tts_1',
+          userId: 'u_1',
+          organizationId: 'o_1',
+          storageId: 'blob_1',
+        },
+      ],
     });
 
     await cascadeOnMemberRemoved(ctx, 'u_1', 'o_1');
 
     expect(deleted).toEqual(
-      expect.arrayContaining(['mem_1', 'mem_2', 'pref_1']),
+      expect.arrayContaining(['mem_1', 'mem_2', 'pref_1', 'tts_1']),
     );
-    expect(deleted).toHaveLength(3);
+    expect(deleted).toHaveLength(4);
+    // Blob delete fires for the chunk row that carried a `storageId`.
+    expect(storageDeleted).toEqual(['blob_1']);
     expect(lastIndexUsed.map((u) => u.name)).toEqual([
       'by_user_org_status_deleted_created',
       'by_userId_organizationId',
+      'by_user_org',
     ]);
   });
 
   it('is a no-op when the user has no rows', async () => {
-    const { ctx, deleted } = createCtx({});
+    const { ctx, deleted, storageDeleted } = createCtx({});
     await cascadeOnMemberRemoved(ctx, 'u_1', 'o_1');
     expect(deleted).toHaveLength(0);
+    expect(storageDeleted).toHaveLength(0);
   });
 });
 
@@ -98,6 +129,9 @@ describe('cascadeOnOrgDeleted', () => {
     // that's the only index on the chunks table that fronts organizationId.
     const indexedNames = new Set(['by_organizationId', 'by_org_createdAt']);
     expect(lastIndexUsed.every((u) => indexedNames.has(u.name))).toBe(true);
+    // 1 query each for memories + prefs (collect path), then the TTS sweep
+    // pages via `by_org_createdAt` — terminates after one page when the
+    // returned slice is shorter than PAGE_SIZE.
     expect(lastIndexUsed).toHaveLength(3);
     expect(deleted).toEqual(
       expect.arrayContaining(['mem_a', 'mem_b', 'pref_a', 'tts_a']),

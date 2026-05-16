@@ -200,69 +200,87 @@ const providerOptionsSchema = z
   .superRefine((value, ctx) => denyListRefine(value, ctx))
   .optional();
 
-const modelDefinitionSchema = z.object({
-  id: z.string().min(1).max(200),
-  displayName: z.string().min(1).max(200),
-  description: z.string().max(1000).optional(),
-  tags: z.array(modelTagSchema).min(1),
-  dimensions: z.number().int().positive().optional(),
-  maxOutputTokens: z.number().int().positive().optional(),
-  supportsStructuredOutputs: z.boolean().optional(),
-  fallbackModelId: z.string().min(1).max(200).optional(),
-  baseUrl: z.string().url().optional(),
-  imageGenerationMode: imageGenerationModeSchema.optional(),
-  cost: z
-    .object({
-      inputCentsPerMillion: z.number().optional(),
-      outputCentsPerMillion: z.number().optional(),
-      /**
-       * For image-generation models that charge per image rather than per
-       * token. When set, cost tracking for this model uses
-       * `imageCount * imageCentsPerImage` directly, bypassing token math.
-       */
-      imageCentsPerImage: z.number().optional(),
-      /**
-       * For transcription models billed per minute of audio (e.g. OpenAI
-       * whisper-1 at $0.006/min = 0.6). Used by
-       * `estimateTranscriptionCostCents` to compute ledger entries.
-       */
-      centsPerAudioMinute: z.number().optional(),
-      /**
-       * For text-to-speech models billed per character of input text
-       * (e.g. OpenAI tts-1 at $15/M chars = 1500). When the upstream
-       * meter is per-token (e.g. gpt-4o-mini-tts), operators supply a
-       * char-approximation here; the value is used directly by
-       * `estimateTtsCostCents` without conversion.
-       */
-      centsPerMillionCharacters: z.number().nonnegative().finite().optional(),
-    })
-    .optional(),
-  /**
-   * Default voice for TTS models when no locale-specific voice matches.
-   */
-  defaultVoice: z.string().min(1).max(100).optional(),
-  /**
-   * Locale → voice mapping for TTS models. Keys are BCP-47 codes or base
-   * language codes; resolver tries the full locale first, then the base.
-   */
-  voicesByLocale: z
-    .record(
-      z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/),
-      z.string().min(1).max(100),
-    )
-    .optional(),
-  /**
-   * Output audio format for TTS models. Defaults to mp3 when omitted.
-   * `pcm` is raw 24 kHz mono int16 — choose only when the client can
-   * play `audio/L16; rate=24000` (most browsers can; some older Safari
-   * cannot). `opus` is served as Ogg-Opus container, supported on
-   * macOS 14+ / iOS 17+ Safari.
-   */
-  audioFormat: z.enum(['mp3', 'opus', 'aac', 'flac', 'wav', 'pcm']).optional(),
-  providerOptions: providerOptionsSchema,
-});
+/**
+ * Single source of truth for TTS output audio formats. Exported so the
+ * Convex `ttsAudioChunks` validator, the action's MIME map, and the
+ * `resolveTtsModel` resolver all stay in sync via one literal list.
+ */
+export const audioFormatLiterals = [
+  'mp3',
+  'opus',
+  'aac',
+  'flac',
+  'wav',
+  'pcm',
+] as const;
+export type AudioFormat = (typeof audioFormatLiterals)[number];
 
-type ModelDefinition = z.infer<typeof modelDefinitionSchema>;
+const modelDefinitionSchema = z
+  .object({
+    id: z.string().min(1).max(200),
+    displayName: z.string().min(1).max(200),
+    description: z.string().max(1000).optional(),
+    tags: z.array(modelTagSchema).min(1),
+    dimensions: z.number().int().positive().optional(),
+    maxOutputTokens: z.number().int().positive().optional(),
+    supportsStructuredOutputs: z.boolean().optional(),
+    fallbackModelId: z.string().min(1).max(200).optional(),
+    baseUrl: z.string().url().optional(),
+    imageGenerationMode: imageGenerationModeSchema.optional(),
+    cost: z
+      .object({
+        inputCentsPerMillion: z.number().nonnegative().finite().optional(),
+        outputCentsPerMillion: z.number().nonnegative().finite().optional(),
+        /**
+         * For image-generation models that charge per image rather than per
+         * token. When set, cost tracking for this model uses
+         * `imageCount * imageCentsPerImage` directly, bypassing token math.
+         */
+        imageCentsPerImage: z.number().nonnegative().finite().optional(),
+        /**
+         * For transcription models billed per minute of audio (e.g. OpenAI
+         * whisper-1 at $0.006/min = 0.6). Used by
+         * `estimateTranscriptionCostCents` to compute ledger entries.
+         */
+        centsPerAudioMinute: z.number().nonnegative().finite().optional(),
+        /**
+         * For text-to-speech models billed per character of input text
+         * (e.g. OpenAI tts-1 at $15/M chars = 1500). When the upstream
+         * meter is per-token (e.g. gpt-4o-mini-tts), operators supply a
+         * char-approximation here; the value is used directly by
+         * `estimateTtsCostCents` without conversion.
+         */
+        centsPerMillionCharacters: z.number().nonnegative().finite().optional(),
+      })
+      .strict()
+      .optional(),
+    /**
+     * Default voice for TTS models when no locale-specific voice matches.
+     */
+    defaultVoice: z.string().min(1).max(100).optional(),
+    /**
+     * Locale → voice mapping for TTS models. Keys are BCP-47 codes or base
+     * language codes; resolver tries the full locale first, then the base.
+     */
+    voicesByLocale: z
+      .record(
+        z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/),
+        z.string().min(1).max(100),
+      )
+      .optional(),
+    /**
+     * Output audio format for TTS models. Defaults to mp3 when omitted.
+     * `pcm` is raw 24 kHz mono int16 — choose only when the client can
+     * play `audio/L16; rate=24000` (most browsers can; some older Safari
+     * cannot). `opus` is served as Ogg-Opus container, supported on
+     * macOS 14+ / iOS 17+ Safari.
+     */
+    audioFormat: z.enum(audioFormatLiterals).optional(),
+    providerOptions: providerOptionsSchema,
+  })
+  .strict();
+
+export type ModelDefinition = z.infer<typeof modelDefinitionSchema>;
 
 const providerDefaultsSchema = z.object({
   chat: z.string().min(1).max(200).optional(),

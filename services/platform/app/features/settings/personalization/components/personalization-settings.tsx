@@ -285,13 +285,22 @@ function VoiceOutputSection({
     <PageSection title={t('page.voiceOutput.label')} titleSize="base">
       <Switch
         checked={enabled}
+        // Pass `label` so the Radix Switch root receives an accessible
+        // name — without it the screen reader announces just "switch,
+        // off" (WCAG 4.1.2). The PageSection title alone is not enough
+        // because it isn't programmatically associated with the control.
+        label={t('page.voiceOutput.label')}
         description={t('page.voiceOutput.description')}
-        disabled={providerAvailable === null}
+        // Removed `disabled={providerAvailable === null}` — a slow or
+        // failing capability check would otherwise leave the user
+        // unable to turn voice off at all. The capability state is
+        // surfaced below as inline help, not as a hard gate.
+        aria-busy={providerAvailable === null}
         onCheckedChange={async (next) => {
           // Prime synchronously inside the gesture — the gesture token does
           // not survive the awaited mutation below, so playback from the
           // next streamed reply would otherwise hit NotAllowedError.
-          if (next) primeAudio();
+          if (next) void primeAudio();
           try {
             await setVoiceOutput({ organizationId, enabled: next });
             toast({ title: t('toasts.preferencesUpdated') });

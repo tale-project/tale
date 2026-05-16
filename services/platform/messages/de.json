@@ -4793,7 +4793,7 @@
       "voiceOutput": {
         "label": "Sprachausgabe (Standard)",
         "description": "Wenn aktiviert, werden Antworten in neuen Chats in deiner Oberflächensprache vorgelesen. Im Chat-Header kannst du die Sprachausgabe weiterhin separat ein- oder ausschalten.",
-        "providerUnavailable": "Kein Text-zu-Sprache-Anbieter konfiguriert. Der Sprachmodus nutzt die im Browser eingebaute Sprachausgabe.",
+        "providerUnavailable": "Kein Text-zu-Sprache-Anbieter konfiguriert. Sprachausgabe steht erst zur Verfügung, wenn ein Admin unter Einstellungen → KI-Anbieter ein TTS-Modell hinzufügt.",
         "configureProvider": "Anbieter einrichten"
       },
       "memories": {

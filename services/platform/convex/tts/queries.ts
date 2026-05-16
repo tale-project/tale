@@ -1,14 +1,18 @@
 import { v } from 'convex/values';
 
-import { query } from '../_generated/server';
+import type { Id } from '../_generated/dataModel';
+import { internalQuery, query } from '../_generated/server';
+import { getOrganizationMember } from '../lib/rls';
 import { canAccessThread } from '../lib/rls/auth/can_access_thread';
 import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
+import { toId } from '../lib/type_cast_helpers';
 
 /**
  * Subscribed by the client message bubble: returns the ordered list of
- * audio chunks for the given assistant message. Used by the player hook
- * to chain `<audio>` playback and to detect failed chunks (which flip
- * the UI to the speechSynthesis fallback path).
+ * audio chunks for the given assistant message. The player hook chains
+ * `<audio>` playback and skips failed chunks (their `error` code drives
+ * the indicator's recovery UX). Playback is provider-only — there is no
+ * `speechSynthesis` browser fallback path.
  *
  * Access control: the caller must be able to read the parent thread AND
  * each chunk row must independently belong to that thread and the thread's
@@ -24,13 +28,18 @@ export const getMessageChunks = query({
   args: { messageId: v.string(), threadId: v.string() },
   returns: v.array(
     v.object({
+      // `chunkId` is what the client uses to request audio bytes via the
+      // authenticated `/api/tts-audio` route — previously the query
+      // returned a pre-resolved `_storage` URL that was bearer-replayable
+      // for the row's 7-day lifetime. Returning the id forces every fetch
+      // through the membership-gated HTTP handler.
+      chunkId: v.id('ttsAudioChunks'),
       index: v.number(),
       status: v.union(
         v.literal('pending'),
         v.literal('ready'),
         v.literal('failed'),
       ),
-      url: v.union(v.string(), v.null()),
       voice: v.optional(v.string()),
       format: v.optional(v.string()),
       error: v.optional(v.string()),
@@ -46,16 +55,13 @@ export const getMessageChunks = query({
     const meta = await canAccessThread(ctx, args.threadId, user);
     if (!meta) return [];
     const rows: Array<{
-      _id: string;
+      chunkId: Id<'ttsAudioChunks'>;
       index: number;
       status: 'pending' | 'ready' | 'failed';
-      storageId: string | undefined;
       voice?: string;
       format?: string;
       error?: string;
       text: string;
-      threadId: string;
-      organizationId: string;
       createdAt: number;
     }> = [];
     // AGENTS.md mandates `for await` over `.collect()` so large result sets
@@ -70,39 +76,52 @@ export const getMessageChunks = query({
         continue;
       }
       rows.push({
-        _id: row._id,
+        chunkId: row._id,
         index: row.index,
         status: row.status,
-        storageId: row.storageId,
         voice: row.voice,
         format: row.format,
         error: row.error,
         text: row.text,
-        threadId: row.threadId,
-        organizationId: row.organizationId,
         createdAt: row.createdAt,
       });
     }
     rows.sort((a, b) => a.index - b.index);
-    // Resolve URLs in parallel — sequential awaits previously turned every
-    // subscription tick into N storage round-trips.
-    const urls = await Promise.all(
-      rows.map((row) =>
-        row.status === 'ready' && row.storageId
-          ? ctx.storage.getUrl(row.storageId)
-          : Promise.resolve(null),
-      ),
-    );
-    return rows.map((row, i) => ({
-      index: row.index,
-      status: row.status,
-      url: urls[i],
-      voice: row.voice,
-      format: row.format,
-      error: row.error,
-      text: row.text,
-      createdAt: row.createdAt,
-    }));
+    return rows;
+  },
+});
+
+/**
+ * Internal: resolve a `ttsAudioChunks` row for the `/api/tts-audio` HTTP
+ * handler. Returns `null` when the row is missing, not yet `'ready'`, or
+ * when the caller is not a member of the row's org. Conflating "not
+ * found" with "forbidden" keeps probing useless for outsiders.
+ */
+export const getChunkForServe = internalQuery({
+  args: { chunkId: v.string(), userId: v.string() },
+  returns: v.union(
+    v.null(),
+    v.object({
+      storageId: v.string(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const chunk = await ctx.db.get(toId<'ttsAudioChunks'>(args.chunkId));
+    if (!chunk) return null;
+    if (chunk.status !== 'ready' || !chunk.storageId) return null;
+
+    // Membership gate — the caller must be a current member of the org
+    // that owns this chunk. Use `getOrganizationMember` directly to avoid
+    // depending on the action-context auth helper here.
+    try {
+      await getOrganizationMember(ctx, chunk.organizationId, {
+        userId: args.userId,
+      });
+    } catch {
+      return null;
+    }
+
+    return { storageId: chunk.storageId };
   },
 });
 

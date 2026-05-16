@@ -17,7 +17,7 @@
     {
       "id": "gpt-4o-mini-tts",
       "displayName": "GPT-4o mini TTS",
-      "description": "Low-cost speech synthesis. Six built-in voices, locale-mapped.",
+      "description": "Low-cost speech synthesis. Six built-in voices, locale-mapped. NOTE: OpenAI bills gpt-4o-mini-tts per token (text in + audio out), not per character. The value below is an approximation of the typical effective per-character rate for English prose; long replies in scripts with high audio-token-per-character ratios (e.g. CJK) under-estimate. The full two-component pricing model is tracked as a follow-up.",
       "tags": ["text-to-speech"],
       "audioFormat": "mp3",
       "defaultVoice": "alloy",
@@ -31,7 +31,7 @@
         "ko": "shimmer"
       },
       "cost": {
-        "centsPerMillionCharacters": 1500
+        "centsPerMillionCharacters": 200
       }
     }
   ],

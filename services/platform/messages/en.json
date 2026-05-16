@@ -4793,7 +4793,7 @@
       "voiceOutput": {
         "label": "Voice output (default)",
         "description": "When on, new conversations speak assistant replies aloud in your interface language. Each conversation can still toggle voice on or off in the chat header.",
-        "providerUnavailable": "No text-to-speech provider configured. Voice mode will use your browser's built-in speech synthesis.",
+        "providerUnavailable": "No text-to-speech provider configured. Voice mode is unavailable until an admin adds a TTS model in Settings → AI providers.",
         "configureProvider": "Configure a provider"
       },
       "memories": {

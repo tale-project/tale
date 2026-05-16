@@ -761,6 +761,7 @@ import type * as threads_validators from "../threads/validators.js";
 import type * as trusted_headers_auth_authenticate_handler from "../trusted_headers_auth/authenticate_handler.js";
 import type * as trusted_headers_auth_http_handlers from "../trusted_headers_auth/http_handlers.js";
 import type * as trusted_headers_auth_internal_mutations from "../trusted_headers_auth/internal_mutations.js";
+import type * as tts_cascade_helpers from "../tts/cascade_helpers.js";
 import type * as tts_mutations from "../tts/mutations.js";
 import type * as tts_queries from "../tts/queries.js";
 import type * as tts_synthesize from "../tts/synthesize.js";
@@ -1822,6 +1823,7 @@ declare const fullApi: ApiFromModules<{
   "trusted_headers_auth/authenticate_handler": typeof trusted_headers_auth_authenticate_handler;
   "trusted_headers_auth/http_handlers": typeof trusted_headers_auth_http_handlers;
   "trusted_headers_auth/internal_mutations": typeof trusted_headers_auth_internal_mutations;
+  "tts/cascade_helpers": typeof tts_cascade_helpers;
   "tts/mutations": typeof tts_mutations;
   "tts/queries": typeof tts_queries;
   "tts/synthesize": typeof tts_synthesize;

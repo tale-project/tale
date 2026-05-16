@@ -2,19 +2,35 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { getEnv } from '@/lib/env';
+
+import { getPrimedAudioElement } from '../utils/prime-audio';
 import { useVoiceChunks } from './use-voice-output';
 import { useVoiceOutputCoordinator } from './voice-output-context';
 
 type ChunkRecord = {
+  chunkId: string;
   index: number;
   status: 'pending' | 'ready' | 'failed';
-  url: string | null;
   voice?: string;
   format?: string;
   error?: string;
   text: string;
   createdAt: number;
 };
+
+/**
+ * Build the URL the `<audio>` element fetches for a given chunk. Routes
+ * through the authenticated `/api/tts-audio` Convex HTTP handler so each
+ * fetch is gated on org membership — replaces the previous
+ * `_storage` direct URL which was bearer-replayable for the row's
+ * 7-day lifetime.
+ */
+function buildTtsAudioUrl(chunkId: string): string {
+  const siteUrl = getEnv('SITE_URL');
+  const basePath = getEnv('BASE_PATH');
+  return `${siteUrl}${basePath}/http_api/api/tts-audio?chunkId=${encodeURIComponent(chunkId)}`;
+}
 
 export type VoicePlayerStateName = 'idle' | 'playing' | 'blocked' | 'error';
 
@@ -110,6 +126,11 @@ export function useVoiceOutputPlayer(opts: {
       } catch (err) {
         console.warn('[tts.player] audio.load() after stop failed', err);
       }
+      // Drop the element reference. Without this, the previous chunk's
+      // buffer + URL stayed pinned in memory after stop() — a long
+      // session with many stop/resume cycles would otherwise grow heap
+      // unbounded.
+      audioRef.current = null;
     }
     currentChunkIndexRef.current = null;
     coordinator.release(stopRef.current);
@@ -122,18 +143,23 @@ export function useVoiceOutputPlayer(opts: {
 
   const playChunk = useCallback(
     (chunk: ChunkRecord): boolean => {
-      if (chunk.status === 'ready' && chunk.url) {
+      if (chunk.status === 'ready') {
         if (currentChunkIndexRef.current === chunk.index) {
           // Already playing this chunk; subscription updates that re-run
           // tryAdvance() must not restart it from the beginning.
           return true;
         }
         if (!audioRef.current) {
-          audioRef.current = new Audio();
+          // Prefer the module-level singleton from `prime-audio.ts` so
+          // the iOS Safari activation token banked at toggle/send time
+          // transfers to the same element that will actually play the
+          // chunks. Falls back to a fresh `new Audio()` in environments
+          // where the singleton couldn't be constructed (SSR, etc.).
+          audioRef.current = getPrimedAudioElement() ?? new Audio();
         }
         const el = audioRef.current;
         detachAudioListeners();
-        el.src = chunk.url;
+        el.src = buildTtsAudioUrl(chunk.chunkId);
         currentChunkIndexRef.current = chunk.index;
         const onEnded = () => {
           currentChunkIndexRef.current = null;
@@ -162,7 +188,19 @@ export function useVoiceOutputPlayer(opts: {
             console.warn(
               '[tts.player] play() blocked by autoplay policy; awaiting gesture',
             );
+            // Reset playback state so the user's subsequent tap-to-play
+            // gesture re-invokes `el.play()` instead of being short-
+            // circuited by the "already playing this chunk" guard above.
+            // Without this, the `'blocked'` state was unrecoverable on
+            // iOS Safari — the only fix was a full reload.
+            detachAudioListeners();
+            currentChunkIndexRef.current = null;
             setState('blocked');
+          } else if (err instanceof Error && err.name === 'AbortError') {
+            // StrictMode double-mount + cleanup races produce AbortError
+            // when a previous `play()` is interrupted by `pause()` /
+            // `src` swap. Not a user-facing failure — the new attempt
+            // takes over, no state change needed.
           } else {
             console.error('[tts.player] play() rejected', err);
             setState('error');
@@ -253,8 +291,35 @@ export function useVoiceOutputPlayer(opts: {
   useEffect(() => {
     if (!opts.enabled) {
       stop();
+      return;
     }
+    // Allow auto-play to fire again on a fresh OFF→ON cycle in the same
+    // message — otherwise a user who toggles voice off then on mid-stream
+    // would have to manually press play to hear the remaining chunks.
+    hasAutoStartedRef.current = false;
   }, [opts.enabled, stop]);
+
+  // Stop playback when the tab goes hidden. The browser stops emitting
+  // sound in many cases (depending on mediaSession), but the `<audio>`
+  // element keeps its `timeupdate` callbacks firing — wasting battery
+  // on mobile and producing privacy-surprising playback if the user
+  // unmutes after switching tabs. `pagehide` is the canonical
+  // bfcache-aware unmount signal on iOS Safari.
+  useEffect(() => {
+    if (typeof document === 'undefined') {
+      return undefined;
+    }
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') stop();
+    };
+    const onPageHide = () => stop();
+    document.addEventListener('visibilitychange', onHide);
+    window.addEventListener('pagehide', onPageHide);
+    return () => {
+      document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('pagehide', onPageHide);
+    };
+  }, [stop]);
 
   // Derive a short error code from the first failed chunk so the indicator
   // can branch on it (review H6a: surface chunk.error). Stored shape is
