@@ -14,7 +14,7 @@
  * gets used`, `When to reach for it`, `Common shapes`, `What to read next`.
  */
 
-export const HEADING_STUBS: Record<string, ReadonlySet<string>> = {
+const HEADING_STUBS: Record<string, ReadonlySet<string>> = {
   en: new Set([
     'Next',
     'Next steps',
@@ -56,7 +56,7 @@ export const HEADING_STUBS: Record<string, ReadonlySet<string>> = {
 };
 
 /** Locales that fall back to the `de` stub list (Swiss German, etc.). */
-export const HEADING_STUBS_FALLBACK: Record<string, string> = {
+const HEADING_STUBS_FALLBACK: Record<string, string> = {
   'de-CH': 'de',
 };
 

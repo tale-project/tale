@@ -27,10 +27,10 @@ import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 /** `services/docs/tests/`. */
-export const TESTS_ROOT = path.resolve(HERE, '..');
+const TESTS_ROOT = path.resolve(HERE, '..');
 
 /** `services/docs/`. */
-export const DOCS_ROOT = path.resolve(TESTS_ROOT, '..');
+const DOCS_ROOT = path.resolve(TESTS_ROOT, '..');
 
 /** Repo root — three levels up from `services/docs/`. */
 export const REPO_ROOT = path.resolve(DOCS_ROOT, '..', '..');

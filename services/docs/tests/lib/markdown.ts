@@ -23,7 +23,7 @@
 const FENCE_OPEN = /^(\s*)(`{3,}|~{3,})\s*(\S+)?/;
 const FENCE_OPEN_OR_CLOSE = /^(\s*)(`{3,}|~{3,})/;
 
-export interface CodeFence {
+interface CodeFence {
   /** Language identifier following the opening fence (`bash`, `typescript`,
    *  `json`), or `null` if the fence opened with no language tag. */
   lang: string | null;
@@ -33,7 +33,7 @@ export interface CodeFence {
   content: string;
 }
 
-export interface Heading {
+interface Heading {
   /** Heading depth — 1 for `#`, 2 for `##`, etc. */
   depth: number;
   /** Raw heading text after the `#` markers, trimmed. */
@@ -64,11 +64,6 @@ export function parseFrontmatter(content: string): {
   };
 }
 
-/** Return only the body half of a page. Convenience around `parseFrontmatter`. */
-export function stripFrontmatter(content: string): string {
-  return parseFrontmatter(content).body;
-}
-
 /** Does the content start with a well-formed frontmatter block? */
 export function hasFrontmatter(content: string): boolean {
   if (!content.startsWith('---\n')) return false;
@@ -84,7 +79,7 @@ export function hasFrontmatter(content: string): boolean {
  * character as the opener and at least as long. This matters for blocks that
  * embed shorter fences as syntax samples.
  */
-export function stripFences(text: string): string {
+function stripFences(text: string): string {
   const out: string[] = [];
   let openMarker: string | null = null;
   for (const line of text.split('\n')) {
@@ -118,7 +113,7 @@ export function stripFences(text: string): string {
  * Operates on a per-line basis because inline code is single-line by spec; if
  * a backtick crosses a newline it's a syntax error in the source.
  */
-export function maskInlineCode(line: string): string {
+function maskInlineCode(line: string): string {
   return line.replace(/`[^`]*`/g, (m) => ' '.repeat(m.length));
 }
 
@@ -132,7 +127,7 @@ export function maskInlineCode(line: string): string {
  *                    a translated label like `[Speichern](…)` is still
  *                    checked.
  */
-export function maskUrls(line: string): string {
+function maskUrls(line: string): string {
   return line
     .replace(/\bhttps?:\/\/\S+/g, (m) => ' '.repeat(m.length))
     .replace(/\(\/[^)\s]+\)/g, (m) => ' '.repeat(m.length));

@@ -25,7 +25,6 @@ const LOCALE_PATTERN = /^[a-z]{2}(?:-[A-Z]{2})?$/;
  *  rule (presence only, no full mirror requirement). */
 export const BASE_LOCALES = ['en', 'de', 'fr'] as const;
 
-export type BaseLocale = (typeof BASE_LOCALES)[number];
 export type Locale = string;
 
 /**

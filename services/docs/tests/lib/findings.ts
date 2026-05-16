@@ -33,7 +33,7 @@ export interface Finding {
 
 /** Group findings by file and pretty-print them. The returned string ends
  *  with no trailing newline. */
-export function formatFindings(findings: Finding[]): string {
+function formatFindings(findings: Finding[]): string {
   if (findings.length === 0) return '(none)';
   const byFile = new Map<string, Finding[]>();
   for (const f of findings) {

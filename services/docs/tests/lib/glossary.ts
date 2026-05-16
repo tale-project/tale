@@ -38,12 +38,6 @@ export interface Term {
   de?: string;
   fr?: string;
   de_ch?: string;
-  /** Plural form, if the term gets pluralised in docs. The glossary audit
-   *  populates these for `translateBucket` and `feature` entries that need
-   *  them. Absent entries don't get plural enforcement. */
-  pluralEn?: string;
-  pluralDe?: string;
-  pluralFr?: string;
   /** Locales for which the terminology test should NOT flag the English form
    *  as drift. Use sparingly — the only legitimate reason is genuine
    *  ambiguity (e.g. `Editor` in DE: also names the IDE/workflow editor in
@@ -52,7 +46,7 @@ export interface Term {
   _note?: string;
 }
 
-export interface Glossary {
+interface Glossary {
   terms: Term[];
 }
 
@@ -69,7 +63,7 @@ export interface Glossary {
  * Adding a category here makes the terminology test strictly enforce its
  * `de`/`fr` form against the English form in translated prose.
  */
-export const ENFORCED_CATEGORIES: ReadonlySet<Category> = new Set<Category>([
+const ENFORCED_CATEGORIES: ReadonlySet<Category> = new Set<Category>([
   'feature',
   'role',
   'knowledgeEntity',
@@ -98,15 +92,6 @@ export function resolveForm(term: Term, locale: string): string {
   if (locale === 'de') return term.de ?? term.en;
   if (locale === 'fr') return term.fr ?? term.en;
   return term.en;
-}
-
-/** Resolve the plural form analogously to `resolveForm`. Returns `undefined`
- *  when the term has no plural declared for that locale — callers skip plural
- *  enforcement in that case. */
-export function resolvePlural(term: Term, locale: string): string | undefined {
-  if (locale === 'de' || locale === 'de-CH') return term.pluralDe;
-  if (locale === 'fr') return term.pluralFr;
-  return term.pluralEn;
 }
 
 /** Every term whose `category` matches. */
