@@ -52,13 +52,14 @@ ENV NODE_ENV=production \
     WEB_DOCS_URL=${WEB_DOCS_URL} \
     VITE_DOCS_URL=${WEB_DOCS_URL}
 WORKDIR /app/services/web
-# SEO/LLM artifacts (`/llms.txt`, `/llms-full.txt`, `/sitemap.xml`,
-# `/robots.txt`, `/<route>.md`) are served on demand by the Bun server via
-# `@tale/seo` — no build-time artifact generation. The SSR bundle is
-# emitted because the on-demand `.md` handler needs it to render
-# marketing pages at request time.
+# Build the SPA + SSR bundle, then precompile the SEO + LLM artifact set
+# into `dist-seo/`. The compile step uses the SSR bundle (loaded as a
+# `file://` import) to render marketing route bodies at build time, plus
+# reads legal markdown from `app/content/legal/` — neither source is
+# available in the runner stage, so this MUST run in the builder.
 RUN bun --bun vite build \
     && bun --bun vite build --ssr app/entry-server.tsx --outDir dist-ssr \
+    && bun --bun /app/packages/seo/bin/compile.ts ./scripts/seo.config.ts --out dist-seo \
     && bun build server.ts --target=bun --outfile=server.js --external bun --external canvas
 WORKDIR /app
 
@@ -89,6 +90,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl tini ca-ce
 
 COPY --from=builder --chown=app:app /app/services/web/dist ./dist
 COPY --from=builder --chown=app:app /app/services/web/dist-ssr ./dist-ssr
+COPY --from=builder --chown=app:app /app/services/web/dist-seo ./dist-seo
 COPY --from=builder --chown=app:app /app/services/web/server.js ./server.js
 COPY --from=builder --chown=app:app /app/services/web/package.json ./package.json
 COPY --from=builder --chown=app:app /app/services/web/docker-entrypoint.sh ./docker-entrypoint.sh

@@ -1,8 +1,8 @@
 import {
   buildArticleJsonLd,
   buildBreadcrumbListJsonLd,
-} from '@tale/seo/json-ld';
-import { pageAsMarkdown } from '@tale/seo/page-as-markdown';
+} from '@tale/seo/builders/json-ld';
+import { pageAsMarkdown } from '@tale/seo/builders/page-as-markdown';
 import { markdownComponents } from '@tale/ui/markdown/components/registry';
 import { extractToc } from '@tale/ui/markdown/extract-toc';
 import { readingTimeMinutes } from '@tale/ui/markdown/reading-time';

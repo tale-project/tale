@@ -51,4 +51,31 @@ describe('pageAsMarkdown', () => {
     expect(out.startsWith('---')).toBe(false);
     expect(out).toBe('Body.\n');
   });
+
+  it('escapes backslashes, newlines, CRs, and tabs in frontmatter values', () => {
+    // A literal newline inside a YAML double-quoted scalar is a syntax
+    // error; backslashes must be escaped first so we don't re-escape
+    // our own escape sequences.
+    const out = pageAsMarkdown({
+      frontmatter: { title: 'a\\b\n\tc\rd' },
+      body: 'x',
+      siteUrl: 'https://tale.dev',
+    });
+    expect(out).toContain('title: "a\\\\b\\n\\tc\\rd"');
+    // No raw control characters survive the frontmatter block.
+    const fmBlock = out.split('---\n')[1] ?? '';
+    expect(fmBlock).not.toMatch(/\t/);
+    expect(fmBlock.split('\n').length).toBeLessThan(10);
+  });
+
+  it('rewrites paths that contain backslash-escaped parens', () => {
+    const out = pageAsMarkdown({
+      frontmatter: null,
+      body: 'Read [white-paper](/docs/whitepaper\\(v2\\).pdf).',
+      siteUrl: 'https://tale.dev',
+    });
+    expect(out).toContain(
+      '[white-paper](https://tale.dev/docs/whitepaper\\(v2\\).pdf)',
+    );
+  });
 });

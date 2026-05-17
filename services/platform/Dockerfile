@@ -80,6 +80,7 @@ COPY services/platform/public ./services/platform/public
 COPY services/platform/types ./services/platform/types
 COPY services/platform/messages ./services/platform/messages
 COPY services/platform/vite-plugins ./services/platform/vite-plugins
+COPY services/platform/scripts ./services/platform/scripts
 
 COPY services/platform/docker-entrypoint.sh \
      services/platform/generate-admin-key.sh \
@@ -96,7 +97,11 @@ COPY services/platform/status-probe.ts ./services/platform/
 
 ENV NODE_ENV=production
 
-RUN cd services/platform && bun --bun vite build
+# Build the SPA, then precompile the SEO + LLM artifact set into
+# `dist-seo/`. The runtime stage serves these via @tale/seo's
+# precompiled server, so no source markdown is needed at request time.
+RUN cd services/platform && bun --bun vite build \
+    && bun --bun /app/packages/seo/bin/compile.ts ./scripts/seo.config.ts --out dist-seo
 
 # Server-side files copied after vite build to avoid invalidating the build cache
 COPY services/platform/server.ts \
@@ -220,6 +225,7 @@ ENV NODE_ENV=production \
     TALE_CONFIG_DIR=/app/data
 
 COPY --from=pruner --chown=app:app /app/services/platform/dist ./dist
+COPY --from=pruner --chown=app:app /app/services/platform/dist-seo ./dist-seo
 COPY --from=pruner --chown=app:app \
      /app/services/platform/server.ts \
      /app/services/platform/telemetry.ts \

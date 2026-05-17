@@ -1,12 +1,14 @@
-// Bun server for the Tale marketing site. Mounts on-demand SEO + LLM
-// artifacts (`/llms.txt`, `/llms-full.txt`, `/sitemap.xml`, `/robots.txt`,
-// `/<route>.md`) through `@tale/seo`, plus a Discord-webhook proxy for
-// form submissions. The boilerplate (locale negotiation, static serving,
+// Bun server for the Tale marketing site. Serves the prebuilt SPA from
+// `./dist` and the precompiled SEO + LLM artifacts from `./dist-seo` via
+// `createPrecompiledServer` (`@tale/seo`). Marketing routes were
+// SSR-rendered and converted to markdown in the Docker builder stage —
+// no SSR happens at request time. Plus a Discord-webhook proxy for form
+// submissions. The boilerplate (locale negotiation, static serving,
 // `/api/health`, security headers) lives in `@tale/webui/server`.
 
 import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 
+import { createPrecompiledServer } from '@tale/seo';
 import {
   defaultReactServerSecurityHeaders,
   startReactServer,
@@ -15,7 +17,6 @@ import {
 import { buildDiscordPayload } from './lib/forms/discord-embeds';
 import { checkRateLimit } from './lib/forms/rate-limit';
 import { MIN_SUBMIT_DELAY_MS, submitRequest } from './lib/forms/schemas';
-import { createMarketingArtifactsServer } from './lib/seo/artifacts-server';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -25,27 +26,12 @@ const DISCORD_WEBHOOK_URL = process.env.WEB_DISCORD_WEBHOOK_URL ?? '';
 const MAX_BODY_BYTES = 4 * 1024;
 const DISCORD_WEBHOOK_TIMEOUT_MS = 10_000;
 
-const SSR_BUNDLE_URL = pathToFileURL(
-  resolve(import.meta.dir, 'dist-ssr', 'entry-server.js'),
-).href;
-
 // ---------------------------------------------------------------------------
-// On-demand artifact server
+// Precompiled artifact server
 // ---------------------------------------------------------------------------
-//
-// The SSR bundle is loaded lazily on the first artifact request that needs
-// it, so cold-start latency for the rest of the site is unaffected.
-interface SsrBundle {
-  render: (url: string) => Promise<{ html: string }>;
-}
 
-const artifactsServer = createMarketingArtifactsServer({
-  ssr: {
-    render: async (url) => {
-      const mod: SsrBundle = await import(SSR_BUNDLE_URL);
-      return mod.render(url);
-    },
-  },
+const artifactsServer = await createPrecompiledServer({
+  dir: resolve(import.meta.dir, 'dist-seo'),
 });
 
 // ---------------------------------------------------------------------------

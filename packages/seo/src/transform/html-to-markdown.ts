@@ -28,7 +28,6 @@ const SKIP_TAGS = new Set([
   'style',
   'noscript',
   'svg',
-  'button',
   'nav',
   'header',
   'footer',
@@ -39,7 +38,17 @@ const SKIP_TAGS = new Set([
   'aside',
 ]);
 
-/** ARIA roles whose elements are treated like `SKIP_TAGS`. */
+/**
+ * ARIA roles whose elements are dropped like {@link SKIP_TAGS}. `'button'`
+ * is intentionally included here but `<button>` is NOT in `SKIP_TAGS`:
+ * standalone block-level buttons emit no content (the block recursion
+ * only descends into element children, so a `<button>Sign up</button>`
+ * sitting outside any paragraph contributes nothing), while inline
+ * `<button>` triggers used for tooltips and copy-to-clipboard surface
+ * their inner text in paragraphs / headings / cells — without this
+ * distinction, `(<button>UMA</button>)` from the hardware-pricing table
+ * renders as bare `()`.
+ */
 const SKIP_ROLES = new Set(['navigation', 'banner', 'contentinfo', 'button']);
 
 /** Tags that map to markdown headings (`<h1>` → `# `, `<h2>` → `## `, …). */

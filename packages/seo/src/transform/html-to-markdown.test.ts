@@ -42,7 +42,7 @@ describe('htmlToMarkdown', () => {
     expect(out).toContain('[Tale](https://tale.dev)');
   });
 
-  it('drops chrome elements (nav/header/footer/script/style/svg/button)', async () => {
+  it('drops chrome elements (nav/header/footer/script/style/svg) and block-level buttons', async () => {
     const out = await htmlToMarkdown(
       [
         '<nav><a href="/">nav-link</a></nav>',
@@ -61,8 +61,32 @@ describe('htmlToMarkdown', () => {
     expect(out).not.toContain('alert(1)');
     expect(out).not.toContain('body{}');
     expect(out).not.toContain('icon');
+    // Standalone block-level button: no parent inline context → no content surfaces.
     expect(out).not.toContain('Click');
     expect(out).toContain('Visible.');
+  });
+
+  it('preserves inline <button> content used as tooltip triggers', async () => {
+    // Reproduces the hardware-pricing table cell shape:
+    // a paragraph contains text + a button whose inner text is the
+    // bracketed acronym (e.g. UMA). Before the fix, the button's
+    // subtree was dropped entirely and `(UMA)` rendered as bare `()`.
+    const out = await htmlToMarkdown(
+      '<p>96GB (<button type="button">UMA</button>)</p>',
+    );
+    expect(out).toContain('96GB (UMA)');
+    expect(out).not.toContain('()');
+  });
+
+  it('still strips elements with role="button" even when not <button>', async () => {
+    // Real `<div role="button">` clickable surfaces stay treated as
+    // chrome — only literal `<button>` is content-bearing.
+    const out = await htmlToMarkdown(
+      '<p>Before <span role="button">click me</span> after</p>',
+    );
+    expect(out).not.toContain('click me');
+    expect(out).toContain('Before');
+    expect(out).toContain('after');
   });
 
   it('drops aria-hidden and role-based chrome subtrees', async () => {
