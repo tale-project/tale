@@ -13,6 +13,7 @@ WORKDIR /app
 
 COPY package.json bun.lock bunfig.toml ./
 COPY packages/i18n/package.json ./packages/i18n/
+COPY packages/seo/package.json ./packages/seo/
 COPY packages/tale_knowledge/package.json ./packages/tale_knowledge/
 COPY packages/tale_shared/package.json ./packages/tale_shared/
 COPY packages/tale_telemetry/package.json ./packages/tale_telemetry/
@@ -41,6 +42,7 @@ WORKDIR /app
 
 COPY tsconfig.base.json ./
 COPY packages/i18n ./packages/i18n
+COPY packages/seo ./packages/seo
 COPY packages/ui ./packages/ui
 COPY packages/webui ./packages/webui
 COPY services/web ./services/web
@@ -50,11 +52,13 @@ ENV NODE_ENV=production \
     WEB_DOCS_URL=${WEB_DOCS_URL} \
     VITE_DOCS_URL=${WEB_DOCS_URL}
 WORKDIR /app/services/web
-# Generate llms.txt / llms-full.txt / sitemap.xml / robots.txt into public/
-# *before* vite build, so the build's public-directory copy picks up the
-# fresh artifacts instead of the stale checked-in robots.txt.
-RUN bun --bun scripts/build-llms-artifacts.ts \
-    && bun --bun vite build \
+# SEO/LLM artifacts (`/llms.txt`, `/llms-full.txt`, `/sitemap.xml`,
+# `/robots.txt`, `/<route>.md`) are served on demand by the Bun server via
+# `@tale/seo` — no build-time artifact generation. The SSR bundle is
+# emitted because the on-demand `.md` handler needs it to render
+# marketing pages at request time.
+RUN bun --bun vite build \
+    && bun --bun vite build --ssr app/entry-server.tsx --outDir dist-ssr \
     && bun build server.ts --target=bun --outfile=server.js --external bun
 WORKDIR /app
 
@@ -84,6 +88,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl tini ca-ce
     && useradd --system --uid 1001 --gid app app
 
 COPY --from=builder --chown=app:app /app/services/web/dist ./dist
+COPY --from=builder --chown=app:app /app/services/web/dist-ssr ./dist-ssr
 COPY --from=builder --chown=app:app /app/services/web/server.js ./server.js
 COPY --from=builder --chown=app:app /app/services/web/package.json ./package.json
 COPY --from=builder --chown=app:app /app/services/web/docker-entrypoint.sh ./docker-entrypoint.sh
