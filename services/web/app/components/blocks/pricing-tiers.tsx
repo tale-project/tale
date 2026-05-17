@@ -2,7 +2,6 @@ import { Button } from '@tale/ui/button';
 import { formatCurrency } from '@tale/ui/format';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Check } from 'lucide-react';
-import { useState } from 'react';
 
 import type { Billing } from '@/app/components/blocks/pricing-section';
 import { TierCard } from '@/app/components/blocks/tier-card';
@@ -23,7 +22,7 @@ const easeOut = [0.22, 1, 0.36, 1] as const;
 const PER_USER_MONTHLY: Record<Region, number> = { CH: 12, DE: 14 };
 const STORAGE_PER_TB_MONTHLY: Record<Region, number> = { CH: 10, DE: 12 };
 
-const DEFAULT_USERS = 25;
+export const DEFAULT_USERS = 25;
 
 const BILLINGS: readonly Billing[] = ['yearly', 'monthly'] as const;
 
@@ -46,8 +45,10 @@ const ENTERPRISE_FEATURES = [
 interface PricingTiersProps {
   billing: Billing;
   region: Region;
+  users: number;
   onBillingChange: (next: Billing) => void;
   onRegionChange: (next: Region) => void;
+  onUsersChange: (next: number) => void;
 }
 
 function formatMoney(amount: number, region: Region): string {
@@ -125,14 +126,14 @@ function TierName({ name, deploymentLabel }: TierNameProps) {
 export function PricingTiers({
   billing,
   region,
+  users,
   onBillingChange,
   onRegionChange,
+  onUsersChange,
 }: PricingTiersProps) {
   const { t } = useT('pricing');
   const reduceMotion = useReducedMotion();
   const fadeInitial = reduceMotion ? false : { opacity: 0, y: 24 };
-
-  const [users, setUsers] = useState(DEFAULT_USERS);
 
   const perUserMonthly = PER_USER_MONTHLY[region];
   const totalMonthly = perUserMonthly * users;
@@ -183,13 +184,17 @@ export function PricingTiers({
           />
         </div>
 
-        <UserCountControl value={users} onChange={setUsers} region={region} />
+        <UserCountControl
+          value={users}
+          onChange={onUsersChange}
+          region={region}
+        />
 
         <div className="border-border-base mx-auto mt-12 grid max-w-[800px] grid-cols-1 items-stretch overflow-hidden border lg:grid-cols-2">
           <TierCard
             name={
               <TierName
-                name={t('community.name')}
+                name={t('tierNames.community')}
                 deploymentLabel={t('community.deployment')}
               />
             }
@@ -237,7 +242,7 @@ export function PricingTiers({
             popular
             name={
               <TierName
-                name={t('enterprise.name')}
+                name={t('tierNames.enterprise')}
                 deploymentLabel={t('enterprise.deployment')}
               />
             }

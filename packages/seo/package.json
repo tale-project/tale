@@ -1,0 +1,40 @@
+{
+  "name": "@tale/seo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Build-time SEO + LLM artifact helpers (llms.txt, sitemap, robots.txt, JSON-LD, HTML → Markdown). Pure Node, no React.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./artifacts": "./src/artifacts.ts",
+    "./globals": "./src/globals.ts",
+    "./llms-txt": "./src/llms-txt.ts",
+    "./llms-full-txt": "./src/llms-full-txt.ts",
+    "./sitemap": "./src/sitemap.ts",
+    "./robots": "./src/robots.ts",
+    "./json-ld": "./src/json-ld.ts",
+    "./page-as-markdown": "./src/page-as-markdown.ts",
+    "./html-to-markdown": "./src/html-to-markdown.ts",
+    "./serve-artifacts": "./src/serve-artifacts.ts",
+    "./vite-plugin-artifacts": "./src/vite-plugin-artifacts.ts"
+  },
+  "scripts": {
+    "lint": "bunx oxlint --type-aware",
+    "lint:fix": "bunx oxlint --type-aware --fix",
+    "typecheck": "bunx tsc --noEmit",
+    "test": "bunx vitest --run",
+    "test:watch": "bunx vitest"
+  },
+  "dependencies": {
+    "@tale/i18n": "workspace:*",
+    "jsdom": "29.0.2"
+  },
+  "peerDependencies": {
+    "vite": "*"
+  },
+  "peerDependenciesMeta": {
+    "vite": {
+      "optional": true
+    }
+  }
+}

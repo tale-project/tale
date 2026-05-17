@@ -1,1 +1,92 @@
-{}
+{
+  "pricing": {
+    "tierNames": {
+      "community": "Community",
+      "enterprise": "Enterprise"
+    }
+  },
+  "hardwarePricing": {
+    "models": {
+      "quality": "Kimi K2.6 (INT4)",
+      "hybrid": "DeepSeek V4 Pro (INT4)",
+      "speed": "Qwen3-235B-A22B (INT4)"
+    },
+    "modes": {
+      "node": "Node",
+      "cluster": "Cluster"
+    },
+    "versions": {
+      "nodeQuality": "26.02 (NQ)",
+      "nodeApplication": "26.02 (NA)",
+      "nodeSpeed": "26.02 (NS)",
+      "clusterQuality": "26.02 (CQ)",
+      "clusterHybrid": "26.02 (CH)",
+      "clusterSpeed": "26.02 (CS)"
+    },
+    "productNumbers": {
+      "quality": "P0005",
+      "hybrid": "P0006",
+      "speed": "P0007"
+    },
+    "tierNames": {
+      "cluster": {
+        "quality": "Quality cluster",
+        "hybrid": "Hybrid cluster",
+        "speed": "Speed cluster"
+      },
+      "node": {
+        "quality": "Quality node",
+        "hybrid": "Application node",
+        "speed": "Speed node"
+      }
+    },
+    "specs": {
+      "cluster": {
+        "qualityRam": "864GB",
+        "hybridRam": "672GB",
+        "speedRam": "288GB",
+        "qualitySystemRam": "96GB",
+        "hybridSystemRam": "192GB",
+        "speedSystemRam": "288GB",
+        "qualityGpu": "9× Apple Silicon",
+        "hybridGpu": "6× Apple Silicon, 1× NVIDIA RTX PRO 6000",
+        "speedGpu": "3× NVIDIA RTX PRO 6000",
+        "qualityCpu": "1× AMD EPYC 4005",
+        "hybridCpu": "2× AMD EPYC 4005",
+        "speedCpu": "4× AMD EPYC 4005",
+        "qualitySsd": "27TB",
+        "hybridSsd": "28TB",
+        "speedSsd": "30TB",
+        "qualityHdd": "-",
+        "hybridHdd": "-",
+        "speedHdd": "-",
+        "qualitySize": "50cm × 50cm × 150cm",
+        "hybridSize": "50cm × 50cm × 150cm",
+        "speedSize": "150cm × 50cm × 50cm"
+      },
+      "node": {
+        "qualityRam": "96GB",
+        "hybridRam": "-",
+        "speedRam": "96GB",
+        "qualitySystemRam": "-",
+        "hybridSystemRam": "-",
+        "speedSystemRam": "96GB",
+        "qualityGpu": "1× Apple Silicon",
+        "hybridGpu": "-",
+        "speedGpu": "1× NVIDIA RTX PRO 6000",
+        "qualityCpu": "-",
+        "hybridCpu": "1× AMD EPYC 4005",
+        "speedCpu": "1× AMD EPYC 4005",
+        "qualitySsd": "1TB",
+        "hybridSsd": "18TB",
+        "speedSsd": "4TB",
+        "qualityHdd": "-",
+        "hybridHdd": "-",
+        "speedHdd": "-",
+        "qualitySize": "50cm × 50cm × 150cm",
+        "hybridSize": "50cm × 50cm × 150cm",
+        "speedSize": "150cm × 50cm × 50cm"
+      }
+    }
+  }
+}

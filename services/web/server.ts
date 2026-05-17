@@ -1,22 +1,55 @@
-// Bun server: serves the prebuilt SPA from ./dist + a /api/forms/submit route
-// that proxies validated form payloads to a Discord incoming webhook. The
-// boilerplate (locale negotiation, static serving, health endpoint) lives in
-// @tale/webui/server — only the form-submit handler is web-specific.
+// Bun server for the Tale marketing site. Mounts on-demand SEO + LLM
+// artifacts (`/llms.txt`, `/llms-full.txt`, `/sitemap.xml`, `/robots.txt`,
+// `/<route>.md`) through `@tale/seo`, plus a Discord-webhook proxy for
+// form submissions. The boilerplate (locale negotiation, static serving,
+// `/api/health`, security headers) lives in `@tale/webui/server`.
 
 import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import {
-  defaultSimpleSecurityHeaders,
-  startSimpleServer,
+  defaultReactServerSecurityHeaders,
+  startReactServer,
 } from '@tale/webui/server';
 
 import { buildDiscordPayload } from './lib/forms/discord-embeds';
 import { checkRateLimit } from './lib/forms/rate-limit';
 import { MIN_SUBMIT_DELAY_MS, submitRequest } from './lib/forms/schemas';
+import { createMarketingArtifactsServer } from './lib/seo/artifacts-server';
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
 
 const DISCORD_WEBHOOK_URL = process.env.WEB_DISCORD_WEBHOOK_URL ?? '';
 const MAX_BODY_BYTES = 4 * 1024;
 const DISCORD_WEBHOOK_TIMEOUT_MS = 10_000;
+
+const SSR_BUNDLE_URL = pathToFileURL(
+  resolve(import.meta.dir, 'dist-ssr', 'entry-server.js'),
+).href;
+
+// ---------------------------------------------------------------------------
+// On-demand artifact server
+// ---------------------------------------------------------------------------
+//
+// The SSR bundle is loaded lazily on the first artifact request that needs
+// it, so cold-start latency for the rest of the site is unaffected.
+const artifactsServer = createMarketingArtifactsServer({
+  ssr: {
+    render: async (url) => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const mod = (await import(SSR_BUNDLE_URL)) as {
+        render: (url: string) => Promise<{ html: string }>;
+      };
+      return mod.render(url);
+    },
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Form-submit handler (web-specific)
+// ---------------------------------------------------------------------------
 
 function clientIp(request: Request): string {
   const fwd = request.headers.get('x-forwarded-for');
@@ -121,12 +154,17 @@ async function handleFormSubmit(request: Request): Promise<Response> {
   return Response.json({ ok: true });
 }
 
-startSimpleServer({
+// ---------------------------------------------------------------------------
+// Server bootstrap
+// ---------------------------------------------------------------------------
+
+startReactServer({
   port: Number(process.env.PORT ?? 3001),
   distDir: resolve(import.meta.dir, 'dist'),
   logPrefix: 'web',
   shutdownMarkerPath: process.env.SHUTDOWN_MARKER_PATH,
-  securityHeaders: defaultSimpleSecurityHeaders,
+  securityHeaders: defaultReactServerSecurityHeaders,
+  artifacts: artifactsServer,
   extraRoutes: (request, url) => {
     if (url.pathname === '/api/forms/submit') {
       return handleFormSubmit(request);

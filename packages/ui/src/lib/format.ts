@@ -25,15 +25,17 @@ export interface FormatCurrencyOptions extends FormatNumberOptions {
   currencyDisplay?: 'symbol' | 'narrowSymbol' | 'code' | 'name';
   /** Lowercase the compact suffix (`2K` → `2k`) when `notation === 'compact'`. */
   lowercaseCompact?: boolean;
-}
-
-export interface FormatApproximateOptions extends FormatCurrencyOptions {
-  /** String prepended before the formatted amount. Defaults to `'~'`. */
+  /**
+   * Render as an approximate value, e.g. `CHF ~2.1k`. Implies compact
+   * notation and lowercased compact suffix; the prefix defaults to `'~'`
+   * and can be overridden via `approximationPrefix`.
+   */
+  approximate?: boolean;
+  /** Prefix inserted before the digits when `approximate` is true. */
   approximationPrefix?: string;
 }
 
 const DEFAULT_LOCALE = 'en-US';
-const DEFAULT_CURRENCY = 'CHF';
 
 function resolveLocale(
   locale: FormatNumberOptions['locale'],
@@ -76,31 +78,51 @@ export function formatCurrency(
     currencyDisplay = 'code',
     lowercaseCompact = false,
     notation,
+    approximate = false,
+    approximationPrefix = '~',
     ...rest
   } = options;
+
+  const effectiveNotation = approximate ? 'compact' : notation;
+  const compactDefaults = approximate
+    ? {
+        compactDisplay: 'short' as const,
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 1,
+      }
+    : {};
 
   const formatted = new Intl.NumberFormat(resolveLocale(locale), {
     style: 'currency',
     currency,
     currencyDisplay,
-    notation,
+    notation: effectiveNotation,
+    ...compactDefaults,
     ...rest,
   }).format(value);
 
-  if (lowercaseCompact && notation === 'compact') {
-    return formatted.replace(/([0-9])([KMGBT])\b/g, (_, digit, suffix) => {
-      const map: Record<string, string> = {
-        K: 'k',
-        M: 'M',
-        G: 'G',
-        B: 'B',
-        T: 'T',
-      };
-      return `${digit}${map[suffix] ?? suffix}`;
-    });
+  const shouldLowercaseCompact =
+    (lowercaseCompact || approximate) && effectiveNotation === 'compact';
+  const lowercased = shouldLowercaseCompact
+    ? formatted.replace(/([0-9])([KMGBT])\b/g, (_, digit, suffix) => {
+        const map: Record<string, string> = {
+          K: 'k',
+          M: 'M',
+          G: 'G',
+          B: 'B',
+          T: 'T',
+        };
+        return `${digit}${map[suffix] ?? suffix}`;
+      })
+    : formatted;
+
+  if (approximate) {
+    // Insert the prefix between the currency token and the digits, regardless
+    // of whether the locale renders it as a symbol or as an ISO code.
+    return lowercased.replace(/(\p{N})/u, `${approximationPrefix}$1`);
   }
 
-  return formatted;
+  return lowercased;
 }
 
 /**
@@ -123,26 +145,4 @@ export function formatCompactCurrency(
     lowercaseCompact: true,
     ...options,
   });
-}
-
-/**
- * Format a monetary amount with a leading approximation prefix (`~`).
- * Pairs with compact notation for marketing copy like `CHF ~2.1k`.
- *
- * @example
- * formatApproximateCurrency(2100, { currency: 'CHF' })
- * // => "CHF ~2.1k"
- */
-export function formatApproximateCurrency(
-  value: number,
-  options: Omit<FormatCurrencyOptions, 'notation'> & {
-    approximationPrefix?: string;
-  } = { currency: DEFAULT_CURRENCY },
-): string {
-  const { approximationPrefix = '~', ...rest } = options;
-  const formatted = formatCompactCurrency(value, rest);
-
-  // Insert the prefix between the currency token and the digits, regardless
-  // of whether the locale renders it as a symbol or as an ISO code.
-  return formatted.replace(/(\p{N})/u, `${approximationPrefix}$1`);
 }

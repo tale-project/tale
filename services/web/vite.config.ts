@@ -1,6 +1,25 @@
+import { artifactsPlugin } from '@tale/seo/vite-plugin-artifacts';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import viteReact from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+
+import { createMarketingArtifactsServer } from './lib/seo/artifacts-server';
+
+// In dev the SSR loader is bound at the first artifact request via the
+// inline plugin below. Cache is disabled so source edits show up
+// immediately without a manual invalidate.
+let viteSsrLoad: ((url: string) => Promise<{ html: string }>) | null = null;
+const devArtifactsServer = createMarketingArtifactsServer({
+  cache: false,
+  ssr: {
+    render: async (url) => {
+      if (!viteSsrLoad) {
+        throw new Error('Vite SSR loader not initialised');
+      }
+      return viteSsrLoad(url);
+    },
+  },
+});
 
 export default defineConfig({
   // Absolute base so the SPA shell loads its assets correctly when served
@@ -43,5 +62,23 @@ export default defineConfig({
       'i18next-icu',
     ],
   },
-  plugins: [tanstackRouter(), viteReact()],
+  plugins: [
+    tanstackRouter(),
+    viteReact(),
+    {
+      // Binds the dev SSR loader the first time the artifacts plugin
+      // needs it. Runs only in dev (`apply: 'serve'`).
+      name: 'tale-web:bind-ssr-loader',
+      apply: 'serve',
+      configureServer(server) {
+        viteSsrLoad = async (url) => {
+          const mod = (await server.ssrLoadModule('/app/entry-server.tsx')) as {
+            render: (url: string) => Promise<{ html: string }>;
+          };
+          return mod.render(url);
+        };
+      },
+    },
+    artifactsPlugin({ server: devArtifactsServer }),
+  ],
 });

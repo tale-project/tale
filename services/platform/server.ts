@@ -11,6 +11,7 @@ import {
   wrapCanvasPreviewHtml,
 } from './lib/canvas-preview-shell';
 import { createConfigWatcher } from './lib/config-watcher';
+import { createPlatformArtifactsServer } from './lib/seo/artifacts-server';
 import {
   buildStatusFeed,
   probeServices,
@@ -274,6 +275,18 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
       version: process.env.TALE_VERSION ?? 'dev',
     });
   });
+
+  // On-demand SEO + LLM artifacts (`/llms.txt`, `/llms-full.txt`,
+  // `/robots.txt`). The platform doesn't have a public surface, but we
+  // still serve these for parity with the other Tale services.
+  const artifactsServer = createPlatformArtifactsServer();
+  const handleArtifact = async (request: Request): Promise<Response> => {
+    const response = await artifactsServer.handle(request);
+    return response ?? new Response('Not found', { status: 404 });
+  };
+  app.all('/llms.txt', (c) => handleArtifact(c.req.raw));
+  app.all('/llms-full.txt', (c) => handleArtifact(c.req.raw));
+  app.all('/robots.txt', (c) => handleArtifact(c.req.raw));
 
   // Public, unauthenticated overall up/down. Hono catches this before the
   // SPA `*` fallback below, so it bypasses the TanStack Router shell. Caddy

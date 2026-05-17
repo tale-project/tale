@@ -63,7 +63,10 @@ export function ProgressBar({
       )}
     >
       <div
-        className={cn('h-full rounded-full', fillClassName)}
+        className={cn(
+          'h-full rounded-full transition-[width] duration-500 ease-out motion-reduce:transition-none',
+          fillClassName,
+        )}
         style={{ width: `${percent}%` }}
       />
     </div>

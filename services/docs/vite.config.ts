@@ -1,6 +1,14 @@
+import { artifactsPlugin } from '@tale/seo/vite-plugin-artifacts';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import viteReact from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+
+import { createDocsArtifactsServer } from './lib/seo/artifacts-server';
+
+// Built once at config load; the underlying server caches walks unless
+// `cache: false` is set. We disable caching in dev so source edits to
+// `docs/` are picked up without a restart.
+const devArtifactsServer = await createDocsArtifactsServer({ cache: false });
 
 export default defineConfig({
   // Build-time mount point. Defaults to '/' for root deployments. Set to a
@@ -111,5 +119,9 @@ export default defineConfig({
       'remark-gfm',
     ],
   },
-  plugins: [tanstackRouter(), viteReact()],
+  plugins: [
+    tanstackRouter(),
+    viteReact(),
+    artifactsPlugin({ server: devArtifactsServer }),
+  ],
 });

@@ -1,16 +1,11 @@
 import { Button } from '@tale/ui/button';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@tale/ui/tooltip';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Check, HelpCircle, Minus } from 'lucide-react';
+import { Check, Minus } from 'lucide-react';
 import { type ReactNode } from 'react';
 
 import {
   CompareTable,
+  LabelWithInfo,
   type CompareRow,
   type CompareTier,
 } from '@/app/components/blocks/compare-table';
@@ -47,36 +42,6 @@ interface SectionRow {
 }
 
 type Row = DataRow | SpanRow | SectionRow;
-
-function LabelWithInfo({
-  label,
-  info,
-}: {
-  label: string;
-  info: string;
-}): ReactNode {
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      {label}
-      <TooltipProvider delayDuration={150}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              aria-label={info}
-              className="text-fg-muted hover:text-fg-base focus-visible:ring-accent-base/30 inline-flex h-4 w-4 items-center justify-center rounded-full focus-visible:ring-2 focus-visible:outline-none"
-            >
-              <HelpCircle className="h-3.5 w-3.5" strokeWidth={2} />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="max-w-xs text-center">
-            {info}
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    </span>
-  );
-}
 
 function renderCell(cell: Cell, yesLabel: string, noLabel: string): ReactNode {
   if (cell.kind === 'check') {
@@ -227,6 +192,7 @@ export function PricingCompare({ region }: PricingCompareProps) {
       label: t('compare.categories.consulting'),
       content: hourlyRate,
     },
+    { kind: 'section', label: t('compare.sections.other') },
     {
       kind: 'data',
       label: t('compare.categories.roadmap'),
@@ -294,7 +260,7 @@ export function PricingCompare({ region }: PricingCompareProps) {
 
   const tiers: CompareTier<TierKey>[] = TIER_KEYS.map((key) => ({
     key,
-    name: t(`${key}.name`),
+    name: t(`tierNames.${key}`),
     cta: (
       <Button
         variant={key === 'enterprise' ? 'primary' : 'secondary'}

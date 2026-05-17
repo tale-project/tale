@@ -1,9 +1,0 @@
-# Tale Platform
-
-> Tale Platform — the self-hosted application for sovereign AI. Chat, custom agents, automations, and workspace tools running on your own infrastructure. This surface is the authenticated product; user-facing documentation lives on the docs site.
-
-## Optional
-
-- [Documentation](https://tale.dev/docs/llms.txt)
-- [Marketing site](https://tale.dev/llms.txt)
-- [GitHub](https://github.com/tale-project/tale)

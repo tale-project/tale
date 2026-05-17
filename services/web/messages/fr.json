@@ -218,7 +218,6 @@
       "DE": "EUR"
     },
     "community": {
-      "name": "Community",
       "deployment": "auto-hébergé uniquement",
       "price": "Gratuit",
       "priceSuffix": "",
@@ -230,7 +229,6 @@
       "feature4": "Support communautaire (GitHub)"
     },
     "enterprise": {
-      "name": "Enterprise",
       "deployment": "Cloud ou auto-hébergé",
       "priceSuffix": "/mois + TVA",
       "storageAddOn": "1 To + {price}/To/mois de stockage supplémentaire",
@@ -275,7 +273,8 @@
         "dash": "—"
       },
       "sections": {
-        "services": "Services professionnels"
+        "services": "Services professionnels",
+        "other": "Autres"
       },
       "rows": {
         "selfHosted": "Auto-hébergé",
@@ -328,46 +327,39 @@
     "description": "Matériel d'IA haute performance — au juste prix. Fais tourner les modèles de pointe, partout.",
     "configIncludes": "La configuration inclut :",
     "billing": {
+      "ariaLabel": "Option de paiement",
       "renting": "Location",
       "buying": "Achat (financement possible)"
     },
+    "modesAriaLabel": "Mode de déploiement",
     "deploymentNote": "Toutes les configurations matérielles sont silencieuses (sans bruit) et peuvent être déployées chez toi et maintenues à distance par notre équipe, ou hébergées dans nos centres de données sécurisés.",
     "tiers": {
       "quality": {
-        "name": "Quality",
-        "price": "CHF ~2k",
         "priceSuffix": "+ TVA/mois",
-        "buyPrice": "CHF ~80k",
         "buySuffix": "+ TVA",
-        "tagline": "Optimisé pour une haute précision et des résultats d'IA cohérents.",
+        "tagline": "Optimisé pour une haute précision et des résultats cohérents.",
+        "nodeTagline": "Conçu pour une haute précision et des résultats cohérents.",
         "cta": "Nous contacter",
         "highlightQuality": "Qualité",
-        "highlightSpeed": "Standard",
-        "highlightStorage": "54TB"
+        "highlightSpeed": "Standard"
       },
       "hybrid": {
-        "name": "Hybrid",
-        "price": "CHF ~2.1k",
         "priceSuffix": "+ TVA/mois",
-        "buyPrice": "CHF ~84k",
         "buySuffix": "+ TVA",
         "tagline": "Équilibré entre précision et vitesse.",
+        "nodeTagline": "Associe le contrôle local des données à l'inférence cloud.",
         "cta": "Nous contacter",
         "highlightQuality": "Élevée",
-        "highlightSpeed": "Élevée",
-        "highlightStorage": "54TB"
+        "highlightSpeed": "Élevée"
       },
       "speed": {
-        "name": "Speed",
-        "price": "CHF ~2.2k",
         "priceSuffix": "+ TVA/mois",
-        "buyPrice": "CHF ~88k",
         "buySuffix": "+ TVA",
-        "tagline": "Optimisé pour des réponses d'IA rapides et une faible latence.",
+        "tagline": "Optimisé pour des réponses rapides et une faible latence.",
+        "nodeTagline": "Conçu pour des réponses rapides et une faible latence.",
         "cta": "Nous contacter",
         "highlightQuality": "Standard",
-        "highlightSpeed": "Qualité",
-        "highlightStorage": "54TB"
+        "highlightSpeed": "Qualité"
       }
     },
     "compare": {
@@ -379,31 +371,20 @@
         "gpu": "Puce (GPU)",
         "cpu": "Puce (CPU)",
         "ram": "RAM IA",
+        "ramInfo": "Mémoire rapide utilisée pour les calculs d'IA, p. ex. de la mémoire vidéo (VRAM) ou de la mémoire unifiée (UMA).",
+        "systemRam": "RAM",
         "ssd": "SSD",
         "hdd": "HDD",
-        "cables": "Câbles & équipement réseau"
-      },
-      "values": {
-        "qualityModel": "Kimi K2 Thinking",
-        "hybridModel": "DeepSeek V3.2-Exp",
-        "speedModel": "Qwen3-30B-A3B",
-        "qualitySize": "50cm × 50cm × 150cm",
-        "hybridSize": "50cm × 50cm × 150cm",
-        "speedSize": "150cm × 50cm × 50cm",
-        "qualityGpu": "3× Apple Silicon",
-        "hybridGpu": "2× Apple Silicon, 1× NVIDIA RTX PRO 6000",
-        "speedGpu": "3× NVIDIA RTX PRO 6000",
-        "qualityCpu": "1× AMD EPYC 4005",
-        "hybridCpu": "2× AMD EPYC 4005",
-        "speedCpu": "4× AMD EPYC 4005",
-        "qualityRam": "1536GB",
-        "hybridRam": "1120GB",
-        "speedRam": "288GB",
-        "ssd": "18TB",
-        "hdd": "36TB"
+        "cables": "Câbles & équipement réseau",
+        "version": "Version du produit",
+        "productNumber": "Numéro de produit"
       },
       "cellLabels": {
         "yes": "Inclus"
+      },
+      "sections": {
+        "specifications": "Spécifications",
+        "other": "Autres"
       }
     },
     "extras": {

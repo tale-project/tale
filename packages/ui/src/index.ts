@@ -5,13 +5,11 @@
 export { cn } from './lib/cn';
 
 export {
-  formatApproximateCurrency,
   formatCompactCurrency,
   formatCurrency,
   formatNumber,
   type FormatCurrencyOptions,
   type FormatNumberOptions,
-  type FormatApproximateOptions,
 } from './lib/format';
 
 export {
