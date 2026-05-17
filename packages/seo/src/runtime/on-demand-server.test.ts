@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   createArtifactsServer,
   type ArtifactsServerParams,
-} from './serve-artifacts';
+} from './on-demand-server';
 
 function baseParams(): ArtifactsServerParams {
   return {

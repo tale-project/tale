@@ -1,7 +1,8 @@
-// Bun server: serves the prebuilt docs SPA from `./dist` and mounts the
-// on-demand SEO + LLM artifact server from `@tale/seo`. Docs ships source
-// markdown for every page; the artifact server reads bodies directly from
-// disk (no SSR needed).
+// Bun server: serves the prebuilt docs SPA from `./dist` and the
+// precompiled SEO + LLM artifact set from `./dist-seo` via
+// `createPrecompiledServer` (`@tale/seo`). All artifacts were
+// materialised in the Docker builder stage — the runtime image has no
+// source markdown and never reads from `/docs`.
 //
 // Docs runs under an optional sub-path mount (Caddy can `handle_path /docs*`
 // and strip the prefix) — `DOCS_BASE_URL` carries that public prefix so
@@ -9,16 +10,17 @@
 
 import { resolve } from 'node:path';
 
+import { createPrecompiledServer } from '@tale/seo';
 import {
   defaultReactServerSecurityHeaders,
   startReactServer,
 } from '@tale/webui/server';
 
-import { createDocsArtifactsServer } from './lib/seo/artifacts-server';
-
 const BASE_PATH = (process.env.DOCS_BASE_URL ?? '/').replace(/\/+$/, '');
 
-const artifacts = await createDocsArtifactsServer();
+const artifacts = await createPrecompiledServer({
+  dir: resolve(import.meta.dir, 'dist-seo'),
+});
 
 startReactServer({
   port: Number(process.env.PORT ?? 3002),

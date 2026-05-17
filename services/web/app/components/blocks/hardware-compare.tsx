@@ -111,19 +111,23 @@ function SpecValue({ value }: { value: string }): ReactNode {
           const start = match.index ?? 0;
           if (start > lastIndex) parts.push(line.slice(lastIndex, start));
           parts.push(
-            <Tooltip key={`${lineIdx}-${start}`}>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className="cursor-help underline decoration-dotted underline-offset-2"
-                >
-                  ({inner})
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="max-w-xs text-center">
-                {info}
-              </TooltipContent>
-            </Tooltip>,
+            <Fragment key={`${lineIdx}-${start}`}>
+              {'('}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="cursor-help underline decoration-dotted underline-offset-2"
+                  >
+                    {inner}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs text-center">
+                  {info}
+                </TooltipContent>
+              </Tooltip>
+              {')'}
+            </Fragment>,
           );
           lastIndex = start + match[0].length;
         }

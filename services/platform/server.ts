@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { createPrecompiledServer, type ArtifactsServer } from '@tale/seo';
 import { Hono } from 'hono';
 import { NONCE, secureHeaders } from 'hono/secure-headers';
 
@@ -11,7 +12,6 @@ import {
   wrapCanvasPreviewHtml,
 } from './lib/canvas-preview-shell';
 import { createConfigWatcher } from './lib/config-watcher';
-import { createPlatformArtifactsServer } from './lib/seo/artifacts-server';
 import {
   buildStatusFeed,
   probeServices,
@@ -82,9 +82,23 @@ interface EnvConfig {
 const port = process.env.PORT || 3000;
 const moduleDir = dirname(fileURLToPath(import.meta.url));
 const distDir = join(moduleDir, 'dist');
+const distSeoDir = join(moduleDir, 'dist-seo');
 const brandingImagesDir = process.env.TALE_CONFIG_DIR
   ? join(process.env.TALE_CONFIG_DIR, 'branding', 'images')
   : null;
+
+// Lazily loaded once per process. The manifest is read on the first
+// artifact request — defer it so the module load does not fail in test
+// environments that don't ship a `dist-seo/` directory.
+let platformArtifactsServerPromise: Promise<ArtifactsServer> | null = null;
+function platformArtifactsServer(): Promise<ArtifactsServer> {
+  if (!platformArtifactsServerPromise) {
+    platformArtifactsServerPromise = createPrecompiledServer({
+      dir: distSeoDir,
+    });
+  }
+  return platformArtifactsServerPromise;
+}
 
 function getBasePath(): string {
   const basePath = process.env.BASE_PATH ?? '';
@@ -276,12 +290,14 @@ export function createApp(env: EnvConfig = getEnvConfig()): Hono {
     });
   });
 
-  // On-demand SEO + LLM artifacts (`/llms.txt`, `/llms-full.txt`,
+  // Precompiled SEO + LLM artifacts (`/llms.txt`, `/llms-full.txt`,
   // `/robots.txt`). The platform doesn't have a public surface, but we
-  // still serve these for parity with the other Tale services.
-  const artifactsServer = createPlatformArtifactsServer();
+  // still serve these for parity with the other Tale services. The
+  // artifact set is materialised in the Docker builder stage and served
+  // from `./dist-seo` here.
   const handleArtifact = async (request: Request): Promise<Response> => {
-    const response = await artifactsServer.handle(request);
+    const server = await platformArtifactsServer();
+    const response = await server.handle(request);
     return response ?? new Response('Not found', { status: 404 });
   };
   app.all('/llms.txt', (c) => handleArtifact(c.req.raw));

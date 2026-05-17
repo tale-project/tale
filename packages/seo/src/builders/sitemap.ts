@@ -6,7 +6,7 @@
 import { execFileSync } from 'node:child_process';
 import * as path from 'node:path';
 
-import type { Locale } from '@tale/i18n/locales';
+import type { Alternates } from '../types';
 
 // ---------------------------------------------------------------------------
 // <lastmod> helper
@@ -72,7 +72,7 @@ export interface SitemapPage {
     | 'yearly'
     | 'never';
   /** Per-locale absolute URL alternates emitted as `<xhtml:link>` entries. */
-  alternates?: Partial<Record<Locale | 'x-default', string>>;
+  alternates?: Alternates;
 }
 
 function escapeXml(value: string): string {

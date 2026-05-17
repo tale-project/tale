@@ -11,7 +11,7 @@
 
 import type { Plugin } from 'vite';
 
-import type { ArtifactsServer } from './serve-artifacts';
+import type { ArtifactsServer } from './on-demand-server';
 
 export interface ArtifactsPluginOptions {
   /** The server (built via `createArtifactsServer`). */

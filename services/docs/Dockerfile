@@ -54,10 +54,16 @@ ENV NODE_ENV=production \
     DOCS_BASE_URL=${DOCS_BASE_URL} \
     DOCS_SITE_URL=${DOCS_SITE_URL}
 WORKDIR /app/services/docs
+# `tale-seo-compile` runs after `vite build` so it can walk the docs tree
+# (which is present in the builder stage but NOT in the runner) and emit
+# the artifact set + manifest into `dist-seo/`. The runner stage copies
+# `dist-seo/` and serves it via `createPrecompiledServer`, so no source
+# markdown is read at request time.
 RUN bun --bun scripts/build-search-index.ts \
     && bun --bun vite build \
     && bun --bun vite build --ssr app/entry-server.tsx --outDir dist-ssr \
     && bun --bun scripts/prerender.ts \
+    && bun --bun /app/packages/seo/bin/compile.ts ./scripts/seo.config.ts --out dist-seo \
     && bun build server.ts --target=bun --outfile=server.js --external bun --external canvas
 WORKDIR /app
 
@@ -91,6 +97,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl tini ca-ce
     && useradd --system --uid 1001 --gid app app
 
 COPY --from=builder --chown=app:app /app/services/docs/dist ./dist
+COPY --from=builder --chown=app:app /app/services/docs/dist-seo ./dist-seo
 COPY --from=builder --chown=app:app /app/services/docs/server.js ./server.js
 COPY --from=builder --chown=app:app /app/services/docs/package.json ./package.json
 COPY --from=builder --chown=app:app /app/services/docs/docker-entrypoint.sh ./docker-entrypoint.sh
