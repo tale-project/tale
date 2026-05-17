@@ -1,9 +1,9 @@
 import { ConvexError } from 'convex/values';
 import { describe, expect, it, vi } from 'vitest';
 
-import { internal } from '../../_generated/api';
-import type { ActionCtx } from '../../_generated/server';
-import { type ResolvedModelData, resolveTtsModel } from '../resolve_model';
+import { internal } from '../_generated/api';
+import type { ActionCtx } from '../_generated/server';
+import { type ResolvedModelData, resolveTtsModel } from './resolve_model';
 
 function makeCtx(modelData: ResolvedModelData): ActionCtx {
   return {

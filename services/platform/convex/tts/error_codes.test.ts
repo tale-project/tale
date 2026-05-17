@@ -1,13 +1,13 @@
 import { ConvexError } from 'convex/values';
 import { describe, expect, it } from 'vitest';
 
-import { SafeFetchError } from '../../lib/http/safe_fetch';
-import { NoProviderAvailableError } from '../../providers/errors';
+import { SafeFetchError } from '../lib/http/safe_fetch';
+import { NoProviderAvailableError } from '../providers/errors';
 import {
   errorCodeFromCaught,
   ttsErrorCodeLiterals,
   type TtsErrorCode,
-} from '../error_codes';
+} from './error_codes';
 
 describe('errorCodeFromCaught', () => {
   // Compact table over every distinct branch the classifier owns. Retry

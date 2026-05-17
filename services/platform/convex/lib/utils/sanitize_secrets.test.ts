@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { sanitizeError } from '../sanitize_secrets';
+import { sanitizeError } from './sanitize_secrets';
 
 describe('sanitizeError', () => {
   describe('redacts well-known secret shapes', () => {

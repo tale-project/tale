@@ -312,7 +312,7 @@ const modelDefinitionSchema = z.object({
   providerOptions: providerOptionsSchema,
 });
 
-export type ModelDefinition = z.infer<typeof modelDefinitionSchema>;
+type ModelDefinition = z.infer<typeof modelDefinitionSchema>;
 
 const providerDefaultsSchema = z.object({
   chat: z.string().min(1).max(200).optional(),

@@ -1,9 +1,9 @@
 'use client';
 
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { useAction, useQuery } from 'convex/react';
 import { useCallback, useEffect, useRef } from 'react';
 
-import { useLocale } from '@/app/hooks/use-locale';
 import { api } from '@/convex/_generated/api';
 import {
   MAX_TTS_CHUNK_CHARS,
