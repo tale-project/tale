@@ -338,6 +338,12 @@ export const reserveChunk = internalMutation({
       userTeamIds,
       userRole,
       prospectiveCostCents,
+      // The action's post-success ledger write adds exactly one
+      // request-count to the row. Plumb the +1 here so a `maxRequests`
+      // rule honours parallel chunks of a single message the same way
+      // `maxCostCents` does — without it, N concurrent chunks each
+      // saw `requestCount` unchanged and collectively overran the cap.
+      1,
     );
     if (!budget.allowed) {
       throw new ConvexError({
@@ -382,7 +388,12 @@ export const reserveChunk = internalMutation({
         storageId: undefined,
         userId: user.userId,
         teamId,
-        agentSlug: meta.agentSlug,
+        // `?? existing.agentSlug` preserves the original attribution
+        // when the thread temporarily reports no agent on a retry
+        // (agent detached between attempts). Without the fallback the
+        // ledger row lands under the TTS_SLUG sentinel and Top Agents
+        // analytics drift across retries.
+        agentSlug: meta.agentSlug ?? existing.agentSlug,
       });
       return {
         kind: 'reserved' as const,
@@ -528,6 +539,34 @@ export const markChunkReadyAndRecordUsage = internalMutation({
       return { stale: true };
     }
 
+    // `reserveChunk` always writes `userId` on both insert and overwrite
+    // branches, so a `pending` row reaching this point without it is a
+    // bug. Flip to `'failed'` with a `PROVIDER_ERROR` token BEFORE the
+    // `'ready'` patch — otherwise the audio becomes playable to clients
+    // and the ledger write is silently skipped, billing nothing for a
+    // real synthesis call. The schema keeps `userId` optional purely for
+    // back-compat on pre-userId rows; those can never be in `pending`
+    // status today.
+    if (!row.userId) {
+      console.error(
+        '[tts.markReady] pending row missing userId; failing chunk to refuse ledger-less playback',
+        { chunkId: args.chunkId },
+      );
+      await ctx.db.patch(args.chunkId, {
+        status: 'failed',
+        error: 'PROVIDER_ERROR',
+        storageId: undefined,
+      });
+      // Caller (synthesize.ts) treats the throw as a generic
+      // markChunkReady failure: its compensating block deletes the
+      // just-uploaded blob and the chunk row reflects `failed` to the
+      // client. No ledger row is written.
+      throw new ConvexError({
+        code: 'TTS_USERID_MISSING',
+        message: 'pending row missing userId',
+      });
+    }
+
     // Note: we deliberately don't pre-resolve a storage URL. The
     // `audioUrl` field on the schema is deprecated — subscribers fetch
     // audio through the authenticated `/api/tts-audio` route keyed on
@@ -545,33 +584,20 @@ export const markChunkReadyAndRecordUsage = internalMutation({
       usageRecordedAt: Date.now(),
     });
 
-    // `reserveChunk` always writes `userId` on both insert and overwrite
-    // branches, so a `pending` row reaching this point without it is a
-    // bug — surface it loudly via console.error rather than silently
-    // skipping the ledger write (which would bill nothing for a real
-    // chunk). The schema keeps the field optional purely for back-compat
-    // on pre-userId rows; those can never be in `pending` status today.
-    if (!row.userId) {
-      console.error(
-        '[tts.markReady] pending row missing userId; skipping ledger write',
-        { chunkId: args.chunkId },
-      );
-    } else {
-      await recordTtsUsageInline(ctx, {
-        organizationId: row.organizationId,
-        userId: row.userId,
-        teamId: row.teamId,
-        // Real assistant slug when the thread is attached to one;
-        // `TTS_SLUG` is the sentinel fallback for unattached threads so
-        // the row still has an attribution key.
-        agentSlug: row.agentSlug ?? TTS_SLUG,
-        model: args.modelId,
-        provider: args.providerName,
-        characterCount: args.characterCount,
-        costEstimateCents: args.costEstimateCents,
-        timestamp: Date.now(),
-      });
-    }
+    await recordTtsUsageInline(ctx, {
+      organizationId: row.organizationId,
+      userId: row.userId,
+      teamId: row.teamId,
+      // Real assistant slug when the thread is attached to one;
+      // `TTS_SLUG` is the sentinel fallback for unattached threads so
+      // the row still has an attribution key.
+      agentSlug: row.agentSlug ?? TTS_SLUG,
+      model: args.modelId,
+      provider: args.providerName,
+      characterCount: args.characterCount,
+      costEstimateCents: args.costEstimateCents,
+      timestamp: Date.now(),
+    });
 
     // Schedule cleanup only on chunk 0: every chunk firing the scheduler
     // would mean 200 throwaway dispatches per long message, of which only
@@ -687,13 +713,41 @@ export const markChunkFailed = internalMutation({
       status: 'failed',
       error: args.error,
     });
+
+    // Schedule opportunistic cleanup from the failure path too — same
+    // shape as the success path in `markChunkReadyAndRecordUsage`.
+    // Without this, a message whose chunk 0 always fails (provider
+    // outage, host-policy reject) never triggers any opportunistic
+    // sweep and the daily cron is the only backstop. The `cleanup:tts`
+    // limiter still gates this to ~1/hour/thread so a burst of
+    // failures doesn't flood the dispatcher.
+    if (row.index === 0) {
+      try {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.tts.mutations.maybeCleanupChunks,
+          {
+            threadId: row.threadId,
+            olderThanMs: CHUNK_RETENTION_MS,
+            limit: CLEANUP_PASS_LIMIT,
+          },
+        );
+      } catch (err) {
+        console.warn(
+          '[tts.markChunkFailed] failed to schedule maybeCleanupChunks; daily cron will catch the backlog',
+          err,
+        );
+      }
+    }
+
     return { stale: false };
   },
 });
 
 /**
  * Opportunistic cleanup trigger scheduled from
- * `markChunkReadyAndRecordUsage` (the write path) on `index === 0` only.
+ * `markChunkReadyAndRecordUsage` (success) or `markChunkFailed` (failure),
+ * gated on `index === 0` in both.
  * Rate-limited via the `cleanup:tts` token (one pass per thread per hour)
  * so a burst of message-zero flips can't dispatch many sweeps in quick
  * succession. Returns silently when the limiter gates the call.

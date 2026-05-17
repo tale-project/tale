@@ -481,7 +481,19 @@ export async function recordTtsUsageInline(
   const ALL_PERIODS = ['daily', 'weekly', 'monthly'] as const;
   for (const period of ALL_PERIODS) {
     const periodKey = buildPeriodKeyFromTimestamp(period, args.timestamp);
-    const match = await ctx.db
+    // The `by_org_user_period_team_agent_model` index does NOT include
+    // `provider` as a key, so an in-memory filter by provider is the
+    // minimal way to keep TTS rows from being merged into a sibling LLM
+    // row that happens to share `(org, user, period, team, agent,
+    // model)` under a different provider. Without this guard, a TTS
+    // chunk with `provider: 'openai'` could land its character count on
+    // an Anthropic LLM row (same agent slug, same model string), and
+    // analytics would attribute TTS spend to the LLM provider. With
+    // current TTS-only-OpenAI configs this is latent; once a second
+    // TTS provider ships it becomes load-bearing. A proper structural
+    // fix is to extend the index to include `provider` (tracked as a
+    // follow-up).
+    const candidate = await ctx.db
       .query('usageLedger')
       .withIndex('by_org_user_period_team_agent_model', (q) =>
         q
@@ -493,6 +505,11 @@ export async function recordTtsUsageInline(
           .eq('model', args.model),
       )
       .first();
+    const match =
+      candidate &&
+      (candidate.provider === undefined || candidate.provider === args.provider)
+        ? candidate
+        : null;
 
     if (match) {
       await ctx.db.patch(match._id, {

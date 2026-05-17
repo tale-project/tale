@@ -317,6 +317,7 @@ export function checkRuleAgainstUsage(
   rule: BudgetRule,
   usage: UsageTotals,
   prospectiveCostCents: number = 0,
+  prospectiveRequests: number = 0,
 ): BudgetCheckResult | null {
   if (rule.maxTokens != null && usage.totalTokens >= rule.maxTokens) {
     return {
@@ -341,14 +342,20 @@ export function checkRuleAgainstUsage(
     };
   }
 
-  if (rule.maxRequests != null && usage.requestCount >= rule.maxRequests) {
+  // `prospectiveRequests` mirrors `prospectiveCostCents`: TTS callers
+  // pass 1 for the about-to-fire chunk so parallel chunks of a single
+  // message can't each individually pass the cap and collectively
+  // overshoot. LLM callers leave it at 0 — their ledger write is
+  // synchronous with the call so retrospective checks are accurate.
+  const projectedRequests = usage.requestCount + prospectiveRequests;
+  if (rule.maxRequests != null && projectedRequests >= rule.maxRequests) {
     return {
       allowed: false,
       code: 'REQUEST_LIMIT',
       period: rule.period,
-      used: usage.requestCount,
+      used: projectedRequests,
       limit: rule.maxRequests,
-      reason: `Request limit reached for this ${rule.period} period (${usage.requestCount} / ${rule.maxRequests})`,
+      reason: `Request limit reached for this ${rule.period} period (${projectedRequests} / ${rule.maxRequests})`,
     };
   }
 
@@ -370,6 +377,7 @@ function collectWarnings(
   usage: UsageTotals,
   period: string,
   prospectiveCostCents: number = 0,
+  prospectiveRequests: number = 0,
 ): BudgetWarning[] {
   const threshold = limits.warningThresholdPercent;
   if (threshold == null) return [];
@@ -404,12 +412,13 @@ function collectWarnings(
   }
 
   if (limits.maxRequests != null) {
-    const percent = (usage.requestCount / limits.maxRequests) * 100;
-    if (percent >= threshold && usage.requestCount < limits.maxRequests) {
+    const projectedRequests = usage.requestCount + prospectiveRequests;
+    const percent = (projectedRequests / limits.maxRequests) * 100;
+    if (percent >= threshold && projectedRequests < limits.maxRequests) {
       warnings.push({
         code: 'REQUEST_WARNING',
         period,
-        used: usage.requestCount,
+        used: projectedRequests,
         limit: limits.maxRequests,
         percent: Math.round(percent),
       });
@@ -436,6 +445,10 @@ function collectWarnings(
  *   message can't each individually pass the cap and collectively overshoot).
  *   LLM callers leave at 0; the synchronous post-call ledger write is
  *   "atomic enough" for retrospective checks against the cap.
+ * @param prospectiveRequests - mirror of `prospectiveCostCents` for the
+ *   request-count axis. TTS callers pass 1 so an admin who set
+ *   `maxRequests` for the period sees parallel chunks honour the cap.
+ *   LLM callers leave at 0.
  */
 export async function checkBudget(
   ctx: GenericQueryCtx<DataModel>,
@@ -444,6 +457,7 @@ export async function checkBudget(
   userTeamIds: string[],
   userRole?: string,
   prospectiveCostCents: number = 0,
+  prospectiveRequests: number = 0,
 ): Promise<BudgetCheckResult> {
   const config = await readPolicyConfig<BudgetConfig>(
     ctx,
@@ -510,6 +524,7 @@ export async function checkBudget(
       effectiveRule,
       userUsage,
       prospectiveCostCents,
+      prospectiveRequests,
     );
     if (violation) {
       return {
@@ -520,7 +535,13 @@ export async function checkBudget(
 
     // Collect warnings for approaching limits
     allWarnings.push(
-      ...collectWarnings(limits, userUsage, period, prospectiveCostCents),
+      ...collectWarnings(
+        limits,
+        userUsage,
+        period,
+        prospectiveCostCents,
+        prospectiveRequests,
+      ),
     );
 
     // Check team aggregate usage when limits came from team-scoped rules
@@ -543,6 +564,7 @@ export async function checkBudget(
         teamRule,
         teamUsage,
         prospectiveCostCents,
+        prospectiveRequests,
       );
       if (teamViolation) {
         return {
@@ -570,6 +592,7 @@ export async function checkBudget(
         orgRule,
         orgUsage,
         prospectiveCostCents,
+        prospectiveRequests,
       );
       if (orgViolation) {
         return {
