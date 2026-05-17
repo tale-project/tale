@@ -248,13 +248,14 @@ export function AssistantMessageContent({
               aria-hidden={!isActive || undefined}
               className={cn(
                 !prefersReducedMotion && 'transition-opacity duration-300',
-                // Replace opacity-only dim with a token-driven muted
-                // colour (passes WCAG 4.5:1 vs the bare opacity-60)
-                // AND add a left-border accent on the active paragraph
-                // as a non-color spotlight cue (WCAG 1.4.1).
-                isActive
-                  ? 'border-primary border-l-2 pl-3 text-foreground'
-                  : 'border-l-2 border-transparent pl-3 text-muted-foreground',
+                // Token-driven muted colour dims inactive paragraphs
+                // (passes WCAG 4.5:1 vs the bare opacity-60). The
+                // non-color cue required by WCAG 1.4.1 is carried by
+                // the `VoiceOutputIndicator` ("Speaking" pill) rendered
+                // above the active paragraph in `message-bubble.tsx`,
+                // which provides a positional + iconographic anchor
+                // independent of paragraph text colour.
+                isActive ? 'text-foreground' : 'text-muted-foreground',
                 // Keep paragraph spacing identical to the non-spotlight
                 // path so the spotlight-on/off transition doesn't reflow
                 // the bubble.
