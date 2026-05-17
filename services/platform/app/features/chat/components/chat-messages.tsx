@@ -315,6 +315,47 @@ export function ChatMessages({
     };
   }, [containerRef, lastUserMessageRef]);
 
+  // Identity-based freshness snapshot: capture the set of message IDs
+  // present on this list's first non-empty render. Anything that appears
+  // in `items` after that snapshot is "fresh since mount" — i.e. it
+  // arrived via subscription during this user-observation session, not
+  // as part of the initial thread-history load. The voice-output chunker
+  // uses this to decide whether to fire `synthesizeChunk` (fresh) or
+  // skip (history). Identity-based (not wall-clock-based) so it's immune
+  // to server/client clock skew, multi-tab inconsistency, and the
+  // `_creationTime` vs `Date.now()` direction mismatch that broke the
+  // prior `mountTimeRef` approach.
+  //
+  // Per-thread reset: when `threadId` changes, the prior snapshot is no
+  // longer meaningful — every message in the new thread is "history" from
+  // this mount's perspective. Reset the snapshot ref so the next non-empty
+  // `items` tick re-captures.
+  const initialMessageIdsRef = useRef<Set<string> | null>(null);
+  const snapshotThreadIdRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (snapshotThreadIdRef.current !== threadId) {
+      initialMessageIdsRef.current = null;
+      snapshotThreadIdRef.current = threadId;
+    }
+    if (initialMessageIdsRef.current === null && items.length > 0) {
+      const ids = new Set<string>();
+      for (const item of items) {
+        if (item.type === 'message') ids.add(item.data.id);
+      }
+      initialMessageIdsRef.current = ids;
+    }
+  }, [items, threadId]);
+
+  const isFreshSinceMount = (messageId: string): boolean => {
+    const snapshot = initialMessageIdsRef.current;
+    // Before the snapshot is captured (very first render with empty
+    // items), treat nothing as fresh so we don't fire synthesis for
+    // bubbles that may turn out to be history once the subscription
+    // settles. The snapshot effect runs on the next tick.
+    if (snapshot === null) return false;
+    return !snapshot.has(messageId);
+  };
+
   // Build a set of forkOrder values where branch navigators should appear.
   // Two cases:
   // 1. Current thread has child branches → show navigator at child's forkOrder
@@ -440,6 +481,7 @@ export function ChatMessages({
                 threadId: threadId,
               }}
               organizationId={organizationId}
+              isFreshSinceMount={isFreshSinceMount(message.id)}
               hideFeedback={hideFeedback}
               onSendFollowUp={onSendFollowUp}
               onRetry={

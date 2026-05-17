@@ -247,14 +247,26 @@ export function useVoiceOutputChunker(opts: {
   text: string;
   isStreaming: boolean;
   /**
-   * Wall-clock timestamp (ms) when this message was created. The chunker
-   * compares it against its mount time and skips processing for any
-   * message that predates the mount — preventing the "navigate to a
-   * thread with 50 prior assistant messages, voice ON, fire 50 chunker
-   * actions" history-fan-out hazard (server idempotency catches them,
-   * but the action call count matters for rate limiting and observability).
+   * True when this message's id was NOT in the chat list's first-render
+   * snapshot — i.e. it arrived via subscription during this mount, not as
+   * part of thread-history load. Owned by `chat-messages.tsx`; we just
+   * gate on it here.
+   *
+   * Identity-based replacement for the prior wall-clock `messageCreatedAt
+   * < mountTimeRef` gate. That gate compared server-set `_creationTime`
+   * against client-set `Date.now()`, which always satisfied the inequality
+   * for fresh events (server time ≤ client time by at least round-trip
+   * latency) — silently skipping every freshly streamed message and
+   * causing the symptom this hook exists to handle. The identity-based
+   * snapshot is immune to clock skew, multi-tab inconsistency, and
+   * server/client time direction.
+   *
+   * The history-fan-out protection (don't fire N synthesizeChunk actions
+   * when navigating to a thread with N old assistant messages) is
+   * preserved: every message present in the initial snapshot returns
+   * `isFreshSinceMount = false`, so the chunker no-ops.
    */
-  messageCreatedAt: number;
+  isFreshSinceMount: boolean;
 }): void {
   const { locale } = useLocale();
   const synthesize = useAction(api.tts.synthesize.synthesizeChunk);
@@ -280,11 +292,6 @@ export function useVoiceOutputChunker(opts: {
   useEffect(() => {
     enabledRef.current = opts.enabled;
   }, [opts.enabled]);
-  // Hook-mount wall-clock so any message with `messageCreatedAt < mount`
-  // is treated as history and skipped. Mirrors the player hook's pattern
-  // at use-voice-output-player.ts. Set once and never reset — message
-  // change inside the same mount keeps the original mount time.
-  const mountTimeRef = useRef(Date.now());
   // Pre-reservation error sink: errors that happen BEFORE a chunk row
   // exists (BUDGET_EXCEEDED, MESSAGE_CHAR_LIMIT, forbidden,
   // TTS_CHUNK_LIMIT, etc., raised by `reserveChunk` and thrown out of
@@ -372,18 +379,23 @@ export function useVoiceOutputChunker(opts: {
       queueRef.current.push(() => {
         void synthesize(payload)
           .then((result) => {
-            if (
-              result.status === 'failed' &&
-              result.errorCode &&
+            if (result.status !== 'failed' || !result.errorCode) return;
+            const retryable =
               RETRYABLE_ERROR_CODES.has(result.errorCode) &&
-              attempt < MAX_RETRIES_PER_CHUNK
-            ) {
+              attempt < MAX_RETRIES_PER_CHUNK;
+            if (retryable) {
               // `CONTENTION` backs off much shorter than `RATE_LIMITED`:
               // the former is shard-OCC noise (50-150ms is enough for the
               // limiter's internal retry to land), the latter signals true
               // quota exhaustion. Both add jitter so a wave of failures
               // doesn't all retry in lock-step and re-trigger the same
               // contention or quota window.
+              console.warn('[tts] synthesizeChunk returned retryable failure', {
+                messageId: payload.messageId,
+                index: payload.index,
+                errorCode: result.errorCode,
+                attempt,
+              });
               const baseDelay =
                 result.errorCode === 'CONTENTION'
                   ? CONTENTION_BASE_DELAY_MS
@@ -404,7 +416,24 @@ export function useVoiceOutputChunker(opts: {
                 runNext();
               }, delay);
               retryTimersRef.current.add(timerId);
+              return;
             }
+            // Non-retryable, or retry budget exhausted. Without surfacing
+            // through the error sink the indicator would silently drop —
+            // pre-reservation failures (NO_PROVIDER, UNKNOWN_PROVIDER,
+            // UNKNOWN_MODEL, UNKNOWN_VOICE, HOST_POLICY) resolve with
+            // `{status:'failed', errorCode}` and never throw, so the
+            // `.catch` below never fires for them. Routing here lets
+            // `errorMessageForCode()` render an actionable message
+            // (settings link / retry button / terminal badge per
+            // classifyErrorCode).
+            console.warn('[tts] synthesizeChunk returned failed (surfacing)', {
+              messageId: payload.messageId,
+              index: payload.index,
+              errorCode: result.errorCode,
+              attempt,
+            });
+            errorSink.set(payload.messageId, result.errorCode);
           })
           .catch((err) => {
             // Pre-reservation throws (BUDGET_EXCEEDED, MESSAGE_CHAR_LIMIT,
@@ -433,14 +462,21 @@ export function useVoiceOutputChunker(opts: {
 
   useEffect(() => {
     if (!opts.enabled) return;
-    if (!opts.messageId || !opts.threadId || !opts.organizationId) return;
-    // Skip messages that pre-date the chunker's mount — those are
-    // history-load artifacts, not fresh assistant output. Without this
-    // gate, opening a thread with N old assistant messages would fire N
-    // `synthesizeChunk` actions on mount. Server idempotency suppresses
-    // duplicate provider calls, but the action count still burns rate
-    // limit + observability budget.
-    if (opts.messageCreatedAt < mountTimeRef.current) return;
+    if (!opts.messageId || !opts.threadId || !opts.organizationId) {
+      console.warn('[tts] chunker skipping (missing required ids)', {
+        messageId: opts.messageId,
+        threadId: opts.threadId,
+        organizationId: opts.organizationId,
+      });
+      return;
+    }
+    // Skip messages that were present in the chat list's first-render
+    // snapshot — those are history-load artifacts, not fresh assistant
+    // output. Without this gate, opening a thread with N old assistant
+    // messages would fire N `synthesizeChunk` actions on mount. Server
+    // idempotency suppresses duplicate provider calls, but the action
+    // count still burns rate limit + observability budget.
+    if (!opts.isFreshSinceMount) return;
     // Strip structured-response markers and drop the NEXT_STEPS suggestion-
     // chip section before chunking. parseMarkers buffers partial markers
     // mid-stream via pendingText, so this is safe to call on every tick.
@@ -556,7 +592,7 @@ export function useVoiceOutputChunker(opts: {
     opts.organizationId,
     opts.text,
     opts.isStreaming,
-    opts.messageCreatedAt,
+    opts.isFreshSinceMount,
     enqueueSynthesis,
     locale,
     runNext,

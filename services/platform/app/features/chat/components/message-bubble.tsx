@@ -85,6 +85,15 @@ interface MessageBubbleProps extends ComponentPropsWithoutRef<'div'> {
   isSavedPrompt?: boolean;
   /** Extra content rendered in the user message toolbar (e.g. BranchNavigator). */
   toolbarExtra?: React.ReactNode;
+  /**
+   * True if this message's id was NOT in the chat-list's first-render
+   * snapshot — i.e. it arrived via subscription during this mount, not
+   * as part of history load. Drives the voice-output chunker's
+   * fire/skip decision identity-based (no wall-clock comparison, no
+   * server/client clock-skew dependency). Default false so consumers
+   * that omit the prop never accidentally fire synthesis on history.
+   */
+  isFreshSinceMount?: boolean;
 }
 
 const ARTIFACT_PILL_ICONS: Record<
@@ -224,6 +233,7 @@ function MessageBubbleComponent({
   onUnsavePrompt,
   isSavedPrompt,
   toolbarExtra,
+  isFreshSinceMount = false,
   ...restProps
 }: MessageBubbleProps) {
   const { t } = useT('common');
@@ -244,7 +254,7 @@ function MessageBubbleComponent({
     organizationId,
     text: message.content ?? '',
     isStreaming: !!isAssistantStreaming,
-    messageCreatedAt: message.timestamp.getTime(),
+    isFreshSinceMount,
   });
 
   const handleEditClick = useCallback(() => {
@@ -825,7 +835,8 @@ export const MessageBubble = memo(
       prevProps.onEdit === nextProps.onEdit &&
       prevProps.onFork === nextProps.onFork &&
       prevProps.isSavedPrompt === nextProps.isSavedPrompt &&
-      prevProps.toolbarExtra === nextProps.toolbarExtra
+      prevProps.toolbarExtra === nextProps.toolbarExtra &&
+      prevProps.isFreshSinceMount === nextProps.isFreshSinceMount
     );
   },
 );

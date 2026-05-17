@@ -127,6 +127,19 @@ export const synthesizeChunk = action({
       });
     } catch (err) {
       const { code } = errorCodeFromCaught(err);
+      // No chunk row exists yet, so this failure cannot be persisted on
+      // `ttsAudioChunks.error`. Without an operator-visible log,
+      // misconfigured providers (NO_PROVIDER / UNKNOWN_PROVIDER /
+      // UNKNOWN_MODEL / UNKNOWN_VOICE / HOST_POLICY) only surface via the
+      // client indicator — which itself depends on the client routing
+      // `{status:'failed'}` to the error sink. Warn here so backend logs
+      // independently record the failure.
+      console.warn('[tts.synthesizeChunk] pre-reservation failure', {
+        organizationId: args.organizationId,
+        locale: args.locale,
+        code,
+        detail: sanitizeError(err),
+      });
       return { status: 'failed' as const, errorCode: code };
     }
 
@@ -194,6 +207,17 @@ export const synthesizeChunk = action({
       checkProviderHostPolicy(modelData.baseUrl);
     } catch (err) {
       const { code } = errorCodeFromCaught(err);
+      // Host-policy rejections are operator-actionable (someone changed
+      // a provider file to point at a non-allowlisted host). Log so the
+      // operator can correlate; the indicator's `config` branch will
+      // surface a settings link to the user.
+      console.warn('[tts.synthesizeChunk] host policy rejected provider', {
+        organizationId: args.organizationId,
+        locale: args.locale,
+        baseUrl: modelData.baseUrl,
+        code,
+        detail: sanitizeError(err),
+      });
       return markFailedAndReturn(code);
     }
 

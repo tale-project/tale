@@ -71,7 +71,14 @@ export function VoiceOutputIndicator(props: VoiceOutputIndicatorProps) {
   // no chunk has reached a playable state yet — otherwise the user sees a
   // long silent gap with no UI signal that work is in progress.
   const showLoading = !player.hasAudio && props.isStreaming;
-  if (!player.hasAudio && !props.isStreaming) return null;
+  // Render whenever there's playable history, active streaming, OR a
+  // pre-reservation error to surface. Without the `errorCode` clause,
+  // failures that never produced a chunk row (NO_PROVIDER, UNKNOWN_VOICE,
+  // HOST_POLICY, …) silently dropped the entire indicator — the user
+  // had no way to know voice was broken.
+  if (!player.hasAudio && !props.isStreaming && !player.errorCode) {
+    return null;
+  }
 
   const speaking = player.state === 'playing';
   const blocked = player.state === 'blocked';

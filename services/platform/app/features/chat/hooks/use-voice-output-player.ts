@@ -113,11 +113,31 @@ export function useVoiceOutputPlayer(opts: {
   // arrives mid-playback restarts whatever's already speaking, so the user
   // hears each chunk repeated multiple times on long structured replies.
   const currentChunkIndexRef = useRef<number | null>(null);
-  // Hook-mount wall-clock timestamp. Any chunk with `createdAt > mountTime`
-  // was produced during this mount → fresh, eligible for auto-play.
-  // Anything with `createdAt <= mountTime` is historical (loaded from
-  // thread history) → must not auto-play.
-  const mountTimeRef = useRef(Date.now());
+  // Identity-based freshness snapshot: capture the set of chunk IDs
+  // present on this player's first non-undefined `chunks` value. Any
+  // chunk whose `chunkId` is NOT in the snapshot was produced during
+  // this mount → fresh, eligible for auto-play. Chunks that were in
+  // the snapshot are historical (loaded from thread history) → must
+  // not auto-play.
+  //
+  // Identity-based replaces the prior wall-clock `mountTimeRef` /
+  // `chunk.createdAt > mountTime` approach. The wall-clock comparison
+  // worked for the player because `chunk.createdAt` is client-side
+  // (set at reservation time, after mount) so the direction was
+  // correct, but the identity-based snapshot is still strictly better:
+  // immune to multi-tab inconsistency, no false positives if a chunk
+  // somehow gets a stale `createdAt`, and parallels the chunker's
+  // freshness gate so both hooks reason about the same concept.
+  const initialChunkIdsRef = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (initialChunkIdsRef.current !== null) return;
+    if (chunks === undefined) return;
+    // Convex subscription returns `undefined` while loading, `[]` once
+    // settled with no rows. Snapshot on the first settled tick — `[]`
+    // is a valid empty snapshot meaning "no history; anything that
+    // appears next is fresh".
+    initialChunkIdsRef.current = new Set(chunks.map((c) => c.chunkId));
+  }, [chunks]);
   // One-shot guard so each (messageId, mount) pair auto-plays at most once.
   const hasAutoStartedRef = useRef(false);
 
@@ -340,29 +360,34 @@ export function useVoiceOutputPlayer(opts: {
   }, [coordinator, tryAdvance, providerAudioElement]);
 
   // Auto-play: fires once per (messageId, mount) only when a ready chunk
-  // produced after mount appears. Historical chunks (createdAt <= mount)
-  // are loaded from thread history and must not auto-replay.
+  // NOT present in the initial snapshot appears. Historical chunks (those
+  // captured in `initialChunkIdsRef`) are loaded from thread history and
+  // must not auto-replay.
   useEffect(() => {
     if (!opts.enabled) return;
     if (hasAutoStartedRef.current) return;
     if (activeRef.current) return;
     if (!chunks || chunks.length === 0) return;
+    const initial = initialChunkIdsRef.current;
+    // Snapshot not captured yet (first tick races the chunks
+    // subscription). Don't auto-play this frame; the snapshot effect
+    // will populate on the next render and this effect re-runs.
+    if (initial === null) return;
     const playable = chunks.find(
-      (c) => c.status === 'ready' && c.createdAt > mountTimeRef.current,
+      (c) => c.status === 'ready' && !initial.has(c.chunkId),
     );
     if (!playable) return;
     hasAutoStartedRef.current = true;
     play();
   }, [opts.enabled, chunks, play]);
 
-  // Reset auto-play guard + stop on message change. Do NOT reset
-  // mountTimeRef here — it must keep its first-render value so the
-  // "is this chunk fresh?" comparison is stable. Re-running this effect
-  // (e.g. when `stop`'s identity churns) would otherwise bump mountTime
-  // forward and reclassify the fresh chunk as historical, killing
-  // auto-play.
+  // Reset auto-play guard + initial-chunks snapshot on message change.
+  // The snapshot is per-message: a new assistant bubble means a new
+  // identity for "what was history" — re-snapshot so the fresh chunks
+  // for the new message are classified correctly.
   useEffect(() => {
     hasAutoStartedRef.current = false;
+    initialChunkIdsRef.current = null;
     return () => {
       stop();
     };
