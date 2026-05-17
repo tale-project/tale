@@ -60,9 +60,9 @@
         "qualityHdd": "-",
         "hybridHdd": "-",
         "speedHdd": "-",
-        "qualitySize": "50cm × 50cm × 150cm",
-        "hybridSize": "50cm × 50cm × 150cm",
-        "speedSize": "150cm × 50cm × 50cm"
+        "qualitySize": "500mm × 500mm × 1500mm",
+        "hybridSize": "500mm × 500mm × 1500mm",
+        "speedSize": "1500mm × 500mm × 500mm"
       },
       "node": {
         "qualityRam": "96GB (UMA)",
@@ -83,9 +83,9 @@
         "qualityHdd": "-",
         "hybridHdd": "-",
         "speedHdd": "-",
-        "qualitySize": "50cm × 50cm × 150cm",
-        "hybridSize": "50cm × 50cm × 150cm",
-        "speedSize": "150cm × 50cm × 50cm"
+        "qualitySize": "192mm × 366mm × 270mm",
+        "hybridSize": "192mm × 366mm × 270mm",
+        "speedSize": "192mm × 366mm × 270mm"
       }
     }
   }
