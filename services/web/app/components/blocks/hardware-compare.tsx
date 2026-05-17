@@ -66,7 +66,7 @@ const SPEC_TOOLTIPS: Record<string, string> = {
   'DDR5 ECC': 'ddr5EccInfo',
   'Zen 5': 'zen5Info',
   INT4: 'int4Info',
-  'M.2 NVMe': 'm2NvmeInfo',
+  'm.2 NVMe': 'm2NvmeInfo',
   NQ: 'skuNqInfo',
   NA: 'skuNaInfo',
   NS: 'skuNsInfo',
