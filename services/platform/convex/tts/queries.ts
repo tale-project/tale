@@ -1,11 +1,16 @@
 import { v } from 'convex/values';
 
+import {
+  audioFormatLiterals,
+  type AudioFormat,
+} from '../../lib/shared/schemas/providers';
 import type { Id } from '../_generated/dataModel';
 import { internalQuery, query } from '../_generated/server';
 import { getOrganizationMember } from '../lib/rls';
 import { canAccessThread } from '../lib/rls/auth/can_access_thread';
 import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
 import { toId } from '../lib/type_cast_helpers';
+import { ttsErrorCodeLiterals, type TtsErrorCode } from './error_codes';
 
 /**
  * Subscribed by the client message bubble: returns the ordered list of
@@ -41,8 +46,18 @@ export const getMessageChunks = query({
         v.literal('failed'),
       ),
       voice: v.optional(v.string()),
-      format: v.optional(v.string()),
-      error: v.optional(v.string()),
+      // `format` and `error` validators mirror the writer's closed
+      // unions in `schema.ts` (built from `audioFormatLiterals` and
+      // `ttsErrorCodeLiterals`). Widening to `v.string()` would let any
+      // future drift between the storage shape and the literal set slip
+      // through this query without failing the read validator — the
+      // schema docstring explicitly relies on this contract.
+      format: v.optional(
+        v.union(...audioFormatLiterals.map((f) => v.literal(f))),
+      ),
+      error: v.optional(
+        v.union(...ttsErrorCodeLiterals.map((c) => v.literal(c))),
+      ),
       text: v.string(),
       // Used by the player to distinguish chunks created during the current
       // mount (auto-play candidates) from chunks loaded on thread revisit
@@ -59,8 +74,8 @@ export const getMessageChunks = query({
       index: number;
       status: 'pending' | 'ready' | 'failed';
       voice?: string;
-      format?: string;
-      error?: string;
+      format?: AudioFormat;
+      error?: TtsErrorCode;
       text: string;
       createdAt: number;
     }> = [];
@@ -151,7 +166,8 @@ export const getChunkForServe = internalQuery({
  * the auto-chunk hook and the toggle UI state.
  *
  * Precedence: `threadMetadata.voiceOutputOverride` →
- * `userPreferences.voiceOutput` → `false`.
+ * `userPreferences.voiceOutput` (org-scoped if the thread has an org, else
+ * any pref row the user owns) → `false`.
  */
 export const getVoiceModeEffective = query({
   args: { threadId: v.string() },
@@ -170,16 +186,33 @@ export const getVoiceModeEffective = query({
     if (typeof meta.voiceOutputOverride === 'boolean') {
       return { enabled: meta.voiceOutputOverride, source: 'thread' as const };
     }
+    // Org-scoped pref lookup when the thread carries an organizationId
+    // (the common case). For legacy threads where `organizationId` is
+    // absent we fall through to a prefix-only lookup so a user who set
+    // voice ON globally still gets voice on those threads instead of
+    // silently defaulting OFF.
     const organizationId = meta.organizationId;
-    if (!organizationId) {
-      return { enabled: false, source: 'default' as const };
+    let prefs;
+    if (organizationId) {
+      prefs = await ctx.db
+        .query('userPreferences')
+        .withIndex('by_userId_organizationId', (q) =>
+          q.eq('userId', user.userId).eq('organizationId', organizationId),
+        )
+        .first();
+    } else {
+      // Prefix-only on the same index — picks the first userPreferences row
+      // the user owns in any org. If they have voice OFF in some orgs and ON
+      // in others the result depends on Convex's index order, which is fine
+      // for the legacy fallback: it just needs to not silently mute users
+      // who enabled voice somewhere.
+      prefs = await ctx.db
+        .query('userPreferences')
+        .withIndex('by_userId_organizationId', (q) =>
+          q.eq('userId', user.userId),
+        )
+        .first();
     }
-    const prefs = await ctx.db
-      .query('userPreferences')
-      .withIndex('by_userId_organizationId', (q) =>
-        q.eq('userId', user.userId).eq('organizationId', organizationId),
-      )
-      .first();
     if (prefs && typeof prefs.voiceOutput === 'boolean') {
       return {
         enabled: prefs.voiceOutput,

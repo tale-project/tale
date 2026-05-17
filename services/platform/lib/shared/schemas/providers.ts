@@ -254,16 +254,32 @@ const modelDefinitionSchema = z.object({
     .optional(),
   /**
    * Default voice for TTS models when no locale-specific voice matches.
+   * Whitespace-only strings are rejected so `'   '` doesn't silently slip
+   * through .min(1) and surface later as UNKNOWN_VOICE at synth time.
    */
-  defaultVoice: z.string().min(1).max(100).optional(),
+  defaultVoice: z
+    .string()
+    .min(1)
+    .max(100)
+    .regex(/\S/, 'defaultVoice cannot be all whitespace')
+    .optional(),
   /**
-   * Locale → voice mapping for TTS models. Keys are BCP-47 codes or base
-   * language codes; resolver tries the full locale first, then the base.
+   * Locale → voice mapping for TTS models. Keys follow a narrow BCP-47
+   * subset: ISO-639-1 language with optional ISO-3166-1 alpha-2 region
+   * (e.g. `en`, `en-US`, `de-CH`). Broader BCP-47 — script subtags
+   * (`zh-Hans`), 3-letter codes (`fil`), UN region codes (`en-419`) —
+   * is intentionally out of scope; relax the regex in lockstep with a
+   * resolver update if those become needed. Values are rejected when
+   * all whitespace, mirroring `defaultVoice`.
    */
   voicesByLocale: z
     .record(
       z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/),
-      z.string().min(1).max(100),
+      z
+        .string()
+        .min(1)
+        .max(100)
+        .regex(/\S/, 'voice name cannot be all whitespace'),
     )
     .optional(),
   /**
@@ -276,7 +292,8 @@ const modelDefinitionSchema = z.object({
    * Locale → instructions mapping. Same lookup pattern as `voicesByLocale`:
    * full locale first, then base, then `defaultInstructions`. Each entry
    * should be written in the language it will steer (in-language prompts
-   * produce the best results with OpenAI's TTS).
+   * produce the best results with OpenAI's TTS). Locale-regex shape
+   * matches `voicesByLocale` — see its docstring for the BCP-47 subset.
    */
   instructionsByLocale: z
     .record(
@@ -379,23 +396,31 @@ export const providerJsonSchema = z
     // is present — the previous early-return on `!data.defaults`
     // bypassed this check for providers that don't pin a default
     // text-to-speech model.
-    for (const model of data.models) {
+    //
+    // Path attribution: `data.models.indexOf(model)` is O(n²) over the
+    // model array, and previously the path was hard-coded to
+    // `defaultVoice` even when the operator only authored an empty
+    // `voicesByLocale: {}`. Use the `forEach` index and point at the
+    // first concretely-missing field so the operator's editor jumps to
+    // the right line.
+    data.models.forEach((model, modelIndex) => {
       if (!(model.tags as readonly string[]).includes('text-to-speech')) {
-        continue;
+        return;
       }
       const hasDefault =
         typeof model.defaultVoice === 'string' && model.defaultVoice.length > 0;
       const hasMap =
         model.voicesByLocale !== undefined &&
         Object.keys(model.voicesByLocale).length > 0;
-      if (!hasDefault && !hasMap) {
-        ctx.addIssue({
-          code: 'custom',
-          message: `model "${model.id}" has the "text-to-speech" tag but no defaultVoice or voicesByLocale entries; resolveTtsModel will fail at synthesis time`,
-          path: ['models', data.models.indexOf(model), 'defaultVoice'],
-        });
-      }
-    }
+      if (hasDefault || hasMap) return;
+      const offendingField =
+        model.voicesByLocale !== undefined ? 'voicesByLocale' : 'defaultVoice';
+      ctx.addIssue({
+        code: 'custom',
+        message: `model "${model.id}" has the "text-to-speech" tag but no defaultVoice or voicesByLocale entries; resolveTtsModel will fail at synthesis time`,
+        path: ['models', modelIndex, offendingField],
+      });
+    });
   });
 
 export type ProviderJson = z.infer<typeof providerJsonSchema>;
