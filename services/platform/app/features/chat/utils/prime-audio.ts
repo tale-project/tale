@@ -22,16 +22,21 @@
  *     when we weren't. The new approach resumes the AudioContext on
  *     every call (cheap when already running) instead of latching.
  *
- *  3. **Prime element ≠ playback element**. The prior code primed a
- *     throwaway `Audio()` but the player constructed a *different*
- *     `new Audio()` later — activation is per-`HTMLMediaElement` on iOS
- *     so the prime never transferred. `getPrimedAudioElement()` returns
- *     a module-level singleton so the player picks up the same element
- *     that was primed.
+ *  3. **Prime element ≠ playback element**. Activation is per-
+ *     `HTMLMediaElement` on iOS, so priming a throwaway element and
+ *     then playing on a different one never transferred. The element
+ *     to pre-warm is now passed in by the caller (typically the
+ *     `<VoiceOutputProvider>`-owned audio element via context), so the
+ *     prime lands on the element the player will actually use.
+ *
+ * Per-provider ownership (round-5 finding #23): an earlier module-
+ * level singleton meant arena split-view's two `<VoiceOutputProvider>`
+ * instances shared one `<audio>` element and corrupted each other's
+ * `src`. Each provider now owns its own element via `useMemo`; this
+ * helper just pre-warms whatever element it's handed.
  */
 
 let audioContext: AudioContext | null = null;
-let primedElement: HTMLAudioElement | null = null;
 
 interface AudioContextGlobals {
   AudioContext?: typeof AudioContext;
@@ -57,6 +62,9 @@ function getOrCreateContext(): AudioContext | null {
 /**
  * Consume the current user-activation token by scheduling a zero-gain
  * `BufferSource` and (asynchronously) resuming the WebAudio context.
+ * When `el` is supplied, the call ALSO pre-warms that element with a
+ * silent `load()` inside the same gesture so the activation transfers
+ * to it for later `el.play()` calls.
  *
  * **Must run synchronously through `source.start()`**: WebKit consumes
  * the user-activation token at the first `await`, so any work that
@@ -68,13 +76,15 @@ function getOrCreateContext(): AudioContext | null {
  * Safe to call multiple times: resuming an already-running context is
  * a no-op, and the 1-sample zero-gain source is inaudible.
  */
-export function primeAudio(): void {
+export function primeAudio(el?: HTMLAudioElement | null): void {
   const ctx = getOrCreateContext();
   if (!ctx) return;
   try {
-    // Pre-warm the singleton playback element inside the same gesture
-    // so the activation token transfers when the player picks it up.
-    getPrimedAudioElement();
+    // Pre-warm the caller-supplied playback element inside the same
+    // gesture so the activation token transfers when the player picks
+    // it up. iOS Safari's activation is per-HTMLMediaElement; without
+    // this transfer, priming was useless to a separate element.
+    if (el) configurePlaybackElement(el);
     // Schedule a zero-gain buffer source synchronously to bank the
     // activation. WebKit accepts a started `BufferSource` as a
     // legitimate audio start even on a suspended context (the schedule
@@ -102,29 +112,41 @@ export function primeAudio(): void {
 }
 
 /**
- * Return the module-level singleton `<audio>` element used for chunked
- * TTS playback. The player calls this when it needs to construct an
- * element so the activation token banked by `primeAudio()` transfers
- * to the same element that will later play the chunks — without this,
- * iOS Safari would reject the chunked playback because the prime
- * activated a *different* element.
+ * Apply the standard playback-element configuration: `playsinline` so
+ * iOS Safari doesn't full-screen-takeover audio, `preload="auto"` so
+ * chunked-swap playback keeps bytes warm between sources. Idempotent.
+ *
+ * Exposed so callers that construct their own `<audio>` element (the
+ * per-provider context, the player's fallback path) apply the same
+ * config without duplicating these two lines.
  */
-export function getPrimedAudioElement(): HTMLAudioElement | null {
+export function configurePlaybackElement(el: HTMLAudioElement): void {
+  // `playsinline` lets iOS Safari play without the full-screen
+  // takeover. Set via attribute because `HTMLAudioElement`'s
+  // TypeScript declarations don't surface the property even though
+  // WebKit honours it on `<audio>` elements too.
+  el.setAttribute('playsinline', '');
+  el.preload = 'auto';
+}
+
+/**
+ * Construct a fresh playback element with the standard config. Each
+ * `<VoiceOutputProvider>` instantiates one via `useMemo` so split-view
+ * arenas don't share an element (the prior module-level singleton let
+ * two providers stomp each other's `src`).
+ *
+ * Returns `null` in SSR / non-browser environments. The caller should
+ * fall back gracefully (the player keeps a `new Audio()` fallback for
+ * the same reason).
+ */
+export function createPlaybackElement(): HTMLAudioElement | null {
   if (typeof window === 'undefined' || typeof Audio === 'undefined') {
     return null;
   }
-  if (primedElement) return primedElement;
   try {
-    primedElement = new Audio();
-    // `playsinline` lets iOS Safari play without the full-screen
-    // takeover. Set via attribute because `HTMLAudioElement`'s
-    // TypeScript declarations don't surface the property even though
-    // WebKit honours it on `<audio>` elements too. Combined with
-    // `preload = 'auto'`, the element keeps its bytes around between
-    // chunk swaps.
-    primedElement.setAttribute('playsinline', '');
-    primedElement.preload = 'auto';
-    return primedElement;
+    const el = new Audio();
+    configurePlaybackElement(el);
+    return el;
   } catch (err) {
     console.warn('[tts.prime] audio element construction failed', err);
     return null;

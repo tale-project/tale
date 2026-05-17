@@ -1,10 +1,13 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { Link } from '@tanstack/react-router';
 import {
   AlertCircle,
   CircleStop,
   Loader2,
+  Settings,
   Volume2,
   VolumeOff,
 } from 'lucide-react';
@@ -21,7 +24,17 @@ interface VoiceOutputIndicatorProps {
   messageId: string | undefined;
   threadId: string | undefined;
   isStreaming: boolean;
+  /**
+   * `organizationId` for the message's org — used to build the
+   * "Open settings" link's path when a CONFIG-class error surfaces.
+   * Optional because legacy threads / fallback callsites may not have
+   * one; without it, config errors fall back to a non-interactive badge
+   * (still readable, just not actionable).
+   */
+  organizationId?: string;
 }
+
+type ErrorCategory = 'retryable' | 'config' | 'terminal';
 
 /**
  * Play / stop button for an assistant message's voice output. The chunker
@@ -34,10 +47,14 @@ interface VoiceOutputIndicatorProps {
  *  - `'idle'` w/ chunks → "Play" button
  *  - `'idle'` no chunks but streaming/pending → loading spinner
  *  - `'blocked'` → "Tap to play" — autoplay was rejected
- *  - `'error'`   → alert icon + classified error tooltip
+ *  - `'error'`   → branched by classification:
+ *      retryable codes → alert + Click-to-retry button
+ *      config codes    → alert + Link to AI providers settings (no retry)
+ *      terminal codes  → alert badge (non-interactive — replay would
+ *                        immediately re-trip the same per-reply cap)
  *
- * Each state announces itself via an `aria-live="polite"` region so SR
- * users get parity with the visual cue.
+ * Each state announces itself via the chat-level `<VoiceOutputAnnouncer>`
+ * so SR users get parity with the visual cue.
  */
 export function VoiceOutputIndicator(props: VoiceOutputIndicatorProps) {
   const { t } = useT('chat');
@@ -59,6 +76,77 @@ export function VoiceOutputIndicator(props: VoiceOutputIndicatorProps) {
   const speaking = player.state === 'playing';
   const blocked = player.state === 'blocked';
   const errored = player.state === 'error' || player.errorCode !== undefined;
+
+  // Branch on the error class instead of mapping every code to a retry
+  // button. Config errors (no provider, host-policy, forbidden) cannot
+  // be fixed by re-running the synthesize action; terminal errors
+  // (budget exceeded, per-reply char/chunk cap, queue overflow) would
+  // immediately re-trip if retried.
+  if (errored) {
+    const reason = errorMessageForCode(player.errorCode, t);
+    const category = classifyErrorCode(player.errorCode);
+    if (category === 'config') {
+      const linkBody = (
+        <span className="flex items-center gap-1">
+          <Settings className="size-4" aria-hidden />
+          <span className="text-xs">
+            {t('voice.voiceOutputErrorOpenSettings')}
+          </span>
+        </span>
+      );
+      const settingsLink = props.organizationId ? (
+        <Link
+          to="/dashboard/$id/settings/providers"
+          params={{ id: props.organizationId }}
+          className="text-destructive hover:text-destructive/80 inline-flex min-h-11 min-w-11 items-center justify-center underline"
+          aria-label={`${reason}. ${t('voice.voiceOutputErrorOpenSettings')}`}
+        >
+          {linkBody}
+        </Link>
+      ) : (
+        // Without an `organizationId` the link can't be built; degrade to
+        // a non-interactive badge so the reason is still readable.
+        <Badge variant="destructive" className="text-xs">
+          <AlertCircle className="text-destructive size-4" aria-hidden />
+          <span className="ml-1">{reason}</span>
+        </Badge>
+      );
+      return (
+        <Tooltip content={reason} side="bottom">
+          {settingsLink}
+        </Tooltip>
+      );
+    }
+    if (category === 'terminal') {
+      return (
+        <Tooltip content={reason} side="bottom">
+          <Badge
+            variant="destructive"
+            className="text-xs"
+            role="alert"
+            aria-label={reason}
+          >
+            <AlertCircle className="text-destructive size-4" aria-hidden />
+            <span className="ml-1">{reason}</span>
+          </Badge>
+        </Tooltip>
+      );
+    }
+    // Retryable: keep the click-to-retry affordance.
+    return (
+      <Tooltip content={reason} side="bottom">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="min-h-11 min-w-11"
+          aria-label={reason}
+          onClick={player.play}
+        >
+          <AlertCircle className="text-destructive size-4" />
+        </Button>
+      </Tooltip>
+    );
+  }
 
   let label: string;
   let actionLabel: string;
@@ -98,10 +186,6 @@ export function VoiceOutputIndicator(props: VoiceOutputIndicatorProps) {
     // a redundant cue but is no longer the sole differentiator from
     // the idle "Play" affordance.
     icon = <VolumeOff className="size-4 text-amber-600" />;
-  } else if (errored) {
-    label = errorMessageForCode(player.errorCode, t);
-    actionLabel = t('voice.voiceOutputPlay');
-    icon = <AlertCircle className="text-destructive size-4" />;
   } else {
     // Idle with playable history — manual replay affordance.
     label = t('voice.voiceOutputStopped');
@@ -143,6 +227,44 @@ export function VoiceOutputIndicator(props: VoiceOutputIndicatorProps) {
   );
 }
 
+/**
+ * Classify a TTS error code into one of three recovery categories:
+ *
+ *  - `'retryable'` — codes where the action might succeed if invoked
+ *    again (rate-limit, transient outage, decode glitch). The indicator
+ *    renders a click-to-retry button.
+ *  - `'config'` — codes whose root cause is provider configuration
+ *    (no provider, host-policy block, forbidden). The indicator renders
+ *    a link to the AI providers settings page. Retrying would
+ *    immediately re-fail.
+ *  - `'terminal'` — codes that cap the *current* message (budget,
+ *    per-message char limit, queue overflow). Retrying the same chunk
+ *    would re-trip the same gate. The indicator renders a non-
+ *    interactive badge.
+ */
+function classifyErrorCode(code: string | undefined): ErrorCategory {
+  switch (code) {
+    case 'NO_PROVIDER':
+    case 'UNKNOWN_PROVIDER':
+    case 'UNKNOWN_MODEL':
+    case 'UNKNOWN_VOICE':
+    case 'HOST_POLICY':
+    case 'forbidden':
+      return 'config';
+    case 'BUDGET_EXCEEDED':
+    case 'MESSAGE_CHAR_LIMIT':
+    case 'TTS_CHUNK_LIMIT':
+    case 'TTS_TEXT_TOO_LONG':
+    case 'TTS_EMPTY_TEXT':
+    case 'QUEUE_OVERFLOW':
+      return 'terminal';
+    default:
+      // RATE_LIMITED, CONTENTION, TIMEOUT, PROVIDER_5XX, PROVIDER_4XX,
+      // PROVIDER_ERROR, AUDIO_DECODE, UNKNOWN_NETWORK, undefined.
+      return 'retryable';
+  }
+}
+
 function errorMessageForCode(
   code: string | undefined,
   t: (key: string) => string,
@@ -152,7 +274,7 @@ function errorMessageForCode(
     case 'UNKNOWN_PROVIDER':
     case 'UNKNOWN_MODEL':
     case 'UNKNOWN_VOICE':
-      return t('voice.voiceOutputErrorProvider');
+      return t('voice.voiceOutputErrorConfig');
     case 'RATE_LIMITED':
       return t('voice.voiceOutputErrorRateLimited');
     case 'BUDGET_EXCEEDED':
@@ -164,6 +286,16 @@ function errorMessageForCode(
     // transient so the user knows it's not stuck.
     case 'CONTENTION':
       return t('voice.voiceOutputErrorTransient');
+    // Client-side fallback raised when an action throw isn't a typed
+    // ConvexError — surface as a network problem so the user has an
+    // actionable read instead of staring at a stuck spinner.
+    case 'UNKNOWN_NETWORK':
+      return t('voice.voiceOutputErrorNetwork');
+    // Client-side cap raised by the chunker when the synthesis queue
+    // is full — playback paused so the user isn't surprised by silent
+    // tail of message.
+    case 'QUEUE_OVERFLOW':
+      return t('voice.voiceOutputErrorQueueOverflow');
     // Synthetic client-side code raised by use-voice-output-player when
     // every server-ready chunk's `<audio>` element decode/fetch failed —
     // distinct from the server-classified codes above.

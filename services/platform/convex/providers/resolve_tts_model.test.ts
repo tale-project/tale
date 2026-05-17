@@ -1,5 +1,7 @@
+import { ConvexError } from 'convex/values';
 import { describe, expect, it, vi } from 'vitest';
 
+import { internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
 import { type ResolvedModelData, resolveTtsModel } from '../resolve_model';
 
@@ -7,6 +9,28 @@ function makeCtx(modelData: ResolvedModelData): ActionCtx {
   return {
     runAction: vi.fn().mockResolvedValue(modelData),
   } as unknown as ActionCtx;
+}
+
+function makeCtxWithSpy(modelData: ResolvedModelData): {
+  ctx: ActionCtx;
+  runAction: ReturnType<typeof vi.fn>;
+} {
+  const runAction = vi.fn().mockResolvedValue(modelData);
+  return {
+    ctx: { runAction } as unknown as ActionCtx,
+    runAction,
+  };
+}
+
+function makeRejectingCtx(err: unknown): {
+  ctx: ActionCtx;
+  runAction: ReturnType<typeof vi.fn>;
+} {
+  const runAction = vi.fn().mockRejectedValue(err);
+  return {
+    ctx: { runAction } as unknown as ActionCtx,
+    runAction,
+  };
 }
 
 function baseModelData(
@@ -176,6 +200,101 @@ describe('resolveTtsModel', () => {
         { orgSlug: 'default', locale: 'en' },
       );
       expect(result.audioFormat).toBe('mp3');
+    });
+  });
+
+  // Round-5 finding #29: the prior tests stubbed `runAction` with
+  // `mockResolvedValue` and never asserted that the resolver actually
+  // calls the file_actions internal action with the right contract —
+  // a regression that hard-coded `tag: 'chat'` or dropped `orgSlug`
+  // would have passed the entire suite silently. These tests pin the
+  // call contract AND exercise the failure-path branches that
+  // `errorCodeFromCaught` relies on for terminal-vs-retryable
+  // classification.
+  describe('resolver call contract', () => {
+    it('invokes file_actions.resolveModelByTag with tag=text-to-speech', async () => {
+      const { ctx, runAction } = makeCtxWithSpy(
+        baseModelData({ voicesByLocale: { en: 'alloy' } }),
+      );
+      await resolveTtsModel(ctx, { orgSlug: 'default', locale: 'en' });
+      expect(runAction).toHaveBeenCalledTimes(1);
+      expect(runAction).toHaveBeenCalledWith(
+        internal.providers.file_actions.resolveModelByTag,
+        {
+          tag: 'text-to-speech',
+          providerName: undefined,
+          orgSlug: 'default',
+        },
+      );
+    });
+
+    it('propagates orgSlug to the internal action', async () => {
+      const { ctx, runAction } = makeCtxWithSpy(
+        baseModelData({ voicesByLocale: { en: 'alloy' } }),
+      );
+      await resolveTtsModel(ctx, {
+        orgSlug: 'acme-prod',
+        locale: 'en',
+      });
+      expect(runAction).toHaveBeenCalledWith(
+        internal.providers.file_actions.resolveModelByTag,
+        expect.objectContaining({ orgSlug: 'acme-prod' }),
+      );
+    });
+
+    it('propagates providerName when the caller pins one (e.g. elevenlabs)', async () => {
+      const { ctx, runAction } = makeCtxWithSpy(
+        baseModelData({
+          providerName: 'elevenlabs',
+          voicesByLocale: { en: 'rachel' },
+        }),
+      );
+      const result = await resolveTtsModel(ctx, {
+        orgSlug: 'default',
+        locale: 'en',
+        providerName: 'elevenlabs',
+      });
+      expect(runAction).toHaveBeenCalledWith(
+        internal.providers.file_actions.resolveModelByTag,
+        expect.objectContaining({ providerName: 'elevenlabs' }),
+      );
+      expect(result.providerName).toBe('elevenlabs');
+    });
+  });
+
+  describe('failure-path propagation', () => {
+    it('re-throws UNKNOWN_MODEL ConvexError unchanged for the classifier', async () => {
+      const err = new ConvexError({
+        code: 'UNKNOWN_MODEL',
+        message: 'no TTS model tagged "text-to-speech" in any provider',
+      });
+      const { ctx } = makeRejectingCtx(err);
+      await expect(
+        resolveTtsModel(ctx, { orgSlug: 'default', locale: 'en' }),
+      ).rejects.toBe(err);
+    });
+
+    it('re-throws UNKNOWN_PROVIDER ConvexError unchanged', async () => {
+      const err = new ConvexError({
+        code: 'UNKNOWN_PROVIDER',
+        message: 'provider "elevenlabs" not configured',
+      });
+      const { ctx } = makeRejectingCtx(err);
+      await expect(
+        resolveTtsModel(ctx, {
+          orgSlug: 'default',
+          locale: 'en',
+          providerName: 'elevenlabs',
+        }),
+      ).rejects.toBe(err);
+    });
+
+    it('re-throws a plain rejection unchanged (network, timeout, etc.)', async () => {
+      const err = new Error('runAction transport failed');
+      const { ctx } = makeRejectingCtx(err);
+      await expect(
+        resolveTtsModel(ctx, { orgSlug: 'default', locale: 'en' }),
+      ).rejects.toBe(err);
     });
   });
 });

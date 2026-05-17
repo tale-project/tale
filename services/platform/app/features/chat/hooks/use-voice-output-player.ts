@@ -4,10 +4,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { getEnv } from '@/lib/env';
 
-import { getPrimedAudioElement } from '../utils/prime-audio';
+import { configurePlaybackElement, primeAudio } from '../utils/prime-audio';
 import { useVoiceChunks } from './use-voice-output';
 import {
   useVoiceAnnouncerWriter,
+  useVoiceAudioElement,
   useVoiceOutputCoordinator,
   useVoicePreReservationError,
 } from './voice-output-context';
@@ -77,6 +78,7 @@ export function useVoiceOutputPlayer(opts: {
   isStreaming: boolean;
 }): VoicePlayerState {
   const coordinator = useVoiceOutputCoordinator();
+  const providerAudioElement = useVoiceAudioElement();
   const chunks = useVoiceChunks(opts.messageId, opts.threadId);
   // Per-message pre-reservation error (BUDGET_EXCEEDED,
   // MESSAGE_CHAR_LIMIT, RATE_LIMITED, forbidden, …) surfaced by the
@@ -151,15 +153,12 @@ export function useVoiceOutputPlayer(opts: {
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.removeAttribute('src');
-      try {
-        audioRef.current.load();
-      } catch (err) {
-        console.warn('[tts.player] audio.load() after stop failed', err);
-      }
-      // Drop the element reference. Without this, the previous chunk's
-      // buffer + URL stayed pinned in memory after stop() — a long
-      // session with many stop/resume cycles would otherwise grow heap
-      // unbounded.
+      // No `el.load()` here: `pause()` + `removeAttribute('src')` is
+      // enough to release the buffer, and calling `load()` after
+      // teardown can consume the iOS Safari user-activation token on
+      // the singleton element so the NEXT message's first `play()`
+      // rejects with NotAllowedError. The element is dropped from the
+      // ref immediately below, so heap growth is bounded regardless.
       audioRef.current = null;
     }
     currentChunkIndexRef.current = null;
@@ -180,21 +179,20 @@ export function useVoiceOutputPlayer(opts: {
           return true;
         }
         if (!audioRef.current) {
-          // Prefer the module-level singleton from `prime-audio.ts` so
-          // the iOS Safari activation token banked at toggle/send time
-          // transfers to the same element that will actually play the
-          // chunks. Falls back to a fresh `new Audio()` in environments
-          // where the singleton couldn't be constructed (SSR, etc.).
-          const primed = getPrimedAudioElement();
-          if (primed) {
-            audioRef.current = primed;
+          // Prefer the provider-owned audio element so the iOS Safari
+          // activation token banked at toggle/send time transfers to
+          // the same element that will actually play the chunks. The
+          // per-provider element fixes the arena-split-view bug where
+          // two providers shared one singleton and stomped each
+          // other's `src` (round-5 finding #23). Falls back to a fresh
+          // `new Audio()` in SSR / no-provider contexts (the indicator
+          // never mounts outside a provider in practice, but the
+          // fallback keeps unit-test environments alive).
+          if (providerAudioElement) {
+            audioRef.current = providerAudioElement;
           } else {
             const fallback = new Audio();
-            // Match `getPrimedAudioElement()` so the fallback also plays
-            // in-line on iOS Safari (no full-screen takeover) and keeps
-            // bytes buffered across the chunked-swap path.
-            fallback.setAttribute('playsinline', '');
-            fallback.preload = 'auto';
+            configurePlaybackElement(fallback);
             audioRef.current = fallback;
           }
         }
@@ -273,7 +271,7 @@ export function useVoiceOutputPlayer(opts: {
       // status === 'pending' — wait for the next subscription tick.
       return false;
     },
-    [detachAudioListeners],
+    [detachAudioListeners, providerAudioElement],
   );
 
   const tryAdvance = useCallback((): boolean => {
@@ -321,6 +319,14 @@ export function useVoiceOutputPlayer(opts: {
   }, [opts.isStreaming, tryAdvance]);
 
   const play = useCallback(() => {
+    // Re-prime on every play() invocation. `primeAudio` is idempotent,
+    // and re-running it inside the click gesture refreshes the iOS
+    // Safari user-activation token on the provider-owned audio
+    // element — without this, the second message of a session would
+    // frequently hit `NotAllowedError` because the prior `stop()` (now
+    // load()-free, see above) had still effectively expired the
+    // activation. Cheap when already-primed.
+    primeAudio(providerAudioElement);
     // Await coordinator handoff so the outgoing player's media-element
     // teardown settles before this player reassigns `el.src`. Fire-and-
     // forget: the surrounding click / auto-play handler doesn't need
@@ -331,7 +337,7 @@ export function useVoiceOutputPlayer(opts: {
       nextIndexRef.current = 0;
       tryAdvance();
     });
-  }, [coordinator, tryAdvance]);
+  }, [coordinator, tryAdvance, providerAudioElement]);
 
   // Auto-play: fires once per (messageId, mount) only when a ready chunk
   // produced after mount appears. Historical chunks (createdAt <= mount)
@@ -373,21 +379,11 @@ export function useVoiceOutputPlayer(opts: {
     hasAutoStartedRef.current = false;
   }, [opts.enabled, stop]);
 
-  // Publish state transitions to the chat-level announcer so screen-
-  // reader users hear playback changes. Skipping no-op (state === prev)
-  // and the initial `idle → idle` mount means SR gets exactly one
-  // announcement per real transition — never per chunk advance, never
-  // per re-render.
+  // The announcer-publish effect lives further down in the file so it
+  // can reference `errorCode` (computed after this section). Search for
+  // `// Publish state transitions to the chat-level announcer`.
+
   const prevStateRef = useRef<VoicePlayerStateName>('idle');
-  useEffect(() => {
-    const prev = prevStateRef.current;
-    prevStateRef.current = state;
-    if (state === prev) return;
-    if (state === 'playing') announce('playing');
-    else if (state === 'blocked') announce('blocked');
-    else if (state === 'error') announce('error');
-    else if (state === 'idle' && prev === 'playing') announce('stopped');
-  }, [state, announce]);
 
   // Stop playback when the tab goes hidden. The browser stops emitting
   // sound in many cases (depending on mediaSession), but the `<audio>`
@@ -440,6 +436,26 @@ export function useVoiceOutputPlayer(opts: {
     chunkErrorCode ??
     preReservationError ??
     (allDecodeFailed ? 'AUDIO_DECODE' : undefined);
+
+  // Publish state transitions to the chat-level announcer so screen-
+  // reader users hear playback changes. Skipping no-op (state === prev)
+  // and the initial `idle → idle` mount means SR gets exactly one
+  // announcement per real transition — never per chunk advance, never
+  // per re-render. Routed AFTER `errorCode` is derived so the
+  // announcer can speak the specific reason on transitions into
+  // `'error'` instead of the generic "Voice output failed" (round-5
+  // finding #25).
+  useEffect(() => {
+    const prev = prevStateRef.current;
+    prevStateRef.current = state;
+    if (state === prev) return;
+    if (state === 'playing') announce({ state: 'playing' });
+    else if (state === 'blocked') announce({ state: 'blocked' });
+    else if (state === 'error') announce({ state: 'error', errorCode });
+    else if (state === 'idle' && prev === 'playing') {
+      announce({ state: 'stopped' });
+    }
+  }, [state, errorCode, announce]);
 
   const hasAudio = (chunks?.length ?? 0) > 0;
 

@@ -6,7 +6,7 @@ import { Link } from '@tanstack/react-router';
 import { useAction, useMutation, useQuery } from 'convex/react';
 import { ConvexError } from 'convex/values';
 import { Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
@@ -349,6 +349,29 @@ function VoiceOutputSection({
     };
   }, [getCapability, organizationId]);
 
+  // Compose the provider-unavailable hint into the Switch's `description`
+  // (a ReactNode prop) so it lands inside the same `aria-describedby`
+  // block as the base description. Rendering the hint as a sibling
+  // `<Text>` below the Switch left screen-reader users with no audible
+  // signal that the toggle was non-functional — Radix's Switch only
+  // wires `aria-describedby` to the `description` prop.
+  const switchDescription: ReactNode =
+    providerAvailable === false ? (
+      <>
+        {t('page.voiceOutput.description')}{' '}
+        {t('page.voiceOutput.providerUnavailable')}{' '}
+        <Link
+          to="/dashboard/$id/settings/providers"
+          params={{ id: organizationId }}
+          className="hover:text-foreground underline"
+        >
+          {t('page.voiceOutput.configureProvider')}
+        </Link>
+      </>
+    ) : (
+      t('page.voiceOutput.description')
+    );
+
   return (
     <PageSection title={t('page.voiceOutput.label')} titleSize="base">
       <Switch
@@ -363,7 +386,7 @@ function VoiceOutputSection({
         // off" (WCAG 4.1.2). The PageSection title alone is not enough
         // because it isn't programmatically associated with the control.
         label={t('page.voiceOutput.label')}
-        description={t('page.voiceOutput.description')}
+        description={switchDescription}
         // `disabled` above is gated only on `prefs` loading. The
         // capability-check state is surfaced as inline help below
         // rather than disabling the control — a slow / failing
@@ -399,21 +422,6 @@ function VoiceOutputSection({
           }
         }}
       />
-      {/* Show the provider-unavailable hint whenever the org has no TTS
-          provider configured — including when voice is currently OFF,
-          so users can see the prerequisite before they opt in. */}
-      {providerAvailable === false && (
-        <Text variant="muted" className="mt-2 text-xs">
-          {t('page.voiceOutput.providerUnavailable')}{' '}
-          <Link
-            to="/dashboard/$id/settings/providers"
-            params={{ id: organizationId }}
-            className="hover:text-foreground underline"
-          >
-            {t('page.voiceOutput.configureProvider')}
-          </Link>
-        </Text>
-      )}
     </PageSection>
   );
 }

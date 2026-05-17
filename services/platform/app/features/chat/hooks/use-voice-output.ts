@@ -5,7 +5,10 @@ import { useCallback, useEffect, useRef } from 'react';
 
 import { useLocale } from '@/app/hooks/use-locale';
 import { api } from '@/convex/_generated/api';
-import { MAX_TTS_CHUNK_CHARS } from '@/lib/shared/constants/tts';
+import {
+  MAX_TTS_CHUNK_CHARS,
+  MAX_TTS_QUEUE_DEPTH,
+} from '@/lib/shared/constants/tts';
 import { parseMarkers } from '@/lib/utils/marker-parser';
 
 import { useVoicePreReservationErrorSink } from './voice-output-context';
@@ -262,6 +265,12 @@ export function useVoiceOutputChunker(opts: {
   const lastMessageIdRef = useRef<string | undefined>(undefined);
   const fenceOpenRef = useRef(false);
   const retryAttemptsRef = useRef(new Map<number, number>());
+  // Outstanding retry-backoff timer ids so a hook-unmount or message
+  // change can clear them. Without this cleanup, the timer fires after
+  // unmount and (because `lastMessageIdRef`/`enabledRef` still hold
+  // their last values until GC) silently re-invokes `synthesize` on
+  // behalf of a component that no longer exists.
+  const retryTimersRef = useRef(new Set<ReturnType<typeof setTimeout>>());
   // Mirror `enabled` into a ref so the retry-backoff `setTimeout`
   // callback can drop pending retries when the user toggles voice off
   // mid-backoff. Without this gate, a 1.5s retry timer kept firing
@@ -288,7 +297,8 @@ export function useVoiceOutputChunker(opts: {
   // Reset on message change so a new assistant bubble starts at index 0.
   // Also clear any stale pre-reservation error for the *previous* message
   // — leaving it dangling would surface on the indicator after the user
-  // moved on.
+  // moved on. Pending retry timers for the prior message are cleared so
+  // they can't fire a stale `synthesize` after the cursor reset.
   useEffect(() => {
     if (opts.messageId !== lastMessageIdRef.current) {
       const prior = lastMessageIdRef.current;
@@ -298,11 +308,31 @@ export function useVoiceOutputChunker(opts: {
       queueRef.current = [];
       fenceOpenRef.current = false;
       retryAttemptsRef.current = new Map();
+      for (const id of retryTimersRef.current) clearTimeout(id);
+      retryTimersRef.current.clear();
       lastMessageIdRef.current = opts.messageId;
       if (prior) errorSink.clear(prior);
       if (opts.messageId) errorSink.clear(opts.messageId);
     }
   }, [opts.messageId, errorSink]);
+
+  // Clear every outstanding retry timer on unmount. Without this, a 1.5s
+  // backoff timer can fire after the hook is gone and re-invoke
+  // `synthesize` against an already-billed chunk (the lastMessageIdRef
+  // / enabledRef gates inside the timer don't reset on unmount).
+  useEffect(() => {
+    // Capture the ref objects inside the effect closure so the cleanup
+    // doesn't dereference `.current` after unmount (lint rule
+    // `exhaustive-deps`: the ref instance may have been recreated by
+    // then on some bundlers / fast refresh paths).
+    const timers = retryTimersRef.current;
+    const messageRef = lastMessageIdRef;
+    return () => {
+      for (const id of timers) clearTimeout(id);
+      timers.clear();
+      messageRef.current = undefined;
+    };
+  }, []);
 
   const runNext = useCallback(() => {
     while (inFlightRef.current < MAX_IN_FLIGHT && queueRef.current.length > 0) {
@@ -325,6 +355,20 @@ export function useVoiceOutputChunker(opts: {
       },
       attempt: number,
     ) => {
+      // Bounded queue. Without a depth cap, a slow provider plus a fast
+      // streamer would let the queue grow without bound while
+      // `MAX_IN_FLIGHT` only throttles concurrent execution. When the
+      // queue is full, drop the new task and surface `QUEUE_OVERFLOW`
+      // via the error sink so the user sees why playback paused
+      // instead of silently leaking the tail of the message.
+      if (queueRef.current.length >= MAX_TTS_QUEUE_DEPTH) {
+        errorSink.set(payload.messageId, 'QUEUE_OVERFLOW');
+        console.warn('[tts] synthesis queue full; dropping enqueue', {
+          index: payload.index,
+          depth: queueRef.current.length,
+        });
+        return;
+      }
       queueRef.current.push(() => {
         void synthesize(payload)
           .then((result) => {
@@ -347,7 +391,8 @@ export function useVoiceOutputChunker(opts: {
               const jitter = 0.5 + Math.random() * 0.5;
               const delay = baseDelay * 2 ** attempt * jitter;
               retryAttemptsRef.current.set(payload.index, attempt + 1);
-              setTimeout(() => {
+              const timerId = setTimeout(() => {
+                retryTimersRef.current.delete(timerId);
                 // Drop the retry if the message has since unmounted /
                 // moved on — `messageId` change resets the maps.
                 if (lastMessageIdRef.current !== payload.messageId) return;
@@ -358,6 +403,7 @@ export function useVoiceOutputChunker(opts: {
                 enqueueSynthesis(payload, attempt + 1);
                 runNext();
               }, delay);
+              retryTimersRef.current.add(timerId);
             }
           })
           .catch((err) => {
@@ -367,9 +413,13 @@ export function useVoiceOutputChunker(opts: {
             // `data.code`. Surface the code through the per-message
             // sink so the indicator's `errorMessageForCode()` can show
             // an actionable message — without this, the only signal was
-            // a `console.error` no user ever reads.
-            const code = extractConvexErrorCode(err);
-            if (code) errorSink.set(payload.messageId, code);
+            // a `console.error` no user ever reads. Non-Convex throws
+            // (network drop, action timeout) get a generic
+            // `UNKNOWN_NETWORK` so the indicator still renders an
+            // actionable message instead of leaving the user staring at
+            // a stuck spinner with no clue what failed.
+            const code = extractConvexErrorCode(err) ?? 'UNKNOWN_NETWORK';
+            errorSink.set(payload.messageId, code);
             console.error('[tts] synthesize action failed', err);
           })
           .finally(() => {

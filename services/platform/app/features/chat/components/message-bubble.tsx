@@ -473,19 +473,31 @@ function MessageBubbleComponent({
              * inline indicator here surfaces the "Preparing voice…" state so
              * users know synthesis is in flight before the first chunk plays.
              */}
-            {!isUser &&
-              isAssistantStreaming &&
-              voiceMode.enabled &&
-              message.threadId && (
-                <div className="mt-2 flex items-start">
-                  <VoiceOutputIndicator
-                    enabled
-                    messageId={message.id}
-                    threadId={message.threadId}
-                    isStreaming
-                  />
-                </div>
-              )}
+            {/*
+             * Voice-output indicator: rendered as a single stable mount
+             * that survives the streaming→done transition. Previously
+             * there were three separate `<VoiceOutputIndicator>` mounts
+             * (this inline one + two toolbar ones gated on
+             * `!isAssistantStreaming`), so the inline one unmounted at
+             * streaming-end, triggering `stop()` on the singleton audio
+             * element. The toolbar copy then mounted fresh with a new
+             * `mountTimeRef` captured AFTER all chunks were created,
+             * which short-circuited `use-voice-output-player.ts`'s
+             * auto-play guard and silently dropped audio at the
+             * stream-end boundary. The single mount here keeps
+             * `mountTimeRef` stable across both phases.
+             */}
+            {!isUser && voiceMode.enabled && message.threadId && (
+              <div className="mt-2 flex items-start">
+                <VoiceOutputIndicator
+                  enabled
+                  messageId={message.id}
+                  threadId={message.threadId}
+                  isStreaming={!!isAssistantStreaming}
+                  organizationId={organizationId}
+                />
+              </div>
+            )}
             {message.isFailed && (
               <div
                 className="mt-3 flex flex-col gap-2"
@@ -656,12 +668,6 @@ function MessageBubbleComponent({
                       <Info className="size-4" />
                     </Button>
                   </Tooltip>
-                  <VoiceOutputIndicator
-                    enabled={voiceMode.enabled && !isUser}
-                    messageId={message.id}
-                    threadId={message.threadId}
-                    isStreaming={!!isAssistantStreaming}
-                  />
                 </>
               }
               after={
@@ -708,12 +714,6 @@ function MessageBubbleComponent({
                   <Info className="size-4" />
                 </Button>
               </Tooltip>
-              <VoiceOutputIndicator
-                enabled={voiceMode.enabled && !isUser}
-                messageId={message.id}
-                threadId={message.threadId}
-                isStreaming={!!isAssistantStreaming}
-              />
               {onFork && (
                 <Tooltip content={tChat('forkChat')} side="bottom">
                   <Button

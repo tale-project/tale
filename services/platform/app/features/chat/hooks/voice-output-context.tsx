@@ -10,6 +10,8 @@ import {
   useSyncExternalStore,
 } from 'react';
 
+import { createPlaybackElement } from '../utils/prime-audio';
+
 /**
  * Coordinates single-active-player behaviour across every assistant bubble
  * in the chat. When a new player calls `claim(stopper)`, the previously-
@@ -107,20 +109,37 @@ function createPreReservationErrorStore(): PreReservationErrorStore {
   };
 }
 
-/** Same pattern for the announcer's "active player state" channel. */
+/** Same pattern for the announcer's "active player state" channel.
+ * The error code is carried alongside the state so the
+ * `<VoiceOutputAnnouncer>` can speak a specific reason (e.g. "Voice
+ * provider not configured", "Voice budget reached") on transitions
+ * into `'error'` instead of the generic "Voice output failed".
+ * Without the per-error reason, SR-on-touch users had no way to learn
+ * what failed because the indicator's per-code tooltip is hover-only.
+ */
+export interface AnnouncerSnapshot {
+  state: VoiceAnnouncerState;
+  errorCode?: string;
+}
+
 interface AnnouncerStateStore {
-  set(state: VoiceAnnouncerState): void;
-  read(): VoiceAnnouncerState;
+  set(snapshot: AnnouncerSnapshot): void;
+  read(): AnnouncerSnapshot;
   subscribe(listener: () => void): () => void;
 }
 
 function createAnnouncerStateStore(): AnnouncerStateStore {
-  let current: VoiceAnnouncerState = 'idle';
+  let current: AnnouncerSnapshot = { state: 'idle' };
   const listeners = new Set<() => void>();
   return {
-    set(state) {
-      if (current === state) return;
-      current = state;
+    set(snapshot) {
+      if (
+        current.state === snapshot.state &&
+        current.errorCode === snapshot.errorCode
+      ) {
+        return;
+      }
+      current = snapshot;
       for (const l of listeners) l();
     },
     read() {
@@ -147,7 +166,7 @@ const noopStores: VoiceOutputStores = {
   },
   announcerState: {
     set: () => {},
-    read: () => 'idle',
+    read: () => ({ state: 'idle' as const }),
     subscribe: () => () => {},
   },
 };
@@ -155,9 +174,21 @@ const noopStores: VoiceOutputStores = {
 const VoiceOutputStoresContext = createContext(noopStores);
 
 /**
+ * Per-provider playback `<audio>` element. Round-5 finding #23 closed
+ * the arena-split-view bug where a module-level singleton element was
+ * shared across two `<VoiceOutputProvider>` instances and they
+ * stomped each other's `src` mid-playback. Each provider now owns its
+ * own element via `useMemo`, with the player and toggle consuming via
+ * `useVoiceAudioElement()`.
+ */
+const VoiceAudioElementContext = createContext<HTMLAudioElement | null>(null);
+
+/**
  * Provider scoping voice-output single-player coordination to its subtree.
  * One per chat view; multiple chat views (split panes, modals) each get
- * their own coordinator so they don't preempt each other.
+ * their own coordinator so they don't preempt each other. Also owns a
+ * private `<audio>` element so split views can't stomp each other's
+ * `src`.
  */
 export function VoiceOutputProvider({ children }: { children: ReactNode }) {
   const activeRef = useRef<Stopper | null>(null);
@@ -170,7 +201,7 @@ export function VoiceOutputProvider({ children }: { children: ReactNode }) {
       }
       // Yield one microtask so the outgoing player's media-element
       // teardown settles before the new player touches the shared
-      // singleton element.
+      // element.
       await Promise.resolve();
     }
     activeRef.current = stopper;
@@ -194,13 +225,33 @@ export function VoiceOutputProvider({ children }: { children: ReactNode }) {
     }),
     [],
   );
+  // Per-provider audio element. `null` on SSR / non-browser; the
+  // player falls back to a fresh `new Audio()` in that branch so unit
+  // tests in jsdom-less environments don't crash.
+  const audioElement = useMemo<HTMLAudioElement | null>(
+    () => createPlaybackElement(),
+    [],
+  );
   return (
     <VoiceOutputContext.Provider value={value}>
       <VoiceOutputStoresContext.Provider value={stores}>
-        {children}
+        <VoiceAudioElementContext.Provider value={audioElement}>
+          {children}
+        </VoiceAudioElementContext.Provider>
       </VoiceOutputStoresContext.Provider>
     </VoiceOutputContext.Provider>
   );
+}
+
+/**
+ * Returns the provider-scoped playback element, or `null` outside a
+ * provider (SSR, settings page that primes the AudioContext only).
+ * Callers must tolerate `null`: the player falls back to `new Audio()`,
+ * and the toggle/prime call passes `null` straight to `primeAudio` so
+ * only the AudioContext gets banked.
+ */
+export function useVoiceAudioElement(): HTMLAudioElement | null {
+  return useContext(VoiceAudioElementContext);
 }
 
 export function useVoiceOutputCoordinator(): VoiceOutputCoordinator {
@@ -248,25 +299,28 @@ export function useVoicePreReservationError(
 }
 
 /**
- * Writer for the announcer state channel. Player calls `set(state)` on
- * every transition; the chat-level `<VoiceOutputAnnouncer>` reads via
- * `useVoiceAnnouncerState()` and renders one polite-live region.
+ * Writer for the announcer state channel. Player calls
+ * `set({ state, errorCode })` on every transition; the chat-level
+ * `<VoiceOutputAnnouncer>` reads via `useVoiceAnnouncerState()` and
+ * renders one polite-live region.
  */
 export function useVoiceAnnouncerWriter(): (
-  state: VoiceAnnouncerState,
+  snapshot: AnnouncerSnapshot,
 ) => void {
   const stores = useContext(VoiceOutputStoresContext);
   return useCallback(
-    (state: VoiceAnnouncerState) => stores.announcerState.set(state),
+    (snapshot: AnnouncerSnapshot) => stores.announcerState.set(snapshot),
     [stores],
   );
 }
 
-export function useVoiceAnnouncerState(): VoiceAnnouncerState {
+const IDLE_SNAPSHOT: AnnouncerSnapshot = { state: 'idle' };
+
+export function useVoiceAnnouncerState(): AnnouncerSnapshot {
   const stores = useContext(VoiceOutputStoresContext);
   return useSyncExternalStore(
     (listener) => stores.announcerState.subscribe(listener),
     () => stores.announcerState.read(),
-    () => 'idle',
+    () => IDLE_SNAPSHOT,
   );
 }

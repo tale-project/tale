@@ -11,6 +11,7 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import { useVoiceModeEffective } from '../hooks/use-voice-output';
+import { useVoiceAudioElement } from '../hooks/voice-output-context';
 import { primeAudio } from '../utils/prime-audio';
 
 interface VoiceOutputToggleProps {
@@ -38,6 +39,7 @@ export function VoiceOutputToggle({
   const setOverride = useMutation(
     api.tts.mutations.setThreadVoiceOutputOverride,
   );
+  const audioElement = useVoiceAudioElement();
   const { t } = useT('chat');
 
   const onClick = useCallback(() => {
@@ -48,7 +50,9 @@ export function VoiceOutputToggle({
           ? false
           : null;
     // Only prime when we're about to flip voice ON for this thread.
-    if (willEnable === true) primeAudio();
+    // Pass the provider-owned element so the iOS user-activation token
+    // banked here transfers to the same element the player will use.
+    if (willEnable === true) primeAudio(audioElement);
     if (effective.source !== 'thread') {
       void setOverride({ threadId, override: !effective.enabled });
       return;
@@ -58,7 +62,7 @@ export function VoiceOutputToggle({
       return;
     }
     void setOverride({ threadId, override: null });
-  }, [effective, setOverride, threadId]);
+  }, [effective, setOverride, threadId, audioElement]);
 
   const overriding = effective.source === 'thread';
   // Action-oriented label (M1): tells screen-reader users what activation

@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
 import {
-  type VoiceAnnouncerState,
+  type AnnouncerSnapshot,
   useVoiceAnnouncerState,
 } from '../hooks/voice-output-context';
 
@@ -19,29 +19,74 @@ import {
  * mounted assistant bubble — through both the indicator's own live
  * region AND the parent log — producing audible duplicates.
  *
- * Owns its own translated-text rendering so the live region text
- * changes when state changes, which is what screen readers observe and
- * read aloud. Empty string on idle so the SR doesn't get "idle"
- * verbalised every time playback finishes.
+ * Announcements are queued and drained one-at-a-time with a 1500ms hold
+ * per entry. Without the queue, a rapid `playing → blocked → error`
+ * burst (e.g. chunk failure cascade) within 1.5s would clobber the
+ * previous text mid-utterance because `setText(next)` replaced before
+ * the previous hold finished — screen readers interrupted and re-read,
+ * silently losing the intermediate state.
+ *
+ * Error transitions carry a specific `errorCode` so the announcer can
+ * speak an actionable reason ("Voice provider not configured", "Voice
+ * budget reached") instead of the generic "Voice output failed". The
+ * indicator's per-code tooltip is hover-only and was unreachable on
+ * touch devices.
  */
+const ANNOUNCEMENT_HOLD_MS = 1500;
+
 export function VoiceOutputAnnouncer() {
   const { t } = useT('chat');
-  const state = useVoiceAnnouncerState();
-  // Buffer the text so we can clear it after the SR has had a chance
-  // to announce — clearing the live region between announcements lets
-  // SR re-read the same state if it happens twice in a row (e.g.
-  // playing → stopped → playing same message).
+  const snapshot = useVoiceAnnouncerState();
   const [text, setText] = useState('');
+  const queueRef = useRef<string[]>([]);
+  const drainingRef = useRef(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Deduplicate against the last-enqueued snapshot so a redundant
+  // useEffect re-fire (StrictMode double-mount, dep churn) doesn't
+  // double-queue the same announcement.
+  const lastSnapshotRef = useRef<AnnouncerSnapshot | null>(null);
+
   useEffect(() => {
-    const next = messageForState(state, t);
-    setText(next);
-    if (!next) return undefined;
-    // Clear after a beat so a subsequent identical transition is still
-    // announced. 1500ms is the conventional SR debounce; shorter risks
-    // SR missing the announcement entirely on slow virtual cursors.
-    const handle = window.setTimeout(() => setText(''), 1500);
-    return () => window.clearTimeout(handle);
-  }, [state, t]);
+    const last = lastSnapshotRef.current;
+    if (
+      last &&
+      last.state === snapshot.state &&
+      last.errorCode === snapshot.errorCode
+    ) {
+      return;
+    }
+    lastSnapshotRef.current = snapshot;
+    const next = messageForSnapshot(snapshot, t);
+    if (!next) return;
+    queueRef.current.push(next);
+    if (drainingRef.current) return;
+    drainingRef.current = true;
+    const drain = () => {
+      const upcoming = queueRef.current.shift();
+      if (upcoming === undefined) {
+        drainingRef.current = false;
+        // Clear after the last entry so a subsequent identical
+        // transition is still announced. Without the clear, SRs see
+        // no DOM change and skip the re-announcement.
+        setText('');
+        return;
+      }
+      setText(upcoming);
+      timerRef.current = setTimeout(drain, ANNOUNCEMENT_HOLD_MS);
+    };
+    drain();
+  }, [snapshot, t]);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current !== null) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      queueRef.current = [];
+      drainingRef.current = false;
+    };
+  }, []);
 
   return (
     <div
@@ -55,11 +100,11 @@ export function VoiceOutputAnnouncer() {
   );
 }
 
-function messageForState(
-  state: VoiceAnnouncerState,
+function messageForSnapshot(
+  snapshot: AnnouncerSnapshot,
   t: (key: string) => string,
 ): string {
-  switch (state) {
+  switch (snapshot.state) {
     case 'playing':
       return t('voice.voiceOutputAnnounceSpeaking');
     case 'stopped':
@@ -67,9 +112,54 @@ function messageForState(
     case 'blocked':
       return t('voice.voiceOutputAnnounceBlocked');
     case 'error':
-      return t('voice.voiceOutputAnnounceError');
+      return errorMessageForCode(snapshot.errorCode, t);
     case 'idle':
     default:
       return '';
+  }
+}
+
+// Mirrors `voice-output-indicator.tsx::errorMessageForCode` so SR users
+// hear the same per-code reason that hover users see in the tooltip.
+// Duplicated rather than imported to keep the announcer dependency-
+// free of the indicator component (the indicator imports the player,
+// which imports the announcer-writer hook — a cycle we don't want).
+function errorMessageForCode(
+  code: string | undefined,
+  t: (key: string) => string,
+): string {
+  switch (code) {
+    case 'NO_PROVIDER':
+    case 'UNKNOWN_PROVIDER':
+    case 'UNKNOWN_MODEL':
+    case 'UNKNOWN_VOICE':
+      return t('voice.voiceOutputErrorConfig');
+    case 'RATE_LIMITED':
+      return t('voice.voiceOutputErrorRateLimited');
+    case 'BUDGET_EXCEEDED':
+      return t('voice.voiceOutputErrorBudget');
+    case 'TIMEOUT':
+    case 'PROVIDER_5XX':
+    case 'CONTENTION':
+      return t('voice.voiceOutputErrorTransient');
+    case 'UNKNOWN_NETWORK':
+      return t('voice.voiceOutputErrorNetwork');
+    case 'QUEUE_OVERFLOW':
+      return t('voice.voiceOutputErrorQueueOverflow');
+    case 'AUDIO_DECODE':
+      return t('voice.voiceOutputErrorDecode');
+    case 'MESSAGE_CHAR_LIMIT':
+      return t('voice.voiceOutputErrorMessageCharLimit');
+    case 'HOST_POLICY':
+    case 'forbidden':
+      return t('voice.voiceOutputErrorForbidden');
+    case 'TTS_CHUNK_LIMIT':
+    case 'TTS_TEXT_TOO_LONG':
+    case 'TTS_EMPTY_TEXT':
+      return t('voice.voiceOutputErrorChunkLimit');
+    case 'PROVIDER_4XX':
+    case 'PROVIDER_ERROR':
+    default:
+      return t('voice.voiceOutputAnnounceError');
   }
 }
