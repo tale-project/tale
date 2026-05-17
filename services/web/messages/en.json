@@ -395,7 +395,8 @@
       },
       "cellLabels": {
         "yes": "Included",
-        "onRequest": "Available on request"
+        "onRequest": "Available on request",
+        "notAvailable": "Not available"
       },
       "sections": {
         "specifications": "Specifications",

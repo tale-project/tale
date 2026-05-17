@@ -395,7 +395,8 @@
       },
       "cellLabels": {
         "yes": "Enthalten",
-        "onRequest": "Auf Anfrage verfügbar"
+        "onRequest": "Auf Anfrage verfügbar",
+        "notAvailable": "Nicht verfügbar"
       },
       "sections": {
         "specifications": "Spezifikationen",

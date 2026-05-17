@@ -175,7 +175,7 @@ export function CompareTable<TK extends string>({
                 <div className="relative px-2 py-4 sm:px-6 sm:py-6">
                   <div
                     aria-hidden
-                    className={`from-bg-elevated via-bg-elevated/80 to-bg-base/0 pointer-events-none absolute inset-0 bg-linear-to-b transition-opacity duration-300 ease-out ${
+                    className={`from-bg-elevated via-bg-elevated/80 to-bg-base/0 pointer-events-none absolute inset-0 bg-linear-to-b transition-opacity duration-300 ease-out motion-reduce:transition-none motion-reduce:duration-0 ${
                       isStuck ? 'opacity-100' : 'opacity-0'
                     }`}
                   />
@@ -217,7 +217,7 @@ export function CompareTable<TK extends string>({
                   key={`span-${row.label}-${idx}`}
                   onMouseEnter={() => setHoveredGroup(group)}
                   onMouseLeave={() => setHoveredGroup(null)}
-                  className={`transition-colors ${
+                  className={`transition-colors motion-reduce:transition-none ${
                     isHovered ? 'bg-bg-elevated/60' : ''
                   }`}
                 >
@@ -244,7 +244,7 @@ export function CompareTable<TK extends string>({
                 key={`data-${row.rowKey ?? idx}`}
                 onMouseEnter={() => setHoveredGroup(group)}
                 onMouseLeave={() => setHoveredGroup(null)}
-                className={`transition-colors ${
+                className={`transition-colors motion-reduce:transition-none ${
                   isHovered ? 'bg-bg-elevated/60' : ''
                 }`}
               >

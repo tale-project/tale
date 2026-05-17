@@ -99,8 +99,11 @@ export function buildSitemap(pages: readonly SitemapPage[]): string {
     if (page.changefreq) {
       lines.push(`    <changefreq>${page.changefreq}</changefreq>`);
     }
-    if (page.priority !== undefined) {
-      lines.push(`    <priority>${page.priority.toFixed(1)}</priority>`);
+    if (typeof page.priority === 'number') {
+      // The spec defines `<priority>` as `0.0`–`1.0`; clamp out-of-range
+      // input so a typo upstream never produces an invalid document.
+      const clamped = Math.max(0, Math.min(1, page.priority));
+      lines.push(`    <priority>${clamped.toFixed(1)}</priority>`);
     }
     if (page.alternates) {
       for (const [hreflang, href] of Object.entries(page.alternates)) {

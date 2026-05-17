@@ -97,6 +97,7 @@ interface CachedEntry {
   body: string;
   etag: string;
   contentType: string;
+  cacheControl: string;
 }
 
 const STATIC_ARTIFACT_PATHS: ReadonlySet<string> = new Set([
@@ -123,13 +124,21 @@ function pathnameToRouteUrl(pathname: string): string {
 
 function respond(request: Request, entry: CachedEntry): Response {
   if (request.headers.get('if-none-match') === entry.etag) {
-    return new Response(null, { status: 304 });
+    // Per RFC 9110 §15.4.5, a 304 must include the same caching headers a
+    // 200 would carry so intermediaries refresh their stored validators.
+    return new Response(null, {
+      status: 304,
+      headers: {
+        etag: entry.etag,
+        'cache-control': entry.cacheControl,
+      },
+    });
   }
   return new Response(entry.body, {
     headers: {
       'content-type': entry.contentType,
       etag: entry.etag,
-      'cache-control': STATIC_CACHE_CONTROL,
+      'cache-control': entry.cacheControl,
     },
   });
 }
@@ -151,15 +160,21 @@ export function createArtifactsServer(
     cache: cacheEnabled = true,
   } = params;
 
-  // Three cache slots — see file header for why they are split.
+  // Cache slots — see file header for why they are split.
   let staticCache: Map<string, CachedEntry> | null = null;
   let llmsFullEntry: CachedEntry | null = null;
   const mdCache = new Map<string, CachedEntry>();
+  // Remember `.md` paths that we've already determined don't map to any
+  // route, so we don't re-enumerate every section on each unknown probe.
+  // Capped to keep a hostile flood from growing the set without bound.
+  const mdNegativeCache = new Set<string>();
+  const MD_NEGATIVE_CACHE_MAX = 1024;
 
   function clear(): void {
     staticCache = null;
     llmsFullEntry = null;
     mdCache.clear();
+    mdNegativeCache.clear();
   }
 
   /** Compile the static artifact set (`llms.txt`, `sitemap.xml`, `robots.txt`). */
@@ -181,7 +196,12 @@ export function createArtifactsServer(
       const body = files.get(path);
       if (!body) continue;
       const ext = path.endsWith('.xml') ? CONTENT_TYPES.xml : CONTENT_TYPES.txt;
-      out.set(`/${path}`, { body, etag: etagOf(body), contentType: ext });
+      out.set(`/${path}`, {
+        body,
+        etag: etagOf(body),
+        contentType: ext,
+        cacheControl: STATIC_CACHE_CONTROL,
+      });
     }
     if (cacheEnabled) staticCache = out;
     return out;
@@ -206,9 +226,21 @@ export function createArtifactsServer(
       body,
       etag: etagOf(body),
       contentType: CONTENT_TYPES.txt,
+      cacheControl: STATIC_CACHE_CONTROL,
     };
     if (cacheEnabled) llmsFullEntry = entry;
     return entry;
+  }
+
+  function rememberUnknownMd(pathname: string): null {
+    if (!cacheEnabled) return null;
+    if (mdNegativeCache.size >= MD_NEGATIVE_CACHE_MAX) {
+      // Cheap eviction — drop everything once full. Routes change rarely
+      // and any genuine negative will be re-seeded on the next request.
+      mdNegativeCache.clear();
+    }
+    mdNegativeCache.add(pathname);
+    return null;
   }
 
   /** Render a single `/<route>.md` endpoint. */
@@ -216,16 +248,17 @@ export function createArtifactsServer(
     if (cacheEnabled && mdCache.has(pathname)) {
       return mdCache.get(pathname) ?? null;
     }
+    if (cacheEnabled && mdNegativeCache.has(pathname)) return null;
 
     const { sections } = await loadRoutes();
     const targetUrl = pathnameToRouteUrl(pathname);
     const route = sections
       .flatMap((s) => s.routes)
       .find((r) => r.url === targetUrl);
-    if (!route) return null;
+    if (!route) return rememberUnknownMd(pathname);
 
     const body = route.body ?? (loadBody ? await loadBody(route.url) : null);
-    if (body == null) return null;
+    if (body == null) return rememberUnknownMd(pathname);
 
     // We import lazily so the helper module loads only when needed.
     const { pageAsMarkdown } = await import('./page-as-markdown');
@@ -242,6 +275,7 @@ export function createArtifactsServer(
       body: markdown,
       etag: etagOf(markdown),
       contentType: CONTENT_TYPES.md,
+      cacheControl: STATIC_CACHE_CONTROL,
     };
     if (cacheEnabled) mdCache.set(pathname, entry);
     return entry;

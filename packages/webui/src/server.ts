@@ -7,10 +7,11 @@
  * intentionally is NOT funneled through this helper.
  *
  * In addition to the locale negotiator, static serving, and the
- * `/api/health` endpoint, this server can also serve `/<route>.md`
- * requests on demand via `@tale/seo/on-demand-md` — pass an
- * `OnDemandMdRenderer` and every `.md` URL automatically returns the
- * page's full markdown body with proper ETag handling.
+ * `/api/health` endpoint, this server can also serve the full set of
+ * SEO + LLM artifacts (`/llms.txt`, `/llms-full.txt`, `/sitemap.xml`,
+ * `/robots.txt`, `/<route>.md`) on demand — pass an `ArtifactsServer`
+ * from `@tale/seo` and every artifact URL is dispatched to it with
+ * proper ETag handling before falling through to static serving.
  */
 
 import { existsSync } from 'node:fs';

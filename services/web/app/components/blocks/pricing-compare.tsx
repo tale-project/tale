@@ -59,6 +59,7 @@ function renderCell(cell: Cell, yesLabel: string, noLabel: string): ReactNode {
       <Minus
         className="text-fg-muted mx-auto h-5 w-5"
         strokeWidth={2}
+        role="img"
         aria-label={noLabel}
       />
     );

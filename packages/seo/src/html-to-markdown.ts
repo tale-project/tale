@@ -12,13 +12,11 @@
  * tuned for "semantic body content only" rather than pixel parity.
  */
 
-// `jsdom` ships its own types but `@types/jsdom` isn't in the workspace.
-// The DOM surface we touch is tiny and standardised, so we declare a
-// minimal `any`-typed import and rely on the standard `Element` / `Node`
-// globals coming from `lib.dom` for the rest.
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-expect-error — no @types/jsdom in deps
-import { JSDOM } from 'jsdom';
+// `jsdom` is loaded lazily inside `htmlToMarkdown` (see below) — a static
+// import at module load forces `jsdom`'s optional native `canvas`
+// dependency to resolve even in environments that never call the
+// function (e.g. Docker builds that just touch the `@tale/seo` barrel
+// through a Vite config).
 
 // ---------------------------------------------------------------------------
 // Element selection rules
@@ -87,11 +85,20 @@ function inlineText(node: Node): string {
     case 'code':
       return inner.trim() ? `\`${inner.trim()}\`` : '';
     case 'a': {
-      const href = node.getAttribute('href') ?? '';
+      const rawHref = node.getAttribute('href') ?? '';
       const text = inner.trim();
       if (!text) return '';
-      if (!href || href.startsWith('javascript:')) return text;
-      return `[${text}](${href})`;
+      // Normalise to detect dangerous URL schemes regardless of casing
+      // or leading whitespace (e.g. `  JavaScript:alert(1)`).
+      const normalised = rawHref.trim().toLowerCase();
+      if (
+        !rawHref ||
+        normalised.startsWith('javascript:') ||
+        normalised.startsWith('vbscript:')
+      ) {
+        return text;
+      }
+      return `[${text}](${rawHref})`;
     }
     default:
       return inner;
@@ -132,7 +139,7 @@ function blocksFromElement(el: Element): string[] {
 
   // Generic container — recurse into children.
   const out: string[] = [];
-  for (const child of Array.from(el.childNodes) as Node[]) {
+  for (const child of Array.from(el.childNodes)) {
     if (isElement(child)) out.push(...blocksFromElement(child));
   }
   return out;
@@ -206,7 +213,15 @@ function descriptionListToMarkdown(el: Element): string[] {
 // Public entry point
 // ---------------------------------------------------------------------------
 
-export function htmlToMarkdown(html: string): string {
+export async function htmlToMarkdown(html: string): Promise<string> {
+  // `jsdom` ships its own types but `@types/jsdom` isn't in the workspace.
+  // The DOM surface we touch is tiny and standardised, so we declare a
+  // minimal `any`-typed import and rely on the standard `Element` / `Node`
+  // globals coming from `lib.dom` for the rest.
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-expect-error — no @types/jsdom in deps
+  const { JSDOM } = await import('jsdom');
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
   const dom = new JSDOM(`<!DOCTYPE html><html><body>${html}</body></html>`);
   // `dom.window.document.body` is typed as `any` because jsdom lacks
   // type declarations in this workspace; narrow it through the type-guard.
@@ -214,7 +229,7 @@ export function htmlToMarkdown(html: string): string {
   const body: Element = dom.window.document.body;
 
   const blocks: string[] = [];
-  for (const child of Array.from(body.childNodes) as Node[]) {
+  for (const child of Array.from(body.childNodes)) {
     if (isElement(child)) blocks.push(...blocksFromElement(child));
   }
 

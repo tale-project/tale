@@ -78,6 +78,14 @@ const TIERS: Tier[] = [
 ];
 
 const METRIC_AXES = ['quality', 'speed', 'storage'] as const;
+const HARDWARE_MODES = [
+  'node',
+  'cluster',
+] as const satisfies readonly HardwareMode[];
+const HARDWARE_BILLINGS = [
+  'buying',
+  'renting',
+] as const satisfies readonly HardwareBilling[];
 
 interface HardwareTiersProps {
   mode: HardwareMode;
@@ -128,7 +136,7 @@ export function HardwareTiers({
             aria-label={t('modesAriaLabel')}
             className="bg-bg-elevated flex w-fit items-center gap-1 rounded-md p-0.5"
           >
-            {(['node', 'cluster'] as HardwareMode[]).map((option) => {
+            {HARDWARE_MODES.map((option) => {
               const isActive = mode === option;
               return (
                 <button
@@ -154,7 +162,7 @@ export function HardwareTiers({
             aria-label={t('billing.ariaLabel')}
             className="bg-bg-elevated flex w-fit items-center gap-1 rounded-md p-0.5"
           >
-            {(['buying', 'renting'] as HardwareBilling[]).map((option) => {
+            {HARDWARE_BILLINGS.map((option) => {
               const isActive = billing === option;
               return (
                 <button

@@ -6,7 +6,7 @@ import {
   TooltipTrigger,
 } from '@tale/ui/tooltip';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Check } from 'lucide-react';
+import { Check, Minus } from 'lucide-react';
 import { Fragment, type ReactNode } from 'react';
 
 import {
@@ -82,7 +82,17 @@ function tokenInfoKey(token: string): string {
  */
 function SpecValue({ value }: { value: string }): ReactNode {
   const { t } = useT('hardwarePricing');
-  if (!value || value === '-') return value || null;
+  if (!value) return null;
+  if (value === '-') {
+    return (
+      <Minus
+        className="text-fg-muted mx-auto h-5 w-5"
+        strokeWidth={2}
+        role="img"
+        aria-label={t('compare.cellLabels.notAvailable')}
+      />
+    );
+  }
 
   const lines = value.split('\n');
   return (

@@ -49,7 +49,7 @@
         "hybridSystemRam": "192GB (DDR5 ECC)",
         "speedSystemRam": "288GB (DDR5 ECC)",
         "qualityGpu": "9× Apple Silicon",
-        "hybridGpu": "2× Apple Silicon\n1× NVIDIA RTX PRO 6000 Max-Q",
+        "hybridGpu": "6× Apple Silicon\n1× NVIDIA RTX PRO 6000 Max-Q",
         "speedGpu": "3× NVIDIA RTX PRO 6000 Max-Q",
         "qualityCpu": "1× AMD EPYC 4005 (Zen 5)",
         "hybridCpu": "2× AMD EPYC 4005 (Zen 5)",

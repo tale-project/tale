@@ -35,13 +35,14 @@ const SSR_BUNDLE_URL = pathToFileURL(
 //
 // The SSR bundle is loaded lazily on the first artifact request that needs
 // it, so cold-start latency for the rest of the site is unaffected.
+interface SsrBundle {
+  render: (url: string) => Promise<{ html: string }>;
+}
+
 const artifactsServer = createMarketingArtifactsServer({
   ssr: {
     render: async (url) => {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      const mod = (await import(SSR_BUNDLE_URL)) as {
-        render: (url: string) => Promise<{ html: string }>;
-      };
+      const mod: SsrBundle = await import(SSR_BUNDLE_URL);
       return mod.render(url);
     },
   },

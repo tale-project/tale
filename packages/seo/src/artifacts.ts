@@ -108,7 +108,6 @@ export function compileArtifacts(
   params: CompileArtifactsParams,
 ): CompiledArtifacts {
   const {
-    siteUrl,
     siteTitle,
     siteDescription,
     sections,
@@ -116,6 +115,9 @@ export function compileArtifacts(
     robots,
     emitPerPageMarkdown = true,
   } = params;
+  // Trim trailing slashes once so concatenation with site-relative paths
+  // never produces `https://tale.dev//pricing.md`.
+  const siteUrl = params.siteUrl.replace(/\/+$/, '');
 
   const files = new Map<string, string>();
 

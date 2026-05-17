@@ -10,19 +10,24 @@ import { useDocumentMeta } from '@/lib/seo/use-document-meta';
 export type HardwareMode = 'node' | 'cluster';
 export type HardwareBilling = 'renting' | 'buying';
 
-interface HardwarePricingSearch {
-  mode?: HardwareMode;
-  billing?: HardwareBilling;
+function isHardwareMode(value: unknown): value is HardwareMode {
+  return value === 'node' || value === 'cluster';
+}
+
+function isHardwareBilling(value: unknown): value is HardwareBilling {
+  return value === 'renting' || value === 'buying';
 }
 
 export function HardwarePricingPage() {
   const { t: tSeo } = useT('seo');
   const locale = useCurrentLocale();
-  const search = useSearch({ strict: false }) as HardwarePricingSearch;
+  const search: Record<string, unknown> = useSearch({ strict: false });
   const navigate = useNavigate();
 
-  const mode: HardwareMode = search.mode ?? 'node';
-  const billing: HardwareBilling = search.billing ?? 'buying';
+  const mode: HardwareMode = isHardwareMode(search.mode) ? search.mode : 'node';
+  const billing: HardwareBilling = isHardwareBilling(search.billing)
+    ? search.billing
+    : 'buying';
 
   useDocumentMeta({
     title: tSeo('hardwarePricing.title'),

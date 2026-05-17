@@ -90,7 +90,7 @@ interface BuiltSections {
   noindexPaths: string[];
 }
 
-async function buildSections(): Promise<BuiltSections> {
+async function buildSections(siteUrl: string): Promise<BuiltSections> {
   const records = await listAllContent();
   const byLocale = new Map<string, ContentRecord[]>();
   for (const r of records) {
@@ -110,7 +110,7 @@ async function buildSections(): Promise<BuiltSections> {
     const alts: Record<string, string> = {};
     for (const locale of BASE_LOCALES) {
       if ((byLocale.get(locale) ?? []).some((p) => p.slug === slug)) {
-        alts[locale] = `${DEFAULT_DOCS_SITE_URL}${pathFor(locale, slug)}`;
+        alts[locale] = `${siteUrl}${pathFor(locale, slug)}`;
       }
     }
     alts['x-default'] = alts.en;
@@ -167,12 +167,12 @@ export async function createDocsArtifactsServer(
   options: DocsArtifactsServerOptions = {},
 ): Promise<ArtifactsServer> {
   const siteUrl = process.env.DOCS_SITE_URL ?? DEFAULT_DOCS_SITE_URL;
-  const initial = await buildSections();
+  const initial = await buildSections(siteUrl);
 
   let cached: BuiltSections | null = options.cache === false ? null : initial;
   async function getBuilt(): Promise<BuiltSections> {
     if (cached) return cached;
-    const next = await buildSections();
+    const next = await buildSections(siteUrl);
     if (options.cache !== false) cached = next;
     return next;
   }
