@@ -261,7 +261,7 @@ export function CompareTable<TK extends string>({
                     <td
                       key={tier.key}
                       rowSpan={span}
-                      className="text-fg-muted border-border-base border px-2 py-4 text-center align-middle text-sm sm:px-6"
+                      className="text-fg-muted border-border-base border px-2 py-4 text-center align-middle text-sm whitespace-pre-line sm:px-6"
                     >
                       {row.cells[tier.key]}
                     </td>
