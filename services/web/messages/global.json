@@ -69,7 +69,7 @@
         "hybridRam": "-",
         "speedRam": "96GB (VRAM)",
         "qualitySystemRam": "-",
-        "hybridSystemRam": "-",
+        "hybridSystemRam": "96GB (DDR5 ECC)",
         "speedSystemRam": "96GB (DDR5 ECC)",
         "qualityGpu": "1× Apple Silicon",
         "hybridGpu": "-",
