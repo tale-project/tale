@@ -1,6 +1,6 @@
 ---
 title: Sprachausgabe
-description: Lass den Assistenten Antworten beim Streamen vorlesen — mit Pro-Thread-Override und Browser-TTS als Fallback.
+description: Lass den Assistenten Antworten beim Streamen vorlesen — mit Pro-Thread-Override und einem konfigurierten Text-zu-Sprache-Anbieter.
 ---
 
 Die Sprachausgabe liest die Antworten des Assistenten vor, während sie streamen. Jeder Satz wird synthetisiert, sobald er erscheint, sodass die Wiedergabe innerhalb von ein bis zwei Sekunden nach den ersten Worten startet — du wartest nicht auf die vollständige Antwort.
@@ -18,11 +18,11 @@ Wenn du die Sprachausgabe in einer Sitzung zum ersten Mal aktivierst, schaltet d
 
 Die Sprachausgabe liest Antworten des Assistenten in deiner Oberflächensprache vor. Markdown-Auszeichnungen (fett, kursiv, Überschriften, Link-Syntax) werden entfernt und Codeblöcke übersprungen, damit du nicht „Sternchen Sternchen hallo Sternchen Sternchen" hörst oder ein Python-Skript vorgelesen bekommst. Satzzeichen, Zahlen und Abkürzungen bleiben erhalten.
 
-## Anbieter vs. Browser-Fallback
+## Wenn kein Anbieter konfiguriert ist
 
-Die Sprachausgabe bevorzugt einen serverseitigen Text-zu-Sprache-Anbieter für Qualität und Konsistenz. Wenn deine Organisation keinen konfiguriert hat — oder die Synthese fehlschlägt — greift Tale automatisch auf die im Browser eingebaute `speechSynthesis` für diesen Satz zurück. Der Fallback gilt pro Chunk, ein vorübergehender Anbieterfehler oder ein Codec-Mismatch bei einem Satz unterbricht also nicht den Rest der Antwort.
+Die Sprachausgabe nutzt einen serverseitigen Text-zu-Sprache-Anbieter — einen Browser-`speechSynthesis`-Fallback gibt es nicht. Wenn deine Organisation kein TTS-Modell konfiguriert hat, ist der Schalter in der Personalisierung deaktiviert und der Link führt zu **Einstellungen → KI-Anbieter**, wo eine administrative Person einen hinzufügen kann. Siehe [Text-zu-Sprache-Anbieter konfigurieren](/de/self-hosted/configuration/providers#openai) für die Konfigurationsform.
 
-Wenn kein Anbieter konfiguriert ist, blendet die Personalisierungsseite einen Link zu **Einstellungen → KI-Anbieter** ein, wo eine administrative Person einen hinzufügen kann. Siehe [Text-zu-Sprache-Anbieter konfigurieren](/de/self-hosted/configuration/providers#openai) für die Konfigurationsform.
+Wenn die Synthese für einen einzelnen Satz fehlschlägt (Anbieter-5xx, vorübergehendes Timeout etc.), wird dieser Satz still übersprungen und die Wiedergabe läuft mit dem nächsten weiter. Der Antworttext am Bildschirm bleibt unabhängig davon lesbar.
 
 ## Stoppen und erneut abspielen
 
@@ -47,7 +47,7 @@ Rate-Limit- und Rate-Limiter-Contention-Fehler werden bis zu zweimal mit exponen
 
 Jedes synthetisierte Zeichen wird beim konfigurierten Anbieter abgerechnet. Tales Budget-Richtlinie gilt für die Sprachausgabe genauso wie für den Chat: Die Synthese wird blockiert, sobald die Pro-Zeitraum-Kosten- oder Anfrage-Obergrenze erreicht ist. Die Plattform setzt zusätzlich Pro-Benutzer- und Pro-Organisations-Rate-Limits auf TTS durch, damit ein skriptbasierter Missbrauch ein Anbieter-Kontingent nicht erschöpfen kann.
 
-Audio wird etwa sieben Tage lang im Convex-Speicher zwischengespeichert, das erneute Abspielen einer kürzlichen Nachricht löst also keine erneute Abrechnung aus. Danach werden Zeile und Blob durch Lazy-Cleanup entfernt; die nächste Wiedergabe synthetisiert neu.
+Audio wird etwa sieben Tage lang im Convex-Speicher zwischengespeichert, das erneute Abspielen einer kürzlichen Nachricht löst also keine erneute Abrechnung aus. Danach werden Zeile und Blob durch einen täglichen Hintergrund-Sweep entfernt (mit einer opportunistischen Pro-Thread-Bereinigung über den Write-Pfad); die nächste Wiedergabe synthetisiert neu.
 
 ## Barrierefreiheit
 

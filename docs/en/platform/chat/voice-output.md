@@ -1,6 +1,6 @@
 ---
 title: Voice output
-description: Have the assistant read replies aloud as they stream, with per-thread overrides and a browser-TTS fallback.
+description: Have the assistant read replies aloud as they stream, with per-thread overrides and a configured text-to-speech provider.
 ---
 
 Voice output reads the assistant's replies aloud as they stream. It synthesises each sentence as soon as it appears, so playback starts within a second or two of the first words landing — there is no waiting for the full reply to finish.
@@ -18,11 +18,11 @@ The first time you turn voice on in a session, the click also unlocks the browse
 
 Voice output narrates assistant replies in your interface language. It strips markdown decoration (bold, italic, headings, link syntax) and skips fenced code blocks so listeners don't hear "asterisk asterisk hello asterisk asterisk" or have a Python script read aloud. Inline punctuation, numbers, and abbreviations stay intact.
 
-## Provider vs browser fallback
+## When no provider is configured
 
-Voice output prefers a server-side text-to-speech provider for quality and consistency. When your organization has not configured one — or when synthesis fails — Tale automatically falls back to the browser's built-in `speechSynthesis` for that sentence. The fallback is per-chunk, so a transient provider error or codec mismatch on one sentence does not break the rest of the reply.
+Voice output uses a server-side text-to-speech provider — there is no browser `speechSynthesis` fallback. When your organization has not configured a TTS model, the personalization toggle is disabled and the link surfaces **Settings → AI providers**, where an admin can add one. See [Configure a text-to-speech provider](/self-hosted/configuration/providers#openai) for the configuration shape.
 
-When no provider is configured, the personalization page surfaces a link to **Settings → AI providers**, where an admin can add one. See [Configure a text-to-speech provider](/self-hosted/configuration/providers#openai) for the configuration shape.
+When synthesis fails on an individual sentence (provider 5xx, transient timeout, etc.), that sentence is skipped silently and playback continues with the next one. The on-screen text remains readable regardless.
 
 ## Stopping and replaying
 
@@ -47,7 +47,7 @@ Rate-limit and rate-limiter contention errors auto-retry up to two times with ex
 
 Each synthesised character bills the configured provider. Tale's budget policy applies to voice output the same way it applies to chat: synthesis blocks once the per-period cost or request cap is reached. The platform also enforces per-user and per-organization rate limits on TTS so a scripted abuser cannot exhaust a provider quota.
 
-Audio is cached in Convex storage for about seven days, so re-playing a recent message does not re-bill. After that the row and blob are removed by lazy cleanup; the next play synthesises afresh.
+Audio is cached in Convex storage for about seven days, so re-playing a recent message does not re-bill. After that the row and blob are removed by a daily background sweep (with an opportunistic per-thread cleanup gated by the write path); the next play synthesises afresh.
 
 ## Accessibility
 

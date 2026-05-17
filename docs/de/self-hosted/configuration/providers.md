@@ -221,7 +221,7 @@ Hol einen Schlüssel auf [openrouter.ai/keys](https://openrouter.ai/keys) und f�
 cp examples/providers/openai.json $TALE_CONFIG_DIR/providers/
 ```
 
-Trage deinen OpenAI-Schlüssel einmal über **Einstellungen > KI-Anbieter > OpenAI** ein. Die Datei deklariert sowohl `whisper-1` (Transkription) als auch `gpt-4o-mini-tts` (Text-zu-Sprache) samt der passenden `defaults`-Einträge, sodass Audio- und Video-Anhänge im Chat hierhin geroutet werden und der Sprach-Schalter in der Chat-Kopfzeile für die [Sprachausgabe](/de/platform/chat/voice-output) OpenAI nutzt. Den Endbenutzer-Blick findest du unter [Chat-Anhänge](/de/platform/chat/attachments#audio-und-video-transkription). Ohne diese Datei greift die Sprachausgabe stillschweigend auf die im Browser eingebaute `speechSynthesis` zurück.
+Trage deinen OpenAI-Schlüssel einmal über **Einstellungen > KI-Anbieter > OpenAI** ein. Die Datei deklariert sowohl `whisper-1` (Transkription) als auch `gpt-4o-mini-tts` (Text-zu-Sprache) samt der passenden `defaults`-Einträge, sodass Audio- und Video-Anhänge im Chat hierhin geroutet werden und der Sprach-Schalter in der Chat-Kopfzeile für die [Sprachausgabe](/de/platform/chat/voice-output) OpenAI nutzt. Den Endbenutzer-Blick findest du unter [Chat-Anhänge](/de/platform/chat/attachments#audio-und-video-transkription). Ohne diese Datei ist die Sprachausgabe nicht verfügbar — der Personalisierungs-Schalter ist deaktiviert und zeigt einen Link zum Hinzufügen eines TTS-Modells an.
 
 TTS-spezifische Felder eines Modell-Eintrags:
 
@@ -233,7 +233,7 @@ TTS-spezifische Felder eines Modell-Eintrags:
 | `audioFormat`                    | Eines von `mp3` (Standard), `opus`, `aac`, `flac`, `wav`, `pcm`. `mp3` für breite Browser-Unterstützung; `pcm` für niedrigste Dekodier-Latenz.                             |
 | `cost.centsPerMillionCharacters` | Abrechnungsrate pro Zeichen (z. B. `1500` = $15/M Zeichen). gpt-4o-mini-tts rechnet pro Token ab; gib für dieses Modell eine vom Betreiber geschätzte Zeichen-Näherung an. |
 
-Die Action setzt Pro-Benutzer- (`tts:synthesize:user`, 40/min) und Pro-Org-Rate-Limits (`tts:synthesize:org`, 200/min) durch, eine harte Obergrenze von 200 Chunks pro Nachricht sowie eine Organisations-Budget-Prüfung vor jeder Synthese. Synthetisiertes Audio bleibt rund 7 Tage im Convex-Storage und wird per opportunistischer GC aus dem Lesepfad bereinigt — kein Cron nötig.
+Die Action setzt Pro-Benutzer- (`tts:synthesize:user`, 40/min) und Pro-Org-Rate-Limits (`tts:synthesize:org`, 200/min) durch, eine harte Obergrenze von 200 Chunks pro Nachricht sowie eine Organisations-Budget-Prüfung vor jeder Synthese. Synthetisiertes Audio bleibt rund 7 Tage im Convex-Storage und wird durch einen täglichen Org-Sweep-Cron bereinigt, ergänzt durch eine opportunistische Pro-Thread-Bereinigung aus dem Write-Pfad.
 
 ## Selbst gehostete Inferenz-Backends
 
@@ -316,4 +316,4 @@ Einfache Einträge (ohne Doppelpunkt) lösen sich zum ersten Anbieter auf, der d
 
 Die hier beschriebenen Anbieter-Dateien sind die On-Disk-Form derselben Konfiguration, die die UI schreibt, wenn ein Admin aus **Einstellungen > Anbieter** speichert. Wähle, was zur Change-Management-Haltung passt: die UI für tägliche Anpassungen, die Dateien, wenn die Konfiguration in git neben dem Rest der Infrastruktur leben soll. So oder so ist diese Seite die kanonische Referenz dafür, was jedes Feld bedeutet.
 
-[KI-Anbieter](/de/platform/admin/providers) ist das UI-Gegenstück für Admins. [Chat-Anhänge](/de/platform/chat/attachments#audio-and-video-transcription) zeigt, wie hier konfigurierte Transkriptions-Modelle Endnutzer erreichen. [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference) deckt `TALE_CONFIG_DIR` und die anderen Variablen ab, die diese Seite annimmt.
+[KI-Anbieter](/de/platform/admin/providers) ist das UI-Gegenstück für Admins. [Chat-Anhänge](/de/platform/chat/attachments#audio-und-video-transkription) zeigt, wie hier konfigurierte Transkriptions-Modelle Endnutzer erreichen. [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference) deckt `TALE_CONFIG_DIR` und die anderen Variablen ab, die diese Seite annimmt.

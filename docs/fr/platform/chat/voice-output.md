@@ -1,6 +1,6 @@
 ---
 title: Sortie vocale
-description: Fais lire les réponses de l'assistant à voix haute au fil du streaming — avec surcharges par conversation et repli sur la synthèse intégrée au navigateur.
+description: Fais lire les réponses de l'assistant à voix haute au fil du streaming — avec surcharges par conversation et un fournisseur de synthèse vocale configuré.
 ---
 
 La sortie vocale lit à voix haute les réponses de l'assistant pendant qu'elles streament. Chaque phrase est synthétisée dès qu'elle apparaît : la lecture commence une à deux secondes après les premiers mots — tu n'attends pas la fin de la réponse.
@@ -18,11 +18,11 @@ La première fois que tu actives la sortie vocale dans une session, le clic déb
 
 La sortie vocale narre les réponses de l'assistant dans la langue de ton interface. Elle retire les décorations markdown (gras, italique, titres, syntaxe de lien) et ignore les blocs de code, pour que tu n'entendes pas « astérisque astérisque bonjour astérisque astérisque » ou un script Python lu à voix haute. La ponctuation, les nombres et les abréviations restent intacts.
 
-## Fournisseur vs. repli navigateur
+## Quand aucun fournisseur n'est configuré
 
-La sortie vocale préfère un fournisseur de synthèse vocale côté serveur, pour la qualité et la cohérence. Si ton organisation n'en a pas configuré — ou si la synthèse échoue — Tale bascule automatiquement sur la `speechSynthesis` intégrée au navigateur pour cette phrase. Le repli est par chunk : une erreur passagère ou un problème de codec sur une phrase ne casse pas le reste de la réponse.
+La sortie vocale utilise un fournisseur de synthèse vocale côté serveur — il n'y a pas de repli sur la `speechSynthesis` du navigateur. Si ton organisation n'a pas configuré de modèle TTS, le bouton de personnalisation est désactivé et le lien renvoie vers **Paramètres → Fournisseurs IA**, où une personne admin peut en ajouter un. Voir [Configurer un fournisseur de synthèse vocale](/fr/self-hosted/configuration/providers#openai) pour la forme de la configuration.
 
-Quand aucun fournisseur n'est configuré, la page Personnalisation affiche un lien vers **Paramètres → Fournisseurs d'IA**, où une personne admin peut en ajouter un. Voir [Configurer un fournisseur de synthèse vocale](/fr/self-hosted/configuration/providers#openai) pour la forme de la configuration.
+Quand la synthèse échoue sur une phrase précise (5xx fournisseur, timeout passager, etc.), cette phrase est ignorée silencieusement et la lecture continue avec la suivante. Le texte de la réponse à l'écran reste lisible dans tous les cas.
 
 ## Arrêter et relire
 
@@ -47,7 +47,7 @@ Les erreurs de limite de débit et de contention du rate-limiter sont réessayé
 
 Chaque caractère synthétisé est facturé par le fournisseur configuré. La politique de budget de Tale s'applique à la sortie vocale comme au chat : la synthèse est bloquée dès que le plafond de coût ou de requêtes par période est atteint. La plateforme applique également des limites de débit par utilisateur et par organisation sur le TTS pour qu'un usage scripté abusif ne puisse pas épuiser un quota fournisseur.
 
-L'audio est mis en cache dans le stockage Convex pendant environ sept jours : rejouer un message récent ne refacture pas. Au-delà, la ligne et le blob sont supprimés par le nettoyage paresseux ; la lecture suivante synthétise à nouveau.
+L'audio est mis en cache dans le stockage Convex pendant environ sept jours : rejouer un message récent ne refacture pas. Au-delà, la ligne et le blob sont supprimés par un balayage quotidien en arrière-plan (complété par un nettoyage opportuniste par conversation côté écriture) ; la lecture suivante synthétise à nouveau.
 
 ## Accessibilité
 

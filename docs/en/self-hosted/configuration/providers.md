@@ -221,7 +221,7 @@ Get a key at [openrouter.ai/keys](https://openrouter.ai/keys) and add it through
 cp examples/providers/openai.json $TALE_CONFIG_DIR/providers/
 ```
 
-Add your OpenAI key once via **Settings > Providers > OpenAI**. The file declares both `whisper-1` (transcription) and `gpt-4o-mini-tts` (text-to-speech) along with `defaults` for each, so audio/video chat attachments route here for transcription and the chat header's [Voice output](/platform/chat/voice-output) toggle starts using OpenAI for synthesis. See [Chat attachments](/platform/chat/attachments#audio-and-video-transcription) for the end-user view. Without this file, voice output silently falls back to the browser's built-in `speechSynthesis`.
+Add your OpenAI key once via **Settings > AI providers > OpenAI**. The file declares both `whisper-1` (transcription) and `gpt-4o-mini-tts` (text-to-speech) along with `defaults` for each, so audio/video chat attachments route here for transcription and the chat header's [Voice output](/platform/chat/voice-output) toggle starts using OpenAI for synthesis. See [Chat attachments](/platform/chat/attachments#audio-and-video-transcription) for the end-user view. Without this file, voice output is unavailable — the personalization toggle is disabled and surfaces a link to add a TTS model.
 
 TTS-specific fields on a model entry:
 
@@ -233,7 +233,7 @@ TTS-specific fields on a model entry:
 | `audioFormat`                    | One of `mp3` (default), `opus`, `aac`, `flac`, `wav`, `pcm`. Use `mp3` for broadest browser support; `pcm` for lowest decode latency.                                       |
 | `cost.centsPerMillionCharacters` | Per-character billing rate (e.g. `1500` = $15/M chars). OpenAI's gpt-4o-mini-tts meters per token; supply an operator-estimated char-approximation when you use that model. |
 
-The action enforces per-user (`tts:synthesize:user`, 40/min) and per-org (`tts:synthesize:org`, 200/min) rate limits, a 200-chunks-per-message hard cap, and an organization budget check before each synthesis. Synthesised audio is cached in Convex storage for ~7 days and pruned by opportunistic GC from the read path — no cron required.
+The action enforces per-user (`tts:synthesize:user`, 40/min) and per-org (`tts:synthesize:org`, 200/min) rate limits, a 200-chunks-per-message hard cap, and an organization budget check before each synthesis. Synthesised audio is cached in Convex storage for ~7 days and pruned by a daily org-sweep cron, plus opportunistic per-thread cleanup scheduled from the write path.
 
 ## Self-hosted inference backends
 
