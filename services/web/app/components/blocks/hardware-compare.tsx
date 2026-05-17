@@ -65,6 +65,13 @@ const SPEC_TOOLTIPS: Record<string, string> = {
   DDR5: 'ddr5Info',
   'DDR5 ECC': 'ddr5EccInfo',
   'Zen 5': 'zen5Info',
+  INT4: 'int4Info',
+  NQ: 'skuNqInfo',
+  NA: 'skuNaInfo',
+  NS: 'skuNsInfo',
+  CQ: 'skuCqInfo',
+  CH: 'skuChInfo',
+  CS: 'skuCsInfo',
 };
 
 const SPEC_TOKEN_REGEX = /\(([^)]+)\)/g;
@@ -157,9 +164,9 @@ export function HardwareCompare({ mode }: HardwareCompareProps) {
       rowKey: 'version',
       label: t('compare.categories.version'),
       cells: {
-        quality: t(`versions.${versionKeys.quality}`),
-        hybrid: t(`versions.${versionKeys.hybrid}`),
-        speed: t(`versions.${versionKeys.speed}`),
+        quality: <SpecValue value={t(`versions.${versionKeys.quality}`)} />,
+        hybrid: <SpecValue value={t(`versions.${versionKeys.hybrid}`)} />,
+        speed: <SpecValue value={t(`versions.${versionKeys.speed}`)} />,
       },
     },
     ...(mode === 'node'
@@ -235,9 +242,9 @@ export function HardwareCompare({ mode }: HardwareCompareProps) {
       rowKey: 'model',
       label: t('compare.categories.model'),
       cells: {
-        quality: t('models.quality'),
-        hybrid: t('models.hybrid'),
-        speed: t('models.speed'),
+        quality: <SpecValue value={t('models.quality')} />,
+        hybrid: <SpecValue value={t('models.hybrid')} />,
+        speed: <SpecValue value={t('models.speed')} />,
       },
     },
     {
