@@ -20,11 +20,23 @@ const SECRET_PATTERNS: ReadonlyArray<RegExp> = [
   /Authorization:[^\r\n]*/gi,
   /Basic\s+[A-Za-z0-9+/=]+/gi,
   /x-api-key:\s*\S+/gi,
+  // Cookie / Set-Cookie lines often carry session tokens; redact the entire
+  // header line value. Better Auth and most session libraries land here.
+  /(?:Set-)?Cookie:[^\r\n]*/gi,
+  // Better Auth session cookies even when they appear bare (no Cookie
+  // header prefix), e.g. when a server stringifies the cookie jar.
+  /(?:__Secure-|__Host-)?better-auth\.[a-z_]*session[a-z_]*=[^;\s]+/gi,
   // URL-embedded credentials: `https://user:pass@host/...`.
   /(\bhttps?:\/\/)[^\s:/?#]+:[^\s@]+@/gi,
   // Vendor-specific key prefixes. Patterns are anchored on the prefix to
   // avoid mis-redacting unrelated text.
   /\bsk-[A-Za-z0-9_-]{10,}/g,
+  // Stripe (live + test + restricted), with both `sk_` and `pk_` and `rk_`
+  // prefixes. Underscore-separated, distinct from OpenAI's hyphenated `sk-`.
+  /\b[sprk]k_(?:live|test)_[A-Za-z0-9]{16,}/g,
+  // OpenAI org/project identifiers as bare tokens (no surrounding scheme).
+  /\borg-[A-Za-z0-9]{20,}/g,
+  /\bproj_[A-Za-z0-9]{20,}/g,
   /\bAKIA[0-9A-Z]{16}\b/g,
   /\bAIza[0-9A-Za-z_-]{10,}/g,
   /\bxox[abprs]-[0-9A-Za-z-]{10,}/g,
@@ -42,8 +54,10 @@ const SECRET_PATTERNS: ReadonlyArray<RegExp> = [
   // redirect-loop logs.
   /([?&](?:api[_-]?key|token|secret|signature|sig|password|passwd|pwd|access_token|refresh_token|client_secret|auth)=)[^&\s]+/gi,
   // JSON body fields carrying credentials. Preserve the key for forensic
-  // value while redacting the value. Case-insensitive on the key only.
-  /("(?:password|passwd|pwd|api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|secret)"\s*:\s*)"[^"]*"/gi,
+  // value while redacting the value. Value class honours backslash-escaped
+  // characters so an inner `\"` (a literal quote inside the string)
+  // doesn't terminate the match early and leak the rest of the JSON.
+  /("(?:password|passwd|pwd|api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|secret)"\s*:\s*)"(?:[^"\\]|\\.)*"/gi,
 ];
 
 const REDACTED = '[REDACTED]';

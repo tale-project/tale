@@ -128,6 +128,49 @@ describe('sanitizeError', () => {
         input: '{"access_token":"oauth_bearer_a1b2c3"}',
         mustNotContain: 'oauth_bearer_a1b2c3',
       },
+      {
+        name: 'Stripe live secret key (sk_live_)',
+        input: 'stripe call failed: sk_live_AbCdEfGhIjKlMnOpQrStUv12 expired',
+        mustNotContain: 'sk_live_AbCdEfGhIjKlMnOpQrStUv12',
+      },
+      {
+        name: 'Stripe test publishable key (pk_test_)',
+        input: 'misconfig pk_test_4eC39HqLyjWDarjtT1zdp7dc',
+        mustNotContain: 'pk_test_4eC39HqLyjWDarjtT1zdp7dc',
+      },
+      {
+        name: 'Stripe restricted key (rk_live_)',
+        input: 'limited access rk_live_AbCdEfGhIjKlMnOpQrStUv12',
+        mustNotContain: 'rk_live_AbCdEfGhIjKlMnOpQrStUv12',
+      },
+      {
+        name: 'OpenAI org identifier',
+        input: 'context org-AbCdEfGhIjKlMnOpQrStUvWxYzZZ in request body',
+        mustNotContain: 'org-AbCdEfGhIjKlMnOpQrStUvWxYzZZ',
+      },
+      {
+        name: 'OpenAI project identifier',
+        input: 'project proj_AbCdEfGhIjKlMnOpQrStUvWxYzZZ rejected',
+        mustNotContain: 'proj_AbCdEfGhIjKlMnOpQrStUvWxYzZZ',
+      },
+      {
+        name: 'Cookie header line',
+        input:
+          'Cookie: session=abc123; other=def456; better-auth.session_token=tok_xyz_aaaaaaaaaaaa',
+        mustNotContain: 'tok_xyz_aaaaaaaaaaaa',
+      },
+      {
+        name: 'Set-Cookie header line',
+        input:
+          'Set-Cookie: better-auth.session_token=tok_xyz_bbbbbbbbbbbb; HttpOnly; Path=/',
+        mustNotContain: 'tok_xyz_bbbbbbbbbbbb',
+      },
+      {
+        name: 'Bare better-auth session token (no Cookie prefix)',
+        input:
+          'sessionString=better-auth.session_token=tok_zzz_cccccccccccc&user=alice',
+        mustNotContain: 'tok_zzz_cccccccccccc',
+      },
     ];
 
     for (const { name, input, mustNotContain } of cases) {
@@ -189,5 +232,48 @@ describe('sanitizeError', () => {
   it('passes through innocuous strings unchanged', () => {
     const out = sanitizeError('TTS API 502: Bad Gateway');
     expect(out).toBe('TTS API 502: Bad Gateway');
+  });
+
+  it('does not leak the tail of a JSON object when password value contains an escaped quote', () => {
+    // Round-5 finding #15: the previous JSON-value class `[^"]*` stopped
+    // at the first quote, so a value containing a backslash-escaped quote
+    // truncated the redaction early and exposed the rest of the object
+    // verbatim. The updated class `(?:[^"\\]|\\.)*` honours escapes.
+    const input = '{"password":"hunter2\\"more","other":"safe-public-value"}';
+    const out = sanitizeError(input);
+    expect(out).not.toContain('hunter2');
+    expect(out).not.toContain('more');
+    expect(out).toContain('"password":');
+    expect(out).toContain('[REDACTED]');
+    // The tail of the JSON object stays visible — it's not a secret.
+    expect(out).toContain('"other"');
+  });
+
+  it('is idempotent: sanitize(sanitize(x)) === sanitize(x)', () => {
+    const inputs = [
+      'Bearer eyJabcd1234.eyJxyz5678.SflKxwRJSM_aaaaa next',
+      'GET https://alice:secret@example.com/v1/x failed',
+      'config sk_live_AbCdEfGhIjKlMnOpQrStUv12 expired',
+      'oauth ?access_token=opaque-bearer-value rejected',
+      'body {"password":"hunter2"} from client',
+      'Cookie: better-auth.session_token=tok_xyz_aaaaaaaaaaaa',
+    ];
+    for (const input of inputs) {
+      const once = sanitizeError(input);
+      const twice = sanitizeError(once);
+      expect(twice).toBe(once);
+    }
+  });
+
+  it('does not catastrophically backtrack on adversarial input', () => {
+    // 100k chars of mixed alphanumerics with occasional secret-shaped
+    // suffixes. Should complete well under a second; flag if a pattern
+    // grows a polynomial worst case.
+    const haystack =
+      'a'.repeat(50_000) + 'Bearer aaaaaaaaaaaa' + 'b'.repeat(50_000);
+    const start = Date.now();
+    sanitizeError(haystack, 1_000_000);
+    const elapsed = Date.now() - start;
+    expect(elapsed).toBeLessThan(500);
   });
 });

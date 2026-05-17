@@ -180,11 +180,14 @@ http.route({
  * than `ctx.auth.getUserIdentity()` — native `<audio>` elements can't
  * attach an `Authorization: Bearer` header, but they do send same-origin
  * cookies, which is what the rest of the cookie-authenticated routes in
- * this file rely on. `Cache-Control: private, max-age=600` lets the
- * browser keep a short cache, and `Vary: Cookie` binds the cached bytes
- * to the session so a third party intercepting the URL can't replay it.
- * Revocation on member removal is instantaneous (the GDPR cascade has
- * already deleted the row by then).
+ * this file rely on. `Cache-Control: private, max-age=0, must-revalidate`
+ * keeps short-lived bytes in the browser disk cache but forces a
+ * revalidating round-trip on every replay so a removed member can't
+ * keep playing audio they no longer have access to. `Vary: Cookie`
+ * binds the cached bytes to the session so a third party intercepting
+ * the URL can't replay it. `Accept-Ranges: none` suppresses iOS Safari
+ * range probes on `<audio preload="auto">` that would otherwise
+ * trigger audible restarts.
  */
 http.route({
   path: '/api/tts-audio',
@@ -196,16 +199,11 @@ http.route({
       return new Response('Missing chunkId', { status: 400 });
     }
 
-    const auth = createAuth(ctx);
-    const session = await auth.api.getSession({ headers: req.headers });
-    if (!session?.user) {
-      return new Response('Unauthenticated', { status: 401 });
-    }
-
-    // Mirror the `/storage` route: an authenticated user could otherwise
-    // hammer this path to force unbounded `ctx.storage.get` reads on rows
-    // they're already entitled to see. Cost-only protection (no data
-    // leak — membership is still gated by `getChunkForServe`).
+    // Mirror the `/storage` route: rate-limit BEFORE the session lookup
+    // so an unauthenticated attacker hammering this URL can't force a
+    // Better Auth DB session-query per request. The IP gate is the only
+    // protection against anonymous abuse; membership checks downstream
+    // catch authenticated abuse.
     const trusted = await loadTrustedProxies(ctx);
     const ip = getClientIp(req.headers, trusted);
     try {
@@ -220,6 +218,12 @@ http.route({
         });
       }
       throw error;
+    }
+
+    const auth = createAuth(ctx);
+    const session = await auth.api.getSession({ headers: req.headers });
+    if (!session?.user) {
+      return new Response('Unauthenticated', { status: 401 });
     }
 
     const chunk = await ctx.runQuery(internal.tts.queries.getChunkForServe, {
@@ -245,11 +249,21 @@ http.route({
       const headers: Record<string, string> = {
         'Content-Type': blob.type || 'application/octet-stream',
         'Content-Length': blob.size.toString(),
-        'Cache-Control': 'private, max-age=600',
+        // `max-age=0, must-revalidate` (not `no-store`): keep the bytes
+        // in the browser's HTTP cache for in-tab replay efficiency, but
+        // force a conditional round-trip back to this route on every
+        // play so a member who's been removed loses access immediately
+        // instead of being able to replay cached audio for 10 minutes.
+        'Cache-Control': 'private, max-age=0, must-revalidate',
         // Tell intermediaries not to cache the bytes against the URL
         // alone; the URL is bound to the session cookie which they can't
         // see.
         Vary: 'Cookie',
+        // iOS Safari `<audio preload="auto">` probes ranges; without
+        // an explicit `Accept-Ranges: none` it may issue partial
+        // requests that get a full 200 back from byte 0, audibly
+        // restarting playback mid-chunk.
+        'Accept-Ranges': 'none',
       };
       return new Response(blob, { status: 200, headers });
     } catch (error) {
