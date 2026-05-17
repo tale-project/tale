@@ -68,6 +68,20 @@
       "name": "@tale/i18n",
       "version": "0.1.0",
     },
+    "packages/seo": {
+      "name": "@tale/seo",
+      "version": "0.1.0",
+      "dependencies": {
+        "@tale/i18n": "workspace:*",
+        "jsdom": "29.0.2",
+      },
+      "peerDependencies": {
+        "vite": "*",
+      },
+      "optionalPeers": [
+        "vite",
+      ],
+    },
     "packages/tale_knowledge": {
       "name": "@tale/knowledge",
       "version": "0.1.0",
@@ -123,6 +137,7 @@
       "dependencies": {
         "@radix-ui/react-dialog": "1.1.15",
         "@tale/i18n": "workspace:*",
+        "@tale/seo": "workspace:*",
         "@tale/ui": "workspace:*",
         "@tanstack/react-router": "1.168.10",
         "framer-motion": "12.38.0",
@@ -146,6 +161,7 @@
       "name": "@tale/docs",
       "version": "0.1.0",
       "dependencies": {
+        "@tale/seo": "workspace:*",
         "@tale/ui": "workspace:*",
         "@tale/webui": "workspace:*",
         "framer-motion": "12.38.0",
@@ -195,6 +211,7 @@
         "@scure/base": "2.0.0",
         "@sentry/tanstackstart-react": "10.48.0",
         "@tailwindcss/postcss": "4.2.2",
+        "@tale/seo": "workspace:*",
         "@tale/ui": "workspace:*",
         "@tale/webui": "workspace:*",
         "@tanstack/react-query": "5.97.0",
@@ -317,6 +334,7 @@
       "name": "@tale/web",
       "version": "0.1.0",
       "dependencies": {
+        "@tale/seo": "workspace:*",
         "@tale/ui": "workspace:*",
         "@tale/webui": "workspace:*",
         "react-markdown": "10.1.0",
@@ -1550,6 +1568,8 @@
     "@tale/proxy": ["@tale/proxy@workspace:services/proxy"],
 
     "@tale/rag": ["@tale/rag@workspace:services/rag"],
+
+    "@tale/seo": ["@tale/seo@workspace:packages/seo"],
 
     "@tale/shared": ["@tale/shared@workspace:packages/tale_shared"],
 

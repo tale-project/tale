@@ -6,11 +6,10 @@
   "type": "module",
   "scripts": {
     "setup": "echo 'Dependencies managed by root workspace'",
-    "dev": "bun --bun scripts/build-llms-artifacts.ts && bun --bun vite",
-    "build": "bun --bun scripts/build-llms-artifacts.ts && bun --bun vite build && bun --bun vite build --ssr app/entry-server.tsx --outDir dist-ssr && bun --bun scripts/prerender.ts && bunx playwright install chromium && bun --bun scripts/generate-legal-pdfs.ts",
+    "dev": "bun --bun vite",
+    "build": "bun --bun vite build && bun --bun vite build --ssr app/entry-server.tsx --outDir dist-ssr && bun --bun scripts/prerender.ts && bunx playwright install chromium && bun --bun scripts/generate-legal-pdfs.ts",
     "build:client": "bun --bun vite build",
     "build:ssr": "bun --bun vite build --ssr app/entry-server.tsx --outDir dist-ssr",
-    "build:llms": "bun --bun scripts/build-llms-artifacts.ts",
     "prerender": "bun --bun scripts/prerender.ts",
     "start": "bun server.ts",
     "lint": "bunx oxlint --type-aware",
@@ -21,6 +20,7 @@
     "test:coverage": "bunx vitest --coverage --passWithNoTests"
   },
   "dependencies": {
+    "@tale/seo": "workspace:*",
     "@tale/ui": "workspace:*",
     "@tale/webui": "workspace:*",
     "react-markdown": "10.1.0",

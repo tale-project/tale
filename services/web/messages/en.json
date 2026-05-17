@@ -218,7 +218,6 @@
       "DE": "EUR"
     },
     "community": {
-      "name": "Community",
       "deployment": "self-hosted only",
       "price": "Free",
       "priceSuffix": "",
@@ -230,7 +229,6 @@
       "feature4": "Community support (GitHub)"
     },
     "enterprise": {
-      "name": "Enterprise",
       "deployment": "Cloud or self-hosted",
       "priceSuffix": "/month + VAT",
       "storageAddOn": "1 TB + {price}/TB/month additional storage",
@@ -275,7 +273,8 @@
         "dash": "—"
       },
       "sections": {
-        "services": "Professional services"
+        "services": "Professional services",
+        "other": "Other"
       },
       "rows": {
         "selfHosted": "Self-hosted",
@@ -328,46 +327,39 @@
     "description": "High-performance AI hardware — priced right. Run state-of-the-art models, anywhere.",
     "configIncludes": "Configuration includes:",
     "billing": {
+      "ariaLabel": "Payment option",
       "renting": "Renting",
       "buying": "Buying (financing possible)"
     },
+    "modesAriaLabel": "Deployment mode",
     "deploymentNote": "All hardware configurations are silent (noise-free) and can be deployed at your site and maintained remotely by our team, or hosted in our secure data centers.",
     "tiers": {
       "quality": {
-        "name": "Quality",
-        "price": "CHF ~2k",
         "priceSuffix": "+ VAT/month",
-        "buyPrice": "CHF ~80k",
         "buySuffix": "+ VAT",
-        "tagline": "Optimized for high-accuracy and consistent AI results.",
+        "tagline": "Optimized for high-accuracy and consistent results.",
+        "nodeTagline": "Made for high-accuracy and consistent results.",
         "cta": "Contact us",
         "highlightQuality": "Quality",
-        "highlightSpeed": "Standard",
-        "highlightStorage": "54TB"
+        "highlightSpeed": "Standard"
       },
       "hybrid": {
-        "name": "Hybrid",
-        "price": "CHF ~2.1k",
         "priceSuffix": "+ VAT/month",
-        "buyPrice": "CHF ~84k",
         "buySuffix": "+ VAT",
         "tagline": "Balanced between accuracy and speed.",
+        "nodeTagline": "Combines local data control with cloud inference.",
         "cta": "Contact us",
         "highlightQuality": "High",
-        "highlightSpeed": "High",
-        "highlightStorage": "54TB"
+        "highlightSpeed": "High"
       },
       "speed": {
-        "name": "Speed",
-        "price": "CHF ~2.2k",
         "priceSuffix": "+ VAT/month",
-        "buyPrice": "CHF ~88k",
         "buySuffix": "+ VAT",
-        "tagline": "Optimized for fast AI responses and low latency.",
+        "tagline": "Optimized for fast responses and low latency.",
+        "nodeTagline": "Made for fast responses and low latency.",
         "cta": "Contact us",
         "highlightQuality": "Standard",
-        "highlightSpeed": "Quality",
-        "highlightStorage": "54TB"
+        "highlightSpeed": "Quality"
       }
     },
     "compare": {
@@ -379,31 +371,36 @@
         "gpu": "Chip (GPU)",
         "cpu": "Chip (CPU)",
         "ram": "AI RAM",
+        "ramInfo": "Fast memory used for AI workloads, e.g. Video Memory (VRAM) or Unified Memory (UMA).",
+        "umaInfo": "Unified Memory Architecture — RAM shared between CPU and GPU on a single chip (Apple Silicon).",
+        "vramInfo": "Video RAM — dedicated memory on the GPU board.",
+        "ddr5Info": "Fifth-generation DDR SDRAM (faster, more efficient than DDR4).",
+        "ddr5eccInfo": "DDR5 with error-correcting code — server-grade memory that detects and corrects single-bit faults.",
+        "zen5Info": "AMD's 5th-generation x86 CPU microarchitecture (2024).",
+        "int4Info": "4-bit integer quantization — trades a small amount of model precision for ~4× less memory.",
+        "m2nvmeInfo": "m.2 NVMe SSDs in a ZFS RAID pool — fast, redundant storage.",
+        "nqInfo": "Node Quality",
+        "naInfo": "Node Application",
+        "nsInfo": "Node Speed",
+        "cqInfo": "Cluster Quality",
+        "chInfo": "Cluster Hybrid",
+        "csInfo": "Cluster Speed",
+        "systemRam": "RAM",
         "ssd": "SSD",
         "hdd": "HDD",
-        "cables": "Cables & network equipment"
-      },
-      "values": {
-        "qualityModel": "Kimi K2 Thinking",
-        "hybridModel": "DeepSeek V3.2-Exp",
-        "speedModel": "Qwen3-30B-A3B",
-        "qualitySize": "50cm × 50cm × 150cm",
-        "hybridSize": "50cm × 50cm × 150cm",
-        "speedSize": "150cm × 50cm × 50cm",
-        "qualityGpu": "3× Apple Silicon",
-        "hybridGpu": "2× Apple Silicon, 1× NVIDIA RTX PRO 6000",
-        "speedGpu": "3× NVIDIA RTX PRO 6000",
-        "qualityCpu": "1× AMD EPYC 4005",
-        "hybridCpu": "2× AMD EPYC 4005",
-        "speedCpu": "4× AMD EPYC 4005",
-        "qualityRam": "1536GB",
-        "hybridRam": "1120GB",
-        "speedRam": "288GB",
-        "ssd": "18TB",
-        "hdd": "36TB"
+        "cables": "Cables & network equipment",
+        "confidentialComputing": "Confidential computing",
+        "version": "Product version",
+        "productNumber": "Product number"
       },
       "cellLabels": {
-        "yes": "Included"
+        "yes": "Included",
+        "onRequest": "Available on request",
+        "notAvailable": "Not available"
+      },
+      "sections": {
+        "specifications": "Specifications",
+        "other": "Other"
       }
     },
     "extras": {

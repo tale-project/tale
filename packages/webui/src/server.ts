@@ -1,11 +1,17 @@
 /**
- * Shared simple-server bootstrap. Used by `services/web/server.ts` and
- * `services/docs/server.ts` — both serve a Vite-built static SPA from a
- * `dist/` directory, run the locale negotiator on every request, and expose
- * `/api/health`. The platform service uses a Hono-based shell with CSP,
- * nonce injection, and Convex-aware routes — that lives in
- * `services/platform/server.ts` and intentionally is NOT funneled through
- * this helper.
+ * Shared React-service bootstrap. Used by every Tale Vite/React service
+ * that serves a built SPA from a `dist/` directory (web, docs, and any
+ * service scaffolded from `tools/plop/templates/react-service`). The
+ * platform service uses a Hono-based shell with CSP, nonce injection, and
+ * Convex-aware routes — that lives in `services/platform/server.ts` and
+ * intentionally is NOT funneled through this helper.
+ *
+ * In addition to the locale negotiator, static serving, and the
+ * `/api/health` endpoint, this server can also serve the full set of
+ * SEO + LLM artifacts (`/llms.txt`, `/llms-full.txt`, `/sitemap.xml`,
+ * `/robots.txt`, `/<route>.md`) on demand — pass an `ArtifactsServer`
+ * from `@tale/seo` and every artifact URL is dispatched to it with
+ * proper ETag handling before falling through to static serving.
  */
 
 import { existsSync } from 'node:fs';
@@ -16,6 +22,7 @@ import {
   negotiatePathLocale,
   type NegotiatePathLocaleResult,
 } from '@tale/i18n/negotiate';
+import type { ArtifactsServer } from '@tale/seo';
 import { file } from 'bun';
 
 export interface SecurityHeadersConfig {
@@ -43,7 +50,7 @@ export interface SecurityHeadersConfig {
  * No external origins are allowed by default — runtime assets must be
  * served same-origin. Same GDPR / air-gap rationale as the platform CSP.
  */
-export const defaultSimpleSecurityHeaders: SecurityHeadersConfig = {
+export const defaultReactServerSecurityHeaders: SecurityHeadersConfig = {
   contentSecurityPolicy: {
     defaultSrc: ["'self'"],
     scriptSrc: ["'self'", "'unsafe-inline'"],
@@ -65,7 +72,7 @@ export const defaultSimpleSecurityHeaders: SecurityHeadersConfig = {
   referrerPolicy: 'strict-origin-when-cross-origin',
 };
 
-export interface SimpleServerOptions {
+export interface ReactServerOptions {
   /** Port to listen on. */
   port: number;
   /** Bind hostname. Defaults to `0.0.0.0`. */
@@ -111,6 +118,14 @@ export interface SimpleServerOptions {
     request: Request,
     url: URL,
   ) => Promise<Response | null | undefined> | Response | null | undefined;
+  /**
+   * Optional on-demand SEO + LLM artifact server (built via
+   * `createArtifactsServer` from `@tale/seo`). When set, requests for
+   * `/llms.txt`, `/llms-full.txt`, `/sitemap.xml`, `/robots.txt`, and
+   * `/<route>.md` are dispatched to the server before falling through to
+   * static serving. Misses (unknown route) fall through.
+   */
+  artifacts?: ArtifactsServer;
 }
 
 function contentTypeFor(path: string): string | null {
@@ -172,7 +187,24 @@ function applySecurityHeaders(
   return response;
 }
 
-export function startSimpleServer(opts: SimpleServerOptions): void {
+async function handleArtifacts(
+  artifacts: ArtifactsServer,
+  request: Request,
+  logPrefix: string,
+): Promise<Response | null> {
+  try {
+    return await artifacts.handle(request);
+  } catch (error) {
+    console.error(
+      `[${logPrefix}] artifact handler failed for`,
+      new URL(request.url).pathname,
+      error,
+    );
+    return new Response('Artifact render failed', { status: 500 });
+  }
+}
+
+export function startReactServer(opts: ReactServerOptions): void {
   const {
     port,
     hostname = '0.0.0.0',
@@ -183,6 +215,7 @@ export function startSimpleServer(opts: SimpleServerOptions): void {
     shutdownMarkerPath,
     securityHeaders,
     extraRoutes,
+    artifacts,
   } = opts;
 
   const distPrefix = distDir + sep;
@@ -266,6 +299,11 @@ export function startSimpleServer(opts: SimpleServerOptions): void {
       if (extraRoutes) {
         const extra = await extraRoutes(request, url);
         if (extra) return finalize(extra);
+      }
+
+      if (artifacts) {
+        const artifact = await handleArtifacts(artifacts, request, logPrefix);
+        if (artifact) return finalize(artifact);
       }
 
       const negotiation = negotiatePathLocale({

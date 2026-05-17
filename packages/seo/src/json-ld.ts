@@ -1,7 +1,12 @@
 /**
  * Builders for the JSON-LD blocks Tale emits. Each function returns a
- * stringified object ready to drop inside a `<script type="application/ld+json">`.
+ * stringified object ready to drop inside a
+ * `<script type="application/ld+json">` tag.
  */
+
+// ---------------------------------------------------------------------------
+// Organization
+// ---------------------------------------------------------------------------
 
 interface OrganizationParams {
   name: string;
@@ -11,8 +16,8 @@ interface OrganizationParams {
 }
 
 /**
- * Builds a JSON-LD `Organization` block. Useful on the homepage so Google can
- * surface a richer knowledge-panel result (logo, social profiles).
+ * `Organization` block — used on the homepage so Google can surface a
+ * richer knowledge-panel result (logo, social profiles).
  *
  * @example
  *   buildOrganizationJsonLd({
@@ -35,21 +40,25 @@ export function buildOrganizationJsonLd(params: OrganizationParams): string {
   });
 }
 
+// ---------------------------------------------------------------------------
+// WebSite (with optional sitelinks search action)
+// ---------------------------------------------------------------------------
+
 interface WebSiteParams {
   name: string;
   url: string;
   /**
-   * Full URL template Google will hit when a user submits the sitelinks search
-   * box. Must include the literal token `{search_term_string}`. Typical value:
-   * `${siteUrl}/?q={search_term_string}`.
+   * Full URL template Google will hit when a user submits the sitelinks
+   * search box. Must include the literal token `{search_term_string}`.
+   * Typical value: `${siteUrl}/?q={search_term_string}`.
    */
   searchUrlTemplate?: string;
 }
 
 /**
- * Builds a JSON-LD `WebSite` block. When `searchUrlTemplate` is provided, a
- * `potentialAction.SearchAction` is attached so Google may render a sitelinks
- * search box pointing at e.g. `${siteUrl}/?q={search_term_string}`.
+ * `WebSite` block. When `searchUrlTemplate` is provided, a
+ * `potentialAction.SearchAction` is attached so Google may render a
+ * sitelinks search box.
  *
  * @example
  *   buildWebSiteJsonLd({
@@ -78,6 +87,10 @@ export function buildWebSiteJsonLd(params: WebSiteParams): string {
       : {}),
   });
 }
+
+// ---------------------------------------------------------------------------
+// Article
+// ---------------------------------------------------------------------------
 
 interface ArticleParams {
   headline: string;
@@ -127,6 +140,10 @@ export function buildArticleJsonLd(params: ArticleParams): string {
     ...(params.inLanguage ? { inLanguage: params.inLanguage } : {}),
   });
 }
+
+// ---------------------------------------------------------------------------
+// BreadcrumbList
+// ---------------------------------------------------------------------------
 
 export interface BreadcrumbItem {
   name: string;

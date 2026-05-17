@@ -1,16 +1,16 @@
 /**
- * Helper that serialises a page back to canonical markdown for the `.md`
- * endpoint and the "Copy as Markdown" button. The page already lives on
- * disk as markdown — this just rewrites relative links to absolute URLs
- * and optionally re-emits a frontmatter block with the canonical fields.
+ * Serialises a page back to canonical markdown for the `.md` endpoint and
+ * the "Copy as Markdown" button. The page already lives on disk as
+ * markdown — this just rewrites relative links to absolute URLs and
+ * optionally re-emits a frontmatter block with canonical fields.
  */
 
 interface RenderParams {
   /** Frontmatter pairs to emit at the top. Pass `null` to skip. */
   frontmatter: Record<string, string | boolean | number> | null;
-  /** Markdown body (no leading frontmatter). */
+  /** Markdown body — no leading frontmatter. */
   body: string;
-  /** Origin used to absolutise relative links, e.g. `https://example.com/docs`. */
+  /** Origin used to absolutise relative links (e.g. `https://tale.dev`). */
   siteUrl: string;
 }
 
@@ -30,8 +30,11 @@ function emitFrontmatter(
   return lines.join('\n');
 }
 
+/**
+ * Rewrites `[text](/path)` to `[text](https://site/path)`. Leaves
+ * `http(s)://...` and `mailto:` links untouched.
+ */
 function rewriteLinks(body: string, siteUrl: string): string {
-  // [text](/path) → [text](https://site/path); leaves http(s) and mailto links alone.
   return body.replace(
     /\]\((\/[^)]*?)\)/g,
     (_, path: string) => `](${siteUrl}${path})`,

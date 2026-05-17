@@ -72,6 +72,7 @@
     "@scure/base": "2.0.0",
     "@sentry/tanstackstart-react": "10.48.0",
     "@tailwindcss/postcss": "4.2.2",
+    "@tale/seo": "workspace:*",
     "@tale/ui": "workspace:*",
     "@tale/webui": "workspace:*",
     "@tanstack/react-query": "5.97.0",

@@ -1,1 +1,92 @@
-{}
+{
+  "pricing": {
+    "tierNames": {
+      "community": "Community",
+      "enterprise": "Enterprise"
+    }
+  },
+  "hardwarePricing": {
+    "models": {
+      "quality": "Kimi K2.6 (INT4)",
+      "hybrid": "DeepSeek V4 Pro (INT4)",
+      "speed": "Qwen3-235B-A22B (INT4)"
+    },
+    "modes": {
+      "node": "Node",
+      "cluster": "Cluster"
+    },
+    "versions": {
+      "nodeQuality": "26.02 (NQ)",
+      "nodeApplication": "26.02 (NA)",
+      "nodeSpeed": "26.02 (NS)",
+      "clusterQuality": "26.02 (CQ)",
+      "clusterHybrid": "26.02 (CH)",
+      "clusterSpeed": "26.02 (CS)"
+    },
+    "productNumbers": {
+      "quality": "P0005",
+      "hybrid": "P0006",
+      "speed": "P0007"
+    },
+    "tierNames": {
+      "cluster": {
+        "quality": "Quality cluster",
+        "hybrid": "Hybrid cluster",
+        "speed": "Speed cluster"
+      },
+      "node": {
+        "quality": "Quality node",
+        "hybrid": "Application node",
+        "speed": "Speed node"
+      }
+    },
+    "specs": {
+      "cluster": {
+        "qualityRam": "864GB (UMA)",
+        "hybridRam": "576GB (UMA)\n96GB (VRAM)",
+        "speedRam": "288GB (VRAM)",
+        "qualitySystemRam": "96GB (DDR5)",
+        "hybridSystemRam": "192GB (DDR5 ECC)",
+        "speedSystemRam": "288GB (DDR5 ECC)",
+        "qualityGpu": "9× Apple Silicon",
+        "hybridGpu": "6× Apple Silicon\n1× NVIDIA RTX PRO 6000 Max-Q",
+        "speedGpu": "3× NVIDIA RTX PRO 6000 Max-Q",
+        "qualityCpu": "1× AMD EPYC 4005 (Zen 5)",
+        "hybridCpu": "2× AMD EPYC 4005 (Zen 5)",
+        "speedCpu": "4× AMD EPYC 4005 (Zen 5)",
+        "qualitySsd": "25TB (m.2 NVMe)",
+        "hybridSsd": "26TB (m.2 NVMe)",
+        "speedSsd": "28TB (m.2 NVMe)",
+        "qualityHdd": "-",
+        "hybridHdd": "-",
+        "speedHdd": "-",
+        "qualitySize": "500mm × 500mm × 1500mm",
+        "hybridSize": "500mm × 500mm × 1500mm",
+        "speedSize": "1500mm × 500mm × 500mm"
+      },
+      "node": {
+        "qualityRam": "96GB (UMA)",
+        "hybridRam": "-",
+        "speedRam": "96GB (VRAM)",
+        "qualitySystemRam": "-",
+        "hybridSystemRam": "96GB (DDR5 ECC)",
+        "speedSystemRam": "96GB (DDR5 ECC)",
+        "qualityGpu": "1× Apple Silicon",
+        "hybridGpu": "-",
+        "speedGpu": "1× NVIDIA RTX PRO 6000 Max-Q",
+        "qualityCpu": "-",
+        "hybridCpu": "1× AMD EPYC 4005 (Zen 5)",
+        "speedCpu": "1× AMD EPYC 4005 (Zen 5)",
+        "qualitySsd": "1TB (m.2 NVMe)",
+        "hybridSsd": "16TB (m.2 NVMe)",
+        "speedSsd": "4TB (m.2 NVMe)",
+        "qualityHdd": "-",
+        "hybridHdd": "-",
+        "speedHdd": "-",
+        "qualitySize": "192mm × 366mm × 270mm",
+        "hybridSize": "192mm × 366mm × 270mm",
+        "speedSize": "192mm × 366mm × 270mm"
+      }
+    }
+  }
+}

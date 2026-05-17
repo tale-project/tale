@@ -1,14 +1,14 @@
+import {
+  buildArticleJsonLd,
+  buildBreadcrumbListJsonLd,
+} from '@tale/seo/json-ld';
+import { pageAsMarkdown } from '@tale/seo/page-as-markdown';
 import { markdownComponents } from '@tale/ui/markdown/components/registry';
 import { extractToc } from '@tale/ui/markdown/extract-toc';
 import { readingTimeMinutes } from '@tale/ui/markdown/reading-time';
 import { RoutedMarkdown } from '@tale/ui/markdown/routed-markdown';
 import { PageActions } from '@tale/webui/ai/page-actions';
-import { pageAsMarkdown } from '@tale/webui/llm/page-as-markdown';
 import { useDocumentMeta } from '@tale/webui/seo/document-meta';
-import {
-  buildArticleJsonLd,
-  buildBreadcrumbListJsonLd,
-} from '@tale/webui/seo/json-ld';
 import { useMemo } from 'react';
 
 import { DocsBreadcrumbs } from '@/app/components/docs/docs-breadcrumbs';

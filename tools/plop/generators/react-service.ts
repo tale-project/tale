@@ -94,9 +94,6 @@ const files = [
   'messages/fr.json',
   'messages/global.json',
   'public/manifest.webmanifest.hbs',
-  'public/robots.txt',
-  'public/llms.txt.hbs',
-  'public/llms-full.txt.hbs',
   'public/favicon.ico',
   'types/.gitkeep',
 ];

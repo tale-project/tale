@@ -13,6 +13,7 @@ WORKDIR /app
 
 COPY package.json bun.lock bunfig.toml ./
 COPY packages/i18n/package.json ./packages/i18n/
+COPY packages/seo/package.json ./packages/seo/
 COPY packages/tale_knowledge/package.json ./packages/tale_knowledge/
 COPY packages/tale_shared/package.json ./packages/tale_shared/
 COPY packages/tale_telemetry/package.json ./packages/tale_telemetry/
@@ -41,6 +42,7 @@ WORKDIR /app
 
 COPY tsconfig.base.json ./
 COPY packages/i18n ./packages/i18n
+COPY packages/seo ./packages/seo
 COPY packages/ui ./packages/ui
 COPY packages/webui ./packages/webui
 COPY services/docs ./services/docs
@@ -56,8 +58,7 @@ RUN bun --bun scripts/build-search-index.ts \
     && bun --bun vite build \
     && bun --bun vite build --ssr app/entry-server.tsx --outDir dist-ssr \
     && bun --bun scripts/prerender.ts \
-    && bun --bun scripts/build-llms-artifacts.ts \
-    && bun build server.ts --target=bun --outfile=server.js --external bun
+    && bun build server.ts --target=bun --outfile=server.js --external bun --external canvas
 WORKDIR /app
 
 # ============================================================================

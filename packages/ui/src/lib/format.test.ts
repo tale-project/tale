@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  formatApproximateCurrency,
-  formatCompactCurrency,
-  formatCurrency,
-  formatNumber,
-} from './format';
+import { formatCompactCurrency, formatCurrency, formatNumber } from './format';
 
 // Intl.NumberFormat output varies subtly across ICU builds: it can use a
 // non-breaking space (U+00A0) or a narrow no-break space (U+202F) before
@@ -108,13 +103,14 @@ describe('formatCompactCurrency', () => {
   });
 });
 
-describe('formatApproximateCurrency', () => {
+describe('formatCurrency with approximate', () => {
   it('prefixes the amount with ~', () => {
     expect(
       normalize(
-        formatApproximateCurrency(2000, {
+        formatCurrency(2000, {
           currency: 'CHF',
           locale: 'en-US',
+          approximate: true,
         }),
       ),
     ).toBe('CHF ~2k');
@@ -123,9 +119,10 @@ describe('formatApproximateCurrency', () => {
   it('honors a custom approximation prefix', () => {
     expect(
       normalize(
-        formatApproximateCurrency(2100, {
+        formatCurrency(2100, {
           currency: 'CHF',
           locale: 'en-US',
+          approximate: true,
           approximationPrefix: 'ca. ',
         }),
       ),

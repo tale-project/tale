@@ -60,6 +60,14 @@ export default {
       ],
       project: ['**/*.{ts,tsx}'],
     },
+    'packages/seo': {
+      entry: ['src/**/*.ts'],
+      project: ['**/*.ts'],
+      // Vite is an optional peer dep for the `vite-plugin-artifacts`
+      // subpath; consumers bring their own vite. Knip flags it as a
+      // referenced optional peer otherwise.
+      ignoreDependencies: ['vite'],
+    },
     'packages/webui': {
       storybook: {
         config: ['.storybook/main.ts'],

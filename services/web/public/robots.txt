@@ -1,7 +1,0 @@
-User-agent: *
-Allow: /
-Disallow: /api/
-Disallow: /_search/
-
-Sitemap: https://tale.dev/sitemap.xml
-Sitemap: https://docs.tale.dev/sitemap.xml

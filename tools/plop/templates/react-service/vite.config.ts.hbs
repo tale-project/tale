@@ -2,6 +2,12 @@ import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import viteReact from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
+// To serve `/llms.txt`, `/llms-full.txt`, `/sitemap.xml`, `/robots.txt`,
+// and `/<route>.md` on demand, build a server with `createArtifactsServer`
+// from `@tale/seo` and wire it through `artifactsPlugin` here and
+// `startReactServer({ artifacts })` in `server.ts`. See
+// `services/web/lib/seo/artifacts-server.ts` for a full example.
+
 export default defineConfig({
   base: './',
   resolve: {
