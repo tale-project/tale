@@ -234,6 +234,17 @@ export function HardwareCompare({ mode }: HardwareCompareProps) {
       if (mergeQualityChip) row.cellSpans = { quality: 2 };
       return row;
     }),
+    { kind: 'section', label: t('compare.sections.other') },
+    {
+      kind: 'data',
+      rowKey: 'model',
+      label: t('compare.categories.model'),
+      cells: {
+        quality: <SpecValue value={t('models.quality')} />,
+        hybrid: <SpecValue value={t('models.hybrid')} />,
+        speed: <SpecValue value={t('models.speed')} />,
+      },
+    },
     {
       kind: 'data',
       rowKey: 'cables',
@@ -248,17 +259,6 @@ export function HardwareCompare({ mode }: HardwareCompareProps) {
       kind: 'span',
       label: t('compare.categories.confidentialComputing'),
       content: t('compare.cellLabels.onRequest'),
-    },
-    { kind: 'section', label: t('compare.sections.other') },
-    {
-      kind: 'data',
-      rowKey: 'model',
-      label: t('compare.categories.model'),
-      cells: {
-        quality: <SpecValue value={t('models.quality')} />,
-        hybrid: <SpecValue value={t('models.hybrid')} />,
-        speed: <SpecValue value={t('models.speed')} />,
-      },
     },
     {
       kind: 'span',

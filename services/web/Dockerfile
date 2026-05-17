@@ -59,7 +59,7 @@ WORKDIR /app/services/web
 # marketing pages at request time.
 RUN bun --bun vite build \
     && bun --bun vite build --ssr app/entry-server.tsx --outDir dist-ssr \
-    && bun build server.ts --target=bun --outfile=server.js --external bun
+    && bun build server.ts --target=bun --outfile=server.js --external bun --external canvas
 WORKDIR /app
 
 # ============================================================================
