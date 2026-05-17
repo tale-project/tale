@@ -123,6 +123,15 @@ export function stripMarkdown(
 
   return (
     working
+      // `<script>` and `<style>` block contents: drop the ENTIRE block,
+      // not just the tag wrappers. Without this, the generic tag
+      // stripper below would leave the inner body intact and TTS would
+      // vocalize raw JS / CSS source. Single-line and multi-line
+      // bodies covered by the `[\s\S]*?` lazy match. Runs BEFORE the
+      // generic tag stripper so any leftover unclosed tag (rare in
+      // assistant prose) still gets cleaned up.
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, '')
+      .replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, '')
       // images first (longer pattern) so the alt-text remains
       .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
       // links: keep the visible label, drop URL
@@ -154,9 +163,19 @@ export function stripMarkdown(
       // strikethrough — keep content
       .replace(/~~([^~]+)~~/g, '$1')
       // math: `$$block$$` and `$inline$` — drop contents entirely; TTS
-      // reads LaTeX commands as random syllables.
+      // reads LaTeX commands as random syllables. The inline form must
+      // distinguish LaTeX from currency: `"I paid $5 for $10 of beans"`
+      // looks like a `$…$` pair to a naive regex and previously
+      // collapsed to `"I paid 10 of beans"`. Gate the opener on a
+      // non-space, non-digit, non-`$` first character — LaTeX inline
+      // never begins with a digit (commands start with `\` or letters,
+      // operators with parens / braces), so this preserves currency
+      // (`$5`, `$10.50`, `$1,000`) while still catching real inline
+      // math like `$a^2 + b^2 = c^2$` and `$\alpha + \beta$`. Closer
+      // is gated on "not immediately followed by a digit" so adjacent
+      // currency like `$5 for $10` won't be paired as math.
       .replace(/\$\$[\s\S]*?\$\$/g, '')
-      .replace(/(?<!\\)\$[^$\n]+\$/g, '')
+      .replace(/(?<![\\$])\$(?![\s\d$])[^$\n]+?\$(?!\d)/g, '')
       // table separator rows `|---|---|` — drop entirely
       .replace(/^\s*\|?(?:\s*:?-+:?\s*\|)+\s*:?-*:?\s*\|?\s*$/gm, '')
       // table data rows `|cell|cell|` — collapse pipes to spaces

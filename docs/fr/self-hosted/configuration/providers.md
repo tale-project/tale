@@ -235,7 +235,7 @@ Champs spécifiques à la TTS dans une entrée modèle :
 | `instructionsByLocale`           | Mapping optionnel locale BCP-47 → instructions. La résolution suit `voicesByLocale` : locale complète → langue de base → `defaultInstructions`. Chaque valeur est plafonnée à 2000 caractères. |
 | `cost.centsPerMillionCharacters` | Par 1 000 000 caractères en entrée (par ex. `1500` = $15/M caractères). gpt-4o-mini-tts est facturé au token ; pour ce modèle, fournis une approximation char estimée par l'opérateur.         |
 
-L'action applique des limites de débit par utilisateur (`tts:synthesize:user`, 40/min) et par org (`tts:synthesize:org`, 200/min), un plafond dur de 200 chunks par message et une vérification du budget organisation avant chaque synthèse. L'audio synthétisé est gardé en cache dans le stockage Convex pendant environ 7 jours et nettoyé par un balayage org quotidien programmé, complété par un nettoyage opportuniste par conversation déclenché depuis le chemin d'écriture.
+L'action applique des limites de débit par utilisateur (`tts:synthesize:user`, 40/min) et par org (`tts:synthesize:org`, 200/min), un plafond dur de 200 chunks par message et une vérification du budget organisation avant chaque synthèse. L'audio synthétisé est gardé en cache dans le stockage Convex pendant environ 7 jours et nettoyé par un balayage org horaire programmé, complété par un nettoyage opportuniste par conversation déclenché depuis le chemin d'écriture.
 
 ## Backends d'inférence auto-hébergés
 

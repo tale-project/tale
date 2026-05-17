@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { usePrefersReducedMotion } from '@/app/hooks/use-prefers-reduced-motion';
 import { cn } from '@/lib/utils/cn';
@@ -142,8 +142,47 @@ export function AssistantMessageContent({
   const hasReadyChunk = chunks?.some((c) => c.status === 'ready') ?? false;
   const hasFailedChunk = chunks?.some((c) => c.status === 'failed') ?? false;
   const hasError = !!preReservationError || hasFailedChunk;
+
+  // Reveal watchdog: when streaming has finished AND voice mode is on
+  // AND no chunk row ever appeared AND no error sank, the bubble would
+  // otherwise hang forever — the chunker correctly skips zero-length
+  // stripped content (pure emoji / whitespace replies), so neither a
+  // ready chunk nor a failure ever surfaces. After 2 s of `!isStreaming`
+  // with no signal, force-reveal so the user always sees the text.
+  // Reset on `messageId` change so a fresh bubble starts the timer
+  // anew, and on `isStreaming` flipping back to `true` (mid-stream
+  // resume) so a long pause doesn't trip the watchdog prematurely.
+  const [revealForceShow, setRevealForceShow] = useState(false);
+  useEffect(() => {
+    const shouldArm =
+      voiceModeEnabled &&
+      isFreshSinceMount &&
+      !hasReadyChunk &&
+      !hasError &&
+      !isStreaming &&
+      chunks !== undefined &&
+      chunks.length === 0;
+    if (!shouldArm) return undefined;
+    const timer = setTimeout(() => setRevealForceShow(true), 2000);
+    return () => clearTimeout(timer);
+  }, [
+    voiceModeEnabled,
+    isFreshSinceMount,
+    isStreaming,
+    chunks,
+    hasReadyChunk,
+    hasError,
+  ]);
+  useEffect(() => {
+    setRevealForceShow(false);
+  }, [messageId]);
+
   const shouldHideText =
-    voiceModeEnabled && isFreshSinceMount && !hasReadyChunk && !hasError;
+    voiceModeEnabled &&
+    isFreshSinceMount &&
+    !hasReadyChunk &&
+    !hasError &&
+    !revealForceShow;
 
   const activeChunkText = useMemo(() => {
     if (!activePlayback || activePlayback.chunkIndex === null || !chunks) {
@@ -158,6 +197,28 @@ export function AssistantMessageContent({
     [text, isStreaming],
   );
 
+  // Cross-paragraph chunk detection: when the active chunk's text spans
+  // multiple paragraphs (typical of the chunker's post-stream short-
+  // reply path, which collapses `\n\n` → space and emits one chunk
+  // covering the whole tail), no individual paragraph's stripped text
+  // contains the joined chunk string. The spotlight branch would then
+  // dim every paragraph — the bubble reads fully muted while audio
+  // plays. Detect this here and fall through to the no-spotlight
+  // render so the user reads at normal contrast. Hoisted above the
+  // fallback gate so the branch decision is centralised.
+  const spotlightMatchesAny = useMemo(() => {
+    if (activeChunkText === null || activeChunkText.trim().length === 0) {
+      return false;
+    }
+    return parsed.sections.some((section) => {
+      if (section.type !== 'plain') return false;
+      const paragraphs = splitParagraphsPreservingFences(section.content);
+      return paragraphs.some((p) =>
+        containsNormalized(stripMarkdownOnce(p), activeChunkText),
+      );
+    });
+  }, [parsed.sections, activeChunkText]);
+
   // Voice-first: text is hidden until either audio starts or an error
   // surfaces. The voice indicator (mounted at the message-bubble level
   // above this component) shows "Preparing voice…" during this window.
@@ -166,12 +227,14 @@ export function AssistantMessageContent({
   // No spotlight engaged — render exactly the original
   // `StructuredMessage` path. Avoids re-mounting TypewriterText
   // instances, which would interrupt the typewriter animation
-  // mid-stream.
+  // mid-stream. Also engaged when the chunk spans paragraphs
+  // (`!spotlightMatchesAny`) so the bubble doesn't go fully muted.
   if (
     !voiceModeEnabled ||
     isStreaming ||
     activeChunkText === null ||
-    activeChunkText.trim().length === 0
+    activeChunkText.trim().length === 0 ||
+    !spotlightMatchesAny
   ) {
     const lastIndex = parsed.sections.length - 1;
     return (

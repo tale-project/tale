@@ -316,6 +316,24 @@ function VoiceOutputSection({
   const { toast } = useToast();
   const setVoiceOutput = useMutation(api.tts.mutations.setUserVoiceOutput);
   const getCapability = useAction(api.tts.synthesize.getCapability);
+  // Org-level governance veto. `getVoiceModeEffective` makes the
+  // `voice_output` policy the top-priority kill switch: when an admin
+  // disables voice org-wide, the user's master preference becomes a
+  // no-op even though `setUserVoiceOutput` happily persists the write.
+  // Without this read the Switch rendered interactive + green-toasted
+  // "Preferences updated", but voice would still never play — fully
+  // silent failure. Mirroring the read here lets us disable + explain.
+  // M6.
+  const { data: orgVoicePolicy } = useGovernancePolicy(
+    organizationId,
+    'voice_output',
+  );
+  const orgVetoed = (() => {
+    const config = orgVoicePolicy?.config;
+    if (!isRecord(config)) return false;
+    const flag = config.enabled;
+    return typeof flag === 'boolean' && !flag;
+  })();
   const isLoading = prefs === undefined;
   const enabled = prefs?.voiceOutput === true;
   const [providerAvailable, setProviderAvailable] = useState<boolean | null>(
@@ -355,22 +373,34 @@ function VoiceOutputSection({
   // `<Text>` below the Switch left screen-reader users with no audible
   // signal that the toggle was non-functional — Radix's Switch only
   // wires `aria-describedby` to the `description` prop.
-  const switchDescription: ReactNode =
-    providerAvailable === false ? (
-      <>
-        {t('page.voiceOutput.description')}{' '}
-        {t('page.voiceOutput.providerUnavailable')}{' '}
-        <Link
-          to="/dashboard/$id/settings/providers"
-          params={{ id: organizationId }}
-          className="hover:text-foreground underline"
-        >
-          {t('page.voiceOutput.configureProvider')}
-        </Link>
-      </>
-    ) : (
-      t('page.voiceOutput.description')
-    );
+  //
+  // Three exclusive branches by priority:
+  //  1. Org veto — the policy is the top-priority gate. When the admin
+  //     disables voice org-wide, both the master pref Switch and the
+  //     provider-availability hint become moot. Don't link to the
+  //     providers page either; the user can't change this themselves.
+  //  2. Provider unavailable — second priority; user can either ask
+  //     admin or (if they are admin) configure a provider.
+  //  3. Normal description — voice is reachable.
+  const switchDescription: ReactNode = orgVetoed ? (
+    <>
+      {t('page.voiceOutput.description')} {t('page.voiceOutput.disabledByOrg')}
+    </>
+  ) : providerAvailable === false ? (
+    <>
+      {t('page.voiceOutput.description')}{' '}
+      {t('page.voiceOutput.providerUnavailable')}{' '}
+      <Link
+        to="/dashboard/$id/settings/providers"
+        params={{ id: organizationId }}
+        className="hover:text-foreground underline"
+      >
+        {t('page.voiceOutput.configureProvider')}
+      </Link>
+    </>
+  ) : (
+    t('page.voiceOutput.description')
+  );
 
   return (
     <PageSection title={t('page.voiceOutput.label')} titleSize="base">
@@ -384,7 +414,15 @@ function VoiceOutputSection({
         // fact. The user can still turn it OFF in that state (the probe
         // could be wrong about negativity, e.g. a transient mid-toggle
         // outage), so the gate is asymmetric.
-        disabled={isLoading || (providerAvailable === false && !enabled)}
+        // Disable when (a) prefs still loading, (b) no provider AND the
+        // user has it OFF (so they can still flip OFF in the
+        // edge case where the probe is wrong about negativity), or
+        // (c) the org has vetoed voice org-wide — in that case the
+        // write would persist but the effective state stays OFF, so
+        // we hard-disable to prevent the silent no-op. M6.
+        disabled={
+          isLoading || (providerAvailable === false && !enabled) || orgVetoed
+        }
         checked={enabled}
         // Use `aria-label` (not the visible `label` prop) for the
         // accessible name — the PageSection title above already renders

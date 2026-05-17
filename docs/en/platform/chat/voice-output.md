@@ -9,7 +9,7 @@ Voice output reads the assistant's replies aloud as they stream. It synthesises 
 
 Voice output is off by default. There are two places to control it:
 
-- **Per-thread toggle.** Open the chat header's `...` menu and toggle **Voice output for this chat**. The row is a binary switch and only appears when the global default is on. Toggling off silences this conversation; toggling on speaks this conversation when the default is off.
+- **Per-thread toggle.** Open the chat header's `...` menu and toggle **Voice output for this thread**. The row is a binary switch and appears whenever the org allows voice output, independent of your master pref — it serves as an override in either direction. Toggling off silences this conversation when the default is on; toggling on speaks this conversation when the default is off.
 - **Global default.** In **Settings → Personalization → Voice output**, switch the default on. New conversations will speak replies until you override them in the chat header's `...` menu.
 
 The first time you turn voice on in a session, the click also unlocks the browser's audio system. Without that gesture, mobile Safari and stricter Chromium builds will refuse to play synthesised audio automatically, and the indicator on each message will show "Voice playback blocked — tap to play" until you tap.
@@ -47,7 +47,7 @@ Rate-limit and rate-limiter contention errors auto-retry up to two times with ex
 
 Each synthesised character bills the configured provider. Tale's budget policy applies to voice output the same way it applies to chat: synthesis blocks once the per-period cost or request cap is reached. The platform also enforces per-user and per-organization rate limits on TTS so a scripted abuser cannot exhaust a provider quota.
 
-Audio is cached in Convex storage for about seven days, so re-playing a recent message does not re-bill. After that the row and blob are removed by a daily background sweep (with an opportunistic per-thread cleanup gated by the write path); the next play synthesises afresh.
+Audio is cached in Convex storage for about seven days, so re-playing a recent message does not re-bill. After that the row and blob are removed by an hourly background sweep (with an opportunistic per-thread cleanup gated by the write path); the next play synthesises afresh.
 
 ## Accessibility
 

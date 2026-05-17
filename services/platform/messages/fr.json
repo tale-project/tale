@@ -2070,6 +2070,8 @@
       "voiceOutputErrorBudget": "Budget vocal épuisé pour cette période",
       "voiceOutputErrorTransient": "Service vocal indisponible — nouvelle tentative en cours",
       "voiceOutputErrorDecode": "Lecture audio impossible — clique pour réessayer",
+      "voiceOutputErrorAuthExpired": "Session expirée — reconnecte-toi pour continuer la lecture vocale",
+      "voiceOutputErrorInvalidResponse": "Fournisseur vocal a renvoyé un audio invalide — clique pour réessayer",
       "voiceOutputErrorMessageCharLimit": "Réponse trop longue pour la voix — arrêt ici",
       "voiceOutputErrorForbidden": "Fournisseur vocal bloqué par la politique d'hôte",
       "voiceOutputErrorChunkLimit": "Limite vocale atteinte pour cette réponse",
@@ -2081,7 +2083,8 @@
       "voiceOutputAnnounceStopped": "Lecture vocale arrêtée",
       "voiceOutputAnnounceBlocked": "Lecture vocale bloquée — active la lecture pour écouter",
       "voiceOutputAnnounceError": "Échec de la sortie vocale",
-      "voiceOutputThreadSwitchLabel": "Sortie vocale pour ce chat"
+      "voiceOutputThreadSwitchLabel": "Sortie vocale pour ce chat",
+      "voiceOutputThreadSaveFailed": "Impossible d'enregistrer le paramètre vocal pour ce chat"
     },
     "searchChat": "Rechercher dans le chat",
     "hideSearch": "Masquer la recherche",
@@ -4825,7 +4828,8 @@
         "label": "Sortie vocale (par défaut)",
         "description": "Quand cette option est activée, les nouvelles conversations te lisent à voix haute les réponses de l'assistant dans la langue de ton interface. Tu peux activer ou désactiver la voix séparément dans chaque conversation depuis son en-tête.",
         "providerUnavailable": "Aucun fournisseur de synthèse vocale configuré. La sortie vocale ne sera disponible qu'après l'ajout d'un modèle TTS dans Paramètres → Fournisseurs IA par un administrateur.",
-        "configureProvider": "Configurer un fournisseur"
+        "configureProvider": "Configurer un fournisseur",
+        "disabledByOrg": "Ton organisation a désactivé la sortie vocale pour tout le monde. Demande à une personne admin de la réactiver dans Gouvernance → Politiques."
       },
       "memories": {
         "title": "Souvenirs enregistrés",

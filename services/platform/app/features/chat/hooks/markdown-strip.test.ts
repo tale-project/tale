@@ -110,6 +110,48 @@ describe('adversarial input regression tests', () => {
     );
   });
 
+  it('preserves currency amounts that look like inline-math delimiters', () => {
+    // Regression: pre-fix the inline-math regex matched `$5 for $` as a
+    // single math span, collapsing `"I paid $5 for $10 of beans"` to
+    // `"I paid 10 of beans"`. Gating the opener on non-digit fixes this.
+    expect(stripMarkdownOnce('I paid $5 for $10 of beans.')).toBe(
+      'I paid $5 for $10 of beans.',
+    );
+    expect(stripMarkdownOnce('Subtotal $1,000 plus $25 shipping.')).toBe(
+      'Subtotal $1,000 plus $25 shipping.',
+    );
+    expect(stripMarkdownOnce('It costs $5.99 today.')).toBe(
+      'It costs $5.99 today.',
+    );
+  });
+
+  it('still strips LaTeX commands that start with a backslash or letter', () => {
+    expect(
+      stripMarkdownOnce('Greek: $\\alpha + \\beta = \\gamma$ inline.'),
+    ).toBe('Greek: inline.');
+    expect(stripMarkdownOnce('Var $x$ and $y$ are reals.')).toBe(
+      'Var and are reals.',
+    );
+  });
+
+  it('drops <script> and <style> block bodies (not just the tag wrappers)', () => {
+    // Regression: the previous generic-tag stripper only removed
+    // `<script>` open/close tokens, leaving `alert(1)` to be vocalized
+    // by TTS. Same for `<style>` CSS bodies.
+    expect(stripMarkdownOnce('Hello <script>alert(1)</script> world.')).toBe(
+      'Hello world.',
+    );
+    expect(
+      stripMarkdownOnce('Before\n<style>body { color: red; }</style>\nAfter'),
+    ).toBe('Before After');
+    // Multi-line bodies must also be dropped.
+    expect(
+      stripMarkdownOnce(
+        'pre <script type="text/javascript">\n  doStuff();\n</script> post',
+      ),
+    ).toBe('pre post');
+  });
+
   it('keeps strikethrough content', () => {
     expect(stripMarkdownOnce('This is ~~deleted text~~ ok.')).toBe(
       'This is deleted text ok.',

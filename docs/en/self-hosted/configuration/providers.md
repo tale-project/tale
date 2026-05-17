@@ -235,7 +235,7 @@ TTS-specific fields on a model entry:
 | `instructionsByLocale`           | Optional BCP-47 locale → instructions map. Resolution mirrors `voicesByLocale`: full locale → base language → `defaultInstructions`. Each value is capped at 2000 chars.                |
 | `cost.centsPerMillionCharacters` | Per 1,000,000 characters of input text (e.g. `1500` = $15/M chars). OpenAI's gpt-4o-mini-tts meters per token; supply an operator-estimated char-approximation when you use that model. |
 
-The action enforces per-user (`tts:synthesize:user`, 40/min) and per-org (`tts:synthesize:org`, 200/min) rate limits, a 200-chunks-per-message hard cap, and an organization budget check before each synthesis. Synthesised audio is cached in Convex storage for ~7 days and pruned by a daily org-sweep cron, plus opportunistic per-thread cleanup scheduled from the write path.
+The action enforces per-user (`tts:synthesize:user`, 40/min) and per-org (`tts:synthesize:org`, 200/min) rate limits, a 200-chunks-per-message hard cap, and an organization budget check before each synthesis. Synthesised audio is cached in Convex storage for ~7 days and pruned by an hourly org-sweep cron, plus opportunistic per-thread cleanup scheduled from the write path.
 
 ## Self-hosted inference backends
 

@@ -3,6 +3,7 @@ import { ConvexError, v } from 'convex/values';
 import {
   MAX_TTS_CHARS_PER_MESSAGE,
   MAX_TTS_CHUNKS_PER_MESSAGE,
+  TTS_FETCH_TIMEOUT_MS,
   TTS_WATCHDOG_BUFFER_MS,
 } from '../../lib/shared/constants/tts';
 import { audioFormatLiterals } from '../../lib/shared/schemas/providers';
@@ -42,12 +43,14 @@ const CLEANUP_PASS_LIMIT = 64;
  */
 const PROSPECTIVE_TTS_CENTS_PER_M_CHARS = 1500;
 
-// Pending-watchdog horizon. Sized at `FETCH_TIMEOUT_MS + 30s` so a chunk
-// whose action timed out (provider hang for the full 60s) plus generous
-// teardown slack is still considered live, but a crashed/killed action
-// becomes overwritable within 90s instead of stranding the chunk row in
-// `pending` for three minutes.
-const PENDING_STALE_MS = 60_000 + 30_000;
+// Pending-watchdog horizon. Derived from `TTS_FETCH_TIMEOUT_MS` so a
+// chunk whose action timed out (provider hang for the full 60s) plus
+// generous teardown slack is still considered live, but a crashed /
+// killed action becomes overwritable within 90s instead of stranding
+// the chunk row in `pending` for three minutes. Co-locating with the
+// fetch timeout in `lib/shared/constants/tts.ts` prevents the two from
+// silently drifting on a future tuning pass.
+const PENDING_STALE_MS = TTS_FETCH_TIMEOUT_MS + 30_000;
 
 /**
  * Schedule the opportunistic cleanup sweep for `threadId`. Wrapped here
@@ -334,7 +337,13 @@ export const reserveChunk = internalMutation({
     //
     // Existing rows are counted via the cheap `by_message` index. Counts the
     // new chunk's own text on top so a single oversize chunk still trips.
+    // Early-exit the loop once the running total + the new chunk exceeds
+    // the cap — the check is the same per row, so completing the scan
+    // after we've already decided to refuse is wasted work. Bounded
+    // today by the 200-chunk ceiling but the quadratic shape on a future
+    // cap bump is what the early-exit defends against. m9.
     let existingChars = 0;
+    let capExceeded = false;
     for await (const row of ctx.db
       .query('ttsAudioChunks')
       .withIndex('by_message', (q) => q.eq('messageId', args.messageId))) {
@@ -352,8 +361,12 @@ export const reserveChunk = internalMutation({
         continue;
       }
       existingChars += row.text.length;
+      if (existingChars + args.text.length > MAX_TTS_CHARS_PER_MESSAGE) {
+        capExceeded = true;
+        break;
+      }
     }
-    if (existingChars + args.text.length > MAX_TTS_CHARS_PER_MESSAGE) {
+    if (capExceeded) {
       throw new ConvexError({
         code: 'MESSAGE_CHAR_LIMIT',
         message: `TTS character limit reached for this message (cap ${MAX_TTS_CHARS_PER_MESSAGE}).`,
@@ -619,26 +632,20 @@ export const markChunkReadyAndRecordUsage = internalMutation({
 
     // `reserveChunk` always writes `userId` on both insert and overwrite
     // branches, so a `pending` row reaching this point without it is a
-    // bug. Flip to `'failed'` with a `PROVIDER_ERROR` token BEFORE the
-    // `'ready'` patch — otherwise the audio becomes playable to clients
-    // and the ledger write is silently skipped, billing nothing for a
-    // real synthesis call. The schema keeps `userId` optional purely for
-    // back-compat on pre-userId rows; those can never be in `pending`
-    // status today.
+    // bug. Refuse the ready-patch so the audio is never playable without
+    // a billed ledger row. Convex rolls the whole transaction back on
+    // the throw below, so we don't pre-patch the row to `'failed'`
+    // (any such patch would itself roll back and leave the row in
+    // `pending`). The watchdog (`scheduleWatchdog` / `mutations.ts:105`)
+    // flips it to `WATCHDOG_TIMEOUT` on its next pass, which is the
+    // intended terminal state. The caller (synthesize.ts) catches the
+    // throw, deletes the just-uploaded blob, and surfaces a generic
+    // failure to the client.
     if (!row.userId) {
       console.error(
-        '[tts.markReady] pending row missing userId; failing chunk to refuse ledger-less playback',
+        '[tts.markReady] pending row missing userId; refusing ledger-less playback',
         { chunkId: args.chunkId },
       );
-      await ctx.db.patch(args.chunkId, {
-        status: 'failed',
-        error: 'PROVIDER_ERROR',
-        storageId: undefined,
-      });
-      // Caller (synthesize.ts) treats the throw as a generic
-      // markChunkReady failure: its compensating block deletes the
-      // just-uploaded blob and the chunk row reflects `failed` to the
-      // client. No ledger row is written.
       throw new ConvexError({
         code: 'TTS_USERID_MISSING',
         message: 'pending row missing userId',

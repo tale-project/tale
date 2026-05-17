@@ -7,40 +7,31 @@ import { useCallback, useEffect, useRef } from 'react';
 import { api } from '@/convex/_generated/api';
 import {
   MAX_TTS_CHUNK_CHARS,
+  MAX_TTS_IN_FLIGHT,
   MAX_TTS_QUEUE_DEPTH,
+  MAX_TTS_RETRIES_PER_CHUNK,
+  MIN_TTS_CHUNK_CHARS,
+  POST_STREAM_BATCH_MAX_CHARS,
+  TTS_CONTENTION_BASE_DELAY_MS,
+  TTS_RETRY_BASE_DELAY_MS,
 } from '@/lib/shared/constants/tts';
 import { parseMarkers } from '@/lib/utils/marker-parser';
 
 import { stripMarkdown } from './markdown-strip';
 import { useVoicePreReservationErrorSink } from './voice-output-context';
 
-const MIN_CHUNK_CHARS = 12;
-const MAX_IN_FLIGHT = 3;
-// Post-stream coalescing: when a reply has finished streaming and the
-// remaining text is shorter than this, emit it as a single chunk instead
-// of one chunk per sentence. Each chunk is a separate <audio> file load
-// with a perceptible swap gap, so short replies otherwise sound choppy
-// (and isolated punctuation/emoji confuse the model when sent alone).
-const POST_STREAM_BATCH_MAX_CHARS = 300;
-// Codes the client retries on. Narrowed from the prior {RATE_LIMITED,
-// PROVIDER_5XX, TIMEOUT, PROVIDER_ERROR} set per the round-2 audit:
-//  - `PROVIDER_5XX` and `TIMEOUT` retry the *provider* HTTP call, which
-//    a) re-bills the chunk against the provider, b) the upstream is often
-//    already degraded (5xx) so the chunk stays failed anyway. Surface to
-//    the user and let them retry manually via the indicator.
-//  - `PROVIDER_ERROR` is a catch-all including non-transient cases like
-//    `resolveOrgSlug` failures; the server marks it `retryable: false`,
-//    so the client agreeing means no more silent disagreement on the
-//    retry contract.
-//  - `RATE_LIMITED` (real quota exhaustion) and `CONTENTION` (rate-limiter
-//    shard OCC) are still retryable but use different backoff cadences.
+// Codes the client retries on. Retry policy is intentionally client-owned
+// per `convex/tts/error_codes.ts` header — the server returns only the
+// stable code, the client decides which codes are worth re-billing the
+// provider for. Narrowed from the prior {RATE_LIMITED, PROVIDER_5XX,
+// TIMEOUT, PROVIDER_ERROR} set per the round-2 audit:
+//  - `PROVIDER_5XX` / `TIMEOUT` retries re-bill the provider on a degraded
+//    upstream that's likely to keep failing — surface for manual retry.
+//  - `PROVIDER_ERROR` is a catch-all (includes non-transient classes like
+//    `resolveOrgSlug` failures) so retrying is wasteful.
+//  - `RATE_LIMITED` (real quota exhaustion) and `CONTENTION` (limiter
+//    shard OCC) are still retryable with different backoff cadences.
 const RETRYABLE_ERROR_CODES = new Set(['RATE_LIMITED', 'CONTENTION']);
-const MAX_RETRIES_PER_CHUNK = 2;
-const RETRY_BASE_DELAY_MS = 1500;
-// `CONTENTION` is shard-OCC, not quota — back off much shorter than the
-// `RATE_LIMITED` curve. 100ms base with jitter is enough for the
-// rate-limiter library's internal retry to land on a free shard.
-const CONTENTION_BASE_DELAY_MS = 100;
 // Module-level fallback splitter for environments without Intl.Segmenter.
 const FALLBACK_SENTENCE_BOUNDARY = /(?<=[.!?。！？])\s+|\n{2,}/g;
 
@@ -207,7 +198,7 @@ function segmentSentences(
  * Retry behaviour: when the action returns `{ status: 'failed', errorCode }`
  * with a retryable code (`RATE_LIMITED` for genuine quota exhaustion,
  * `CONTENTION` for rate-limiter shard OCC), the chunker re-invokes
- * `synthesizeChunk` up to `MAX_RETRIES_PER_CHUNK` times with jittered
+ * `synthesizeChunk` up to `MAX_TTS_RETRIES_PER_CHUNK` times with jittered
  * exponential backoff. Terminal codes (NO_PROVIDER, UNKNOWN_*,
  * BUDGET_EXCEEDED, MESSAGE_CHAR_LIMIT, HOST_POLICY, PROVIDER_4XX,
  * PROVIDER_5XX, TIMEOUT, PROVIDER_ERROR) are surfaced via the indicator —
@@ -247,7 +238,17 @@ export function useVoiceOutputChunker(opts: {
   const cursorRef = useRef(0);
   const indexRef = useRef(0);
   const inFlightRef = useRef(0);
-  const queueRef = useRef<Array<() => void>>([]);
+  // Each queued closure carries the cursor delta its enqueueing already
+  // committed to `cursorRef`. On toggle-OFF, the streaming-loop's
+  // synchronous cursor advance has already moved past text that the
+  // queued (but not yet dispatched) closures were going to synthesize;
+  // rolling cursor back by their cumulative delta lets re-enable
+  // re-segment the dropped range instead of silently skipping it.
+  // Retries carry `consumedDelta: 0` because the original enqueue
+  // already accounted for the cursor move.
+  const queueRef = useRef<Array<{ run: () => void; consumedDelta: number }>>(
+    [],
+  );
   const lastMessageIdRef = useRef<string | undefined>(undefined);
   const fenceOpenRef = useRef(false);
   const retryAttemptsRef = useRef(new Map<number, number>());
@@ -315,6 +316,25 @@ export function useVoiceOutputChunker(opts: {
     };
   }, []);
 
+  // Drop every still-queued closure and roll `cursorRef` back by their
+  // cumulative `consumedDelta`. In-flight closures (already dispatched
+  // to `synthesize`) are NOT rolled back — the server may have already
+  // billed for them, so re-emitting their range on re-enable would
+  // double-bill. The streaming loop's `if (full.length <=
+  // cursorRef.current) return` then resumes on the next text tick from
+  // the rolled-back cursor and the dropped range gets re-segmented.
+  const drainQueueAndRollbackCursor = useCallback(() => {
+    let droppedDelta = 0;
+    for (const entry of queueRef.current) {
+      droppedDelta += entry.consumedDelta;
+    }
+    if (droppedDelta > 0) {
+      cursorRef.current = Math.max(0, cursorRef.current - droppedDelta);
+    }
+    queueRef.current = [];
+    inFlightRef.current = 0;
+  }, []);
+
   const runNext = useCallback(() => {
     // Toggle-off mid-stream must drain the queue: without this gate, a
     // user who disabled voice while N paragraphs were already queued would
@@ -322,31 +342,33 @@ export function useVoiceOutputChunker(opts: {
     // `enabledRef` check only covered re-enqueues, not the existing
     // closures already in `queueRef`). Round-1 / round-2 HIGH #1.
     if (!enabledRef.current) {
-      queueRef.current = [];
-      inFlightRef.current = 0;
+      drainQueueAndRollbackCursor();
       return;
     }
-    while (inFlightRef.current < MAX_IN_FLIGHT && queueRef.current.length > 0) {
+    while (
+      inFlightRef.current < MAX_TTS_IN_FLIGHT &&
+      queueRef.current.length > 0
+    ) {
       const next = queueRef.current.shift();
       if (!next) break;
       inFlightRef.current++;
-      next();
+      next.run();
     }
-  }, []);
+  }, [drainQueueAndRollbackCursor]);
 
   // Belt-and-suspenders: flipping `opts.enabled` to false mid-stream
   // drops everything pending. `runNext`'s gate covers the dispatch path,
   // but already-queued closures referenced by `inFlightRef`-style timers
   // can still fire from the retry-loop unless we explicitly clear the
-  // queue + timers here.
+  // queue + timers here. Also rolls `cursorRef` back so the leaked
+  // range (queued but never dispatched) is re-segmented on re-enable.
   useEffect(() => {
     if (!opts.enabled) {
-      queueRef.current = [];
-      inFlightRef.current = 0;
+      drainQueueAndRollbackCursor();
       for (const id of retryTimersRef.current) clearTimeout(id);
       retryTimersRef.current.clear();
     }
-  }, [opts.enabled]);
+  }, [opts.enabled, drainQueueAndRollbackCursor]);
 
   const enqueueSynthesis = useCallback(
     (
@@ -359,10 +381,16 @@ export function useVoiceOutputChunker(opts: {
         locale: string;
       },
       attempt: number,
+      // Cursor delta the streaming loop already committed for this
+      // chunk's text range. Used by `drainQueueAndRollbackCursor` to
+      // restore `cursorRef` on toggle-OFF so the dropped range is
+      // re-emitted on re-enable instead of leaking. Retries pass 0
+      // because the original enqueue already accounted for the delta.
+      consumedDelta: number,
     ) => {
       // Bounded queue. Without a depth cap, a slow provider plus a fast
       // streamer would let the queue grow without bound while
-      // `MAX_IN_FLIGHT` only throttles concurrent execution. When the
+      // `MAX_TTS_IN_FLIGHT` only throttles concurrent execution. When the
       // queue is full, drop the new task and surface `QUEUE_OVERFLOW`
       // via the error sink so the user sees why playback paused
       // instead of silently leaking the tail of the message.
@@ -374,13 +402,13 @@ export function useVoiceOutputChunker(opts: {
         });
         return;
       }
-      queueRef.current.push(() => {
+      const run = () => {
         void synthesize(payload)
           .then((result) => {
             if (result.status !== 'failed' || !result.errorCode) return;
             const retryable =
               RETRYABLE_ERROR_CODES.has(result.errorCode) &&
-              attempt < MAX_RETRIES_PER_CHUNK;
+              attempt < MAX_TTS_RETRIES_PER_CHUNK;
             if (retryable) {
               // `CONTENTION` backs off much shorter than `RATE_LIMITED`:
               // the former is shard-OCC noise (50-150ms is enough for the
@@ -396,8 +424,8 @@ export function useVoiceOutputChunker(opts: {
               });
               const baseDelay =
                 result.errorCode === 'CONTENTION'
-                  ? CONTENTION_BASE_DELAY_MS
-                  : RETRY_BASE_DELAY_MS;
+                  ? TTS_CONTENTION_BASE_DELAY_MS
+                  : TTS_RETRY_BASE_DELAY_MS;
               const jitter = 0.5 + Math.random() * 0.5;
               const delay = baseDelay * 2 ** attempt * jitter;
               retryAttemptsRef.current.set(payload.index, attempt + 1);
@@ -410,7 +438,10 @@ export function useVoiceOutputChunker(opts: {
                 // backoff; otherwise the timer keeps re-billing the org
                 // for chunks the user has explicitly silenced.
                 if (!enabledRef.current) return;
-                enqueueSynthesis(payload, attempt + 1);
+                // Retries pass `consumedDelta: 0` — the original
+                // enqueue already advanced `cursorRef`, so this re-run
+                // must not contribute to the OFF rollback total.
+                enqueueSynthesis(payload, attempt + 1, 0);
                 runNext();
               }, delay);
               retryTimersRef.current.add(timerId);
@@ -453,7 +484,8 @@ export function useVoiceOutputChunker(opts: {
             inFlightRef.current = Math.max(0, inFlightRef.current - 1);
             runNext();
           });
-      });
+      };
+      queueRef.current.push({ run, consumedDelta });
     },
     [synthesize, runNext, errorSink],
   );
@@ -503,6 +535,9 @@ export function useVoiceOutputChunker(opts: {
       ) {
         fenceOpenRef.current = fenceSnapshot.current;
         const myIndex = indexRef.current++;
+        // `tail.length` is the cursor delta this enqueue commits to
+        // `cursorRef`. Tracked on the queue entry so OFF rollback can
+        // restore cursor if this chunk is dropped before dispatch.
         enqueueSynthesis(
           {
             messageId: opts.messageId,
@@ -513,6 +548,7 @@ export function useVoiceOutputChunker(opts: {
             locale: detectChunkLocale(cleanedTail, locale),
           },
           0,
+          tail.length,
         );
         cursorRef.current = full.length;
         runNext();
@@ -530,7 +566,7 @@ export function useVoiceOutputChunker(opts: {
     // already-flipped fence state, producing either code-blocks read
     // aloud (extra toggle) or prose silently swallowed (skipped toggle).
     // Snapshot before the loop; only commit on segments that survive
-    // the MIN_CHUNK_CHARS gate.
+    // the MIN_TTS_CHUNK_CHARS gate.
     const fenceSnapshot = { current: fenceOpenRef.current };
 
     let consumed = 0;
@@ -546,7 +582,7 @@ export function useVoiceOutputChunker(opts: {
         committedFence = fenceSnapshot.current;
         continue;
       }
-      if (cleaned.length < MIN_CHUNK_CHARS && opts.isStreaming) {
+      if (cleaned.length < MIN_TTS_CHUNK_CHARS && opts.isStreaming) {
         // Non-empty but too short mid-stream: roll cursor back so the
         // sentence is re-segmented once more text arrives. Also roll
         // back the fence ref to the last committed snapshot so the
@@ -564,6 +600,11 @@ export function useVoiceOutputChunker(opts: {
           ? cleaned.slice(0, MAX_TTS_CHUNK_CHARS)
           : cleaned;
       const myIndex = indexRef.current++;
+      // Each per-segment enqueue commits `segment.length` to cursor at
+      // line below; tracking it on the queue entry lets OFF rollback
+      // restore cursor for each chunk individually instead of all-or-
+      // nothing (a partially-dispatched batch keeps the dispatched
+      // chunks' cursor advance and rolls back only the queued tail).
       enqueueSynthesis(
         {
           messageId: opts.messageId,
@@ -574,6 +615,7 @@ export function useVoiceOutputChunker(opts: {
           locale: detectChunkLocale(text, locale),
         },
         0,
+        segment.length,
       );
     }
     cursorRef.current += consumed;

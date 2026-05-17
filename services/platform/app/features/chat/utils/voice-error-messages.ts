@@ -10,13 +10,14 @@
  * Code coverage:
  *  - Server-classified codes from `convex/tts/error_codes.ts`
  *    (NO_PROVIDER, UNKNOWN_*, RATE_LIMITED, BUDGET_EXCEEDED, TIMEOUT,
- *    PROVIDER_*, HOST_POLICY, MESSAGE_CHAR_LIMIT, CONTENTION,
- *    WATCHDOG_TIMEOUT, PROVIDER_AUTH/BAD_REQUEST/PAYLOAD_TOO_LARGE).
+ *    PROVIDER_*, PROVIDER_INVALID_RESPONSE, HOST_POLICY,
+ *    MESSAGE_CHAR_LIMIT, CONTENTION, WATCHDOG_TIMEOUT,
+ *    PROVIDER_AUTH/BAD_REQUEST/PAYLOAD_TOO_LARGE).
  *  - ConvexError data codes raised by reservation/auth checks
  *    (forbidden, TTS_CHUNK_LIMIT, TTS_TEXT_TOO_LONG, TTS_EMPTY_TEXT,
  *    MESSAGE_CHAR_LIMIT).
  *  - Client-side synthetic codes (UNKNOWN_NETWORK, QUEUE_OVERFLOW,
- *    AUDIO_DECODE).
+ *    AUDIO_DECODE, AUDIO_FETCH_AUTH).
  */
 export function voiceErrorMessageKey(
   code: string | undefined,
@@ -64,6 +65,17 @@ export function voiceErrorMessageKey(
     // distinct from the server-classified codes above.
     case 'AUDIO_DECODE':
       return 'voice.voiceOutputErrorDecode';
+    // Synthetic client-side code raised when the pre-flight HEAD probe
+    // on the same-origin /api/tts-audio endpoint returns 401 (session
+    // cookie expired / revoked). Distinct from AUDIO_DECODE so the UX
+    // can tell the user to sign in again, not "audio failed to decode".
+    case 'AUDIO_FETCH_AUTH':
+      return 'voice.voiceOutputErrorAuthExpired';
+    // Server returned a 2xx response with an unusable body (stream cap
+    // tripped, or pre-store size check refused near-empty audio). UX is
+    // "voice provider returned invalid audio" — retryable, transient.
+    case 'PROVIDER_INVALID_RESPONSE':
+      return 'voice.voiceOutputErrorInvalidResponse';
     case 'MESSAGE_CHAR_LIMIT':
       return 'voice.voiceOutputErrorMessageCharLimit';
     // `HOST_POLICY` (provider URL blocked by SSRF guard / private-IP

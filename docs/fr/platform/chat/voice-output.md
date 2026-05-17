@@ -9,7 +9,7 @@ La sortie vocale lit à voix haute les réponses de l'assistant pendant qu'elles
 
 La sortie vocale est désactivée par défaut. Tu la contrôles à deux endroits :
 
-- **Bouton par conversation.** Ouvre le menu `…` de l'en-tête du chat et bascule **Sortie vocale pour cette conversation**. La ligne est un simple interrupteur et n'apparaît que si la valeur par défaut globale est activée. Désactiver coupe cette conversation ; activer la fait lire même quand la valeur par défaut est désactivée.
+- **Bouton par conversation.** Ouvre le menu `…` de l'en-tête du chat et bascule **Sortie vocale pour cette conversation**. La ligne est un simple interrupteur et apparaît dès que l'organisation autorise la sortie vocale, indépendamment de ta valeur par défaut — c'est une surcharge dans les deux sens : désactiver coupe cette conversation (même si la valeur par défaut est activée) ; activer la fait lire (même si la valeur par défaut est désactivée).
 - **Valeur par défaut globale.** Dans **Paramètres → Personnalisation → Sortie vocale**, active la valeur par défaut. Les nouvelles conversations liront alors les réponses jusqu'à ce que tu surcharges depuis le menu `…` de l'en-tête.
 
 La première fois que tu actives la sortie vocale dans une session, le clic débloque aussi le système audio du navigateur. Sans ce geste, Safari mobile et les builds Chromium plus stricts refusent de lire automatiquement l'audio synthétisé, et l'indicateur sur chaque message affichera « Lecture vocale bloquée — touche pour lire » jusqu'à ce que tu touches.
@@ -47,7 +47,7 @@ Les erreurs de limite de débit et de contention du rate-limiter sont réessayé
 
 Chaque caractère synthétisé est facturé par le fournisseur configuré. La politique de budget de Tale s'applique à la sortie vocale comme au chat : la synthèse est bloquée dès que le plafond de coût ou de requêtes par période est atteint. La plateforme applique également des limites de débit par utilisateur et par organisation sur le TTS pour qu'un usage scripté abusif ne puisse pas épuiser un quota fournisseur.
 
-L'audio est mis en cache dans le stockage Convex pendant environ sept jours : rejouer un message récent ne refacture pas. Au-delà, la ligne et le blob sont supprimés par un balayage quotidien en arrière-plan (complété par un nettoyage opportuniste par conversation côté écriture) ; la lecture suivante synthétise à nouveau.
+L'audio est mis en cache dans le stockage Convex pendant environ sept jours : rejouer un message récent ne refacture pas. Au-delà, la ligne et le blob sont supprimés par un balayage horaire en arrière-plan (complété par un nettoyage opportuniste par conversation côté écriture) ; la lecture suivante synthétise à nouveau.
 
 ## Accessibilité
 

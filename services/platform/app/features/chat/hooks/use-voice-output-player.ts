@@ -139,6 +139,25 @@ export function useVoiceOutputPlayer(opts: {
   // the user sees an actionable error instead of an inexplicable silence.
   // Reset on every `play()` so retries don't inherit prior failures.
   const decodeFailureCountRef = useRef(0);
+  // Auth-failure flag: the `<audio>` element's `error` event doesn't
+  // expose HTTP status, so a 401 from `/api/tts-audio` (session cookie
+  // expired / revoked) collapses into the same generic decode error as
+  // a 404 or codec mismatch. Parallel HEAD probe per `playChunk` lets
+  // us classify auth failures separately and surface the actionable
+  // "Sign in again" error code (`AUDIO_FETCH_AUTH`) instead of the
+  // generic "Audio decode failed". State-backed (not ref) so the
+  // derived `errorCode` re-renders the indicator on detection.
+  const [authFailureDetected, setAuthFailureDetected] = useState(false);
+  // Tracks the last `errorCode` announced while the player was in the
+  // `'idle'` state. Pre-reservation failures (BUDGET_EXCEEDED,
+  // RATE_LIMITED, MESSAGE_CHAR_LIMIT, TTS_CHUNK_LIMIT, …) raised by the
+  // chunker never transition `state` away from `'idle'`, so the
+  // transition-keyed announce effect would otherwise leave SR users
+  // silent on those failures. We surface them via the same announcer
+  // but key on `errorCode` instead of `state`, deduping with this ref
+  // so re-renders don't re-announce the same code repeatedly. Reset on
+  // message change so a fresh bubble's first idle-error speaks again.
+  const lastIdleAnnouncedErrorCodeRef = useRef<string | null>(null);
   // Index of the chunk currently playing (or `null` when idle). Guards
   // against `tryAdvance()` restarting an in-flight chunk every time the
   // chunks subscription fires — without this, each new ready chunk that
@@ -169,9 +188,18 @@ export function useVoiceOutputPlayer(opts: {
       setCurrentChunkIndex(next);
       if (!opts.messageId) return;
       if (next === null) {
-        publishActivePlayback(null);
+        // Ownership-gated clear: a preempted player's deferred
+        // `play().catch(NotAllowedError)` at lines 322-334 can fire AFTER
+        // the new owner has already published its slot. Unconditionally
+        // calling `set(null)` here would wipe the new player's snapshot
+        // and drop the paragraph-spotlight; `clearIfOwner` no-ops on the
+        // stale caller because `current.messageId !== opts.messageId`.
+        publishActivePlayback.clearIfOwner(opts.messageId);
       } else {
-        publishActivePlayback({ messageId: opts.messageId, chunkIndex: next });
+        publishActivePlayback.set({
+          messageId: opts.messageId,
+          chunkIndex: next,
+        });
       }
     },
     [opts.messageId, publishActivePlayback],
@@ -284,7 +312,36 @@ export function useVoiceOutputPlayer(opts: {
         }
         const el = audioRef.current;
         detachAudioListeners();
-        el.src = buildTtsAudioUrl(chunk.chunkId);
+        const chunkUrl = buildTtsAudioUrl(chunk.chunkId);
+        // Parallel HEAD probe so a 401 from `/api/tts-audio` (session
+        // cookie expired / revoked) surfaces as `AUDIO_FETCH_AUTH`
+        // instead of collapsing into the generic `AUDIO_DECODE` code.
+        // The `<audio>` element's `error` event doesn't expose HTTP
+        // status, so without this probe the user gets "Audio decode
+        // failed" when the actual recovery is "Sign in again". Cheap
+        // (same-origin HEAD, no body) and fire-and-forget — failures
+        // of the probe itself are non-fatal because the audio fetch's
+        // own error handler still fires.
+        void fetch(chunkUrl, {
+          method: 'HEAD',
+          credentials: 'include',
+        })
+          .then((res) => {
+            if (res.status === 401) {
+              setAuthFailureDetected(true);
+            }
+          })
+          .catch((err) => {
+            // Network drop on the probe doesn't tell us anything new —
+            // the audio element's own GET will fail with the same
+            // network error and bump `decodeFailureCountRef`. Log at
+            // debug per CLAUDE.md no-empty-catch policy.
+            console.debug(
+              '[tts.player] auth probe failed; relying on audio-element error',
+              err,
+            );
+          });
+        el.src = chunkUrl;
         setCurrentChunkIndexBoth(chunk.index);
         const onEnded = () => {
           // Detach symmetrically with onError so a stale element can't
@@ -434,6 +491,7 @@ export function useVoiceOutputPlayer(opts: {
     void coordinator.claim(stopRef.current).then(() => {
       if (epochAtClaim !== playEpochRef.current) return;
       decodeFailureCountRef.current = 0;
+      setAuthFailureDetected(false);
       activeRef.current = true;
       nextIndexRef.current = 0;
       tryAdvance();
@@ -465,10 +523,13 @@ export function useVoiceOutputPlayer(opts: {
   // Reset auto-play guard + initial-chunks snapshot on message change.
   // The snapshot is per-message: a new assistant bubble means a new
   // identity for "what was history" — re-snapshot so the fresh chunks
-  // for the new message are classified correctly.
+  // for the new message are classified correctly. Also clear the
+  // idle-error announcement dedupe so a fresh bubble's first error
+  // (if any) re-announces to SR.
   useEffect(() => {
     hasAutoStartedRef.current = false;
     initialChunkIdsRef.current = null;
+    lastIdleAnnouncedErrorCodeRef.current = null;
     return () => {
       stop();
     };
@@ -536,12 +597,20 @@ export function useVoiceOutputPlayer(opts: {
 
   // Precedence: chunk-row failure (terminal, server already wrote it)
   // → pre-reservation error (chunker couldn't even create a row) →
-  // synthetic AUDIO_DECODE (client-side playback failure on every
-  // server-ready chunk).
+  // synthetic AUDIO_FETCH_AUTH (HEAD probe saw 401 — session cookie
+  // expired, actionable: "sign in again") → synthetic AUDIO_DECODE
+  // (every server-ready chunk failed on the client, no auth signal).
+  // Auth takes precedence over decode because once the session is
+  // gone, every future chunk's GET will also fail, so the decode
+  // counter is misleading.
   const errorCode =
     chunkErrorCode ??
     preReservationError ??
-    (allDecodeFailed ? 'AUDIO_DECODE' : undefined);
+    (authFailureDetected
+      ? 'AUDIO_FETCH_AUTH'
+      : allDecodeFailed
+        ? 'AUDIO_DECODE'
+        : undefined);
 
   // Publish state transitions to the chat-level announcer so screen-
   // reader users hear playback changes. Skipping no-op (state === prev)
@@ -554,12 +623,30 @@ export function useVoiceOutputPlayer(opts: {
   useEffect(() => {
     const prev = prevStateRef.current;
     prevStateRef.current = state;
-    if (state === prev) return;
-    if (state === 'playing') announce({ state: 'playing' });
-    else if (state === 'blocked') announce({ state: 'blocked' });
-    else if (state === 'error') announce({ state: 'error', errorCode });
-    else if (state === 'idle' && prev === 'playing') {
-      announce({ state: 'stopped' });
+    if (state !== prev) {
+      if (state === 'playing') announce({ state: 'playing' });
+      else if (state === 'blocked') announce({ state: 'blocked' });
+      else if (state === 'error') announce({ state: 'error', errorCode });
+      else if (state === 'idle' && prev === 'playing') {
+        announce({ state: 'stopped' });
+      }
+    }
+    // Idle-state error surfacing for SR: pre-reservation failures
+    // (BUDGET_EXCEEDED, RATE_LIMITED, MESSAGE_CHAR_LIMIT,
+    // TTS_CHUNK_LIMIT, …) populate `errorCode` via the chunker's sink
+    // but never transition `state` away from `'idle'` because no chunk
+    // ever queued. The transition branches above would leave SR users
+    // silent on those failures — surface them here with a per-code
+    // dedupe ref so re-renders don't re-announce. C1.
+    if (state === 'idle' && errorCode) {
+      if (lastIdleAnnouncedErrorCodeRef.current !== errorCode) {
+        lastIdleAnnouncedErrorCodeRef.current = errorCode;
+        announce({ state: 'error', errorCode });
+      }
+    } else if (state === 'idle' && !errorCode) {
+      // Clear dedupe so a future code (after a retry / fresh attempt)
+      // re-announces. Same-code transitions stay deduped via the ref.
+      lastIdleAnnouncedErrorCodeRef.current = null;
     }
   }, [state, errorCode, announce]);
 

@@ -235,7 +235,7 @@ TTS-spezifische Felder eines Modell-Eintrags:
 | `instructionsByLocale`           | Optionale BCP-47-Locale → Instructions-Zuordnung. Auflösung wie bei `voicesByLocale`: volle Locale → Basis-Sprache → `defaultInstructions`. Jeder Wert ≤ 2000 Zeichen.      |
 | `cost.centsPerMillionCharacters` | Pro 1 000 000 Eingabezeichen (z. B. `1500` = $15/M Zeichen). gpt-4o-mini-tts rechnet pro Token ab; gib für dieses Modell eine vom Betreiber geschätzte Zeichen-Näherung an. |
 
-Die Action setzt Pro-Benutzer- (`tts:synthesize:user`, 40/min) und Pro-Org-Rate-Limits (`tts:synthesize:org`, 200/min) durch, eine harte Obergrenze von 200 Chunks pro Nachricht sowie eine Organisations-Budget-Prüfung vor jeder Synthese. Synthetisiertes Audio bleibt rund 7 Tage im Convex-Storage und wird durch einen täglichen Org-Sweep-Cron bereinigt, ergänzt durch eine opportunistische Pro-Thread-Bereinigung aus dem Write-Pfad.
+Die Action setzt Pro-Benutzer- (`tts:synthesize:user`, 40/min) und Pro-Org-Rate-Limits (`tts:synthesize:org`, 200/min) durch, eine harte Obergrenze von 200 Chunks pro Nachricht sowie eine Organisations-Budget-Prüfung vor jeder Synthese. Synthetisiertes Audio bleibt rund 7 Tage im Convex-Storage und wird durch einen stündlichen Org-Sweep-Cron bereinigt, ergänzt durch eine opportunistische Pro-Thread-Bereinigung aus dem Write-Pfad.
 
 ## Selbst gehostete Inferenz-Backends
 

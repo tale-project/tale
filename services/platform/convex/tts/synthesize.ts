@@ -5,6 +5,7 @@ import { ConvexError, v } from 'convex/values';
 import {
   MAX_TTS_CHUNK_CHARS,
   MIN_TTS_AUDIO_BYTES,
+  TTS_FETCH_TIMEOUT_MS,
 } from '../../lib/shared/constants/tts';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
@@ -24,7 +25,6 @@ import {
   type TtsErrorCode,
 } from './error_codes';
 
-const FETCH_TIMEOUT_MS = 60_000;
 const MAX_AUDIO_BYTES = 5 * 1024 * 1024; // 5 MB hard cap on provider response
 
 const AUDIO_MIME_BY_FORMAT: Record<string, string> = {
@@ -212,15 +212,26 @@ export const synthesizeChunk = action({
     // so a slow failure from a stale attempt can't trample a new pending row.
     // `retryAfterMs` is returned (not persisted) so the chunker's retry-loop
     // honors the provider's Retry-After hint instead of its default backoff.
+    //
+    // When the mutation reports `stale: true`, the fresher attempt owns the
+    // row now — surface `in-flight` so the client doesn't render a failure
+    // bound to this attempt's identity. Mirrors the parallel stale path of
+    // `markChunkReadyAndRecordUsage` (synthesize.ts:375-380).
     const markFailedAndReturn = async (
       code: TtsErrorCode,
       retryAfterMs?: number,
     ) => {
-      await ctx.runMutation(internal.tts.mutations.markChunkFailed, {
-        chunkId,
-        attemptCreatedAt,
-        error: code,
-      });
+      const result = await ctx.runMutation(
+        internal.tts.mutations.markChunkFailed,
+        {
+          chunkId,
+          attemptCreatedAt,
+          error: code,
+        },
+      );
+      if (result.stale) {
+        return { status: 'in-flight' as const };
+      }
       return { status: 'failed' as const, errorCode: code, retryAfterMs };
     };
 
@@ -278,7 +289,7 @@ export const synthesizeChunk = action({
             ? { instructions: modelData.instructions }
             : {}),
         }),
-        timeoutMs: FETCH_TIMEOUT_MS,
+        timeoutMs: TTS_FETCH_TIMEOUT_MS,
         maxResponseBytes: MAX_AUDIO_BYTES,
         defaultContentType: mime,
       });

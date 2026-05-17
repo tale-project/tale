@@ -2070,6 +2070,8 @@
       "voiceOutputErrorBudget": "Sprach-Budget für diesen Zeitraum aufgebraucht",
       "voiceOutputErrorTransient": "Sprach-Dienst nicht erreichbar — neuer Versuch läuft",
       "voiceOutputErrorDecode": "Audio konnte nicht abgespielt werden — tippe zum erneuten Versuch",
+      "voiceOutputErrorAuthExpired": "Sitzung abgelaufen — melde dich neu an, um die Sprachausgabe fortzusetzen",
+      "voiceOutputErrorInvalidResponse": "Sprach-Anbieter lieferte ungültige Audiodaten — tippe für neuen Versuch",
       "voiceOutputErrorMessageCharLimit": "Antwort zu lang für Sprachausgabe — gestoppt",
       "voiceOutputErrorForbidden": "Sprach-Anbieter durch Host-Richtlinie blockiert",
       "voiceOutputErrorChunkLimit": "Sprach-Limit für diese Antwort erreicht",
@@ -2081,7 +2083,8 @@
       "voiceOutputAnnounceStopped": "Sprachausgabe gestoppt",
       "voiceOutputAnnounceBlocked": "Sprachausgabe blockiert — Wiedergabe aktivieren, um zuzuhören",
       "voiceOutputAnnounceError": "Sprachausgabe fehlgeschlagen",
-      "voiceOutputThreadSwitchLabel": "Sprachausgabe für diesen Chat"
+      "voiceOutputThreadSwitchLabel": "Sprachausgabe für diesen Chat",
+      "voiceOutputThreadSaveFailed": "Sprach-Einstellung für diesen Chat konnte nicht gespeichert werden"
     },
     "searchChat": "Chat durchsuchen",
     "hideSearch": "Suche ausblenden",
@@ -4825,7 +4828,8 @@
         "label": "Sprachausgabe (Standard)",
         "description": "Wenn aktiviert, werden Antworten in neuen Chats in deiner Oberflächensprache vorgelesen. In der Chat-Kopfzeile kannst du die Sprachausgabe weiterhin separat ein- oder ausschalten.",
         "providerUnavailable": "Kein Text-zu-Sprache-Anbieter konfiguriert. Sprachausgabe steht erst zur Verfügung, wenn ein Admin unter Einstellungen → KI-Anbieter ein TTS-Modell hinzufügt.",
-        "configureProvider": "Anbieter einrichten"
+        "configureProvider": "Anbieter einrichten",
+        "disabledByOrg": "Deine Organisation hat die Sprachausgabe für alle deaktiviert. Bitte eine administrative Person, sie unter Governance → Richtlinien wieder zu aktivieren."
       },
       "memories": {
         "title": "Gespeicherte Erinnerungen",

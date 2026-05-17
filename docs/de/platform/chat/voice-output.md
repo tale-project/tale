@@ -9,7 +9,7 @@ Die Sprachausgabe liest die Antworten des Assistenten vor, während sie streamen
 
 Die Sprachausgabe ist standardmäßig aus. Es gibt zwei Stellen, an denen du sie steuerst:
 
-- **Pro-Thread-Schalter.** Öffne das `…`-Menü in der Chat-Kopfzeile und schalte **Sprachausgabe für diesen Chat** um. Die Zeile ist ein einfacher An/Aus-Schalter und wird nur angezeigt, wenn der globale Standard aktiv ist. Aus schaltet diesen Chat stumm; an spricht diesen Chat auch, wenn der Standard aus ist.
+- **Pro-Thread-Schalter.** Öffne das `…`-Menü in der Chat-Kopfzeile und schalte **Sprachausgabe für diesen Chat** um. Die Zeile ist ein einfacher An/Aus-Schalter und erscheint immer, wenn die Organisation Sprachausgabe erlaubt — unabhängig vom globalen Standard. Sie funktioniert in beide Richtungen als Override: Aus schaltet diesen Chat stumm (auch wenn der Standard an ist); An spricht diesen Chat (auch wenn der Standard aus ist).
 - **Globaler Standard.** Unter **Einstellungen → Personalisierung → Sprachausgabe** kannst du den Standard einschalten. Neue Konversationen lesen dann Antworten vor, bis du sie im `…`-Menü der Chat-Kopfzeile überschreibst.
 
 Wenn du die Sprachausgabe in einer Sitzung zum ersten Mal aktivierst, schaltet der Klick gleichzeitig das Audio-System des Browsers frei. Ohne diese Geste verweigern Mobile Safari und strengere Chromium-Builds die automatische Wiedergabe; der Indikator auf jeder Nachricht zeigt dann „Sprachwiedergabe blockiert — tippe zum Abspielen", bis du tippst.
@@ -47,7 +47,7 @@ Rate-Limit- und Rate-Limiter-Contention-Fehler werden bis zu zweimal mit exponen
 
 Jedes synthetisierte Zeichen wird beim konfigurierten Anbieter abgerechnet. Tales Budget-Richtlinie gilt für die Sprachausgabe genauso wie für den Chat: Die Synthese wird blockiert, sobald die Pro-Zeitraum-Kosten- oder Anfrage-Obergrenze erreicht ist. Die Plattform setzt zusätzlich Pro-Benutzer- und Pro-Organisations-Rate-Limits auf TTS durch, damit ein skriptbasierter Missbrauch ein Anbieter-Kontingent nicht erschöpfen kann.
 
-Audio wird etwa sieben Tage lang im Convex-Speicher zwischengespeichert, das erneute Abspielen einer kürzlichen Nachricht löst also keine erneute Abrechnung aus. Danach werden Zeile und Blob durch einen täglichen Hintergrund-Sweep entfernt (mit einer opportunistischen Pro-Thread-Bereinigung über den Write-Pfad); die nächste Wiedergabe synthetisiert neu.
+Audio wird etwa sieben Tage lang im Convex-Speicher zwischengespeichert, das erneute Abspielen einer kürzlichen Nachricht löst also keine erneute Abrechnung aus. Danach werden Zeile und Blob durch einen stündlichen Hintergrund-Sweep entfernt (mit einer opportunistischen Pro-Thread-Bereinigung über den Write-Pfad); die nächste Wiedergabe synthetisiert neu.
 
 ## Barrierefreiheit
 

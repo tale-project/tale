@@ -64,3 +64,67 @@ export const MAX_TTS_QUEUE_DEPTH = 50;
  * parking on a forever-pending chunk until the 7-day cron.
  */
 export const TTS_WATCHDOG_BUFFER_MS = 5_000;
+
+/**
+ * Server-side upstream TTS fetch timeout. Sized for OpenAI tts-1 worst-
+ * case latency on long inputs. The watchdog horizon (`PENDING_STALE_MS`
+ * in `convex/tts/mutations.ts`) derives from this constant + a teardown
+ * slack, so co-locating prevents the two from silently drifting on a
+ * future tuning pass.
+ */
+export const TTS_FETCH_TIMEOUT_MS = 60_000;
+
+// ─── Client-side chunking + retry knobs ────────────────────────────────
+// These live next to the server bounds so a future bump (e.g. raising
+// MAX_TTS_CHUNK_CHARS forces MIN_CHUNK_CHARS to scale) can be made in
+// one place. Currently the chunker (`use-voice-output.ts`) is the sole
+// consumer, but the file is the right home for any "TTS tuning knob"
+// regardless of which side reads it.
+
+/**
+ * Minimum length (after `stripMarkdown`) before the chunker will emit a
+ * mid-stream sentence segment. Shorter segments are held until more text
+ * arrives or the stream ends, so isolated punctuation/emoji don't drive
+ * an awkward synthesis call.
+ */
+export const MIN_TTS_CHUNK_CHARS = 12;
+
+/**
+ * Maximum concurrent in-flight `synthesizeChunk` actions per chunker
+ * instance. Higher = lower latency on long replies but more bursty load
+ * on the rate-limiter shards; 3 keeps p95 within the per-org rate-limit
+ * envelope while still parallelising sentence pipelines.
+ */
+export const MAX_TTS_IN_FLIGHT = 3;
+
+/**
+ * Post-stream coalescing threshold. When a reply has finished streaming
+ * and the remaining text is shorter than this, the chunker emits it as a
+ * single chunk instead of one chunk per sentence. Each chunk is a
+ * separate `<audio>` file load with a perceptible swap gap, so short
+ * replies otherwise sound choppy (and isolated punctuation/emoji confuse
+ * the model when sent alone).
+ */
+export const POST_STREAM_BATCH_MAX_CHARS = 300;
+
+/** Maximum retries per chunk before surfacing a terminal failure. */
+export const MAX_TTS_RETRIES_PER_CHUNK = 2;
+
+/** Base delay for `RATE_LIMITED` retries (jittered up). */
+export const TTS_RETRY_BASE_DELAY_MS = 1500;
+
+/**
+ * Base delay for `CONTENTION` retries — rate-limiter shard OCC, not
+ * quota exhaustion. Much shorter than the `RATE_LIMITED` curve since
+ * the limiter library's internal retry already lands on a free shard
+ * within a few hundred ms.
+ */
+export const TTS_CONTENTION_BASE_DELAY_MS = 100;
+
+/**
+ * SR-announcer debounce: minimum hold time between two consecutive
+ * announcements. Below this, rapid `state` transitions (e.g. playing →
+ * stopped → playing on a fast skip) collapse to the latest snapshot so
+ * the user doesn't hear "stopped" followed by "speaking" within 100ms.
+ */
+export const VOICE_ANNOUNCEMENT_HOLD_MS = 1500;

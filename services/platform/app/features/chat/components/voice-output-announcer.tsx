@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
+import { VOICE_ANNOUNCEMENT_HOLD_MS } from '@/lib/shared/constants/tts';
 
 import {
   type AnnouncerSnapshot,
@@ -33,7 +34,6 @@ import { errorMessageForCode } from '../utils/voice-error-messages';
  * indicator's per-code tooltip is hover-only and was unreachable on
  * touch devices.
  */
-const ANNOUNCEMENT_HOLD_MS = 1500;
 
 export function VoiceOutputAnnouncer() {
   const { t } = useT('chat');
@@ -73,7 +73,7 @@ export function VoiceOutputAnnouncer() {
         return;
       }
       setText(upcoming);
-      timerRef.current = setTimeout(drain, ANNOUNCEMENT_HOLD_MS);
+      timerRef.current = setTimeout(drain, VOICE_ANNOUNCEMENT_HOLD_MS);
     };
     drain();
   }, [snapshot, t]);

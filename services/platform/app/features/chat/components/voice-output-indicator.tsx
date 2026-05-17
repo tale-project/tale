@@ -239,9 +239,15 @@ export function VoiceOutputIndicator(props: VoiceOutputIndicatorProps) {
       />
     );
     onClick = player.stop;
-    buttonVariant = 'primary';
-    // Solid primary fill — match the "now speaking" state to the
-    // colour the brand uses for the active assistant turn.
+    // Use `ghost` variant + explicit primary-fill className: the
+    // built-in `primary` variant resolves to a gradient accent
+    // (`bg-accent-base` + gradient overlay), which conflicted with
+    // the inline `bg-primary` className override and produced a
+    // fragile class-merge dependent on Tailwind ordering. Switching
+    // to `ghost` (no built-in background) gives the className full
+    // control over the surface — solid primary fill, no gradient
+    // fragment, no order dependence. M10.
+    buttonVariant = 'ghost';
     buttonClassName = cn(
       buttonClassName,
       'bg-primary text-primary-foreground hover:bg-primary/90 gap-2 px-4',
@@ -256,6 +262,16 @@ export function VoiceOutputIndicator(props: VoiceOutputIndicatorProps) {
     // a redundant cue but is no longer the sole differentiator from
     // the idle "Play" affordance.
     icon = <VolumeOff className="size-5 text-amber-600" />;
+    // Surface the amber affordance on the BUTTON, not just the icon
+    // stroke — without this the chip rendered as a bare `'ghost'`
+    // (the initial default) and was visually indistinguishable from
+    // the idle "Play" state for users who don't look at the icon
+    // directly. M10.
+    buttonVariant = 'secondary';
+    buttonClassName = cn(
+      buttonClassName,
+      'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200',
+    );
   } else {
     // Idle with playable history — manual replay affordance.
     label = t('voice.voiceOutputStopped');
@@ -286,7 +302,14 @@ export function VoiceOutputIndicator(props: VoiceOutputIndicatorProps) {
         // still satisfied at `min-h-12 min-w-12`.
         className={buttonClassName}
         aria-label={actionLabel}
-        aria-pressed={speaking}
+        // `aria-pressed` is only meaningful on the speaking branch —
+        // there it's a toggle (press to stop). On idle / loading /
+        // blocked the button is a one-shot "Play" affordance; setting
+        // `aria-pressed={false}` would cause AT to announce "not
+        // pressed" on a non-toggle, misrepresenting the role. Pass
+        // `undefined` to omit the attribute entirely on those branches.
+        // M10.
+        aria-pressed={speaking ? true : undefined}
         // While the loading branch is active, `onClick` is a no-op. Mark
         // the button disabled so SR / keyboard users don't activate an
         // inert affordance (WCAG 4.1.2 Name/Role/Value). Visual styling

@@ -102,14 +102,14 @@ describe('errorCodeFromCaught', () => {
       expectedCode: 'HOST_POLICY',
     },
     {
-      name: 'SafeFetchError response_too_large → PROVIDER_4XX',
+      name: 'SafeFetchError response_too_large → PROVIDER_INVALID_RESPONSE',
       err: new SafeFetchError('response_too_large', '> 5 MB'),
-      expectedCode: 'PROVIDER_4XX',
+      expectedCode: 'PROVIDER_INVALID_RESPONSE',
     },
     {
-      name: 'SafeFetchError response_too_small → PROVIDER_4XX',
+      name: 'SafeFetchError response_too_small → PROVIDER_INVALID_RESPONSE',
       err: new SafeFetchError('response_too_small', 'empty body'),
-      expectedCode: 'PROVIDER_4XX',
+      expectedCode: 'PROVIDER_INVALID_RESPONSE',
     },
     {
       name: 'SafeFetchError timeout → TIMEOUT',

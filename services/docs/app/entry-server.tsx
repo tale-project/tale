@@ -26,9 +26,14 @@ export async function render(url: string): Promise<RenderResult> {
     history: createMemoryHistory({ initialEntries: [url] }),
   });
   await router.load();
+  // `theme={{ defaultTheme: 'light' }}` matches the CSR path's pinned
+  // light theme and keeps SSR/CSR hydration in sync. AppShell's default
+  // `'system'` would otherwise resolve to dark for OS-dark crawlers
+  // pre-hydration, leaking into the initial HTML's theme-color meta.
+  // M9.
   const html = renderToString(
     <StrictMode>
-      <AppShell i18n={i18n} theme>
+      <AppShell i18n={i18n} theme={{ defaultTheme: 'light' }}>
         <RouterProvider router={router} />
       </AppShell>
     </StrictMode>,

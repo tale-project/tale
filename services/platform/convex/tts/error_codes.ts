@@ -47,6 +47,13 @@ export const ttsErrorCodeLiterals = [
   'PROVIDER_PAYLOAD_TOO_LARGE',
   'PROVIDER_4XX',
   'PROVIDER_5XX',
+  // Provider returned a 2xx response whose body is unusable (oversized
+  // stream past the cap, or implausibly small / empty audio that would
+  // bill for zero playable bytes). Distinct from `PROVIDER_4XX` because
+  // there's no HTTP status to act on — the provider claimed success but
+  // the response failed validation. UX is "retry later, may be a
+  // transient upstream misconfiguration."
+  'PROVIDER_INVALID_RESPONSE',
   'PROVIDER_ERROR',
   // Server-side watchdog flips a stuck-`pending` row to `failed` after
   // `PENDING_STALE_MS + TTS_WATCHDOG_BUFFER_MS`. UX treats this as a
@@ -186,7 +193,12 @@ export function errorCodeFromCaught(err: unknown): ClassifiedFailure {
         return { code: 'HOST_POLICY' };
       case 'response_too_large':
       case 'response_too_small':
-        return { code: 'PROVIDER_4XX' };
+        // Both arise on a 2xx response (streaming cap trip, or pre-store
+        // size check on a near-empty body). There is no 4xx status to act
+        // on, so PROVIDER_4XX is the wrong bucket — surface the distinct
+        // INVALID_RESPONSE code so the UI message names the actual
+        // failure mode ("provider returned invalid audio").
+        return { code: 'PROVIDER_INVALID_RESPONSE' };
       case 'timeout':
         return { code: 'TIMEOUT' };
       case 'network_error':

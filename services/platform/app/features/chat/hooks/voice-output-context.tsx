@@ -186,6 +186,15 @@ export interface ActivePlaybackSnapshot {
 
 interface ActivePlaybackStore {
   set(snapshot: ActivePlaybackSnapshot | null): void;
+  /**
+   * Clear the slot iff the current snapshot belongs to `ownerMessageId`.
+   * Used by the player's `setCurrentChunkIndexBoth(null)` path so a late
+   * `play().catch(NotAllowedError)` from a preempted player can't wipe the
+   * fresher player's just-published slot. Without this guard the player at
+   * `use-voice-output-player.ts:166-178` would unconditionally publish
+   * `null` despite the surrounding comment promising ownership-gated clear.
+   */
+  clearIfOwner(ownerMessageId: string): void;
   /** Reset to null; used on per-thread reset. */
   resetAll(): void;
   read(): ActivePlaybackSnapshot | null;
@@ -209,6 +218,12 @@ function createActivePlaybackStore(): ActivePlaybackStore {
         return;
       }
       current = snapshot;
+      for (const l of listeners) l();
+    },
+    clearIfOwner(ownerMessageId) {
+      if (current === null) return;
+      if (current.messageId !== ownerMessageId) return;
+      current = null;
       for (const l of listeners) l();
     },
     resetAll() {
@@ -248,6 +263,7 @@ const noopStores: VoiceOutputStores = {
   },
   activePlayback: {
     set: () => {},
+    clearIfOwner: () => {},
     resetAll: () => {},
     read: () => null,
     subscribe: () => () => {},
@@ -437,15 +453,23 @@ export function useVoiceAnnouncerState(): AnnouncerSnapshot {
  * Writer for the active-playback channel. Player publishes
  * `{messageId, chunkIndex}` when it starts a chunk and `null` when it
  * stops. Single-active-player invariant (enforced by the coordinator)
- * means writers never race for the same slot.
+ * means writers never race for the SAME slot, but a stale player whose
+ * `play()` promise rejects AFTER preemption can still race the new
+ * owner's publish; `clearIfOwner` is the ownership-checked path for the
+ * clear case so the stale caller can't wipe the new player's slot.
  */
-export function useActivePlaybackWriter(): (
-  snapshot: ActivePlaybackSnapshot | null,
-) => void {
+export function useActivePlaybackWriter(): {
+  set(snapshot: ActivePlaybackSnapshot | null): void;
+  clearIfOwner(ownerMessageId: string): void;
+} {
   const stores = useContext(VoiceOutputStoresContext);
-  return useCallback(
-    (snapshot: ActivePlaybackSnapshot | null) =>
-      stores.activePlayback.set(snapshot),
+  return useMemo(
+    () => ({
+      set: (snapshot: ActivePlaybackSnapshot | null) =>
+        stores.activePlayback.set(snapshot),
+      clearIfOwner: (ownerMessageId: string) =>
+        stores.activePlayback.clearIfOwner(ownerMessageId),
+    }),
     [stores],
   );
 }

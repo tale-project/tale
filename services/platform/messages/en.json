@@ -2070,6 +2070,8 @@
       "voiceOutputErrorBudget": "Voice budget reached for this period",
       "voiceOutputErrorTransient": "Voice service unavailable — retrying",
       "voiceOutputErrorDecode": "Could not play voice audio — tap to retry",
+      "voiceOutputErrorAuthExpired": "Session expired — sign in again to keep voice playing",
+      "voiceOutputErrorInvalidResponse": "Voice provider returned invalid audio — tap to retry",
       "voiceOutputErrorMessageCharLimit": "Reply too long for voice — stopping here",
       "voiceOutputErrorForbidden": "Voice provider blocked by host policy",
       "voiceOutputErrorChunkLimit": "Voice limit reached for this reply",
@@ -2081,7 +2083,8 @@
       "voiceOutputAnnounceStopped": "Voice output stopped",
       "voiceOutputAnnounceBlocked": "Voice output blocked — activate the player to listen",
       "voiceOutputAnnounceError": "Voice output failed",
-      "voiceOutputThreadSwitchLabel": "Voice output for this thread"
+      "voiceOutputThreadSwitchLabel": "Voice output for this thread",
+      "voiceOutputThreadSaveFailed": "Couldn't save voice setting for this conversation"
     },
     "searchChat": "Search chat",
     "hideSearch": "Hide search",
@@ -4825,7 +4828,8 @@
         "label": "Voice output (default)",
         "description": "When on, new conversations speak assistant replies aloud in your interface language. Each conversation can still toggle voice on or off in the chat header.",
         "providerUnavailable": "No text-to-speech provider configured. Voice output is unavailable until an admin adds a TTS model in Settings → AI providers.",
-        "configureProvider": "Configure a provider"
+        "configureProvider": "Configure a provider",
+        "disabledByOrg": "Your organization has disabled voice output for everyone. Ask an admin to re-enable it in Governance → Policies."
       },
       "memories": {
         "title": "Saved memories",
