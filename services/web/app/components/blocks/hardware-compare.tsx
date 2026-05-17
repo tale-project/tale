@@ -55,15 +55,26 @@ const VERSION_KEYS = {
   },
 } as const;
 
-const MEMORY_TOKEN_REGEX = /\((UMA|VRAM)\)/g;
+/**
+ * Map from a bracketed token (case-sensitive, as printed) to the
+ * `compare.categories.*` info key whose translation explains it.
+ */
+const SPEC_TOOLTIPS: Record<string, string> = {
+  UMA: 'umaInfo',
+  VRAM: 'vramInfo',
+  DDR5: 'ddr5Info',
+  'DDR5 ECC': 'ddr5EccInfo',
+  'Zen 5': 'zen5Info',
+};
+
+const SPEC_TOKEN_REGEX = /\(([^)]+)\)/g;
 
 /**
- * Wraps `(UMA)` / `(VRAM)` tokens in a tooltip explaining the acronym.
- * Each line of `value` is rendered on its own row so multi-line AI-RAM
- * values (e.g. cluster Hybrid: `576GB (UMA)\n96GB (VRAM)`) stack
- * correctly inside the cell.
+ * Renders a spec cell value, wrapping every bracketed token that has an
+ * entry in `SPEC_TOOLTIPS` (UMA, VRAM, DDR5, DDR5 ECC, Zen 5) with a
+ * tooltip-equipped trigger. Multi-line values (`\n`) stack vertically.
  */
-function MemoryValue({ value }: { value: string }): ReactNode {
+function SpecValue({ value }: { value: string }): ReactNode {
   const { t } = useT('hardwarePricing');
   if (!value || value === '-') return value || null;
 
@@ -73,8 +84,10 @@ function MemoryValue({ value }: { value: string }): ReactNode {
       {lines.map((line, lineIdx) => {
         const parts: ReactNode[] = [];
         let lastIndex = 0;
-        for (const match of line.matchAll(MEMORY_TOKEN_REGEX)) {
-          const [token, kind] = match;
+        for (const match of line.matchAll(SPEC_TOKEN_REGEX)) {
+          const inner = match[1];
+          const tooltipKey = SPEC_TOOLTIPS[inner];
+          if (!tooltipKey) continue;
           const start = match.index ?? 0;
           if (start > lastIndex) parts.push(line.slice(lastIndex, start));
           parts.push(
@@ -84,15 +97,15 @@ function MemoryValue({ value }: { value: string }): ReactNode {
                   type="button"
                   className="cursor-help underline decoration-dotted underline-offset-2"
                 >
-                  {token}
+                  ({inner})
                 </button>
               </TooltipTrigger>
               <TooltipContent side="top" className="max-w-xs text-center">
-                {t(`compare.categories.${kind.toLowerCase()}Info`)}
+                {t(`compare.categories.${tooltipKey}`)}
               </TooltipContent>
             </Tooltip>,
           );
-          lastIndex = start + token.length;
+          lastIndex = start + match[0].length;
         }
         if (lastIndex < line.length) parts.push(line.slice(lastIndex));
         return (
@@ -171,14 +184,17 @@ export function HardwareCompare({ mode }: HardwareCompareProps) {
       const mergeQualityChip = mode === 'node' && axis.row === 'gpu';
       const skipQualityChip = mode === 'node' && axis.row === 'cpu';
 
-      const render = (raw: string): ReactNode =>
-        axis.row === 'ram' ? <MemoryValue value={raw} /> : raw;
+      // Every spec value gets routed through `SpecValue` — it wraps any
+      // bracketed token that has an entry in `SPEC_TOOLTIPS` with a
+      // tooltip trigger, and is a no-op for values without one.
       const cells: Partial<Record<TierKey, ReactNode>> = {
-        hybrid: render(t(`specs.${mode}.${axis.values[1]}`)),
-        speed: render(t(`specs.${mode}.${axis.values[2]}`)),
+        hybrid: <SpecValue value={t(`specs.${mode}.${axis.values[1]}`)} />,
+        speed: <SpecValue value={t(`specs.${mode}.${axis.values[2]}`)} />,
       };
       if (!skipQualityChip) {
-        cells.quality = render(t(`specs.${mode}.${axis.values[0]}`));
+        cells.quality = (
+          <SpecValue value={t(`specs.${mode}.${axis.values[0]}`)} />
+        );
       }
 
       const row: CompareRow<TierKey> = {
