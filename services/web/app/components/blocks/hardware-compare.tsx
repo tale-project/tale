@@ -148,6 +148,11 @@ export function HardwareCompare({ mode }: HardwareCompareProps) {
         speed: checkIcon,
       },
     },
+    {
+      kind: 'span',
+      label: t('compare.categories.confidentialComputing'),
+      content: t('compare.cellLabels.onRequest'),
+    },
     { kind: 'section', label: t('compare.sections.other') },
     {
       kind: 'data',

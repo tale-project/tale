@@ -376,11 +376,13 @@
         "ssd": "SSD",
         "hdd": "HDD",
         "cables": "Câbles & équipement réseau",
+        "confidentialComputing": "Confidential computing",
         "version": "Version du produit",
         "productNumber": "Numéro de produit"
       },
       "cellLabels": {
-        "yes": "Inclus"
+        "yes": "Inclus",
+        "onRequest": "Disponible sur demande"
       },
       "sections": {
         "specifications": "Spécifications",
