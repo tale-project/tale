@@ -229,6 +229,11 @@ COPY --from=pruner --chown=app:app \
 COPY --from=pruner --chown=app:app /app/services/platform/convex ./convex
 COPY --from=pruner --chown=app:app /app/services/platform/lib ./lib
 COPY --from=pruner --chown=app:app /app/node_modules ./node_modules
+# Workspace packages backing the `@tale/*` symlinks in node_modules. The
+# platform runs `bun server.ts` unbundled, so server-side imports of
+# `@tale/seo/*` resolve at runtime through these directories — the docs +
+# web Dockerfiles bundle their server.ts and don't need this.
+COPY --from=pruner --chown=app:app /app/packages ./packages
 COPY --from=pruner --chown=app:app /app/services/platform/package.json ./
 COPY --from=pruner --chown=app:app /app/services/platform/docker-entrypoint.sh /app/services/platform/generate-admin-key.sh /app/services/platform/reset-owner.sh /app/services/platform/reset-owner.ts /app/services/platform/env.sh ./
 
