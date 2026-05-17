@@ -28,7 +28,7 @@ graph TB
     Proxy -->|HTTP :3000| Platform
     Proxy -->|WS/HTTP :3210/:3211| Convex
     Proxy -->|HTTP :6791| Convex
-    Platform -->|HTTP :3210<br/>(convex env set + deploy)| Convex
+    Platform -->|"HTTP :3210<br/>(convex env set + deploy)"| Convex
     Convex -->|TCP :5432| DB
     Convex -->|HTTP :8001| RAG
     Convex -->|HTTP :8002| Crawler
