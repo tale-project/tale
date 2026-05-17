@@ -378,6 +378,7 @@
         "ddr5EccInfo": "DDR5 avec code correcteur d'erreurs — mémoire serveur capable de détecter et corriger les défauts d'un seul bit.",
         "zen5Info": "Microarchitecture x86 d'AMD de 5e génération (2024).",
         "int4Info": "Quantification entière 4 bits — perte de précision minime, empreinte mémoire ~4× plus petite.",
+        "m2NvmeInfo": "SSD M.2 NVMe dans un pool ZFS RAID — stockage rapide et redondant.",
         "skuNqInfo": "Node Quality",
         "skuNaInfo": "Node Application",
         "skuNsInfo": "Node Speed",
