@@ -225,13 +225,15 @@ Ajoute ta clé OpenAI une seule fois via **Paramètres > Fournisseurs IA > OpenA
 
 Champs spécifiques à la TTS dans une entrée modèle :
 
-| Champ                            | Rôle                                                                                                                                                                                   |
-| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tags`                           | Doit inclure `"text-to-speech"`. La plateforme vérifie qu'un modèle portant ce tag déclare aussi une voix via `defaultVoice` ou `voicesByLocale`.                                      |
-| `defaultVoice`                   | Voix de repli quand aucune correspondance de locale n'est trouvée.                                                                                                                     |
-| `voicesByLocale`                 | Locale BCP-47 → id de voix. Le résolveur essaie la locale complète, puis la langue de base (`de-CH` → `de`), puis `defaultVoice`.                                                      |
-| `audioFormat`                    | Parmi `mp3` (défaut), `opus`, `aac`, `flac`, `wav`, `pcm`. `mp3` pour la compatibilité navigateur la plus large ; `pcm` pour la latence de décodage la plus basse.                     |
-| `cost.centsPerMillionCharacters` | Tarif de facturation par caractère (par ex. `1500` = $15/M caractères). gpt-4o-mini-tts est facturé au token ; pour ce modèle, fournis une approximation char estimée par l'opérateur. |
+| Champ                            | Rôle                                                                                                                                                                                           |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tags`                           | Doit inclure `"text-to-speech"`. La plateforme vérifie qu'un modèle portant ce tag déclare aussi une voix via `defaultVoice` ou `voicesByLocale`.                                              |
+| `defaultVoice`                   | Voix de repli quand aucune correspondance de locale n'est trouvée.                                                                                                                             |
+| `voicesByLocale`                 | Locale BCP-47 → id de voix. Le résolveur essaie la locale complète, puis la langue de base (`de-CH` → `de`), puis `defaultVoice`.                                                              |
+| `audioFormat`                    | Parmi `mp3` (défaut), `opus`, `aac`, `flac`, `wav`, `pcm`. `mp3` pour la compatibilité navigateur la plus large ; `pcm` pour la latence de décodage la plus basse.                             |
+| `defaultInstructions`            | Prompt de pilotage optionnel envoyé à chaque synthèse (≤ 2000 caractères). Utile pour ajuster le ton, le rythme ou l'accentuation. Écris le prompt dans la langue cible.                       |
+| `instructionsByLocale`           | Mapping optionnel locale BCP-47 → instructions. La résolution suit `voicesByLocale` : locale complète → langue de base → `defaultInstructions`. Chaque valeur est plafonnée à 2000 caractères. |
+| `cost.centsPerMillionCharacters` | Par 1 000 000 caractères en entrée (par ex. `1500` = $15/M caractères). gpt-4o-mini-tts est facturé au token ; pour ce modèle, fournis une approximation char estimée par l'opérateur.         |
 
 L'action applique des limites de débit par utilisateur (`tts:synthesize:user`, 40/min) et par org (`tts:synthesize:org`, 200/min), un plafond dur de 200 chunks par message et une vérification du budget organisation avant chaque synthèse. L'audio synthétisé est gardé en cache dans le stockage Convex pendant environ 7 jours et nettoyé par un balayage org quotidien programmé, complété par un nettoyage opportuniste par conversation déclenché depuis le chemin d'écriture.
 

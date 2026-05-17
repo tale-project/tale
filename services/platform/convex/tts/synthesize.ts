@@ -17,7 +17,12 @@ import { sanitizeError } from '../lib/utils/sanitize_secrets';
 import { resolveOrgSlug } from '../organizations/resolve_org_slug';
 import { checkProviderHostPolicy } from '../providers/file_actions';
 import { resolveTtsModel } from '../providers/resolve_model';
-import { errorCodeFromCaught, type TtsErrorCode } from './error_codes';
+import {
+  errorCodeFromCaught,
+  parseRetryAfterMs,
+  TtsProviderHttpError,
+  type TtsErrorCode,
+} from './error_codes';
 
 const FETCH_TIMEOUT_MS = 60_000;
 const MAX_AUDIO_BYTES = 5 * 1024 * 1024; // 5 MB hard cap on provider response
@@ -76,6 +81,12 @@ export const synthesizeChunk = action({
       v.literal('failed'),
     ),
     errorCode: v.optional(v.string()),
+    // Optional provider-supplied retry hint (ms). Returned alongside the
+    // action result so the chunker's retry-loop can honor server timing
+    // (Retry-After on 429, rate-limiter retryAfter). Not persisted on the
+    // chunk row — the row's `error` enum is enough for fan-out subscribers;
+    // retry timing matters only to the originating caller.
+    retryAfterMs: v.optional(v.number()),
   }),
   handler: async (ctx, args) => {
     const user = await requireAuthenticatedUser(ctx);
@@ -166,10 +177,19 @@ export const synthesizeChunk = action({
         prospectiveCostCentsPerMChars: modelData.centsPerMillionCharacters,
       })
       .catch((err: unknown): { __occ: true } => {
-        if (
-          err instanceof Error &&
-          /OptimisticConcurrencyControlFailure/.test(err.message)
-        ) {
+        // OCC detection layered for robustness across error-shape reserializations:
+        // (1) ConvexError data.code (preferred, set by rate-limiter library)
+        // (2) constructor name (works in-process, lost after action→mutation re-serialization)
+        // (3) message regex (defense-in-depth for serialized error shapes)
+        const isOCC =
+          (err instanceof ConvexError &&
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ConvexError.data is `any`; defensively read `code`.
+            (err.data as { code?: string } | undefined)?.code === 'OCC') ||
+          (err instanceof Error &&
+            err.constructor?.name === 'OptimisticConcurrencyControlFailure') ||
+          (err instanceof Error &&
+            /OptimisticConcurrencyControlFailure/.test(err.message));
+        if (isOCC) {
           return { __occ: true };
         }
         throw err;
@@ -190,13 +210,18 @@ export const synthesizeChunk = action({
     // Helper: mark this attempt failed with `code`. The mutation's identity
     // check refuses if the row was already overwritten by a fresher attempt,
     // so a slow failure from a stale attempt can't trample a new pending row.
-    const markFailedAndReturn = async (code: TtsErrorCode) => {
+    // `retryAfterMs` is returned (not persisted) so the chunker's retry-loop
+    // honors the provider's Retry-After hint instead of its default backoff.
+    const markFailedAndReturn = async (
+      code: TtsErrorCode,
+      retryAfterMs?: number,
+    ) => {
       await ctx.runMutation(internal.tts.mutations.markChunkFailed, {
         chunkId,
         attemptCreatedAt,
         error: code,
       });
-      return { status: 'failed' as const, errorCode: code };
+      return { status: 'failed' as const, errorCode: code, retryAfterMs };
     };
 
     // Defense-in-depth: re-check host policy at synthesis time so a provider
@@ -225,6 +250,8 @@ export const synthesizeChunk = action({
     const mime =
       AUDIO_MIME_BY_FORMAT[modelData.audioFormat] ?? 'application/octet-stream';
     let storageId: Id<'_storage'>;
+    let providerBytes = 0;
+    const t0 = Date.now();
     try {
       // `safeFetchBinary` enforces the size cap during the streaming read,
       // so a chunked-transfer response can't buffer past MAX_AUDIO_BYTES
@@ -236,6 +263,11 @@ export const synthesizeChunk = action({
         headers: {
           Authorization: `Bearer ${modelData.apiKey}`,
           'Content-Type': 'application/json',
+          // Pin content-type expectations: OpenAI-compatible gateways that
+          // content-negotiate could otherwise return a JSON error envelope
+          // under a 200 OK that would pass the streaming size cap and
+          // store as "audio". `audio/*` matches every supported format.
+          Accept: 'audio/*',
         },
         body: JSON.stringify({
           model: modelData.modelId,
@@ -257,11 +289,6 @@ export const synthesizeChunk = action({
           try {
             return new URL(response.finalUrl).origin;
           } catch (err) {
-            // Defensive: `safeFetchBinary` only ever returns a parseable
-            // `finalUrl`, but a future provider that proxies through an
-            // odd redirect could in theory surface a malformed value
-            // here. Log the parse failure (so we notice if it ever
-            // happens) and continue with the safe 'unknown' placeholder.
             console.debug(
               '[tts] response.finalUrl unparseable; falling back to "unknown"',
               err,
@@ -269,11 +296,25 @@ export const synthesizeChunk = action({
             return 'unknown';
           }
         })();
+        const retryAfterMs = parseRetryAfterMs(
+          response.headers.get('Retry-After'),
+        );
         console.warn('[tts] provider error', {
           status: response.status,
           origin,
+          retryAfterMs,
+          chunkId,
+          organizationId: args.organizationId,
+          modelId: modelData.modelId,
+          providerName: modelData.providerName,
+          charCount: text.length,
+          durationMs: Date.now() - t0,
         });
-        throw new Error(`TTS API ${response.status}: provider call failed`);
+        throw new TtsProviderHttpError(
+          response.status,
+          retryAfterMs,
+          `TTS API ${response.status}: provider call failed`,
+        );
       }
       // Empty / near-empty 200 responses (provider misconfiguration,
       // upstream JSON-error-as-200, partial outage) would otherwise be
@@ -291,14 +332,19 @@ export const synthesizeChunk = action({
           response.status,
         );
       }
+      providerBytes = response.body.size;
+      // Only re-wrap when the provider omitted Content-Type entirely. The
+      // double-wrap (`new Blob([blob])`) would otherwise force a copy of the
+      // body buffer just to override `.type`, which we don't need when the
+      // existing type is already set.
       const typedBlob =
         response.body.type && response.body.type !== ''
           ? response.body
           : new Blob([response.body], { type: mime });
       storageId = await ctx.storage.store(typedBlob);
     } catch (err) {
-      const { code } = errorCodeFromCaught(err);
-      return markFailedAndReturn(code);
+      const classified = errorCodeFromCaught(err);
+      return markFailedAndReturn(classified.code, classified.retryAfterMs);
     }
 
     // Compensating storage delete on post-store failure. Without this, any
@@ -345,10 +391,22 @@ export const synthesizeChunk = action({
         '[tts] markChunkReadyAndRecordUsage threw',
         sanitizeError(err),
       );
-      const { code } = errorCodeFromCaught(err);
-      return markFailedAndReturn(code);
+      const classified = errorCodeFromCaught(err);
+      return markFailedAndReturn(classified.code, classified.retryAfterMs);
     }
 
+    // Capacity-planning telemetry: emit a single info line per successful
+    // synth so operators can build p95 latency / bytes / cost dashboards.
+    // No PII (we log `charCount` length, never `text` content).
+    console.info('[tts] synth ok', {
+      chunkId,
+      organizationId: args.organizationId,
+      providerName: modelData.providerName,
+      modelId: modelData.modelId,
+      charCount: text.length,
+      bytes: providerBytes,
+      durationMs: Date.now() - t0,
+    });
     return { status: 'ready' as const };
   },
 });

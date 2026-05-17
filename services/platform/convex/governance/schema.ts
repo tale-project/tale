@@ -20,6 +20,12 @@ export const GOVERNANCE_POLICY_TYPES = [
   'chat_filter',
   'moderation_provider',
   'personalization',
+  // Org-level kill switch for the voice-output (TTS) feature. Missing row
+  // → effective default ON (existing deployments keep their current
+  // behaviour). `config.enabled === false` overrides every user's
+  // `userPreferences.voiceOutput` and every thread's `voiceOutputOverride`.
+  // See `tts/queries.ts::getVoiceModeEffective` for the cascade.
+  'voice_output',
   // Phase 12 — admin-customizable confidentiality notice rendered in
   // chat composer + upload dialog footers. Default copy is fetched from
   // i18n; this policy lets per-org admins override per locale.

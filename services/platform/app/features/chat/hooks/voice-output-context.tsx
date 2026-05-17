@@ -5,6 +5,7 @@ import {
   type ReactNode,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useSyncExternalStore,
@@ -78,6 +79,8 @@ const VoiceOutputContext = createContext(noopCoordinator);
 interface PreReservationErrorStore {
   set(messageId: string, code: string): void;
   clear(messageId: string): void;
+  /** Clear every entry; used on per-thread reset. */
+  resetAll(): void;
   read(messageId: string): string | undefined;
   subscribe(listener: () => void): () => void;
 }
@@ -97,6 +100,11 @@ function createPreReservationErrorStore(): PreReservationErrorStore {
     clear(messageId) {
       if (!map.has(messageId)) return;
       map.delete(messageId);
+      notify();
+    },
+    resetAll() {
+      if (map.size === 0) return;
+      map.clear();
       notify();
     },
     read(messageId) {
@@ -124,12 +132,15 @@ export interface AnnouncerSnapshot {
 
 interface AnnouncerStateStore {
   set(snapshot: AnnouncerSnapshot): void;
+  /** Reset to idle; used on per-thread reset. */
+  resetAll(): void;
   read(): AnnouncerSnapshot;
   subscribe(listener: () => void): () => void;
 }
 
 function createAnnouncerStateStore(): AnnouncerStateStore {
-  let current: AnnouncerSnapshot = { state: 'idle' };
+  const IDLE: AnnouncerSnapshot = { state: 'idle' };
+  let current: AnnouncerSnapshot = IDLE;
   const listeners = new Set<() => void>();
   return {
     set(snapshot) {
@@ -140,6 +151,11 @@ function createAnnouncerStateStore(): AnnouncerStateStore {
         return;
       }
       current = snapshot;
+      for (const l of listeners) l();
+    },
+    resetAll() {
+      if (current.state === 'idle' && current.errorCode === undefined) return;
+      current = IDLE;
       for (const l of listeners) l();
     },
     read() {
@@ -170,6 +186,8 @@ export interface ActivePlaybackSnapshot {
 
 interface ActivePlaybackStore {
   set(snapshot: ActivePlaybackSnapshot | null): void;
+  /** Reset to null; used on per-thread reset. */
+  resetAll(): void;
   read(): ActivePlaybackSnapshot | null;
   subscribe(listener: () => void): () => void;
 }
@@ -193,6 +211,11 @@ function createActivePlaybackStore(): ActivePlaybackStore {
       current = snapshot;
       for (const l of listeners) l();
     },
+    resetAll() {
+      if (current === null) return;
+      current = null;
+      for (const l of listeners) l();
+    },
     read() {
       return current;
     },
@@ -213,16 +236,19 @@ const noopStores: VoiceOutputStores = {
   preReservationErrors: {
     set: () => {},
     clear: () => {},
+    resetAll: () => {},
     read: () => undefined,
     subscribe: () => () => {},
   },
   announcerState: {
     set: () => {},
+    resetAll: () => {},
     read: () => ({ state: 'idle' as const }),
     subscribe: () => () => {},
   },
   activePlayback: {
     set: () => {},
+    resetAll: () => {},
     read: () => null,
     subscribe: () => () => {},
   },
@@ -246,8 +272,20 @@ const VoiceAudioElementContext = createContext<HTMLAudioElement | null>(null);
  * their own coordinator so they don't preempt each other. Also owns a
  * private `<audio>` element so split views can't stomp each other's
  * `src`.
+ *
+ * `threadId` is optional but recommended: when present, per-thread stores
+ * (preReservationErrors, activePlayback, announcerState) are reset on
+ * thread switch so a stale pre-reservation error or "playing" snapshot
+ * from thread A doesn't leak into thread B. Coordinator state stays
+ * singleton (it's by-element, not by-thread). Round-1 / round-2 HIGH #6.
  */
-export function VoiceOutputProvider({ children }: { children: ReactNode }) {
+export function VoiceOutputProvider({
+  children,
+  threadId,
+}: {
+  children: ReactNode;
+  threadId?: string;
+}) {
   const activeRef = useRef<Stopper | null>(null);
   const claim = useCallback(async (stopper: Stopper) => {
     if (activeRef.current && activeRef.current !== stopper) {
@@ -290,6 +328,18 @@ export function VoiceOutputProvider({ children }: { children: ReactNode }) {
     () => createPlaybackElement(),
     [],
   );
+  // Reset per-thread stores when the threadId changes so a pre-reservation
+  // error from thread A doesn't surface against thread B's first message,
+  // and a stale activePlayback snapshot doesn't survive the thread swap.
+  // Skipped on initial mount (the stores are freshly constructed).
+  const lastThreadIdRef = useRef(threadId);
+  useEffect(() => {
+    if (lastThreadIdRef.current === threadId) return;
+    lastThreadIdRef.current = threadId;
+    stores.preReservationErrors.resetAll();
+    stores.activePlayback.resetAll();
+    stores.announcerState.resetAll();
+  }, [threadId, stores]);
   return (
     <VoiceOutputContext.Provider value={value}>
       <VoiceOutputStoresContext.Provider value={stores}>

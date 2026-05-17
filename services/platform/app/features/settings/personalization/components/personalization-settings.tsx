@@ -395,18 +395,25 @@ function VoiceOutputSection({
         description={switchDescription}
         aria-busy={isLoading || providerAvailable === null}
         onCheckedChange={async (next) => {
-          // Prime synchronously inside the gesture — the gesture token does
-          // not survive the awaited mutation below, so playback from the
-          // next streamed reply would otherwise hit NotAllowedError.
+          // Bank the shared AudioContext gesture token. The chat view
+          // owns the actual `<audio>` element used for playback; the
+          // settings page can't reach that element, so the per-element
+          // activation transfer documented in `prime-audio.ts` doesn't
+          // apply here. iOS Safari users toggling from settings may
+          // still see a single `NotAllowedError` on the first reply
+          // until they tap the bubble's play affordance once; from
+          // then on the chat-header toggle's gesture covers them.
           if (next) primeAudio();
           try {
             await setVoiceOutput({ organizationId, enabled: next });
-            // Branch the success toast on `providerAvailable`. When the
-            // user flips voice ON in an org with no TTS provider wired
-            // up, a green "Preferences updated" toast falsely implies
-            // voice will work — they then hear silence on the next
-            // reply. Surface the gap as a destructive toast pointing
-            // to the providers page.
+            // Race-defensive: although the `disabled` gate prevents
+            // toggling ON when `providerAvailable === false`, the probe
+            // might still be `null` at gesture time and resolve to
+            // `false` by the time the mutation completes. In that
+            // window the user toggled ON without an actionable
+            // provider; surface the gap as a destructive toast
+            // pointing to the providers page instead of the
+            // misleading green "Preferences updated".
             if (next && providerAvailable === false) {
               toast({
                 title: t('toasts.voiceOutputEnabledButProviderMissing'),

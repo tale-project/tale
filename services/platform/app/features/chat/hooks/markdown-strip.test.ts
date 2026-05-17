@@ -54,6 +54,84 @@ describe('stripMarkdown (with fence state)', () => {
     expect(stripMarkdown('```\nGoodbye', fence)).toBe('Goodbye');
     expect(fence.current).toBe(false);
   });
+
+  it('also drops `~~~` fences (CommonMark tilde variant)', () => {
+    const fence = { current: false };
+    const input = 'Before\n~~~\ncode\n~~~\nAfter';
+    expect(stripMarkdown(input, fence)).toBe('Before After');
+  });
+
+  it('drops 4-space indented code blocks', () => {
+    expect(stripMarkdownOnce('Intro\n\n    code line\nOutro')).toBe(
+      'Intro Outro',
+    );
+  });
+});
+
+describe('adversarial input regression tests', () => {
+  it('does not mangle intra-word underscore emphasis (snake_case)', () => {
+    // Pre-fix bug: `(\*|_)(.+?)\1` matched `_case_` and produced
+    // `snakecasevar`. CommonMark requires `_` emphasis to be at a word
+    // boundary. The tightened regex preserves the underscores.
+    expect(stripMarkdownOnce('snake_case_var stays intact')).toBe(
+      'snake_case_var stays intact',
+    );
+  });
+
+  it('still strips boundary-anchored underscore emphasis', () => {
+    expect(stripMarkdownOnce('Hello _world_ goodbye')).toBe(
+      'Hello world goodbye',
+    );
+  });
+
+  it('drops autolinks `<https://...>` and bare URLs', () => {
+    expect(stripMarkdownOnce('See <https://example.com/foo> here')).toBe(
+      'See here',
+    );
+    expect(stripMarkdownOnce('Go to https://example.com/x?y=1 now')).toBe(
+      'Go to now',
+    );
+  });
+
+  it('collapses table rows to whitespace (no pipes read aloud)', () => {
+    const table = '| Cell A | Cell B |\n| ------ | ------ |\n| Row 1 | Row 2 |';
+    const result = stripMarkdownOnce(table);
+    expect(result).not.toContain('|');
+    expect(result).toContain('Cell A');
+    expect(result).toContain('Row 1');
+  });
+
+  it('strips inline and block math entirely', () => {
+    expect(stripMarkdownOnce('Pythagoras: $a^2 + b^2 = c^2$ is famous.')).toBe(
+      'Pythagoras: is famous.',
+    );
+    expect(stripMarkdownOnce('Before\n$$\nE = mc^2\n$$\nAfter')).toBe(
+      'Before After',
+    );
+  });
+
+  it('keeps strikethrough content', () => {
+    expect(stripMarkdownOnce('This is ~~deleted text~~ ok.')).toBe(
+      'This is deleted text ok.',
+    );
+  });
+
+  it('drops task-list checkboxes', () => {
+    expect(
+      stripMarkdownOnce('- [ ] todo one\n- [x] done two\n- regular three'),
+    ).toBe('todo one done two regular three');
+  });
+
+  it('strips HTML tags and decodes common entities', () => {
+    expect(
+      stripMarkdownOnce('<strong>bold</strong> &amp; <em>italic</em>'),
+    ).toBe('bold & italic');
+    expect(stripMarkdownOnce('a&nbsp;b&#39;c')).toBe("a b'c");
+  });
+
+  it('drops footnote references', () => {
+    expect(stripMarkdownOnce('See note[^1] here.')).toBe('See note here.');
+  });
 });
 
 describe('containsNormalized', () => {

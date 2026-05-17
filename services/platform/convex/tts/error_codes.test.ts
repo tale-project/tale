@@ -5,6 +5,8 @@ import { SafeFetchError } from '../lib/http/safe_fetch';
 import { NoProviderAvailableError } from '../providers/errors';
 import {
   errorCodeFromCaught,
+  parseRetryAfterMs,
+  TtsProviderHttpError,
   ttsErrorCodeLiterals,
   type TtsErrorCode,
 } from './error_codes';
@@ -130,13 +132,43 @@ describe('errorCodeFromCaught', () => {
       expectedCode: 'TIMEOUT',
     },
     {
-      name: 'TTS API 429 → RATE_LIMITED',
+      name: 'TTS API 429 (legacy Error shape) → RATE_LIMITED',
       err: new Error('TTS API 429: rate limited'),
       expectedCode: 'RATE_LIMITED',
     },
     {
-      name: 'TTS API 401 → PROVIDER_4XX (terminal, bad key)',
-      err: new Error('TTS API 401: unauthorized'),
+      name: 'TtsProviderHttpError 429 → RATE_LIMITED',
+      err: new TtsProviderHttpError(429, undefined, 'rate limited'),
+      expectedCode: 'RATE_LIMITED',
+    },
+    {
+      name: 'TtsProviderHttpError 401 → PROVIDER_AUTH (was lumped into 4XX)',
+      err: new TtsProviderHttpError(401, undefined, 'unauthorized'),
+      expectedCode: 'PROVIDER_AUTH',
+    },
+    {
+      name: 'TtsProviderHttpError 403 → PROVIDER_AUTH',
+      err: new TtsProviderHttpError(403, undefined, 'forbidden'),
+      expectedCode: 'PROVIDER_AUTH',
+    },
+    {
+      name: 'TtsProviderHttpError 400 → PROVIDER_BAD_REQUEST',
+      err: new TtsProviderHttpError(400, undefined, 'bad request'),
+      expectedCode: 'PROVIDER_BAD_REQUEST',
+    },
+    {
+      name: 'TtsProviderHttpError 422 → PROVIDER_BAD_REQUEST',
+      err: new TtsProviderHttpError(422, undefined, 'unprocessable'),
+      expectedCode: 'PROVIDER_BAD_REQUEST',
+    },
+    {
+      name: 'TtsProviderHttpError 413 → PROVIDER_PAYLOAD_TOO_LARGE',
+      err: new TtsProviderHttpError(413, undefined, 'payload too large'),
+      expectedCode: 'PROVIDER_PAYLOAD_TOO_LARGE',
+    },
+    {
+      name: 'TtsProviderHttpError 418 → PROVIDER_4XX (generic fallback)',
+      err: new TtsProviderHttpError(418, undefined, 'teapot'),
       expectedCode: 'PROVIDER_4XX',
     },
     {
@@ -147,6 +179,11 @@ describe('errorCodeFromCaught', () => {
     {
       name: 'TTS API 502 → PROVIDER_5XX',
       err: new Error('TTS API 502: bad gateway'),
+      expectedCode: 'PROVIDER_5XX',
+    },
+    {
+      name: 'TtsProviderHttpError 503 → PROVIDER_5XX',
+      err: new TtsProviderHttpError(503, undefined, 'unavailable'),
       expectedCode: 'PROVIDER_5XX',
     },
     {
@@ -175,7 +212,19 @@ describe('errorCodeFromCaught', () => {
   // `synthesize.ts` when the rate-limiter OCC retries exhaust); those
   // are listed here so the guard documents who owns them.
   const PRODUCED_BY_CALLERS_NOT_CLASSIFIER: ReadonlySet<TtsErrorCode> = new Set(
-    ['CONTENTION'],
+    [
+      // Raised inline in `synthesize.ts` when the rate-limiter OCC retries
+      // exhaust under burst contention; never produced by the classifier.
+      'CONTENTION',
+      // Raised by `reserveChunk` (mutations.ts) as a `ConvexError`; the
+      // action intentionally lets it propagate to the client without
+      // catching it, so the classifier branch is defensive-only.
+      'MESSAGE_CHAR_LIMIT',
+      // Scheduled by `reserveChunk`'s watchdog via `markChunkFailed`; the
+      // mutation patches this code directly onto the chunk row when the
+      // scheduled delete fires, so the classifier never sees it.
+      'WATCHDOG_TIMEOUT',
+    ],
   );
 
   it('every TtsErrorCode literal has either a classifier branch or a documented owner', () => {
@@ -184,5 +233,50 @@ describe('errorCodeFromCaught', () => {
       if (PRODUCED_BY_CALLERS_NOT_CLASSIFIER.has(code)) continue;
       expect(seen.has(code), `no classifier case produces ${code}`).toBe(true);
     }
+  });
+
+  it('threads Retry-After from TtsProviderHttpError onto RATE_LIMITED result', () => {
+    const result = errorCodeFromCaught(
+      new TtsProviderHttpError(429, 7_500, 'rate limited'),
+    );
+    expect(result.code).toBe('RATE_LIMITED');
+    expect(result.retryAfterMs).toBe(7_500);
+  });
+
+  it('threads retryAfter (seconds) from ConvexError onto RATE_LIMITED result', () => {
+    const result = errorCodeFromCaught(
+      new ConvexError({
+        code: 'RATE_LIMITED',
+        message: 'rate limited',
+        retryAfter: 3,
+      }),
+    );
+    expect(result.code).toBe('RATE_LIMITED');
+    expect(result.retryAfterMs).toBe(3_000);
+  });
+});
+
+describe('parseRetryAfterMs', () => {
+  it('parses delta-seconds form', () => {
+    expect(parseRetryAfterMs('5')).toBe(5_000);
+    expect(parseRetryAfterMs('  0  ')).toBe(0);
+  });
+
+  it('parses HTTP-date form', () => {
+    const future = new Date(Date.now() + 10_000);
+    const result = parseRetryAfterMs(future.toUTCString());
+    // Allow a tolerance window for parse-time drift.
+    expect(result).toBeGreaterThan(8_000);
+    expect(result).toBeLessThanOrEqual(10_000);
+  });
+
+  it('returns undefined for past dates, malformed input, and null/undefined', () => {
+    expect(parseRetryAfterMs(null)).toBeUndefined();
+    expect(parseRetryAfterMs(undefined)).toBeUndefined();
+    expect(parseRetryAfterMs('')).toBeUndefined();
+    expect(parseRetryAfterMs('not-a-date')).toBeUndefined();
+    const past = new Date(Date.now() - 10_000);
+    expect(parseRetryAfterMs(past.toUTCString())).toBeUndefined();
+    expect(parseRetryAfterMs('-1')).toBeUndefined();
   });
 });

@@ -77,6 +77,17 @@ const DEFAULT_MAX_RESPONSE_BYTES = 1_048_576; // 1 MB
 const DEFAULT_MAX_REDIRECTS = 5;
 
 /**
+ * Status codes that signal "follow the Location header" in HTTP semantics.
+ * The previous `status >= 300 && status < 400` filter included 304 Not
+ * Modified, 305 Use Proxy, and 306 (unused) — none carry a Location header,
+ * so the loop fell into the missing-Location throw instead of returning
+ * the response intact (round-2 #20).
+ */
+const REDIRECT_STATUSES: ReadonlySet<number> = new Set([
+  301, 302, 303, 307, 308,
+]);
+
+/**
  * Hostname-string match against private/loopback IP ranges. NOT an IP-pin:
  * a hostname controlled by an attacker can still rebind to private space
  * between this check and the actual `fetch` (which re-resolves DNS). For
@@ -114,7 +125,14 @@ export function isPrivateIp(hostname: string): boolean {
   }
 
   if (lower === '::1') return true;
-  if (lower.startsWith('fe80:')) return true;
+  // IPv6 link-local block is fe80::/10 — every address whose first hextet
+  // starts with `fe8`, `fe9`, `fea`, or `feb`. The previous `fe80:` literal
+  // missed `fe90:`-`febf:`. Strip the zone identifier (`fe80::1%eth0`) so
+  // it doesn't change the prefix match.
+  const stripped = lower.replace(/%.+$/, '');
+  if (/^fe[89ab][0-9a-f]?:/.test(stripped)) return true;
+  // Deprecated site-local (fec0::/10) — never routable but defensive.
+  if (/^fe[c-f][0-9a-f]?:/.test(stripped)) return true;
   if (lower.startsWith('fc') || lower.startsWith('fd')) return true;
 
   return false;
@@ -414,7 +432,9 @@ export async function safeFetch(
         throw new SafeFetchError('network_error', `fetch failed: ${message}`);
       }
 
-      if (response.status < 300 || response.status >= 400) {
+      if (!REDIRECT_STATUSES.has(response.status)) {
+        // 304/305/306 land here too — they carry no Location header, so
+        // returning them to the caller is correct.
         break;
       }
 
@@ -541,7 +561,9 @@ export async function safeFetchBinary(
         throw new SafeFetchError('network_error', `fetch failed: ${message}`);
       }
 
-      if (response.status < 300 || response.status >= 400) {
+      if (!REDIRECT_STATUSES.has(response.status)) {
+        // 304/305/306 land here too — they carry no Location header, so
+        // returning them to the caller is correct.
         break;
       }
 

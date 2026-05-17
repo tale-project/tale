@@ -18,6 +18,7 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import { useVoiceOutputPlayer } from '../hooks/use-voice-output-player';
+import { errorMessageForCode } from '../utils/voice-error-messages';
 
 interface VoiceOutputIndicatorProps {
   enabled: boolean;
@@ -128,42 +129,47 @@ export function VoiceOutputIndicator(props: VoiceOutputIndicatorProps) {
           </span>
         </span>
       );
-      const settingsLink = props.organizationId ? (
-        <Link
-          to="/dashboard/$id/settings/providers"
-          params={{ id: props.organizationId }}
-          className="text-destructive hover:text-destructive/80 inline-flex min-h-11 min-w-11 items-center justify-center underline"
-          aria-label={`${reason}. ${t('voice.voiceOutputErrorOpenSettings')}`}
-        >
-          {linkBody}
-        </Link>
-      ) : (
-        // Without an `organizationId` the link can't be built; degrade to
-        // a non-interactive badge so the reason is still readable.
-        <Badge variant="destructive" className="text-xs">
+      if (props.organizationId) {
+        return (
+          <Tooltip content={reason} side="bottom">
+            <Link
+              to="/dashboard/$id/settings/providers"
+              params={{ id: props.organizationId }}
+              className="text-destructive hover:text-destructive/80 inline-flex min-h-11 min-w-11 items-center justify-center underline"
+              aria-label={`${reason}. ${t('voice.voiceOutputErrorOpenSettings')}`}
+            >
+              {linkBody}
+            </Link>
+          </Tooltip>
+        );
+      }
+      // Without an `organizationId` the link can't be built; render the
+      // reason inline on the badge so keyboard / touch users still see it.
+      // No Tooltip wrapper: the badge text already carries the reason,
+      // and a hover-only Tooltip on a non-focusable element is
+      // unreachable by keyboard (round-1 / round-2 HIGH #32).
+      return (
+        <Badge variant="destructive" className="text-xs" role="status">
           <AlertCircle className="text-destructive size-4" aria-hidden />
           <span className="ml-1">{reason}</span>
         </Badge>
       );
-      return (
-        <Tooltip content={reason} side="bottom">
-          {settingsLink}
-        </Tooltip>
-      );
     }
     if (category === 'terminal') {
+      // The reason is rendered inline on the badge — Tooltip would be
+      // redundant duplicated text AND unreachable by keyboard (the badge
+      // isn't focusable). Drop the Tooltip wrapper. `role="alert"` is
+      // kept so SRs announce the terminal state on appearance.
       return (
-        <Tooltip content={reason} side="bottom">
-          <Badge
-            variant="destructive"
-            className="text-xs"
-            role="alert"
-            aria-label={reason}
-          >
-            <AlertCircle className="text-destructive size-4" aria-hidden />
-            <span className="ml-1">{reason}</span>
-          </Badge>
-        </Tooltip>
+        <Badge
+          variant="destructive"
+          className="text-xs"
+          role="alert"
+          aria-label={reason}
+        >
+          <AlertCircle className="text-destructive size-4" aria-hidden />
+          <span className="ml-1">{reason}</span>
+        </Badge>
       );
     }
     // Retryable: keep the click-to-retry affordance.
@@ -342,58 +348,6 @@ function classifyErrorCode(code: string | undefined): ErrorCategory {
   }
 }
 
-function errorMessageForCode(
-  code: string | undefined,
-  t: (key: string) => string,
-): string {
-  switch (code) {
-    case 'NO_PROVIDER':
-    case 'UNKNOWN_PROVIDER':
-    case 'UNKNOWN_MODEL':
-    case 'UNKNOWN_VOICE':
-      return t('voice.voiceOutputErrorConfig');
-    case 'RATE_LIMITED':
-      return t('voice.voiceOutputErrorRateLimited');
-    case 'BUDGET_EXCEEDED':
-      return t('voice.voiceOutputErrorBudget');
-    case 'TIMEOUT':
-    case 'PROVIDER_5XX':
-    // CONTENTION is rate-limiter shard OCC, not quota — the chunker is
-    // already retrying internally with short jitter. Surface as
-    // transient so the user knows it's not stuck.
-    case 'CONTENTION':
-      return t('voice.voiceOutputErrorTransient');
-    // Client-side fallback raised when an action throw isn't a typed
-    // ConvexError — surface as a network problem so the user has an
-    // actionable read instead of staring at a stuck spinner.
-    case 'UNKNOWN_NETWORK':
-      return t('voice.voiceOutputErrorNetwork');
-    // Client-side cap raised by the chunker when the synthesis queue
-    // is full — playback paused so the user isn't surprised by silent
-    // tail of message.
-    case 'QUEUE_OVERFLOW':
-      return t('voice.voiceOutputErrorQueueOverflow');
-    // Synthetic client-side code raised by use-voice-output-player when
-    // every server-ready chunk's `<audio>` element decode/fetch failed —
-    // distinct from the server-classified codes above.
-    case 'AUDIO_DECODE':
-      return t('voice.voiceOutputErrorDecode');
-    case 'MESSAGE_CHAR_LIMIT':
-      return t('voice.voiceOutputErrorMessageCharLimit');
-    // `HOST_POLICY` (provider URL blocked by SSRF guard / private-IP
-    // allowlist) and `forbidden` (membership / IDOR refusal) both mean
-    // "the server refused to call out at all". Same recovery: ask an
-    // admin to check provider config / network policy.
-    case 'HOST_POLICY':
-    case 'forbidden':
-      return t('voice.voiceOutputErrorForbidden');
-    case 'TTS_CHUNK_LIMIT':
-    case 'TTS_TEXT_TOO_LONG':
-    case 'TTS_EMPTY_TEXT':
-      return t('voice.voiceOutputErrorChunkLimit');
-    case 'PROVIDER_4XX':
-    case 'PROVIDER_ERROR':
-    default:
-      return t('voice.voiceOutputError');
-  }
-}
+// `errorMessageForCode` moved to `../utils/voice-error-messages` — shared
+// with the announcer so a code added in one place can't fall through to
+// the generic fallback in the other.

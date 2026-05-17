@@ -594,7 +594,7 @@ export function ChatMessages({
   const afterItems = lastUserIdx >= 0 ? items.slice(lastUserIdx + 1) : [];
 
   return (
-    <VoiceOutputProvider>
+    <VoiceOutputProvider threadId={threadId}>
       {/* Sibling of the chat log so voice-mode state transitions are
           announced exactly once, not amplified by the parent log's
           aria-live region. */}

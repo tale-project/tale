@@ -9,8 +9,8 @@ Die Sprachausgabe liest die Antworten des Assistenten vor, während sie streamen
 
 Die Sprachausgabe ist standardmäßig aus. Es gibt zwei Stellen, an denen du sie steuerst:
 
-- **Pro-Thread-Schalter.** Ein Lautsprecher-Symbol in der Chat-Kopfzeile (oben rechts, neben „Teilen"). Der Klick wechselt drei Zustände: _Folgt Standard_ (deine globale Voreinstellung), _explizit an_ (nur dieser Thread) und _explizit aus_ (nur dieser Thread).
-- **Globaler Standard.** Unter **Einstellungen → Personalisierung → Sprachausgabe** kannst du den Standard einschalten. Neue Konversationen lesen dann Antworten vor, bis du sie in der Chat-Kopfzeile überschreibst.
+- **Pro-Thread-Schalter.** Öffne das `…`-Menü in der Chat-Kopfzeile und schalte **Sprachausgabe für diesen Chat** um. Die Zeile ist ein einfacher An/Aus-Schalter und wird nur angezeigt, wenn der globale Standard aktiv ist. Aus schaltet diesen Chat stumm; an spricht diesen Chat auch, wenn der Standard aus ist.
+- **Globaler Standard.** Unter **Einstellungen → Personalisierung → Sprachausgabe** kannst du den Standard einschalten. Neue Konversationen lesen dann Antworten vor, bis du sie im `…`-Menü der Chat-Kopfzeile überschreibst.
 
 Wenn du die Sprachausgabe in einer Sitzung zum ersten Mal aktivierst, schaltet der Klick gleichzeitig das Audio-System des Browsers frei. Ohne diese Geste verweigern Mobile Safari und strengere Chromium-Builds die automatische Wiedergabe; der Indikator auf jeder Nachricht zeigt dann „Sprachwiedergabe blockiert — tippe zum Abspielen", bis du tippst.
 
@@ -51,6 +51,6 @@ Audio wird etwa sieben Tage lang im Convex-Speicher zwischengespeichert, das ern
 
 ## Barrierefreiheit
 
-Der Indikator meldet seinen Zustand über eine Screenreader-Live-Region („Spricht", „Gestoppt", „Sprachausgabe fehlgeschlagen"). Animationen respektieren `prefers-reduced-motion` — sowohl der Sprech-Puls als auch der Lade-Kreisel werden statisch, wenn reduzierte Bewegung aktiv ist. Der Schalter verwendet `aria-pressed="mixed"` für den Folgt-Standard-Zustand, damit assistive Technik die drei Positionen unterscheiden kann.
+Der Indikator meldet seinen Zustand über eine Screenreader-Live-Region („Spricht", „Gestoppt", „Sprachausgabe fehlgeschlagen"). Animationen respektieren `prefers-reduced-motion` — sowohl der Sprech-Puls als auch der Lade-Kreisel werden statisch, wenn reduzierte Bewegung aktiv ist. Der Pro-Thread-Schalter im `…`-Menü nutzt die Standard-Semantik `role="menuitemcheckbox"` + `aria-checked`, sodass Screenreader den An/Aus-Zustand zusammen mit dem Menü ansagen.
 
 Wenn du einen Screenreader nutzt, lässt du die Sprachausgabe vielleicht besser aus — Screenreader und Assistentenstimme würden denselben Text vorlesen und sich gegenseitig überlagern.

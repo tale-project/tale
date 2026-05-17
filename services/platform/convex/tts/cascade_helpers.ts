@@ -93,9 +93,6 @@ export async function cascadeOnTtsForMemberRemoved(
   organizationId: string,
 ): Promise<{ deleted: number }> {
   let deleted = 0;
-  // Cap the scan at 50 pages so a worst-case member with thousands of
-  // chunks doesn't blow the mutation budget. Whatever doesn't fit gets
-  // reaped by the daily cron — still inside the 30-day Art 12(3) window.
   // Cap the scan at 30 pages (×200 = 6K writes) to stay under Convex's
   // ~8K per-mutation write budget. Whatever doesn't fit gets reaped by
   // the daily cron — still inside the 30-day Art 12(3) window.

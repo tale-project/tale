@@ -225,13 +225,15 @@ Add your OpenAI key once via **Settings > AI providers > OpenAI**. The file decl
 
 TTS-specific fields on a model entry:
 
-| Field                            | Purpose                                                                                                                                                                     |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tags`                           | Must include `"text-to-speech"`. The platform validates that any model carrying this tag also declares a voice via `defaultVoice` or `voicesByLocale`.                      |
-| `defaultVoice`                   | Fallback voice when no locale match is found.                                                                                                                               |
-| `voicesByLocale`                 | BCP-47 locale → voice id. The resolver tries the full locale, then the base language (`de-CH` → `de`), then `defaultVoice`.                                                 |
-| `audioFormat`                    | One of `mp3` (default), `opus`, `aac`, `flac`, `wav`, `pcm`. Use `mp3` for broadest browser support; `pcm` for lowest decode latency.                                       |
-| `cost.centsPerMillionCharacters` | Per-character billing rate (e.g. `1500` = $15/M chars). OpenAI's gpt-4o-mini-tts meters per token; supply an operator-estimated char-approximation when you use that model. |
+| Field                            | Purpose                                                                                                                                                                                 |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tags`                           | Must include `"text-to-speech"`. The platform validates that any model carrying this tag also declares a voice via `defaultVoice` or `voicesByLocale`.                                  |
+| `defaultVoice`                   | Fallback voice when no locale match is found.                                                                                                                                           |
+| `voicesByLocale`                 | BCP-47 locale → voice id. The resolver tries the full locale, then the base language (`de-CH` → `de`), then `defaultVoice`.                                                             |
+| `audioFormat`                    | One of `mp3` (default), `opus`, `aac`, `flac`, `wav`, `pcm`. Use `mp3` for broadest browser support; `pcm` for lowest decode latency.                                                   |
+| `defaultInstructions`            | Optional steering prompt sent with every synthesis (≤ 2000 chars). Useful for nudging tone, pace, or emphasis. Write the prompt in the target language for best results.                |
+| `instructionsByLocale`           | Optional BCP-47 locale → instructions map. Resolution mirrors `voicesByLocale`: full locale → base language → `defaultInstructions`. Each value is capped at 2000 chars.                |
+| `cost.centsPerMillionCharacters` | Per 1,000,000 characters of input text (e.g. `1500` = $15/M chars). OpenAI's gpt-4o-mini-tts meters per token; supply an operator-estimated char-approximation when you use that model. |
 
 The action enforces per-user (`tts:synthesize:user`, 40/min) and per-org (`tts:synthesize:org`, 200/min) rate limits, a 200-chunks-per-message hard cap, and an organization budget check before each synthesis. Synthesised audio is cached in Convex storage for ~7 days and pruned by a daily org-sweep cron, plus opportunistic per-thread cleanup scheduled from the write path.
 

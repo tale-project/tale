@@ -71,15 +71,44 @@ function extractConvexErrorCode(err: unknown): string | undefined {
   return undefined;
 }
 
-// Honor the requirement's "in the user's or conversation's language" clause:
-// when chunk text is dominantly CJK, override the UI locale so the resolver
-// picks a CJK-appropriate voice (falling through `voicesByLocale` → base →
-// `defaultVoice` if no explicit mapping exists).
+// Threshold: at least 40% of non-ASCII characters must be CJK before we
+// override the UI locale. The previous single-character probe
+// (`/[一-鿿]/.test(text)`) misclassified mixed strings like
+// "中文 with English help" as Chinese on the strength of two CJK glyphs in
+// a 22-character chunk — the resolver then picked the wrong voice for
+// chunks that were dominantly English.
+const CJK_DOMINANT_RATIO = 0.4;
+const ZH_RE = /[一-鿿]/g;
+const JA_RE = /[぀-ゟ゠-ヿ]/g;
+const KO_RE = /[가-힯]/g;
+
+function countMatches(text: string, re: RegExp): number {
+  // `re` carries the `g` flag; `String.prototype.match` returns null when
+  // there's no match, and an array of matches when there is.
+  return text.match(re)?.length ?? 0;
+}
+
+/**
+ * Honor the requirement's "in the user's or conversation's language" clause:
+ * when chunk text is dominantly CJK, override the UI locale so the resolver
+ * picks a CJK-appropriate voice (falling through `voicesByLocale` → base →
+ * `defaultVoice` if no explicit mapping exists). Otherwise return the UI
+ * locale so the user-configured voice stays consistent.
+ */
 function detectChunkLocale(text: string, fallback: string): string {
-  if (/[一-鿿]/.test(text)) return 'zh';
-  if (/[぀-ゟ゠-ヿ]/.test(text)) return 'ja';
-  if (/[가-힯]/.test(text)) return 'ko';
-  return fallback;
+  if (text.length === 0) return fallback;
+  const zh = countMatches(text, ZH_RE);
+  const ja = countMatches(text, JA_RE);
+  const ko = countMatches(text, KO_RE);
+  const total = zh + ja + ko;
+  if (total === 0) return fallback;
+  if (total / text.length < CJK_DOMINANT_RATIO) return fallback;
+  // Whichever CJK family dominates wins. Ties resolve to ja > ko > zh
+  // because mixed-script Japanese commonly contains Han ideographs and
+  // would otherwise misclassify as Chinese.
+  if (ja >= zh && ja >= ko) return 'ja';
+  if (ko >= zh) return 'ko';
+  return 'zh';
 }
 
 export interface VoiceModeState {
@@ -89,7 +118,9 @@ export interface VoiceModeState {
   // output is OFF globally. `enabled` alone can't tell apart "master OFF"
   // from "master ON + thread override OFF".
   userDefault: boolean;
-  source: 'thread' | 'preferences' | 'default';
+  // `org_policy` indicates the admin-level kill switch
+  // (`policyType: 'voice_output'`) overrode the user pref + thread override.
+  source: 'thread' | 'preferences' | 'default' | 'org_policy';
 }
 
 /**
@@ -285,6 +316,16 @@ export function useVoiceOutputChunker(opts: {
   }, []);
 
   const runNext = useCallback(() => {
+    // Toggle-off mid-stream must drain the queue: without this gate, a
+    // user who disabled voice while N paragraphs were already queued would
+    // still see all N synthesized + billed (the original retry-timer's
+    // `enabledRef` check only covered re-enqueues, not the existing
+    // closures already in `queueRef`). Round-1 / round-2 HIGH #1.
+    if (!enabledRef.current) {
+      queueRef.current = [];
+      inFlightRef.current = 0;
+      return;
+    }
     while (inFlightRef.current < MAX_IN_FLIGHT && queueRef.current.length > 0) {
       const next = queueRef.current.shift();
       if (!next) break;
@@ -292,6 +333,20 @@ export function useVoiceOutputChunker(opts: {
       next();
     }
   }, []);
+
+  // Belt-and-suspenders: flipping `opts.enabled` to false mid-stream
+  // drops everything pending. `runNext`'s gate covers the dispatch path,
+  // but already-queued closures referenced by `inFlightRef`-style timers
+  // can still fire from the retry-loop unless we explicitly clear the
+  // queue + timers here.
+  useEffect(() => {
+    if (!opts.enabled) {
+      queueRef.current = [];
+      inFlightRef.current = 0;
+      for (const id of retryTimersRef.current) clearTimeout(id);
+      retryTimersRef.current.clear();
+    }
+  }, [opts.enabled]);
 
   const enqueueSynthesis = useCallback(
     (

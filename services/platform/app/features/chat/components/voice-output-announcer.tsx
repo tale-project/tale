@@ -8,6 +8,7 @@ import {
   type AnnouncerSnapshot,
   useVoiceAnnouncerState,
 } from '../hooks/voice-output-context';
+import { errorMessageForCode } from '../utils/voice-error-messages';
 
 /**
  * Chat-level screen-reader announcer for voice-output state changes.
@@ -112,54 +113,16 @@ function messageForSnapshot(
     case 'blocked':
       return t('voice.voiceOutputAnnounceBlocked');
     case 'error':
-      return errorMessageForCode(snapshot.errorCode, t);
+      // SR-specific fallback key: hover/click affordances aren't reachable
+      // for SR users, so the announcer copy reads differently from the
+      // indicator badge.
+      return errorMessageForCode(
+        snapshot.errorCode,
+        t,
+        'voice.voiceOutputAnnounceError',
+      );
     case 'idle':
     default:
       return '';
-  }
-}
-
-// Mirrors `voice-output-indicator.tsx::errorMessageForCode` so SR users
-// hear the same per-code reason that hover users see in the tooltip.
-// Duplicated rather than imported to keep the announcer dependency-
-// free of the indicator component (the indicator imports the player,
-// which imports the announcer-writer hook — a cycle we don't want).
-function errorMessageForCode(
-  code: string | undefined,
-  t: (key: string) => string,
-): string {
-  switch (code) {
-    case 'NO_PROVIDER':
-    case 'UNKNOWN_PROVIDER':
-    case 'UNKNOWN_MODEL':
-    case 'UNKNOWN_VOICE':
-      return t('voice.voiceOutputErrorConfig');
-    case 'RATE_LIMITED':
-      return t('voice.voiceOutputErrorRateLimited');
-    case 'BUDGET_EXCEEDED':
-      return t('voice.voiceOutputErrorBudget');
-    case 'TIMEOUT':
-    case 'PROVIDER_5XX':
-    case 'CONTENTION':
-      return t('voice.voiceOutputErrorTransient');
-    case 'UNKNOWN_NETWORK':
-      return t('voice.voiceOutputErrorNetwork');
-    case 'QUEUE_OVERFLOW':
-      return t('voice.voiceOutputErrorQueueOverflow');
-    case 'AUDIO_DECODE':
-      return t('voice.voiceOutputErrorDecode');
-    case 'MESSAGE_CHAR_LIMIT':
-      return t('voice.voiceOutputErrorMessageCharLimit');
-    case 'HOST_POLICY':
-    case 'forbidden':
-      return t('voice.voiceOutputErrorForbidden');
-    case 'TTS_CHUNK_LIMIT':
-    case 'TTS_TEXT_TOO_LONG':
-    case 'TTS_EMPTY_TEXT':
-      return t('voice.voiceOutputErrorChunkLimit');
-    case 'PROVIDER_4XX':
-    case 'PROVIDER_ERROR':
-    default:
-      return t('voice.voiceOutputAnnounceError');
   }
 }

@@ -29,7 +29,7 @@ import { ChatHistorySidebar } from './chat-history-sidebar';
 import { ChatSearchDialog } from './chat-search-dialog';
 import { ExportChatDialog } from './export-chat-dialog';
 import { ShareChatDialog } from './share-chat-dialog';
-import { ThreadVoiceOutputSwitchRow } from './thread-voice-output-switch';
+import { useThreadVoiceOutputCheckboxItem } from './thread-voice-output-switch';
 interface ChatHeaderProps {
   organizationId: string;
   threadId?: string;
@@ -112,6 +112,10 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
     return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [isMac, handleToggleSearch, handleNewChat, handleToggleHistory]);
 
+  const voiceCheckboxItem = useThreadVoiceOutputCheckboxItem(
+    threadId,
+    voiceMode.enabled,
+  );
   const headerMenuItems = useMemo<DropdownMenuGroup[]>(() => {
     const groups: DropdownMenuGroup[] = [
       [
@@ -127,21 +131,11 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
     // ON. `userDefault === false` means voice output is OFF globally (or no
     // pref row exists), and the resolver short-circuits any existing
     // override — so don't surface a control that does nothing.
-    if (threadId && voiceMode.userDefault) {
-      groups.push([
-        {
-          type: 'custom' as const,
-          content: (
-            <ThreadVoiceOutputSwitchRow
-              threadId={threadId}
-              enabled={voiceMode.enabled}
-            />
-          ),
-        },
-      ]);
+    if (voiceCheckboxItem && voiceMode.userDefault) {
+      groups.push([voiceCheckboxItem]);
     }
     return groups;
-  }, [tChat, threadId, voiceMode.userDefault, voiceMode.enabled]);
+  }, [tChat, voiceCheckboxItem, voiceMode.userDefault]);
 
   const baseIconClasses = 'size-5 text-muted-foreground p-0.25';
 

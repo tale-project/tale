@@ -45,12 +45,31 @@ export interface DropdownMenuCustomItem {
   content: ReactNode;
 }
 
+/**
+ * Boolean toggle rendered inside the menu. Renders as
+ * `DropdownMenuPrimitive.CheckboxItem` so Radix's roving-tabindex
+ * picks it up (arrow-key navigation works) and screen readers announce
+ * `role="menuitemcheckbox"` + `aria-checked`. `onSelect` is suppressed so
+ * activating the toggle keeps the menu open. Round-1 / round-2 HIGH #13.
+ */
+export interface DropdownMenuCheckboxItem {
+  type: 'checkbox';
+  label: ReactNode;
+  description?: ReactNode;
+  icon?: ComponentType<{ className?: string }>;
+  checked: boolean;
+  onCheckedChange: (next: boolean) => void;
+  disabled?: boolean;
+  className?: string;
+}
+
 export type DropdownMenuItem =
   | DropdownMenuActionItem
   | DropdownMenuLabelItem
   | DropdownMenuSubItem
   | DropdownMenuRadioGroupItem
-  | DropdownMenuCustomItem;
+  | DropdownMenuCustomItem
+  | DropdownMenuCheckboxItem;
 
 export type DropdownMenuGroup = DropdownMenuItem[];
 
@@ -127,6 +146,55 @@ function renderItem(item: DropdownMenuItem, key: number) {
 
     case 'custom':
       return <Fragment key={key}>{item.content}</Fragment>;
+
+    case 'checkbox': {
+      const CheckboxIcon = item.icon;
+      return (
+        <DropdownMenuPrimitive.CheckboxItem
+          key={key}
+          checked={item.checked}
+          onCheckedChange={item.onCheckedChange}
+          disabled={item.disabled}
+          // Prevent default suppresses the close-on-select behaviour so
+          // toggling stays inside the menu — matches the OS conventions
+          // for grouped settings dropdowns.
+          onSelect={(e) => e.preventDefault()}
+          className={cn(
+            'relative flex min-h-11 cursor-default select-none items-center gap-2 rounded-md px-2 py-2 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
+            item.className,
+          )}
+        >
+          {CheckboxIcon ? <CheckboxIcon /> : null}
+          <span className="flex flex-1 flex-col">
+            <span className="text-sm">{item.label}</span>
+            {item.description != null && (
+              <span className="text-muted-foreground text-xs">
+                {item.description}
+              </span>
+            )}
+          </span>
+          <DropdownMenuPrimitive.ItemIndicator
+            forceMount
+            className="ml-auto inline-flex"
+          >
+            <span
+              aria-hidden
+              className={cn(
+                'inline-block h-4 w-7 rounded-full transition-colors',
+                item.checked ? 'bg-primary' : 'bg-muted',
+              )}
+            >
+              <span
+                className={cn(
+                  'block h-3 w-3 translate-y-0.5 rounded-full bg-white shadow transition-transform',
+                  item.checked ? 'translate-x-3.5' : 'translate-x-0.5',
+                )}
+              />
+            </span>
+          </DropdownMenuPrimitive.ItemIndicator>
+        </DropdownMenuPrimitive.CheckboxItem>
+      );
+    }
 
     case 'sub': {
       const SubIcon = item.icon;

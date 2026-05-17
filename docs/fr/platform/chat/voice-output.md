@@ -9,8 +9,8 @@ La sortie vocale lit à voix haute les réponses de l'assistant pendant qu'elles
 
 La sortie vocale est désactivée par défaut. Tu la contrôles à deux endroits :
 
-- **Bouton par conversation.** Une icône haut-parleur dans l'en-tête du chat (en haut à droite, à côté de « Partager »). Le clic enchaîne trois états : _suivre la valeur par défaut_ (ta préférence globale), _explicitement activée_ (cette conversation uniquement) et _explicitement désactivée_ (cette conversation uniquement).
-- **Valeur par défaut globale.** Dans **Paramètres → Personnalisation → Sortie vocale**, active la valeur par défaut. Les nouvelles conversations liront alors les réponses jusqu'à ce que tu surcharges depuis l'en-tête.
+- **Bouton par conversation.** Ouvre le menu `…` de l'en-tête du chat et bascule **Sortie vocale pour cette conversation**. La ligne est un simple interrupteur et n'apparaît que si la valeur par défaut globale est activée. Désactiver coupe cette conversation ; activer la fait lire même quand la valeur par défaut est désactivée.
+- **Valeur par défaut globale.** Dans **Paramètres → Personnalisation → Sortie vocale**, active la valeur par défaut. Les nouvelles conversations liront alors les réponses jusqu'à ce que tu surcharges depuis le menu `…` de l'en-tête.
 
 La première fois que tu actives la sortie vocale dans une session, le clic débloque aussi le système audio du navigateur. Sans ce geste, Safari mobile et les builds Chromium plus stricts refusent de lire automatiquement l'audio synthétisé, et l'indicateur sur chaque message affichera « Lecture vocale bloquée — touche pour lire » jusqu'à ce que tu touches.
 
@@ -51,6 +51,6 @@ L'audio est mis en cache dans le stockage Convex pendant environ sept jours : re
 
 ## Accessibilité
 
-L'indicateur annonce son état via une région live screen-reader (« Lecture en cours », « Arrêté », « Échec de la sortie vocale »). Les animations respectent `prefers-reduced-motion` — la pulsation de lecture comme le spinner de chargement deviennent statiques quand les animations réduites sont actives. Le bouton utilise `aria-pressed="mixed"` pour l'état « suivre la valeur par défaut » afin que les technologies d'assistance distinguent les trois positions.
+L'indicateur annonce son état via une région live screen-reader (« Lecture en cours », « Arrêté », « Échec de la sortie vocale »). Les animations respectent `prefers-reduced-motion` — la pulsation de lecture comme le spinner de chargement deviennent statiques quand les animations réduites sont actives. L'interrupteur par conversation dans le menu `…` utilise la sémantique standard `role="menuitemcheckbox"` + `aria-checked`, donc les lecteurs d'écran annoncent l'état actif/inactif avec le menu.
 
 Si tu utilises un lecteur d'écran, tu préféreras peut-être laisser la sortie vocale désactivée — le lecteur d'écran et la voix de l'assistant liraient le même texte et se superposeraient.

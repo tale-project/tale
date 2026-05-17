@@ -5,7 +5,7 @@ import {
   type AudioFormat,
 } from '../../lib/shared/schemas/providers';
 import type { Id } from '../_generated/dataModel';
-import { internalQuery, query } from '../_generated/server';
+import { type QueryCtx, internalQuery, query } from '../_generated/server';
 import { getOrganizationMember } from '../lib/rls';
 import { canAccessThread } from '../lib/rls/auth/can_access_thread';
 import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
@@ -161,13 +161,56 @@ export const getChunkForServe = internalQuery({
 });
 
 /**
- * Effective voice-mode setting for the chat UI. Combines the per-thread
- * override with the user's global default; client uses this to drive both
- * the auto-chunk hook and the toggle UI state.
+ * Org-level voice-output kill switch. Read from the dedicated
+ * `policyType: 'voice_output'` row in `governancePolicies` (config shape
+ * `{ enabled: boolean }`). Missing row → default ON (existing deployments
+ * keep current behaviour); explicit `enabled: false` is the org-wide veto
+ * that overrides every user pref and thread override.
  *
- * Precedence: `threadMetadata.voiceOutputOverride` →
- * `userPreferences.voiceOutput` (org-scoped if the thread has an org, else
- * any pref row the user owns) → `false`.
+ * Inlined (not exposed via `internalQuery`) because this is the sole
+ * consumer; `tts/queries.ts` is the single source of truth for the cascade.
+ */
+async function isVoiceOutputOrgEnabled(
+  ctx: QueryCtx,
+  organizationId: string,
+): Promise<boolean> {
+  const policy = await ctx.db
+    .query('governancePolicies')
+    .withIndex('by_org_policyType', (q) =>
+      q.eq('organizationId', organizationId).eq('policyType', 'voice_output'),
+    )
+    .first();
+  if (!policy) return true;
+  if (policy.enabled === false) return false;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- `policy.config` is `Record<string, unknown>` per schema; we narrow to a specific shape and probe `enabled` defensively.
+  const config = policy.config as { enabled?: unknown } | undefined;
+  // Be strict about the inner gate: only `enabled === false` disables.
+  // Missing/malformed config is treated as "ON" so a half-written row
+  // doesn't silently mute the whole org.
+  return config?.enabled !== false;
+}
+
+/**
+ * Effective voice-mode setting for the chat UI. Combines the per-thread
+ * override with the user's global default and the org-level governance
+ * policy; client uses this to drive both the auto-chunk hook and the
+ * toggle UI state.
+ *
+ * Precedence (top wins):
+ *  1. org `policyType: 'voice_output'` veto (`config.enabled === false`)
+ *     — admin kill switch; overrides every user/thread setting.
+ *  2. `threadMetadata.voiceOutputOverride` — per-conversation override.
+ *     Asymmetric: only respected when the user master switch is ON; a
+ *     master-OFF user can't be silently un-muted by a stale override.
+ *  3. `userPreferences.voiceOutput` — per-user master switch.
+ *  4. Default `false`.
+ *
+ * Legacy threads with no `organizationId` cannot resolve an org-level
+ * policy or an org-scoped user pref, so they default to OFF. This is a
+ * deliberate tightening: the old non-deterministic prefix-only fallback
+ * (round-2 HIGH #9) is gone — legacy threads are a vanishing tail and
+ * silently honoring "any" pref row across orgs leaked voice settings
+ * across org boundaries.
  */
 export const getVoiceModeEffective = query({
   args: { threadId: v.string() },
@@ -182,6 +225,7 @@ export const getVoiceModeEffective = query({
       v.literal('thread'),
       v.literal('preferences'),
       v.literal('default'),
+      v.literal('org_policy'),
     ),
   }),
   handler: async (ctx, args) => {
@@ -190,33 +234,32 @@ export const getVoiceModeEffective = query({
     if (!meta) {
       return { enabled: false, userDefault: false, source: 'default' as const };
     }
-    // Org-scoped pref lookup when the thread carries an organizationId
-    // (the common case). For legacy threads where `organizationId` is
-    // absent we fall through to a prefix-only lookup so a user who set
-    // voice ON globally still gets voice on those threads instead of
-    // silently defaulting OFF.
     const organizationId = meta.organizationId;
-    let prefs;
-    if (organizationId) {
-      prefs = await ctx.db
-        .query('userPreferences')
-        .withIndex('by_userId_organizationId', (q) =>
-          q.eq('userId', user.userId).eq('organizationId', organizationId),
-        )
-        .first();
-    } else {
-      // Prefix-only on the same index — picks the first userPreferences row
-      // the user owns in any org. If they have voice OFF in some orgs and ON
-      // in others the result depends on Convex's index order, which is fine
-      // for the legacy fallback: it just needs to not silently mute users
-      // who enabled voice somewhere.
-      prefs = await ctx.db
-        .query('userPreferences')
-        .withIndex('by_userId_organizationId', (q) =>
-          q.eq('userId', user.userId),
-        )
-        .first();
+    if (!organizationId) {
+      // Legacy thread (pre-org-attribution). No org context means we can't
+      // evaluate the org-level policy or an org-scoped user pref. Default
+      // OFF — see docstring above; this is the tightening for round-2 #9.
+      return { enabled: false, userDefault: false, source: 'default' as const };
     }
+
+    // Org-level kill switch runs first. Admins can disable voice for the
+    // entire tenant via `policyType: 'voice_output'`; this veto fires
+    // before any user pref or thread override is read.
+    const orgEnabled = await isVoiceOutputOrgEnabled(ctx, organizationId);
+    if (!orgEnabled) {
+      return {
+        enabled: false,
+        userDefault: false,
+        source: 'org_policy' as const,
+      };
+    }
+
+    const prefs = await ctx.db
+      .query('userPreferences')
+      .withIndex('by_userId_organizationId', (q) =>
+        q.eq('userId', user.userId).eq('organizationId', organizationId),
+      )
+      .first();
     const userDefault = prefs?.voiceOutput === true;
     // Hard veto: when the master switch is OFF, ignore any stale
     // `voiceOutputOverride` so a previously-set per-thread "on" can't keep

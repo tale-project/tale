@@ -53,3 +53,14 @@ export const MIN_TTS_AUDIO_BYTES = 256;
  * playback paused.
  */
 export const MAX_TTS_QUEUE_DEPTH = 50;
+
+/**
+ * Slack added to `PENDING_STALE_MS` for the server-side watchdog scheduled
+ * by `reserveChunk`. If the action completes (mark-ready or mark-failed)
+ * before the watchdog fires, the watchdog no-ops via the
+ * `(chunkId, attemptCreatedAt)` identity gate. If the action crashes after
+ * `ctx.storage.store` but before `markChunkReadyAndRecordUsage`, the
+ * watchdog flips the row to `failed` so the player advances instead of
+ * parking on a forever-pending chunk until the 7-day cron.
+ */
+export const TTS_WATCHDOG_BUFFER_MS = 5_000;

@@ -3,11 +3,17 @@ import { ConvexError, v } from 'convex/values';
 import {
   MAX_TTS_CHARS_PER_MESSAGE,
   MAX_TTS_CHUNKS_PER_MESSAGE,
+  TTS_WATCHDOG_BUFFER_MS,
 } from '../../lib/shared/constants/tts';
 import { TTS_SLUG } from '../../lib/shared/constants/usage';
 import { audioFormatLiterals } from '../../lib/shared/schemas/providers';
 import { internal } from '../_generated/api';
-import { internalMutation, mutation } from '../_generated/server';
+import type { Id } from '../_generated/dataModel';
+import {
+  type MutationCtx,
+  internalMutation,
+  mutation,
+} from '../_generated/server';
 import { logDenied } from '../audit_logs/helpers';
 import { checkBudget } from '../governance/budget_enforcement';
 import { estimateTtsCostCents } from '../governance/cost_estimation';
@@ -17,6 +23,7 @@ import { rateLimiter } from '../lib/rate_limiter';
 import { assertSelfAndOrgMember } from '../lib/rls/auth/assert_self_and_org_member';
 import { assertThreadAccess } from '../lib/rls/auth/can_access_thread';
 import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
+import { sanitizeError } from '../lib/utils/sanitize_secrets';
 import { ttsErrorCodeLiterals } from './error_codes';
 
 // Lazy GC parameters. ~7-day retention matches the schema docstring;
@@ -42,6 +49,69 @@ const PROSPECTIVE_TTS_CENTS_PER_M_CHARS = 1500;
 // becomes overwritable within 90s instead of stranding the chunk row in
 // `pending` for three minutes.
 const PENDING_STALE_MS = 60_000 + 30_000;
+
+/**
+ * Schedule the opportunistic cleanup sweep for `threadId`. Wrapped here
+ * because both the success path (`markChunkReadyAndRecordUsage`) and the
+ * failure path (`markChunkFailed`) need the same try/catch + arg shape, and
+ * the `cleanup:tts` limiter gates the actual sweep to ~1/hour/thread anyway.
+ * A scheduler hiccup must not roll back the calling mutation — the daily
+ * `gcOrgTtsChunks` cron is the authoritative sweep backstop.
+ */
+async function scheduleOpportunisticCleanup(
+  ctx: MutationCtx,
+  threadId: string,
+  source: string,
+): Promise<void> {
+  try {
+    await ctx.scheduler.runAfter(0, internal.tts.mutations.maybeCleanupChunks, {
+      threadId,
+      olderThanMs: CHUNK_RETENTION_MS,
+      limit: CLEANUP_PASS_LIMIT,
+    });
+  } catch (err) {
+    console.warn(
+      `[${source}] failed to schedule maybeCleanupChunks; daily cron will catch the backlog`,
+      sanitizeError(err),
+    );
+  }
+}
+
+/**
+ * Schedule the stuck-pending watchdog for a freshly-reserved chunk. If the
+ * action completes (mark-ready or mark-failed) before the watchdog fires,
+ * the watchdog no-ops via `markChunkFailed`'s `(chunkId, attemptCreatedAt)`
+ * identity gate. If the action crashes after `ctx.storage.store` but before
+ * `markChunkReadyAndRecordUsage`, the watchdog flips the row to `failed`
+ * with `WATCHDOG_TIMEOUT` so the player advances instead of parking on a
+ * forever-pending row until the daily org-sweep cron.
+ *
+ * The 90s+5s horizon is intentionally slack — short enough that a crashed
+ * action doesn't strand the UI for minutes, long enough that the legitimate
+ * 60s provider call plus full teardown never trips it.
+ */
+async function scheduleWatchdog(
+  ctx: MutationCtx,
+  chunkId: Id<'ttsAudioChunks'>,
+  attemptCreatedAt: number,
+): Promise<void> {
+  try {
+    await ctx.scheduler.runAfter(
+      PENDING_STALE_MS + TTS_WATCHDOG_BUFFER_MS,
+      internal.tts.mutations.markChunkFailed,
+      {
+        chunkId,
+        attemptCreatedAt,
+        error: 'WATCHDOG_TIMEOUT' as const,
+      },
+    );
+  } catch (err) {
+    console.warn(
+      '[tts.reserveChunk] failed to schedule watchdog; row will rely on stale-pending overwrite at PENDING_STALE_MS',
+      sanitizeError(err),
+    );
+  }
+}
 
 /**
  * Patch the current user's global voice-output default. Affects all new
@@ -370,7 +440,10 @@ export const reserveChunk = internalMutation({
         try {
           await ctx.storage.delete(existing.storageId);
         } catch (err) {
-          console.warn('[tts.reserveChunk] failed to delete prior blob', err);
+          console.warn(
+            '[tts.reserveChunk] failed to delete prior blob',
+            sanitizeError(err),
+          );
         }
       }
       await ctx.db.patch(existing._id, {
@@ -395,6 +468,7 @@ export const reserveChunk = internalMutation({
         // analytics drift across retries.
         agentSlug: meta.agentSlug ?? existing.agentSlug,
       });
+      await scheduleWatchdog(ctx, existing._id, attemptCreatedAt);
       return {
         kind: 'reserved' as const,
         chunkId: existing._id,
@@ -418,6 +492,7 @@ export const reserveChunk = internalMutation({
       createdAt: attemptCreatedAt,
       attemptCreatedAt,
     });
+    await scheduleWatchdog(ctx, chunkId, attemptCreatedAt);
     // Post-insert dedupe: Convex has no unique index, and the initial
     // `existing` lookup at the top of this handler can miss a row that a
     // concurrent transaction inserted in parallel — both writers see no
@@ -447,7 +522,7 @@ export const reserveChunk = internalMutation({
           } catch (err) {
             console.warn(
               '[tts.reserveChunk] dedupe storage.delete failed',
-              err,
+              sanitizeError(err),
             );
           }
         }
@@ -534,7 +609,10 @@ export const markChunkReadyAndRecordUsage = internalMutation({
       try {
         await ctx.storage.delete(args.storageId);
       } catch (err) {
-        console.warn('[tts.markReady] failed to delete stale blob', err);
+        console.warn(
+          '[tts.markReady] failed to delete stale blob',
+          sanitizeError(err),
+        );
       }
       return { stale: true };
     }
@@ -603,31 +681,8 @@ export const markChunkReadyAndRecordUsage = internalMutation({
     // would mean 200 throwaway dispatches per long message, of which only
     // the first does any real work (the `cleanup:tts` limiter gates the
     // rest). Doing it once per message keeps the dispatcher backlog small.
-    //
-    // Wrapped in try/catch so a scheduler hiccup (queue full / unhealthy
-    // / quota) doesn't roll back the entire mutation. Without the catch,
-    // a scheduling failure aborts the ledger insert + status flip above,
-    // and the action's compensating `ctx.storage.delete` then drops the
-    // just-stored blob — every cleanup-dispatcher blip would surface as
-    // a silent chunk failure with no observable cause. Cleanup is best-
-    // effort; the daily `gcOrgTtsChunks` cron is the authoritative sweep.
     if (row.index === 0) {
-      try {
-        await ctx.scheduler.runAfter(
-          0,
-          internal.tts.mutations.maybeCleanupChunks,
-          {
-            threadId: row.threadId,
-            olderThanMs: CHUNK_RETENTION_MS,
-            limit: CLEANUP_PASS_LIMIT,
-          },
-        );
-      } catch (err) {
-        console.warn(
-          '[tts.markReady] failed to schedule maybeCleanupChunks; daily cron will catch the backlog',
-          err,
-        );
-      }
+      await scheduleOpportunisticCleanup(ctx, row.threadId, 'tts.markReady');
     }
 
     return { stale: false };
@@ -668,7 +723,10 @@ export const logCapabilityProbeDenied = internalMutation({
         reason: 'not_org_member',
       });
     } catch (err) {
-      console.warn('[tts.logCapabilityProbeDenied] audit write failed', err);
+      console.warn(
+        '[tts.logCapabilityProbeDenied] audit write failed',
+        sanitizeError(err),
+      );
     }
     return null;
   },
@@ -722,22 +780,11 @@ export const markChunkFailed = internalMutation({
     // limiter still gates this to ~1/hour/thread so a burst of
     // failures doesn't flood the dispatcher.
     if (row.index === 0) {
-      try {
-        await ctx.scheduler.runAfter(
-          0,
-          internal.tts.mutations.maybeCleanupChunks,
-          {
-            threadId: row.threadId,
-            olderThanMs: CHUNK_RETENTION_MS,
-            limit: CLEANUP_PASS_LIMIT,
-          },
-        );
-      } catch (err) {
-        console.warn(
-          '[tts.markChunkFailed] failed to schedule maybeCleanupChunks; daily cron will catch the backlog',
-          err,
-        );
-      }
+      await scheduleOpportunisticCleanup(
+        ctx,
+        row.threadId,
+        'tts.markChunkFailed',
+      );
     }
 
     return { stale: false };
@@ -782,7 +829,10 @@ export const maybeCleanupChunks = internalMutation({
         try {
           await ctx.storage.delete(row.storageId);
         } catch (err) {
-          console.warn('[tts.cleanup] failed to delete storage blob', err);
+          console.warn(
+            '[tts.cleanup] failed to delete storage blob',
+            sanitizeError(err),
+          );
         }
       }
       await ctx.db.delete(row._id);

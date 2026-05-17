@@ -38,6 +38,7 @@ import {
 import { restOptionsHandler } from './lib/rest/helpers';
 import { toId } from './lib/type_cast_helpers';
 import { getClientIp, loadTrustedProxies } from './lib/utils/client_ip';
+import { sanitizeError } from './lib/utils/sanitize_secrets';
 import {
   chatCompletionsHandler,
   chatCompletionsOptionsHandler,
@@ -223,7 +224,18 @@ http.route({
     const auth = createAuth(ctx);
     const session = await auth.api.getSession({ headers: req.headers });
     if (!session?.user) {
-      return new Response('Unauthenticated', { status: 401 });
+      // `no-store` + `Vary: Cookie` so a TLS-terminating proxy can't cache
+      // the 401 against the URL and starve a freshly-logged-in user. The
+      // `WWW-Authenticate: Cookie` is informational — cookie-auth clients
+      // ignore it, but it satisfies RFC 7235 hygiene.
+      return new Response('Unauthenticated', {
+        status: 401,
+        headers: {
+          'Cache-Control': 'no-store',
+          Vary: 'Cookie',
+          'WWW-Authenticate': 'Cookie',
+        },
+      });
     }
 
     const chunk = await ctx.runQuery(internal.tts.queries.getChunkForServe, {
@@ -264,10 +276,22 @@ http.route({
         // requests that get a full 200 back from byte 0, audibly
         // restarting playback mid-chunk.
         'Accept-Ranges': 'none',
+        // CORP defense-in-depth: blocks third-party pages from embedding
+        // this audio in their own `<audio>` element. The session cookie
+        // is SameSite=Lax, so a cross-site top-level audio fetch would
+        // otherwise send the cookie and play the victim's TTS audio
+        // (no byte exfil without CORS, but a privacy surprise).
+        'Cross-Origin-Resource-Policy': 'same-origin',
       };
       return new Response(blob, { status: 200, headers });
     } catch (error) {
-      console.error('[http /api/tts-audio] error:', error);
+      // Sanitize before logging — `ctx.storage.get` failures can carry
+      // signed URLs / headers / IPs in their `.message` or `.stack`.
+      // Other TTS code paths route through `sanitizeError`; this one
+      // missed the pattern until round-2 #25.
+      console.error('[http /api/tts-audio] error', sanitizeError(error), {
+        chunkId,
+      });
       return new Response('Internal server error', { status: 500 });
     }
   }),

@@ -127,6 +127,10 @@ export function useVoiceOutputPlayer(opts: {
   } | null>(null);
   const nextIndexRef = useRef(0);
   const activeRef = useRef(false);
+  // Monotonically incremented on every `stop()` so a `coordinator.claim()
+  // .then(...)` callback that races a teardown can detect it ran late
+  // and bail before resurrecting playback. Round-1 / round-2 HIGH #5.
+  const playEpochRef = useRef(0);
   const chunksRef = useRef<ChunkRecord[] | undefined>(undefined);
   // Counter incremented every time the `<audio>` element emits an `error`
   // for a ready chunk (decode failure, 404 on the audio route, etc.). When
@@ -227,6 +231,9 @@ export function useVoiceOutputPlayer(opts: {
   const stopRef = useRef<() => void>(() => {});
 
   const stop = useCallback(() => {
+    // Advance the epoch first so any in-flight `coordinator.claim().then()`
+    // callback bails before it can flip `activeRef` back to true.
+    playEpochRef.current += 1;
     activeRef.current = false;
     detachAudioListeners();
     if (audioRef.current) {
@@ -280,6 +287,13 @@ export function useVoiceOutputPlayer(opts: {
         el.src = buildTtsAudioUrl(chunk.chunkId);
         setCurrentChunkIndexBoth(chunk.index);
         const onEnded = () => {
+          // Detach symmetrically with onError so a stale element can't
+          // fire a late `error` after `onEnded` already advanced — the
+          // previous code left ended-listeners attached until the next
+          // `playChunk` ran, opening a window where a queued error
+          // would falsely bump `decodeFailureCountRef` and double-
+          // advance (round-1 / round-2 HIGH #4).
+          detachAudioListeners();
           setCurrentChunkIndexBoth(null);
           nextIndexRef.current = chunk.index + 1;
           tryAdvanceRef.current();
@@ -411,11 +425,14 @@ export function useVoiceOutputPlayer(opts: {
     // load()-free, see above) had still effectively expired the
     // activation. Cheap when already-primed.
     primeAudio(providerAudioElement);
-    // Await coordinator handoff so the outgoing player's media-element
-    // teardown settles before this player reassigns `el.src`. Fire-and-
-    // forget: the surrounding click / auto-play handler doesn't need
-    // to await playback startup, only the claim handshake.
+    // Capture the epoch before the handoff. If `stop()` runs between the
+    // `claim` and its `.then(...)` resolving, the epoch advances and the
+    // callback bails — without this guard the late callback would set
+    // `activeRef.current = true` and re-start playback after the user
+    // explicitly stopped it (round-1 / round-2 HIGH #5).
+    const epochAtClaim = playEpochRef.current;
     void coordinator.claim(stopRef.current).then(() => {
+      if (epochAtClaim !== playEpochRef.current) return;
       decodeFailureCountRef.current = 0;
       activeRef.current = true;
       nextIndexRef.current = 0;

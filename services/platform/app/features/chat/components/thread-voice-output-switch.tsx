@@ -1,52 +1,56 @@
 'use client';
 
 import { useMutation } from 'convex/react';
+import { useCallback } from 'react';
 
-import { Switch } from '@/app/components/ui/forms/switch';
+import type { DropdownMenuCheckboxItem } from '@/app/components/ui/overlays/dropdown-menu';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
 import { useVoiceAudioElement } from '../hooks/voice-output-context';
 import { primeAudio } from '../utils/prime-audio';
 
-interface ThreadVoiceOutputSwitchRowProps {
-  threadId: string;
-  enabled: boolean;
-}
-
 /**
- * Per-thread voice-output Switch rendered inside the chat-header "..."
- * dropdown. Renders only when the master pref is ON (the parent gates
- * inclusion via `userDefault`); toggling writes a thread-level override.
+ * Builds the per-thread voice-output toggle as a `DropdownMenuCheckboxItem`
+ * descriptor, ready to be pushed into a `DropdownMenu` group.
  *
- * The tri-state inheriting/explicit-on/explicit-off semantics of the old
- * speaker-icon toggle are intentionally collapsed to a binary switch — the
- * master-OFF gate makes "clear override" redundant in practice.
+ * Renders only when the master pref is ON (caller gates inclusion via
+ * `voiceMode.userDefault`); toggling writes a thread-level override.
+ *
+ * Using `type: 'checkbox'` rather than `type: 'custom' + <Switch>`:
+ *  - Radix `CheckboxItem` joins the menu's roving tabindex, so the toggle
+ *    is reachable via ArrowDown from neighbouring menu items.
+ *  - SRs announce `role="menuitemcheckbox"` + `aria-checked`.
+ *  - `min-h-11` (44px) on the row meets WCAG 2.2 AA target-size.
+ *  - `onSelect` is suppressed by the renderer so toggling keeps the menu
+ *    open. Round-1 / round-2 HIGH #13.
  */
-export function ThreadVoiceOutputSwitchRow({
-  threadId,
-  enabled,
-}: ThreadVoiceOutputSwitchRowProps) {
+export function useThreadVoiceOutputCheckboxItem(
+  threadId: string | undefined,
+  enabled: boolean,
+): DropdownMenuCheckboxItem | null {
   const { t } = useT('chat');
   const setOverride = useMutation(
     api.tts.mutations.setThreadVoiceOutputOverride,
   );
   const audioElement = useVoiceAudioElement();
-
-  return (
-    <div className="px-2 py-1.5">
-      <Switch
-        label={t('voice.voiceOutputThreadSwitchLabel')}
-        checked={enabled}
-        onCheckedChange={(next) => {
-          // Bank the user-gesture token synchronously when enabling, so
-          // iOS Safari's autoplay gate accepts the first synthesised chunk
-          // even though the mutation round-trip happens between this click
-          // and playback start.
-          if (next) primeAudio(audioElement);
-          void setOverride({ threadId, override: next });
-        }}
-      />
-    </div>
+  const onCheckedChange = useCallback(
+    (next: boolean) => {
+      if (!threadId) return;
+      // Bank the user-gesture token synchronously when enabling, so
+      // iOS Safari's autoplay gate accepts the first synthesised chunk
+      // even though the mutation round-trip happens between this click
+      // and playback start.
+      if (next) primeAudio(audioElement);
+      void setOverride({ threadId, override: next });
+    },
+    [audioElement, setOverride, threadId],
   );
+  if (!threadId) return null;
+  return {
+    type: 'checkbox',
+    label: t('voice.voiceOutputThreadSwitchLabel'),
+    checked: enabled,
+    onCheckedChange,
+  };
 }

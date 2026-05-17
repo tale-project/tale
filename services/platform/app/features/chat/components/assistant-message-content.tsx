@@ -51,6 +51,32 @@ interface AssistantMessageContentProps {
 
 const PARAGRAPH_SPLIT = /\n{2,}/;
 
+// Fenced code blocks (and a few other block constructs) routinely contain
+// blank lines that would otherwise get sliced into separate paragraphs by
+// `PARAGRAPH_SPLIT`. The naive split breaks markdown rendering: an opening
+// ``` ``` `` lands in one paragraph and its body / closing fence in the
+// next, so react-markdown renders an unterminated `<pre>` plus literal
+// backticks. Mask the fenced regions before splitting and restore them
+// after. ` ``` ` and `~~~` are matched non-greedily so adjacent fences
+// don't merge. Round-1 / round-2 HIGH #7.
+const FENCED_BLOCK = /(`{3,}|~{3,})[\s\S]*?\1/g;
+
+function splitParagraphsPreservingFences(content: string): string[] {
+  const fences: string[] = [];
+  const placeholder = (i: number) => `\x00FENCE_${i}\x00`;
+  const masked = content.replace(FENCED_BLOCK, (match) => {
+    fences.push(match);
+    return placeholder(fences.length - 1);
+  });
+  const paragraphs = masked.split(PARAGRAPH_SPLIT);
+  return paragraphs.map((paragraph) =>
+    paragraph.replace(/\x00FENCE_(\d+)\x00/g, (_full, idx: string) => {
+      const i = Number(idx);
+      return Number.isFinite(i) && fences[i] !== undefined ? fences[i] : '';
+    }),
+  );
+}
+
 /**
  * Render an assistant message with paragraph-level "spotlight" during
  * voice playback. When voice mode is on AND a chunk of THIS message is
@@ -204,7 +230,7 @@ export function AssistantMessageContent({
           );
         }
         if (section.type !== 'plain') return undefined;
-        const paragraphs = section.content.split(PARAGRAPH_SPLIT);
+        const paragraphs = splitParagraphsPreservingFences(section.content);
         return paragraphs.map((paragraph, pIdx) => {
           const stripped = stripMarkdownOnce(paragraph);
           const isActive = containsNormalized(stripped, activeChunkText);
@@ -213,9 +239,22 @@ export function AssistantMessageContent({
               key={`section-${index}-p-${pIdx}`}
               data-paragraph-idx={pIdx}
               data-section-idx={index}
+              // Inactive paragraphs are removed from the SR tree while
+              // audio is playing this message — the announcer + audio
+              // already cover the SR channel, so leaving the body text
+              // exposed produces a double-read (round-1 / round-2 HIGH
+              // #14). Active paragraph stays visible to SR so a user who
+              // wants to read along still can.
+              aria-hidden={!isActive || undefined}
               className={cn(
                 !prefersReducedMotion && 'transition-opacity duration-300',
-                isActive ? 'opacity-100' : 'opacity-60',
+                // Replace opacity-only dim with a token-driven muted
+                // colour (passes WCAG 4.5:1 vs the bare opacity-60)
+                // AND add a left-border accent on the active paragraph
+                // as a non-color spotlight cue (WCAG 1.4.1).
+                isActive
+                  ? 'border-primary border-l-2 pl-3 text-foreground'
+                  : 'border-l-2 border-transparent pl-3 text-muted-foreground',
                 // Keep paragraph spacing identical to the non-spotlight
                 // path so the spotlight-on/off transition doesn't reflow
                 // the bubble.

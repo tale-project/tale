@@ -9,8 +9,8 @@ Voice output reads the assistant's replies aloud as they stream. It synthesises 
 
 Voice output is off by default. There are two places to control it:
 
-- **Per-thread toggle.** A speaker icon in the chat header (top-right, next to Share). Click cycles through three states: _follow default_ (your global preference), _explicitly on_ (this thread only), and _explicitly off_ (this thread only).
-- **Global default.** In **Settings → Personalization → Voice output**, switch the default on. New conversations will speak replies until you override them in the chat header.
+- **Per-thread toggle.** Open the chat header's `...` menu and toggle **Voice output for this chat**. The row is a binary switch and only appears when the global default is on. Toggling off silences this conversation; toggling on speaks this conversation when the default is off.
+- **Global default.** In **Settings → Personalization → Voice output**, switch the default on. New conversations will speak replies until you override them in the chat header's `...` menu.
 
 The first time you turn voice on in a session, the click also unlocks the browser's audio system. Without that gesture, mobile Safari and stricter Chromium builds will refuse to play synthesised audio automatically, and the indicator on each message will show "Voice playback blocked — tap to play" until you tap.
 
@@ -51,6 +51,6 @@ Audio is cached in Convex storage for about seven days, so re-playing a recent m
 
 ## Accessibility
 
-The indicator announces its state via a screen-reader live region ("Speaking", "Stopped", "Voice output failed"). Animations respect `prefers-reduced-motion` — both the speaking pulse and the loading spinner become static when reduced motion is on. The toggle uses `aria-pressed="mixed"` for the inheriting (follow-default) state so the three positions are distinguishable to assistive tech.
+The indicator announces its state via a screen-reader live region ("Speaking", "Stopped", "Voice output failed"). Animations respect `prefers-reduced-motion` — both the speaking pulse and the loading spinner become static when reduced motion is on. The per-thread switch in the `...` menu uses the standard `role="menuitemcheckbox"` + `aria-checked` semantics so screen readers announce its on/off state alongside the menu.
 
 If you use a screen reader, you may want to leave voice output off — both the screen reader and the assistant voice would read the same text, talking over each other.
