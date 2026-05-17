@@ -5,6 +5,24 @@ import { audioFormatLiterals } from '../../lib/shared/schemas/providers';
 import { ttsErrorCodeLiterals } from './error_codes';
 
 /**
+ * Singleton state for the `gcOrgTtsChunks` cron. Persists the last
+ * organization id touched across cron invocations so a deployment with
+ * more orgs than `MAX_ORGS_PER_RUN` advances through the full org list
+ * over successive runs instead of restarting from the lex-first org
+ * every time (which would starve lex-tail orgs forever). The table is
+ * keyed by a fixed `job` literal so future GC jobs can reuse the table
+ * with their own keys.
+ */
+export const ttsGcCursorTable = defineTable({
+  job: v.string(),
+  // `null` (= explicit no-cursor sentinel) signals "wrapped around;
+  // start from the lex-first org again on the next run". `undefined`
+  // (= field absent) means the same thing but reads less explicitly.
+  lastOrgId: v.union(v.string(), v.null()),
+  updatedAt: v.number(),
+}).index('by_job', ['job']);
+
+/**
  * Per-chunk TTS audio for streaming voice-mode output. One row per
  * `(messageId, index)` sentence/paragraph slice. Rows are written in
  * `'pending'` status by the synthesize action and flipped to `'ready'`

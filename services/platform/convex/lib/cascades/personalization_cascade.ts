@@ -95,9 +95,10 @@ export async function cascadeOnOrgDeleted(
   // half-erased. The page-then-loop shape stays inside one mutation
   // transaction but bounds work per pass.
   const PAGE_SIZE = 200;
-  // Cap at 50 pages (~10k rows) per cascade invocation; whatever exceeds
-  // that gets reaped by the daily org-sweep cron within 7 days.
-  for (let i = 0; i < 50; i++) {
+  // Cap at 30 pages (~6k rows) per cascade invocation to stay under
+  // Convex's ~8K per-mutation write budget; whatever exceeds that gets
+  // reaped by the hourly org-sweep cron within 7 days.
+  for (let i = 0; i < 30; i++) {
     const page = await ctx.db
       .query('ttsAudioChunks')
       .withIndex('by_org_createdAt', (q) =>
@@ -106,17 +107,23 @@ export async function cascadeOnOrgDeleted(
       .take(PAGE_SIZE);
     if (page.length === 0) break;
     for (const chunk of page) {
-      if (chunk.storageId) {
+      // db.delete BEFORE storage.delete — Convex `_storage` writes are
+      // out-of-band and not rolled back on transaction abort. With the
+      // previous order, a `db.delete` failure mid-iteration left the
+      // row pointing at a deleted blob (404 on `/api/tts-audio`).
+      // Matches the documented contract in `tts/cascade_helpers.ts:55-62`.
+      const storageId = chunk.storageId;
+      await ctx.db.delete(chunk._id);
+      if (storageId) {
         try {
-          await ctx.storage.delete(chunk.storageId);
+          await ctx.storage.delete(storageId);
         } catch (error) {
           console.warn(
-            `[cascadeOnOrgDeleted] tts storage.delete failed for ${String(chunk.storageId)}:`,
+            `[cascadeOnOrgDeleted] tts storage.delete failed for ${String(storageId)}:`,
             error,
           );
         }
       }
-      await ctx.db.delete(chunk._id);
     }
     if (page.length < PAGE_SIZE) break;
   }

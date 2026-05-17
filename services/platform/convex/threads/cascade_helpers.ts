@@ -377,17 +377,23 @@ export async function cascadeDeleteThreadChildren(
     .withIndex('by_thread_age', (q) => q.eq('threadId', threadId))
     .take(PAGE_SIZE);
   for (const chunk of ttsPage) {
-    if (chunk.storageId) {
+    // db.delete BEFORE storage.delete — Convex `_storage` writes are
+    // out-of-band and not rolled back on transaction abort, so the
+    // reverse order can leave a row pointing at a dead storageId
+    // (404 on `/api/tts-audio`). Matches the documented contract in
+    // `tts/cascade_helpers.ts:55-62`.
+    const storageId = chunk.storageId;
+    await ctx.db.delete(chunk._id);
+    if (storageId) {
       try {
-        await ctx.storage.delete(chunk.storageId);
+        await ctx.storage.delete(storageId);
       } catch (error) {
         console.warn(
-          `[cascadeDeleteThreadChildren] tts storage.delete failed for ${String(chunk.storageId)}:`,
+          `[cascadeDeleteThreadChildren] tts storage.delete failed for ${String(storageId)}:`,
           error,
         );
       }
     }
-    await ctx.db.delete(chunk._id);
   }
   if (ttsPage.length === PAGE_SIZE) {
     return { done: false, remaining: 1 };

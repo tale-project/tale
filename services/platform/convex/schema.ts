@@ -59,7 +59,7 @@ import { messageMetadataTable } from './streaming/schema';
 import { threadTodosTable } from './thread_todos/schema';
 import { threadBranchesTable } from './threads/branch_schema';
 import { threadMetadataTable } from './threads/schema';
-import { ttsAudioChunksTable } from './tts/schema';
+import { ttsAudioChunksTable, ttsGcCursorTable } from './tts/schema';
 import { twoFactorAttemptsTable } from './two_factor/schema';
 import { userMemoriesTable } from './user_memories/schema';
 import { userMemoryAuditLogTable } from './user_memory_audit_log/schema';
@@ -140,6 +140,7 @@ export default defineSchema({
   threadMetadata: threadMetadataTable,
   threadTodos: threadTodosTable,
   ttsAudioChunks: ttsAudioChunksTable,
+  ttsGcCursor: ttsGcCursorTable,
   twoFactorAttempts: twoFactorAttemptsTable,
   userMemories: userMemoriesTable,
   userMemoryAuditLog: userMemoryAuditLogTable,
