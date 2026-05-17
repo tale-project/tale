@@ -1,10 +1,21 @@
 /**
  * Shared types used across the SEO + LLM artifact builders, plugins, and
- * runtime modes (on-demand and precompiled). Kept here so neither layer
- * imports the other for type-only reasons.
+ * runtime modes (on-demand and precompiled). Kept dependency-free of
+ * `builders/` and `runtime/` so the foundational layer never imports up.
  */
 
-import type { SitemapPage } from './builders/sitemap';
+import type { Locale } from '@tale/i18n/locales';
+
+/**
+ * Per-locale absolute URL alternates for a single logical page. Keys
+ * are BCP-47 language tags (we share `Locale` with the rest of the
+ * app); `x-default` is the catch-all entry per the sitemap spec.
+ *
+ * Lives in this foundation file so `builders/sitemap` (the consumer
+ * that serialises these to `<xhtml:link>`) can import it without
+ * inverting the dependency direction.
+ */
+export type Alternates = Partial<Record<Locale | 'x-default', string>>;
 
 export interface ArtifactRoute {
   /** Site-relative URL (no origin) — `/`, `/pricing`, `/de/legal/imprint`. */
@@ -17,7 +28,7 @@ export interface ArtifactRoute {
    */
   body?: string;
   /** Per-locale absolute URL alternates emitted as sitemap `xhtml:link`. */
-  alternates?: SitemapPage['alternates'];
+  alternates?: Alternates;
   /** ISO-8601 last-modified date for sitemap `<lastmod>`. */
   lastModified?: string;
 }

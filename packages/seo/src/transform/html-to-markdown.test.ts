@@ -89,6 +89,25 @@ describe('htmlToMarkdown', () => {
     expect(out).toContain('after');
   });
 
+  it('treats any matching token in a multi-token role as chrome', async () => {
+    // ARIA accepts whitespace-separated role tokens; if any token
+    // matches the skip set we drop the element. Without tokenisation,
+    // `role="button menuitem"` would slip through and surface its
+    // contents.
+    const out = await htmlToMarkdown(
+      [
+        '<p>',
+        '<span role="button menuitem">click me</span>',
+        '<span role="presentation navigation">nav text</span>',
+        ' kept text',
+        '</p>',
+      ].join(''),
+    );
+    expect(out).not.toContain('click me');
+    expect(out).not.toContain('nav text');
+    expect(out).toContain('kept text');
+  });
+
   it('drops aria-hidden and role-based chrome subtrees', async () => {
     const out = await htmlToMarkdown(
       [

@@ -15,7 +15,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { relative, resolve, sep } from 'node:path';
 
 import { isMdPathname } from '../builders/md-paths';
 import { type CachedEntry, respondWithEtag } from './etag';
@@ -53,6 +53,7 @@ export function createPrecompiledServerFromManifest(
   params: FromManifestParams,
 ): ArtifactsServer {
   const { dir, manifest } = params;
+  const resolvedDir = resolve(dir);
 
   const byPath = new Map<string, ManifestEntry>();
   for (const entry of manifest.entries) byPath.set(entry.path, entry);
@@ -63,16 +64,30 @@ export function createPrecompiledServerFromManifest(
   function load(entry: ManifestEntry): CachedEntry | null {
     const hit = cache.get(entry.path);
     if (hit) return hit;
+
+    // Defence-in-depth: resolve the candidate against the artifact
+    // root and confirm it stays inside before any disk access. A
+    // malicious / corrupted manifest cannot make us read files
+    // outside `dir` (e.g. `entry.file = "../../etc/passwd"`).
+    const resolvedFile = resolve(resolvedDir, entry.file);
+    const rel = relative(resolvedDir, resolvedFile);
+    if (rel.startsWith(`..${sep}`) || rel === '..' || rel.startsWith('..')) {
+      console.error(
+        `[seo] manifest entry ${entry.file} escapes artifact dir ${resolvedDir}; refusing to read.`,
+      );
+      return null;
+    }
+
     let body: string;
     try {
-      body = readFileSync(join(dir, entry.file), 'utf-8');
+      body = readFileSync(resolvedFile, 'utf-8');
     } catch (error) {
       // A manifest entry without an on-disk file indicates a broken
       // build (someone shipped manifest.json without the artifact). We
       // log so it shows up in container logs and return null so the
       // request falls through to a 404 instead of crashing.
       console.error(
-        `[seo] precompiled artifact ${entry.file} missing from ${dir}:`,
+        `[seo] precompiled artifact ${entry.file} missing from ${resolvedDir}:`,
         error,
       );
       return null;

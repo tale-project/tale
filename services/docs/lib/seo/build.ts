@@ -137,15 +137,22 @@ export async function buildDocsSeo(siteUrl: string): Promise<BuiltDocsSeo> {
     bodiesByUrl.set(pathFor(record.locale, record.slug), record.body);
   }
 
-  const noindexPaths = enPages
-    .filter((p) => p.frontmatter.noindex === true)
-    .map((p) => pathFor('en', p.slug));
+  // `noindex` must cover every locale variant of a page, not just the
+  // English one: a localised page with `noindex: true` in its
+  // frontmatter belongs in robots.disallow too. We walk all records,
+  // not just `enPages`.
+  const noindexPaths = records
+    .filter((r) => r.frontmatter.noindex === true)
+    .map((r) => pathFor(r.locale, r.slug));
 
   return { sections, bodiesByUrl, noindexPaths };
 }
 
 export function docsSiteUrl(): string {
-  return process.env.DOCS_SITE_URL ?? DEFAULT_DOCS_SITE_URL;
+  // Canonicalise: never return a value with a trailing slash, otherwise
+  // every concatenation downstream produces `https://tale.dev/docs//foo`.
+  const raw = process.env.DOCS_SITE_URL ?? DEFAULT_DOCS_SITE_URL;
+  return raw.replace(/\/+$/, '');
 }
 
 export function docsOptionalPages(siteUrl: string): OptionalPage[] {

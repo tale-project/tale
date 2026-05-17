@@ -13,7 +13,7 @@
  */
 
 import { mkdir, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { dirname, relative, resolve, sep } from 'node:path';
 
 import { buildLlmsFullTxt } from '../builders/llms-full-txt';
 import { buildLlmsTxt } from '../builders/llms-txt';
@@ -263,6 +263,12 @@ export async function compileToMemory(params: CompileToMemoryParams): Promise<
     for (const pathname of paths) {
       const response = await plugin.build(pathname, ctx);
       if (!response) continue;
+      const existing = out.get(pathname);
+      if (existing) {
+        throw new Error(
+          `[seo] duplicate artifact path ${pathname}: plugin "${plugin.id}" overlaps with "${existing.pluginId}". Each path must be owned by exactly one plugin.`,
+        );
+      }
       out.set(pathname, {
         body: response.body,
         contentType: response.contentType,
@@ -319,10 +325,20 @@ export async function compileToDisk(
   const emittedFiles: string[] = [];
   const knownMdPaths: string[] = [];
 
+  const resolvedOutDir = resolve(outDir);
   for (const [pathname, value] of compiled) {
     // Strip the leading slash for filesystem use.
     const file = pathname.replace(/^\//, '') || 'index';
-    const fullPath = join(outDir, file);
+    const fullPath = resolve(resolvedOutDir, file);
+    // Defence-in-depth: a malicious or buggy plugin could enumerate a
+    // pathname containing `..` segments. Reject anything that resolves
+    // outside the output directory before we touch disk.
+    const rel = relative(resolvedOutDir, fullPath);
+    if (rel.startsWith(`..${sep}`) || rel === '..' || rel.startsWith('..')) {
+      throw new Error(
+        `[seo] artifact path ${pathname} (from plugin "${value.pluginId}") escapes outDir; refusing to write.`,
+      );
+    }
     await mkdir(dirname(fullPath), { recursive: true });
     await writeFile(fullPath, value.body, 'utf-8');
     emittedFiles.push(file);

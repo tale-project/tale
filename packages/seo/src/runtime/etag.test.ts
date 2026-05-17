@@ -58,4 +58,56 @@ describe('respondWithEtag', () => {
     expect(response.status).toBe(200);
     expect(await response.text()).toBe('hello');
   });
+
+  it('honours the `*` wildcard with a 304', () => {
+    const e = entry('hello');
+    const response = respondWithEtag(
+      new Request('https://tale.dev/llms.txt', {
+        headers: { 'if-none-match': '*' },
+      }),
+      e,
+    );
+    expect(response.status).toBe(304);
+    expect(response.body).toBeNull();
+    expect(response.headers.get('etag')).toBe(e.etag);
+    expect(response.headers.get('cache-control')).toBe(e.cacheControl);
+  });
+
+  it('treats `W/"<etag>"` (weak validator) as a match', () => {
+    const e = entry('hello');
+    // Strip the surrounding quotes and prepend W/ to form a weak tag.
+    const weak = `W/${e.etag}`;
+    const response = respondWithEtag(
+      new Request('https://tale.dev/llms.txt', {
+        headers: { 'if-none-match': weak },
+      }),
+      e,
+    );
+    expect(response.status).toBe(304);
+  });
+
+  it('matches when any member of a comma-separated list matches', async () => {
+    const e = entry('hello');
+    const list = `"a", ${e.etag}, "c"`;
+    const response = respondWithEtag(
+      new Request('https://tale.dev/llms.txt', {
+        headers: { 'if-none-match': list },
+      }),
+      e,
+    );
+    expect(response.status).toBe(304);
+    expect(response.body).toBeNull();
+  });
+
+  it('returns 200 when no list member matches', async () => {
+    const e = entry('hello');
+    const response = respondWithEtag(
+      new Request('https://tale.dev/llms.txt', {
+        headers: { 'if-none-match': '"a", "b", "c"' },
+      }),
+      e,
+    );
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe('hello');
+  });
 });

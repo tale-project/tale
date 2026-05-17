@@ -57,8 +57,15 @@ const HEADING_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']);
 function isSkippedElement(el: Element): boolean {
   const tag = el.tagName.toLowerCase();
   if (SKIP_TAGS.has(tag)) return true;
+  // ARIA allows whitespace-separated multi-token roles
+  // (e.g. `role="button menuitem"`); treat the element as chrome if
+  // any token matches our skip set.
   const role = el.getAttribute('role');
-  if (role && SKIP_ROLES.has(role)) return true;
+  if (role) {
+    for (const token of role.trim().split(/\s+/)) {
+      if (SKIP_ROLES.has(token)) return true;
+    }
+  }
   if (el.getAttribute('aria-hidden') === 'true') return true;
   return false;
 }

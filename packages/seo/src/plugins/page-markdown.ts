@@ -44,12 +44,15 @@ export const pageMarkdownPlugin: ArtifactPlugin = {
   },
   async enumerate(ctx) {
     const { sections } = await ctx.routes();
+    const routes = sections.flatMap((s) => s.routes);
+    // Resolve every body in parallel so a docs site with hundreds of
+    // pages doesn't serialise hundreds of IO round-trips at build time.
+    // `ctx.body` is memoised by the runtime so any cache hit is free.
+    const bodies = await Promise.all(routes.map((r) => ctx.body(r.url)));
     const out: string[] = [];
-    for (const section of sections) {
-      for (const route of section.routes) {
-        if ((await ctx.body(route.url)) == null) continue;
-        out.push(`/${routeToMdPath(route.url)}`);
-      }
+    for (let i = 0; i < routes.length; i++) {
+      if (bodies[i] == null) continue;
+      out.push(`/${routeToMdPath(routes[i].url)}`);
     }
     return out;
   },

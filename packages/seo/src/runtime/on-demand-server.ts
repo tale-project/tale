@@ -166,14 +166,10 @@ export function createOnDemandServer(
     if (cacheEnabled) {
       const hit = cache.get(cacheKey);
       if (hit) return hit;
-      if (cache.isKnownMiss(pathname)) return null;
     }
 
     const response = await plugin.build(pathname, ctx);
-    if (response == null) {
-      if (cacheEnabled) cache.rememberMiss(pathname);
-      return null;
-    }
+    if (response == null) return null;
     const entry = entryFor(response);
     if (cacheEnabled) cache.set(cacheKey, entry);
     return entry;
@@ -184,6 +180,15 @@ export function createOnDemandServer(
       const url = new URL(request.url);
       const pathname = url.pathname;
 
+      // Negative cache only protects the unbounded `.md` namespace —
+      // static paths (`/llms.txt`, `/sitemap.xml`, `/robots.txt`) are
+      // a fixed set and can be re-checked cheaply if they happen to
+      // legitimately return null (e.g. platform's empty sitemap).
+      const isMdProbe = pathname.endsWith('.md');
+      if (cacheEnabled && isMdProbe && cache.isKnownMiss(pathname)) {
+        return null;
+      }
+
       let ctx: BuildContext | null = null;
       for (const plugin of plugins) {
         if (!pluginMatches(plugin, pathname)) continue;
@@ -192,6 +197,10 @@ export function createOnDemandServer(
         if (entry) return respondWithEtag(request, entry);
       }
 
+      // Only flag the miss after every candidate plugin has been
+      // tried, and only for `.md` paths so the cap-and-clear logic in
+      // `ArtifactCache` shields us from hostile floods.
+      if (cacheEnabled && isMdProbe) cache.rememberMiss(pathname);
       return null;
     },
     invalidate: clear,
