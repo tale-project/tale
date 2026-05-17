@@ -33,3 +33,23 @@ export const MAX_TTS_CHARS_PER_MESSAGE = 50_000;
  * rate-limiter. 200 covers an extraordinarily long honest reply.
  */
 export const MAX_TTS_CHUNKS_PER_MESSAGE = 200;
+
+/**
+ * Minimum bytes a provider response must contain to be accepted as a
+ * legitimate audio payload. A 200 OK with a near-empty body (provider
+ * misconfiguration, partial outage, accidental JSON-error-as-success)
+ * would otherwise be stored to `_storage` and fully billed despite
+ * yielding no audible audio. Picked conservatively — even a single
+ * frame of mp3/opus exceeds this by an order of magnitude.
+ */
+export const MIN_TTS_AUDIO_BYTES = 256;
+
+/**
+ * Hard cap on the client-side synthesis queue depth. The chunker
+ * dispatches up to `MAX_IN_FLIGHT` actions concurrently and queues the
+ * rest; without a depth cap a slow provider + fast streamer can stack
+ * thousands of pending tasks. When the queue is full the chunker stops
+ * segmenting and surfaces `QUEUE_OVERFLOW` so the user can see why
+ * playback paused.
+ */
+export const MAX_TTS_QUEUE_DEPTH = 50;

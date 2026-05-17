@@ -2,12 +2,15 @@
 
 import { ConvexError, v } from 'convex/values';
 
-import { MAX_TTS_CHUNK_CHARS } from '../../lib/shared/constants/tts';
+import {
+  MAX_TTS_CHUNK_CHARS,
+  MIN_TTS_AUDIO_BYTES,
+} from '../../lib/shared/constants/tts';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { action } from '../_generated/server';
 import { estimateTtsCostCents } from '../governance/cost_estimation';
-import { safeFetchBinary } from '../lib/http/safe_fetch';
+import { SafeFetchError, safeFetchBinary } from '../lib/http/safe_fetch';
 import { rateLimiter } from '../lib/rate_limiter';
 import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
 import { sanitizeError } from '../lib/utils/sanitize_secrets';
@@ -247,6 +250,22 @@ export const synthesizeChunk = action({
           origin,
         });
         throw new Error(`TTS API ${response.status}: provider call failed`);
+      }
+      // Empty / near-empty 200 responses (provider misconfiguration,
+      // upstream JSON-error-as-200, partial outage) would otherwise be
+      // stored as a zero-byte blob and fully billed via the ledger,
+      // yielding no audible audio. Refuse before the storage write so
+      // the chunk is marked failed and never debited.
+      if (response.body.size < MIN_TTS_AUDIO_BYTES) {
+        console.warn('[tts] provider returned implausibly small body', {
+          bytes: response.body.size,
+          status: response.status,
+        });
+        throw new SafeFetchError(
+          'response_too_small',
+          `Provider returned ${response.body.size} bytes (< ${MIN_TTS_AUDIO_BYTES}); refusing to bill for empty audio`,
+          response.status,
+        );
       }
       const typedBlob =
         response.body.type && response.body.type !== ''

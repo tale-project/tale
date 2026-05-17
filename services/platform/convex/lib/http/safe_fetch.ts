@@ -4,7 +4,19 @@
  * Rejects loopback, RFC1918 private ranges, link-local, and the
  * cloud metadata address (169.254.169.254). Follows redirects manually
  * and re-validates every hop. Enforces body size caps pre-read via
- * Content-Length and post-read while streaming.
+ * Content-Length and post-read while streaming. Refuses plaintext
+ * `http://` to public hosts so bearer-bearing requests cannot cross
+ * the open internet unencrypted; local self-hosted providers (private
+ * IP or explicit `allowedHosts` entry) may still use `http://`.
+ *
+ * Known limitation — DNS rebinding: `isPrivateIp` and `validateUrl`
+ * operate on the URL's hostname string, not on the IP `fetch` actually
+ * dials. A short-TTL DNS rebind between `validateUrl` (which may resolve
+ * to verify reachability, depending on platform) and the outbound
+ * `fetch` (which re-resolves) can still route a public-looking hostname
+ * to a private IP such as 169.254.169.254. Closing this gap requires an
+ * undici Dispatcher with a `lookup` callback that pins the resolved
+ * address; deferred to a follow-up so this PR stays scoped.
  *
  * Extracted from images/http_actions.ts so chat-filter's moderation
  * provider and any future outbound caller share one audited implementation.
@@ -13,11 +25,12 @@
 export type SafeFetchErrorKind =
   | 'invalid_url'
   | 'unsupported_protocol'
+  | 'insecure_public_http'
   | 'private_ip'
   | 'redirect_missing_location'
   | 'redirect_limit_exceeded'
   | 'response_too_large'
-  | 'upstream_error'
+  | 'response_too_small'
   | 'network_error'
   | 'timeout';
 
@@ -122,14 +135,33 @@ function isPrivateIpv4(host: string): boolean {
   return false;
 }
 
+function hostMatchesEntry(hostname: string, entry: string): boolean {
+  const h = hostname.toLowerCase();
+  const e = entry.toLowerCase();
+  return h === e || h.endsWith(`.${e}`);
+}
+
 /**
  * Reject the URL by hostname-string match against the IMDS / private ranges
  * and the optional `allowedHosts` allowlist. Does NOT pin DNS — `fetch` will
  * re-resolve and a short-TTL rebind from public to private IP between this
  * check and the request slips through. To pin against rebinding, an undici
  * Dispatcher with a `lookup` callback is required (not used here today).
+ *
+ * `callerAllowedHosts` is the list the caller explicitly passed (or
+ * `undefined` if they passed none). `effectiveAllowedHosts` is that list
+ * merged with the auto-derived initial-URL host (used to gate redirects).
+ * The two are kept separate so the insecure-public-http refuse can ignore
+ * the auto-derived entry: an operator who typed `http://api.example.com`
+ * into a provider config didn't *explicitly* whitelist that host, they
+ * just typed it as a baseUrl — and we want to surface the cleartext-bearer
+ * risk instead of silently honoring it.
  */
-function validateUrl(rawUrl: string, allowedHosts: string[] | undefined): URL {
+function validateUrl(
+  rawUrl: string,
+  effectiveAllowedHosts: string[] | undefined,
+  callerAllowedHosts: string[] | undefined,
+): URL {
   let parsed: URL;
   try {
     parsed = new URL(rawUrl);
@@ -144,25 +176,46 @@ function validateUrl(rawUrl: string, allowedHosts: string[] | undefined): URL {
     );
   }
 
-  const hostnameLower = parsed.hostname.toLowerCase();
-  const explicitlyAllowed =
-    allowedHosts !== undefined &&
-    allowedHosts.some((entry) => {
-      const e = entry.toLowerCase();
-      return hostnameLower === e || hostnameLower.endsWith(`.${e}`);
-    });
+  const hostname = parsed.hostname;
+  const effectivelyAllowed =
+    effectiveAllowedHosts !== undefined &&
+    effectiveAllowedHosts.some((entry) => hostMatchesEntry(hostname, entry));
+  const callerExplicitlyAllowed =
+    callerAllowedHosts !== undefined &&
+    callerAllowedHosts.some((entry) => hostMatchesEntry(hostname, entry));
+  const isPrivate = isPrivateIp(hostname);
 
-  if (isPrivateIp(parsed.hostname) && !explicitlyAllowed) {
+  // Refuse plaintext `http://` to public hosts. Callers (notably the TTS
+  // synthesize action) attach `Authorization: Bearer <apiKey>` to the
+  // request; over `http://` the key would cross the open internet in the
+  // clear. Self-hosted local TTS providers are commonly reached over
+  // `http://` on a private network — they're still allowed because either
+  // (a) the host is in a private/loopback range, or (b) the operator has
+  // explicitly named it in `allowedHosts` (NOT just typed it as a baseUrl;
+  // the auto-derived initial-host entry doesn't count). Public-internet
+  // `http://` with a bearer header is never a legitimate provider call.
+  if (parsed.protocol === 'http:' && !isPrivate && !callerExplicitlyAllowed) {
     throw new SafeFetchError(
-      'private_ip',
-      `Host resolves to private/loopback address: ${parsed.hostname}`,
+      'insecure_public_http',
+      `Plaintext http:// to public host refused (would leak bearer credentials): ${hostname}`,
     );
   }
 
-  if (allowedHosts && allowedHosts.length > 0 && !explicitlyAllowed) {
+  if (isPrivate && !effectivelyAllowed) {
     throw new SafeFetchError(
       'private_ip',
-      `Host not in allowedHosts: ${parsed.hostname}`,
+      `Host resolves to private/loopback address: ${hostname}`,
+    );
+  }
+
+  if (
+    effectiveAllowedHosts &&
+    effectiveAllowedHosts.length > 0 &&
+    !effectivelyAllowed
+  ) {
+    throw new SafeFetchError(
+      'private_ip',
+      `Host not in allowedHosts: ${hostname}`,
     );
   }
 
@@ -326,7 +379,7 @@ export async function safeFetch(
     }
   }
 
-  validateUrl(rawUrl, allowedHosts);
+  validateUrl(rawUrl, allowedHosts, callerAllowedHosts);
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -383,7 +436,7 @@ export async function safeFetch(
       }
 
       const nextUrl = new URL(location, currentUrl);
-      validateUrl(nextUrl.toString(), allowedHosts);
+      validateUrl(nextUrl.toString(), allowedHosts, callerAllowedHosts);
       // Drop credential-carrying headers on cross-host hops so an
       // attacker who controls a redirect target on a second allowlisted
       // host can't harvest the upstream provider's bearer token.
@@ -453,7 +506,7 @@ export async function safeFetchBinary(
     }
   }
 
-  validateUrl(rawUrl, allowedHosts);
+  validateUrl(rawUrl, allowedHosts, callerAllowedHosts);
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -510,7 +563,7 @@ export async function safeFetchBinary(
       }
 
       const nextUrl = new URL(location, currentUrl);
-      validateUrl(nextUrl.toString(), allowedHosts);
+      validateUrl(nextUrl.toString(), allowedHosts, callerAllowedHosts);
       // Drop credential-carrying headers on cross-host hops — see
       // `safeFetch` above for the threat model.
       if (

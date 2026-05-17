@@ -1,7 +1,6 @@
 import { ConvexError } from 'convex/values';
 
 import { SafeFetchError } from '../lib/http/safe_fetch';
-import { sanitizeError } from '../lib/utils/sanitize_secrets';
 import { NoProviderAvailableError } from '../providers/errors';
 
 /**
@@ -11,6 +10,13 @@ import { NoProviderAvailableError } from '../providers/errors';
  * correctly is part of the contract. The array is the single source of
  * truth — `schema.ts` builds its `error` field validator from it so the
  * persisted shape can never drift from the runtime classifier.
+ *
+ * Retry policy is owned by the client (use-voice-output.ts:33). The server
+ * returns only the code; the client decides which codes are retryable
+ * based on cost/idempotency trade-offs (no PROVIDER_5XX/TIMEOUT retry —
+ * rebilling the provider on a degraded upstream is wasteful and adds
+ * pressure during outages). Don't reintroduce a server-side `retryable`
+ * flag without first reconciling the two sources of truth.
  */
 export const ttsErrorCodeLiterals = [
   'NO_PROVIDER',
@@ -37,12 +43,10 @@ export type TtsErrorCode = (typeof ttsErrorCodeLiterals)[number];
 
 export interface ClassifiedFailure {
   code: TtsErrorCode;
-  retryable: boolean;
-  detail: string;
 }
 
 /**
- * Classify a thrown error into a stable `TtsErrorCode` + sanitized detail.
+ * Classify a thrown error into a stable `TtsErrorCode`.
  *
  * Critical: `NoProviderAvailableError` does NOT survive `ctx.runAction`
  * boundaries — Convex reserializes it as a plain `Error` whose message
@@ -54,35 +58,34 @@ export interface ClassifiedFailure {
  * action and a Vitest unit test can both import it.
  */
 export function errorCodeFromCaught(err: unknown): ClassifiedFailure {
-  const detail = sanitizeError(err);
   if (err instanceof NoProviderAvailableError) {
-    return { code: 'NO_PROVIDER', retryable: false, detail };
+    return { code: 'NO_PROVIDER' };
   }
   const rawMessage =
     err instanceof Error
       ? err.message.toLowerCase()
       : String(err).toLowerCase();
   if (rawMessage.includes('noprovideravailableerror')) {
-    return { code: 'NO_PROVIDER', retryable: false, detail };
+    return { code: 'NO_PROVIDER' };
   }
   if (err instanceof ConvexError) {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ConvexError.data is typed as `any`; we only read `code` defensively
     const data = err.data as { code?: string } | undefined;
     const code = data?.code;
     if (code === 'UNKNOWN_MODEL') {
-      return { code: 'UNKNOWN_MODEL', retryable: false, detail };
+      return { code: 'UNKNOWN_MODEL' };
     }
     if (code === 'UNKNOWN_PROVIDER') {
-      return { code: 'UNKNOWN_PROVIDER', retryable: false, detail };
+      return { code: 'UNKNOWN_PROVIDER' };
     }
     if (code === 'RATE_LIMITED') {
-      return { code: 'RATE_LIMITED', retryable: true, detail };
+      return { code: 'RATE_LIMITED' };
     }
     if (code === 'BUDGET_EXCEEDED') {
-      return { code: 'BUDGET_EXCEEDED', retryable: false, detail };
+      return { code: 'BUDGET_EXCEEDED' };
     }
     if (code === 'MESSAGE_CHAR_LIMIT') {
-      return { code: 'MESSAGE_CHAR_LIMIT', retryable: false, detail };
+      return { code: 'MESSAGE_CHAR_LIMIT' };
     }
     // `checkProviderHostPolicy` raises these three codes; without explicit
     // branches they fall through to `PROVIDER_ERROR` and the client's
@@ -92,7 +95,7 @@ export function errorCodeFromCaught(err: unknown): ClassifiedFailure {
       code === 'BLOCKED_HOST' ||
       code === 'PRIVATE_HOST_BLOCKED'
     ) {
-      return { code: 'HOST_POLICY', retryable: false, detail };
+      return { code: 'HOST_POLICY' };
     }
   }
   // `safeFetchBinary` surfaces SSRF / redirect / size violations as
@@ -103,24 +106,25 @@ export function errorCodeFromCaught(err: unknown): ClassifiedFailure {
       case 'invalid_url':
       case 'unsupported_protocol':
       case 'private_ip':
+      case 'insecure_public_http':
       case 'redirect_missing_location':
       case 'redirect_limit_exceeded':
-        return { code: 'HOST_POLICY', retryable: false, detail };
+        return { code: 'HOST_POLICY' };
       case 'response_too_large':
-        return { code: 'PROVIDER_4XX', retryable: false, detail };
+      case 'response_too_small':
+        return { code: 'PROVIDER_4XX' };
       case 'timeout':
-        return { code: 'TIMEOUT', retryable: true, detail };
-      case 'upstream_error':
+        return { code: 'TIMEOUT' };
       case 'network_error':
-        return { code: 'PROVIDER_ERROR', retryable: false, detail };
+        return { code: 'PROVIDER_ERROR' };
     }
   }
   // Same-action throws from resolveTtsModel use `new Error('UNKNOWN_VOICE: ...')`.
   if (err instanceof Error && err.message.startsWith('UNKNOWN_VOICE:')) {
-    return { code: 'UNKNOWN_VOICE', retryable: false, detail };
+    return { code: 'UNKNOWN_VOICE' };
   }
   if (err instanceof Error && err.name === 'AbortError') {
-    return { code: 'TIMEOUT', retryable: true, detail };
+    return { code: 'TIMEOUT' };
   }
   // Upstream provider HTTP error — `synthesizeChunk` rethrows these with the
   // `TTS API ${status}: ...` shape so we can split 4xx (terminal) vs 5xx
@@ -131,13 +135,13 @@ export function errorCodeFromCaught(err: unknown): ClassifiedFailure {
     if (m) {
       const status = Number(m[1]);
       if (status === 429) {
-        return { code: 'RATE_LIMITED', retryable: true, detail };
+        return { code: 'RATE_LIMITED' };
       }
       if (status >= 500) {
-        return { code: 'PROVIDER_5XX', retryable: true, detail };
+        return { code: 'PROVIDER_5XX' };
       }
-      return { code: 'PROVIDER_4XX', retryable: false, detail };
+      return { code: 'PROVIDER_4XX' };
     }
   }
-  return { code: 'PROVIDER_ERROR', retryable: false, detail };
+  return { code: 'PROVIDER_ERROR' };
 }
