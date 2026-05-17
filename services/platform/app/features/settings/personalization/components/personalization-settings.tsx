@@ -59,6 +59,18 @@ type CapabilityProbe = (args: {
 
 const capabilityProbeCache = new Map<string, Promise<{ available: boolean }>>();
 
+function isTransientProbeError(err: unknown): boolean {
+  if (!(err instanceof ConvexError)) return false;
+  const data: unknown = err.data;
+  if (typeof data !== 'object' || data === null) return false;
+  // `data` is `object`, which is narrower than `Record<string, unknown>`
+  // for indexed access but TypeScript still permits the read. Bracket
+  // access here would also satisfy the safety check; we use it to avoid
+  // an assertion entirely.
+  const code = (data as { code?: unknown }).code;
+  return code === 'RATE_LIMITED' || code === 'CONTENTION';
+}
+
 function probeCapability(
   fn: CapabilityProbe,
   organizationId: string,
@@ -317,6 +329,18 @@ function VoiceOutputSection({
         if (!cancelled) setProviderAvailable(r.available);
       })
       .catch((err) => {
+        // Distinguish transient probe failures (rate-limit, network blip)
+        // from a genuine "no provider configured" so a momentary error
+        // doesn't flip the page into its destructive "provider unavailable"
+        // banner and re-trigger the destructive toast on the next toggle.
+        // Leaving `providerAvailable` as `null` (unknown) keeps the UI in
+        // its loading-equivalent state; the next mount/probe will resolve.
+        if (isTransientProbeError(err)) {
+          console.warn(
+            '[tts] capability probe transient error; leaving unknown',
+          );
+          return;
+        }
         console.warn('[tts] capability lookup failed', err);
         if (!cancelled) setProviderAvailable(false);
       });

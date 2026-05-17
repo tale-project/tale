@@ -206,14 +206,15 @@ export async function getOrgUsageMetrics(
     agentBucket.tokens += row.totalTokens;
     agentBucket.costCents += row.costEstimate;
 
-    // Top Models includes LLM and TTS rows — both carry model + provider.
-    // Integration rows lack a model; transcription rows are billed per
-    // audio minute with tokens=0, so they're excluded to avoid misleading
-    // "0 tokens" entries. TTS rows also have tokens=0 (billed per
-    // character), so the sort defaults to cost (see comment below) — the
-    // request-count and cost columns remain meaningful.
+    // Top Models is currently LLM-only — transcription and TTS are
+    // excluded because both are billed in non-token units (audio minutes
+    // and characters respectively) and would render as misleading "0
+    // tokens" rows alongside genuine LLM token counts. A kind-aware
+    // "Units" column (tokens / chars / minutes) is the proper structural
+    // fix, tracked as a follow-up. Until then, surfacing TTS in this
+    // list inherits transcription's known UX problem instead of solving it.
     if (
-      (kind === 'llm' || kind === 'tts') &&
+      kind === 'llm' &&
       row.model !== undefined &&
       row.provider !== undefined
     ) {

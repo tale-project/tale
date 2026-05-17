@@ -187,10 +187,17 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   // unbounded Convex storage reads on rows they're already entitled to
   // see. Cost-only (no data leak — the route already gates on org
   // membership) so the limit is set marginally higher than storage.
+  //
+  // Token-bucket (not fixed window) so a long auto-played message with
+  // many chunks doesn't slam into a minute-boundary 429 cliff mid-
+  // playback on a NAT/office IP. Capacity = 2× rate gives one bursty
+  // ~200-chunk replay headroom without inviting steady-state abuse —
+  // sustained traffic still settles at 120/min.
   'security:tts-audio-fetch': {
-    kind: 'fixed window',
+    kind: 'token bucket',
     rate: 120,
     period: MINUTE,
+    capacity: 240,
   },
   'security:image-proxy': {
     kind: 'fixed window',

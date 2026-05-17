@@ -98,12 +98,14 @@ crons.cron(
 // "read-path GC" never existed: queries cannot use `ctx.scheduler` so the
 // only trigger has been `markChunkReadyAndRecordUsage` (the write path).
 // Threads that synthesize once then go idle would otherwise retain their
-// rows indefinitely. Picks an off-peak slot to avoid contending with the
-// 04:00 / 01:00 retention sweeps. Bounded per run by `MAX_ORGS_PER_RUN`
-// × `ROWS_PER_ORG_PER_RUN` so one busy tenant doesn't starve the rest.
+// rows indefinitely. Bounded per run by `MAX_ORGS_PER_RUN` ×
+// `ROWS_PER_ORG_PER_RUN` so one busy tenant doesn't starve the rest.
+// Hourly (not daily) so a transient failure recovers in ~60 min instead
+// of waiting a full day, and so a deployment with more orgs than
+// `MAX_ORGS_PER_RUN` sees its full org list swept within ~24 hours.
 crons.cron(
-  'tts orphan sweep (daily)',
-  '0 5 * * *',
+  'tts orphan sweep (hourly)',
+  '0 * * * *',
   internal.tts.cascade_helpers.gcOrgTtsChunks,
   {},
 );
