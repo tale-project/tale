@@ -1,7 +1,13 @@
 import { Button } from '@tale/ui/button';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@tale/ui/tooltip';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Check } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 
 import {
   CompareTable,
@@ -48,6 +54,58 @@ const VERSION_KEYS = {
     speed: 'clusterSpeed',
   },
 } as const;
+
+const MEMORY_TOKEN_REGEX = /\((UMA|VRAM)\)/g;
+
+/**
+ * Wraps `(UMA)` / `(VRAM)` tokens in a tooltip explaining the acronym.
+ * Each line of `value` is rendered on its own row so multi-line AI-RAM
+ * values (e.g. cluster Hybrid: `576GB (UMA)\n96GB (VRAM)`) stack
+ * correctly inside the cell.
+ */
+function MemoryValue({ value }: { value: string }): ReactNode {
+  const { t } = useT('hardwarePricing');
+  if (!value || value === '-') return value || null;
+
+  const lines = value.split('\n');
+  return (
+    <TooltipProvider delayDuration={150}>
+      {lines.map((line, lineIdx) => {
+        const parts: ReactNode[] = [];
+        let lastIndex = 0;
+        for (const match of line.matchAll(MEMORY_TOKEN_REGEX)) {
+          const [token, kind] = match;
+          const start = match.index ?? 0;
+          if (start > lastIndex) parts.push(line.slice(lastIndex, start));
+          parts.push(
+            <Tooltip key={`${lineIdx}-${start}`}>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="cursor-help underline decoration-dotted underline-offset-2"
+                >
+                  {token}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs text-center">
+                {t(`compare.categories.${kind.toLowerCase()}Info`)}
+              </TooltipContent>
+            </Tooltip>,
+          );
+          lastIndex = start + token.length;
+        }
+        if (lastIndex < line.length) parts.push(line.slice(lastIndex));
+        return (
+          <span key={lineIdx} className="block">
+            {parts.map((part, i) => (
+              <Fragment key={i}>{part}</Fragment>
+            ))}
+          </span>
+        );
+      })}
+    </TooltipProvider>
+  );
+}
 
 export function HardwareCompare({ mode }: HardwareCompareProps) {
   const { t } = useT('hardwarePricing');
@@ -113,12 +171,14 @@ export function HardwareCompare({ mode }: HardwareCompareProps) {
       const mergeQualityChip = mode === 'node' && axis.row === 'gpu';
       const skipQualityChip = mode === 'node' && axis.row === 'cpu';
 
+      const render = (raw: string): ReactNode =>
+        axis.row === 'ram' ? <MemoryValue value={raw} /> : raw;
       const cells: Partial<Record<TierKey, ReactNode>> = {
-        hybrid: t(`specs.${mode}.${axis.values[1]}`),
-        speed: t(`specs.${mode}.${axis.values[2]}`),
+        hybrid: render(t(`specs.${mode}.${axis.values[1]}`)),
+        speed: render(t(`specs.${mode}.${axis.values[2]}`)),
       };
       if (!skipQualityChip) {
-        cells.quality = t(`specs.${mode}.${axis.values[0]}`);
+        cells.quality = render(t(`specs.${mode}.${axis.values[0]}`));
       }
 
       const row: CompareRow<TierKey> = {

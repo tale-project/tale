@@ -372,6 +372,8 @@
         "cpu": "Puce (CPU)",
         "ram": "RAM IA",
         "ramInfo": "Mémoire rapide utilisée pour les calculs d'IA, p. ex. de la mémoire vidéo (VRAM) ou de la mémoire unifiée (UMA).",
+        "umaInfo": "Unified Memory Architecture — mémoire partagée entre le CPU et le GPU sur la même puce (Apple Silicon).",
+        "vramInfo": "Video RAM — mémoire dédiée sur la carte GPU.",
         "systemRam": "RAM",
         "ssd": "SSD",
         "hdd": "HDD",

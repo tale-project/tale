@@ -372,6 +372,8 @@
         "cpu": "Chip (CPU)",
         "ram": "AI RAM",
         "ramInfo": "Fast memory used for AI workloads, e.g. Video Memory (VRAM) or Unified Memory (UMA).",
+        "umaInfo": "Unified Memory Architecture — RAM shared between CPU and GPU on a single chip (Apple Silicon).",
+        "vramInfo": "Video RAM — dedicated memory on the GPU board.",
         "systemRam": "RAM",
         "ssd": "SSD",
         "hdd": "HDD",

@@ -372,6 +372,8 @@
         "cpu": "Chip (CPU)",
         "ram": "KI-RAM",
         "ramInfo": "Schneller Speicher für KI-Berechnungen, z. B. Videospeicher (VRAM) oder Unified Memory (UMA).",
+        "umaInfo": "Unified Memory Architecture — RAM, der sich CPU und GPU auf demselben Chip teilen (Apple Silicon).",
+        "vramInfo": "Video-RAM — dedizierter Speicher auf der GPU-Karte.",
         "systemRam": "RAM",
         "ssd": "SSD",
         "hdd": "HDD",
