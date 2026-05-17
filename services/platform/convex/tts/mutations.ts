@@ -5,7 +5,6 @@ import {
   MAX_TTS_CHUNKS_PER_MESSAGE,
   TTS_WATCHDOG_BUFFER_MS,
 } from '../../lib/shared/constants/tts';
-import { TTS_SLUG } from '../../lib/shared/constants/usage';
 import { audioFormatLiterals } from '../../lib/shared/schemas/providers';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
@@ -463,9 +462,10 @@ export const reserveChunk = internalMutation({
         teamId,
         // `?? existing.agentSlug` preserves the original attribution
         // when the thread temporarily reports no agent on a retry
-        // (agent detached between attempts). Without the fallback the
-        // ledger row lands under the TTS_SLUG sentinel and Top Agents
-        // analytics drift across retries.
+        // (agent detached between attempts). The chunk row's agentSlug
+        // is retained for debugging / future per-agent voice analytics;
+        // ledger bucketing itself always routes TTS rows under
+        // TTS_SLUG regardless of this field.
         agentSlug: meta.agentSlug ?? existing.agentSlug,
       });
       await scheduleWatchdog(ctx, existing._id, attemptCreatedAt);
@@ -658,18 +658,20 @@ export const markChunkReadyAndRecordUsage = internalMutation({
       providerName: args.providerName,
       modelId: args.modelId,
       format: args.format,
+      characterCount: args.characterCount,
+      costEstimateCents: args.costEstimateCents,
       error: undefined,
       usageRecordedAt: Date.now(),
     });
 
+    // Ledger rows for TTS are always bucketed under the `TTS_SLUG` sentinel
+    // so Top Assistants surfaces voice cost as its own row instead of folding
+    // it silently into the calling agent. The writer no longer takes an
+    // `agentSlug` arg — see `recordTtsUsageInline`.
     await recordTtsUsageInline(ctx, {
       organizationId: row.organizationId,
       userId: row.userId,
       teamId: row.teamId,
-      // Real assistant slug when the thread is attached to one;
-      // `TTS_SLUG` is the sentinel fallback for unattached threads so
-      // the row still has an attribution key.
-      agentSlug: row.agentSlug ?? TTS_SLUG,
       model: args.modelId,
       provider: args.providerName,
       characterCount: args.characterCount,

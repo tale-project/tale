@@ -16,12 +16,21 @@ import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { Field, FieldGroup } from '@/app/components/ui/forms/field';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Text } from '@/app/components/ui/typography/text';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useCopyButton } from '@/app/hooks/use-copy';
 import { useFormatDate } from '@/app/hooks/use-format-date';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { formatNumber } from '@/lib/utils/format/number';
 
 import type { MessageMetadata, ToolUsage } from '../hooks/queries';
+
+function formatCostDollars(cents: number): string {
+  const dollars = cents / 100;
+  if (dollars === 0) return '$0.00';
+  if (dollars >= 1) return `$${dollars.toFixed(2)}`;
+  return `$${dollars.toPrecision(3)}`;
+}
 
 function formatAgentName(toolName: string): string {
   const nameMap: Record<string, string> = {
@@ -133,13 +142,7 @@ function ToolCallCard({ usage, locale, t }: ToolCallCardProps) {
           {usage.costEstimateCents != null && (
             <>
               {' · '}
-              Cost:{' '}
-              {(() => {
-                const d = usage.costEstimateCents / 100;
-                if (d === 0) return '$0.00';
-                if (d >= 1) return `$${d.toFixed(2)}`;
-                return `$${d.toPrecision(3)}`;
-              })()}
+              Cost: {formatCostDollars(usage.costEstimateCents)}
             </>
           )}
           {usage.durationMs !== undefined && (
@@ -191,6 +194,10 @@ interface MessageInfoDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   messageId: string;
+  // Optional because the message bubble's threadId may be missing in
+  // transient states (e.g. mid-fork). The Voice output section is only
+  // fetched when both ids are available.
+  threadId?: string;
   timestamp: Date;
   metadata?: MessageMetadata;
 }
@@ -199,12 +206,20 @@ export function MessageInfoDialog({
   isOpen,
   onOpenChange,
   messageId,
+  threadId,
   timestamp,
   metadata,
 }: MessageInfoDialogProps) {
   const { formatDate, locale } = useFormatDate();
   const { t } = useT('chat');
   const { t: tCommon } = useT('common');
+  // Skip the query while the dialog is closed — most opens-close cycles
+  // wouldn't ever look at the section, and TTS chunks subscribe is cheap
+  // enough that gating on `isOpen` keeps the steady-state cost at zero.
+  const { data: voiceUsage } = useConvexQuery(
+    api.tts.queries.getMessageVoiceUsage,
+    isOpen && threadId ? { messageId, threadId } : 'skip',
+  );
   const tokenItems = useMemo<StatGridItem[]>(
     () => [
       ...(metadata?.contextWindow
@@ -246,12 +261,7 @@ export function MessageInfoDialog({
               label: 'Cost',
               value: (
                 <Text className="font-mono">
-                  {(() => {
-                    const dollars = metadata.costEstimateCents / 100;
-                    if (dollars === 0) return '$0.00';
-                    if (dollars >= 1) return `$${dollars.toFixed(2)}`;
-                    return `$${dollars.toPrecision(3)}`;
-                  })()}
+                  {formatCostDollars(metadata.costEstimateCents)}
                 </Text>
               ),
             },
@@ -314,6 +324,50 @@ export function MessageInfoDialog({
             {perfItems.length > 0 && (
               <Field label={t('messageInfo.performance')}>
                 <StatGrid className="text-sm" items={perfItems} />
+              </Field>
+            )}
+
+            {voiceUsage && voiceUsage.breakdown.length > 0 && (
+              <Field label={t('messageInfo.voiceOutput')}>
+                <Stack gap={2}>
+                  {voiceUsage.breakdown.map((entry, index) => (
+                    <div
+                      key={`${entry.provider}-${entry.model}-${entry.voice ?? ''}-${index}`}
+                      className="bg-muted min-w-0 overflow-hidden rounded px-3 py-2 text-sm"
+                    >
+                      <Text as="div" variant="label">
+                        {entry.model}
+                        <Text
+                          as="span"
+                          variant="muted"
+                          className="ml-2 font-normal"
+                        >
+                          ({entry.provider})
+                        </Text>
+                      </Text>
+                      <Text as="div" variant="caption" className="mt-0.5">
+                        {entry.voice && (
+                          <>
+                            {t('messageInfo.voice')}: {entry.voice}
+                            {' · '}
+                          </>
+                        )}
+                        {t('messageInfo.voiceCharacters')}:{' '}
+                        {formatNumber(entry.characters, locale)}
+                        {' · '}
+                        Cost: {formatCostDollars(entry.costCents)}
+                      </Text>
+                    </div>
+                  ))}
+                  {voiceUsage.breakdown.length > 1 && (
+                    <Text as="div" variant="caption" className="px-1">
+                      {t('messageInfo.voiceCharacters')}:{' '}
+                      {formatNumber(voiceUsage.totalCharacters, locale)}
+                      {' · '}
+                      Cost: {formatCostDollars(voiceUsage.totalCostCents)}
+                    </Text>
+                  )}
+                </Stack>
               </Field>
             )}
 

@@ -757,6 +757,7 @@ function MessageBubbleComponent({
           isOpen={isInfoDialogOpen}
           onOpenChange={setIsInfoDialogOpen}
           messageId={message.id}
+          threadId={message.threadId}
           timestamp={message.timestamp}
           metadata={metadata}
         />

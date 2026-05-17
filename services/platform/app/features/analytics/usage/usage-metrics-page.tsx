@@ -15,6 +15,7 @@ import { useT } from '@/lib/i18n/client';
 
 import { TopAgentsTable } from './top-agents-table';
 import { TopModelsTable } from './top-models-table';
+import { TopVoiceModelsTable } from './top-voice-models-table';
 import { UsageSummaryCards } from './usage-summary-cards';
 import {
   UsageTrendChart,
@@ -78,6 +79,7 @@ export function UsageMetricsPage({ organizationId }: UsageMetricsPageProps) {
   const series = data?.series ?? [];
   const topAgents = data?.topAgents ?? [];
   const topModels = data?.topModels ?? [];
+  const topVoiceModels = data?.topVoiceModels ?? [];
   const users = data?.users ?? [];
 
   const handlePeriod = useCallback((v: string) => {
@@ -254,6 +256,12 @@ export function UsageMetricsPage({ organizationId }: UsageMetricsPageProps) {
 
       <TopModelsTable
         rows={topModels}
+        isLoading={isLoading}
+        onSelectModel={setModel}
+      />
+
+      <TopVoiceModelsTable
+        rows={topVoiceModels}
         isLoading={isLoading}
         onSelectModel={setModel}
       />

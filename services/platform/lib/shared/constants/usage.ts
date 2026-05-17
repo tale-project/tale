@@ -35,22 +35,23 @@ export function classifyUsageRow(row: UsageLedgerDiscriminators): UsageRowKind {
   return 'llm';
 }
 
-// Resolve the bucket key for Top Assistants. Returns the real agentSlug when
-// present, else the kind-appropriate sentinel so legacy rows (and any future
-// edge case) still get attributed to the right category instead of collapsing
-// into a generic fallback.
+// Resolve the bucket key for Top Assistants. TTS rows always bucket under
+// the `TTS_SLUG` sentinel regardless of any stored `agentSlug` so voice
+// cost surfaces as its own Top Assistants row instead of silently folding
+// into the calling agent's row (this also routes pre-change historical
+// TTS rows correctly without a backfill). For other kinds, prefer the
+// real `agentSlug` when present and fall back to the kind sentinel.
 export function bucketAgentSlug(
   row: UsageLedgerDiscriminators,
   kind: UsageRowKind = classifyUsageRow(row),
 ): string {
+  if (kind === 'tts') return TTS_SLUG;
   if (row.agentSlug !== undefined && row.agentSlug !== '') return row.agentSlug;
   switch (kind) {
     case 'integration':
       return INTEGRATION_SLUG;
     case 'transcription':
       return TRANSCRIPTION_SLUG;
-    case 'tts':
-      return TTS_SLUG;
     case 'llm':
       return DIRECT_API_SLUG;
   }

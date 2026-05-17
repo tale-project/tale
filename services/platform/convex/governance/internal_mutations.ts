@@ -1,5 +1,6 @@
 import { v } from 'convex/values';
 
+import { TTS_SLUG } from '../../lib/shared/constants/usage';
 import type { MutationCtx } from '../_generated/server';
 import { internalMutation, internalQuery } from '../_generated/server';
 import { getOrganizationMember } from '../lib/rls';
@@ -459,7 +460,6 @@ export interface RecordTtsUsageArgs {
   organizationId: string;
   userId: string;
   teamId?: string;
-  agentSlug: string;
   model: string;
   provider: string;
   characterCount: number;
@@ -468,11 +468,14 @@ export interface RecordTtsUsageArgs {
 }
 
 /**
- * Inline TTS-ledger writer. Same upsert + dedup-merge logic as
- * `recordTtsUsage` (below), but a plain function so callers in the same
- * transaction (notably `markChunkReadyAndRecordUsage`) can fold the
- * ledger write into one atomic step — critical for avoiding the
- * "audio stored but never billed" window described in the round-2 review.
+ * Inline TTS-ledger writer. A plain function (not a Convex mutation) so
+ * callers in the same transaction — notably `markChunkReadyAndRecordUsage`
+ * — can fold the ledger write into one atomic step, critical for avoiding
+ * the "audio stored but never billed" window described in the round-2
+ * review. Always buckets under `TTS_SLUG` so the Governance Top Assistants
+ * table surfaces voice cost as its own row rather than folding it into
+ * the calling agent (the chunk row separately retains the calling
+ * `agentSlug` for debugging and future per-agent voice analytics).
  */
 export async function recordTtsUsageInline(
   ctx: MutationCtx,
@@ -501,7 +504,7 @@ export async function recordTtsUsageInline(
           .eq('userId', args.userId)
           .eq('periodKey', periodKey)
           .eq('teamId', args.teamId)
-          .eq('agentSlug', args.agentSlug)
+          .eq('agentSlug', TTS_SLUG)
           .eq('model', args.model),
       )
       .first();
@@ -533,7 +536,7 @@ export async function recordTtsUsageInline(
         teamId: args.teamId,
         periodKey,
         granularity: period,
-        agentSlug: args.agentSlug,
+        agentSlug: TTS_SLUG,
         model: args.model,
         provider: args.provider,
         inputTokens: 0,
@@ -551,7 +554,7 @@ export async function recordTtsUsageInline(
           userId: args.userId,
           periodKey,
           teamId: args.teamId,
-          agentSlug: args.agentSlug,
+          agentSlug: TTS_SLUG,
           model: args.model,
         },
         ['characterCount'],

@@ -2186,6 +2186,9 @@
       "duration": "Durée",
       "timeToFirstToken": "Délai avant le premier token",
       "toolCalls": "Appels d'outils",
+      "voiceOutput": "Sortie vocale",
+      "voice": "Voix",
+      "voiceCharacters": "Caractères",
       "noMetadata": "L'utilisation des tokens et les informations sur le modèle ne sont pas disponibles pour ce message.",
       "contextWindow": "Contexte (est.)",
       "contextWindowDescription": "Le contexte complet envoyé au modèle IA",
@@ -4635,6 +4638,13 @@
           "tokens": "Tokens",
           "cost": "Coût"
         },
+        "topVoiceModels": {
+          "title": "Principaux modèles vocaux",
+          "model": "Modèle",
+          "requests": "Requêtes",
+          "characters": "Caractères",
+          "cost": "Coût"
+        },
         "users": {
           "title": "Utilisation par utilisateur",
           "user": "Utilisateur",
@@ -4658,6 +4668,10 @@
       "emptyModels": {
         "title": "Aucune utilisation de modèle",
         "description": "Aucun appel LLM n'a été enregistré pour la période sélectionnée. L'utilisation des intégrations et des transcriptions est affichée dans Top assistants."
+      },
+      "emptyVoiceModels": {
+        "title": "Aucune utilisation vocale",
+        "description": "Aucune synthèse TTS n'a été enregistrée pour la période sélectionnée."
       }
     },
     "feedback": {

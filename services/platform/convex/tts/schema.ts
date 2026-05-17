@@ -110,6 +110,15 @@ export const ttsAudioChunksTable = defineTable({
   voice: v.optional(v.string()),
   providerName: v.optional(v.string()),
   modelId: v.optional(v.string()),
+  // Billed characters for this chunk. Mirrors the `characterCount` written
+  // on the same call to `recordTtsUsageInline`; kept on the chunk row so the
+  // per-message info dialog can aggregate voice usage by `messageId` without
+  // joining `usageLedger` (which is bucketed by period, not message).
+  // Optional because pre-change rows pre-date this field.
+  characterCount: v.optional(v.number()),
+  // Estimated cost in cents for this chunk, matched 1:1 with the ledger
+  // write so the dialog and the governance page stay reconciled.
+  costEstimateCents: v.optional(v.number()),
   // Audio container format — pinned to the shared literal list so schema
   // and resolver can never drift. Optional because legacy rows (pre-narrow)
   // already validated under `v.string()` and have known-good values.

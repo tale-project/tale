@@ -2186,6 +2186,9 @@
       "duration": "Dauer",
       "timeToFirstToken": "Zeit bis zum ersten Token",
       "toolCalls": "Tool-Aufrufe",
+      "voiceOutput": "Sprachausgabe",
+      "voice": "Stimme",
+      "voiceCharacters": "Zeichen",
       "noMetadata": "Token-Verbrauch und Modellinformationen sind für diese Nachricht nicht verfügbar.",
       "contextWindow": "Kontext (geschätzt)",
       "contextWindowDescription": "Der vollständige Kontext, der an das KI-Modell gesendet wurde",
@@ -4611,6 +4614,13 @@
           "tokens": "Tokens",
           "cost": "Kosten"
         },
+        "topVoiceModels": {
+          "title": "Top-Sprachmodelle",
+          "model": "Modell",
+          "requests": "Anfragen",
+          "characters": "Zeichen",
+          "cost": "Kosten"
+        },
         "users": {
           "title": "Nutzung pro Benutzer",
           "user": "Benutzer",
@@ -4634,6 +4644,10 @@
       "emptyModels": {
         "title": "Noch keine Modellnutzung",
         "description": "Für den ausgewählten Zeitraum wurden keine LLM-Aufrufe erfasst. Integrations- und Transkriptionsnutzung wird unter Top-Assistenten angezeigt."
+      },
+      "emptyVoiceModels": {
+        "title": "Noch keine Sprachnutzung",
+        "description": "Für den ausgewählten Zeitraum wurde keine TTS-Synthese erfasst."
       }
     },
     "feedback": {

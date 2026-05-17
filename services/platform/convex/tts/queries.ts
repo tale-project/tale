@@ -107,6 +107,119 @@ export const getMessageChunks = query({
 });
 
 /**
+ * Aggregate TTS voice usage for a single assistant message. Powers the
+ * "Voice output" section of the message info dialog: returns the per-
+ * `(provider, model, voice)` breakdown of ready chunks plus totals. Returns
+ * `null` when the caller can't access the thread or no ready chunks carry
+ * billing info (legacy rows pre-date the per-chunk `characterCount` /
+ * `costEstimateCents` fields).
+ *
+ * Access control mirrors `getMessageChunks` exactly — same RLS contract,
+ * same cross-field identity check against `threadId` and the row's org.
+ */
+export const getMessageVoiceUsage = query({
+  args: { messageId: v.string(), threadId: v.string() },
+  returns: v.union(
+    v.null(),
+    v.object({
+      totalCharacters: v.number(),
+      totalCostCents: v.number(),
+      chunkCount: v.number(),
+      breakdown: v.array(
+        v.object({
+          provider: v.string(),
+          model: v.string(),
+          voice: v.optional(v.string()),
+          characters: v.number(),
+          costCents: v.number(),
+          chunkCount: v.number(),
+        }),
+      ),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const user = await requireAuthenticatedUser(ctx);
+    const meta = await canAccessThread(ctx, args.threadId, user);
+    if (!meta) return null;
+
+    const buckets = new Map<
+      string,
+      {
+        provider: string;
+        model: string;
+        voice?: string;
+        characters: number;
+        costCents: number;
+        chunkCount: number;
+      }
+    >();
+    let totalCharacters = 0;
+    let totalCostCents = 0;
+    let totalChunkCount = 0;
+
+    for await (const row of ctx.db
+      .query('ttsAudioChunks')
+      .withIndex('by_message', (q) => q.eq('messageId', args.messageId))) {
+      if (row.threadId !== args.threadId) continue;
+      if (meta.organizationId && row.organizationId !== meta.organizationId) {
+        continue;
+      }
+      if (row.status !== 'ready') continue;
+      // `characterCount` / `costEstimateCents` are only populated on chunks
+      // synthesised after the schema gained those fields; legacy ready
+      // chunks have no billing data on the row and would have to be
+      // back-resolved from `usageLedger` (which is bucketed by period, not
+      // message). Skip them — the dialog hides the section if all chunks
+      // are legacy.
+      if (
+        row.characterCount === undefined ||
+        row.costEstimateCents === undefined
+      ) {
+        continue;
+      }
+      if (row.providerName === undefined || row.modelId === undefined) continue;
+
+      const key = `${row.providerName}::${row.modelId}::${row.voice ?? ''}`;
+      let bucket = buckets.get(key);
+      if (!bucket) {
+        bucket = {
+          provider: row.providerName,
+          model: row.modelId,
+          voice: row.voice,
+          characters: 0,
+          costCents: 0,
+          chunkCount: 0,
+        };
+        buckets.set(key, bucket);
+      }
+      bucket.characters += row.characterCount;
+      bucket.costCents += row.costEstimateCents;
+      bucket.chunkCount += 1;
+      totalCharacters += row.characterCount;
+      totalCostCents += row.costEstimateCents;
+      totalChunkCount += 1;
+    }
+
+    if (totalChunkCount === 0) return null;
+
+    const breakdown = [...buckets.values()].sort(
+      (a, b) =>
+        b.costCents - a.costCents ||
+        b.characters - a.characters ||
+        a.provider.localeCompare(b.provider) ||
+        a.model.localeCompare(b.model),
+    );
+
+    return {
+      totalCharacters,
+      totalCostCents,
+      chunkCount: totalChunkCount,
+      breakdown,
+    };
+  },
+});
+
+/**
  * Internal: resolve a `ttsAudioChunks` row for the `/api/tts-audio` HTTP
  * handler. Returns `null` when the row is missing, not yet `'ready'`, or
  * when the caller is not a member of the row's org. Conflating "not
