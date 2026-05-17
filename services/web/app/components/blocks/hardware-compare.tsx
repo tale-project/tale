@@ -55,32 +55,30 @@ const VERSION_KEYS = {
   },
 } as const;
 
-/**
- * Map from a bracketed token (case-sensitive, as printed) to the
- * `compare.categories.*` info key whose translation explains it.
- */
-const SPEC_TOOLTIPS: Record<string, string> = {
-  UMA: 'umaInfo',
-  VRAM: 'vramInfo',
-  DDR5: 'ddr5Info',
-  'DDR5 ECC': 'ddr5EccInfo',
-  'Zen 5': 'zen5Info',
-  INT4: 'int4Info',
-  'm.2 NVMe': 'm2NvmeInfo',
-  NQ: 'skuNqInfo',
-  NA: 'skuNaInfo',
-  NS: 'skuNsInfo',
-  CQ: 'skuCqInfo',
-  CH: 'skuChInfo',
-  CS: 'skuCsInfo',
-};
-
 const SPEC_TOKEN_REGEX = /\(([^)]+)\)/g;
 
 /**
- * Renders a spec cell value, wrapping every bracketed token that has an
- * entry in `SPEC_TOOLTIPS` (UMA, VRAM, DDR5, DDR5 ECC, Zen 5) with a
- * tooltip-equipped trigger. Multi-line values (`\n`) stack vertically.
+ * Convention: each tooltip's info key is the bracketed token normalised
+ * to lowercase + stripped of non-alphanumerics, with an `Info` suffix.
+ *
+ *   `UMA`      → `umaInfo`
+ *   `DDR5 ECC` → `ddr5eccInfo`
+ *   `m.2 NVMe` → `m2nvmeInfo`
+ *   `Zen 5`    → `zen5Info`
+ *
+ * Tokens whose derived key has no translation render as plain text —
+ * adding a new acronym only requires adding the matching `xInfo` entry
+ * under `hardwarePricing.compare.categories.*` in every locale.
+ */
+function tokenInfoKey(token: string): string {
+  return token.toLowerCase().replace(/[^a-z0-9]/g, '') + 'Info';
+}
+
+/**
+ * Renders a spec cell value. Every bracketed token whose
+ * {@link tokenInfoKey} resolves to an existing translation is wrapped
+ * in a tooltip-equipped trigger; everything else renders as plain
+ * text. Multi-line values (`\n`) stack vertically.
  */
 function SpecValue({ value }: { value: string }): ReactNode {
   const { t } = useT('hardwarePricing');
@@ -94,8 +92,12 @@ function SpecValue({ value }: { value: string }): ReactNode {
         let lastIndex = 0;
         for (const match of line.matchAll(SPEC_TOKEN_REGEX)) {
           const inner = match[1];
-          const tooltipKey = SPEC_TOOLTIPS[inner];
-          if (!tooltipKey) continue;
+          const key = `compare.categories.${tokenInfoKey(inner)}`;
+          const info = t(key);
+          // i18next returns the key when the translation is missing —
+          // fall back to plain text so unknown bracketed tokens don't
+          // surface a tooltip with the raw key as content.
+          if (info === key) continue;
           const start = match.index ?? 0;
           if (start > lastIndex) parts.push(line.slice(lastIndex, start));
           parts.push(
@@ -109,7 +111,7 @@ function SpecValue({ value }: { value: string }): ReactNode {
                 </button>
               </TooltipTrigger>
               <TooltipContent side="top" className="max-w-xs text-center">
-                {t(`compare.categories.${tooltipKey}`)}
+                {info}
               </TooltipContent>
             </Tooltip>,
           );
