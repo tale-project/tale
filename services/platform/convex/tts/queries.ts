@@ -200,9 +200,12 @@ async function isVoiceOutputOrgEnabled(
  *  1. org `policyType: 'voice_output'` veto (`config.enabled === false`)
  *     — admin kill switch; overrides every user/thread setting.
  *  2. `threadMetadata.voiceOutputOverride` — per-conversation override.
- *     Asymmetric: only respected when the user master switch is ON; a
- *     master-OFF user can't be silently un-muted by a stale override.
- *  3. `userPreferences.voiceOutput` — per-user master switch.
+ *     When set (true/false) it wins over the user master switch; unset
+ *     falls through. The chat-header always surfaces a visible toggle
+ *     (except under org veto), so stale overrides can't auto-play
+ *     without a control to mute them.
+ *  3. `userPreferences.voiceOutput` — per-user master switch (default
+ *     for threads with no override).
  *  4. Default `false`.
  *
  * Legacy threads with no `organizationId` cannot resolve an org-level
@@ -216,10 +219,9 @@ export const getVoiceModeEffective = query({
   args: { threadId: v.string() },
   returns: v.object({
     enabled: v.boolean(),
-    // `userDefault` exposes the raw master switch (`userPreferences.voiceOutput`)
-    // so the chat-header dropdown can hide the per-thread override entirely
-    // when voice output is OFF globally. Computing this from `enabled` alone
-    // can't distinguish "master OFF" from "master ON, thread override OFF".
+    // `userDefault` exposes the raw master switch (`userPreferences.voiceOutput`).
+    // Kept as a distinct signal from `enabled` so callers can tell apart
+    // "master OFF + thread override ON" from "master ON, no override".
     userDefault: v.boolean(),
     source: v.union(
       v.literal('thread'),
@@ -261,28 +263,20 @@ export const getVoiceModeEffective = query({
       )
       .first();
     const userDefault = prefs?.voiceOutput === true;
-    // Hard veto: when the master switch is OFF, ignore any stale
-    // `voiceOutputOverride` so a previously-set per-thread "on" can't keep
-    // auto-playing voice with no visible control to mute it. The override
-    // row is left alone — the resolver simply doesn't read it in this branch.
-    if (!userDefault) {
-      return {
-        enabled: false,
-        userDefault: false,
-        source: prefs ? ('preferences' as const) : ('default' as const),
-      };
-    }
+    // Per-thread override wins over the master switch in either direction.
+    // The chat-header always surfaces this toggle (except under org veto),
+    // so a `true` override can't auto-play without a visible mute control.
     if (typeof meta.voiceOutputOverride === 'boolean') {
       return {
         enabled: meta.voiceOutputOverride,
-        userDefault: true,
+        userDefault,
         source: 'thread' as const,
       };
     }
     return {
-      enabled: true,
-      userDefault: true,
-      source: 'preferences' as const,
+      enabled: userDefault,
+      userDefault,
+      source: prefs ? ('preferences' as const) : ('default' as const),
     };
   },
 });

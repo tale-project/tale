@@ -3521,6 +3521,13 @@
       "noTeamsFound": "No teams found",
       "selectTeam": "Select team..."
     },
+    "voiceOutput": {
+      "title": "Voice output",
+      "description": "When disabled, no member of this organization can use voice output — neither the user-level default nor any per-conversation override has any effect.",
+      "enabledLabel": "Voice output enabled for this organization",
+      "saved": "Voice-output policy updated",
+      "saveFailed": "Failed to update voice-output policy"
+    },
     "pii": {
       "title": "PII protection",
       "description": "Detect and mask or block personal data before sending to AI models.",

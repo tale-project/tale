@@ -3521,6 +3521,13 @@
       "noTeamsFound": "Keine Teams gefunden",
       "selectTeam": "Team auswählen..."
     },
+    "voiceOutput": {
+      "title": "Sprachausgabe",
+      "description": "Wenn deaktiviert, kann kein Mitglied dieser Organisation Sprachausgabe nutzen. Persönliche Voreinstellungen und Chat-spezifische Überschreibungen haben dann keine Wirkung.",
+      "enabledLabel": "Sprachausgabe für diese Organisation aktiviert",
+      "saved": "Sprachausgabe-Richtlinie aktualisiert",
+      "saveFailed": "Sprachausgabe-Richtlinie konnte nicht aktualisiert werden"
+    },
     "pii": {
       "title": "PII-Schutz",
       "description": "Personenbezogene Daten erkennen und maskieren oder blockieren, bevor sie an KI-Modelle gesendet werden.",

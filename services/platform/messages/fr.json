@@ -3433,6 +3433,13 @@
       "noTeamsFound": "Aucune équipe trouvée",
       "selectTeam": "Sélectionner une équipe..."
     },
+    "voiceOutput": {
+      "title": "Sortie vocale",
+      "description": "Lorsqu'elle est désactivée, aucun membre de cette organisation ne peut utiliser la sortie vocale. La préférence personnelle et les remplacements par chat n'ont alors aucun effet.",
+      "enabledLabel": "Sortie vocale activée pour cette organisation",
+      "saved": "Politique de sortie vocale mise à jour",
+      "saveFailed": "Échec de la mise à jour de la politique de sortie vocale"
+    },
     "pii": {
       "title": "Protection des DCP",
       "description": "Détecte et masque ou bloque les données personnelles avant de les envoyer aux modèles d'IA.",

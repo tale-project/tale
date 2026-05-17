@@ -14,8 +14,11 @@ import { primeAudio } from '../utils/prime-audio';
  * Builds the per-thread voice-output toggle as a `DropdownMenuCheckboxItem`
  * descriptor, ready to be pushed into a `DropdownMenu` group.
  *
- * Renders only when the master pref is ON (caller gates inclusion via
- * `voiceMode.userDefault`); toggling writes a thread-level override.
+ * Caller gates inclusion — currently the chat header hides this only when
+ * the org-level governance policy disables voice output for the tenant
+ * (`voiceMode.source === 'org_policy'`). The toggle is shown regardless
+ * of the user's master switch; toggling writes a thread-level override
+ * that wins over the master switch in either direction.
  *
  * Using `type: 'checkbox'` rather than `type: 'custom' + <Switch>`:
  *  - Radix `CheckboxItem` joins the menu's roving tabindex, so the toggle

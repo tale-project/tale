@@ -127,15 +127,16 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
         },
       ],
     ];
-    // Per-thread voice override only makes sense when the master switch is
-    // ON. `userDefault === false` means voice output is OFF globally (or no
-    // pref row exists), and the resolver short-circuits any existing
-    // override — so don't surface a control that does nothing.
-    if (voiceCheckboxItem && voiceMode.userDefault) {
+    // The per-thread voice toggle is always available so a user can opt a
+    // single conversation in or out regardless of the master switch. Only
+    // an org-level governance veto (`source === 'org_policy'`) hides the
+    // control entirely — in that case no user override can re-enable
+    // voice, so a toggle would be misleading.
+    if (voiceCheckboxItem && voiceMode.source !== 'org_policy') {
       groups.push([voiceCheckboxItem]);
     }
     return groups;
-  }, [tChat, voiceCheckboxItem, voiceMode.userDefault]);
+  }, [tChat, voiceCheckboxItem, voiceMode.source]);
 
   const baseIconClasses = 'size-5 text-muted-foreground p-0.25';
 
