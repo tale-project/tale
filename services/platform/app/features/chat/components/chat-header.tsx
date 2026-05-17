@@ -24,11 +24,12 @@ import { useChatLayout } from '@/app/features/chat/context/chat-layout-context';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
+import { useVoiceModeEffective } from '../hooks/use-voice-output';
 import { ChatHistorySidebar } from './chat-history-sidebar';
 import { ChatSearchDialog } from './chat-search-dialog';
 import { ExportChatDialog } from './export-chat-dialog';
 import { ShareChatDialog } from './share-chat-dialog';
-import { VoiceOutputToggle } from './voice-output-toggle';
+import { ThreadVoiceOutputSwitchRow } from './thread-voice-output-switch';
 interface ChatHeaderProps {
   organizationId: string;
   threadId?: string;
@@ -44,6 +45,8 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
   const [isMac, setIsMac] = useState(false);
 
   const { t: tChat } = useT('chat');
+
+  const voiceMode = useVoiceModeEffective(threadId);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -109,8 +112,8 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
     return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [isMac, handleToggleSearch, handleNewChat, handleToggleHistory]);
 
-  const headerMenuItems = useMemo<DropdownMenuGroup[]>(
-    () => [
+  const headerMenuItems = useMemo<DropdownMenuGroup[]>(() => {
+    const groups: DropdownMenuGroup[] = [
       [
         {
           type: 'item' as const,
@@ -119,9 +122,26 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
           onClick: () => setIsExportDialogOpen(true),
         },
       ],
-    ],
-    [tChat],
-  );
+    ];
+    // Per-thread voice override only makes sense when the master switch is
+    // ON. `userDefault === false` means voice output is OFF globally (or no
+    // pref row exists), and the resolver short-circuits any existing
+    // override — so don't surface a control that does nothing.
+    if (threadId && voiceMode.userDefault) {
+      groups.push([
+        {
+          type: 'custom' as const,
+          content: (
+            <ThreadVoiceOutputSwitchRow
+              threadId={threadId}
+              enabled={voiceMode.enabled}
+            />
+          ),
+        },
+      ]);
+    }
+    return groups;
+  }, [tChat, threadId, voiceMode.userDefault, voiceMode.enabled]);
 
   const baseIconClasses = 'size-5 text-muted-foreground p-0.25';
 
@@ -220,7 +240,6 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
         {threadId && (
           <>
             <div className="flex-1" />
-            <VoiceOutputToggle threadId={threadId} />
             <Button
               variant="ghost"
               size="sm"
@@ -275,7 +294,6 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
           </Button>
           {threadId && (
             <>
-              <VoiceOutputToggle threadId={threadId} />
               <Button
                 size="icon"
                 variant="ghost"

@@ -2059,9 +2059,6 @@
       }
     },
     "voice": {
-      "voiceOutputOn": "Sprachausgabe an",
-      "voiceOutputOff": "Sprachausgabe aus",
-      "voiceOutputInheritGlobal": "Folgt Standard",
       "voiceOutputSpeaking": "Spricht",
       "voiceOutputStopped": "Gestoppt",
       "voiceOutputPlay": "Sprachausgabe abspielen",
@@ -2083,7 +2080,8 @@
       "voiceOutputAnnounceSpeaking": "Sprachausgabe läuft",
       "voiceOutputAnnounceStopped": "Sprachausgabe gestoppt",
       "voiceOutputAnnounceBlocked": "Sprachausgabe blockiert — Wiedergabe aktivieren, um zuzuhören",
-      "voiceOutputAnnounceError": "Sprachausgabe fehlgeschlagen"
+      "voiceOutputAnnounceError": "Sprachausgabe fehlgeschlagen",
+      "voiceOutputThreadSwitchLabel": "Sprachausgabe für diesen Chat"
     },
     "searchChat": "Chat durchsuchen",
     "hideSearch": "Suche ausblenden",

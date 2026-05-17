@@ -173,6 +173,11 @@ export const getVoiceModeEffective = query({
   args: { threadId: v.string() },
   returns: v.object({
     enabled: v.boolean(),
+    // `userDefault` exposes the raw master switch (`userPreferences.voiceOutput`)
+    // so the chat-header dropdown can hide the per-thread override entirely
+    // when voice output is OFF globally. Computing this from `enabled` alone
+    // can't distinguish "master OFF" from "master ON, thread override OFF".
+    userDefault: v.boolean(),
     source: v.union(
       v.literal('thread'),
       v.literal('preferences'),
@@ -182,9 +187,8 @@ export const getVoiceModeEffective = query({
   handler: async (ctx, args) => {
     const user = await requireAuthenticatedUser(ctx);
     const meta = await canAccessThread(ctx, args.threadId, user);
-    if (!meta) return { enabled: false, source: 'default' as const };
-    if (typeof meta.voiceOutputOverride === 'boolean') {
-      return { enabled: meta.voiceOutputOverride, source: 'thread' as const };
+    if (!meta) {
+      return { enabled: false, userDefault: false, source: 'default' as const };
     }
     // Org-scoped pref lookup when the thread carries an organizationId
     // (the common case). For legacy threads where `organizationId` is
@@ -213,12 +217,29 @@ export const getVoiceModeEffective = query({
         )
         .first();
     }
-    if (prefs && typeof prefs.voiceOutput === 'boolean') {
+    const userDefault = prefs?.voiceOutput === true;
+    // Hard veto: when the master switch is OFF, ignore any stale
+    // `voiceOutputOverride` so a previously-set per-thread "on" can't keep
+    // auto-playing voice with no visible control to mute it. The override
+    // row is left alone — the resolver simply doesn't read it in this branch.
+    if (!userDefault) {
       return {
-        enabled: prefs.voiceOutput,
-        source: 'preferences' as const,
+        enabled: false,
+        userDefault: false,
+        source: prefs ? ('preferences' as const) : ('default' as const),
       };
     }
-    return { enabled: false, source: 'default' as const };
+    if (typeof meta.voiceOutputOverride === 'boolean') {
+      return {
+        enabled: meta.voiceOutputOverride,
+        userDefault: true,
+        source: 'thread' as const,
+      };
+    }
+    return {
+      enabled: true,
+      userDefault: true,
+      source: 'preferences' as const,
+    };
   },
 });

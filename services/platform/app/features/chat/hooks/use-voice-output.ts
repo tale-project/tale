@@ -84,6 +84,11 @@ function detectChunkLocale(text: string, fallback: string): string {
 
 export interface VoiceModeState {
   enabled: boolean;
+  // Raw `userPreferences.voiceOutput` from the resolver, surfaced so the
+  // chat-header dropdown can hide the per-thread override row when voice
+  // output is OFF globally. `enabled` alone can't tell apart "master OFF"
+  // from "master ON + thread override OFF".
+  userDefault: boolean;
   source: 'thread' | 'preferences' | 'default';
 }
 
@@ -99,7 +104,7 @@ export function useVoiceModeEffective(
     api.tts.queries.getVoiceModeEffective,
     threadId ? { threadId } : 'skip',
   );
-  return data ?? { enabled: false, source: 'default' };
+  return data ?? { enabled: false, userDefault: false, source: 'default' };
 }
 
 /**

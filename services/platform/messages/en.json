@@ -2059,9 +2059,6 @@
       }
     },
     "voice": {
-      "voiceOutputOn": "Voice output on",
-      "voiceOutputOff": "Voice output off",
-      "voiceOutputInheritGlobal": "Follow default",
       "voiceOutputSpeaking": "Speaking",
       "voiceOutputStopped": "Stopped",
       "voiceOutputPlay": "Play voice output",
@@ -2083,7 +2080,8 @@
       "voiceOutputAnnounceSpeaking": "Voice output speaking",
       "voiceOutputAnnounceStopped": "Voice output stopped",
       "voiceOutputAnnounceBlocked": "Voice output blocked — activate the player to listen",
-      "voiceOutputAnnounceError": "Voice output failed"
+      "voiceOutputAnnounceError": "Voice output failed",
+      "voiceOutputThreadSwitchLabel": "Voice output for this thread"
     },
     "searchChat": "Search chat",
     "hideSearch": "Hide search",

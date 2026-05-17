@@ -2059,9 +2059,6 @@
       }
     },
     "voice": {
-      "voiceOutputOn": "Sortie vocale activée",
-      "voiceOutputOff": "Sortie vocale désactivée",
-      "voiceOutputInheritGlobal": "Suivre la valeur par défaut",
       "voiceOutputSpeaking": "Lecture en cours",
       "voiceOutputStopped": "Arrêté",
       "voiceOutputPlay": "Lire la sortie vocale",
@@ -2083,7 +2080,8 @@
       "voiceOutputAnnounceSpeaking": "Lecture vocale en cours",
       "voiceOutputAnnounceStopped": "Lecture vocale arrêtée",
       "voiceOutputAnnounceBlocked": "Lecture vocale bloquée — active la lecture pour écouter",
-      "voiceOutputAnnounceError": "Échec de la sortie vocale"
+      "voiceOutputAnnounceError": "Échec de la sortie vocale",
+      "voiceOutputThreadSwitchLabel": "Sortie vocale pour ce chat"
     },
     "searchChat": "Rechercher dans le chat",
     "hideSearch": "Masquer la recherche",

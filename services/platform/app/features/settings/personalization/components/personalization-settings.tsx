@@ -377,21 +377,22 @@ function VoiceOutputSection({
       <Switch
         // Disable the control until `prefs` resolves so a tap during the
         // loading window can't write `false` over a stored `true` (the
-        // previous bug). The disabled window is brief — a single Convex
-        // round-trip — and is preferable to a silent flip.
-        disabled={isLoading}
+        // previous bug). Additionally block flipping the switch ON when
+        // the capability probe has decisively reported "no provider" —
+        // turning on voice in that state writes a preference the system
+        // can't honor and just surfaces a destructive toast after the
+        // fact. The user can still turn it OFF in that state (the probe
+        // could be wrong about negativity, e.g. a transient mid-toggle
+        // outage), so the gate is asymmetric.
+        disabled={isLoading || (providerAvailable === false && !enabled)}
         checked={enabled}
-        // Pass `label` so the Radix Switch root receives an accessible
-        // name — without it the screen reader announces just "switch,
-        // off" (WCAG 4.1.2). The PageSection title alone is not enough
-        // because it isn't programmatically associated with the control.
-        label={t('page.voiceOutput.label')}
+        // Use `aria-label` (not the visible `label` prop) for the
+        // accessible name — the PageSection title above already renders
+        // the same text visually, and passing `label` to Switch
+        // duplicated it on screen. `aria-label` keeps WCAG 4.1.2 happy
+        // without the redundant visible label.
+        aria-label={t('page.voiceOutput.label')}
         description={switchDescription}
-        // `disabled` above is gated only on `prefs` loading. The
-        // capability-check state is surfaced as inline help below
-        // rather than disabling the control — a slow / failing
-        // capability check would otherwise leave the user unable to
-        // turn voice off at all.
         aria-busy={isLoading || providerAvailable === null}
         onCheckedChange={async (next) => {
           // Prime synchronously inside the gesture — the gesture token does
