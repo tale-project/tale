@@ -32,6 +32,16 @@ interface VoiceOutputIndicatorProps {
    * (still readable, just not actionable).
    */
   organizationId?: string;
+  /**
+   * True when this message's id was NOT in the chat list's first-
+   * render snapshot — i.e. it arrived during this mount and is
+   * eligible for voice-led reveal. Used to KEEP the "Preparing
+   * voice…" chip visible through the race window between
+   * `isStreaming → false` and the chunker's post-stream batch
+   * action returning the first pending chunk row. Without this, the
+   * chip blinked off and back on as observed.
+   */
+  isFreshSinceMount: boolean;
 }
 
 type ErrorCategory = 'retryable' | 'config' | 'terminal';
@@ -67,16 +77,33 @@ export function VoiceOutputIndicator(props: VoiceOutputIndicatorProps) {
   });
 
   if (!props.enabled) return null;
-  // Show a buffering indicator while the assistant is still streaming and
-  // no chunk has reached a playable state yet — otherwise the user sees a
-  // long silent gap with no UI signal that work is in progress.
-  const showLoading = !player.hasAudio && props.isStreaming;
-  // Render whenever there's playable history, active streaming, OR a
-  // pre-reservation error to surface. Without the `errorCode` clause,
-  // failures that never produced a chunk row (NO_PROVIDER, UNKNOWN_VOICE,
-  // HOST_POLICY, …) silently dropped the entire indicator — the user
-  // had no way to know voice was broken.
-  if (!player.hasAudio && !props.isStreaming && !player.errorCode) {
+  // Show "Preparing voice…" until the FIRST ready chunk arrives. Covers
+  // three windows the prior gates missed:
+  //   - Streaming finished but synth still in flight (pending chunks
+  //     exist but none ready yet) — previously dropped to idle "Play".
+  //   - Pending chunk created mid-stream — previously flipped to idle
+  //     "Play" the moment `chunks.length` went non-zero.
+  //   - The race between `isStreaming → false` and the chunker's
+  //     post-stream batch action returning. During this gap the
+  //     indicator briefly had no pending chunks AND no streaming
+  //     signal, so it returned `null` and blinked off. Including
+  //     `isFreshSinceMount` keeps the chip stable across the gap —
+  //     a fresh message with voice on is ALWAYS in the prep state
+  //     until either a ready chunk or an error surfaces.
+  // The transition Preparing → Speaking → idle Play now happens on one
+  // continuous chip without any "Play" flash before audio actually
+  // starts.
+  const showLoading =
+    !player.hasReadyChunk &&
+    !player.errorCode &&
+    (props.isStreaming || player.hasPendingChunk || props.isFreshSinceMount);
+  if (
+    !player.hasReadyChunk &&
+    !player.hasPendingChunk &&
+    !props.isStreaming &&
+    !props.isFreshSinceMount &&
+    !player.errorCode
+  ) {
     return null;
   }
 
@@ -155,9 +182,26 @@ export function VoiceOutputIndicator(props: VoiceOutputIndicatorProps) {
     );
   }
 
+  // State-distinct styling. The voice control was previously a uniform
+  // `ghost`-variant icon button — visually indistinguishable from the
+  // copy / 👍 / 👎 row. Per industry research (ChatGPT moved AWAY from
+  // a separate voice screen in Nov 2025; VUI design principles call
+  // for prominent voice affordances inside hybrid interfaces), make
+  // each state visually distinct AND make the playable / playing
+  // states the dominant affordance in the bubble:
+  //  - `playing`  → solid primary fill + stop icon + inline "Speaking…"
+  //                 text label so the audio source is unmistakable
+  //  - `idle`     → primary-tinted secondary chip so "tap to listen"
+  //                 reads as an action, not decoration
+  //  - `loading`  → muted spinner (was OK; just enlarged)
+  //  - `blocked`  → amber accent + VolumeOff (unchanged colour, larger)
   let label: string;
   let actionLabel: string;
   let icon: React.ReactNode;
+  let buttonVariant: 'primary' | 'secondary' | 'ghost' = 'ghost';
+  let buttonClassName = 'min-h-12 min-w-12';
+  let showSpeakingLabel = false;
+  let showLoadingLabel = false;
   let onClick: () => void = player.play;
 
   if (showLoading) {
@@ -165,25 +209,38 @@ export function VoiceOutputIndicator(props: VoiceOutputIndicatorProps) {
     actionLabel = label;
     icon = (
       <Loader2
-        className={cn(
-          'size-4 text-muted-foreground',
-          !prefersReducedMotion && 'animate-spin',
-        )}
+        className={cn('size-5', !prefersReducedMotion && 'animate-spin')}
       />
     );
     onClick = () => {};
+    // Match the Speaking chip's shape (chip-with-label, not bare icon)
+    // so the Preparing → Speaking transition feels like one control
+    // changing state, not a separate icon being replaced. Muted tones
+    // keep "I'm not interactive yet" visually distinct from the active
+    // primary fill of the Speaking state.
+    buttonVariant = 'secondary';
+    buttonClassName = cn(
+      buttonClassName,
+      'bg-muted text-muted-foreground hover:bg-muted gap-2 px-4 cursor-default',
+    );
+    showLoadingLabel = true;
   } else if (speaking) {
     label = t('voice.voiceOutputSpeaking');
     actionLabel = t('voice.voiceOutputStop');
     icon = (
       <CircleStop
-        className={cn(
-          'text-primary size-4',
-          !prefersReducedMotion && 'animate-pulse',
-        )}
+        className={cn('size-5', !prefersReducedMotion && 'animate-pulse')}
       />
     );
     onClick = player.stop;
+    buttonVariant = 'primary';
+    // Solid primary fill — match the "now speaking" state to the
+    // colour the brand uses for the active assistant turn.
+    buttonClassName = cn(
+      buttonClassName,
+      'bg-primary text-primary-foreground hover:bg-primary/90 gap-2 px-4',
+    );
+    showSpeakingLabel = true;
   } else if (blocked) {
     label = t('voice.voiceOutputBlocked');
     actionLabel = t('voice.voiceOutputPlay');
@@ -192,12 +249,17 @@ export function VoiceOutputIndicator(props: VoiceOutputIndicatorProps) {
     // screenshots — WCAG 1.4.1 Use of Color. The amber tint stays as
     // a redundant cue but is no longer the sole differentiator from
     // the idle "Play" affordance.
-    icon = <VolumeOff className="size-4 text-amber-600" />;
+    icon = <VolumeOff className="size-5 text-amber-600" />;
   } else {
     // Idle with playable history — manual replay affordance.
     label = t('voice.voiceOutputStopped');
     actionLabel = t('voice.voiceOutputPlay');
-    icon = <Volume2 className="size-4" />;
+    icon = <Volume2 className="size-5" />;
+    buttonVariant = 'secondary';
+    buttonClassName = cn(
+      buttonClassName,
+      'bg-primary/10 text-primary hover:bg-primary/15',
+    );
   }
 
   // The surrounding `<ChatMessages>` already wraps the message stream in a
@@ -210,14 +272,13 @@ export function VoiceOutputIndicator(props: VoiceOutputIndicatorProps) {
   return (
     <Tooltip content={label} side="bottom">
       <Button
-        variant="ghost"
-        size="icon"
-        // `min-h-11 min-w-11` for WCAG 2.2 AA Target Size — the prior
-        // `p-1` button collapsed to ~24x24 css px which is well under
-        // the 44x44 mobile minimum. Keep the icon at `size-4` so the
-        // visual weight matches the rest of the message-bubble action
-        // row; the extra padding sits invisibly around it.
-        className="min-h-11 min-w-11"
+        variant={buttonVariant}
+        size={showSpeakingLabel || showLoadingLabel ? 'sm' : 'icon'}
+        // Enlarged from the prior `min-h-11 min-w-11` to give voice
+        // controls more visual weight than the copy/like/branch
+        // toolbar row. WCAG 2.2 AA target-size minimum (44 css px) is
+        // still satisfied at `min-h-12 min-w-12`.
+        className={buttonClassName}
         aria-label={actionLabel}
         aria-pressed={speaking}
         // While the loading branch is active, `onClick` is a no-op. Mark
@@ -229,6 +290,15 @@ export function VoiceOutputIndicator(props: VoiceOutputIndicatorProps) {
         onClick={onClick}
       >
         {icon}
+        {showSpeakingLabel ? (
+          <span className="text-sm font-medium">
+            {t('voice.voiceOutputSpeaking')}
+          </span>
+        ) : showLoadingLabel ? (
+          <span className="text-sm font-medium">
+            {t('voice.voiceOutputLoading')}
+          </span>
+        ) : null}
       </Button>
     </Tooltip>
   );

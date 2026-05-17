@@ -152,9 +152,61 @@ function createAnnouncerStateStore(): AnnouncerStateStore {
   };
 }
 
+/** Singleton "what is currently playing" channel.
+ *
+ * Tracks the active `(messageId, chunkIndex)` for the chat view so
+ * non-player consumers (e.g. the message-content paragraph-spotlight
+ * renderer) can read it without re-instantiating
+ * `useVoiceOutputPlayer`. Singleton (not a Map) because the
+ * coordinator already enforces single-active-player invariant — only
+ * one message is playing at a time. `chunkIndex` is `null` between
+ * chunks but `messageId` stays set while the player is still active
+ * on that message (e.g. waiting for the next chunk to be ready).
+ */
+export interface ActivePlaybackSnapshot {
+  messageId: string;
+  chunkIndex: number | null;
+}
+
+interface ActivePlaybackStore {
+  set(snapshot: ActivePlaybackSnapshot | null): void;
+  read(): ActivePlaybackSnapshot | null;
+  subscribe(listener: () => void): () => void;
+}
+
+function createActivePlaybackStore(): ActivePlaybackStore {
+  let current: ActivePlaybackSnapshot | null = null;
+  const listeners = new Set<() => void>();
+  return {
+    set(snapshot) {
+      if (current === null && snapshot === null) {
+        return;
+      }
+      if (
+        current !== null &&
+        snapshot !== null &&
+        current.messageId === snapshot.messageId &&
+        current.chunkIndex === snapshot.chunkIndex
+      ) {
+        return;
+      }
+      current = snapshot;
+      for (const l of listeners) l();
+    },
+    read() {
+      return current;
+    },
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+}
+
 interface VoiceOutputStores {
   preReservationErrors: PreReservationErrorStore;
   announcerState: AnnouncerStateStore;
+  activePlayback: ActivePlaybackStore;
 }
 
 const noopStores: VoiceOutputStores = {
@@ -167,6 +219,11 @@ const noopStores: VoiceOutputStores = {
   announcerState: {
     set: () => {},
     read: () => ({ state: 'idle' as const }),
+    subscribe: () => () => {},
+  },
+  activePlayback: {
+    set: () => {},
+    read: () => null,
     subscribe: () => () => {},
   },
 };
@@ -222,6 +279,7 @@ export function VoiceOutputProvider({ children }: { children: ReactNode }) {
     () => ({
       preReservationErrors: createPreReservationErrorStore(),
       announcerState: createAnnouncerStateStore(),
+      activePlayback: createActivePlaybackStore(),
     }),
     [],
   );
@@ -323,4 +381,45 @@ export function useVoiceAnnouncerState(): AnnouncerSnapshot {
     () => stores.announcerState.read(),
     () => IDLE_SNAPSHOT,
   );
+}
+
+/**
+ * Writer for the active-playback channel. Player publishes
+ * `{messageId, chunkIndex}` when it starts a chunk and `null` when it
+ * stops. Single-active-player invariant (enforced by the coordinator)
+ * means writers never race for the same slot.
+ */
+export function useActivePlaybackWriter(): (
+  snapshot: ActivePlaybackSnapshot | null,
+) => void {
+  const stores = useContext(VoiceOutputStoresContext);
+  return useCallback(
+    (snapshot: ActivePlaybackSnapshot | null) =>
+      stores.activePlayback.set(snapshot),
+    [stores],
+  );
+}
+
+/**
+ * Reader: subscribe to the active-playback channel and return the
+ * snapshot iff its `messageId` matches the caller's. Non-active
+ * consumers (every other assistant bubble in the chat) get `null`
+ * and so never re-render on chunk advances elsewhere.
+ *
+ * `useSyncExternalStore` is required (not plain `useState`) because
+ * the store is a mutable singleton that any player can write to;
+ * React 18 concurrent rendering would otherwise tear under writes
+ * mid-render.
+ */
+export function useActivePlaybackForMessage(
+  messageId: string | undefined,
+): ActivePlaybackSnapshot | null {
+  const stores = useContext(VoiceOutputStoresContext);
+  const snapshot = useSyncExternalStore(
+    (listener) => stores.activePlayback.subscribe(listener),
+    () => stores.activePlayback.read(),
+    () => null,
+  );
+  if (!messageId || !snapshot) return null;
+  return snapshot.messageId === messageId ? snapshot : null;
 }

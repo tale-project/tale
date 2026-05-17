@@ -11,6 +11,7 @@ import {
 } from '@/lib/shared/constants/tts';
 import { parseMarkers } from '@/lib/utils/marker-parser';
 
+import { stripMarkdown } from './markdown-strip';
 import { useVoicePreReservationErrorSink } from './voice-output-context';
 
 const MIN_CHUNK_CHARS = 12;
@@ -113,69 +114,6 @@ export function useVoiceChunks(
   return useQuery(
     api.tts.queries.getMessageChunks,
     messageId && threadId ? { messageId, threadId } : 'skip',
-  );
-}
-
-/**
- * Strip markdown decoration that should not be read aloud. Keeps the
- * underlying text content so listeners hear "Hello world" not "asterisk
- * asterisk Hello world asterisk asterisk".
- *
- * Skips fenced code blocks entirely — fence state is tracked across
- * invocations via `fenceOpenRef` because a stream can split mid-fence.
- */
-function stripMarkdown(
-  slice: string,
-  fenceOpenRef: { current: boolean },
-): string {
-  let working = slice;
-  // Drop fenced code blocks. Track open/close across calls because a
-  // single emitted slice can contain only the opening fence with the
-  // body arriving in a later chunk.
-  const lines = working.split('\n');
-  const kept: string[] = [];
-  for (const line of lines) {
-    if (line.trim().startsWith('```')) {
-      fenceOpenRef.current = !fenceOpenRef.current;
-      continue;
-    }
-    if (fenceOpenRef.current) continue;
-    kept.push(line);
-  }
-  working = kept.join('\n');
-  return (
-    working
-      // images first (longer pattern) so the alt-text remains
-      .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
-      // links: keep the visible label
-      .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
-      // headings — drop leading hashes
-      .replace(/^\s{0,3}#{1,6}\s+/gm, '')
-      // bold/italic markers (greedy enough to handle nested **_x_**)
-      .replace(/(\*\*|__)(.+?)\1/g, '$2')
-      .replace(/(\*|_)(.+?)\1/g, '$2')
-      // inline code — keep the contents
-      .replace(/`([^`]+)`/g, '$1')
-      // blockquote prefix
-      .replace(/^\s{0,3}>\s?/gm, '')
-      // horizontal rules
-      .replace(/^\s*(?:-\s*){3,}$/gm, '')
-      // emoji / pictographs — gpt-4o-mini-tts can pronounce isolated
-      // emoji as random syllables (the "z dot" artifact users hear at
-      // the end of short replies). The Unicode property escape covers
-      // every emoji-shaped glyph including transport and supplemental
-      // symbols — the previous hand-rolled \u{1F300}-\u{1FAFF}\u{2600}-
-      // \u{27BF} ranges missed common pictographs like ⚓ / ⏰. Regional
-      // indicators (flag pairs like 🇺🇸), zero-width joiners, and
-      // variation selectors are stripped in separate passes because the
-      // lint rule rejects combining sequences inside one character class.
-      .replace(/\p{Extended_Pictographic}/gu, '')
-      .replace(/[\u{1F1E6}-\u{1F1FF}]/gu, '')
-      .replace(/‍/g, '')
-      .replace(/️/g, '')
-      // collapse runs of whitespace
-      .replace(/\s+/g, ' ')
-      .trim()
   );
 }
 

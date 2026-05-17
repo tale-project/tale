@@ -53,6 +53,7 @@ import {
 } from '../hooks/use-voice-output';
 import { injectCitationTags } from '../utils/inject-citation-tags';
 import { sanitizeChatError } from '../utils/sanitize-chat-error';
+import { AssistantMessageContent } from './assistant-message-content';
 import { BlockedNotice } from './blocked-notice';
 import { type CanvasContentType, useCanvas } from './canvas/canvas-context';
 import {
@@ -67,7 +68,6 @@ import type { Message } from './message-bubble/types';
 import { MessageFeedback } from './message-feedback';
 import { MessageInfoDialog } from './message-info-dialog';
 import { SourceCards } from './source-cards';
-import { StructuredMessage } from './structured-message/structured-message';
 import { VoiceOutputIndicator } from './voice-output-indicator';
 
 export { ImagePreviewDialog } from './message-bubble/image-preview-dialog';
@@ -450,10 +450,40 @@ function MessageBubbleComponent({
                 </p>
               ) : (
                 <CitationsContext.Provider value={citationsContextValue}>
-                  <StructuredMessage
+                  {/*
+                   * Voice-output indicator: lifted to the TOP of the
+                   * assistant bubble (was previously below the message
+                   * text) so the play / "Speaking…" affordance is the
+                   * first thing the eye finds when voice mode is on.
+                   * Left-aligned with the assistant text — putting it
+                   * `justify-end` would float it to the right edge of
+                   * the row where the USER's messages live, breaking
+                   * the implicit "this control belongs to the
+                   * assistant turn" affordance.
+                   *
+                   * Hidden entirely when voice mode is off; the message
+                   * then renders with no extra chrome.
+                   */}
+                  {voiceMode.enabled && message.threadId && (
+                    <div className="mb-2 flex items-center justify-start">
+                      <VoiceOutputIndicator
+                        enabled
+                        messageId={message.id}
+                        threadId={message.threadId}
+                        isStreaming={!!isAssistantStreaming}
+                        organizationId={organizationId}
+                        isFreshSinceMount={isFreshSinceMount}
+                      />
+                    </div>
+                  )}
+                  <AssistantMessageContent
                     text={assistantContent}
                     isStreaming={!!isAssistantStreaming}
                     onSendFollowUp={onSendFollowUp}
+                    messageId={message.id}
+                    threadId={message.threadId}
+                    voiceModeEnabled={voiceMode.enabled}
+                    isFreshSinceMount={isFreshSinceMount}
                   />
                   {organizationId && message.threadId && (
                     <MessageArtifactPills
@@ -474,38 +504,6 @@ function MessageBubbleComponent({
                 >
                   {isExpanded ? tChat('showLess') : tChat('showMore')}
                 </button>
-              </div>
-            )}
-            {/*
-             * Streaming-time placement: the indicator's `voiceOutputLoading`
-             * branch (`!hasAudio && isStreaming`) was previously dead because
-             * the toolbar below renders only post-streaming. Mounting an
-             * inline indicator here surfaces the "Preparing voice…" state so
-             * users know synthesis is in flight before the first chunk plays.
-             */}
-            {/*
-             * Voice-output indicator: rendered as a single stable mount
-             * that survives the streaming→done transition. Previously
-             * there were three separate `<VoiceOutputIndicator>` mounts
-             * (this inline one + two toolbar ones gated on
-             * `!isAssistantStreaming`), so the inline one unmounted at
-             * streaming-end, triggering `stop()` on the singleton audio
-             * element. The toolbar copy then mounted fresh with a new
-             * `mountTimeRef` captured AFTER all chunks were created,
-             * which short-circuited `use-voice-output-player.ts`'s
-             * auto-play guard and silently dropped audio at the
-             * stream-end boundary. The single mount here keeps
-             * `mountTimeRef` stable across both phases.
-             */}
-            {!isUser && voiceMode.enabled && message.threadId && (
-              <div className="mt-2 flex items-start">
-                <VoiceOutputIndicator
-                  enabled
-                  messageId={message.id}
-                  threadId={message.threadId}
-                  isStreaming={!!isAssistantStreaming}
-                  organizationId={organizationId}
-                />
               </div>
             )}
             {message.isFailed && (

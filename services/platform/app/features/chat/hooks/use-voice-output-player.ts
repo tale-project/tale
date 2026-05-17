@@ -1,12 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { getEnv } from '@/lib/env';
 
 import { configurePlaybackElement, primeAudio } from '../utils/prime-audio';
 import { useVoiceChunks } from './use-voice-output';
 import {
+  useActivePlaybackWriter,
   useVoiceAnnouncerWriter,
   useVoiceAudioElement,
   useVoiceOutputCoordinator,
@@ -41,10 +42,33 @@ export type VoicePlayerStateName = 'idle' | 'playing' | 'blocked' | 'error';
 
 export interface VoicePlayerState {
   state: VoicePlayerStateName;
-  hasAudio: boolean;
+  /**
+   * True iff at least one chunk row for this message has reached
+   * `status === 'ready'`. Distinct from `hasPendingChunk` so the
+   * indicator can keep the "Preparing voice…" loading state visible
+   * while synthesis is in flight — previously a single `hasAudio`
+   * (`chunks.length > 0`) flipped true on the first pending row and
+   * caused a brief "idle Play" flash before audio actually started.
+   */
+  hasReadyChunk: boolean;
+  /**
+   * True iff at least one chunk row has `status === 'pending'`.
+   * Indicator keeps the loading chip up while this is true and
+   * `hasReadyChunk` is false; the assistant-message content uses it
+   * (combined with `isFreshSinceMount`) to keep text hidden until
+   * the first ready chunk arrives.
+   */
+  hasPendingChunk: boolean;
   /** Short token derived from the first failed chunk's stored error, e.g.
    * `'NO_PROVIDER'`, `'RATE_LIMITED'`. `undefined` when no chunk failed. */
   errorCode?: string;
+  /**
+   * Index of the chunk currently playing, or `null` when idle / blocked
+   * / errored. State-backed (not ref) so consumers re-render on change.
+   * Used by the paragraph-level spotlight matcher to resolve which
+   * paragraph of the rendered message corresponds to the active chunk.
+   */
+  currentChunkIndex: number | null;
   play: () => void;
   stop: () => void;
 }
@@ -91,6 +115,10 @@ export function useVoiceOutputPlayer(opts: {
   // aria-live span inside the per-message indicator (which over-
   // announced against the parent chat log).
   const announce = useVoiceAnnouncerWriter();
+  // Publishes `{messageId, chunkIndex}` to the shared active-playback
+  // store so non-player consumers (paragraph-spotlight content renderer)
+  // can subscribe without re-instantiating the player.
+  const publishActivePlayback = useActivePlaybackWriter();
   const [state, setState] = useState<VoicePlayerStateName>('idle');
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioListenersRef = useRef<{
@@ -112,7 +140,38 @@ export function useVoiceOutputPlayer(opts: {
   // chunks subscription fires — without this, each new ready chunk that
   // arrives mid-playback restarts whatever's already speaking, so the user
   // hears each chunk repeated multiple times on long structured replies.
+  //
+  // Also published to consumers via `currentChunkIndex` on the return
+  // value (state-backed below). Internal callers use the ref for
+  // synchronous reads inside `tryAdvance`; external consumers use the
+  // state for re-render-on-change semantics.
   const currentChunkIndexRef = useRef<number | null>(null);
+  const [currentChunkIndex, setCurrentChunkIndex] = useState<number | null>(
+    null,
+  );
+  // Helper: keep ref + state + cross-bubble store in sync. Always go
+  // through this so we never forget to publish externally; the ref's
+  // synchronous read inside `tryAdvance` keeps its existing semantics.
+  //
+  // The cross-bubble publish happens here too. When `next === null` we
+  // clear only if this message owns the active slot — a stale
+  // chunk-end firing for a message that was already preempted by the
+  // coordinator must not wipe a peer's active state. When `next` is a
+  // number, this message is now active; the coordinator has already
+  // preempted any prior owner so a `set` is safe.
+  const setCurrentChunkIndexBoth = useCallback(
+    (next: number | null) => {
+      currentChunkIndexRef.current = next;
+      setCurrentChunkIndex(next);
+      if (!opts.messageId) return;
+      if (next === null) {
+        publishActivePlayback(null);
+      } else {
+        publishActivePlayback({ messageId: opts.messageId, chunkIndex: next });
+      }
+    },
+    [opts.messageId, publishActivePlayback],
+  );
   // Identity-based freshness snapshot: capture the set of chunk IDs
   // present on this player's first non-undefined `chunks` value. Any
   // chunk whose `chunkId` is NOT in the snapshot was produced during
@@ -181,10 +240,10 @@ export function useVoiceOutputPlayer(opts: {
       // ref immediately below, so heap growth is bounded regardless.
       audioRef.current = null;
     }
-    currentChunkIndexRef.current = null;
+    setCurrentChunkIndexBoth(null);
     coordinator.release(stopRef.current);
     setState('idle');
-  }, [detachAudioListeners, coordinator]);
+  }, [detachAudioListeners, coordinator, setCurrentChunkIndexBoth]);
 
   useEffect(() => {
     stopRef.current = stop;
@@ -219,9 +278,9 @@ export function useVoiceOutputPlayer(opts: {
         const el = audioRef.current;
         detachAudioListeners();
         el.src = buildTtsAudioUrl(chunk.chunkId);
-        currentChunkIndexRef.current = chunk.index;
+        setCurrentChunkIndexBoth(chunk.index);
         const onEnded = () => {
-          currentChunkIndexRef.current = null;
+          setCurrentChunkIndexBoth(null);
           nextIndexRef.current = chunk.index + 1;
           tryAdvanceRef.current();
         };
@@ -239,7 +298,7 @@ export function useVoiceOutputPlayer(opts: {
           );
           decodeFailureCountRef.current += 1;
           detachAudioListeners();
-          currentChunkIndexRef.current = null;
+          setCurrentChunkIndexBoth(null);
           nextIndexRef.current = chunk.index + 1;
           tryAdvanceRef.current();
         };
@@ -257,7 +316,7 @@ export function useVoiceOutputPlayer(opts: {
             // Without this, the `'blocked'` state was unrecoverable on
             // iOS Safari — the only fix was a full reload.
             detachAudioListeners();
-            currentChunkIndexRef.current = null;
+            setCurrentChunkIndexBoth(null);
             setState('blocked');
           } else if (err instanceof Error && err.name === 'AbortError') {
             // StrictMode double-mount + cleanup races produce AbortError
@@ -284,14 +343,14 @@ export function useVoiceOutputPlayer(opts: {
         // RATE_LIMITED, BUDGET_EXCEEDED, etc). Advance past it; the
         // error is surfaced via `errorCode` on the indicator so the
         // user can act on it without us swapping in a different voice.
-        currentChunkIndexRef.current = null;
+        setCurrentChunkIndexBoth(null);
         nextIndexRef.current = chunk.index + 1;
         return tryAdvanceRef.current();
       }
       // status === 'pending' — wait for the next subscription tick.
       return false;
     },
-    [detachAudioListeners, providerAudioElement],
+    [detachAudioListeners, providerAudioElement, setCurrentChunkIndexBoth],
   );
 
   const tryAdvance = useCallback((): boolean => {
@@ -309,13 +368,18 @@ export function useVoiceOutputPlayer(opts: {
       // fast-network reply where playback catches up to the chunker.
       if (nextIndexRef.current > maxIndex && !isStreamingRef.current) {
         activeRef.current = false;
+        // Clear the cross-bubble active-playback so the paragraph
+        // spotlight in the message content releases on natural
+        // playback end (not just on explicit stop). Without this,
+        // the last paragraph stays bright after audio finishes.
+        setCurrentChunkIndexBoth(null);
         coordinator.release(stopRef.current);
         setState('idle');
       }
       return false;
     }
     return playChunk(target);
-  }, [playChunk, coordinator]);
+  }, [playChunk, coordinator, setCurrentChunkIndexBoth]);
 
   useEffect(() => {
     tryAdvanceRef.current = tryAdvance;
@@ -482,7 +546,28 @@ export function useVoiceOutputPlayer(opts: {
     }
   }, [state, errorCode, announce]);
 
-  const hasAudio = (chunks?.length ?? 0) > 0;
+  // Split out so the indicator can distinguish "synth in flight"
+  // (`hasPendingChunk`) from "playable audio exists" (`hasReadyChunk`).
+  // The old combined `hasAudio` caused a brief "idle Play" flash
+  // between pending-row arrival and first ready chunk.
+  const { hasReadyChunk, hasPendingChunk } = useMemo(() => {
+    let ready = false;
+    let pending = false;
+    for (const c of chunks ?? []) {
+      if (c.status === 'ready') ready = true;
+      else if (c.status === 'pending') pending = true;
+      if (ready && pending) break;
+    }
+    return { hasReadyChunk: ready, hasPendingChunk: pending };
+  }, [chunks]);
 
-  return { state, hasAudio, errorCode, play, stop };
+  return {
+    state,
+    hasReadyChunk,
+    hasPendingChunk,
+    errorCode,
+    currentChunkIndex,
+    play,
+    stop,
+  };
 }
