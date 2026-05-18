@@ -20,8 +20,10 @@ import { isPrivateIp } from '../lib/http/safe_fetch';
  *   1. From `ingestVideoUrl` mutation at submit time (cheap pre-check).
  *   2. From `ingest_video_link.ts` action immediately before each
  *      `yt-dlp` invocation (closes the rebind window further; not
- *      perfect — see `--force-ipv4` + `--max-redirects` constraints in
- *      ytdlp.ts for the subprocess-layer defense).
+ *      perfect — see `--force-ipv4` in ytdlp.ts and the in-process
+ *      isPrivateIp coverage in `lib/http/safe_fetch.ts` for the rest
+ *      of the subprocess-layer defense. yt-dlp itself has no CLI knob
+ *      to cap redirect chains).
  *
  * The frontend `isSafeVideoUrl` from `lib/shared/video-url.ts` runs the
  * advisory string-based checks for instant UX feedback. This server-side

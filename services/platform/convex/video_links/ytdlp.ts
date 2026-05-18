@@ -82,15 +82,11 @@ interface OptionalFlag {
 }
 
 const OPTIONAL_FLAGS: ReadonlyArray<OptionalFlag> = [
-  // 302→private-IP escapes are caught by `assertSafeUrl`'s DNS
-  // pre-resolve, but capping redirect chains is defense-in-depth and
-  // also limits accidental loops. Added in yt-dlp 2024.05.27; older
-  // releases reject `--max-redirects` outright (exit code 2).
-  {
-    helpToken: '--max-redirects',
-    argv: ['--max-redirects', '5'],
-    sinceVersion: '2024.05.27',
-  },
+  // Reserved for future version-gated yt-dlp flags. Round-1 review
+  // requested a `--max-redirects` cap for SSRF redirect chains, but
+  // yt-dlp has never shipped such a flag — HTTP redirect handling is
+  // entirely internal. The probe machinery stays in place for when a
+  // genuinely version-gated flag lands.
 ];
 
 /**
