@@ -124,9 +124,25 @@ export const ingestVideoUrl = mutation({
     const serverPlatform = detectPlatform(args.url);
     const sourceUrlHash = hashUrlForDedup(serverNormalized);
 
-    // URL-hash dedup: if a completed or in-flight job exists for the same
-    // (org, normalized URL) within last 24h, return its id. Saves yt-dlp/
-    // Whisper work on repeat-pastes. Cheap — one indexed lookup.
+    // URL-hash dedup: within a single composer session, a user can spam-
+    // paste the same URL — we should only show one chip. The dedup is
+    // scoped to UNBOUND rows in the SAME composer/thread so that:
+    //   - spam-paste while drafting → returns the existing in-composer
+    //     chip's id (no duplicate chip, no duplicate ingest)
+    //   - re-paste the same URL AFTER sending the prior message → falls
+    //     through to a fresh insert (the previous chip is bound to a
+    //     past message and `useChatVideoLinks` filters it from the
+    //     composer; returning its id here would silently no-op and the
+    //     user would see the paste do nothing)
+    //   - paste in a DIFFERENT thread → falls through to a fresh insert
+    //     (bound chips belong to their original thread; the user expects
+    //     a fresh attachment in the new conversation)
+    //
+    // A future optimization can short-circuit at the action level by
+    // content-hashing the URL → reusing the existing _storage blob /
+    // fileMetadata row to skip yt-dlp re-runs. For now, re-ingest cost
+    // is acceptable: captions-branch fetch is ~5-10s and Whisper
+    // already has content-hash dedup via `findCachedTranscript`.
     const DEDUP_WINDOW_MS = 24 * 60 * 60 * 1000;
     const now = Date.now();
     const existing = await ctx.db
@@ -140,6 +156,9 @@ export const ingestVideoUrl = mutation({
       .first();
     if (
       existing &&
+      existing.messageBoundAt === undefined &&
+      existing.threadId === args.threadId &&
+      existing.uploadedBy === userId &&
       existing.status !== 'failed' &&
       existing.status !== 'skipped' &&
       now - existing._creationTime < DEDUP_WINDOW_MS
