@@ -34,7 +34,8 @@ import { join, resolve as resolvePath } from 'node:path';
 
 const YTDLP_BIN = 'yt-dlp';
 
-const COMMON_FLAGS: ReadonlyArray<string> = [
+// Flags supported by every yt-dlp release we care about (≥ 2024.04).
+const BASE_FLAGS: ReadonlyArray<string> = [
   '--no-config',
   // NOTE: `--no-call-home` was removed in yt-dlp 2025.xx (deprecated since
   // 2024) — emitting it spams stderr and the deprecation message can land
@@ -52,12 +53,8 @@ const COMMON_FLAGS: ReadonlyArray<string> = [
   '30',
   // SSRF subprocess-layer defense. Pre-resolve in `url_safety.ts` walks
   // every A/AAAA record, but yt-dlp's own resolver runs independently
-  // when it spawns. Restricting to IPv4 + capping redirects narrows the
-  // TOCTOU rebind window AND blocks 302→private-IP escapes; round-2
-  // review flagged these were referenced in comments but absent.
+  // when it spawns. Restricting to IPv4 narrows the TOCTOU rebind window.
   '--force-ipv4',
-  '--max-redirects',
-  '5',
   '--restrict-filenames',
   '--downloader',
   'native',
@@ -66,6 +63,89 @@ const COMMON_FLAGS: ReadonlyArray<string> = [
   '--extractor-args',
   'youtube:player_client=default,tv_simply',
 ];
+
+// Flags whose support depends on the installed yt-dlp version. Probed
+// once via `yt-dlp --help` at first invocation and cached for the
+// lifetime of the Node action runtime. Production runs the version
+// pinned by services/convex/Dockerfile and always has every flag; this
+// machinery is for dev hosts running older system-installed yt-dlp.
+//
+// Each entry: a probe substring that must appear in `--help` output AND
+// the argv tokens to inject when present. The pair is contiguous in argv
+// so we can pass them as a unit.
+interface OptionalFlag {
+  helpToken: string;
+  argv: ReadonlyArray<string>;
+  /** Used in the version-mismatch warning to point operators at the
+   * minimum yt-dlp release that introduced the flag. */
+  sinceVersion: string;
+}
+
+const OPTIONAL_FLAGS: ReadonlyArray<OptionalFlag> = [
+  // 302→private-IP escapes are caught by `assertSafeUrl`'s DNS
+  // pre-resolve, but capping redirect chains is defense-in-depth and
+  // also limits accidental loops. Added in yt-dlp 2024.05.27; older
+  // releases reject `--max-redirects` outright (exit code 2).
+  {
+    helpToken: '--max-redirects',
+    argv: ['--max-redirects', '5'],
+    sinceVersion: '2024.05.27',
+  },
+];
+
+/**
+ * Lazy probe of `yt-dlp --help`. The result is cached for the lifetime
+ * of the Node action instance — every action run after the first reuses
+ * the prior probe instead of paying the spawn cost again.
+ *
+ * Returns the concrete argv that the version on PATH actually accepts.
+ */
+let supportedFlagsCache: Promise<string[]> | null = null;
+
+function resolveSupportedFlags(): Promise<string[]> {
+  if (supportedFlagsCache) return supportedFlagsCache;
+  supportedFlagsCache = new Promise<string[]>((resolve) => {
+    const child = spawn(YTDLP_BIN, ['--help'], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: {
+        PATH: '/usr/local/bin:/usr/bin:/bin',
+        HOME: tmpdir(),
+        LANG: 'C.UTF-8',
+      },
+    });
+    let helpText = '';
+    child.stdout.on('data', (d) => {
+      helpText += d.toString();
+    });
+    child.stderr.on('data', (d) => {
+      // Some versions print --help to stderr; defend against that too.
+      helpText += d.toString();
+    });
+    const finish = () => {
+      const extra: string[] = [];
+      for (const opt of OPTIONAL_FLAGS) {
+        if (helpText.includes(opt.helpToken)) {
+          extra.push(...opt.argv);
+        } else {
+          console.warn(
+            `[ytdlp] flag '${opt.helpToken}' not supported by the yt-dlp on PATH; ` +
+              `upgrade to ≥ ${opt.sinceVersion} to enable. Falling back without it.`,
+          );
+        }
+      }
+      resolve([...BASE_FLAGS, ...extra]);
+    };
+    child.on('close', finish);
+    child.on('error', () => {
+      // ENOENT / EPERM / etc. — the real runYtdlp call below will hit
+      // the same error and surface `binaryNotInstalled`. Resolve with
+      // BASE_FLAGS so we don't block forever; the spawn there carries
+      // the right diagnostic to the chip.
+      resolve([...BASE_FLAGS]);
+    });
+  });
+  return supportedFlagsCache;
+}
 
 /** Sanitization regex set — strip credentials + URLs + auth headers from
  * stderr before logging. yt-dlp's stderr can echo back signed URLs, cookies,
@@ -192,8 +272,11 @@ async function runYtdlp(
   jobDir: string,
   timeoutMs: number,
 ): Promise<YtDlpSpawnResult> {
+  // Resolve the flag set the installed yt-dlp actually accepts. First
+  // call probes `--help` and caches; subsequent calls are free.
+  const commonFlags = await resolveSupportedFlags();
   return new Promise((resolve, reject) => {
-    const proc = spawn(YTDLP_BIN, [...COMMON_FLAGS, ...args], {
+    const proc = spawn(YTDLP_BIN, [...commonFlags, ...args], {
       stdio: ['ignore', 'pipe', 'pipe'],
       cwd: jobDir,
       // env stripped to the minimum yt-dlp + ffmpeg need. NEVER pass
