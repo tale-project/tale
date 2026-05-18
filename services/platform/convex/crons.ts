@@ -70,6 +70,17 @@ crons.cron(
   {},
 );
 
+// Video-link orchestrator watchdog. Direct cron entry (not piggy-backed off
+// the transcription sweep) so a throw in `recoverStuckTranscriptions` does
+// not also disable the video-link recovery path — previously a single
+// transient failure in the fileMetadata loop killed both watchdogs.
+crons.cron(
+  'recover stuck video-link jobs (every 5 min)',
+  '*/5 * * * *',
+  internal.video_links.internal_mutations.recoverStuckVideoLinkJobs,
+  {},
+);
+
 // Artifact stream watchdog - clear streamingContent / liveStreamMode on rows
 // where the writing tool call went silent past the threshold (covers crashed
 // agent runs that never reached the tool's finally-block).

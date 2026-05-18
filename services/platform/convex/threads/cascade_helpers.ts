@@ -330,6 +330,13 @@ export async function cascadeDeleteThreadChildren(
   // chunks survive thread deletion forever (the GDPR `eraseSubjectFileMetadata`
   // path can't reach them either, because the fileMetadata row is gone
   // by the time it runs after this cascade).
+  // 7.5 chat-uploaded fileMetadata is org-scoped (needs the
+  // `by_organizationId_and_threadId` compound index), so this branch
+  // requires `organizationId`. If it's missing on a legacy thread row,
+  // we still proceed past it to clean up the org-independent tables
+  // below (videoLinkJobs / tts) rather than silently skipping every
+  // child cascade.
+  const filesPageStorageIds: string[] = [];
   if (organizationId) {
     const filesPage = await ctx.db
       .query('fileMetadata')
@@ -344,10 +351,11 @@ export async function cascadeDeleteThreadChildren(
       } catch (error) {
         console.warn(
           `[cascadeDeleteThreadChildren] storage.delete failed for ${String(fileMeta.storageId)}:`,
-          error,
+          error instanceof Error ? error.message : error,
         );
       }
       ragPurgeStorageIds.push(String(fileMeta.storageId));
+      filesPageStorageIds.push(String(fileMeta.storageId));
       await ctx.db.delete(fileMeta._id);
     }
     if (ragPurgeStorageIds.length > 0) {
@@ -361,46 +369,42 @@ export async function cascadeDeleteThreadChildren(
     if (filesPage.length === PAGE_SIZE) {
       return { done: false, remaining: 1 };
     }
+  }
 
-    // 7.6 video-link jobs bound to this thread. videoLinkJobs is a
-    // sidecar to fileMetadata — the orchestrator action stores the
-    // transcript on fileMetadata (deleted in 7.5 above) and stores the
-    // job's pipeline state here. After 7.5, these rows are pure
-    // dangling provenance metadata; delete them to keep the table
-    // clean across thread soft-deletes.
-    // by_threadId is sufficient — threadIds are globally unique and the
-    // cascade scope is the thread; an extra org filter would add no rows
-    // and saves a compound index.
-    const videoLinksPage = await ctx.db
-      .query('videoLinkJobs')
-      .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
-      .take(PAGE_SIZE);
-    for (const job of videoLinksPage) {
-      // Any leftover _storage blob (intermediate audio from a failed
-      // Whisper run, or a transcript that didn't make it into a
-      // fileMetadata row) gets dropped here as well.
-      if (
-        job.storageId &&
-        // skip if the blob was attached to a fileMetadata row we just
-        // deleted in 7.5 — Convex `_storage` is reference-counted and
-        // double-delete is a no-op, but logging the skip keeps the
-        // diagnostic trail clean.
-        !filesPage.some((f) => String(f.storageId) === String(job.storageId))
-      ) {
-        try {
-          await ctx.storage.delete(job.storageId);
-        } catch (error) {
-          console.warn(
-            `[cascadeDeleteThreadChildren] storage.delete failed for video-link ${String(job.storageId)}:`,
-            error,
-          );
-        }
+  // 7.6 video-link jobs bound to this thread. videoLinkJobs is a sidecar
+  // to fileMetadata — the orchestrator action stores the transcript on
+  // fileMetadata (deleted in 7.5 above when org is known) and stores the
+  // job's pipeline state here. Lifted OUT of the `if (organizationId)`
+  // guard above: the `by_threadId` index is org-independent, and legacy
+  // thread rows without an organizationId would otherwise leak both
+  // `videoLinkJobs` rows AND their `_storage` blobs forever (round-2 V11
+  // claim D / cascade_helpers cluster).
+  const videoLinksPage = await ctx.db
+    .query('videoLinkJobs')
+    .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
+    .take(PAGE_SIZE);
+  for (const job of videoLinksPage) {
+    if (
+      job.storageId &&
+      // Skip when the blob was attached to a fileMetadata row we just
+      // deleted in 7.5 — Convex `_storage` is reference-counted and
+      // double-delete is a no-op, but logging the skip keeps the
+      // diagnostic trail clean.
+      !filesPageStorageIds.includes(String(job.storageId))
+    ) {
+      try {
+        await ctx.storage.delete(job.storageId);
+      } catch (error) {
+        console.warn(
+          `[cascadeDeleteThreadChildren] storage.delete failed for video-link ${String(job.storageId)}:`,
+          error instanceof Error ? error.message : error,
+        );
       }
-      await ctx.db.delete(job._id);
     }
-    if (videoLinksPage.length === PAGE_SIZE) {
-      return { done: false, remaining: 1 };
-    }
+    await ctx.db.delete(job._id);
+  }
+  if (videoLinksPage.length === PAGE_SIZE) {
+    return { done: false, remaining: 1 };
   }
 
   // 7c. ttsAudioChunks — voice-mode output is per-message but indexed
@@ -430,7 +434,7 @@ export async function cascadeDeleteThreadChildren(
       } catch (error) {
         console.warn(
           `[cascadeDeleteThreadChildren] tts storage.delete failed for ${String(storageId)}:`,
-          error,
+          error instanceof Error ? error.message : error,
         );
       }
     }

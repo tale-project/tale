@@ -306,6 +306,42 @@ export const updateFileTranscription = internalMutation({
       patch.transcriptRagError = args.transcriptRagError;
     }
     await ctx.db.patch(metadata._id, patch);
+
+    // Mirror the terminal transcription state onto the owning videoLinkJob,
+    // if any. Without this, a Whisper-branch job that succeeds stays at
+    // `'transcribing_handoff'` forever — the chip displays correctly via
+    // the reactive projection in queries.ts:projectJob, but the row never
+    // graduates to `'completed'`/`'failed'`, so the lazy GC pass (which
+    // keys on those terminal statuses) never reclaims the audio blob.
+    // Reverse-lookup uses the `by_storageId` index added alongside this
+    // change so it's O(1), not a table scan.
+    if (
+      args.transcriptionStatus === 'completed' ||
+      args.transcriptionStatus === 'failed' ||
+      args.transcriptionStatus === 'skipped'
+    ) {
+      const linkedJob = await ctx.db
+        .query('videoLinkJobs')
+        .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
+        .first();
+      if (linkedJob && linkedJob.status === 'transcribing_handoff') {
+        const nextStatus =
+          args.transcriptionStatus === 'completed'
+            ? ('completed' as const)
+            : args.transcriptionStatus === 'skipped'
+              ? ('skipped' as const)
+              : ('failed' as const);
+        await ctx.db.patch(linkedJob._id, {
+          status: nextStatus,
+          statusChangedAt: Date.now(),
+          ...(nextStatus === 'failed' && {
+            errorReasonCode: 'whisperFailed',
+            errorMessage:
+              args.transcriptionError ?? 'Whisper transcription failed',
+          }),
+        });
+      }
+    }
   },
 });
 
@@ -359,15 +395,33 @@ export const recoverStuckTranscriptions = internalMutation({
           transcriptionStatus: 'failed',
           transcriptionError: 'Transcription timed out (watchdog)',
         });
+        // Cascade the failure back to the owning videoLinkJobs row when
+        // present. Without this, a videoLinkJob stuck at
+        // `'transcribing_handoff'` would stay there forever: the
+        // recoverStuckVideoLinkJobs sweep deliberately skips
+        // `transcribing_handoff` (delegated to this sweep), and the chip
+        // projection's reactive join would render the failed state
+        // transiently — but the row itself never reaches a terminal
+        // status, which means `cleanupCancelledVideoLink` never gets
+        // called and the audio blob orphans. Reverse-lookup by storageId
+        // (new `by_storageId` index) and flip in the same tick.
+        const linkedJob = await ctx.db
+          .query('videoLinkJobs')
+          .withIndex('by_storageId', (q) => q.eq('storageId', row.storageId))
+          .first();
+        if (linkedJob && linkedJob.status === 'transcribing_handoff') {
+          await ctx.db.patch(linkedJob._id, {
+            status: 'failed',
+            statusChangedAt: Date.now(),
+            errorReasonCode: 'whisperFailed',
+            errorMessage: 'Whisper transcription timed out (watchdog)',
+          });
+        }
       }
     }
-    // Piggyback the video-link watchdog onto the same cron tick so the
-    // chip UX doesn't have a separate 5-min stuck window. Per-status
-    // windows are smaller (see internal_mutations.recoverStuckVideoLinkJobs).
-    await ctx.runMutation(
-      internal.video_links.internal_mutations.recoverStuckVideoLinkJobs,
-      {},
-    );
+    // Video-link watchdog runs on its own cron entry now (see crons.ts);
+    // the previous piggy-back here let a single fileMetadata loop throw
+    // disable both sweeps at once.
     return null;
   },
 });
