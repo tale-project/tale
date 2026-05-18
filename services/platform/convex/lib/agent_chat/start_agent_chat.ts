@@ -621,20 +621,32 @@ async function buildMessageWithAttachments(
             durSec >= 3600
               ? `${Math.floor(durSec / 3600)}h ${Math.floor((durSec % 3600) / 60)}m`
               : `${Math.round(durSec / 60)}m`;
-          const retrievalHint =
-            durSec >= 3600
-              ? `For this long video prefer rag_search; for full text call document_retrieve(fileId=${attachment.fileId}, chunkRange).`
-              : `Call document_retrieve with fileId=${attachment.fileId} to read the full transcript.`;
-          const inner = `${icon} [${safeTitle}] (video${platformNote}, ${durText}${uploaderNote}) — transcript stored as a document; paragraphs prefixed [HH:MM:SS] timestamps — cite them when summarizing. ${retrievalHint}\n*(fileId: ${attachment.fileId} | fileName: ${attachment.fileName} | fileType: ${attachment.fileType} | fileSize: ${attachment.fileSize})*`;
-          // Push the inline reference unwrapped, matching the audio
-          // branch immediately below. The trust signal for the transcript
-          // body is applied at the tool-response boundary in
-          // `agent_tools/documents/helpers/retrieve_document.ts` and
-          // `agent_tools/rag/rag_search_tool.ts` (commit 59c7ca3e3) —
-          // wrapping again here was redundant and surfaced as literal
-          // `<untrusted_source>` XML in the user's chat bubble, producing
-          // an optimistic→persisted visual jump (the optimistic message's
-          // body has no such XML).
+          // Keep the inline reference as short as the image / document
+          // branches above. The previous template was ~5 lines of prose
+          // ("— transcript stored as a document; paragraphs prefixed
+          // [HH:MM:SS] timestamps — cite them when summarizing. Call
+          // document_retrieve with fileId=…") which only ever lived in
+          // the user-visible bubble (LLM gets the same instruction from
+          // `document_retrieve`'s tool description and from
+          // `agent_response/build_system_prompt`'s TRUST RULES). That
+          // body-text bloat was the dominant cause of the visible
+          // optimistic→persisted reflow ("bounce" — ResizeObserver
+          // refires scrollTo when content grows). Shrunk to one
+          // descriptive line + the fileId footer so the persisted
+          // bubble's height delta vs. optimistic matches the image /
+          // document path that the user has already confirmed feels
+          // natural. The fileId is still in scope for the agent to call
+          // `document_retrieve` / `rag_search`.
+          //
+          // Functional invariants preserved:
+          //   - "View Transcript" button rendering (file-displays.tsx,
+          //     drives off fileMetadata via useQuery — not from this
+          //     markdown string)
+          //   - Transcript blob in _storage (insertSyntheticFileMetadata
+          //     / transcribe_audio paths unchanged)
+          //   - Group 1 `<untrusted_source>` wrap at retrieve_document /
+          //     rag_search tool-response boundary
+          const inner = `${icon} [${safeTitle}] (video${platformNote}, ${durText}${uploaderNote})\n*(fileId: ${attachment.fileId} | fileName: ${attachment.fileName} | fileType: ${attachment.fileType} | fileSize: ${attachment.fileSize})*`;
           audioMarkdown.push(inner);
           continue;
         }
