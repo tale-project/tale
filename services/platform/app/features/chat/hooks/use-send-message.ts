@@ -145,7 +145,13 @@ export function useSendMessage({
       // closing the chip-vs-drain race that the round-2 review (B8/R2)
       // flagged. pastedTokens come back so we can strip raw URLs from
       // the message text (LLM shouldn't see URL + transcript fileId both).
+      // Bound jobIds are tracked in `boundJobIdsLocal` so the catch block
+      // below can call `unbindJobsFromMessage` on send failure — without
+      // that reverse, chips disappear from the composer permanently
+      // because `useChatVideoLinks` filters out rows with
+      // `messageBoundAt !== undefined` (round-2 V10 / HIGH #17).
       const pastedTokensToStrip: string[] = [];
+      const boundJobIdsLocal: Array<Id<'videoLinkJobs'>> = [];
       if (threadId) {
         try {
           const bound = await convexClient.mutation(
@@ -160,12 +166,22 @@ export function useSendMessage({
               fileSize: att.fileSize,
             });
             pastedTokensToStrip.push(att.pastedToken);
+            boundJobIdsLocal.push(att.jobId);
           }
         } catch (err) {
           console.error(
             '[use-send-message] video-link bind failed:',
             err instanceof Error ? err.message : err,
           );
+          // Surface the failure — without a toast the user clicks send,
+          // sees their video chip vanish, gets an unrelated AI reply, and
+          // reads it as "the AI ignored my video".
+          toast({
+            title: t('toast.sendFailed'),
+            description:
+              err instanceof Error ? err.message : 'video-link bind failed',
+            variant: 'destructive',
+          });
         }
       }
 
@@ -203,7 +219,11 @@ export function useSendMessage({
       try {
         const precheck = await convexClient.action(
           api.governance.precheck.precheckInput,
-          { organizationId, text: message },
+          // Send the URL-stripped variant. The raw pasted video URL can
+          // carry `?si=…` / `?utm_*` tokens that PII heuristics flag as
+          // credentials; precheck on the about-to-be-sent message text
+          // matches what the agent will actually receive.
+          { organizationId, text: messageToSend },
         );
         if (precheck.blocked) {
           clearChatState();
@@ -377,6 +397,7 @@ export function useSendMessage({
               if (att.pastedToken && messageToSend.includes(att.pastedToken)) {
                 messageToSend = messageToSend.replace(att.pastedToken, '');
               }
+              boundJobIdsLocal.push(att.jobId);
             }
             if (bound.length > 0) {
               messageToSend = messageToSend.replace(/\s+/g, ' ').trim();
@@ -497,6 +518,7 @@ export function useSendMessage({
               if (att.pastedToken && messageToSend.includes(att.pastedToken)) {
                 messageToSend = messageToSend.replace(att.pastedToken, '');
               }
+              boundJobIdsLocal.push(att.jobId);
             }
             // Re-tidy the message text once after stripping any newly-bound
             // pasted URLs. Cheap; only matters if we actually struck a token.
@@ -538,6 +560,24 @@ export function useSendMessage({
         // turn (pre-markGenerating throw) or rolled it back. Real state
         // stays authoritative once isThreadGenerating catches up.
         for (const id of pendingThreadIdsLocal) clearSendPending(id);
+        // Reverse any video-link binds we stamped before the throw. Without
+        // this, the chip query (use-chat-video-links.ts) filters out
+        // `messageBoundAt !== undefined` rows so the chips vanish from the
+        // composer and the user has no way to recover the transcript
+        // attachment without re-pasting + re-ingesting.
+        if (boundJobIdsLocal.length > 0) {
+          try {
+            await convexClient.mutation(
+              api.video_links.mutations.unbindJobsFromMessage,
+              { jobIds: boundJobIdsLocal },
+            );
+          } catch (unbindErr) {
+            console.warn(
+              '[use-send-message] unbind-after-send-failure failed:',
+              unbindErr instanceof Error ? unbindErr.message : unbindErr,
+            );
+          }
+        }
         clearChatState();
         resetGlobalFreeze();
 

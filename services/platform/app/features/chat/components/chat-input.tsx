@@ -106,6 +106,12 @@ interface ChatInputProps extends Omit<
    */
   videoLinkJobs?: VideoLinkJob[];
   isProcessingVideo?: boolean;
+  /** True when any video-link chip is in a terminal `failed` state. Send
+   * is blocked while this is set so the user explicitly retries / removes
+   * the failed chip — otherwise the message ships without that transcript
+   * and the agent replies to the raw URL, which reads as "the AI ignored
+   * my video" (round-2 V10 / HIGH #18). */
+  hasFailedVideoJobs?: boolean;
   ingestVideoUrlsFromText?: (
     text: string,
     organizationId: string,
@@ -147,6 +153,7 @@ export function ChatInput({
   transcriptionStatuses,
   videoLinkJobs = [],
   isProcessingVideo = false,
+  hasFailedVideoJobs = false,
   ingestVideoUrlsFromText,
   cancelVideoJob,
   retryVideoJob,
@@ -178,6 +185,21 @@ export function ChatInput({
   const textareaLabelId = `${textareaId}-label`;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // True while a CJK IME (Chinese / Japanese / Korean) is composing a
+  // pre-commit string. Cross-browser fallback for
+  // `e.nativeEvent.isComposing`, which not every browser surfaces on the
+  // paste event itself. Blocks `handlePaste` and the chip-cancel strip
+  // path so we don't mutate the textarea while an IME commit is in
+  // flight (round-2 V10 / HIGH #19).
+  const isComposingRef = useRef(false);
+  // Set as soon as a paste begins ingest; cleared in `.finally`. The
+  // send-gate ORs this in so a paste-then-Enter race can't bypass the
+  // chip rendering (chip query won't show the row until the mutation
+  // round-trip lands, but `ingestVideoUrlsFromText` runs fire-and-forget
+  // so without this flag the gate has nothing to watch) — round-2 V10 /
+  // HIGH #23.
+  const pasteIngestInFlightRef = useRef(false);
+  const [pasteIngestPending, setPasteIngestPending] = useState(false);
   const [previewImage, setPreviewImage] = useState<{
     src: string;
     alt: string;
@@ -201,6 +223,8 @@ export function ChatInput({
       isIndexing ||
       isTranscribing ||
       isProcessingVideo ||
+      hasFailedVideoJobs ||
+      pasteIngestPending ||
       sendBlocked
     )
       return;
@@ -242,6 +266,17 @@ export function ChatInput({
 
   const handlePaste = (e: React.ClipboardEvent) => {
     if (inputDisabled || fileUploadDisabled) return;
+    // Bail when an IME composition is mid-flight. The paste handler would
+    // otherwise enqueue an ingest mutation AND the chip-cancel strip path
+    // could later `value.replace(token, '')` while the IME is still
+    // committing characters — corrupting the commit buffer.
+    if (
+      isComposingRef.current ||
+      (e.nativeEvent as ClipboardEvent & { isComposing?: boolean })
+        .isComposing === true
+    ) {
+      return;
+    }
     const items = e.clipboardData?.items;
     if (!items) return;
 
@@ -277,11 +312,27 @@ export function ChatInput({
       const text =
         plain ||
         // Cheap href extraction from rich clipboard. Full HTML parsing
-        // is overkill — we just need the URL chunks.
-        html.match(/href="([^"]+)"/g)?.join(' ') ||
+        // is overkill — we just need the URL chunks. Accept both
+        // double-quoted and single-quoted href forms (Slack/Notion ship
+        // double, some older email clients ship single).
+        html.match(/href=["']([^"']+)["']/g)?.join(' ') ||
         '';
       if (text) {
-        void ingestVideoUrlsFromText(text, organizationId, i18n.language);
+        // Set the in-flight ref BEFORE awaiting the ingest so the send-
+        // gate sees the pending state on the very next render. Cleared
+        // in `.finally`. Without this, a user who pastes then hits
+        // Enter immediately would ship the message before the mutation
+        // round-trip lands and the chip query reflects the new row.
+        pasteIngestInFlightRef.current = true;
+        setPasteIngestPending(true);
+        void ingestVideoUrlsFromText(
+          text,
+          organizationId,
+          i18n.language,
+        ).finally(() => {
+          pasteIngestInFlightRef.current = false;
+          setPasteIngestPending(false);
+        });
       }
     }
   };
@@ -336,19 +387,39 @@ export function ChatInput({
                     // and the raw URL disappear together. Literal
                     // replace per the B1 review (regex over arbitrary
                     // URL shapes is fragile). No-op if the user edited
-                    // the URL out manually.
+                    // the URL out manually. Use `setRangeText` on the
+                    // DOM node so the caret position and undo stack
+                    // survive — `onChange(stripped)` would otherwise
+                    // jump the caret to the end and clobber any active
+                    // selection.
+                    if (isComposingRef.current) {
+                      // Don't mutate the value mid-IME-commit; defer.
+                      if (cancelVideoJob) void cancelVideoJob(job.jobId);
+                      return;
+                    }
                     if (
                       onChange &&
                       job.pastedToken &&
                       value.includes(job.pastedToken)
                     ) {
-                      const stripped = value
-                        .replace(job.pastedToken, '')
-                        .replace(/[ \t]+\n/g, '\n')
-                        .replace(/\n{3,}/g, '\n\n')
-                        .replace(/[ \t]{2,}/g, ' ')
-                        .trim();
-                      onChange(stripped);
+                      const idx = value.indexOf(job.pastedToken);
+                      const textarea = textareaRef.current;
+                      if (textarea && idx >= 0) {
+                        textarea.setRangeText(
+                          '',
+                          idx,
+                          idx + job.pastedToken.length,
+                          'preserve',
+                        );
+                        // setRangeText fires `input` but not `change` on
+                        // some browsers — propagate explicitly so React
+                        // controlled-input state stays in sync.
+                        onChange(textarea.value);
+                      } else {
+                        // Fallback when the ref isn't attached (e.g.
+                        // chip rendered before textarea mounted).
+                        onChange(value.replace(job.pastedToken, ''));
+                      }
                     }
                     if (cancelVideoJob) void cancelVideoJob(job.jobId);
                   }}
@@ -622,6 +693,17 @@ export function ChatInput({
               onChange={(e) => handleInputChange(e.target.value)}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
+              // Track IME composition so the paste handler and the chip
+              // cancel-strip path don't mutate the textarea mid-commit.
+              // `e.nativeEvent.isComposing` on the paste event is the
+              // primary signal; this ref is the cross-browser fallback
+              // for browsers that don't surface it (mostly older Safari).
+              onCompositionStart={() => {
+                isComposingRef.current = true;
+              }}
+              onCompositionEnd={() => {
+                isComposingRef.current = false;
+              }}
               className="text-foreground placeholder:text-muted-foreground relative min-h-[100px] resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
               disabled={inputDisabled}
               placeholder=""
@@ -693,9 +775,11 @@ export function ChatInput({
                     ? tChat('transcription.inProgressTooltip')
                     : isProcessingVideo && !isLoading
                       ? tChat('videoLink.chip.inProgressTooltip')
-                      : sendBlocked && sendBlockedReason && !isLoading
-                        ? sendBlockedReason
-                        : ''
+                      : hasFailedVideoJobs && !isLoading
+                        ? tChat('videoLink.chip.failedSendBlockedTooltip')
+                        : sendBlocked && sendBlockedReason && !isLoading
+                          ? sendBlockedReason
+                          : ''
                 }
                 side="top"
               >
@@ -711,6 +795,8 @@ export function ChatInput({
                         isIndexing ||
                         isTranscribing ||
                         isProcessingVideo ||
+                        hasFailedVideoJobs ||
+                        pasteIngestPending ||
                         sendBlocked
                   }
                   size="icon"

@@ -250,6 +250,7 @@ export function ChatInterface({
   const {
     jobs: videoLinkJobs,
     isAnyProcessing: isProcessingVideo,
+    hasFailedJobs: hasFailedVideoJobs,
     ingestUrlsFromText: ingestVideoUrlsFromText,
     cancelJob: cancelVideoJob,
     retryJob: retryVideoJob,
@@ -1064,6 +1065,7 @@ export function ChatInterface({
               transcriptionStatuses={transcriptionStatuses}
               videoLinkJobs={videoLinkJobs}
               isProcessingVideo={isProcessingVideo}
+              hasFailedVideoJobs={hasFailedVideoJobs}
               ingestVideoUrlsFromText={ingestVideoUrlsFromText}
               cancelVideoJob={cancelVideoJob}
               retryVideoJob={retryVideoJob}

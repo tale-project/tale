@@ -87,18 +87,40 @@ export function VideoLinkChip({ job, onCancel, onRetry }: VideoLinkChipProps) {
         🎬
       </span>
       <div className="flex min-w-0 flex-col">
-        <span className="truncate font-medium" title={title}>
-          {title}
-        </span>
+        {/* Open-source affordance: when the job carries a sourceUrl,
+            wrap the title in an external link so the user can verify
+            which video the chip represents after the pasted URL gets
+            stripped from the textarea. `noopener noreferrer` blocks
+            window.opener token theft and Referer leak. */}
+        {job.sourceUrl ? (
+          <a
+            href={job.sourceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="truncate font-medium hover:underline focus-visible:underline focus-visible:outline-none"
+            title={title}
+          >
+            {title}
+          </a>
+        ) : (
+          <span className="truncate font-medium" title={title}>
+            {title}
+          </span>
+        )}
         <span
-          aria-live="polite"
+          aria-live={isProcessing ? 'off' : 'polite'}
           aria-atomic="true"
           className={cn(
             'flex items-center gap-1 text-xs',
             isFailed ? 'text-destructive' : 'text-muted-foreground',
           )}
         >
-          {isProcessing && <Loader2 className="size-3 animate-spin" />}
+          {/* `motion-safe:` honours `prefers-reduced-motion`. Otherwise
+              the spinner runs unconditionally for users who explicitly
+              asked the OS to suppress animation. */}
+          {isProcessing && (
+            <Loader2 className="size-3 motion-safe:animate-spin" />
+          )}
           {statusText}
         </span>
       </div>
@@ -107,7 +129,7 @@ export function VideoLinkChip({ job, onCancel, onRetry }: VideoLinkChipProps) {
           type="button"
           onClick={onRetry}
           aria-label={tChat('videoLink.actions.retry')}
-          className="text-muted-foreground hover:text-foreground inline-flex size-11 items-center justify-center rounded-full"
+          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex size-11 items-center justify-center rounded-full focus-visible:ring-2 focus-visible:outline-none"
         >
           <RotateCcw className="size-4" />
         </button>
@@ -116,7 +138,7 @@ export function VideoLinkChip({ job, onCancel, onRetry }: VideoLinkChipProps) {
         type="button"
         onClick={onCancel}
         aria-label={tChat('videoLink.actions.removeLink')}
-        className="text-muted-foreground hover:text-foreground inline-flex size-11 items-center justify-center rounded-full"
+        className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex size-11 items-center justify-center rounded-full focus-visible:ring-2 focus-visible:outline-none"
       >
         <X className="size-4" />
       </button>

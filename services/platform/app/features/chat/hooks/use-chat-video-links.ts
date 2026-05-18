@@ -22,6 +22,9 @@ import { extractVideoUrls, normalizeUrlForHash } from '@/lib/shared/video-url';
  */
 export interface VideoLinkJob {
   jobId: Id<'videoLinkJobs'>;
+  /** Original https:// URL the user pasted. Used by the chip's
+   * "open source" affordance — once `pastedToken` is stripped from the
+   * textarea on cancel, the user has no other way back to the video. */
   sourceUrl: string;
   sourcePlatform: string;
   pastedToken: string;
@@ -55,6 +58,11 @@ const NON_TERMINAL: ReadonlySet<string> = new Set([
 export interface UseChatVideoLinksResult {
   jobs: VideoLinkJob[];
   isAnyProcessing: boolean;
+  /** True when any chip is in a terminal `failed` state. The send-gate
+   * blocks send while this is true so the user explicitly retries /
+   * removes the failed chip instead of unwittingly shipping a message
+   * without the transcript (round-2 V10 / HIGH #18). */
+  hasFailedJobs: boolean;
   /** Returns the number of URLs ingested (0..3). Caller can show a
    * toast when input had more URLs than were ingested. */
   ingestUrlsFromText: (
@@ -115,6 +123,10 @@ export function useChatVideoLinks(args: {
 
   const isAnyProcessing = useMemo(
     () => jobs.some((j) => NON_TERMINAL.has(j.displayStatus)),
+    [jobs],
+  );
+  const hasFailedJobs = useMemo(
+    () => jobs.some((j) => j.displayStatus === 'failed'),
     [jobs],
   );
 
@@ -184,5 +196,12 @@ export function useChatVideoLinks(args: {
     [retryMutation],
   );
 
-  return { jobs, isAnyProcessing, ingestUrlsFromText, cancelJob, retryJob };
+  return {
+    jobs,
+    isAnyProcessing,
+    hasFailedJobs,
+    ingestUrlsFromText,
+    cancelJob,
+    retryJob,
+  };
 }
