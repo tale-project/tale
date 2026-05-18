@@ -42,6 +42,7 @@ function toListItem(prompt: PromptDoc) {
     scope: prompt.scope,
     teamId: prompt.teamId,
     category: prompt.category,
+    categoryId: prompt.categoryId,
     tags: prompt.tags,
     usageCount: prompt.usageCount,
     sourceMessageId: prompt.sourceMessageId,
@@ -86,7 +87,15 @@ export const listPrompts = queryWithRLS({
     organizationId: v.string(),
     scope: v.optional(promptScopeValidator),
     search: v.optional(v.string()),
+    /**
+     * Legacy string-based facet filter. Kept for backward compatibility
+     * during the `promptCategories` transition — clients should prefer
+     * `categoryIds`. When both are supplied, a row matches if it
+     * satisfies either filter.
+     */
     categories: v.optional(v.array(v.string())),
+    /** Id-based category filter. Matches against `promptTemplates.categoryId`. */
+    categoryIds: v.optional(v.array(v.id('promptCategories'))),
     tags: v.optional(v.array(v.string())),
     paginationOpts: v.optional(paginationOptsValidator),
   },
@@ -177,6 +186,10 @@ export const listPrompts = queryWithRLS({
       args.categories && args.categories.length > 0
         ? new Set(args.categories)
         : null;
+    const wantedCategoryIds =
+      args.categoryIds && args.categoryIds.length > 0
+        ? new Set(args.categoryIds)
+        : null;
     const wantedTags =
       args.tags && args.tags.length > 0 ? new Set(args.tags) : null;
 
@@ -188,9 +201,28 @@ export const listPrompts = queryWithRLS({
       if (p.tags?.some((t) => t.toLowerCase().includes(search))) return true;
       return false;
     };
-    const matchesCategory = (p: PromptDoc): boolean =>
-      !wantedCategories ||
-      (p.category !== undefined && wantedCategories.has(p.category));
+    // Either filter shape is honored. A row passes when (a) no filter is
+    // set on either side, OR (b) it matches the id filter (modern path),
+    // OR (c) it matches the legacy string filter. Clients in transition
+    // will typically send one or the other, not both.
+    const matchesCategory = (p: PromptDoc): boolean => {
+      if (!wantedCategories && !wantedCategoryIds) return true;
+      if (
+        wantedCategoryIds &&
+        p.categoryId &&
+        wantedCategoryIds.has(p.categoryId)
+      ) {
+        return true;
+      }
+      if (
+        wantedCategories &&
+        p.category !== undefined &&
+        wantedCategories.has(p.category)
+      ) {
+        return true;
+      }
+      return false;
+    };
     const matchesTag = (p: PromptDoc): boolean =>
       !wantedTags || (p.tags?.some((t) => wantedTags.has(t)) ?? false);
 
@@ -216,20 +248,33 @@ export const listPrompts = queryWithRLS({
 });
 
 /**
- * Distinct categories + tags visible to the caller across the org. Used by
- * the library dialog to populate filter popovers without depending on how
- * far the user has paginated. Caps the scan at `FACET_SCAN_LIMIT` rows so a
- * pathological org can't make this expensive — if a real deployment hits
- * the cap, swap for an aggregate-table-backed lookup later.
+ * Facets the library dialog renders into its filter popovers:
+ *  - `categories`: every `promptCategories` row visible to the caller,
+ *    bucketed by scope (personal-mine, team-mine, global). Replaces the
+ *    legacy prompt-scan because categories now live in their own table.
+ *  - `legacyCategoryStrings`: distinct `category` strings still on
+ *    `promptTemplates` rows that haven't been lazy-migrated yet.
+ *    Surfaces during the transition so the filter UI doesn't drop
+ *    legacy values; can be removed once the cleanup migration lands.
+ *  - `tags`: still derived from `promptTemplates`. Capped by
+ *    `FACET_SCAN_LIMIT` to bound the scan.
  */
 const FACET_SCAN_LIMIT = 500;
+
+const facetCategoryValidator = v.object({
+  _id: v.id('promptCategories'),
+  scope: promptScopeValidator,
+  teamId: v.optional(v.string()),
+  name: v.string(),
+});
 
 export const listPromptFacets = queryWithRLS({
   args: {
     organizationId: v.string(),
   },
   returns: v.object({
-    categories: v.array(v.string()),
+    categories: v.array(facetCategoryValidator),
+    legacyCategoryStrings: v.array(v.string()),
     tags: v.array(v.string()),
     scanned: v.number(),
     scanCapped: v.boolean(),
@@ -237,7 +282,13 @@ export const listPromptFacets = queryWithRLS({
   handler: async (ctx, args) => {
     const user = await getAuthUserIdentity(ctx);
     const empty = {
-      categories: [] as string[],
+      categories: [] as Array<{
+        _id: Doc<'promptCategories'>['_id'];
+        scope: 'global' | 'team' | 'personal';
+        teamId?: string;
+        name: string;
+      }>,
+      legacyCategoryStrings: [] as string[],
       tags: [] as string[],
       scanned: 0,
       scanCapped: false,
@@ -251,9 +302,59 @@ export const listPromptFacets = queryWithRLS({
     if (!membership) return empty;
 
     const userTeamIds = await getUserTeamIds(ctx, user.userId);
-    const categories = new Set<string>();
+    const userTeamSet = new Set(userTeamIds);
+
+    // Categories come straight from promptCategories (no scan cap — the
+    // table is small relative to promptTemplates). Filter applies the
+    // same visibility rules as the picker: own personal, own teams,
+    // and every global.
+    const visibleCategories: Array<{
+      _id: Doc<'promptCategories'>['_id'];
+      scope: 'global' | 'team' | 'personal';
+      teamId?: string;
+      name: string;
+    }> = [];
+    for await (const row of ctx.db
+      .query('promptCategories')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      if (row.scope === 'global') {
+        visibleCategories.push({
+          _id: row._id,
+          scope: row.scope,
+          name: row.name,
+        });
+      } else if (row.scope === 'team') {
+        if (row.teamId && userTeamSet.has(row.teamId)) {
+          visibleCategories.push({
+            _id: row._id,
+            scope: row.scope,
+            teamId: row.teamId,
+            name: row.name,
+          });
+        }
+      } else if (row.scope === 'personal') {
+        if (row.createdBy === user.userId) {
+          visibleCategories.push({
+            _id: row._id,
+            scope: row.scope,
+            name: row.name,
+          });
+        }
+      }
+    }
+    visibleCategories.sort((a, b) =>
+      a.name.toLowerCase().localeCompare(b.name.toLowerCase()),
+    );
+
+    // Tags + legacy strings still come from a prompt scan. The legacy
+    // string set will trend toward empty as the lazy migration touches
+    // rows; it goes away with the cleanup migration.
+    const legacyStrings = new Set<string>();
     const tags = new Set<string>();
     let scanned = 0;
+    let scanCapped = false;
 
     for await (const row of ctx.db
       .query('promptTemplates')
@@ -263,24 +364,26 @@ export const listPromptFacets = queryWithRLS({
       .order('desc')) {
       scanned++;
       if (scanned > FACET_SCAN_LIMIT) {
-        return {
-          categories: [...categories].sort(),
-          tags: [...tags].sort(),
-          scanned: FACET_SCAN_LIMIT,
-          scanCapped: true,
-        };
+        scanCapped = true;
+        scanned = FACET_SCAN_LIMIT;
+        break;
       }
       if (!isActivePrompt(row)) continue;
       if (row.scope === 'personal' && row.createdBy !== user.userId) continue;
       if (row.scope === 'team' && !hasTeamAccess(row, userTeamIds)) continue;
-      if (row.category) categories.add(row.category);
+      // Only collect legacy strings on rows that haven't been migrated
+      // (i.e. no categoryId yet) — otherwise the row's structured
+      // category appears as a duplicate entry.
+      if (row.category && !row.categoryId) legacyStrings.add(row.category);
       if (row.tags) for (const t of row.tags) tags.add(t);
     }
+
     return {
-      categories: [...categories].sort(),
+      categories: visibleCategories,
+      legacyCategoryStrings: [...legacyStrings].sort(),
       tags: [...tags].sort(),
       scanned,
-      scanCapped: false,
+      scanCapped,
     };
   },
 });
@@ -398,6 +501,7 @@ export const getPromptHistory = queryWithRLS({
         title: entry.title ?? prompt.title,
         description: entry.description ?? prompt.description,
         category: entry.category ?? prompt.category,
+        categoryId: entry.categoryId ?? prompt.categoryId,
         tags: entry.tags ?? prompt.tags,
         scope: entry.scope ?? prompt.scope,
         teamId: entry.teamId ?? prompt.teamId,
@@ -481,6 +585,13 @@ export const validateSaveArgs = internalQuery({
     scope: promptScopeValidator,
     teamId: v.optional(v.string()),
     category: v.optional(v.string()),
+    /**
+     * Optional structured category id. Not deeply validated here — the
+     * downstream `createPrompt` mutation re-validates scope-match against
+     * the resolved category. This pre-flight is a fast-fail before the
+     * LLM call, not a security gate.
+     */
+    categoryId: v.optional(v.id('promptCategories')),
     tags: v.optional(v.array(v.string())),
   },
   returns: v.null(),

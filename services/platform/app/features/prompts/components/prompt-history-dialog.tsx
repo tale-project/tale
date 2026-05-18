@@ -49,7 +49,14 @@ function metadataChangedFromCurrent(
 ): boolean {
   if (entry.title !== current.title) return true;
   if (entry.scope !== current.scope) return true;
-  if (entry.category !== current.category) return true;
+  // Compare the structured id first; only fall back to the legacy
+  // string when neither side has a stamped id (otherwise a lazy-migrate
+  // write would falsely register as "no change" because the resolved
+  // names match).
+  if (entry.categoryId !== current.categoryId) return true;
+  if (!entry.categoryId && !current.categoryId) {
+    if (entry.category !== current.category) return true;
+  }
   const aTags = entry.tags ?? [];
   const bTags = current.tags ?? [];
   if (aTags.length !== bTags.length) return true;

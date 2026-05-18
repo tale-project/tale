@@ -1,4 +1,4 @@
-import type { Doc } from '../_generated/dataModel';
+import type { Doc, Id } from '../_generated/dataModel';
 import { MAX_PROMPT_VERSION_HISTORY } from './constants';
 
 type PromptScope = 'global' | 'team' | 'personal';
@@ -6,7 +6,15 @@ type PromptScope = 'global' | 'team' | 'personal';
 export type PromptVersionMetadata = {
   title: string;
   description?: string;
+  /**
+   * Legacy free-form category string. Coexists with `categoryId` during the
+   * `promptCategories` transition — see `promptTemplatesTable.category`.
+   * Builders write both fields into the snapshot so a future cleanup
+   * migration can backfill ids from the strings if needed.
+   */
   category?: string;
+  /** See `promptTemplatesTable.categoryId`. */
+  categoryId?: Id<'promptCategories'>;
   tags?: string[];
   scope: PromptScope;
   teamId?: string;
@@ -26,6 +34,7 @@ export type VersionHistoryEntry = {
   title: string;
   description?: string;
   category?: string;
+  categoryId?: Id<'promptCategories'>;
   tags?: string[];
   scope: PromptScope;
   teamId?: string;
@@ -68,6 +77,7 @@ export function synthesizeLegacyV1Entry(
     title: prompt.title,
     description: prompt.description,
     category: prompt.category,
+    categoryId: prompt.categoryId,
     tags: prompt.tags,
     scope: prompt.scope,
     teamId: prompt.teamId,
@@ -155,6 +165,7 @@ export function buildNextVersionEntry({
     title: metadata.title,
     description: metadata.description,
     category: metadata.category,
+    categoryId: metadata.categoryId,
     tags: metadata.tags,
     scope: metadata.scope,
     teamId: metadata.teamId,
@@ -187,6 +198,7 @@ export function buildInitialVersionEntry(args: {
     title: args.metadata.title,
     description: args.metadata.description,
     category: args.metadata.category,
+    categoryId: args.metadata.categoryId,
     tags: args.metadata.tags,
     scope: args.metadata.scope,
     teamId: args.metadata.teamId,
@@ -201,7 +213,13 @@ export function buildInitialVersionEntry(args: {
 export function metadataDiffers(
   prev: Pick<
     Doc<'promptTemplates'>,
-    'title' | 'description' | 'category' | 'tags' | 'scope' | 'teamId'
+    | 'title'
+    | 'description'
+    | 'category'
+    | 'categoryId'
+    | 'tags'
+    | 'scope'
+    | 'teamId'
   >,
   next: PromptVersionMetadata,
 ): boolean {
@@ -209,7 +227,15 @@ export function metadataDiffers(
   if ((prev.description ?? undefined) !== (next.description ?? undefined)) {
     return true;
   }
+  // Both string and id are compared so that the lazy-migration write
+  // (clears string, stamps id) is recognized as a metadata change and
+  // bumps the version. After the cleanup migration only `categoryId`
+  // remains meaningful, but the string check is harmless when both
+  // fields are undefined.
   if ((prev.category ?? undefined) !== (next.category ?? undefined)) {
+    return true;
+  }
+  if ((prev.categoryId ?? undefined) !== (next.categoryId ?? undefined)) {
     return true;
   }
   if (!tagsEqual(prev.tags, next.tags)) return true;

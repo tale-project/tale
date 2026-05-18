@@ -520,6 +520,47 @@ export async function rlsRules(
       },
     },
 
+    // Prompt Categories - organization-scoped, scope-filtered
+    // (personal: creator; team: team members; global: any org member).
+    // Coarse RLS — the handler still does scope-specific create gating
+    // (admins for team/global, creator-only for personal modify).
+    promptCategories: {
+      read: async (_, category) => {
+        if (!user) return false;
+        if (!userOrgIds.has(category.organizationId)) return false;
+        if (category.scope === 'global') {
+          // visible to any org member
+        } else if (category.scope === 'team') {
+          if (!category.teamId || !userTeamIds.has(category.teamId))
+            return false;
+        } else if (category.scope === 'personal') {
+          if (category.createdBy !== user.userId) return false;
+        } else {
+          return false;
+        }
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === category.organizationId,
+        );
+        return authorizeRls(membership?.role, 'promptCategories', 'read');
+      },
+      modify: async (_, category) => {
+        if (!user) return false;
+        if (!userOrgIds.has(category.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === category.organizationId,
+        );
+        return authorizeRls(membership?.role, 'promptCategories', 'write');
+      },
+      insert: async ({ user: ruleUser }, category) => {
+        if (!ruleUser) return false;
+        if (!userOrgIds.has(category.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === category.organizationId,
+        );
+        return authorizeRls(membership?.role, 'promptCategories', 'write');
+      },
+    },
+
     // Audit Logs - organization-scoped, allow inserts for org members
     auditLogs: {
       read: async (_, log) => {

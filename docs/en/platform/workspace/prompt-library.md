@@ -41,13 +41,15 @@ To capture a message you've already sent, open the message menu in the conversat
 
 Three visibility levels govern who can see a prompt:
 
-| Scope        | Who can see it                | Badge colour |
-| ------------ | ----------------------------- | ------------ |
-| **Personal** | Only you.                     | Blue.        |
-| **Team**     | Members of the selected team. | Orange.      |
-| **Global**   | Everyone in the organisation. | Green.       |
+| Scope        | Who can see it                | Who can create at this scope | Badge colour |
+| ------------ | ----------------------------- | ---------------------------- | ------------ |
+| **Personal** | Only you.                     | Anyone.                      | Blue.        |
+| **Team**     | Members of the selected team. | Members of that team.        | Orange.      |
+| **Global**   | Everyone in the organisation. | Admins and Owners only.      | Green.       |
 
 Unpublished prompts are visible only to their creator regardless of scope.
+
+Promoting an existing prompt to **Global** — or restoring a version that was previously Global — is also Admins and Owners only. A non-admin creator can keep editing a Global prompt they already own.
 
 ## Edit and delete
 

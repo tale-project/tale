@@ -28,11 +28,22 @@ function generateFallbackTitle(): string {
 export const savePrompt = action({
   args: {
     organizationId: v.string(),
+    /**
+     * Optional user-supplied title. When omitted or blank, the action
+     * AI-generates one (with a 10s timeout) and falls back to a
+     * PROMPT-XXXXX id on timeout/error. Lets the same action serve both
+     * the chat "save as prompt" affordance and the library "create
+     * prompt" form (where the user may or may not supply a title).
+     */
+    title: v.optional(v.string()),
     content: v.string(),
     description: v.optional(v.string()),
     scope: promptScopeValidator,
     teamId: v.optional(v.string()),
+    /** Legacy free-form category string. Lazy-migrated by the mutation. */
     category: v.optional(v.string()),
+    /** Preferred. References an existing `promptCategories` row. */
+    categoryId: v.optional(v.id('promptCategories')),
     tags: v.optional(v.array(v.string())),
     sourceMessageId: v.optional(v.string()),
   },
@@ -53,16 +64,25 @@ export const savePrompt = action({
       scope: args.scope,
       teamId: args.teamId,
       category: args.category,
+      categoryId: args.categoryId,
       tags: args.tags,
     });
 
-    // Try AI-generated title first (10s timeout enforced in the action)
-    const aiTitle = await ctx.runAction(
-      internal.prompts.generate_title.generatePromptTitle,
-      { content: args.content },
-    );
-
-    const title = aiTitle?.trim() || generateFallbackTitle();
+    // Honour a user-supplied title; otherwise AI-generate. Skip the LLM
+    // call entirely when the caller already has a title — saves tokens
+    // and the 10s timeout window on the library "create" path where the
+    // user typed one themselves.
+    const userTitle = args.title?.trim();
+    let title: string;
+    if (userTitle) {
+      title = userTitle;
+    } else {
+      const aiTitle = await ctx.runAction(
+        internal.prompts.generate_title.generatePromptTitle,
+        { content: args.content },
+      );
+      title = aiTitle?.trim() || generateFallbackTitle();
+    }
 
     return await ctx.runMutation(api.prompts.mutations.createPrompt, {
       organizationId: args.organizationId,
@@ -72,6 +92,7 @@ export const savePrompt = action({
       scope: args.scope,
       teamId: args.teamId,
       category: args.category,
+      categoryId: args.categoryId,
       tags: args.tags,
       sourceMessageId: args.sourceMessageId,
     });

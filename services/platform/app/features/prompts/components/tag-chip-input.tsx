@@ -1,6 +1,5 @@
 'use client';
 
-import { Badge } from '@tale/ui/badge';
 import { X } from 'lucide-react';
 import { useCallback, useId, useState, type KeyboardEvent } from 'react';
 
@@ -152,17 +151,20 @@ export function TagChipInput({
       {value.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {value.map((tag, idx) => (
-            <Badge key={tag} variant="outline" className="gap-1 pr-1 pl-2">
+            <span
+              key={tag}
+              className="text-muted-foreground border-muted-foreground bg-muted flex items-center gap-1 rounded-full border-[1.5px] py-1 pr-1 pl-2.5 text-[13px] font-medium transition-colors"
+            >
               <span>{tag}</span>
               <button
                 type="button"
                 onClick={() => removeAt(idx)}
                 aria-label={t('tagsInput.removeAria', { tag })}
-                className="hover:bg-muted-foreground/20 focus-visible:ring-ring rounded-sm p-0.5 focus-visible:ring-2 focus-visible:outline-none"
+                className="hover:bg-muted-foreground/20 focus-visible:ring-ring rounded-full p-0.5 focus-visible:ring-2 focus-visible:outline-none"
               >
                 <X className="size-3" aria-hidden="true" />
               </button>
-            </Badge>
+            </span>
           ))}
         </div>
       )}

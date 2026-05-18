@@ -8,16 +8,18 @@ import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Text } from '@/app/components/ui/typography/text';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
+import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
+import { useCurrentUser } from '@/app/hooks/use-current-user';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useToast } from '@/app/hooks/use-toast';
+import type { Id } from '@/convex/_generated/dataModel';
 import { MAX_PROMPT_CONTENT_BYTES } from '@/convex/prompts/constants';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import { useSavePrompt } from '../hooks/mutations';
-import { usePrompts } from '../hooks/queries';
 import { extractErrorCode } from '../lib/extract-error-code';
-import { AddCategoryPopover } from './add-category-popover';
+import { CategoryPickerPopover } from './category-picker-popover';
 
 type PromptScope = 'personal' | 'team' | 'global';
 
@@ -49,30 +51,26 @@ function SavePromptDialogContent({
   const savePrompt = useSavePrompt();
   const { toast } = useToast();
   const { teams } = useTeams();
-  const { prompts } = usePrompts(organizationId ?? '');
+  const { data: currentUser } = useCurrentUser();
+  const { data: memberContext } = useCurrentMemberContext(organizationId);
+  const isOrgAdmin =
+    memberContext?.role === 'admin' || memberContext?.role === 'owner';
 
   const [content, setContent] = useState(initialContent);
   const [scope, setScope] = useState<PromptScope>('personal');
   const [teamId, setTeamId] = useState<string | undefined>();
-  const [category, setCategory] = useState('');
-  const [localCategories, setLocalCategories] = useState<string[]>([]);
+  const [categoryId, setCategoryId] = useState<
+    Id<'promptCategories'> | undefined
+  >();
 
   const bytesId = useId();
   const categoryLabelId = useId();
   const bytesErrorId = `${bytesId}-error`;
   const isPending = savePrompt.isPending;
-
-  const { existingCategories, persistedCategorySet } = useMemo(() => {
-    const fromPrompts = prompts
-      .map((p) => p.category)
-      .filter((c): c is string => !!c);
-    const persisted = new Set(fromPrompts);
-    const merged = [...new Set([...fromPrompts, ...localCategories])];
-    return {
-      existingCategories: merged.sort((a, b) => a.localeCompare(b)),
-      persistedCategorySet: persisted,
-    };
-  }, [prompts, localCategories]);
+  const userTeamIds = useMemo(
+    () => (teams ?? []).map((team) => team.id),
+    [teams],
+  );
 
   const teamOptions = useMemo(
     () => (teams ?? []).map((team) => ({ value: team.id, label: team.name })),
@@ -108,7 +106,7 @@ function SavePromptDialogContent({
     content !== initialContent ||
     scope !== 'personal' ||
     !!teamId ||
-    category !== '';
+    !!categoryId;
 
   const scopeLabel =
     scope === 'personal'
@@ -128,7 +126,7 @@ function SavePromptDialogContent({
           content: content.trim(),
           scope,
           teamId: scope === 'team' ? teamId : undefined,
-          category: category || undefined,
+          categoryId,
           // Compose flow passes an empty string when there's no source
           // message; coerce so we never persist `''` as a meaningless id.
           sourceMessageId: sourceMessageId || undefined,
@@ -165,7 +163,7 @@ function SavePromptDialogContent({
       content,
       scope,
       teamId,
-      category,
+      categoryId,
       sourceMessageId,
       savePrompt,
       onOpenChange,
@@ -174,16 +172,6 @@ function SavePromptDialogContent({
       scopeLabel,
     ],
   );
-
-  const handleAddCategory = useCallback((newCategory: string) => {
-    setLocalCategories((prev) => [...new Set([...prev, newCategory])]);
-    setCategory(newCategory);
-  }, []);
-
-  const handleRemoveLocalCategory = useCallback((cat: string) => {
-    setLocalCategories((prev) => prev.filter((c) => c !== cat));
-    setCategory((prev) => (prev === cat ? '' : prev));
-  }, []);
 
   return (
     <FormDialog
@@ -261,60 +249,17 @@ function SavePromptDialogContent({
         >
           {t('form.categoryLabel')}
         </label>
-        <div
-          role="group"
-          aria-labelledby={categoryLabelId}
-          className="flex flex-wrap items-center gap-2"
-        >
-          {existingCategories.map((cat) => {
-            const selected = category === cat;
-            const isLocalOnly = !persistedCategorySet.has(cat);
-            return (
-              <span
-                key={cat}
-                className={cn(
-                  'inline-flex items-center rounded-full text-[13px] font-medium transition-colors',
-                  selected
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground',
-                )}
-              >
-                <button
-                  type="button"
-                  aria-pressed={selected}
-                  onClick={() =>
-                    setCategory((prev) => (prev === cat ? '' : cat))
-                  }
-                  className={cn(
-                    'rounded-full px-2.5 py-1.5',
-                    !selected && 'hover:bg-accent',
-                  )}
-                >
-                  {cat}
-                </button>
-                {isLocalOnly && (
-                  <button
-                    type="button"
-                    aria-label={t('addCategory.remove', { category: cat })}
-                    onClick={() => handleRemoveLocalCategory(cat)}
-                    className={cn(
-                      'rounded-full px-1.5 py-1.5 opacity-70 hover:opacity-100',
-                      selected
-                        ? 'hover:bg-primary-foreground/15'
-                        : 'hover:bg-accent',
-                    )}
-                  >
-                    ×
-                  </button>
-                )}
-              </span>
-            );
-          })}
-          <AddCategoryPopover
-            existingCategories={existingCategories}
-            onAddCategory={handleAddCategory}
-          />
-        </div>
+        <CategoryPickerPopover
+          organizationId={organizationId}
+          userId={currentUser?.userId}
+          isOrgAdmin={isOrgAdmin}
+          scope={scope}
+          teamId={teamId}
+          userTeamIds={userTeamIds}
+          selectedId={categoryId}
+          onSelect={setCategoryId}
+          ariaLabelledBy={categoryLabelId}
+        />
       </div>
     </FormDialog>
   );

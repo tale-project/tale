@@ -290,10 +290,24 @@ describe('synthesizeLegacyV1Entry', () => {
       title: 'Legacy title',
       description: 'desc',
       category: 'general',
+      categoryId: undefined,
       tags: ['a', 'b'],
       scope: 'team',
       teamId: 'team_42',
     });
+  });
+
+  it('carries categoryId from the row into the synthesized entry', () => {
+    const fakeId = 'cat_legacy_1' as Doc<'promptCategories'>['_id'];
+    const existing = makePromptDoc({
+      version: undefined,
+      versionHistory: undefined,
+      content: 'baseline',
+      categoryId: fakeId,
+      _creationTime: 8_888,
+    });
+    const entry = synthesizeLegacyV1Entry(existing);
+    expect(entry.categoryId).toBe(fakeId);
   });
 });
 
@@ -302,6 +316,7 @@ describe('metadataDiffers', () => {
     title: 'a',
     description: 'd',
     category: 'c',
+    categoryId: undefined,
     tags: ['x', 'y'],
     scope: 'personal' as const,
     teamId: undefined,
@@ -330,6 +345,39 @@ describe('metadataDiffers', () => {
       metadataDiffers(
         { ...base, description: undefined },
         { ...base, description: undefined },
+      ),
+    ).toBe(false);
+  });
+
+  it('returns true when categoryId changes (even if string is equal)', () => {
+    const idA = 'cat_a' as Doc<'promptCategories'>['_id'];
+    const idB = 'cat_b' as Doc<'promptCategories'>['_id'];
+    expect(
+      metadataDiffers(
+        { ...base, categoryId: idA },
+        { ...base, categoryId: idB },
+      ),
+    ).toBe(true);
+  });
+
+  it('returns true on lazy-migration write: string cleared while id is stamped', () => {
+    // This is the load-bearing case: `updatePrompt` on a legacy row
+    // clears `category` and stamps `categoryId`. We need `metaChanged`
+    // to be true so the version actually bumps and the migration sticks.
+    const id = 'cat_new' as Doc<'promptCategories'>['_id'];
+    expect(
+      metadataDiffers(
+        { ...base, category: 'old-string', categoryId: undefined },
+        { ...base, category: undefined, categoryId: id },
+      ),
+    ).toBe(true);
+  });
+
+  it('returns false when both string and id agree as no-category', () => {
+    expect(
+      metadataDiffers(
+        { ...base, category: undefined, categoryId: undefined },
+        { ...base, category: undefined, categoryId: undefined },
       ),
     ).toBe(false);
   });

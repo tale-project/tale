@@ -4388,6 +4388,8 @@
       "scopeLabel": "Sichtbarkeit",
       "teamLabel": "Team",
       "teamPlaceholder": "Team auswählen...",
+      "noTeamsAvailable": "Du bist in keinem Team. Bitte einen Admin, dich einem Team hinzuzufügen, oder speichere diesen Prompt als Persönlich.",
+      "titleAutoGenHint": "Leer lassen, um automatisch aus dem Inhalt zu generieren.",
       "categoryLabel": "Kategorie",
       "categoryPlaceholder": "z.B. Schreiben, Analyse, Programmierung",
       "categoryNone": "— Keine —",
@@ -4475,6 +4477,28 @@
       "cancel": "Abbrechen",
       "add": "Hinzufügen",
       "remove": "{category} entfernen"
+    },
+    "categories": {
+      "pickerPlaceholder": "Kategorie wählen",
+      "create": "Erstellen",
+      "rename": "Umbenennen",
+      "renameSave": "Name speichern",
+      "renameCancel": "Umbenennen abbrechen",
+      "delete": "Löschen",
+      "deleteConfirmTitle": "Kategorie löschen?",
+      "deleteConfirmDescription": "Prompts mit „{name}“ werden auf „— Keine —“ zurückgesetzt. Das lässt sich nicht rückgängig machen.",
+      "deleteSuccess": "„{name}“ gelöscht",
+      "duplicate": "Eine Kategorie mit diesem Namen existiert bereits",
+      "createForbidden": "Nur Admins können Kategorien in diesem Bereich erstellen",
+      "cannotManage": "Du kannst diese Kategorie nicht verwalten",
+      "deletedLabel": "(gelöscht)",
+      "empty": "Noch keine Kategorien",
+      "actions": "Aktionen für {name}",
+      "scopeGroup": {
+        "personal": "Persönlich",
+        "team": "Team",
+        "global": "Global"
+      }
     },
     "sidebar": {
       "sectionTitle": "Prompt-Bibliothek"

@@ -4388,6 +4388,8 @@
       "scopeLabel": "Visibility",
       "teamLabel": "Team",
       "teamPlaceholder": "Select a team...",
+      "noTeamsAvailable": "You're not in any team. Ask an admin to add you to one, or save this prompt as Personal.",
+      "titleAutoGenHint": "Leave blank to auto-generate from the content.",
       "categoryLabel": "Category",
       "categoryPlaceholder": "e.g., writing, analysis, coding",
       "categoryNone": "— None —",
@@ -4475,6 +4477,28 @@
       "cancel": "Cancel",
       "add": "Add",
       "remove": "Remove {category}"
+    },
+    "categories": {
+      "pickerPlaceholder": "Choose a category",
+      "create": "Create",
+      "rename": "Rename",
+      "renameSave": "Save name",
+      "renameCancel": "Cancel rename",
+      "delete": "Delete",
+      "deleteConfirmTitle": "Delete category?",
+      "deleteConfirmDescription": "Prompts using \"{name}\" will be moved to \"— None —\". This cannot be undone.",
+      "deleteSuccess": "Deleted \"{name}\"",
+      "duplicate": "A category with that name already exists",
+      "createForbidden": "Only admins can create categories at this scope",
+      "cannotManage": "You cannot manage this category",
+      "deletedLabel": "(deleted)",
+      "empty": "No categories yet",
+      "actions": "Actions for {name}",
+      "scopeGroup": {
+        "personal": "Personal",
+        "team": "Team",
+        "global": "Global"
+      }
     },
     "sidebar": {
       "sectionTitle": "Prompt library"

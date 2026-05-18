@@ -1,6 +1,7 @@
 import { ConvexError, v } from 'convex/values';
 
 import { internal } from '../_generated/api';
+import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 import { loadActiveHolds } from '../governance/legal_hold';
 import { getUserTeamIds } from '../lib/get_user_teams';
@@ -9,6 +10,12 @@ import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_
 import { mutationWithRLS } from '../lib/rls/helpers/mutation_with_rls';
 import { validateOrganizationAccess } from '../lib/rls/organization/validate_organization_access';
 import type { RLSContext } from '../lib/rls/types';
+import { findCategoryInBucket } from './categories';
+import {
+  assertCategoryScopeMatchesPromptScope,
+  canCreateCategoryInScope,
+  toCategoryAccessShape,
+} from './category_access';
 import { isActivePrompt } from './queries';
 import { assertPromptSizes, normalizePromptFields } from './size_guards';
 import { promptScopeValidator, promptTemplateValidator } from './validators';
@@ -70,6 +77,233 @@ async function assertTeamMembership(
   }
 }
 
+/**
+ * Resolve the effective `categoryId` for a prompt write, honoring the
+ * dual-field transition and the write-side scope invariant. Returns
+ * `undefined` when the caller cleared the category (or never set one).
+ *
+ * Three input shapes, in order of precedence:
+ *
+ *  1. `callerCategoryId` — explicit id from a modern client. Validated:
+ *     must belong to the same org, and its scope must satisfy
+ *     `assertCategoryScopeMatchesPromptScope` for the target prompt
+ *     scope/team. Returns the id verbatim.
+ *
+ *  2. `callerCategoryString` (legacy) — find-or-create within the bucket
+ *     determined by the prompt's scope:
+ *       personal → (personal, owner = caller)
+ *       team     → (team,     teamId = prompt's team)
+ *       global   → (global,   no owner)
+ *     If a matching row exists, reuse it. Otherwise the caller must be
+ *     allowed to create at that scope (admins for team/global; anyone for
+ *     personal) — if not, throw `forbidden`. This is the lazy-migration
+ *     path used when an old client still sends `category: string`.
+ *
+ *  3. `inheritedCategoryId` — keep what the existing row already had.
+ *     Re-validated against the (possibly new) prompt scope so that a
+ *     scope flip can clear an incompatible id. We clear instead of
+ *     reject because the form already clears client-side; surfacing a
+ *     `forbidden` here would block an otherwise-valid save.
+ *
+ *  4. `inheritedCategoryString` — same lazy migration as (2) but kicked
+ *     off because the existing row still carries a legacy string. Any
+ *     write that touches metadata stamps an id so the string can be
+ *     swept later.
+ *
+ * `clearedOnScopeMismatch` is true when a previously-set id was dropped
+ * because it didn't survive the new scope. The caller surfaces this in
+ * the audit row so we can grep for silent clears in production logs.
+ */
+async function resolveCategoryIdForWrite(
+  ctx: MutationCtx,
+  args: {
+    organizationId: string;
+    userId: string;
+    isOrgAdmin: boolean;
+    userTeamIds: readonly string[];
+    promptScope: 'global' | 'team' | 'personal';
+    promptTeamId?: string;
+    callerCategoryId?: Id<'promptCategories'>;
+    callerCategoryString?: string;
+    inheritedCategoryId?: Id<'promptCategories'>;
+    inheritedCategoryString?: string;
+  },
+): Promise<{
+  categoryId: Id<'promptCategories'> | undefined;
+  clearedOnScopeMismatch: boolean;
+}> {
+  // 1. Explicit id wins.
+  if (args.callerCategoryId !== undefined) {
+    const cat = await ctx.db.get(args.callerCategoryId);
+    if (!cat || cat.organizationId !== args.organizationId) {
+      throw new ConvexError({
+        code: 'not_found',
+        message: 'Category not found',
+      });
+    }
+    assertCategoryScopeMatchesPromptScope({
+      promptScope: args.promptScope,
+      promptTeamId: args.promptTeamId,
+      category: toCategoryAccessShape(cat),
+      userId: args.userId,
+      userTeamIds: args.userTeamIds,
+    });
+    return { categoryId: cat._id, clearedOnScopeMismatch: false };
+  }
+
+  // 2. Caller-supplied legacy string → find-or-create.
+  const callerName = args.callerCategoryString?.trim();
+  if (callerName) {
+    const id = await findOrCreateCategoryFromString(ctx, {
+      organizationId: args.organizationId,
+      userId: args.userId,
+      isOrgAdmin: args.isOrgAdmin,
+      promptScope: args.promptScope,
+      promptTeamId: args.promptTeamId,
+      name: callerName,
+    });
+    return { categoryId: id, clearedOnScopeMismatch: false };
+  }
+
+  // The caller explicitly cleared via empty string. Surface as "no
+  // category" rather than inheriting — matches the legacy semantics
+  // where setting `category: ''` removed the value.
+  if (args.callerCategoryString !== undefined && callerName === '') {
+    return { categoryId: undefined, clearedOnScopeMismatch: false };
+  }
+
+  // 3. Inherited id — re-validate against current scope.
+  if (args.inheritedCategoryId !== undefined) {
+    const cat = await ctx.db.get(args.inheritedCategoryId);
+    if (cat && cat.organizationId === args.organizationId) {
+      try {
+        assertCategoryScopeMatchesPromptScope({
+          promptScope: args.promptScope,
+          promptTeamId: args.promptTeamId,
+          category: toCategoryAccessShape(cat),
+          userId: args.userId,
+          userTeamIds: args.userTeamIds,
+        });
+        return { categoryId: cat._id, clearedOnScopeMismatch: false };
+      } catch {
+        // Scope flip invalidated the existing category. Clear silently —
+        // the form already clears client-side; this is the server-side
+        // safety net for older clients or direct API consumers.
+        return { categoryId: undefined, clearedOnScopeMismatch: true };
+      }
+    }
+    // Dangling id (row deleted) — treat as cleared.
+    return { categoryId: undefined, clearedOnScopeMismatch: false };
+  }
+
+  // 4. Inherited legacy string — opportunistic lazy migration.
+  const inheritedName = args.inheritedCategoryString?.trim();
+  if (inheritedName) {
+    try {
+      const id = await findOrCreateCategoryFromString(ctx, {
+        organizationId: args.organizationId,
+        userId: args.userId,
+        isOrgAdmin: args.isOrgAdmin,
+        promptScope: args.promptScope,
+        promptTeamId: args.promptTeamId,
+        name: inheritedName,
+      });
+      return { categoryId: id, clearedOnScopeMismatch: false };
+    } catch {
+      // The inherited string can't be materialized in the new scope
+      // (e.g. scope flipped to global but the actor isn't an admin who
+      // can create a global category). Drop it silently — the user can
+      // re-set explicitly if they want it back.
+      return { categoryId: undefined, clearedOnScopeMismatch: true };
+    }
+  }
+
+  return { categoryId: undefined, clearedOnScopeMismatch: false };
+}
+
+/**
+ * Bucket-aware find-or-create used by both the caller-supplied-string
+ * path and the inherited-string lazy migration. Bucket choice mirrors
+ * the prompt-write invariant: a string on a `team`-scope prompt becomes
+ * a team-scope category, etc. The personal bucket is owned by the
+ * acting user — this is intentional: it means a non-admin can lazy-
+ * migrate their own legacy strings without surfacing a `forbidden`.
+ */
+async function findOrCreateCategoryFromString(
+  ctx: MutationCtx,
+  args: {
+    organizationId: string;
+    userId: string;
+    isOrgAdmin: boolean;
+    promptScope: 'global' | 'team' | 'personal';
+    promptTeamId?: string;
+    name: string;
+  },
+): Promise<Id<'promptCategories'>> {
+  const scope = args.promptScope;
+  const teamId = scope === 'team' ? args.promptTeamId : undefined;
+  if (scope === 'team' && !teamId) {
+    throw new ConvexError({
+      code: 'forbidden',
+      message: 'Team-scoped prompts must specify a team',
+    });
+  }
+  const nameLower = args.name.toLowerCase();
+
+  // Bucket lookup. For team/global the bucket has a single owner
+  // dimension (teamId / null); for personal the bucket also keys on
+  // createdBy = caller.
+  const existing = await findCategoryInBucket(ctx, {
+    organizationId: args.organizationId,
+    scope,
+    teamId,
+    createdBy: args.userId,
+    nameLower,
+  });
+  if (existing) return existing._id;
+
+  // Not found — create. Gated by the same rule as direct creation.
+  if (!canCreateCategoryInScope({ scope, isOrgAdmin: args.isOrgAdmin })) {
+    throw new ConvexError({
+      code: 'forbidden',
+      message: `Only admins can create ${scope} categories`,
+    });
+  }
+
+  return await ctx.db.insert('promptCategories', {
+    organizationId: args.organizationId,
+    scope,
+    teamId,
+    createdBy: args.userId,
+    name: args.name,
+    nameLower,
+  });
+}
+
+/** Narrow a prompt row into the shape `metadataDiffers` consumes. */
+function promptMetadataView(
+  prompt: Doc<'promptTemplates'>,
+): Pick<
+  Doc<'promptTemplates'>,
+  | 'title'
+  | 'description'
+  | 'category'
+  | 'categoryId'
+  | 'tags'
+  | 'scope'
+  | 'teamId'
+> {
+  return {
+    title: prompt.title,
+    description: prompt.description,
+    category: prompt.category,
+    categoryId: prompt.categoryId,
+    tags: prompt.tags,
+    scope: prompt.scope,
+    teamId: prompt.teamId,
+  };
+}
+
 export const createPrompt = mutationWithRLS({
   args: {
     organizationId: v.string(),
@@ -78,7 +312,10 @@ export const createPrompt = mutationWithRLS({
     description: v.optional(v.string()),
     scope: promptScopeValidator,
     teamId: v.optional(v.string()),
+    /** Legacy free-form string. Lazy-migrated to a `promptCategories` row. */
     category: v.optional(v.string()),
+    /** Preferred. References an existing `promptCategories` row. */
+    categoryId: v.optional(v.id('promptCategories')),
     tags: v.optional(v.array(v.string())),
     sourceMessageId: v.optional(v.string()),
   },
@@ -122,6 +359,13 @@ export const createPrompt = mutationWithRLS({
       await assertTeamMembership(ctx, user.userId, args.teamId);
     }
 
+    if (args.scope === 'global' && !rlsContext.isAdmin) {
+      throw new ConvexError({
+        code: 'forbidden',
+        message: 'Only admins can create global prompts',
+      });
+    }
+
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     const randomId = Array.from(
       { length: 5 },
@@ -133,10 +377,30 @@ export const createPrompt = mutationWithRLS({
         : `PROMPT-${randomId}`;
     const teamId = args.scope === 'team' ? args.teamId : undefined;
     const now = Date.now();
+
+    // Resolve the categoryId once before the row insert so the version
+    // snapshot and the row agree. Both args.categoryId (modern client)
+    // and args.category (legacy string) flow through the resolver.
+    const userTeamIds = await getUserTeamIds(ctx, user.userId);
+    const resolved = await resolveCategoryIdForWrite(ctx, {
+      organizationId: args.organizationId,
+      userId: user.userId,
+      isOrgAdmin: rlsContext.isAdmin,
+      userTeamIds,
+      promptScope: args.scope,
+      promptTeamId: teamId,
+      callerCategoryId: args.categoryId,
+      callerCategoryString: normalized.category,
+    });
+
     const metadata: PromptVersionMetadata = {
       title,
       description: normalized.description,
-      category: normalized.category,
+      // Once an id is stamped, clear the legacy string so the row's
+      // canonical representation is unambiguous. The string remains in
+      // the row only on rows that never went through this write path.
+      category: resolved.categoryId ? undefined : normalized.category,
+      categoryId: resolved.categoryId,
       tags: normalized.tags,
       scope: args.scope,
       teamId,
@@ -150,7 +414,8 @@ export const createPrompt = mutationWithRLS({
       description: normalized.description,
       scope: args.scope,
       teamId,
-      category: normalized.category,
+      category: metadata.category,
+      categoryId: metadata.categoryId,
       tags: normalized.tags,
       usageCount: 0,
       sourceMessageId: args.sourceMessageId,
@@ -208,7 +473,10 @@ export const updatePrompt = mutationWithRLS({
     description: v.optional(v.string()),
     scope: v.optional(promptScopeValidator),
     teamId: v.optional(v.string()),
+    /** Legacy free-form string. Lazy-migrated to a `promptCategories` row. */
     category: v.optional(v.string()),
+    /** Preferred. References an existing `promptCategories` row. */
+    categoryId: v.optional(v.id('promptCategories')),
     tags: v.optional(v.array(v.string())),
     /**
      * Optimistic-concurrency token. When set, the mutation throws
@@ -303,32 +571,73 @@ export const updatePrompt = mutationWithRLS({
       await assertTeamMembership(ctx, user.userId, targetTeamId);
     }
 
+    // Promoting a prompt TO global scope is admin-only. A non-admin
+    // creator can still edit (or downgrade) an already-global row they
+    // own — the creator-or-admin gate above governs that. We only block
+    // the scope-flip into global by a non-admin.
+    if (
+      targetScope === 'global' &&
+      existing.scope !== 'global' &&
+      !rlsContext.isAdmin
+    ) {
+      throw new ConvexError({
+        code: 'forbidden',
+        message: 'Only admins can promote a prompt to global scope',
+      });
+    }
+
     const targetTitle =
       normalized.title !== undefined ? normalized.title : existing.title;
     const targetDescription =
       normalized.description !== undefined
         ? normalized.description
         : existing.description;
-    const targetCategory =
-      normalized.category !== undefined
-        ? normalized.category
-        : existing.category;
     const targetTags =
       normalized.tags !== undefined ? normalized.tags : existing.tags;
     const targetContent =
       normalized.content !== undefined ? normalized.content : existing.content;
 
+    // Resolve the categoryId for this write. Honors (in order): an
+    // explicit `args.categoryId` from a modern client; a legacy
+    // `args.category` string (lazy migration); the row's existing id
+    // re-validated against the new scope; the row's legacy string
+    // (opportunistic migration). Silent clear on scope mismatch matches
+    // the form's client-side behavior so a stale id from an old client
+    // doesn't fail an otherwise-valid save.
+    const userTeamIds = await getUserTeamIds(ctx, user.userId);
+    const resolved = await resolveCategoryIdForWrite(ctx, {
+      organizationId: existing.organizationId,
+      userId: user.userId,
+      isOrgAdmin: rlsContext.isAdmin,
+      userTeamIds,
+      promptScope: targetScope,
+      promptTeamId: targetTeamId,
+      callerCategoryId: args.categoryId,
+      callerCategoryString: normalized.category,
+      inheritedCategoryId: existing.categoryId,
+      inheritedCategoryString: existing.category,
+    });
+    const targetCategoryId = resolved.categoryId;
+
     const nextMetadata: PromptVersionMetadata = {
       title: targetTitle,
       description: targetDescription,
-      category: targetCategory,
+      // Once an id is stamped, clear the legacy string so the row's
+      // canonical representation is unambiguous.
+      category: targetCategoryId
+        ? undefined
+        : (normalized.category ?? undefined),
+      categoryId: targetCategoryId,
       tags: targetTags,
       scope: targetScope,
       teamId: targetTeamId,
     };
 
     const contentChanged = targetContent !== existing.content;
-    const metaChanged = metadataDiffers(existing, nextMetadata);
+    const metaChanged = metadataDiffers(
+      promptMetadataView(existing),
+      nextMetadata,
+    );
     if (!contentChanged && !metaChanged) {
       // No-op edit — nothing to bump, no audit event.
       return existing;
@@ -345,7 +654,8 @@ export const updatePrompt = mutationWithRLS({
       title: targetTitle,
       content: targetContent,
       description: targetDescription,
-      category: targetCategory,
+      category: nextMetadata.category,
+      categoryId: targetCategoryId,
       tags: targetTags,
       scope: targetScope,
       teamId: targetTeamId,
@@ -365,6 +675,9 @@ export const updatePrompt = mutationWithRLS({
         contentChanged,
         metadataChanged: metaChanged,
         scopeChanged: existing.scope !== targetScope,
+        // Surface silent category clears so they're greppable in audit
+        // logs without sending a user-visible error.
+        categoryClearedOnScopeMismatch: resolved.clearedOnScopeMismatch,
       },
     );
     if (built.droppedVersions.length > 0) {
@@ -565,23 +878,76 @@ export const restoreFromVersion = mutationWithRLS({
 
     // Defense in depth: legacy entries with no metadata fall back to existing
     // row values so the restore can never erase metadata.
+    const restoredScope = target.scope ?? existing.scope;
+    const restoredTeamId =
+      restoredScope === 'team' ? (target.teamId ?? existing.teamId) : undefined;
+    // Team membership re-check before any category resolution — a
+    // forbidden team beats fanout into category lookups.
+    if (restoredScope === 'team') {
+      if (!restoredTeamId) {
+        throw new ConvexError({
+          code: 'forbidden',
+          message: 'Team-scoped prompts must specify a team',
+        });
+      }
+      await assertTeamMembership(ctx, user.userId, restoredTeamId);
+    }
+
+    // Restoring to a global snapshot from a non-global current scope is
+    // a re-promotion to global — admin-only, matching createPrompt /
+    // updatePrompt. If the row is already global, the creator-or-admin
+    // gate is sufficient.
+    if (
+      restoredScope === 'global' &&
+      existing.scope !== 'global' &&
+      !rlsContext.isAdmin
+    ) {
+      throw new ConvexError({
+        code: 'forbidden',
+        message: 'Only admins can restore a prompt to global scope',
+      });
+    }
+
+    // Resolve the categoryId for the restored state. The snapshot may
+    // carry an id, a legacy string, both, or neither. Re-validate
+    // against the restored scope and silently clear on mismatch (the
+    // snapshotted category may have been valid at the time but isn't
+    // anymore — e.g. team-scope changed teams).
+    const userTeamIdsForRestore = await getUserTeamIds(ctx, user.userId);
+    const restoredCategory = await resolveCategoryIdForWrite(ctx, {
+      organizationId: existing.organizationId,
+      userId: user.userId,
+      isOrgAdmin: rlsContext.isAdmin,
+      userTeamIds: userTeamIdsForRestore,
+      promptScope: restoredScope,
+      promptTeamId: restoredTeamId,
+      // Prefer the snapshot's id, falling back to its legacy string,
+      // falling back to the row's current id, falling back to the row's
+      // current legacy string. Each fallback covers a partial-migration
+      // shape that real data may exhibit.
+      callerCategoryId: target.categoryId,
+      callerCategoryString: target.categoryId ? undefined : target.category,
+      inheritedCategoryId: existing.categoryId,
+      inheritedCategoryString: existing.category,
+    });
+
     const targetMetadata: PromptVersionMetadata = {
       title: target.title ?? existing.title,
       description: target.description ?? existing.description,
-      category: target.category ?? existing.category,
+      category: restoredCategory.categoryId
+        ? undefined
+        : (target.category ?? existing.category),
+      categoryId: restoredCategory.categoryId,
       tags: target.tags ?? existing.tags,
-      scope: target.scope ?? existing.scope,
-      teamId:
-        (target.scope ?? existing.scope) === 'team'
-          ? (target.teamId ?? existing.teamId)
-          : undefined,
+      scope: restoredScope,
+      teamId: restoredTeamId,
     };
 
     // Same-state guard: if both content AND metadata already match the
     // current row, restore is a no-op (avoids burning a FIFO slot).
     if (
       target.content === existing.content &&
-      !metadataDiffers(existing, targetMetadata)
+      !metadataDiffers(promptMetadataView(existing), targetMetadata)
     ) {
       return existing;
     }
@@ -593,19 +959,6 @@ export const restoreFromVersion = mutationWithRLS({
       category: targetMetadata.category,
       tags: targetMetadata.tags,
     });
-
-    // Team membership re-check: even on restore, the actor must be a member
-    // of the target team. If the snapshot's team is no longer accessible,
-    // surface forbidden.
-    if (targetMetadata.scope === 'team') {
-      if (!targetMetadata.teamId) {
-        throw new ConvexError({
-          code: 'forbidden',
-          message: 'Team-scoped prompts must specify a team',
-        });
-      }
-      await assertTeamMembership(ctx, user.userId, targetMetadata.teamId);
-    }
 
     const built = buildNextVersionEntry({
       existing,
@@ -619,6 +972,7 @@ export const restoreFromVersion = mutationWithRLS({
       content: target.content,
       description: targetMetadata.description,
       category: targetMetadata.category,
+      categoryId: targetMetadata.categoryId,
       tags: targetMetadata.tags,
       scope: targetMetadata.scope,
       teamId: targetMetadata.teamId,
