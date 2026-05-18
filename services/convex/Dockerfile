@@ -27,15 +27,55 @@ FROM ghcr.io/get-convex/convex-backend:5f66740ae8dd506577d27294adc55b81e4fbe91b 
 WORKDIR /app
 
 ARG SOPS_VERSION=3.9.4
+# yt-dlp + Deno: unpinned by design. YouTube rotates the player signature /
+# nsig solver every 1-2 weeks; a stale yt-dlp pin produces silent prod
+# outages. Reproducibility comes from the image digest, not from source
+# version tags. CI should rebuild this image weekly to pull the latest
+# upstream releases. The resolved versions are recorded into
+# /etc/yt-dlp-version + /etc/deno-version for runtime inspection.
+# Deno is required by yt-dlp's n-challenge JS solver (yt-dlp ≥ 2025.11).
 # System packages, binary symlinks, app user (UID 1001 to match platform),
 # and LLVM/docs stripping (~155 MB savings on the base image).
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get -o Acquire::Retries=3 update \
     && apt-get install -y --no-install-recommends \
-    curl tini gosu postgresql-client ca-certificates \
+    curl unzip tini gosu postgresql-client ca-certificates \
     ffmpeg \
     && curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.$(dpkg --print-architecture)" -o /usr/local/bin/sops && chmod +x /usr/local/bin/sops \
+    # yt-dlp: per-arch asset selection + SHA256 verification against the
+    # release's official SHA2-256SUMS file. Asset names use yt-dlp's own
+    # naming convention, NOT dpkg arch names.
+    && YTDLP_DPKG_ARCH="$(dpkg --print-architecture)" \
+    && case "$YTDLP_DPKG_ARCH" in \
+        amd64) YTDLP_ASSET="yt-dlp_linux" ;; \
+        arm64) YTDLP_ASSET="yt-dlp_linux_aarch64" ;; \
+        *) echo "Unsupported arch for yt-dlp: $YTDLP_DPKG_ARCH" >&2; exit 1 ;; \
+       esac \
+    && curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/latest/download/${YTDLP_ASSET}" -o /usr/local/bin/yt-dlp \
+    && curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS" -o /tmp/yt-dlp.sums \
+    && (cd /usr/local/bin && grep "  ${YTDLP_ASSET}$" /tmp/yt-dlp.sums | sed "s| ${YTDLP_ASSET}$|  yt-dlp|" | sha256sum -c -) \
+    && chmod 0755 /usr/local/bin/yt-dlp \
+    && yt-dlp --version > /etc/yt-dlp-version \
+    && rm -f /tmp/yt-dlp.sums \
+    # Deno: required by yt-dlp's external JS runtime for n-challenge solving.
+    # Per-arch zip download with checksum verify.
+    && DENO_DPKG_ARCH="$(dpkg --print-architecture)" \
+    && case "$DENO_DPKG_ARCH" in \
+        amd64) DENO_ASSET="deno-x86_64-unknown-linux-gnu.zip" ;; \
+        arm64) DENO_ASSET="deno-aarch64-unknown-linux-gnu.zip" ;; \
+        *) echo "Unsupported arch for deno: $DENO_DPKG_ARCH" >&2; exit 1 ;; \
+       esac \
+    && curl -fsSL "https://github.com/denoland/deno/releases/latest/download/${DENO_ASSET}" -o /tmp/deno.zip \
+    && curl -fsSL "https://github.com/denoland/deno/releases/latest/download/${DENO_ASSET}.sha256sum" -o /tmp/deno.sums \
+    && (cd /tmp && sha256sum -c deno.sums) \
+    && unzip -q /tmp/deno.zip -d /usr/local/bin \
+    && chmod 0755 /usr/local/bin/deno \
+    && deno --version | head -1 > /etc/deno-version \
+    && rm -f /tmp/deno.zip /tmp/deno.sums \
+    # unzip is only needed for Deno install; remove to keep image lean
+    && apt-get purge -y unzip \
+    && apt-get autoremove -y \
     && mkdir -p /usr/local/share/ca-certificates \
     && chmod 755 /usr/local/share/ca-certificates \
     && chmod +x /convex/convex-local-backend /convex/generate_key \

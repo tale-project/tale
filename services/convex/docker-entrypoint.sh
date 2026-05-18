@@ -211,6 +211,21 @@ mkdir -p /app/data/convex
 export TMPDIR=/app/data/convex/tmp
 mkdir -p "$TMPDIR"
 
+# Orphan video-link tmp dirs from crashed/killed ingest_video_link.ts actions.
+# Each job creates /app/data/convex/tmp/vlink-<uuid>/; on success the action's
+# finally-block rm -rfs it, but kill -9 / OOM / container restart can leak.
+# 60min cutoff is well past the 15min audio-extract wall-clock.
+find "$TMPDIR" -mindepth 1 -maxdepth 1 -name 'vlink-*' -mmin +60 -exec rm -rf {} + 2>/dev/null || true
+
+# yt-dlp version log — no network call, just confirms the binary baked
+# into the image at build time. Real "is video ingestion working?" check
+# happens at first ingest attempt (ENOENT → binary_not_installed fail-
+# fast in convex/video_links/ytdlp.ts; upstream extractor regression →
+# transient error visible on the chip within ~30s of a paste).
+if [ -f /etc/yt-dlp-version ]; then
+  log_info "yt-dlp $(cat /etc/yt-dlp-version) baked into image"
+fi
+
 # ============================================================================
 # Builtin seed (version-marker gated)
 # ----------------------------------------------------------------------------

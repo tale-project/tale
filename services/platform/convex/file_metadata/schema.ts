@@ -83,6 +83,25 @@ export const fileMetadataTable = defineTable({
   threadId: v.optional(v.string()),
   lifecycleStatus: v.optional(lifecycleStatusValidator),
   statusChangedAt: v.optional(v.number()),
+  /**
+   * Video-link provenance. Populated when this fileMetadata row's transcript
+   * originated from the yt-dlp pipeline (captions branch creates a synthetic
+   * row with the transcript blob; whisper branch reuses the audio-upload
+   * row). Decoupled from `videoLinkJobs` so RAG citations and
+   * `document_retrieve` keep working after the job row is GC'd.
+   *
+   * Backward-compat: ALL optional. Existing rows and direct-upload rows
+   * leave these unset.
+   *
+   * NO `videoThumbnailUrl` here: `services/platform/server.ts` CSP
+   * (img-src 'self' data: blob:) hard-blocks remote <img>. Add via the
+   * existing `/api/image-proxy` pattern when chip thumbnail is promoted.
+   */
+  sourceUrl: v.optional(v.string()),
+  sourcePlatform: v.optional(v.string()),
+  videoTitle: v.optional(v.string()),
+  videoUploader: v.optional(v.string()),
+  videoDurationSec: v.optional(v.number()),
 })
   .index('by_organizationId', ['organizationId'])
   .index('by_organizationId_and_lifecycleStatus', [
