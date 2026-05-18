@@ -4383,16 +4383,12 @@
       "titlePlaceholder": "Enter prompt title...",
       "contentLabel": "Content",
       "contentPlaceholder": "Enter prompt content...",
-      "descriptionLabel": "Description",
-      "descriptionPlaceholder": "Brief description of what this prompt does...",
       "scopeLabel": "Visibility",
       "teamLabel": "Team",
       "teamPlaceholder": "Select a team...",
       "noTeamsAvailable": "You're not in any team. Ask an admin to add you to one, or save this prompt as Personal.",
       "titleAutoGenHint": "Leave blank to auto-generate from the content.",
       "categoryLabel": "Category",
-      "categoryPlaceholder": "e.g., writing, analysis, coding",
-      "categoryNone": "— None —",
       "tagsLabel": "Tags",
       "tagsPlaceholder": "Comma-separated tags...",
       "save": "Save",
@@ -4474,9 +4470,7 @@
     },
     "addCategory": {
       "inputPlaceholder": "Category name",
-      "cancel": "Cancel",
-      "add": "Add",
-      "remove": "Remove {category}"
+      "add": "Add"
     },
     "categories": {
       "pickerPlaceholder": "Choose a category",

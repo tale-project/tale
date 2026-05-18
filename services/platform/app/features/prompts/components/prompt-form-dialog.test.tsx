@@ -23,6 +23,18 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'test-org-id',
 }));
 
+vi.mock('@/app/hooks/use-current-user', () => ({
+  useCurrentUser: () => ({ data: { userId: 'user-1' } }),
+}));
+
+vi.mock('@/app/hooks/use-current-member-context', () => ({
+  useCurrentMemberContext: () => ({ data: { role: 'admin' } }),
+}));
+
+vi.mock('@/app/hooks/use-toast', () => ({
+  useToast: () => ({ toast: vi.fn() }),
+}));
+
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useTeams: () => ({ teams: [], isLoading: false }),
 }));
@@ -36,6 +48,16 @@ let mockUsePromptResult: { data: unknown; isLoading: boolean } = {
 vi.mock('../hooks/queries', () => ({
   usePrompts: () => ({ prompts: [], isLoading: false }),
   usePrompt: () => mockUsePromptResult,
+  useCategories: () => ({
+    data: { personal: [], team: [], global: [] },
+    isLoading: false,
+  }),
+}));
+
+vi.mock('../hooks/mutations', () => ({
+  useCreatePromptCategory: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useRenamePromptCategory: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDeletePromptCategory: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 import { PromptFormDialog } from './prompt-form-dialog';

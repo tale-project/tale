@@ -67,16 +67,22 @@ vi.mock('../hooks/queries', () => ({
   usePromptHistory: () => ({ data: null, isLoading: false }),
   usePromptFacets: () => ({
     data: {
-      categories: ['testing'],
+      categories: [],
+      legacyCategoryStrings: ['testing'],
       tags: ['test'],
       scanned: 1,
       scanCapped: false,
     },
     isLoading: false,
   }),
+  useCategories: () => ({
+    data: { personal: [], team: [], global: [] },
+    isLoading: false,
+  }),
 }));
 
 vi.mock('../hooks/mutations', () => ({
+  useSavePrompt: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useCreatePrompt: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useUpdatePrompt: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useDeletePrompt: () => ({ mutateAsync: vi.fn(), isPending: false }),
@@ -85,6 +91,9 @@ vi.mock('../hooks/mutations', () => ({
     mutateAsync: vi.fn(),
     isPending: false,
   }),
+  useCreatePromptCategory: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useRenamePromptCategory: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDeletePromptCategory: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 import { PromptLibraryDialog } from './prompt-library-dialog';

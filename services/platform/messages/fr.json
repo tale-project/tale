@@ -4308,16 +4308,12 @@
       "titlePlaceholder": "Saisir le titre du prompt...",
       "contentLabel": "Contenu",
       "contentPlaceholder": "Saisir le contenu du prompt...",
-      "descriptionLabel": "Description",
-      "descriptionPlaceholder": "Brève description de ce que fait ce prompt...",
       "scopeLabel": "Visibilité",
       "teamLabel": "Équipe",
       "teamPlaceholder": "Sélectionner une équipe...",
       "noTeamsAvailable": "Tu n'es dans aucune équipe. Demande à un admin de t'ajouter à une équipe, ou enregistre ce prompt comme Personnel.",
       "titleAutoGenHint": "Laisse vide pour générer automatiquement depuis le contenu.",
       "categoryLabel": "Catégorie",
-      "categoryPlaceholder": "ex. rédaction, analyse, programmation",
-      "categoryNone": "— Aucune —",
       "tagsLabel": "Étiquettes",
       "tagsPlaceholder": "Étiquettes séparées par des virgules...",
       "save": "Enregistrer",
@@ -4399,9 +4395,7 @@
     },
     "addCategory": {
       "inputPlaceholder": "Nom de la catégorie",
-      "cancel": "Annuler",
-      "add": "Ajouter",
-      "remove": "Supprimer {category}"
+      "add": "Ajouter"
     },
     "categories": {
       "pickerPlaceholder": "Choisir une catégorie",

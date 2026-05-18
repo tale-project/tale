@@ -34,6 +34,10 @@ vi.mock('@/app/hooks/use-toast', () => ({
   useToast: () => ({ toast: toastMock }),
 }));
 
+vi.mock('@/app/hooks/use-organization-id', () => ({
+  useOrganizationId: () => 'test-org-id',
+}));
+
 function makeEntry(
   version: number,
   overrides: Partial<PromptVersionEntry> = {},
@@ -71,6 +75,10 @@ let mockHistoryResult: {
 
 vi.mock('../hooks/queries', () => ({
   usePromptHistory: () => mockHistoryResult,
+  useCategories: () => ({
+    data: { personal: [], team: [], global: [] },
+    isLoading: false,
+  }),
 }));
 
 const restoreMock = vi.fn();
