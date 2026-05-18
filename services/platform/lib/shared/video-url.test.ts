@@ -32,6 +32,26 @@ describe('isSafeVideoUrl', () => {
     expect(isSafeVideoUrl('https://localhost/')).toBe(false);
     expect(isSafeVideoUrl('https://LOCALHOST/')).toBe(false);
     expect(isSafeVideoUrl('https://localhost:8080/')).toBe(false);
+    // Trailing-dot form still resolves to 127.0.0.1 on every libc
+    // resolver — strict equality with `'localhost'` missed it.
+    expect(isSafeVideoUrl('https://localhost./')).toBe(false);
+  });
+
+  it('rejects IDN punycode-encoded hostnames', () => {
+    // `youtubе.com` with a Cyrillic `е` parses to `xn--youtub-8of.com`.
+    // Visually indistinguishable from `youtube.com` in the chip; reject
+    // the punycode form outright so impersonation never reaches the user.
+    expect(isSafeVideoUrl('https://xn--youtub-8of.com/watch?v=abc')).toBe(
+      false,
+    );
+  });
+
+  it('rejects URLs longer than the 2 KB cap', () => {
+    // Defense against a hostile multi-MB paste — the mutation, dedup
+    // hash, and per-org rate-limit bookkeeping should not have to
+    // tolerate megabyte-scale URLs.
+    const huge = 'https://youtu.be/abc?q=' + 'x'.repeat(3000);
+    expect(isSafeVideoUrl(huge)).toBe(false);
   });
 
   it('rejects dotted IPv4 literals', () => {

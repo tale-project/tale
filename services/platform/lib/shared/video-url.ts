@@ -121,7 +121,15 @@ function isBareIpLiteral(host: string): boolean {
  * it pre-resolves DNS and refuses any hostname whose A/AAAA records
  * land in private space, closing the rebinding gap.
  */
+// Cap on the URL string itself. A 2 KB cap is well past any legitimate
+// video link (longest YouTube watch URL with playlist + tracking <300
+// chars) but stops a hostile paste of a multi-MB URL from being shipped
+// through the mutation, the dedup hash, and the per-org rate-limit
+// bookkeeping.
+const MAX_VIDEO_URL_LENGTH = 2048;
+
 export function isSafeVideoUrl(url: string): boolean {
+  if (url.length > MAX_VIDEO_URL_LENGTH) return false;
   let u: URL;
   try {
     u = new URL(url);
@@ -131,7 +139,20 @@ export function isSafeVideoUrl(url: string): boolean {
   if (u.protocol !== 'https:') return false;
   if (u.username || u.password) return false;
   const host = u.hostname.toLowerCase();
-  if (host === 'localhost') return false;
+  // `localhost.` (trailing dot) still resolves to 127.0.0.1 on every
+  // libc resolver — the strict `host === 'localhost'` check missed this
+  // form. The server-side DNS pre-resolve catches it too, but failing
+  // the advisory check up front gives the user instant feedback and
+  // shrinks the attack surface for any future caller that consumes
+  // `isSafeVideoUrl` without the server check (e.g. a future native
+  // share extension).
+  if (host === 'localhost' || host === 'localhost.') return false;
+  // Reject IDN punycode-encoded hostnames outright. The chip would
+  // otherwise render as `youtubе.com` (Cyrillic `е`) — visually
+  // indistinguishable from `youtube.com`, and the user has no way to
+  // notice the impersonation. Real YouTube / Bilibili / etc. hosts are
+  // ASCII; punycode survives `new URL()` as `xn--…`.
+  if (host.includes('xn--')) return false;
   // `localhost.evil.com` substring fakeout is fine — it's a real public
   // host. The browser will resolve it normally; server DNS check is the
   // real guard.
