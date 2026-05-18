@@ -9,6 +9,7 @@ const TAG_KEYS: Record<ModelTag, string> = {
   'image-generation': 'providers.tagImageGeneration',
   'image-edit': 'providers.tagImageEdit',
   transcription: 'providers.tagTranscription',
+  'text-to-speech': 'providers.tagTextToSpeech',
 };
 
 export function modelTagLabel(tag: string, t: TFunction): string {

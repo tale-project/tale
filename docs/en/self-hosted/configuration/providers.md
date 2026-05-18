@@ -215,13 +215,27 @@ cp examples/providers/openrouter.json $TALE_CONFIG_DIR/providers/
 
 Get a key at [openrouter.ai/keys](https://openrouter.ai/keys) and add it through **Settings > Providers > OpenRouter** — the app writes the matching `openrouter.secrets.json` in whichever mode is configured. The committed `examples/providers/*.secrets.json` files are encrypted to the repo's age recipient and are not useful as drop-in templates.
 
-### OpenAI (Whisper for transcription)
+### OpenAI
 
 ```bash
 cp examples/providers/openai.json $TALE_CONFIG_DIR/providers/
 ```
 
-Add your OpenAI key through **Settings > Providers > OpenAI**. The example declares `whisper-1` and `defaults.transcription`, so audio and video chat attachments route through here once a key is set. The end-user view lives at [Chat attachments](/platform/chat/attachments#audio-and-video-transcription).
+Add your OpenAI key once via **Settings > AI providers > OpenAI**. The file declares both `whisper-1` (transcription) and `gpt-4o-mini-tts` (text-to-speech) along with `defaults` for each, so audio/video chat attachments route here for transcription and the chat header's [Voice output](/platform/chat/voice-output) toggle starts using OpenAI for synthesis. See [Chat attachments](/platform/chat/attachments#audio-and-video-transcription) for the end-user view. Without this file, voice output is unavailable — the personalization toggle is disabled and surfaces a link to add a TTS model.
+
+TTS-specific fields on a model entry:
+
+| Field                            | Purpose                                                                                                                                                                                 |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tags`                           | Must include `"text-to-speech"`. The platform validates that any model carrying this tag also declares a voice via `defaultVoice` or `voicesByLocale`.                                  |
+| `defaultVoice`                   | Fallback voice when no locale match is found.                                                                                                                                           |
+| `voicesByLocale`                 | BCP-47 locale → voice id. The resolver tries the full locale, then the base language (`de-CH` → `de`), then `defaultVoice`.                                                             |
+| `audioFormat`                    | One of `mp3` (default), `opus`, `aac`, `flac`, `wav`, `pcm`. Use `mp3` for broadest browser support; `pcm` for lowest decode latency.                                                   |
+| `defaultInstructions`            | Optional steering prompt sent with every synthesis (≤ 2000 chars). Useful for nudging tone, pace, or emphasis. Write the prompt in the target language for best results.                |
+| `instructionsByLocale`           | Optional BCP-47 locale → instructions map. Resolution mirrors `voicesByLocale`: full locale → base language → `defaultInstructions`. Each value is capped at 2000 chars.                |
+| `cost.centsPerMillionCharacters` | Per 1,000,000 characters of input text (e.g. `1500` = $15/M chars). OpenAI's gpt-4o-mini-tts meters per token; supply an operator-estimated char-approximation when you use that model. |
+
+The action enforces per-user (`tts:synthesize:user`, 40/min) and per-org (`tts:synthesize:org`, 200/min) rate limits, a 200-chunks-per-message hard cap, and an organization budget check before each synthesis. Synthesised audio is cached in Convex storage for ~7 days and pruned by an hourly org-sweep cron, plus opportunistic per-thread cleanup scheduled from the write path.
 
 ## Self-hosted inference backends
 

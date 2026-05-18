@@ -16,6 +16,7 @@ import {
   systemPromptConfigSchema,
   twoFactorPolicyConfigSchema,
   uploadPolicyConfigSchema,
+  voiceOutputConfigSchema,
 } from '../../lib/shared/schemas/governance';
 import { isRecord } from '../../lib/utils/type-guards';
 import { internal } from '../_generated/api';
@@ -256,6 +257,15 @@ export const upsertPolicy = mutation({
       if (!parsed.success) {
         throw new Error(
           `Invalid personalization configuration: ${parsed.error.message}`,
+        );
+      }
+    }
+
+    if (args.policyType === 'voice_output') {
+      const parsed = voiceOutputConfigSchema.safeParse(args.config);
+      if (!parsed.success) {
+        throw new Error(
+          `Invalid voice_output configuration: ${parsed.error.message}`,
         );
       }
     }

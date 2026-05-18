@@ -7,6 +7,7 @@ export const modelTagLiterals = [
   'image-generation',
   'image-edit',
   'transcription',
+  'text-to-speech',
 ] as const;
 const modelTagSchema = z.enum(modelTagLiterals);
 export type ModelTag = z.infer<typeof modelTagSchema>;
@@ -199,6 +200,21 @@ const providerOptionsSchema = z
   .superRefine((value, ctx) => denyListRefine(value, ctx))
   .optional();
 
+/**
+ * Single source of truth for TTS output audio formats. Exported so the
+ * Convex `ttsAudioChunks` validator, the action's MIME map, and the
+ * `resolveTtsModel` resolver all stay in sync via one literal list.
+ */
+export const audioFormatLiterals = [
+  'mp3',
+  'opus',
+  'aac',
+  'flac',
+  'wav',
+  'pcm',
+] as const;
+export type AudioFormat = (typeof audioFormatLiterals)[number];
+
 const modelDefinitionSchema = z.object({
   id: z.string().min(1).max(200),
   displayName: z.string().min(1).max(200),
@@ -212,22 +228,87 @@ const modelDefinitionSchema = z.object({
   imageGenerationMode: imageGenerationModeSchema.optional(),
   cost: z
     .object({
-      inputCentsPerMillion: z.number().optional(),
-      outputCentsPerMillion: z.number().optional(),
+      inputCentsPerMillion: z.number().nonnegative().finite().optional(),
+      outputCentsPerMillion: z.number().nonnegative().finite().optional(),
       /**
        * For image-generation models that charge per image rather than per
        * token. When set, cost tracking for this model uses
        * `imageCount * imageCentsPerImage` directly, bypassing token math.
        */
-      imageCentsPerImage: z.number().optional(),
+      imageCentsPerImage: z.number().nonnegative().finite().optional(),
       /**
        * For transcription models billed per minute of audio (e.g. OpenAI
        * whisper-1 at $0.006/min = 0.6). Used by
        * `estimateTranscriptionCostCents` to compute ledger entries.
        */
-      centsPerAudioMinute: z.number().optional(),
+      centsPerAudioMinute: z.number().nonnegative().finite().optional(),
+      /**
+       * For text-to-speech models billed per character of input text
+       * (e.g. OpenAI tts-1 at $15/M chars = 1500). When the upstream
+       * meter is per-token (e.g. gpt-4o-mini-tts), operators supply a
+       * char-approximation here; the value is used directly by
+       * `estimateTtsCostCents` without conversion.
+       */
+      centsPerMillionCharacters: z.number().nonnegative().finite().optional(),
     })
     .optional(),
+  /**
+   * Default voice for TTS models when no locale-specific voice matches.
+   * Whitespace-only strings are rejected so `'   '` doesn't silently slip
+   * through .min(1) and surface later as UNKNOWN_VOICE at synth time.
+   */
+  defaultVoice: z
+    .string()
+    .min(1)
+    .max(100)
+    .regex(/\S/, 'defaultVoice cannot be all whitespace')
+    .optional(),
+  /**
+   * Locale → voice mapping for TTS models. Keys follow a narrow BCP-47
+   * subset: ISO-639-1 language with optional ISO-3166-1 alpha-2 region
+   * (e.g. `en`, `en-US`, `de-CH`). Broader BCP-47 — script subtags
+   * (`zh-Hans`), 3-letter codes (`fil`), UN region codes (`en-419`) —
+   * is intentionally out of scope; relax the regex in lockstep with a
+   * resolver update if those become needed. Values are rejected when
+   * all whitespace, mirroring `defaultVoice`.
+   */
+  voicesByLocale: z
+    .record(
+      z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/),
+      z
+        .string()
+        .min(1)
+        .max(100)
+        .regex(/\S/, 'voice name cannot be all whitespace'),
+    )
+    .optional(),
+  /**
+   * Default natural-language tone/style prompt for TTS models that accept an
+   * `instructions` field (OpenAI `gpt-4o-mini-tts`). Steers warmth, pacing,
+   * and language consistency. Falls back to no instruction when omitted.
+   */
+  defaultInstructions: z.string().min(1).max(2000).optional(),
+  /**
+   * Locale → instructions mapping. Same lookup pattern as `voicesByLocale`:
+   * full locale first, then base, then `defaultInstructions`. Each entry
+   * should be written in the language it will steer (in-language prompts
+   * produce the best results with OpenAI's TTS). Locale-regex shape
+   * matches `voicesByLocale` — see its docstring for the BCP-47 subset.
+   */
+  instructionsByLocale: z
+    .record(
+      z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/),
+      z.string().min(1).max(2000),
+    )
+    .optional(),
+  /**
+   * Output audio format for TTS models. Defaults to mp3 when omitted.
+   * `pcm` is raw 24 kHz mono int16 — choose only when the client can
+   * play `audio/L16; rate=24000` (most browsers can; some older Safari
+   * cannot). `opus` is served as Ogg-Opus container, supported on
+   * macOS 14+ / iOS 17+ Safari.
+   */
+  audioFormat: z.enum(audioFormatLiterals).optional(),
   providerOptions: providerOptionsSchema,
 });
 
@@ -239,6 +320,7 @@ const providerDefaultsSchema = z.object({
   embedding: z.string().min(1).max(200).optional(),
   'image-generation': z.string().min(1).max(200).optional(),
   transcription: z.string().min(1).max(200).optional(),
+  'text-to-speech': z.string().min(1).max(200).optional(),
   fallbackProviderName: z.string().min(1).max(200).optional(),
   fallbackModelId: z.string().min(1).max(200).optional(),
 });
@@ -285,25 +367,60 @@ export const providerJsonSchema = z
       .optional(),
   })
   .superRefine((data, ctx) => {
-    if (!data.defaults) return;
-    const modelMap = new Map(data.models.map((m) => [m.id, m]));
-    for (const [tag, modelId] of Object.entries(data.defaults)) {
-      if (modelId === undefined) continue;
-      const model = modelMap.get(modelId);
-      if (!model) {
-        ctx.addIssue({
-          code: 'custom',
-          message: `defaults.${tag} references unknown model "${modelId}"`,
-          path: ['defaults', tag],
-        });
-      } else if (!(model.tags as readonly string[]).includes(tag)) {
-        ctx.addIssue({
-          code: 'custom',
-          message: `defaults.${tag} references model "${modelId}" which lacks the "${tag}" tag`,
-          path: ['defaults', tag],
-        });
+    if (data.defaults) {
+      const modelMap = new Map(data.models.map((m) => [m.id, m]));
+      for (const [tag, modelId] of Object.entries(data.defaults)) {
+        if (modelId === undefined) continue;
+        const model = modelMap.get(modelId);
+        if (!model) {
+          ctx.addIssue({
+            code: 'custom',
+            message: `defaults.${tag} references unknown model "${modelId}"`,
+            path: ['defaults', tag],
+          });
+        } else if (!(model.tags as readonly string[]).includes(tag)) {
+          ctx.addIssue({
+            code: 'custom',
+            message: `defaults.${tag} references model "${modelId}" which lacks the "${tag}" tag`,
+            path: ['defaults', tag],
+          });
+        }
       }
     }
+    // Cross-field check (M5): every model tagged `'text-to-speech'` must
+    // declare at least one voice — `defaultVoice` OR a non-empty
+    // `voicesByLocale` — otherwise `resolveTtsModel` throws `UNKNOWN_VOICE`
+    // at first synthesis and the config bug surfaces only after a user
+    // action. Catching it at config-load time gives operators an
+    // immediate, actionable error. Runs regardless of whether `defaults`
+    // is present — the previous early-return on `!data.defaults`
+    // bypassed this check for providers that don't pin a default
+    // text-to-speech model.
+    //
+    // Path attribution: `data.models.indexOf(model)` is O(n²) over the
+    // model array, and previously the path was hard-coded to
+    // `defaultVoice` even when the operator only authored an empty
+    // `voicesByLocale: {}`. Use the `forEach` index and point at the
+    // first concretely-missing field so the operator's editor jumps to
+    // the right line.
+    data.models.forEach((model, modelIndex) => {
+      if (!(model.tags as readonly string[]).includes('text-to-speech')) {
+        return;
+      }
+      const hasDefault =
+        typeof model.defaultVoice === 'string' && model.defaultVoice.length > 0;
+      const hasMap =
+        model.voicesByLocale !== undefined &&
+        Object.keys(model.voicesByLocale).length > 0;
+      if (hasDefault || hasMap) return;
+      const offendingField =
+        model.voicesByLocale !== undefined ? 'voicesByLocale' : 'defaultVoice';
+      ctx.addIssue({
+        code: 'custom',
+        message: `model "${model.id}" has the "text-to-speech" tag but no defaultVoice or voicesByLocale entries; resolveTtsModel will fail at synthesis time`,
+        path: ['models', modelIndex, offendingField],
+      });
+    });
   });
 
 export type ProviderJson = z.infer<typeof providerJsonSchema>;

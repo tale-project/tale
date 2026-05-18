@@ -5,6 +5,7 @@ import {
   ImagePlus,
   MessageCircle,
   Pencil,
+  Volume2,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -25,6 +26,10 @@ const TAG_CONFIG: Record<string, { icon: LucideIcon; labelKey: string }> = {
   transcription: {
     icon: AudioLines,
     labelKey: 'modelSelector.tags.transcription',
+  },
+  'text-to-speech': {
+    icon: Volume2,
+    labelKey: 'modelSelector.tags.textToSpeech',
   },
 };
 

@@ -1147,6 +1147,7 @@
       "description": "Description",
       "tagImageEdit": "Image edit",
       "tagImageGeneration": "Image generation",
+      "tagTextToSpeech": "Text-to-speech",
       "tagTranscription": "Transcription"
     },
     "form": {
@@ -2052,9 +2053,38 @@
         "embedding": "Embedding",
         "imageEdit": "Image editing",
         "imageGeneration": "Image generation",
+        "textToSpeech": "Text-to-speech",
         "transcription": "Transcription",
         "vision": "Vision"
       }
+    },
+    "voice": {
+      "voiceOutputSpeaking": "Speaking",
+      "voiceOutputStopped": "Stopped",
+      "voiceOutputPlay": "Play voice output",
+      "voiceOutputStop": "Stop voice output",
+      "voiceOutputLoading": "Preparing voice…",
+      "voiceOutputBlocked": "Voice playback blocked — tap to play",
+      "voiceOutputError": "Voice output failed",
+      "voiceOutputErrorRateLimited": "Voice rate limit hit — retrying",
+      "voiceOutputErrorBudget": "Voice budget reached for this period",
+      "voiceOutputErrorTransient": "Voice service unavailable — retrying",
+      "voiceOutputErrorDecode": "Could not play voice audio — tap to retry",
+      "voiceOutputErrorAuthExpired": "Session expired — sign in again to keep voice playing",
+      "voiceOutputErrorInvalidResponse": "Voice provider returned invalid audio — tap to retry",
+      "voiceOutputErrorMessageCharLimit": "Reply too long for voice — stopping here",
+      "voiceOutputErrorForbidden": "Voice provider blocked by host policy",
+      "voiceOutputErrorChunkLimit": "Voice limit reached for this reply",
+      "voiceOutputErrorQueueOverflow": "Voice is falling behind — pausing further sentences",
+      "voiceOutputErrorNetwork": "Voice request failed — check your connection and retry",
+      "voiceOutputErrorConfig": "Voice provider unavailable — ask an admin to add a text-to-speech model",
+      "voiceOutputErrorOpenSettings": "Open settings",
+      "voiceOutputAnnounceSpeaking": "Voice output speaking",
+      "voiceOutputAnnounceStopped": "Voice output stopped",
+      "voiceOutputAnnounceBlocked": "Voice output blocked — activate the player to listen",
+      "voiceOutputAnnounceError": "Voice output failed",
+      "voiceOutputThreadSwitchLabel": "Voice output for this thread",
+      "voiceOutputThreadSaveFailed": "Couldn't save voice setting for this conversation"
     },
     "searchChat": "Search chat",
     "hideSearch": "Hide search",
@@ -2159,6 +2189,9 @@
       "duration": "Duration",
       "timeToFirstToken": "Time to first token",
       "toolCalls": "Tool calls",
+      "voiceOutput": "Voice output",
+      "voice": "Voice",
+      "voiceCharacters": "Characters",
       "noMetadata": "Token usage and model information are not available for this message.",
       "contextWindow": "Context (est.)",
       "contextWindowDescription": "The full context sent to the AI model",
@@ -3494,6 +3527,13 @@
       "noTeamsFound": "No teams found",
       "selectTeam": "Select team..."
     },
+    "voiceOutput": {
+      "title": "Voice output",
+      "description": "When disabled, no member of this organization can use voice output — neither the user-level default nor any per-conversation override has any effect.",
+      "enabledLabel": "Voice output enabled for this organization",
+      "saved": "Voice-output policy updated",
+      "saveFailed": "Failed to update voice-output policy"
+    },
     "pii": {
       "title": "PII protection",
       "description": "Detect and mask or block personal data before sending to AI models.",
@@ -4532,6 +4572,7 @@
       "directApi": "Direct API",
       "integration": "Integration",
       "transcription": "Transcription",
+      "tts": "Voice output",
       "period": {
         "label": "Period",
         "last7Days": "Last 7 days",
@@ -4576,6 +4617,13 @@
           "tokens": "Tokens",
           "cost": "Cost"
         },
+        "topVoiceModels": {
+          "title": "Top Voice Models",
+          "model": "Model",
+          "requests": "Requests",
+          "characters": "Characters",
+          "cost": "Cost"
+        },
         "users": {
           "title": "Per-User Usage",
           "user": "User",
@@ -4599,6 +4647,10 @@
       "emptyModels": {
         "title": "No model usage yet",
         "description": "No LLM calls have been recorded for the selected period. Integration and transcription usage is shown under Top Assistants."
+      },
+      "emptyVoiceModels": {
+        "title": "No voice usage yet",
+        "description": "No TTS synthesis has been recorded for the selected period."
       }
     },
     "feedback": {
@@ -4772,6 +4824,13 @@
         "save": "Save",
         "counter": "{count} / 4000"
       },
+      "voiceOutput": {
+        "label": "Voice output (default)",
+        "description": "When on, new conversations speak assistant replies aloud in your interface language. Each conversation can still toggle voice on or off in the chat header.",
+        "providerUnavailable": "No text-to-speech provider configured. Voice output is unavailable until an admin adds a TTS model in Settings → AI providers.",
+        "configureProvider": "Configure a provider",
+        "disabledByOrg": "Your organization has disabled voice output for everyone. Ask an admin to re-enable it in Governance → Policies."
+      },
       "memories": {
         "title": "Saved memories",
         "empty": "Memories appear here after the assistant proposes them and you save.",
@@ -4796,7 +4855,8 @@
       "saved": "Saved.",
       "discarded": "Discarded.",
       "deleted": "Deleted.",
-      "preferencesUpdated": "Preferences updated."
+      "preferencesUpdated": "Preferences updated.",
+      "voiceOutputEnabledButProviderMissing": "Voice output is on, but no text-to-speech provider is configured. Ask an admin to add one in Settings → AI providers."
     }
   },
   "dataNotice": {

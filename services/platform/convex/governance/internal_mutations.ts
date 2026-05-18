@@ -1,9 +1,99 @@
 import { v } from 'convex/values';
 
+import { TTS_SLUG } from '../../lib/shared/constants/usage';
+import type { MutationCtx } from '../_generated/server';
 import { internalMutation, internalQuery } from '../_generated/server';
 import { getOrganizationMember } from '../lib/rls';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { buildPeriodKeyFromTimestamp } from './helpers';
+
+/**
+ * Resolve the post-insert duplicate-row race for usage-ledger writers.
+ *
+ * Two mutations that both see `existing === null` and insert will leave
+ * two rows with the same `(organizationId, userId, periodKey, teamId,
+ * agentSlug, model)` key. Without this guard, period aggregates silently
+ * fork — reports double-count, budget gates under-trip — until manual
+ * reconciliation. Call this immediately AFTER an insert; it scans the
+ * upsert-key index, keeps the oldest row, sums every other duplicate's
+ * counters into it, and deletes the rest.
+ *
+ * `extraKeys` enumerates the non-token columns each writer accumulates
+ * (e.g. `characterCount` for TTS, `audioDurationSec` for transcription,
+ * `integrationCallCount` for integrations). The helper iterates them so
+ * each writer doesn't have to hand-roll the same merge logic, and so the
+ * `feedback_minimal_scope` invariant holds — there is one canonical
+ * dedup path, not three near-duplicates.
+ */
+export async function mergeDuplicateLedgerRows(
+  ctx: MutationCtx,
+  key: {
+    organizationId: string;
+    userId: string;
+    periodKey: string;
+    teamId: string | undefined;
+    agentSlug: string | undefined;
+    model: string | undefined;
+  },
+  extraKeys: ReadonlyArray<
+    'characterCount' | 'audioDurationSec' | 'integrationCallCount'
+  > = [],
+): Promise<void> {
+  const dupQuery = ctx.db
+    .query('usageLedger')
+    .withIndex('by_org_user_period_team_agent_model', (q) =>
+      q
+        .eq('organizationId', key.organizationId)
+        .eq('userId', key.userId)
+        .eq('periodKey', key.periodKey)
+        .eq('teamId', key.teamId)
+        .eq('agentSlug', key.agentSlug)
+        .eq('model', key.model),
+    );
+  const allEntries = [];
+  for await (const entry of dupQuery) {
+    allEntries.push(entry);
+  }
+  if (allEntries.length <= 1) return;
+
+  const sorted = allEntries.sort((a, b) => a._creationTime - b._creationTime);
+  const keep = sorted[0];
+  if (!keep) return;
+
+  let sumInput = 0;
+  let sumOutput = 0;
+  let sumTotal = 0;
+  let sumCost = 0;
+  let sumRequests = 0;
+  const extraSums: Record<string, number> = {};
+  for (const k of extraKeys) extraSums[k] = 0;
+  for (const entry of sorted) {
+    sumInput += entry.inputTokens;
+    sumOutput += entry.outputTokens;
+    sumTotal += entry.totalTokens;
+    sumCost += entry.costEstimate;
+    sumRequests += entry.requestCount;
+    for (const k of extraKeys) {
+      extraSums[k] += entry[k] ?? 0;
+    }
+  }
+
+  const patch: Record<string, number> = {
+    inputTokens: sumInput,
+    outputTokens: sumOutput,
+    totalTokens: sumTotal,
+    costEstimate: sumCost,
+    requestCount: sumRequests,
+  };
+  for (const k of extraKeys) patch[k] = extraSums[k];
+  await ctx.db.patch(keep._id, patch);
+
+  for (let i = 1; i < sorted.length; i++) {
+    const dup = sorted[i];
+    if (!dup) continue;
+    await ctx.db.delete(dup._id);
+  }
+}
 
 /**
  * Upsert a single guardrails secret row. Called from `saveModerationSecret`
@@ -194,63 +284,14 @@ export const incrementUsageLedger = internalMutation({
           requestCount: 1,
         });
 
-        // Guard against duplicate-insert race: if two concurrent mutations
-        // both saw existing===null and inserted, merge into the older row.
-        // Filters must match the upsert key exactly (agentSlug + model) so
-        // rows from different agents/models are not incorrectly coalesced.
-        const dupQuery = ctx.db
-          .query('usageLedger')
-          .withIndex('by_org_user_period_team_agent_model', (q) =>
-            q
-              .eq('organizationId', args.organizationId)
-              .eq('userId', args.userId)
-              .eq('periodKey', periodKey)
-              .eq('teamId', args.teamId)
-              .eq('agentSlug', args.agentSlug)
-              .eq('model', args.model),
-          );
-        const allEntries = [];
-        for await (const entry of dupQuery) {
-          allEntries.push(entry);
-        }
-
-        if (allEntries.length > 1) {
-          // Keep the oldest entry, sum all entries, then patch once.
-          // We must NOT read from the local `keep` object after patching
-          // because ctx.db.patch does not update the in-memory reference.
-          const sorted = allEntries.sort(
-            (a, b) => a._creationTime - b._creationTime,
-          );
-          const keep = sorted[0];
-          if (!keep) continue;
-
-          let sumInput = 0;
-          let sumOutput = 0;
-          let sumTotal = 0;
-          let sumCost = 0;
-          let sumRequests = 0;
-          for (const entry of sorted) {
-            sumInput += entry.inputTokens;
-            sumOutput += entry.outputTokens;
-            sumTotal += entry.totalTokens;
-            sumCost += entry.costEstimate;
-            sumRequests += entry.requestCount;
-          }
-
-          await ctx.db.patch(keep._id, {
-            inputTokens: sumInput,
-            outputTokens: sumOutput,
-            totalTokens: sumTotal,
-            costEstimate: sumCost,
-            requestCount: sumRequests,
-          });
-
-          for (let i = 1; i < sorted.length; i++) {
-            const dup = sorted[i];
-            if (!dup) continue;
-            await ctx.db.delete(dup._id);
-          }
-        }
+        await mergeDuplicateLedgerRows(ctx, {
+          organizationId: args.organizationId,
+          userId: args.userId,
+          periodKey,
+          teamId: args.teamId,
+          agentSlug: args.agentSlug,
+          model: args.model,
+        });
       }
     }
 
@@ -396,8 +437,128 @@ export const recordTranscriptionUsage = internalMutation({
           requestCount: 1,
           audioDurationSec: args.audioDurationSec,
         });
+
+        await mergeDuplicateLedgerRows(
+          ctx,
+          {
+            organizationId: args.organizationId,
+            userId: args.userId,
+            periodKey,
+            teamId: args.teamId,
+            agentSlug: args.agentSlug,
+            model: args.model,
+          },
+          ['audioDurationSec'],
+        );
       }
     }
     return null;
   },
 });
+
+export interface RecordTtsUsageArgs {
+  organizationId: string;
+  userId: string;
+  teamId?: string;
+  model: string;
+  provider: string;
+  characterCount: number;
+  costEstimateCents: number;
+  timestamp: number;
+}
+
+/**
+ * Inline TTS-ledger writer. A plain function (not a Convex mutation) so
+ * callers in the same transaction — notably `markChunkReadyAndRecordUsage`
+ * — can fold the ledger write into one atomic step, critical for avoiding
+ * the "audio stored but never billed" window described in the round-2
+ * review. Always buckets under `TTS_SLUG` so the Governance Top Assistants
+ * table surfaces voice cost as its own row rather than folding it into
+ * the calling agent (the chunk row separately retains the calling
+ * `agentSlug` for debugging and future per-agent voice analytics).
+ */
+export async function recordTtsUsageInline(
+  ctx: MutationCtx,
+  args: RecordTtsUsageArgs,
+): Promise<void> {
+  const ALL_PERIODS = ['daily', 'weekly', 'monthly'] as const;
+  for (const period of ALL_PERIODS) {
+    const periodKey = buildPeriodKeyFromTimestamp(period, args.timestamp);
+    // The `by_org_user_period_team_agent_model` index does NOT include
+    // `provider` as a key, so an in-memory filter by provider is the
+    // minimal way to keep TTS rows from being merged into a sibling LLM
+    // row that happens to share `(org, user, period, team, agent,
+    // model)` under a different provider. Without this guard, a TTS
+    // chunk with `provider: 'openai'` could land its character count on
+    // an Anthropic LLM row (same agent slug, same model string), and
+    // analytics would attribute TTS spend to the LLM provider. With
+    // current TTS-only-OpenAI configs this is latent; once a second
+    // TTS provider ships it becomes load-bearing. A proper structural
+    // fix is to extend the index to include `provider` (tracked as a
+    // follow-up).
+    const candidate = await ctx.db
+      .query('usageLedger')
+      .withIndex('by_org_user_period_team_agent_model', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('userId', args.userId)
+          .eq('periodKey', periodKey)
+          .eq('teamId', args.teamId)
+          .eq('agentSlug', TTS_SLUG)
+          .eq('model', args.model),
+      )
+      .first();
+    const match =
+      candidate &&
+      (candidate.provider === undefined || candidate.provider === args.provider)
+        ? candidate
+        : null;
+
+    if (match) {
+      await ctx.db.patch(match._id, {
+        characterCount: (match.characterCount ?? 0) + args.characterCount,
+        costEstimate: match.costEstimate + args.costEstimateCents,
+        requestCount: match.requestCount + 1,
+        // Mid-period provider swap: the aggregate row was written under
+        // the old provider but the new write is from the new provider.
+        // Patch the field only when the row had no provider set yet, so
+        // the Top Models bucket attributes new usage to the actual
+        // provider rather than the historical one. Mirrors the LLM
+        // path's reconcile at line 265-267 above.
+        ...(args.provider !== undefined && match.provider === undefined
+          ? { provider: args.provider }
+          : {}),
+      });
+    } else {
+      await ctx.db.insert('usageLedger', {
+        organizationId: args.organizationId,
+        userId: args.userId,
+        teamId: args.teamId,
+        periodKey,
+        granularity: period,
+        agentSlug: TTS_SLUG,
+        model: args.model,
+        provider: args.provider,
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        costEstimate: args.costEstimateCents,
+        requestCount: 1,
+        characterCount: args.characterCount,
+      });
+
+      await mergeDuplicateLedgerRows(
+        ctx,
+        {
+          organizationId: args.organizationId,
+          userId: args.userId,
+          periodKey,
+          teamId: args.teamId,
+          agentSlug: TTS_SLUG,
+          model: args.model,
+        },
+        ['characterCount'],
+      );
+    }
+  }
+}

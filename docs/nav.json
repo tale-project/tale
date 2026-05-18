@@ -67,7 +67,8 @@
             "platform/chat/basics",
             "platform/chat/attachments",
             "platform/chat/agents-in-chat",
-            "platform/chat/arena-mode"
+            "platform/chat/arena-mode",
+            "platform/chat/voice-output"
           ]
         },
         {

@@ -14,6 +14,7 @@ import {
   isIntegrationSlug,
   isSyntheticAgentSlug,
   isTranscriptionSlug,
+  isTtsSlug,
 } from '@/lib/shared/constants/usage';
 import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
 import { formatCostCents, formatNumber } from '@/lib/utils/format/number';
@@ -66,6 +67,11 @@ export function TopAgentsTable({
       if (isDirectApiSlug(slug)) return t('usage.directApi');
       if (isIntegrationSlug(slug)) return t('usage.integration');
       if (isTranscriptionSlug(slug)) return t('usage.transcription');
+      // Reached when a TTS row has no real assistant slug (thread without
+      // an attached agent) and falls back to the `__tts__` sentinel. With
+      // the real-agent attribution wired in (see tts/mutations.ts), most
+      // TTS rows carry a real slug and resolve through the map below.
+      if (isTtsSlug(slug)) return t('usage.tts');
       return displayNameMap.get(slug) ?? slug;
     },
     [displayNameMap, t],

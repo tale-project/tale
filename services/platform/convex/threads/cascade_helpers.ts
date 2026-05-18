@@ -363,6 +363,42 @@ export async function cascadeDeleteThreadChildren(
     }
   }
 
+  // 7c. ttsAudioChunks — voice-mode output is per-message but indexed
+  // by thread for cascade. Both the `_storage` audio blob and the DB
+  // row need cleanup; without this, voice content (PII verbatim of
+  // assistant replies) survives thread deletion forever and the GDPR
+  // erasure path can't reach the rows either (no per-user index).
+  //
+  // Paged via `by_thread_age`. The whole thread share the same threadId,
+  // so a thread with > PAGE_SIZE chunks comes back through here on the
+  // dispatcher's next sweep.
+  const ttsPage = await ctx.db
+    .query('ttsAudioChunks')
+    .withIndex('by_thread_age', (q) => q.eq('threadId', threadId))
+    .take(PAGE_SIZE);
+  for (const chunk of ttsPage) {
+    // db.delete BEFORE storage.delete — Convex `_storage` writes are
+    // out-of-band and not rolled back on transaction abort, so the
+    // reverse order can leave a row pointing at a dead storageId
+    // (404 on `/api/tts-audio`). Matches the documented contract in
+    // `tts/cascade_helpers.ts:55-62`.
+    const storageId = chunk.storageId;
+    await ctx.db.delete(chunk._id);
+    if (storageId) {
+      try {
+        await ctx.storage.delete(storageId);
+      } catch (error) {
+        console.warn(
+          `[cascadeDeleteThreadChildren] tts storage.delete failed for ${String(storageId)}:`,
+          error,
+        );
+      }
+    }
+  }
+  if (ttsPage.length === PAGE_SIZE) {
+    return { done: false, remaining: 1 };
+  }
+
   // 8. agentWebhookUserThreads
   const webhookPage = await ctx.db
     .query('agentWebhookUserThreads')

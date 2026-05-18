@@ -641,6 +641,22 @@
       "_note": "Hyphenated in DE."
     },
     {
+      "key": "feature_voiceOutput",
+      "category": "feature",
+      "en": "Voice output",
+      "de": "Sprachausgabe",
+      "fr": "Sortie vocale",
+      "_note": "Streaming text-to-speech for assistant replies. Matches the shipped UI label."
+    },
+    {
+      "key": "tech_textToSpeech",
+      "category": "translateBucket",
+      "en": "Text-to-speech",
+      "de": "Text-zu-Sprache",
+      "fr": "Synthèse vocale",
+      "_note": "Bucket 3. Hyphenated in EN/DE; native phrase in FR. Abbreviation `TTS` stays English."
+    },
+    {
       "key": "entity_website",
       "category": "knowledgeEntity",
       "en": "Website",

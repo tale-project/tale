@@ -1147,6 +1147,7 @@
       "description": "Description",
       "tagImageEdit": "Édition d'images",
       "tagImageGeneration": "Génération d'images",
+      "tagTextToSpeech": "Synthèse vocale",
       "tagTranscription": "Transcription"
     },
     "form": {
@@ -2052,9 +2053,38 @@
         "embedding": "Embedding",
         "imageEdit": "Édition d'images",
         "imageGeneration": "Génération d'images",
+        "textToSpeech": "Synthèse vocale",
         "transcription": "Transcription",
         "vision": "Vision"
       }
+    },
+    "voice": {
+      "voiceOutputSpeaking": "Lecture en cours",
+      "voiceOutputStopped": "Arrêté",
+      "voiceOutputPlay": "Lire la sortie vocale",
+      "voiceOutputStop": "Arrêter la sortie vocale",
+      "voiceOutputLoading": "Préparation de la voix…",
+      "voiceOutputBlocked": "Lecture vocale bloquée — clique pour lire",
+      "voiceOutputError": "Échec de la sortie vocale",
+      "voiceOutputErrorRateLimited": "Limite vocale atteinte — nouvelle tentative en cours",
+      "voiceOutputErrorBudget": "Budget vocal épuisé pour cette période",
+      "voiceOutputErrorTransient": "Service vocal indisponible — nouvelle tentative en cours",
+      "voiceOutputErrorDecode": "Lecture audio impossible — clique pour réessayer",
+      "voiceOutputErrorAuthExpired": "Session expirée — reconnecte-toi pour continuer la lecture vocale",
+      "voiceOutputErrorInvalidResponse": "Fournisseur vocal a renvoyé un audio invalide — clique pour réessayer",
+      "voiceOutputErrorMessageCharLimit": "Réponse trop longue pour la voix — arrêt ici",
+      "voiceOutputErrorForbidden": "Fournisseur vocal bloqué par la politique d'hôte",
+      "voiceOutputErrorChunkLimit": "Limite vocale atteinte pour cette réponse",
+      "voiceOutputErrorQueueOverflow": "La synthèse vocale prend du retard — mise en pause des phrases suivantes",
+      "voiceOutputErrorNetwork": "Échec de la requête vocale — vérifie ta connexion et réessaie",
+      "voiceOutputErrorConfig": "Fournisseur vocal indisponible — demande à une personne admin d'ajouter un modèle de synthèse vocale",
+      "voiceOutputErrorOpenSettings": "Ouvrir les paramètres",
+      "voiceOutputAnnounceSpeaking": "Lecture vocale en cours",
+      "voiceOutputAnnounceStopped": "Lecture vocale arrêtée",
+      "voiceOutputAnnounceBlocked": "Lecture vocale bloquée — active la lecture pour écouter",
+      "voiceOutputAnnounceError": "Échec de la sortie vocale",
+      "voiceOutputThreadSwitchLabel": "Sortie vocale pour ce chat",
+      "voiceOutputThreadSaveFailed": "Impossible d'enregistrer le paramètre vocal pour ce chat"
     },
     "searchChat": "Rechercher dans le chat",
     "hideSearch": "Masquer la recherche",
@@ -2159,6 +2189,9 @@
       "duration": "Durée",
       "timeToFirstToken": "Délai avant le premier token",
       "toolCalls": "Appels d'outils",
+      "voiceOutput": "Sortie vocale",
+      "voice": "Voix",
+      "voiceCharacters": "Caractères",
       "noMetadata": "L'utilisation des tokens et les informations sur le modèle ne sont pas disponibles pour ce message.",
       "contextWindow": "Contexte (est.)",
       "contextWindowDescription": "Le contexte complet envoyé au modèle IA",
@@ -2339,7 +2372,7 @@
     "errorHintContentFilter": "Le message a été signalé par le filtre de contenu. Essaie de reformuler ton message.",
     "errorHintContextLength": "La conversation est trop longue pour la fenêtre de contexte du modèle. Essaie de démarrer un nouveau chat.",
     "errorHintCreditExhausted": "Le plafond de crédits du fournisseur d'IA a été dépassé. Contacte ton administrateur pour ajouter des crédits.",
-    "errorHintMissingApiKey": "Aucune clé API n'est encore configurée pour cette organisation. Ouvre Paramètres → Fournisseurs d'IA et ajoute-en une pour commencer à discuter.",
+    "errorHintMissingApiKey": "Aucune clé API n'est encore configurée pour cette organisation. Ouvre Paramètres → Fournisseurs IA et ajoute-en une pour commencer à discuter.",
     "errorHintModelNotFound": "Le modèle sélectionné est introuvable ou indisponible. Contacte ton administrateur.",
     "errorHintProviderError": "Le fournisseur d'IA rencontre temporairement des problèmes. Merci de réessayer dans un instant.",
     "errorHintRateLimited": "Trop de requêtes. Merci de patienter un moment et réessayer.",
@@ -3405,6 +3438,13 @@
       "searchTeams": "Rechercher des équipes...",
       "noTeamsFound": "Aucune équipe trouvée",
       "selectTeam": "Sélectionner une équipe..."
+    },
+    "voiceOutput": {
+      "title": "Sortie vocale",
+      "description": "Lorsqu'elle est désactivée, aucun membre de cette organisation ne peut utiliser la sortie vocale. La préférence personnelle et les remplacements par chat n'ont alors aucun effet.",
+      "enabledLabel": "Sortie vocale activée pour cette organisation",
+      "saved": "Politique de sortie vocale mise à jour",
+      "saveFailed": "Échec de la mise à jour de la politique de sortie vocale"
     },
     "pii": {
       "title": "Protection des DCP",
@@ -4556,6 +4596,7 @@
       "directApi": "Appel API direct",
       "integration": "Intégration",
       "transcription": "Transcription",
+      "tts": "Sortie vocale",
       "period": {
         "label": "Période",
         "last7Days": "7 derniers jours",
@@ -4600,6 +4641,13 @@
           "tokens": "Tokens",
           "cost": "Coût"
         },
+        "topVoiceModels": {
+          "title": "Principaux modèles vocaux",
+          "model": "Modèle",
+          "requests": "Requêtes",
+          "characters": "Caractères",
+          "cost": "Coût"
+        },
         "users": {
           "title": "Utilisation par utilisateur",
           "user": "Utilisateur",
@@ -4623,6 +4671,10 @@
       "emptyModels": {
         "title": "Aucune utilisation de modèle",
         "description": "Aucun appel LLM n'a été enregistré pour la période sélectionnée. L'utilisation des intégrations et des transcriptions est affichée dans Top assistants."
+      },
+      "emptyVoiceModels": {
+        "title": "Aucune utilisation vocale",
+        "description": "Aucune synthèse TTS n'a été enregistrée pour la période sélectionnée."
       }
     },
     "feedback": {
@@ -4772,6 +4824,13 @@
         "save": "Enregistrer",
         "counter": "{count} / 4000"
       },
+      "voiceOutput": {
+        "label": "Sortie vocale (par défaut)",
+        "description": "Quand cette option est activée, les nouvelles conversations te lisent à voix haute les réponses de l'assistant dans la langue de ton interface. Tu peux activer ou désactiver la voix séparément dans chaque conversation depuis son en-tête.",
+        "providerUnavailable": "Aucun fournisseur de synthèse vocale configuré. La sortie vocale ne sera disponible qu'après l'ajout d'un modèle TTS dans Paramètres → Fournisseurs IA par un administrateur.",
+        "configureProvider": "Configurer un fournisseur",
+        "disabledByOrg": "Ton organisation a désactivé la sortie vocale pour tout le monde. Demande à une personne admin de la réactiver dans Gouvernance → Politiques."
+      },
       "memories": {
         "title": "Souvenirs enregistrés",
         "empty": "Les souvenirs apparaissent ici après que l'assistant en propose et que tu les enregistres.",
@@ -4796,7 +4855,8 @@
       "saved": "Enregistré.",
       "discarded": "Ignoré.",
       "deleted": "Supprimé.",
-      "preferencesUpdated": "Préférences mises à jour."
+      "preferencesUpdated": "Préférences mises à jour.",
+      "voiceOutputEnabledButProviderMissing": "La sortie vocale est activée, mais aucun fournisseur de synthèse vocale n'est configuré. Demande à une personne admin d'en ajouter un dans Paramètres → Fournisseurs IA."
     }
   },
   "dataNotice": {

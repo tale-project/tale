@@ -24,10 +24,12 @@ import { useChatLayout } from '@/app/features/chat/context/chat-layout-context';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
+import { useVoiceModeEffective } from '../hooks/use-voice-output';
 import { ChatHistorySidebar } from './chat-history-sidebar';
 import { ChatSearchDialog } from './chat-search-dialog';
 import { ExportChatDialog } from './export-chat-dialog';
 import { ShareChatDialog } from './share-chat-dialog';
+import { useThreadVoiceOutputCheckboxItem } from './thread-voice-output-switch';
 interface ChatHeaderProps {
   organizationId: string;
   threadId?: string;
@@ -43,6 +45,8 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
   const [isMac, setIsMac] = useState(false);
 
   const { t: tChat } = useT('chat');
+
+  const voiceMode = useVoiceModeEffective(threadId);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -108,8 +112,12 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
     return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [isMac, handleToggleSearch, handleNewChat, handleToggleHistory]);
 
-  const headerMenuItems = useMemo<DropdownMenuGroup[]>(
-    () => [
+  const voiceCheckboxItem = useThreadVoiceOutputCheckboxItem(
+    threadId,
+    voiceMode.enabled,
+  );
+  const headerMenuItems = useMemo<DropdownMenuGroup[]>(() => {
+    const groups: DropdownMenuGroup[] = [
       [
         {
           type: 'item' as const,
@@ -118,9 +126,17 @@ export function ChatHeader({ organizationId, threadId }: ChatHeaderProps) {
           onClick: () => setIsExportDialogOpen(true),
         },
       ],
-    ],
-    [tChat],
-  );
+    ];
+    // The per-thread voice toggle is always available so a user can opt a
+    // single conversation in or out regardless of the master switch. Only
+    // an org-level governance veto (`source === 'org_policy'`) hides the
+    // control entirely — in that case no user override can re-enable
+    // voice, so a toggle would be misleading.
+    if (voiceCheckboxItem && voiceMode.source !== 'org_policy') {
+      groups.push([voiceCheckboxItem]);
+    }
+    return groups;
+  }, [tChat, voiceCheckboxItem, voiceMode.source]);
 
   const baseIconClasses = 'size-5 text-muted-foreground p-0.25';
 

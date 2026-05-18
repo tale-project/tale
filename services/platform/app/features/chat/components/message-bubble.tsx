@@ -47,8 +47,13 @@ import {
 } from '../hooks/queries';
 import { useCitations } from '../hooks/use-citations';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
+import {
+  useVoiceModeEffective,
+  useVoiceOutputChunker,
+} from '../hooks/use-voice-output';
 import { injectCitationTags } from '../utils/inject-citation-tags';
 import { sanitizeChatError } from '../utils/sanitize-chat-error';
+import { AssistantMessageContent } from './assistant-message-content';
 import { BlockedNotice } from './blocked-notice';
 import { type CanvasContentType, useCanvas } from './canvas/canvas-context';
 import {
@@ -63,7 +68,7 @@ import type { Message } from './message-bubble/types';
 import { MessageFeedback } from './message-feedback';
 import { MessageInfoDialog } from './message-info-dialog';
 import { SourceCards } from './source-cards';
-import { StructuredMessage } from './structured-message/structured-message';
+import { VoiceOutputIndicator } from './voice-output-indicator';
 
 export { ImagePreviewDialog } from './message-bubble/image-preview-dialog';
 
@@ -80,6 +85,15 @@ interface MessageBubbleProps extends ComponentPropsWithoutRef<'div'> {
   isSavedPrompt?: boolean;
   /** Extra content rendered in the user message toolbar (e.g. BranchNavigator). */
   toolbarExtra?: React.ReactNode;
+  /**
+   * True if this message's id was NOT in the chat-list's first-render
+   * snapshot — i.e. it arrived via subscription during this mount, not
+   * as part of history load. Drives the voice-output chunker's
+   * fire/skip decision identity-based (no wall-clock comparison, no
+   * server/client clock-skew dependency). Default false so consumers
+   * that omit the prop never accidentally fire synthesis on history.
+   */
+  isFreshSinceMount?: boolean;
 }
 
 const ARTIFACT_PILL_ICONS: Record<
@@ -219,6 +233,7 @@ function MessageBubbleComponent({
   onUnsavePrompt,
   isSavedPrompt,
   toolbarExtra,
+  isFreshSinceMount = false,
   ...restProps
 }: MessageBubbleProps) {
   const { t } = useT('common');
@@ -226,6 +241,21 @@ function MessageBubbleComponent({
   const isUser = message.role === 'user';
   const isAssistantStreaming =
     message.role === 'assistant' && message.isStreaming;
+  const voiceMode = useVoiceModeEffective(message.threadId);
+  useVoiceOutputChunker({
+    // Gate on assistant role explicitly. `!isUser` would let system
+    // messages through (chat-messages.tsx coerces every non-user role
+    // to 'assistant' for rendering, but the underlying `message.role`
+    // is preserved here) and the chunker would synthesize system text
+    // intended for the model, not the user.
+    enabled: voiceMode.enabled && message.role === 'assistant',
+    messageId: message.id,
+    threadId: message.threadId,
+    organizationId,
+    text: message.content ?? '',
+    isStreaming: !!isAssistantStreaming,
+    isFreshSinceMount,
+  });
 
   const handleEditClick = useCallback(() => {
     if (onEdit) onEdit(message.id, message.content);
@@ -420,10 +450,40 @@ function MessageBubbleComponent({
                 </p>
               ) : (
                 <CitationsContext.Provider value={citationsContextValue}>
-                  <StructuredMessage
+                  {/*
+                   * Voice-output indicator: lifted to the TOP of the
+                   * assistant bubble (was previously below the message
+                   * text) so the play / "Speaking…" affordance is the
+                   * first thing the eye finds when voice mode is on.
+                   * Left-aligned with the assistant text — putting it
+                   * `justify-end` would float it to the right edge of
+                   * the row where the USER's messages live, breaking
+                   * the implicit "this control belongs to the
+                   * assistant turn" affordance.
+                   *
+                   * Hidden entirely when voice mode is off; the message
+                   * then renders with no extra chrome.
+                   */}
+                  {voiceMode.enabled && message.threadId && (
+                    <div className="mb-2 flex items-center justify-start">
+                      <VoiceOutputIndicator
+                        enabled
+                        messageId={message.id}
+                        threadId={message.threadId}
+                        isStreaming={!!isAssistantStreaming}
+                        organizationId={organizationId}
+                        isFreshSinceMount={isFreshSinceMount}
+                      />
+                    </div>
+                  )}
+                  <AssistantMessageContent
                     text={assistantContent}
                     isStreaming={!!isAssistantStreaming}
                     onSendFollowUp={onSendFollowUp}
+                    messageId={message.id}
+                    threadId={message.threadId}
+                    voiceModeEnabled={voiceMode.enabled}
+                    isFreshSinceMount={isFreshSinceMount}
                   />
                   {organizationId && message.threadId && (
                     <MessageArtifactPills
@@ -697,6 +757,7 @@ function MessageBubbleComponent({
           isOpen={isInfoDialogOpen}
           onOpenChange={setIsInfoDialogOpen}
           messageId={message.id}
+          threadId={message.threadId}
           timestamp={message.timestamp}
           metadata={metadata}
         />
@@ -773,7 +834,8 @@ export const MessageBubble = memo(
       prevProps.onEdit === nextProps.onEdit &&
       prevProps.onFork === nextProps.onFork &&
       prevProps.isSavedPrompt === nextProps.isSavedPrompt &&
-      prevProps.toolbarExtra === nextProps.toolbarExtra
+      prevProps.toolbarExtra === nextProps.toolbarExtra &&
+      prevProps.isFreshSinceMount === nextProps.isFreshSinceMount
     );
   },
 );

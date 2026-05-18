@@ -215,13 +215,27 @@ cp examples/providers/openrouter.json $TALE_CONFIG_DIR/providers/
 
 Récupère une clé sur [openrouter.ai/keys](https://openrouter.ai/keys) et ajoute-la via **Paramètres > Fournisseurs IA > OpenRouter** — l'application écrit le `openrouter.secrets.json` correspondant dans le mode configuré. Les fichiers `examples/providers/*.secrets.json` versionnés sont chiffrés pour le destinataire age du dépôt et ne servent pas comme modèles prêts à l'emploi.
 
-### OpenAI (Whisper pour la transcription)
+### OpenAI
 
 ```bash
 cp examples/providers/openai.json $TALE_CONFIG_DIR/providers/
 ```
 
-Ajoute ta clé OpenAI via **Paramètres > Fournisseurs IA > OpenAI**. L'exemple déclare `whisper-1` et `defaults.transcription`, donc les pièces jointes audio et vidéo passent par là dès qu'une clé est posée. La vue côté utilisateur final vit sur [Pièces jointes de chat](/fr/platform/chat/attachments#audio-and-video-transcription).
+Ajoute ta clé OpenAI une seule fois via **Paramètres > Fournisseurs IA > OpenAI**. Le fichier déclare à la fois `whisper-1` (transcription) et `gpt-4o-mini-tts` (synthèse vocale) ainsi que les `defaults` correspondants, donc les pièces jointes audio et vidéo du chat sont routées ici pour la transcription et le bouton vocal de l'en-tête de chat utilise OpenAI pour la [Sortie vocale](/fr/platform/chat/voice-output). Voir [Pièces jointes du chat](/fr/platform/chat/attachments#transcription-audio-et-video) pour la vue utilisateur. Sans ce fichier, la sortie vocale est indisponible — le bouton de personnalisation est désactivé et affiche un lien pour ajouter un modèle TTS.
+
+Champs spécifiques à la TTS dans une entrée modèle :
+
+| Champ                            | Rôle                                                                                                                                                                                           |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tags`                           | Doit inclure `"text-to-speech"`. La plateforme vérifie qu'un modèle portant ce tag déclare aussi une voix via `defaultVoice` ou `voicesByLocale`.                                              |
+| `defaultVoice`                   | Voix de repli quand aucune correspondance de locale n'est trouvée.                                                                                                                             |
+| `voicesByLocale`                 | Locale BCP-47 → id de voix. Le résolveur essaie la locale complète, puis la langue de base (`de-CH` → `de`), puis `defaultVoice`.                                                              |
+| `audioFormat`                    | Parmi `mp3` (défaut), `opus`, `aac`, `flac`, `wav`, `pcm`. `mp3` pour la compatibilité navigateur la plus large ; `pcm` pour la latence de décodage la plus basse.                             |
+| `defaultInstructions`            | Prompt de pilotage optionnel envoyé à chaque synthèse (≤ 2000 caractères). Utile pour ajuster le ton, le rythme ou l'accentuation. Écris le prompt dans la langue cible.                       |
+| `instructionsByLocale`           | Mapping optionnel locale BCP-47 → instructions. La résolution suit `voicesByLocale` : locale complète → langue de base → `defaultInstructions`. Chaque valeur est plafonnée à 2000 caractères. |
+| `cost.centsPerMillionCharacters` | Par 1 000 000 caractères en entrée (par ex. `1500` = $15/M caractères). gpt-4o-mini-tts est facturé au token ; pour ce modèle, fournis une approximation char estimée par l'opérateur.         |
+
+L'action applique des limites de débit par utilisateur (`tts:synthesize:user`, 40/min) et par org (`tts:synthesize:org`, 200/min), un plafond dur de 200 chunks par message et une vérification du budget organisation avant chaque synthèse. L'audio synthétisé est gardé en cache dans le stockage Convex pendant environ 7 jours et nettoyé par un balayage org horaire programmé, complété par un nettoyage opportuniste par conversation déclenché depuis le chemin d'écriture.
 
 ## Backends d'inférence auto-hébergés
 
@@ -304,4 +318,4 @@ Les entrées simples (sans deux-points) se résolvent sur le premier fournisseur
 
 Les fichiers de fournisseur décrits ici sont la forme sur disque de la même configuration que l'interface écrit quand un Admin enregistre depuis **Paramètres > Fournisseurs IA**. Choisis la surface qui colle à ta posture de gestion des changements : l'interface pour les retouches du jour, les fichiers quand la configuration appartient à git aux côtés du reste de l'infrastructure. Quoi qu'il en soit, cette page est la référence canonique de ce que chaque champ veut dire.
 
-[Fournisseurs IA](/fr/platform/admin/providers) est la contrepartie UI pour les Admins. [Pièces jointes de chat](/fr/platform/chat/attachments#audio-and-video-transcription) montre comment les modèles tagués transcription atteignent les utilisateurs finaux. [Référence d'environnement](/fr/self-hosted/configuration/environment-reference) couvre `TALE_CONFIG_DIR` et les autres variables que cette page suppose.
+[Fournisseurs IA](/fr/platform/admin/providers) est la contrepartie UI pour les Admins. [Pièces jointes du chat](/fr/platform/chat/attachments#transcription-audio-et-video) montre comment les modèles tagués transcription atteignent les utilisateurs finaux. [Référence d'environnement](/fr/self-hosted/configuration/environment-reference) couvre `TALE_CONFIG_DIR` et les autres variables que cette page suppose.

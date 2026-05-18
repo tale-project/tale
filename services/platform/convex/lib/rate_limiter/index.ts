@@ -181,6 +181,24 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 100,
     period: MINUTE,
   },
+  // Per-IP throttle on the TTS audio-serve HTTP route. Mirrors the
+  // `security:storage-access` shape since the cost shape is identical: an
+  // authenticated user could hammer `/api/tts-audio?chunkId=…` to force
+  // unbounded Convex storage reads on rows they're already entitled to
+  // see. Cost-only (no data leak — the route already gates on org
+  // membership) so the limit is set marginally higher than storage.
+  //
+  // Token-bucket (not fixed window) so a long auto-played message with
+  // many chunks doesn't slam into a minute-boundary 429 cliff mid-
+  // playback on a NAT/office IP. Capacity = 2× rate gives one bursty
+  // ~200-chunk replay headroom without inviting steady-state abuse —
+  // sustained traffic still settles at 120/min.
+  'security:tts-audio-fetch': {
+    kind: 'token bucket',
+    rate: 120,
+    period: MINUTE,
+    capacity: 240,
+  },
   'security:image-proxy': {
     kind: 'fixed window',
     rate: 200,
@@ -267,6 +285,22 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 1,
     period: HOUR,
   },
+  // Per-thread lazy cleanup of TTS audio chunks. Gates opportunistic GC
+  // scheduled from `markChunkReadyAndRecordUsage` (the write path) on the
+  // first chunk of each message so a busy thread schedules at most one
+  // sweep per hour. Cross-thread orphans are reaped by the daily
+  // `gcOrgTtsChunks` cron — see `crons.ts`.
+  //
+  // Token-bucket (not fixed-window): under fixed-window, a sweep at
+  // 14:59:59 and another at 15:00:00 both pass the gate. Token-bucket
+  // with rate=1/hour and capacity=1 means a fresh token only arrives an
+  // hour after the previous one is consumed.
+  'cleanup:tts': {
+    kind: 'token bucket',
+    rate: 1,
+    period: HOUR,
+    capacity: 1,
+  },
 
   // ============================================
   // TIER 7: Governance (Fixed Window)
@@ -282,6 +316,49 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     kind: 'fixed window',
     rate: 5,
     period: DAY,
+  },
+
+  // ============================================
+  // TIER 8: TTS (Token Bucket)
+  // Voice-output synthesis bills per character to upstream provider;
+  // keep abuse bounded even for authenticated users.
+  // ============================================
+  // Per-user bucket: realistic streaming generates ~5-15 chunks per minute;
+  // 60 capacity covers a multi-message session burst, refills at 40/min.
+  // Shards aligned with the rest of the platform (≤4): the OCC contention
+  // that previously motivated 16 is handled differently now — the action
+  // catches `OptimisticConcurrencyControlFailure` and surfaces `CONTENTION`
+  // (a distinct error code from `RATE_LIMITED`), and the client backs off
+  // with the short OCC-jitter delay instead of the quota-recovery delay.
+  // See `synthesize.ts::errorCodeFromCaught` for the mapping.
+  'tts:synthesize:user': {
+    kind: 'token bucket',
+    rate: 40,
+    period: MINUTE,
+    capacity: 60,
+    shards: 4,
+  },
+  // Per-org bucket: cushions cross-tenant abuse where one user can't be
+  // pinned. Higher rate than per-user since multiple legitimate members
+  // share it.
+  'tts:synthesize:org': {
+    kind: 'token bucket',
+    rate: 200,
+    period: MINUTE,
+    capacity: 400,
+    shards: 4,
+  },
+  // Per-user gate on `getCapability` action. The personalization page
+  // calls it on mount; a malicious script could probe arbitrary
+  // organizationIds and fill the *target* org's audit log via
+  // `logCapabilityProbeDenied`. Cap at 12/min/user (legitimate UI usage
+  // is 1-2 calls/hour); 20 capacity absorbs a tab-multi-mount burst.
+  'tts:capability-probe:user': {
+    kind: 'token bucket',
+    rate: 12,
+    period: MINUTE,
+    capacity: 20,
+    shards: 4,
   },
 });
 

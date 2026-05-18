@@ -19,6 +19,11 @@ export const POLICY_TYPES = [
   'chat_filter',
   'moderation_provider',
   'personalization',
+  // Org-level default for the voice-output (TTS) feature. Mirrors the
+  // personalization tier: missing row → effective default ON; row with
+  // `config.enabled === false` is the org-wide kill switch admins use to
+  // block voice for the whole tenant (e.g., during a billing freeze).
+  'voice_output',
   // Phase 12 — admin-customizable confidentiality notice.
   'data_classification_notice',
   // GDPR DSAR governance — cooling-off window, dual approval, and
@@ -33,6 +38,16 @@ export type PolicyType = (typeof POLICY_TYPES)[number];
 // override this default; absent user preference falls back to this value.
 // Missing row entirely → effective default is OFF.
 export const personalizationConfigSchema = z.object({
+  enabled: z.boolean(),
+});
+
+// Org-level default for the voice-output (TTS) feature. Missing row →
+// effective default ON (so existing deployments don't silently lose voice
+// when this policy type lands). Setting `enabled: false` is the org-wide
+// kill switch — overrides every user's `userPreferences.voiceOutput` and
+// every thread's `voiceOutputOverride`. Per-user opt-in still requires a
+// configured TTS provider regardless of this row.
+export const voiceOutputConfigSchema = z.object({
   enabled: z.boolean(),
 });
 

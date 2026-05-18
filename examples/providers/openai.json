@@ -1,8 +1,11 @@
 {
   "displayName": "OpenAI",
-  "description": "OpenAI API (Whisper for speech-to-text; add chat/vision models here if you want to call them directly rather than via OpenRouter).",
+  "description": "OpenAI API. Whisper for speech-to-text and gpt-4o-mini-tts for voice-mode playback. Add chat/vision models here if you want to call them directly rather than via OpenRouter.",
   "baseUrl": "https://api.openai.com/v1",
-  "defaults": { "transcription": "whisper-1" },
+  "defaults": {
+    "transcription": "whisper-1",
+    "text-to-speech": "gpt-4o-mini-tts"
+  },
   "models": [
     {
       "id": "whisper-1",
@@ -10,22 +13,52 @@
       "description": "Speech-to-text transcription. Billed per minute of audio; 25 MB file ceiling.",
       "tags": ["transcription"],
       "cost": { "centsPerAudioMinute": 0.6 }
+    },
+    {
+      "id": "gpt-4o-mini-tts",
+      "displayName": "GPT-4o mini TTS",
+      "description": "Low-cost speech synthesis. Six built-in voices, locale-mapped. NOTE: OpenAI bills gpt-4o-mini-tts per token (text in + audio out), NOT per character — the cost field below is a deliberate operator-supplied char-approximation used only by Tale's budget/ledger machinery. The default value matches OpenAI tts-1's published $15/M-char list rate and works as a conservative ceiling, but operators should recalibrate against their own usage mix (CJK and other high-audio-token-per-character scripts under-estimate the most). The full two-component pricing model is tracked as a follow-up.",
+      "tags": ["text-to-speech"],
+      "audioFormat": "mp3",
+      "defaultVoice": "alloy",
+      "voicesByLocale": {
+        "en": "alloy",
+        "de": "nova",
+        "de-CH": "nova",
+        "fr": "shimmer"
+      },
+      "defaultInstructions": "Speak in a warm, natural conversational tone with smooth, even pacing. Sound like a friendly person talking, not a news anchor.",
+      "instructionsByLocale": {
+        "en": "Speak in a warm, natural conversational tone with smooth, even pacing. Sound like a friendly person talking, not a news anchor.",
+        "de": "Sprich in einem warmen, natürlichen Gesprächston mit ruhigem, gleichmäßigem Tempo. Klinge wie eine freundliche Person, nicht wie ein Nachrichtensprecher.",
+        "de-CH": "Sprich in einem warmen, natürlichen Gesprächston mit ruhigem, gleichmäßigem Tempo. Klinge wie eine freundliche Person, nicht wie ein Nachrichtensprecher.",
+        "fr": "Parle d'une voix chaleureuse et naturelle, avec un rythme régulier et posé. Sois comme une personne amicale qui parle, pas comme un présentateur de journal télévisé."
+      },
+      "cost": {
+        "centsPerMillionCharacters": 1500
+      }
     }
   ],
   "i18n": {
     "de": {
-      "description": "OpenAI-API (Whisper für Speech-to-Text; füge hier Chat-/Vision-Modelle hinzu, wenn du sie direkt statt über OpenRouter aufrufen willst).",
+      "description": "OpenAI-API. Whisper für Speech-to-Text und gpt-4o-mini-tts für die Sprachausgabe. Füge hier Chat-/Vision-Modelle hinzu, wenn du sie direkt statt über OpenRouter aufrufen willst.",
       "models": {
         "whisper-1": {
           "description": "Speech-to-Text-Transkription. Abrechnung pro Audiominute; 25 MB Datei-Obergrenze."
+        },
+        "gpt-4o-mini-tts": {
+          "description": "Günstige Sprachsynthese. Sechs eingebaute Stimmen, locale-zugeordnet. HINWEIS: OpenAI rechnet gpt-4o-mini-tts pro Token ab (Text-Eingabe + Audio-Ausgabe), NICHT pro Zeichen — das unten konfigurierte cost-Feld ist eine vom Betreiber gepflegte Zeichen-Näherung, die nur von Tales Budget- und Ledger-Logik genutzt wird. Operatoren sollten den Wert gegen ihren realen Nutzungs-Mix kalibrieren (CJK und andere Skripte mit hoher Audio-Token-pro-Zeichen-Rate werden am stärksten unterschätzt)."
         }
       }
     },
     "fr": {
-      "description": "API OpenAI (Whisper pour la reconnaissance vocale ; ajoute ici les modèles chat/vision si tu souhaites les appeler directement plutôt que via OpenRouter).",
+      "description": "API OpenAI. Whisper pour la reconnaissance vocale et gpt-4o-mini-tts pour la sortie vocale. Ajoute ici les modèles chat/vision si tu souhaites les appeler directement plutôt que via OpenRouter.",
       "models": {
         "whisper-1": {
           "description": "Transcription audio en texte. Facturation à la minute d'audio ; limite de 25 Mo par fichier."
+        },
+        "gpt-4o-mini-tts": {
+          "description": "Synthèse vocale économique. Six voix intégrées, mappées par locale. NOTE : OpenAI facture gpt-4o-mini-tts au token (texte en entrée + audio en sortie), PAS au caractère — le champ cost ci-dessous est une approximation char fournie par l'opérateur, utilisée uniquement par la logique budget/ledger de Tale. Les opérateurs devraient recalibrer la valeur en fonction de leur usage réel (les scripts CJK et autres à fort ratio audio-token-par-caractère sont les plus sous-estimés)."
         }
       }
     }

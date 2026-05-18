@@ -20,6 +20,7 @@ import { useT } from '@/lib/i18n/client';
 import { useBranchContext } from '../context/branch-context';
 import type { ChatItem } from '../hooks/use-merged-chat-items';
 import { usePersonalizationActiveForThread } from '../hooks/use-personalization-active';
+import { VoiceOutputProvider } from '../hooks/voice-output-context';
 import { ApprovalCardRenderer } from './approval-card-renderer';
 import { BranchNavigator } from './branch-navigator';
 import { CollapsibleSystemMessage } from './collapsible-system-message';
@@ -27,6 +28,7 @@ import { InlineEditInput } from './inline-edit-input';
 import { InlineMemoryProposals } from './inline-memory-proposals';
 import { MessageBubble } from './message-bubble';
 import { ThinkingAnimation } from './thinking-animation';
+import { VoiceOutputAnnouncer } from './voice-output-announcer';
 
 /**
  * Compute the response area min-height so that scrolling to bottom
@@ -313,6 +315,47 @@ export function ChatMessages({
     };
   }, [containerRef, lastUserMessageRef]);
 
+  // Identity-based freshness snapshot: capture the set of message IDs
+  // present on this list's first non-empty render. Anything that appears
+  // in `items` after that snapshot is "fresh since mount" — i.e. it
+  // arrived via subscription during this user-observation session, not
+  // as part of the initial thread-history load. The voice-output chunker
+  // uses this to decide whether to fire `synthesizeChunk` (fresh) or
+  // skip (history). Identity-based (not wall-clock-based) so it's immune
+  // to server/client clock skew, multi-tab inconsistency, and the
+  // `_creationTime` vs `Date.now()` direction mismatch that broke the
+  // prior `mountTimeRef` approach.
+  //
+  // Per-thread reset: when `threadId` changes, the prior snapshot is no
+  // longer meaningful — every message in the new thread is "history" from
+  // this mount's perspective. Reset the snapshot ref so the next non-empty
+  // `items` tick re-captures.
+  const initialMessageIdsRef = useRef<Set<string> | null>(null);
+  const snapshotThreadIdRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (snapshotThreadIdRef.current !== threadId) {
+      initialMessageIdsRef.current = null;
+      snapshotThreadIdRef.current = threadId;
+    }
+    if (initialMessageIdsRef.current === null && items.length > 0) {
+      const ids = new Set<string>();
+      for (const item of items) {
+        if (item.type === 'message') ids.add(item.data.id);
+      }
+      initialMessageIdsRef.current = ids;
+    }
+  }, [items, threadId]);
+
+  const isFreshSinceMount = (messageId: string): boolean => {
+    const snapshot = initialMessageIdsRef.current;
+    // Before the snapshot is captured (very first render with empty
+    // items), treat nothing as fresh so we don't fire synthesis for
+    // bubbles that may turn out to be history once the subscription
+    // settles. The snapshot effect runs on the next tick.
+    if (snapshot === null) return false;
+    return !snapshot.has(messageId);
+  };
+
   // Build a set of forkOrder values where branch navigators should appear.
   // Two cases:
   // 1. Current thread has child branches → show navigator at child's forkOrder
@@ -438,6 +481,7 @@ export function ChatMessages({
                 threadId: threadId,
               }}
               organizationId={organizationId}
+              isFreshSinceMount={isFreshSinceMount(message.id)}
               hideFeedback={hideFeedback}
               onSendFollowUp={onSendFollowUp}
               onRetry={
@@ -550,72 +594,78 @@ export function ChatMessages({
   const afterItems = lastUserIdx >= 0 ? items.slice(lastUserIdx + 1) : [];
 
   return (
-    <div
-      className="mx-auto flex w-full max-w-(--chat-max-width) flex-col"
-      role="log"
-      aria-live="polite"
-      aria-labelledby={messageHistoryLabelId}
-    >
-      <h2 id={messageHistoryLabelId} className="sr-only">
-        {t('aria.messageHistory')}
-      </h2>
-      <div className="flex flex-col gap-3 pt-6">
-        {(canLoadMore || isLoadingMore) && (
-          <div className="flex justify-center py-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => loadMore(50)}
-              disabled={isLoadingMore}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              {isLoadingMore ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {t('history.loading')}
-                </>
-              ) : (
-                t('loadOlderMessages')
-              )}
-            </Button>
+    <VoiceOutputProvider threadId={threadId}>
+      {/* Sibling of the chat log so voice-mode state transitions are
+          announced exactly once, not amplified by the parent log's
+          aria-live region. */}
+      <VoiceOutputAnnouncer />
+      <div
+        className="mx-auto flex w-full max-w-(--chat-max-width) flex-col"
+        role="log"
+        aria-live="polite"
+        aria-labelledby={messageHistoryLabelId}
+      >
+        <h2 id={messageHistoryLabelId} className="sr-only">
+          {t('aria.messageHistory')}
+        </h2>
+        <div className="flex flex-col gap-3 pt-6">
+          {(canLoadMore || isLoadingMore) && (
+            <div className="flex justify-center py-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => loadMore(50)}
+                disabled={isLoadingMore}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                {isLoadingMore ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {t('history.loading')}
+                  </>
+                ) : (
+                  t('loadOlderMessages')
+                )}
+              </Button>
+            </div>
+          )}
+
+          {/* Messages before the last user message */}
+          <div className="flex flex-col gap-3">
+            {beforeItems.map((item, i) => renderItemWithDivider(item, i))}
           </div>
-        )}
 
-        {/* Messages before the last user message */}
-        <div className="flex flex-col gap-3">
-          {beforeItems.map((item, i) => renderItemWithDivider(item, i))}
-        </div>
+          {/* Last user message */}
+          {lastUserItem && renderItemWithDivider(lastUserItem, lastUserIdx)}
 
-        {/* Last user message */}
-        {lastUserItem && renderItemWithDivider(lastUserItem, lastUserIdx)}
-
-        {/* Response area: min-height fills viewport so scroll-to-bottom
+          {/* Response area: min-height fills viewport so scroll-to-bottom
             positions the user message at the top. When AI response exceeds
             viewport height, min-height becomes irrelevant. */}
-        <div
-          ref={responseAreaRef}
-          className="flex shrink-0 flex-col gap-3 [overflow-anchor:none]"
-        >
-          {afterItems.map((item, i) =>
-            renderItemWithDivider(item, lastUserIdx + 1 + i),
-          )}
+          <div
+            ref={responseAreaRef}
+            className="flex shrink-0 flex-col gap-3 [overflow-anchor:none]"
+          >
+            {afterItems.map((item, i) =>
+              renderItemWithDivider(item, lastUserIdx + 1 + i),
+            )}
 
-          <div>
-            {isLoading && (
-              <ThinkingAnimation streamingMessage={activeMessage} />
+            <div>
+              {isLoading && (
+                <ThinkingAnimation streamingMessage={activeMessage} />
+              )}
+            </div>
+
+            {activeApproval && (
+              <ApprovalCardRenderer
+                item={activeApproval}
+                organizationId={organizationId}
+                onHumanInputResponseSubmitted={onHumanInputResponseSubmitted}
+                onSendMessage={onSendMessage}
+              />
             )}
           </div>
-
-          {activeApproval && (
-            <ApprovalCardRenderer
-              item={activeApproval}
-              organizationId={organizationId}
-              onHumanInputResponseSubmitted={onHumanInputResponseSubmitted}
-              onSendMessage={onSendMessage}
-            />
-          )}
         </div>
       </div>
-    </div>
+    </VoiceOutputProvider>
   );
 }

@@ -40,6 +40,7 @@ import {
   hasSopsKey,
   invalidateSecretsCache,
 } from '../lib/sops';
+import { sanitizeError } from '../lib/utils/sanitize_secrets';
 import { requireDeveloperSettingsAccess, requireOrgMembership } from './auth';
 import { NoProviderAvailableError } from './errors';
 import type { ProviderJson, ProviderReadResult } from './file_utils';
@@ -336,7 +337,7 @@ export const readProvider = action({
     } catch (err) {
       console.warn(
         `Provider "${args.providerName}": failed to read model key overrides`,
-        err instanceof Error ? err.message : String(err),
+        sanitizeError(err),
       );
     }
 
@@ -381,7 +382,7 @@ export const listProviders = action({
           } catch (err) {
             console.warn(
               `Provider "${name}": failed to read model key overrides`,
-              err instanceof Error ? err.message : String(err),
+              sanitizeError(err),
             );
           }
 
@@ -538,7 +539,7 @@ export const deleteProvider = action({
     } catch (err) {
       console.warn(
         `[deleteProvider] failed to write audit log for ${args.providerName}`,
-        err instanceof Error ? err.message : String(err),
+        sanitizeError(err),
       );
     }
     return null;
@@ -575,6 +576,21 @@ export const resolveModelData = internalAction({
     outputCentsPerMillion: v.optional(v.number()),
     imageCentsPerImage: v.optional(v.number()),
     centsPerAudioMinute: v.optional(v.number()),
+    centsPerMillionCharacters: v.optional(v.number()),
+    defaultVoice: v.optional(v.string()),
+    voicesByLocale: v.optional(v.record(v.string(), v.string())),
+    defaultInstructions: v.optional(v.string()),
+    instructionsByLocale: v.optional(v.record(v.string(), v.string())),
+    audioFormat: v.optional(
+      v.union(
+        v.literal('mp3'),
+        v.literal('opus'),
+        v.literal('aac'),
+        v.literal('flac'),
+        v.literal('wav'),
+        v.literal('pcm'),
+      ),
+    ),
     providerOptions: v.optional(v.record(v.string(), v.any())),
   }),
   handler: async (_ctx, args) => {
@@ -676,6 +692,12 @@ export const resolveModelData = internalAction({
         outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
         imageCentsPerImage: definition.cost?.imageCentsPerImage,
         centsPerAudioMinute: definition.cost?.centsPerAudioMinute,
+        centsPerMillionCharacters: definition.cost?.centsPerMillionCharacters,
+        defaultVoice: definition.defaultVoice,
+        voicesByLocale: definition.voicesByLocale,
+        defaultInstructions: definition.defaultInstructions,
+        instructionsByLocale: definition.instructionsByLocale,
+        audioFormat: definition.audioFormat,
         providerOptions,
       };
     }
@@ -715,6 +737,21 @@ export const resolveModelByTag = internalAction({
     outputCentsPerMillion: v.optional(v.number()),
     imageCentsPerImage: v.optional(v.number()),
     centsPerAudioMinute: v.optional(v.number()),
+    centsPerMillionCharacters: v.optional(v.number()),
+    defaultVoice: v.optional(v.string()),
+    voicesByLocale: v.optional(v.record(v.string(), v.string())),
+    defaultInstructions: v.optional(v.string()),
+    instructionsByLocale: v.optional(v.record(v.string(), v.string())),
+    audioFormat: v.optional(
+      v.union(
+        v.literal('mp3'),
+        v.literal('opus'),
+        v.literal('aac'),
+        v.literal('flac'),
+        v.literal('wav'),
+        v.literal('pcm'),
+      ),
+    ),
     providerOptions: v.optional(v.record(v.string(), v.any())),
   }),
   handler: async (_ctx, args) => {
@@ -763,6 +800,13 @@ export const resolveModelByTag = internalAction({
             outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
             imageCentsPerImage: definition.cost?.imageCentsPerImage,
             centsPerAudioMinute: definition.cost?.centsPerAudioMinute,
+            centsPerMillionCharacters:
+              definition.cost?.centsPerMillionCharacters,
+            defaultVoice: definition.defaultVoice,
+            voicesByLocale: definition.voicesByLocale,
+            defaultInstructions: definition.defaultInstructions,
+            instructionsByLocale: definition.instructionsByLocale,
+            audioFormat: definition.audioFormat,
             providerOptions: mergeModelLevel(
               provider.config.providerOptions,
               definition.providerOptions,
@@ -797,6 +841,12 @@ export const resolveModelByTag = internalAction({
           outputCentsPerMillion: definition.cost?.outputCentsPerMillion,
           imageCentsPerImage: definition.cost?.imageCentsPerImage,
           centsPerAudioMinute: definition.cost?.centsPerAudioMinute,
+          centsPerMillionCharacters: definition.cost?.centsPerMillionCharacters,
+          defaultVoice: definition.defaultVoice,
+          voicesByLocale: definition.voicesByLocale,
+          defaultInstructions: definition.defaultInstructions,
+          instructionsByLocale: definition.instructionsByLocale,
+          audioFormat: definition.audioFormat,
           providerOptions: mergeModelLevel(
             provider.config.providerOptions,
             definition.providerOptions,
@@ -1030,9 +1080,11 @@ export const fetchProviderModels = action({
       // Don't echo the upstream body to the caller — that would let an
       // attacker who somehow got past the policy gate use this as a partial
       // read primitive against an unresponsive-to-Authorization endpoint.
-      // Log the body server-side for ops visibility.
+      // Log the body server-side for ops visibility, sanitised so a
+      // 4xx response containing the very API key we sent doesn't leak it
+      // into ops logs.
       console.warn(
-        `[fetchProviderModels] non-2xx ${response.status} from ${url}: ${response.body.slice(0, 500)}`,
+        `[fetchProviderModels] non-2xx ${response.status} from ${url}: ${sanitizeError(response.body, 500)}`,
       );
       throw new ConvexError({
         code: 'PROVIDER_FETCH_FAILED',
@@ -1083,7 +1135,12 @@ export const fetchProviderModels = action({
 // Connection test
 // ---------------------------------------------------------------------------
 
-type ProbeTag = 'chat' | 'embedding' | 'transcription' | 'image-generation';
+type ProbeTag =
+  | 'chat'
+  | 'embedding'
+  | 'transcription'
+  | 'image-generation'
+  | 'text-to-speech';
 
 interface ProbeResult {
   modelId: string;
@@ -1180,6 +1237,78 @@ async function runTranscriptionProbe(
     return {
       modelId,
       tag: 'transcription',
+      ok: false,
+      latencyMs,
+      error: message,
+    };
+  }
+}
+
+/**
+ * TTS probe: POST a 4-character input to `/v1/audio/speech` and verify the
+ * response is binary audio (any `audio/*` content type). Cost is well under
+ * a tenth of a cent on OpenAI's gpt-4o-mini-tts. The voice defaults to the
+ * provider's `defaultVoice`; if neither default nor any locale entry is set,
+ * we report a probe failure rather than guess a vendor-specific voice id.
+ */
+async function runTtsProbe(
+  baseUrl: string,
+  apiKey: string,
+  modelId: string,
+  voice: string,
+  audioFormat: string,
+): Promise<ProbeResult> {
+  const url = buildProbeUrl(baseUrl, 'audio/speech');
+  const start = Date.now();
+  try {
+    const response = await safeFetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: modelId,
+        input: 'test',
+        voice,
+        response_format: audioFormat,
+      }),
+      timeoutMs: 15_000,
+    });
+    const latencyMs = Date.now() - start;
+    if (response.status >= 200 && response.status < 300) {
+      // Defence against a gateway that fronts the TTS endpoint with a 200
+      // JSON envelope ("ok": true, no audio) — without the content-type
+      // check the probe falsely greens. The audio/* family covers every
+      // configurable response_format (mp3, opus, aac, flac, wav, pcm).
+      const contentType =
+        response.headers.get('content-type')?.toLowerCase() ?? '';
+      if (!contentType.startsWith('audio/')) {
+        return {
+          modelId,
+          tag: 'text-to-speech',
+          ok: false,
+          latencyMs,
+          status: response.status,
+          error: `expected audio/* response, got ${contentType || 'unknown'}`,
+        };
+      }
+      return { modelId, tag: 'text-to-speech', ok: true, latencyMs };
+    }
+    return {
+      modelId,
+      tag: 'text-to-speech',
+      ok: false,
+      latencyMs,
+      status: response.status,
+      error: extractErrorMessage(response.body) || response.statusText,
+    };
+  } catch (err) {
+    const latencyMs = Date.now() - start;
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      modelId,
+      tag: 'text-to-speech',
       ok: false,
       latencyMs,
       error: message,
@@ -1467,6 +1596,7 @@ export const testProviderConnection = action({
       const isEmbedding = model.tags.includes('embedding');
       const isTranscription = model.tags.includes('transcription');
       const isImageGeneration = model.tags.includes('image-generation');
+      const isTextToSpeech = model.tags.includes('text-to-speech');
 
       // Merge provider+model providerOptions into the probe body so a typo
       // in the editor (e.g. `provider.quanitzations`) surfaces as the same
@@ -1504,6 +1634,40 @@ export const testProviderConnection = action({
         );
       } else if (isTranscription) {
         probes.push(runTranscriptionProbe(config.baseUrl, apiKey, model.id));
+      } else if (isTextToSpeech) {
+        // Schema's `superRefine` (lib/shared/schemas/providers.ts) rejects
+        // TTS models that have neither `defaultVoice` nor a non-empty
+        // `voicesByLocale`, so the resolution below always finds a voice.
+        // The previous `?? 'alloy'` fallback was OpenAI-specific dead code
+        // that would have shipped a wrong voice id to non-OpenAI providers.
+        const probeVoice =
+          model.defaultVoice ??
+          (model.voicesByLocale
+            ? Object.values(model.voicesByLocale)[0]
+            : undefined);
+        if (!probeVoice) {
+          // Defence in depth — should be unreachable per the schema
+          // guarantee above; surface loudly rather than guessing.
+          probes.push(
+            Promise.resolve({
+              modelId: model.id,
+              tag: 'text-to-speech' as const,
+              ok: false,
+              latencyMs: 0,
+              error: 'TTS model has no defaultVoice or voicesByLocale entries',
+            }),
+          );
+        } else {
+          probes.push(
+            runTtsProbe(
+              config.baseUrl,
+              apiKey,
+              model.id,
+              probeVoice,
+              model.audioFormat ?? 'mp3',
+            ),
+          );
+        }
       } else if (isImageGeneration) {
         // All image-generation modes use a /v1/models membership check.
         // Direct invocation isn't safe to probe: `images-api` bills per image
@@ -1794,7 +1958,7 @@ async function maybeAuditForceOverwrite(
   } catch (err) {
     console.warn(
       `[saveProviderSecret] failed to write force-overwrite audit log for ${args.providerName}`,
-      err instanceof Error ? err.message : String(err),
+      sanitizeError(err),
     );
   }
 }
@@ -1852,9 +2016,11 @@ export const hasProviderSecret = action({
       // Other failures (zod-shape, decrypt-with-wrong-key): file exists but
       // unusable. Still mask as configured to avoid losing the "click Save"
       // affordance — the actual save will surface a clearer error.
+      // Sanitise the err message because a SOPS / decrypt-failure error
+      // can include partial cleartext.
       console.warn(
         `Provider "${args.providerName}": secrets file unreadable`,
-        err instanceof Error ? err.message : String(err),
+        sanitizeError(err),
       );
       return '••••••••••';
     }

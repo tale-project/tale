@@ -65,6 +65,217 @@ describe('providerJsonSchema', () => {
     });
   });
 
+  describe('text-to-speech tag', () => {
+    it('accepts a TTS model with voicesByLocale and defaults', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        defaults: { 'text-to-speech': 'tts/v1' },
+        models: [
+          {
+            id: 'tts/v1',
+            displayName: 'TTS v1',
+            tags: ['text-to-speech'],
+            audioFormat: 'mp3',
+            defaultVoice: 'alloy',
+            voicesByLocale: { en: 'alloy', de: 'nova', 'de-CH': 'nova' },
+            cost: { centsPerMillionCharacters: 1500 },
+          },
+        ],
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        const model = result.data.models[0];
+        expect(model.tags).toContain('text-to-speech');
+        expect(model.voicesByLocale?.de).toBe('nova');
+        expect(model.audioFormat).toBe('mp3');
+        expect(result.data.defaults?.['text-to-speech']).toBe('tts/v1');
+      }
+    });
+
+    it('rejects defaults.text-to-speech referencing a non-TTS model', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        defaults: { 'text-to-speech': 'test/model-1' },
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects voicesByLocale with an invalid locale key', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        models: [
+          {
+            id: 'tts/v1',
+            displayName: 'TTS v1',
+            tags: ['text-to-speech'],
+            voicesByLocale: { english: 'alloy' },
+          },
+        ],
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects a TTS model with neither defaultVoice nor voicesByLocale', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        models: [
+          {
+            id: 'tts/v1',
+            displayName: 'TTS v1',
+            tags: ['text-to-speech'],
+          },
+        ],
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(
+          result.error.issues.some((i) => i.message.includes('defaultVoice')),
+        ).toBe(true);
+      }
+    });
+
+    it('rejects a TTS model with empty voicesByLocale and no defaultVoice', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        models: [
+          {
+            id: 'tts/v1',
+            displayName: 'TTS v1',
+            tags: ['text-to-speech'],
+            voicesByLocale: {},
+          },
+        ],
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('accepts a TTS model with only defaultVoice set', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        models: [
+          {
+            id: 'tts/v1',
+            displayName: 'TTS v1',
+            tags: ['text-to-speech'],
+            defaultVoice: 'alloy',
+          },
+        ],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts a TTS model with defaultInstructions and instructionsByLocale', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        models: [
+          {
+            id: 'tts/v1',
+            displayName: 'TTS v1',
+            tags: ['text-to-speech'],
+            defaultVoice: 'alloy',
+            defaultInstructions: 'Speak warmly.',
+            instructionsByLocale: {
+              en: 'Speak warmly in English.',
+              de: 'Sprich freundlich.',
+            },
+          },
+        ],
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        const model = result.data.models[0];
+        expect(model.defaultInstructions).toBe('Speak warmly.');
+        expect(model.instructionsByLocale?.de).toBe('Sprich freundlich.');
+      }
+    });
+
+    it('accepts a TTS model with neither instructions field (instructions are optional)', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        models: [
+          {
+            id: 'tts/v1',
+            displayName: 'TTS v1',
+            tags: ['text-to-speech'],
+            defaultVoice: 'alloy',
+          },
+        ],
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.models[0].defaultInstructions).toBeUndefined();
+        expect(result.data.models[0].instructionsByLocale).toBeUndefined();
+      }
+    });
+
+    it('rejects instructionsByLocale with an invalid locale key', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        models: [
+          {
+            id: 'tts/v1',
+            displayName: 'TTS v1',
+            tags: ['text-to-speech'],
+            defaultVoice: 'alloy',
+            instructionsByLocale: { english: 'Speak warmly.' },
+          },
+        ],
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('rejects defaultInstructions longer than 2000 characters', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        models: [
+          {
+            id: 'tts/v1',
+            displayName: 'TTS v1',
+            tags: ['text-to-speech'],
+            defaultVoice: 'alloy',
+            defaultInstructions: 'x'.repeat(2001),
+          },
+        ],
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('back-compat (no .strict on model/cost)', () => {
+    it('accepts an unknown __comment field on a model entry', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        models: [
+          {
+            id: 'test/model-1',
+            displayName: 'Test Model 1',
+            tags: ['chat'],
+            __comment: 'operator note retained for the next config rev',
+          },
+        ],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts an unknown field on a cost block', () => {
+      const result = providerJsonSchema.safeParse({
+        ...baseProvider,
+        models: [
+          {
+            id: 'test/model-1',
+            displayName: 'Test Model 1',
+            tags: ['chat'],
+            cost: {
+              centsPerMillionInputTokens: 100,
+              __note: 'reviewed 2026-04 — confirm at next renewal',
+            },
+          },
+        ],
+      });
+      expect(result.success).toBe(true);
+    });
+  });
+
   describe('defaults validation', () => {
     it('rejects defaults referencing unknown model IDs', () => {
       const result = providerJsonSchema.safeParse({

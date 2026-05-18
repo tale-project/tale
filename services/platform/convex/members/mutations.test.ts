@@ -60,11 +60,19 @@ function createMockCtx() {
     runQuery: vi.fn(),
     runMutation: vi.fn(),
     // Stub the minimum surface the personalization cascade hook touches
-    // when a member is removed (collect rows by index, then delete each).
+    // when a member is removed: legacy paths use `.collect()`; the new
+    // GDPR Art 17 TTS sweep uses `.take(PAGE_SIZE)` per page until the
+    // returned slice is shorter than the page size (signals end-of-pages).
     db: {
       query: vi.fn().mockReturnValue({
-        withIndex: vi.fn().mockReturnValue({ collect: async () => [] }),
+        withIndex: vi.fn().mockReturnValue({
+          collect: async () => [],
+          take: async () => [],
+        }),
       }),
+      delete: vi.fn(),
+    },
+    storage: {
       delete: vi.fn(),
     },
     auth: {},

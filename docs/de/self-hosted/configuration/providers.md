@@ -215,13 +215,27 @@ cp examples/providers/openrouter.json $TALE_CONFIG_DIR/providers/
 
 Hol einen Schlüssel auf [openrouter.ai/keys](https://openrouter.ai/keys) und füge ihn über **Einstellungen > Anbieter > OpenRouter** hinzu — die App schreibt die passende `openrouter.secrets.json` im jeweils konfigurierten Modus. Die committeten `examples/providers/*.secrets.json`-Dateien sind an den age-Empfänger des Repositories verschlüsselt und nicht als Drop-in-Templates nutzbar.
 
-### OpenAI (Whisper für Transkription)
+### OpenAI
 
 ```bash
 cp examples/providers/openai.json $TALE_CONFIG_DIR/providers/
 ```
 
-Füge deinen OpenAI-Schlüssel über **Einstellungen > Anbieter > OpenAI** hinzu. Das Beispiel deklariert `whisper-1` und `defaults.transcription`, also routen Audio- und Video-Chat-Anhänge hier durch, sobald ein Schlüssel gesetzt ist. Die Endnutzer-Sicht steht unter [Chat-Anhänge](/de/platform/chat/attachments#audio-and-video-transcription).
+Trage deinen OpenAI-Schlüssel einmal über **Einstellungen > KI-Anbieter > OpenAI** ein. Die Datei deklariert sowohl `whisper-1` (Transkription) als auch `gpt-4o-mini-tts` (Text-zu-Sprache) samt der passenden `defaults`-Einträge, sodass Audio- und Video-Anhänge im Chat hierhin geroutet werden und der Sprach-Schalter in der Chat-Kopfzeile für die [Sprachausgabe](/de/platform/chat/voice-output) OpenAI nutzt. Den Endbenutzer-Blick findest du unter [Chat-Anhänge](/de/platform/chat/attachments#audio-und-video-transkription). Ohne diese Datei ist die Sprachausgabe nicht verfügbar — der Personalisierungs-Schalter ist deaktiviert und zeigt einen Link zum Hinzufügen eines TTS-Modells an.
+
+TTS-spezifische Felder eines Modell-Eintrags:
+
+| Feld                             | Zweck                                                                                                                                                                       |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tags`                           | Muss `"text-to-speech"` enthalten. Die Plattform prüft, dass jedes Modell mit diesem Tag auch eine Stimme über `defaultVoice` oder `voicesByLocale` deklariert.             |
+| `defaultVoice`                   | Fallback-Stimme, wenn keine Locale-Übereinstimmung gefunden wird.                                                                                                           |
+| `voicesByLocale`                 | BCP-47-Locale → Voice-ID. Der Resolver probiert die vollständige Locale, dann die Basis-Sprache (`de-CH` → `de`), dann `defaultVoice`.                                      |
+| `audioFormat`                    | Eines von `mp3` (Standard), `opus`, `aac`, `flac`, `wav`, `pcm`. `mp3` für breite Browser-Unterstützung; `pcm` für niedrigste Dekodier-Latenz.                              |
+| `defaultInstructions`            | Optionaler Steuerungs-Prompt, der bei jeder Synthese mitgesendet wird (≤ 2000 Zeichen). Nützlich für Ton, Tempo oder Betonung. Schreibe den Prompt in der Zielsprache.      |
+| `instructionsByLocale`           | Optionale BCP-47-Locale → Instructions-Zuordnung. Auflösung wie bei `voicesByLocale`: volle Locale → Basis-Sprache → `defaultInstructions`. Jeder Wert ≤ 2000 Zeichen.      |
+| `cost.centsPerMillionCharacters` | Pro 1 000 000 Eingabezeichen (z. B. `1500` = $15/M Zeichen). gpt-4o-mini-tts rechnet pro Token ab; gib für dieses Modell eine vom Betreiber geschätzte Zeichen-Näherung an. |
+
+Die Action setzt Pro-Benutzer- (`tts:synthesize:user`, 40/min) und Pro-Org-Rate-Limits (`tts:synthesize:org`, 200/min) durch, eine harte Obergrenze von 200 Chunks pro Nachricht sowie eine Organisations-Budget-Prüfung vor jeder Synthese. Synthetisiertes Audio bleibt rund 7 Tage im Convex-Storage und wird durch einen stündlichen Org-Sweep-Cron bereinigt, ergänzt durch eine opportunistische Pro-Thread-Bereinigung aus dem Write-Pfad.
 
 ## Selbst gehostete Inferenz-Backends
 
@@ -304,4 +318,4 @@ Einfache Einträge (ohne Doppelpunkt) lösen sich zum ersten Anbieter auf, der d
 
 Die hier beschriebenen Anbieter-Dateien sind die On-Disk-Form derselben Konfiguration, die die UI schreibt, wenn ein Admin aus **Einstellungen > Anbieter** speichert. Wähle, was zur Change-Management-Haltung passt: die UI für tägliche Anpassungen, die Dateien, wenn die Konfiguration in git neben dem Rest der Infrastruktur leben soll. So oder so ist diese Seite die kanonische Referenz dafür, was jedes Feld bedeutet.
 
-[KI-Anbieter](/de/platform/admin/providers) ist das UI-Gegenstück für Admins. [Chat-Anhänge](/de/platform/chat/attachments#audio-and-video-transcription) zeigt, wie hier konfigurierte Transkriptions-Modelle Endnutzer erreichen. [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference) deckt `TALE_CONFIG_DIR` und die anderen Variablen ab, die diese Seite annimmt.
+[KI-Anbieter](/de/platform/admin/providers) ist das UI-Gegenstück für Admins. [Chat-Anhänge](/de/platform/chat/attachments#audio-und-video-transkription) zeigt, wie hier konfigurierte Transkriptions-Modelle Endnutzer erreichen. [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference) deckt `TALE_CONFIG_DIR` und die anderen Variablen ab, die diese Seite annimmt.

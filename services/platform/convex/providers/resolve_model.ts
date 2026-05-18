@@ -35,6 +35,23 @@ export interface ResolvedModelData {
   imageCentsPerImage?: number;
   /** For per-minute pricing (transcription models, e.g. OpenAI whisper-1). */
   centsPerAudioMinute?: number;
+  /** For per-character pricing (TTS models, e.g. OpenAI gpt-4o-mini-tts). */
+  centsPerMillionCharacters?: number;
+  /** TTS-only: default voice when no locale entry matches. */
+  defaultVoice?: string;
+  /** TTS-only: locale → voice mapping. */
+  voicesByLocale?: Record<string, string>;
+  /** TTS-only: default natural-language tone/style prompt when no locale
+   * entry matches. Steers warmth, pacing, and language consistency for
+   * provider models that accept an `instructions` field (e.g. OpenAI
+   * `gpt-4o-mini-tts`). Undefined when not configured. */
+  defaultInstructions?: string;
+  /** TTS-only: locale → instructions mapping. Same lookup pattern as
+   * `voicesByLocale`. Each entry should be written in the language it
+   * steers. */
+  instructionsByLocale?: Record<string, string>;
+  /** TTS-only: response audio format the provider should return. */
+  audioFormat?: 'mp3' | 'opus' | 'aac' | 'flac' | 'wav' | 'pcm';
   /**
    * Resolver-merged passthrough (provider-level + model-level, depth-2 merged
    * with model-level winning). Authored as the inner body shape (e.g.
@@ -318,6 +335,69 @@ export async function resolveTranscriptionModel(
     },
   )) as ResolvedModelData;
   return modelData;
+}
+
+export interface ResolvedTtsModel extends ResolvedModelData {
+  voice: string;
+  audioFormat: 'mp3' | 'opus' | 'aac' | 'flac' | 'wav' | 'pcm';
+  /** Resolved per-locale tone/style prompt. Undefined when the provider
+   * config sets neither `instructionsByLocale[locale]` nor
+   * `defaultInstructions`; callers must conditionally include this in the
+   * upstream request body so non-supporting models never see the field. */
+  instructions?: string;
+}
+
+/**
+ * Resolve the org's text-to-speech model (e.g. OpenAI gpt-4o-mini-tts).
+ * Picks a voice by locale: `voicesByLocale[locale]` → base language (e.g.
+ * `'de'` from `'de-CH'`) → `defaultVoice`. Throws `UNKNOWN_VOICE` if none
+ * of those produce a value.
+ *
+ * `instructions` follows the same lookup pattern but is purely optional —
+ * unset returns `undefined` rather than throwing, so providers that don't
+ * configure tone steering keep behaving exactly as before.
+ *
+ * Returns extended `ResolvedTtsModel` with `voice` and `audioFormat` filled
+ * in. Caller posts directly to `{baseUrl}/audio/speech` because the AI SDK
+ * has no TTS primitive (same pattern as transcription).
+ */
+export async function resolveTtsModel(
+  ctx: ActionCtx,
+  opts: { orgSlug: string; locale: string; providerName?: string },
+): Promise<ResolvedTtsModel> {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- resolveModelByTag returns v.any() but shape is guaranteed by file_actions contract
+  const modelData = (await ctx.runAction(
+    internal.providers.file_actions.resolveModelByTag,
+    {
+      tag: 'text-to-speech',
+      providerName: opts.providerName,
+      orgSlug: opts.orgSlug,
+    },
+  )) as ResolvedModelData;
+
+  const baseLocale = opts.locale.split('-')[0];
+
+  const voiceMap = modelData.voicesByLocale ?? {};
+  const voice =
+    voiceMap[opts.locale] ?? voiceMap[baseLocale] ?? modelData.defaultVoice;
+  if (!voice) {
+    throw new Error(
+      `UNKNOWN_VOICE: model "${modelData.modelId}" has no voice for locale "${opts.locale}" and no defaultVoice configured.`,
+    );
+  }
+
+  const instructionsMap = modelData.instructionsByLocale ?? {};
+  const instructions =
+    instructionsMap[opts.locale] ??
+    instructionsMap[baseLocale] ??
+    modelData.defaultInstructions;
+
+  return {
+    ...modelData,
+    voice,
+    audioFormat: modelData.audioFormat ?? 'mp3',
+    instructions,
+  };
 }
 
 /**

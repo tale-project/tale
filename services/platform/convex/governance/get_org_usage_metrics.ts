@@ -51,6 +51,14 @@ export interface UsageTopModel {
   costCents: number;
 }
 
+export interface UsageTopVoiceModel {
+  provider: string;
+  model: string;
+  requests: number;
+  characters: number;
+  costCents: number;
+}
+
 export interface UsageUserRow {
   userId: string;
   displayName: string;
@@ -77,6 +85,7 @@ export interface OrgUsageMetrics {
   series: UsageSeriesPoint[];
   topAgents: UsageTopAgent[];
   topModels: UsageTopModel[];
+  topVoiceModels: UsageTopVoiceModel[];
   users: UsageUserRow[];
 }
 
@@ -123,6 +132,7 @@ export async function getOrgUsageMetrics(
 
   const agentBuckets = new Map<string, UsageTopAgent>();
   const modelBuckets = new Map<string, UsageTopModel>();
+  const voiceModelBuckets = new Map<string, UsageTopVoiceModel>();
   const userBuckets = new Map<
     string,
     {
@@ -206,9 +216,10 @@ export async function getOrgUsageMetrics(
     agentBucket.tokens += row.totalTokens;
     agentBucket.costCents += row.costEstimate;
 
-    // Top Models is LLM-only — integration rows lack a model and transcription
-    // rows have model+provider but tokens=0 (billed per audio minute), so
-    // including them would render misleading "0 tokens" entries.
+    // Top Models is LLM-only — transcription rows remain excluded because
+    // their per-minute billing has no first-class section yet. TTS rows
+    // get their own `topVoiceModels` bucket below (character-billed), so
+    // voice activity is no longer silently dropped from the usage UI.
     if (
       kind === 'llm' &&
       row.model !== undefined &&
@@ -229,6 +240,31 @@ export async function getOrgUsageMetrics(
       modelBucket.requests += row.requestCount;
       modelBucket.tokens += row.totalTokens;
       modelBucket.costCents += row.costEstimate;
+    }
+
+    // TTS rows: bucket separately by (provider, model) and aggregate the
+    // character count + cost. Parallel to the LLM Top Models block above
+    // but unit is characters, not tokens.
+    if (
+      kind === 'tts' &&
+      row.model !== undefined &&
+      row.provider !== undefined
+    ) {
+      const voiceKey = `${row.provider}::${row.model}`;
+      let voiceBucket = voiceModelBuckets.get(voiceKey);
+      if (!voiceBucket) {
+        voiceBucket = {
+          provider: row.provider,
+          model: row.model,
+          requests: 0,
+          characters: 0,
+          costCents: 0,
+        };
+        voiceModelBuckets.set(voiceKey, voiceBucket);
+      }
+      voiceBucket.requests += row.requestCount;
+      voiceBucket.characters += row.characterCount ?? 0;
+      voiceBucket.costCents += row.costEstimate;
     }
 
     const userKey = `${row.userId}::${row.teamId ?? ''}`;
@@ -276,6 +312,15 @@ export async function getOrgUsageMetrics(
     )
     .slice(0, TOP_N);
 
+  const topVoiceModels: UsageTopVoiceModel[] = [...voiceModelBuckets.values()]
+    .sort(
+      (a, b) =>
+        b.costCents - a.costCents ||
+        b.characters - a.characters ||
+        `${a.provider}::${a.model}`.localeCompare(`${b.provider}::${b.model}`),
+    )
+    .slice(0, TOP_N);
+
   // Full user list (no Top-N cap) — admins need to see every user's usage
   // for team/budget drill-down, matching the pre-analytics UsageDashboard.
   const sortedUsers = [...userBuckets.values()].sort(
@@ -312,6 +357,7 @@ export async function getOrgUsageMetrics(
     series: [...seriesMap.values()],
     topAgents,
     topModels,
+    topVoiceModels,
     users,
   };
 }

@@ -1,4 +1,5 @@
 import type { MutationCtx } from '../../_generated/server';
+import { cascadeOnTtsForMemberRemoved } from '../../tts/cascade_helpers';
 
 /**
  * Active erasure cascades for the personalization tables. These run on
@@ -41,7 +42,13 @@ async function deleteAllForUserOrg(
 
 /**
  * Member removed from an org: hard-delete that user's prefs + memories
- * scoped to the org. The user keeps their data in any other org they're in.
+ * scoped to the org, plus every TTS chunk they ever synthesized in this
+ * org. The user keeps their data in any other org they're in.
+ *
+ * TTS chunks are PII (verbatim renderings of assistant replies the member
+ * heard) so the per-user sweep is required for GDPR Art 17 compliance.
+ * Pages via the `by_user_org` index introduced alongside this hook; legacy
+ * rows lacking `userId` are reaped by the daily `gcOrgTtsChunks` cron.
  */
 export async function cascadeOnMemberRemoved(
   ctx: MutationCtx,
@@ -49,6 +56,7 @@ export async function cascadeOnMemberRemoved(
   organizationId: string,
 ): Promise<void> {
   await deleteAllForUserOrg(ctx, userId, organizationId);
+  await cascadeOnTtsForMemberRemoved(ctx, userId, organizationId);
 }
 
 /**
@@ -76,4 +84,47 @@ export async function cascadeOnOrgDeleted(
     )
     .collect();
   await Promise.all(prefs.map((p) => ctx.db.delete(p._id)));
+
+  // TTS audio chunks (rows + `_storage` blobs) are org-scoped: a deleted org
+  // must not leave verbatim assistant-voice renderings behind. Thread-cascade
+  // catches chunks attached to live threads; this sweep covers orphaned
+  // chunk rows (rare, from past partial failures).
+  //
+  // Paged via `.take(PAGE_SIZE)` instead of `.collect()`: the prior code
+  // would silently truncate at Convex's 16K read limit, leaving a busy org
+  // half-erased. The page-then-loop shape stays inside one mutation
+  // transaction but bounds work per pass.
+  const PAGE_SIZE = 200;
+  // Cap at 30 pages (~6k rows) per cascade invocation to stay under
+  // Convex's ~8K per-mutation write budget; whatever exceeds that gets
+  // reaped by the hourly org-sweep cron within 7 days.
+  for (let i = 0; i < 30; i++) {
+    const page = await ctx.db
+      .query('ttsAudioChunks')
+      .withIndex('by_org_createdAt', (q) =>
+        q.eq('organizationId', organizationId),
+      )
+      .take(PAGE_SIZE);
+    if (page.length === 0) break;
+    for (const chunk of page) {
+      // db.delete BEFORE storage.delete — Convex `_storage` writes are
+      // out-of-band and not rolled back on transaction abort. With the
+      // previous order, a `db.delete` failure mid-iteration left the
+      // row pointing at a deleted blob (404 on `/api/tts-audio`).
+      // Matches the documented contract in `tts/cascade_helpers.ts:55-62`.
+      const storageId = chunk.storageId;
+      await ctx.db.delete(chunk._id);
+      if (storageId) {
+        try {
+          await ctx.storage.delete(storageId);
+        } catch (error) {
+          console.warn(
+            `[cascadeOnOrgDeleted] tts storage.delete failed for ${String(storageId)}:`,
+            error,
+          );
+        }
+      }
+    }
+    if (page.length < PAGE_SIZE) break;
+  }
 }
