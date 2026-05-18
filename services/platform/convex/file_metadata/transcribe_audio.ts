@@ -19,6 +19,11 @@ import {
   type AudioChunk,
   type CompressedAudio,
 } from './audio_preprocess';
+import {
+  joinSegmentsWithParagraphs,
+  WHISPER_PROFILE,
+  type ParagraphSegment,
+} from './paragraphize';
 
 /** Matches EXTRACT_METADATA_RETRY_DELAYS in internal_actions.ts — consistent
  * backoff pattern across the scheduled-action family. */
@@ -42,51 +47,23 @@ interface TranscriptionResponse {
   segments?: TranscriptionSegment[];
 }
 
-/** Break paragraphs at pauses ≥ this many seconds between segments. */
-const PARAGRAPH_PAUSE_SEC = 1.5;
-
-/** Force a paragraph break after this many seconds of continuous speech,
- * even without a natural pause — avoids walls of text for monologue audio. */
-const PARAGRAPH_MAX_DURATION_SEC = 45;
-
 /**
- * Join whisper `verbose_json` segments into paragraphs. Inserts `\n\n` between
- * segments where either (a) the pause between them is ≥ PARAGRAPH_PAUSE_SEC,
- * or (b) the accumulated paragraph exceeds PARAGRAPH_MAX_DURATION_SEC.
- *
- * Falls back to the raw `text` field when segments are missing.
+ * Adapter: Whisper `verbose_json` segments → shared `ParagraphSegment` shape.
+ * Optionally offsets timestamps by `chunkStartSec` so the absolute position
+ * in the original audio is preserved across chunks (each chunk's Whisper
+ * response uses chunk-local 0:00 timestamps because we splice with
+ * `-reset_timestamps 1`).
  */
-function joinSegmentsWithParagraphs(
+function whisperSegmentsToParagraphSegments(
   segments: TranscriptionSegment[] | undefined,
-  fallbackText: string,
-): string {
-  if (!segments || segments.length === 0) return fallbackText.trim();
-
-  const paragraphs: string[] = [];
-  let current: string[] = [];
-  let paragraphStart = segments[0].start;
-
-  for (let i = 0; i < segments.length; i++) {
-    const seg = segments[i];
-    const prev = i > 0 ? segments[i - 1] : null;
-    const gap = prev ? seg.start - prev.end : 0;
-    const paragraphDuration = seg.end - paragraphStart;
-
-    if (
-      current.length > 0 &&
-      (gap >= PARAGRAPH_PAUSE_SEC ||
-        paragraphDuration >= PARAGRAPH_MAX_DURATION_SEC)
-    ) {
-      paragraphs.push(current.join('').trim());
-      current = [];
-      paragraphStart = seg.start;
-    }
-    current.push(seg.text);
-  }
-  if (current.length > 0) {
-    paragraphs.push(current.join('').trim());
-  }
-  return paragraphs.filter((p) => p.length > 0).join('\n\n');
+  chunkStartSec: number,
+): ParagraphSegment[] {
+  if (!segments) return [];
+  return segments.map((s) => ({
+    startSec: s.start + chunkStartSec,
+    endSec: s.end + chunkStartSec,
+    text: s.text,
+  }));
 }
 
 /**
@@ -442,8 +419,15 @@ export const transcribeAudio = internalAction({
       // Phase 3 — transcribe each chunk sequentially. Each chunk's segments
       // get joined into paragraphs (pause-based breaks); chunks then join
       // into the final transcript with blank-line separators.
+      //
+      // Whisper returns chunk-local timestamps (we splice with
+      // `-reset_timestamps 1`), so we offset by the running `chunkStartSec`
+      // to produce absolute [HH:MM:SS] prefixes that point at positions in
+      // the original audio — agents can cite them and downstream UI can
+      // build deep-link players (`?t=754`).
       const chunkParagraphs: string[] = [];
       let totalDurationSec = 0;
+      let chunkStartSec = 0;
       for (const chunk of chunks) {
         const progressLabel =
           chunks.length === 1
@@ -457,13 +441,28 @@ export const transcribeAudio = internalAction({
           args.fileName,
         );
         const paragraphs = joinSegmentsWithParagraphs(
-          result.segments,
+          whisperSegmentsToParagraphSegments(result.segments, chunkStartSec),
           result.text ?? '',
+          { profile: WHISPER_PROFILE, addTimestamps: true },
         );
         if (paragraphs.length > 0) {
           chunkParagraphs.push(paragraphs);
         }
-        totalDurationSec += result.duration ?? chunk.durationSec;
+        const chunkDuration = result.duration ?? chunk.durationSec;
+        totalDurationSec += chunkDuration;
+        chunkStartSec += chunkDuration;
+
+        // Heartbeat any video-link job that's tracking this storageId so its
+        // statusChangedAt advances past the watchdog window. Generic
+        // by-storageId lookup keeps transcribe_audio decoupled from
+        // video_links-specific shape — see the R12 reactive-join review.
+        await ctx.runMutation(
+          internal.video_links.internal_mutations.heartbeatJobByStorageId,
+          {
+            storageId: args.storageId,
+            progress: progressLabel,
+          },
+        );
       }
 
       const fullTranscript = chunkParagraphs.join('\n\n');

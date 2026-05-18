@@ -572,13 +572,43 @@ async function buildMessageWithAttachments(
     // RAG where the agent can retrieve it via document_retrieve(fileId).
     const audioMarkdown: string[] = [];
     for (const { attachment, meta } of audioMetadata) {
-      const icon = attachment.fileType.startsWith('video/') ? '🎥' : '🎙️';
+      const icon = attachment.fileType.startsWith('video/') ? '🎬' : '🎙️';
       if (meta?.transcriptionStatus === 'completed' && meta.transcript) {
         const durationNote = meta.transcriptionDurationSec
           ? `, ${Math.round(meta.transcriptionDurationSec)}s transcribed`
           : '';
+        // Video-link provenance enrichment: when this attachment came
+        // through the yt-dlp pipeline, the fileMetadata row carries
+        // sourceUrl + videoTitle + videoUploader + videoDurationSec.
+        // Emit a richer hint that tells the agent (a) it's a video,
+        // (b) where it came from, (c) timestamps are preserved as
+        // [HH:MM:SS] paragraph prefixes, (d) to prefer rag_search on
+        // long videos.
+        if (meta.sourceUrl) {
+          const platformNote = meta.sourcePlatform
+            ? ` from ${meta.sourcePlatform}`
+            : '';
+          const uploaderNote = meta.videoUploader
+            ? `, uploader: ${meta.videoUploader}`
+            : '';
+          const durSec =
+            meta.videoDurationSec ?? meta.transcriptionDurationSec ?? 0;
+          const durText =
+            durSec >= 3600
+              ? `${Math.floor(durSec / 3600)}h ${Math.floor((durSec % 3600) / 60)}m`
+              : `${Math.round(durSec / 60)}m`;
+          const retrievalHint =
+            durSec > 3600
+              ? `For this long video prefer rag_search; for full text call document_retrieve(fileId=${attachment.fileId}, chunkRange).`
+              : `Call document_retrieve with fileId=${attachment.fileId} to read the full transcript.`;
+          const title = meta.videoTitle ?? attachment.fileName;
+          audioMarkdown.push(
+            `${icon} [${title}] (video${platformNote}, ${durText}${uploaderNote}) — transcript stored as a document; paragraphs prefixed [HH:MM:SS] timestamps — cite them when summarizing. ${retrievalHint} Source: ${meta.sourceUrl}\n*(fileId: ${attachment.fileId} | fileName: ${attachment.fileName} | fileType: ${attachment.fileType} | fileSize: ${attachment.fileSize})*`,
+          );
+          continue;
+        }
         audioMarkdown.push(
-          `${icon} [${attachment.fileName}] (${attachment.fileType}${durationNote}) — transcript is stored as a document; call document_retrieve with fileId=${attachment.fileId} to read the full text\n*(fileId: ${attachment.fileId} | fileName: ${attachment.fileName} | fileType: ${attachment.fileType} | fileSize: ${attachment.fileSize})*`,
+          `${icon} [${attachment.fileName}] (${attachment.fileType}${durationNote}) — transcript is stored as a document; paragraphs prefixed [HH:MM:SS] timestamps — cite them when summarizing. Call document_retrieve with fileId=${attachment.fileId} to read the full text\n*(fileId: ${attachment.fileId} | fileName: ${attachment.fileName} | fileType: ${attachment.fileType} | fileSize: ${attachment.fileSize})*`,
         );
       } else {
         const reason =

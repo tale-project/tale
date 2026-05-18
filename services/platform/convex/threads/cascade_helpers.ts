@@ -361,6 +361,45 @@ export async function cascadeDeleteThreadChildren(
     if (filesPage.length === PAGE_SIZE) {
       return { done: false, remaining: 1 };
     }
+
+    // 7.6 video-link jobs bound to this thread. videoLinkJobs is a
+    // sidecar to fileMetadata — the orchestrator action stores the
+    // transcript on fileMetadata (deleted in 7.5 above) and stores the
+    // job's pipeline state here. After 7.5, these rows are pure
+    // dangling provenance metadata; delete them to keep the table
+    // clean across thread soft-deletes.
+    const videoLinksPage = await ctx.db
+      .query('videoLinkJobs')
+      .withIndex('by_organizationId_and_threadId', (q) =>
+        q.eq('organizationId', organizationId).eq('threadId', threadId),
+      )
+      .take(PAGE_SIZE);
+    for (const job of videoLinksPage) {
+      // Any leftover _storage blob (intermediate audio from a failed
+      // Whisper run, or a transcript that didn't make it into a
+      // fileMetadata row) gets dropped here as well.
+      if (
+        job.storageId &&
+        // skip if the blob was attached to a fileMetadata row we just
+        // deleted in 7.5 — Convex `_storage` is reference-counted and
+        // double-delete is a no-op, but logging the skip keeps the
+        // diagnostic trail clean.
+        !filesPage.some((f) => String(f.storageId) === String(job.storageId))
+      ) {
+        try {
+          await ctx.storage.delete(job.storageId);
+        } catch (error) {
+          console.warn(
+            `[cascadeDeleteThreadChildren] storage.delete failed for video-link ${String(job.storageId)}:`,
+            error,
+          );
+        }
+      }
+      await ctx.db.delete(job._id);
+    }
+    if (videoLinksPage.length === PAGE_SIZE) {
+      return { done: false, remaining: 1 };
+    }
   }
 
   // 7c. ttsAudioChunks — voice-mode output is per-message but indexed
