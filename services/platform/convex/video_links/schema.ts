@@ -82,7 +82,6 @@ export const videoLinkJobsTable = defineTable({
       v.literal('captions_human'),
       v.literal('captions_auto'),
       v.literal('whisper'),
-      v.literal('cached'),
     ),
   ),
   captionTrackKind: v.optional(
@@ -123,14 +122,19 @@ export const videoLinkJobsTable = defineTable({
   storageId: v.optional(v.id('_storage')),
   fileMetadataId: v.optional(v.id('fileMetadata')),
 
-  // 'bound' once a sent message references the resulting attachment. Cancel
-  // semantics: if bound, only delete the audio blob (transcript stays for
-  // citation integrity); if unbound, full cleanup. Set by the atomic
-  // bindCompletedJobsToMessage mutation called from use-send-message.ts.
+  // Reserved for soft-delete / trash retention parity with other tables.
+  // Bind-to-message tracking lives on `messageBoundAt` below, NOT here —
+  // `'bound'` is not a valid lifecycleStatus literal and conflating the
+  // two creates a dead dedup guard (see R2 review).
   lifecycleStatus: v.optional(lifecycleStatusValidator),
+  // Timestamp at which `bindCompletedJobsToMessage` attached this job's
+  // transcript to a sent chat message. `undefined` = still in the draft
+  // chip area; defined = already referenced by a message bubble.
+  // Used by bind dedup (so a double-tap send doesn't attach twice) and
+  // by `useChatVideoLinks` to hide bound chips from the composer.
+  messageBoundAt: v.optional(v.number()),
 })
   .index('by_threadId', ['threadId'])
-  .index('by_organizationId_and_threadId', ['organizationId', 'threadId'])
   // Concurrency cap enforcement: count in-flight rows per org cheaply.
   .index('by_organizationId_and_status', ['organizationId', 'status'])
   // Watchdog: per-status sweep for stuck rows (used by

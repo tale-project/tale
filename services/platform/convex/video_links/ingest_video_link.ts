@@ -25,7 +25,7 @@
  *       7. Fall through to Whisper-audio path
  *   - Error classification: stderr from ytdlp.ts is already classified;
  *     retry [30s, 60s, 120s] aligned with TRANSCRIBE_RETRY_DELAYS_MS;
- *     bot_detection/rate_limited bypass short-retry (long-jitter or fail).
+ *     botDetection/rateLimited bypass short-retry (long-jitter or fail).
  */
 
 import { promises as fs } from 'node:fs';
@@ -46,6 +46,7 @@ import {
   parseVtt,
   rollingWindowDedup,
 } from './captions_parser';
+import type { VideoLinkErrorReason } from './internal_mutations';
 import { assertSafeUrl, UrlSafetyError } from './url_safety';
 import {
   YtDlpError,
@@ -60,21 +61,21 @@ const INGEST_RETRY_DELAYS_MS = [30_000, 60_000, 120_000];
 const MAX_ATTEMPTS = INGEST_RETRY_DELAYS_MS.length + 1;
 
 const NEVER_RETRY: ReadonlySet<string> = new Set([
-  'private_or_age_gated',
+  'privateOrAgeGated',
   'geoblocked',
   'unsupported',
   'unavailable',
-  'live_stream',
+  'liveStream',
   'premiere',
-  'member_only',
-  'js_runtime_missing',
-  'binary_not_installed',
-  'output_validation_failed',
-  // bot_detection + rate_limited would benefit from a long-jitter retry
+  'memberOnly',
+  'jsRuntimeMissing',
+  'binaryNotInstalled',
+  'outputValidationFailed',
+  // botDetection + rateLimited would benefit from a long-jitter retry
   // but short retries make YouTube's rate-limit worse. Treat as
   // never-retry for v1; user can manually retry after waiting.
-  'bot_detection',
-  'rate_limited',
+  'botDetection',
+  'rateLimited',
 ]);
 
 interface CaptionSelection {
@@ -173,7 +174,7 @@ export const ingestVideoLink = internalAction({
       return;
     }
 
-    /** Re-read the job and bail if it's been cancelled mid-flight. */
+    /** Re-read the job and bail if it's been cancelled or cascade-deleted. */
     const assertNotCancelled = async (): Promise<boolean> => {
       const fresh = await ctx.runQuery(
         internal.video_links.internal_queries.getJobById,
@@ -181,12 +182,20 @@ export const ingestVideoLink = internalAction({
           jobId: args.jobId,
         },
       );
-      return !fresh || fresh.status !== 'skipped';
+      // Row missing (cascade-deleted by thread cleanup mid-action) is
+      // treated as cancellation — the previous `!fresh ||` short-circuit
+      // returned true here, letting subsequent mutations crash on the
+      // gone row. R2 review.
+      if (!fresh) return false;
+      return fresh.status !== 'skipped';
     };
 
     const { jobDir, cleanup } = await createJobDir();
 
-    const fail = async (reasonCode: string, message: string): Promise<void> => {
+    const fail = async (
+      reasonCode: VideoLinkErrorReason,
+      message: string,
+    ): Promise<void> => {
       console.error(
         JSON.stringify({
           event: 'video_link.failed',
@@ -238,7 +247,7 @@ export const ingestVideoLink = internalAction({
 
       // Reject live / upcoming / oversized BEFORE any download.
       if (metadata.is_live || metadata.live_status === 'is_live') {
-        await fail('live_stream', 'Live streams are not supported');
+        await fail('liveStream', 'Live streams are not supported');
         return;
       }
       if (metadata.live_status === 'is_upcoming') {
@@ -301,6 +310,18 @@ export const ingestVideoLink = internalAction({
           },
         );
         if (!(await assertNotCancelled())) return;
+
+        // Re-validate URL against fresh DNS before spawning yt-dlp again.
+        // Defends against TTL=0 rebind between Phase A and Phase B.
+        try {
+          await assertSafeUrl(job.sourceUrl);
+        } catch (err) {
+          if (err instanceof UrlSafetyError) {
+            await fail(err.kind, err.message);
+            return;
+          }
+          throw err;
+        }
 
         let vttPath: string | null = null;
         try {
@@ -409,6 +430,18 @@ export const ingestVideoLink = internalAction({
       });
       if (!(await assertNotCancelled())) return;
 
+      // Re-validate URL against fresh DNS before the longest yt-dlp call
+      // (15-min wall-clock). Defends against rebind across Phase B → C.
+      try {
+        await assertSafeUrl(job.sourceUrl);
+      } catch (err) {
+        if (err instanceof UrlSafetyError) {
+          await fail(err.kind, err.message);
+          return;
+        }
+        throw err;
+      }
+
       let audioPath: string;
       try {
         audioPath = await ytdlpExtractAudio(job.sourceUrl, jobDir);
@@ -422,6 +455,16 @@ export const ingestVideoLink = internalAction({
       const audioBuf = await fs.readFile(audioPath);
       const audioBlob = new Blob([audioBuf], { type: 'audio/ogg' });
       const audioStorageId = await ctx.storage.store(audioBlob);
+
+      // CRITICAL: record `storageId` on the job row BEFORE inserting the
+      // fileMetadata row. If `saveFileMetadata` fails (validator, OOM,
+      // network blip) the cancel cleanup path needs `job.storageId` to
+      // find the blob and delete it — without this pre-write the blob
+      // orphans in `_storage` indefinitely (R2 cluster E).
+      await ctx.runMutation(internal.video_links.internal_mutations.updateJob, {
+        jobId: args.jobId,
+        storageId: audioStorageId,
+      });
 
       // Internal variant (not the public `api.file_metadata.mutations.*`).
       // Scheduled actions run with no user context — the public mutation
@@ -441,18 +484,15 @@ export const ingestVideoLink = internalAction({
           fileName: `${metadata.title ?? 'video'}.ogg`,
           contentType: 'audio/ogg',
           size: audioBlob.size,
-          source: 'user',
+          // 'video_link' instead of 'user' so prompt-injection-aware
+          // downstream code can differentiate third-party content.
+          source: 'video_link',
           uploadedBy: job.uploadedBy,
           ...(job.threadId !== undefined && { threadId: job.threadId }),
-          sourceUrl: job.sourceUrl,
-          sourcePlatform: job.sourcePlatform,
-          ...(metadata.title ? { videoTitle: metadata.title } : {}),
-          ...(metadata.uploader || metadata.channel
-            ? { videoUploader: metadata.uploader ?? metadata.channel }
-            : {}),
-          ...(typeof metadata.duration === 'number'
-            ? { videoDurationSec: metadata.duration }
-            : {}),
+          // sourceUrl/sourcePlatform/videoTitle/uploader/duration NOT
+          // copied here — `start_agent_chat.ts` JOINs videoLinkJobs by
+          // storageId. Avoids two writers of the same data; the legacy
+          // fileMetadata fields stay as @deprecated fallback.
         },
       );
 
@@ -489,7 +529,7 @@ async function handleYtDlpError(
   jobId: Id<'videoLinkJobs'>,
   job: { attempts?: number },
   err: unknown,
-  fail: (reasonCode: string, message: string) => Promise<void>,
+  fail: (reasonCode: VideoLinkErrorReason, message: string) => Promise<void>,
 ): Promise<void> {
   if (err instanceof YtDlpError) {
     const attempts = (job.attempts ?? 0) + 1;

@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   CAPTION_PROFILE,
   joinSegmentsWithParagraphs,
-  WHISPER_PROFILE,
   type ParagraphSegment,
 } from './paragraphize';
 

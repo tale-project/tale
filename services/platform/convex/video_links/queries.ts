@@ -1,9 +1,11 @@
 import { v } from 'convex/values';
 
-import type { Doc } from '../_generated/dataModel';
+import type { Doc, Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 import { query } from '../_generated/server';
 import { authComponent } from '../auth';
+import { canAccessThread } from '../lib/rls/auth/can_access_thread';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 
 /**
  * Chip subscription queries. Two shapes:
@@ -15,8 +17,8 @@ import { authComponent } from '../auth';
  * chip flips to `completed` without any backend callback (R12 decision).
  */
 
-export interface VideoLinkJobView {
-  jobId: string;
+interface VideoLinkJobView {
+  jobId: Id<'videoLinkJobs'>;
   sourceUrl: string;
   sourcePlatform: string;
   pastedToken: string;
@@ -30,8 +32,9 @@ export interface VideoLinkJobView {
   errorReasonCode?: string;
   errorMessage?: string;
   attempts?: number;
-  storageId?: string;
+  storageId?: Id<'_storage'>;
   lifecycleStatus?: string;
+  messageBoundAt?: number;
   uploadedBy: string;
   createdAt: number;
 }
@@ -96,16 +99,38 @@ async function projectJob(
     attempts: job.attempts,
     storageId: job.storageId,
     lifecycleStatus: job.lifecycleStatus,
+    messageBoundAt: job.messageBoundAt,
     uploadedBy: job.uploadedBy,
     createdAt: job._creationTime,
   };
 }
 
 export const listForThread = query({
-  args: { threadId: v.string() },
+  args: { threadId: v.string(), organizationId: v.string() },
   async handler(ctx, args): Promise<VideoLinkJobView[]> {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) return [];
+    const callerIdentity = {
+      userId: String(authUser._id),
+      email: authUser.email,
+      name: authUser.name,
+    };
+
+    // Org membership + thread access. canAccessThread returns null on
+    // forbidden — we surface that as an empty list to match the query's
+    // soft-fail contract (reactive subscriptions shouldn't throw).
+    try {
+      await getOrganizationMember(ctx, args.organizationId, callerIdentity);
+    } catch {
+      return [];
+    }
+    const access = await canAccessThread(
+      ctx,
+      args.threadId,
+      callerIdentity,
+      args.organizationId,
+    );
+    if (!access) return [];
 
     const jobs = await ctx.db
       .query('videoLinkJobs')
@@ -130,6 +155,16 @@ export const listForUserUnboundChat = query({
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) return [];
     const userId = String(authUser._id);
+
+    try {
+      await getOrganizationMember(ctx, args.organizationId, {
+        userId,
+        email: authUser.email,
+        name: authUser.name,
+      });
+    } catch {
+      return [];
+    }
 
     const jobs = await ctx.db
       .query('videoLinkJobs')

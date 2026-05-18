@@ -50,6 +50,14 @@ const COMMON_FLAGS: ReadonlyArray<string> = [
   '--no-mtime',
   '--socket-timeout',
   '30',
+  // SSRF subprocess-layer defense. Pre-resolve in `url_safety.ts` walks
+  // every A/AAAA record, but yt-dlp's own resolver runs independently
+  // when it spawns. Restricting to IPv4 + capping redirects narrows the
+  // TOCTOU rebind window AND blocks 302→private-IP escapes; round-2
+  // review flagged these were referenced in comments but absent.
+  '--force-ipv4',
+  '--max-redirects',
+  '5',
   '--restrict-filenames',
   '--downloader',
   'native',
@@ -73,28 +81,28 @@ const SANITIZE_PATTERNS: ReadonlyArray<[RegExp, string]> = [
   [/Policy=[^&\s]+/g, 'Policy=<redacted>'],
 ];
 
-export function sanitizeStderr(raw: string): string {
+function sanitizeStderr(raw: string): string {
   let out = raw;
   for (const [re, sub] of SANITIZE_PATTERNS) out = out.replace(re, sub);
   return out.slice(-800); // tail only — full stderr can be MB on chatty errors
 }
 
 export type YtDlpErrorReason =
-  | 'private_or_age_gated'
+  | 'privateOrAgeGated'
   | 'unavailable'
   | 'geoblocked'
   | 'unsupported'
   | 'transient'
-  | 'bot_detection'
-  | 'rate_limited'
+  | 'botDetection'
+  | 'rateLimited'
   | 'forbidden'
-  | 'live_stream'
+  | 'liveStream'
   | 'premiere'
-  | 'member_only'
-  | 'js_runtime_missing'
-  | 'binary_not_installed'
+  | 'memberOnly'
+  | 'jsRuntimeMissing'
+  | 'binaryNotInstalled'
   | 'timeout'
-  | 'output_validation_failed';
+  | 'outputValidationFailed';
 
 export class YtDlpError extends Error {
   readonly reason: YtDlpErrorReason;
@@ -118,34 +126,34 @@ export class YtDlpError extends Error {
  * Patterns are ordered most-specific first; the first match wins.
  *
  * Boundary cases:
- *  - `bot_detection` and `rate_limited` DO NOT go through the
+ *  - `botDetection` and `rateLimited` DO NOT go through the
  *    [30s, 60s, 120s] retry — caller should use long jitter or fail
  *    fast. YouTube's per-IP rate limit is minutes; short retries
  *    just trigger harder blocks.
- *  - `js_runtime_missing` means the image is misconfigured (no Deno).
+ *  - `jsRuntimeMissing` means the image is misconfigured (no Deno).
  *    Caller should alert loudly, not silently retry.
  */
-export function classifyYtDlpStderr(stderr: string): YtDlpErrorReason {
+function classifyYtDlpStderr(stderr: string): YtDlpErrorReason {
   const s = stderr.toLowerCase();
   if (
     s.includes('sign in to confirm') ||
     s.includes("you're not a bot") ||
     s.includes('confirm you’re not a bot')
   ) {
-    return 'bot_detection';
+    return 'botDetection';
   }
   if (s.includes('429') || s.includes('too many requests'))
-    return 'rate_limited';
+    return 'rateLimited';
   if (
     s.includes('private video') ||
     s.includes('age-restricted') ||
     s.includes('age restricted') ||
     s.includes('sign in to confirm your age')
   ) {
-    return 'private_or_age_gated';
+    return 'privateOrAgeGated';
   }
   if (s.includes('members-only') || s.includes('join this channel')) {
-    return 'member_only';
+    return 'memberOnly';
   }
   if (
     s.includes('not available in your country') ||
@@ -162,11 +170,10 @@ export function classifyYtDlpStderr(stderr: string): YtDlpErrorReason {
     return 'premiere';
   }
   if (s.includes('is a live event') || s.includes('is currently live')) {
-    return 'live_stream';
+    return 'liveStream';
   }
   if (s.includes('unsupported url')) return 'unsupported';
-  if (s.includes('no supported javascript runtime'))
-    return 'js_runtime_missing';
+  if (s.includes('no supported javascript runtime')) return 'jsRuntimeMissing';
   if (s.includes('http error 403') || s.includes('forbidden'))
     return 'forbidden';
   if (s.includes('video unavailable') || s.includes('has been removed')) {
@@ -215,8 +222,17 @@ async function runYtdlp(
       if (stderrBytes < MAX_BYTES) stderr += d.toString();
     });
 
+    // SIGTERM → SIGKILL escalation. Gives yt-dlp + its ffmpeg child a 5s
+    // window to flush partial files, close sockets, and exit cleanly
+    // before we hard-kill the process group. Without the grace period
+    // ffmpeg can be orphaned mid-write and leave .part files behind
+    // (R2 review M-yt-dlp).
+    let sigkillTimer: NodeJS.Timeout | undefined;
     const killer = setTimeout(() => {
-      proc.kill('SIGKILL');
+      proc.kill('SIGTERM');
+      sigkillTimer = setTimeout(() => {
+        proc.kill('SIGKILL');
+      }, 5_000);
       const sanitized = sanitizeStderr(stderr);
       reject(
         new YtDlpError(
@@ -229,6 +245,7 @@ async function runYtdlp(
 
     proc.on('error', (err) => {
       clearTimeout(killer);
+      if (sigkillTimer) clearTimeout(sigkillTimer);
       // ENOENT means the yt-dlp binary isn't on $PATH — the container
       // was started from an image built before the Dockerfile yt-dlp
       // install landed. Surface as a NEVER_RETRY reason so the chip
@@ -238,7 +255,7 @@ async function runYtdlp(
       if (errno === 'ENOENT') {
         reject(
           new YtDlpError(
-            'binary_not_installed',
+            'binaryNotInstalled',
             `yt-dlp binary not found at PATH — rebuild the Convex container`,
             '',
           ),
@@ -249,6 +266,7 @@ async function runYtdlp(
     });
     proc.on('close', (code) => {
       clearTimeout(killer);
+      if (sigkillTimer) clearTimeout(sigkillTimer);
       if (code !== 0) {
         const sanitized = sanitizeStderr(stderr);
         const reason = classifyYtDlpStderr(sanitized);
@@ -320,7 +338,7 @@ async function assertOutputUnderSandbox(
   const real = await fs.realpath(filePath);
   if (!real.startsWith(realJobDir + '/') && real !== realJobDir) {
     throw new YtDlpError(
-      'output_validation_failed',
+      'outputValidationFailed',
       `yt-dlp wrote outside sandbox: ${real}`,
       '',
     );
@@ -328,7 +346,7 @@ async function assertOutputUnderSandbox(
   const ext = real.slice(real.lastIndexOf('.')).toLowerCase();
   if (!SAFE_EXTENSIONS.has(ext)) {
     throw new YtDlpError(
-      'output_validation_failed',
+      'outputValidationFailed',
       `Unexpected output extension: ${ext}`,
       '',
     );
@@ -363,6 +381,10 @@ export interface YtDlpMetadata {
   >;
 }
 
+function isYtDlpMetadata(value: unknown): value is YtDlpMetadata {
+  return typeof value === 'object' && value !== null;
+}
+
 export async function ytdlpJson(
   url: string,
   jobDir: string,
@@ -371,8 +393,9 @@ export async function ytdlpJson(
   const { stdout } = await runYtdlp(['-J', url], jobDir, timeoutMs);
   // `-J` produces a single JSON object on stdout. For non-playlist URLs
   // we asked for, it's the video info_dict directly.
+  let parsed: unknown;
   try {
-    return JSON.parse(stdout) as YtDlpMetadata;
+    parsed = JSON.parse(stdout);
   } catch (err) {
     throw new YtDlpError(
       'transient',
@@ -380,6 +403,14 @@ export async function ytdlpJson(
       err instanceof Error ? err.message.slice(0, 200) : '',
     );
   }
+  if (!isYtDlpMetadata(parsed)) {
+    throw new YtDlpError(
+      'transient',
+      `yt-dlp metadata is not a JSON object`,
+      '',
+    );
+  }
+  return parsed;
 }
 
 /**
@@ -459,7 +490,11 @@ export async function ytdlpExtractAudio(
     '--audio-quality',
     '0',
     '--max-filesize',
-    '500M', // hard cap; bigger files get rejected with stderr classifier
+    // 100M cap pairs with Whisper's ~25MB compressed-input limit (with
+    // headroom for raw ogg + ffmpeg overhead). Previous 500M cap let
+    // peak RSS exceed 1GB when paired with the in-memory readFile→Blob
+    // double-buffer in the orchestrator (R2 review M1).
+    '100M',
     '--paths',
     `home:${jobDir}`,
     '--paths',
@@ -474,7 +509,7 @@ export async function ytdlpExtractAudio(
   const audio = entries.find((e) => e.endsWith('.ogg'));
   if (!audio) {
     throw new YtDlpError(
-      'output_validation_failed',
+      'outputValidationFailed',
       'yt-dlp did not produce expected .ogg output',
       '',
     );

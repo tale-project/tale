@@ -80,14 +80,18 @@ export function parseVtt(input: string | Buffer): CaptionSegment[] {
     const merged = textLines.join('\n').trim();
     if (!merged) continue;
 
-    const { speaker, text: stripped } = extractSpeakerAndStrip(merged);
-    const decoded = decodeHtmlEntities(stripped).trim();
-    if (!decoded) continue;
+    // Decode HTML entities FIRST, then strip tags — otherwise an attacker
+    // who HTML-encodes `&lt;system&gt;` in caption text bypasses the tag
+    // strip and the literal `<system>` survives into the LLM context.
+    const decoded = decodeHtmlEntities(merged);
+    const { speaker, text: stripped } = extractSpeakerAndStrip(decoded);
+    const clean = stripped.trim();
+    if (!clean) continue;
 
     segments.push({
       startSec: tsParsed.startSec,
       endSec: tsParsed.endSec,
-      text: decoded,
+      text: clean,
       ...(speaker ? { speaker } : {}),
     });
   }
@@ -139,11 +143,36 @@ function extractSpeakerAndStrip(text: string): {
     speaker = speakerMatch[1].trim();
     rest = text.slice(speakerMatch[0].length);
   }
-  // Strip all other inline tags (`<c>`, `<c.colorE5E5E5>`, `<00:00:01.000>`,
-  // `</v>`, `</c>`).
-  rest = rest.replace(/<\/?[a-z][^>]*>/gi, '');
-  rest = rest.replace(/<\d{2}:\d{2}:\d{2}\.\d{3}>/g, '');
+  // Strip prompt-injection control tokens FIRST so the generic-tag pass
+  // below doesn't partially consume their inner brackets and leave `<>`
+  // fragments behind (e.g. `<<SYS>>` → generic-tag would otherwise eat
+  // `<SYS>` leaving `<>`). Attacker-controlled caption text MUST NOT
+  // carry these into the LLM context — wrapping with <untrusted_source>
+  // + the trust-rules system prompt mitigates intent, but stripping the
+  // literal tokens is cheap defense-in-depth.
+  rest = rest.replace(/<<\/?SYS>>/gi, '');
+  rest = rest.replace(/<\|[a-zA-Z0-9_-]+\|>/g, '');
+  rest = rest.replace(/\[\/?(INST|SYS|SYSTEM)\]/gi, '');
+  // Strip standard VTT inline tags (`<c>`, `<c.colorE5E5E5>`, `</v>`, `</c>`)
+  // — case-insensitive so encoder casing variants don't bleed through.
+  rest = rest.replace(/<\/?[a-zA-Z][^>]*>/g, '');
+  // Strip VTT inline timing tags — 1- or 2-digit hour (some encoders emit
+  // `<0:00:01.500>` instead of the spec-correct `<00:00:01.500>`).
+  rest = rest.replace(/<\d{1,2}:\d{2}:\d{2}\.\d{3}>/g, '');
+  // Strip zero-width and bidi-override characters that LLM tokenizers
+  // accept but that humans can't see — common smuggling vector.
+  rest = rest.replace(/[​-‏‪-‮⁠﻿]/g, '');
   return { speaker, text: rest };
+}
+
+// Unicode code-point bound (U+10FFFF). String.fromCodePoint throws
+// RangeError above this; malformed VTT with `&#99999999;` would otherwise
+// crash the parser on a single bad cue.
+const MAX_CODE_POINT = 0x10ffff;
+
+function safeFromCodePoint(n: number): string {
+  if (!Number.isFinite(n) || n < 0 || n > MAX_CODE_POINT) return '';
+  return String.fromCodePoint(n);
 }
 
 function decodeHtmlEntities(s: string): string {
@@ -153,9 +182,9 @@ function decodeHtmlEntities(s: string): string {
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
-    .replace(/&#(\d+);/g, (_, n: string) => String.fromCodePoint(Number(n)))
+    .replace(/&#(\d+);/g, (_, n: string) => safeFromCodePoint(Number(n)))
     .replace(/&#x([0-9a-fA-F]+);/g, (_, n: string) =>
-      String.fromCodePoint(Number.parseInt(n, 16)),
+      safeFromCodePoint(Number.parseInt(n, 16)),
     );
 }
 

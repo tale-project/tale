@@ -149,6 +149,9 @@ function isPrivateIpv4(host: string): boolean {
   if (a === 127) return true;
   if (a === 169 && b === 254) return true;
   if (a === 0) return true;
+  // RFC 6598 CGNAT — used by Tailscale, cloud-internal load balancers,
+  // and some metadata-style endpoints. Was missing in round-2 review.
+  if (a === 100 && b >= 64 && b <= 127) return true;
   if (a >= 224) return true;
   return false;
 }

@@ -145,7 +145,7 @@ export function useSendMessage({
       // closing the chip-vs-drain race that the round-2 review (B8/R2)
       // flagged. pastedTokens come back so we can strip raw URLs from
       // the message text (LLM shouldn't see URL + transcript fileId both).
-      let pastedTokensToStrip: string[] = [];
+      const pastedTokensToStrip: string[] = [];
       if (threadId) {
         try {
           const bound = await convexClient.mutation(
@@ -154,7 +154,7 @@ export function useSendMessage({
           );
           for (const att of bound) {
             mutationAttachments.push({
-              fileId: att.fileId as Id<'_storage'>,
+              fileId: att.fileId,
               fileName: att.fileName,
               fileType: att.fileType,
               fileSize: att.fileSize,
@@ -355,6 +355,39 @@ export function useSendMessage({
             });
           }
 
+          // Bind pre-thread + in-thread video-link jobs to tIdA. Without
+          // this, welcome-page pastes that then switch to arena lose
+          // their attachment silently — the early bind at top of the
+          // callback gates on `if (threadId)`, and the standard-mode late
+          // bind never fires in arena. R2 review B4.
+          try {
+            const bound = await convexClient.mutation(
+              api.video_links.mutations.bindCompletedJobsToMessage,
+              { organizationId, threadId: tIdA },
+            );
+            for (const att of bound) {
+              if (mutationAttachments.some((a) => a.fileId === att.fileId))
+                continue;
+              mutationAttachments.push({
+                fileId: att.fileId,
+                fileName: att.fileName,
+                fileType: att.fileType,
+                fileSize: att.fileSize,
+              });
+              if (att.pastedToken && messageToSend.includes(att.pastedToken)) {
+                messageToSend = messageToSend.replace(att.pastedToken, '');
+              }
+            }
+            if (bound.length > 0) {
+              messageToSend = messageToSend.replace(/\s+/g, ' ').trim();
+            }
+          } catch (err) {
+            console.error(
+              '[use-send-message] arena video-link bind failed:',
+              err instanceof Error ? err.message : err,
+            );
+          }
+
           // Flip per-thread optimistic spinner IMMEDIATELY so both columns
           // show "Thinking" before the Node action cold-starts. Real
           // isThreadGenerating subscriptions take over once they arrive.
@@ -456,7 +489,7 @@ export function useSendMessage({
               if (mutationAttachments.some((a) => a.fileId === att.fileId))
                 continue;
               mutationAttachments.push({
-                fileId: att.fileId as Id<'_storage'>,
+                fileId: att.fileId,
                 fileName: att.fileName,
                 fileType: att.fileType,
                 fileSize: att.fileSize,

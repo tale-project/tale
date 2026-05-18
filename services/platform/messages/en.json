@@ -2176,17 +2176,26 @@
         "geoblocked": "Video isn't available in this region",
         "unsupported": "This site isn't supported",
         "transient": "Temporary issue — try again",
-        "videoTooLong": "Video exceeds the 4h length limit",
+        "botDetection": "Video host blocked automated access",
+        "rateLimited": "Video host rate-limited the request",
+        "forbidden": "Video host refused access (403)",
         "liveStream": "Live streams aren't supported",
         "premiere": "Premiere/upcoming video not yet available",
         "memberOnly": "Members-only video",
-        "botDetection": "Video host blocked automated access",
-        "rateLimited": "Video host rate-limited the request",
-        "playlistsNotSupported": "Playlists aren't supported — paste a single video link",
-        "urlNotSafe": "This URL isn't allowed",
-        "audioExtractFailed": "Couldn't extract audio from this video",
+        "jsRuntimeMissing": "Video processing isn't fully configured — contact your admin",
+        "binaryNotInstalled": "Video processing not yet enabled — rebuild the Convex container",
+        "timeout": "Took too long to fetch — try again",
+        "outputValidationFailed": "Couldn't validate the downloaded video file",
+        "videoTooLong": "Video exceeds the 4h length limit",
         "whisperFailed": "Transcription failed",
-        "binary_not_installed": "Video processing not yet enabled — rebuild the Convex container"
+        "invalidUrl": "URL is malformed",
+        "unsupportedProtocol": "Only https:// links are accepted",
+        "credentialedUrl": "Links with embedded credentials aren't accepted",
+        "ipLiteral": "Bare IP and localhost links aren't accepted",
+        "playlist": "Playlists aren't supported — paste a single video link",
+        "dnsResolutionFailed": "Couldn't resolve the host",
+        "privateIpResolved": "This link points to a private/internal address",
+        "inFlightCap": "Too many videos processing — wait for one to finish"
       },
       "actions": {
         "removeLink": "Remove",
@@ -2196,6 +2205,9 @@
         "fallbackTitle": "Video link",
         "ariaLabel": "Video attachment: {title}",
         "inProgressTooltip": "Wait for video to finish — or remove the chip to send without it"
+      },
+      "toast": {
+        "ingestFailedTitle": "Couldn't add this video"
       }
     },
     "fallback": {

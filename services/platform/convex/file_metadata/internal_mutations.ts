@@ -15,7 +15,9 @@ export const saveFileMetadata = internalMutation({
     contentType: v.string(),
     size: v.number(),
     documentId: v.optional(v.id('documents')),
-    source: v.optional(v.union(v.literal('user'), v.literal('agent'))),
+    source: v.optional(
+      v.union(v.literal('user'), v.literal('agent'), v.literal('video_link')),
+    ),
     uploadedBy: v.optional(v.string()),
     /** Chat-bound files (audio uploads, video-link transcripts) carry the
      * thread id so the soft-delete cascade + RAG thread-scope auth chain

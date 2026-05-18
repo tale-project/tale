@@ -4,7 +4,7 @@ description: Terms governing the use of the Tale website operated by Ruler GmbH.
 noindex: true
 ---
 
-**Last updated:** 01.04.2026
+**Last updated:** 18.05.2026
 
 ## 1. Introduction
 
@@ -59,13 +59,33 @@ When you submit information through our contact or demo request forms, you repre
 
 Submitting a form does not create a contractual relationship between you and Ruler GmbH. A contractual relationship is only established upon execution of a separate agreement.
 
-## 6. Third-Party Links and Resources
+## 6. Third-Party Links, User-Submitted URLs, and Video Analysis
 
-Our Website may contain links to third-party websites, services, or resources that are not owned or controlled by us, including but not limited to our documentation site, training courses, and service agreements. We have no control over, and assume no responsibility for, the content, privacy practices, or availability of any third-party websites or services.
+### 6.1 Links from the Website
 
-The inclusion of a link does not imply endorsement. We encourage you to review the terms and privacy policies of any third-party sites you visit.
+Our Website may contain links to third-party websites, services, or resources that are not owned or controlled by us, including but not limited to our documentation site, training courses, and service agreements. We have no control over, and assume no responsibility for, the content, privacy practices, or availability of any third-party websites or services. The inclusion of a link does not imply endorsement. We encourage you to review the terms and privacy policies of any third-party sites you visit.
 
-When you provide a URL for video transcription or analysis, you warrant that you have the rights or a fair-use basis to process the content. Tale acts at your direction in fetching and transcribing the content, and stores the resulting transcript in your workspace. You are responsible for ensuring your use complies with the source platform's terms and applicable copyright law.
+### 6.2 URLs You Submit to the Service
+
+When you submit a URL to the Service for retrieval, transcription, or analysis (including video links), you represent and warrant that:
+
+- you hold the rights, licences, or applicable statutory exceptions under your jurisdiction's copyright and related laws to retrieve and process the content at that URL;
+- your use of the Service complies with the source platform's terms of service and with all applicable law; and
+- the content is not infringing, defamatory, unlawful, or otherwise restricted from third-party processing.
+
+Tale acts as your processor under your instructions when fetching, transcribing, and storing the retrieved content. We do not curate, review, or endorse user-submitted URLs.
+
+### 6.3 Service Discretion
+
+We may refuse, throttle, suspend, or remove any submitted URL or stored output at our sole discretion, including where we receive a complaint, where processing would exceed platform limits, or where the source platform is blocking our requests. We may also reject categories of URLs (for example, livestreams, age-restricted content, or playlist endpoints) on technical or policy grounds.
+
+### 6.4 Notice and Action
+
+If you believe that content stored by the Service infringes your rights or violates applicable law, please contact us at the address in Section 14 with: (i) identification of the protected work or right; (ii) the URL of the stored content; (iii) your contact details; and (iv) a good-faith statement of the basis of your claim. We will review reports promptly and may, at our discretion, remove or restrict access to the content within a reasonable period. This procedure is offered in addition to, and does not replace, any rights or procedures available to you under applicable copyright or content-moderation law (including, where applicable, Article 16 of EU Regulation 2022/2065 — the Digital Services Act).
+
+### 6.5 No Service Guarantee
+
+URL retrieval and transcription are provided on a best-effort basis. We do not guarantee that any given URL will be processable, that transcripts will be accurate or complete, or that processing will be available at any particular time. Accuracy of automated transcription varies with audio quality, language, and source platform behaviour.
 
 ## 7. Disclaimer of Warranties
 

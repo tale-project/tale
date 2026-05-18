@@ -7,7 +7,16 @@ export const fileMetadataTable = defineTable({
   organizationId: v.string(),
   storageId: v.id('_storage'),
   documentId: v.optional(v.id('documents')),
-  source: v.optional(v.union(v.literal('user'), v.literal('agent'))),
+  source: v.optional(
+    v.union(
+      v.literal('user'),
+      v.literal('agent'),
+      // Video-link synthetic rows — transcript text originated from a
+      // third-party site fetched via yt-dlp. Trust-distinct from
+      // user-authored uploads (R2 prompt-injection review).
+      v.literal('video_link'),
+    ),
+  ),
   fileName: v.string(),
   contentType: v.string(),
   size: v.number(),
@@ -84,14 +93,14 @@ export const fileMetadataTable = defineTable({
   lifecycleStatus: v.optional(lifecycleStatusValidator),
   statusChangedAt: v.optional(v.number()),
   /**
-   * Video-link provenance. Populated when this fileMetadata row's transcript
-   * originated from the yt-dlp pipeline (captions branch creates a synthetic
-   * row with the transcript blob; whisper branch reuses the audio-upload
-   * row). Decoupled from `videoLinkJobs` so RAG citations and
-   * `document_retrieve` keep working after the job row is GC'd.
+   * Video-link provenance — LEGACY/FALLBACK ONLY.
    *
-   * Backward-compat: ALL optional. Existing rows and direct-upload rows
-   * leave these unset.
+   * @deprecated New writes go to `videoLinkJobs` (which carries the same
+   * fields as live ingest state). `start_agent_chat.ts` JOINs videoLinkJobs
+   * by storageId and prefers values from there; these fields are kept only
+   * so rows written by older orchestrator builds (which DID copy them
+   * here) continue to render with provenance. Per the project's
+   * "deprecate, don't delete" rule, they remain `v.optional` indefinitely.
    *
    * NO `videoThumbnailUrl` here: `services/platform/server.ts` CSP
    * (img-src 'self' data: blob:) hard-blocks remote <img>. Add via the

@@ -2,9 +2,10 @@
  * Video URL detection + safety helpers — pure functions, browser-safe.
  *
  * Used by:
- *   - chat-input.tsx paste handler → extractVideoUrls
- *   - ingestVideoUrl mutation       → isSafeVideoUrl + isPlaylistUrl
- *   - ingest_video_link.ts action   → normalizeUrlForHash (for dedup key)
+ *   - chat-input.tsx paste handler  → extractVideoUrls
+ *   - use-chat-video-links hook     → normalizeUrlForHash (dedup key arg)
+ *   - ingestVideoUrl mutation       → isPlaylistUrl (synchronous reject)
+ *   - url_safety.ts (Convex action) → isSafeVideoUrl + isPlaylistUrl
  *
  * Safety posture: this module's `isSafeVideoUrl` is the ADVISORY frontend
  * check that closes the obvious holes (http://, IP literals, localhost

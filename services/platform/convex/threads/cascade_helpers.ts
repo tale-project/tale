@@ -368,11 +368,12 @@ export async function cascadeDeleteThreadChildren(
     // job's pipeline state here. After 7.5, these rows are pure
     // dangling provenance metadata; delete them to keep the table
     // clean across thread soft-deletes.
+    // by_threadId is sufficient — threadIds are globally unique and the
+    // cascade scope is the thread; an extra org filter would add no rows
+    // and saves a compound index.
     const videoLinksPage = await ctx.db
       .query('videoLinkJobs')
-      .withIndex('by_organizationId_and_threadId', (q) =>
-        q.eq('organizationId', organizationId).eq('threadId', threadId),
-      )
+      .withIndex('by_threadId', (q) => q.eq('threadId', threadId))
       .take(PAGE_SIZE);
     for (const job of videoLinksPage) {
       // Any leftover _storage blob (intermediate audio from a failed

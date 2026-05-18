@@ -30,14 +30,14 @@ import { isPrivateIp } from '../lib/http/safe_fetch';
  * defense in depth, not redundancy.
  */
 
-export type UrlSafetyErrorKind =
-  | 'invalid_url'
-  | 'unsupported_protocol'
-  | 'credentialed_url'
-  | 'ip_literal'
+type UrlSafetyErrorKind =
+  | 'invalidUrl'
+  | 'unsupportedProtocol'
+  | 'credentialedUrl'
+  | 'ipLiteral'
   | 'playlist'
-  | 'dns_resolution_failed'
-  | 'private_ip_resolved';
+  | 'dnsResolutionFailed'
+  | 'privateIpResolved';
 
 export class UrlSafetyError extends Error {
   readonly kind: UrlSafetyErrorKind;
@@ -49,7 +49,7 @@ export class UrlSafetyError extends Error {
   }
 }
 
-export interface AssertSafeUrlOptions {
+interface AssertSafeUrlOptions {
   /** Override resolver — only for testing. Production uses Node's default. */
   resolver?: (hostname: string) => Promise<{ address: string }[]>;
 }
@@ -82,22 +82,22 @@ export async function assertSafeUrl(
     try {
       parsed = new URL(url);
     } catch {
-      throw new UrlSafetyError('invalid_url', `Invalid URL: ${url}`);
+      throw new UrlSafetyError('invalidUrl', `Invalid URL: ${url}`);
     }
     if (parsed.protocol !== 'https:') {
       throw new UrlSafetyError(
-        'unsupported_protocol',
+        'unsupportedProtocol',
         `Only https:// URLs are accepted (got ${parsed.protocol})`,
       );
     }
     if (parsed.username || parsed.password) {
       throw new UrlSafetyError(
-        'credentialed_url',
+        'credentialedUrl',
         'URLs with credentials are not accepted',
       );
     }
     throw new UrlSafetyError(
-      'ip_literal',
+      'ipLiteral',
       `Bare IP literal or localhost hostname not accepted: ${parsed.hostname}`,
     );
   }
@@ -120,14 +120,14 @@ export async function assertSafeUrl(
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     throw new UrlSafetyError(
-      'dns_resolution_failed',
+      'dnsResolutionFailed',
       `Could not resolve hostname: ${message}`,
     );
   }
 
   if (!resolved || resolved.length === 0) {
     throw new UrlSafetyError(
-      'dns_resolution_failed',
+      'dnsResolutionFailed',
       `Hostname ${hostname} resolved to zero addresses`,
     );
   }
@@ -135,7 +135,7 @@ export async function assertSafeUrl(
   for (const { address } of resolved) {
     if (isPrivateIp(address)) {
       throw new UrlSafetyError(
-        'private_ip_resolved',
+        'privateIpResolved',
         `Hostname ${hostname} resolves to a private/internal address`,
       );
     }

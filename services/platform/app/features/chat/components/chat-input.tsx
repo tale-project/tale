@@ -111,8 +111,8 @@ interface ChatInputProps extends Omit<
     organizationId: string,
     userLocale?: string,
   ) => Promise<number>;
-  cancelVideoJob?: (jobId: string) => Promise<void>;
-  retryVideoJob?: (jobId: string) => Promise<void>;
+  cancelVideoJob?: (jobId: Id<'videoLinkJobs'>) => Promise<void>;
+  retryVideoJob?: (jobId: Id<'videoLinkJobs'>) => Promise<void>;
   /**
    * When true, the send button is disabled. Unlike `disabled`, the input
    * itself stays editable so the user can still revise their message — they
@@ -242,9 +242,6 @@ export function ChatInput({
 
   const handlePaste = (e: React.ClipboardEvent) => {
     if (inputDisabled || fileUploadDisabled) return;
-    // IME composition guard: CJK input methods fire paste events while
-    // composing; ingesting then can capture an incomplete URL fragment.
-    if ((e.nativeEvent as { isComposing?: boolean }).isComposing) return;
     const items = e.clipboardData?.items;
     if (!items) return;
 
@@ -302,6 +299,17 @@ export function ChatInput({
       <FileUpload.DropZone
         className="relative flex h-full min-h-0 flex-1 flex-col"
         onFilesSelected={uploadFiles}
+        onTextDrop={
+          ingestVideoUrlsFromText
+            ? (text) => {
+                void ingestVideoUrlsFromText(
+                  text,
+                  organizationId,
+                  i18n.language,
+                );
+              }
+            : undefined
+        }
         clickable={false}
         disabled={inputDisabled || fileUploadDisabled}
       >
@@ -684,9 +692,7 @@ export function ChatInput({
                   isTranscribing && !isLoading
                     ? tChat('transcription.inProgressTooltip')
                     : isProcessingVideo && !isLoading
-                      ? tChat('videoLink.chip.inProgressTooltip', {
-                          defaultValue: 'Processing video…',
-                        })
+                      ? tChat('videoLink.chip.inProgressTooltip')
                       : sendBlocked && sendBlockedReason && !isLoading
                         ? sendBlockedReason
                         : ''

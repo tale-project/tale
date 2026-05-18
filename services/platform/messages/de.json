@@ -2175,18 +2175,27 @@
         "unavailable": "Video ist nicht mehr verfügbar",
         "geoblocked": "Video ist in dieser Region nicht verfügbar",
         "unsupported": "Diese Seite wird nicht unterstützt",
-        "transient": "Vorübergehender Fehler — bitte erneut versuchen",
-        "videoTooLong": "Video überschreitet das 4-Stunden-Limit",
-        "liveStream": "Live-Streams werden nicht unterstützt",
-        "premiere": "Premiere/Upcoming-Video noch nicht verfügbar",
-        "memberOnly": "Nur für Mitglieder",
+        "transient": "Vorübergehender Fehler — erneut versuchen",
         "botDetection": "Video-Anbieter blockierte automatisierten Zugriff",
         "rateLimited": "Video-Anbieter hat die Anfrage gedrosselt",
-        "playlistsNotSupported": "Playlists werden nicht unterstützt — bitte einzelnen Video-Link einfügen",
-        "urlNotSafe": "Diese URL ist nicht erlaubt",
-        "audioExtractFailed": "Audio konnte nicht extrahiert werden",
+        "forbidden": "Video-Anbieter verweigerte den Zugriff (403)",
+        "liveStream": "Live-Streams werden nicht unterstützt",
+        "premiere": "Premiere/Vorschau-Video noch nicht verfügbar",
+        "memberOnly": "Nur für Mitglieder",
+        "jsRuntimeMissing": "Video-Verarbeitung nicht vollständig konfiguriert — Admin kontaktieren",
+        "binaryNotInstalled": "Video-Verarbeitung noch nicht aktiviert — Convex-Container neu erstellen",
+        "timeout": "Anfrage hat zu lange gedauert — erneut versuchen",
+        "outputValidationFailed": "Heruntergeladene Video-Datei konnte nicht validiert werden",
+        "videoTooLong": "Video überschreitet das 4-Stunden-Limit",
         "whisperFailed": "Transkription fehlgeschlagen",
-        "binary_not_installed": "Video-Verarbeitung noch nicht aktiviert — Convex-Container neu erstellen"
+        "invalidUrl": "URL ist ungültig",
+        "unsupportedProtocol": "Nur https://-Links werden akzeptiert",
+        "credentialedUrl": "Links mit eingebetteten Zugangsdaten werden nicht akzeptiert",
+        "ipLiteral": "Reine IP- und localhost-Links werden nicht akzeptiert",
+        "playlist": "Playlists werden nicht unterstützt — einzelnen Video-Link einfügen",
+        "dnsResolutionFailed": "Hostname konnte nicht aufgelöst werden",
+        "privateIpResolved": "Dieser Link verweist auf eine private/interne Adresse",
+        "inFlightCap": "Zu viele Videos in Verarbeitung — bitte warten, bis eines fertig ist"
       },
       "actions": {
         "removeLink": "Entfernen",
@@ -2196,6 +2205,9 @@
         "fallbackTitle": "Video-Link",
         "ariaLabel": "Video-Anhang: {title}",
         "inProgressTooltip": "Auf Video-Verarbeitung warten — oder Chip entfernen, um ohne zu senden"
+      },
+      "toast": {
+        "ingestFailedTitle": "Video konnte nicht hinzugefügt werden"
       }
     },
     "fallback": {

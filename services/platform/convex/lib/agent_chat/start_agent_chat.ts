@@ -32,6 +32,7 @@ import {
   computeDeduplicationState,
   type AgentListMessagesResult,
 } from '../message_deduplication';
+import { sanitizeUntrustedField, wrapUntrusted } from '../untrusted_content';
 import type {
   SerializableAgentConfig,
   AgentHooksConfig,
@@ -563,7 +564,15 @@ async function buildMessageWithAttachments(
             q.eq('storageId', attachment.fileId),
           )
           .first();
-        return { attachment, meta };
+        // Video-link provenance lives on `videoLinkJobs` (single writer).
+        // JOIN by storageId; legacy fileMetadata.sourceUrl/etc kept as
+        // fallback for rows from older orchestrator builds.
+        const videoLink = await ctx.db
+          .query('videoLinkJobs')
+          .withIndex('by_threadId') // any index ordering is fine — we filter
+          .filter((q) => q.eq(q.field('storageId'), attachment.fileId))
+          .first();
+        return { attachment, meta, videoLink };
       }),
     );
     // One-line reference per audio/video attachment — same compact pattern
@@ -571,39 +580,57 @@ async function buildMessageWithAttachments(
     // make user bubbles into walls of text for long meetings); it lives in
     // RAG where the agent can retrieve it via document_retrieve(fileId).
     const audioMarkdown: string[] = [];
-    for (const { attachment, meta } of audioMetadata) {
+    for (const { attachment, meta, videoLink } of audioMetadata) {
       const icon = attachment.fileType.startsWith('video/') ? '🎬' : '🎙️';
       if (meta?.transcriptionStatus === 'completed' && meta.transcript) {
         const durationNote = meta.transcriptionDurationSec
           ? `, ${Math.round(meta.transcriptionDurationSec)}s transcribed`
           : '';
-        // Video-link provenance enrichment: when this attachment came
-        // through the yt-dlp pipeline, the fileMetadata row carries
-        // sourceUrl + videoTitle + videoUploader + videoDurationSec.
-        // Emit a richer hint that tells the agent (a) it's a video,
-        // (b) where it came from, (c) timestamps are preserved as
-        // [HH:MM:SS] paragraph prefixes, (d) to prefer rag_search on
-        // long videos.
-        if (meta.sourceUrl) {
-          const platformNote = meta.sourcePlatform
-            ? ` from ${meta.sourcePlatform}`
+        // Video-link provenance: prefer videoLinkJobs row (canonical
+        // single-writer); fall back to legacy fileMetadata fields for
+        // rows written by older orchestrator builds.
+        const sourceUrl = videoLink?.sourceUrl ?? meta.sourceUrl;
+        const sourcePlatform = videoLink?.sourcePlatform ?? meta.sourcePlatform;
+        const videoTitle = videoLink?.videoTitle ?? meta.videoTitle;
+        const videoUploader = videoLink?.videoUploader ?? meta.videoUploader;
+        const videoDurationSec =
+          videoLink?.videoDurationSec ?? meta.videoDurationSec;
+
+        if (sourceUrl) {
+          // Attacker-controlled fields from yt-dlp metadata: title,
+          // uploader, platform string. Strip newlines + zero-width chars
+          // and clamp length before interpolating into the user-role
+          // message text; then wrap the whole video block in
+          // <untrusted_source> so the trust-rules system prompt applies.
+          const safeTitle = sanitizeUntrustedField(
+            videoTitle ?? attachment.fileName,
+            120,
+          );
+          const safeUploader = videoUploader
+            ? sanitizeUntrustedField(videoUploader, 80)
             : '';
-          const uploaderNote = meta.videoUploader
-            ? `, uploader: ${meta.videoUploader}`
+          const safePlatform = sourcePlatform
+            ? sanitizeUntrustedField(sourcePlatform, 32)
             : '';
-          const durSec =
-            meta.videoDurationSec ?? meta.transcriptionDurationSec ?? 0;
+          const platformNote = safePlatform ? ` from ${safePlatform}` : '';
+          const uploaderNote = safeUploader
+            ? `, uploader: ${safeUploader}`
+            : '';
+          const durSec = videoDurationSec ?? meta.transcriptionDurationSec ?? 0;
           const durText =
             durSec >= 3600
               ? `${Math.floor(durSec / 3600)}h ${Math.floor((durSec % 3600) / 60)}m`
               : `${Math.round(durSec / 60)}m`;
           const retrievalHint =
-            durSec > 3600
+            durSec >= 3600
               ? `For this long video prefer rag_search; for full text call document_retrieve(fileId=${attachment.fileId}, chunkRange).`
               : `Call document_retrieve with fileId=${attachment.fileId} to read the full transcript.`;
-          const title = meta.videoTitle ?? attachment.fileName;
+          const inner = `${icon} [${safeTitle}] (video${platformNote}, ${durText}${uploaderNote}) — transcript stored as a document; paragraphs prefixed [HH:MM:SS] timestamps — cite them when summarizing. ${retrievalHint}\n*(fileId: ${attachment.fileId} | fileName: ${attachment.fileName} | fileType: ${attachment.fileType} | fileSize: ${attachment.fileSize})*`;
           audioMarkdown.push(
-            `${icon} [${title}] (video${platformNote}, ${durText}${uploaderNote}) — transcript stored as a document; paragraphs prefixed [HH:MM:SS] timestamps — cite them when summarizing. ${retrievalHint} Source: ${meta.sourceUrl}\n*(fileId: ${attachment.fileId} | fileName: ${attachment.fileName} | fileType: ${attachment.fileType} | fileSize: ${attachment.fileSize})*`,
+            wrapUntrusted(inner, {
+              tool: 'video_link',
+              url: sourceUrl,
+            }),
           );
           continue;
         }

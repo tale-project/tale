@@ -1,15 +1,14 @@
 'use client';
 
 import { useMutation, useQuery } from 'convex/react';
+import { ConvexError } from 'convex/values';
 import { useCallback, useMemo } from 'react';
 
+import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
-
-import {
-  extractVideoUrls,
-  normalizeUrlForHash,
-} from '../../../../lib/shared/video-url';
+import { useT } from '@/lib/i18n/client';
+import { extractVideoUrls, normalizeUrlForHash } from '@/lib/shared/video-url';
 
 /**
  * Reactive subscription on this thread's video-link jobs + ingest +
@@ -22,7 +21,7 @@ import {
  * within one tick of the optimistic local update fired by Convex.
  */
 export interface VideoLinkJob {
-  jobId: string;
+  jobId: Id<'videoLinkJobs'>;
   sourceUrl: string;
   sourcePlatform: string;
   pastedToken: string;
@@ -36,8 +35,9 @@ export interface VideoLinkJob {
   errorReasonCode?: string;
   errorMessage?: string;
   attempts?: number;
-  storageId?: string;
+  storageId?: Id<'_storage'>;
   lifecycleStatus?: string;
+  messageBoundAt?: number;
   uploadedBy: string;
   createdAt: number;
 }
@@ -62,14 +62,16 @@ export interface UseChatVideoLinksResult {
     organizationId: string,
     userLocale?: string,
   ) => Promise<number>;
-  cancelJob: (jobId: string) => Promise<void>;
-  retryJob: (jobId: string) => Promise<void>;
+  cancelJob: (jobId: Id<'videoLinkJobs'>) => Promise<void>;
+  retryJob: (jobId: Id<'videoLinkJobs'>) => Promise<void>;
 }
 
 export function useChatVideoLinks(args: {
   threadId: string | undefined;
   organizationId: string | undefined;
 }): UseChatVideoLinksResult {
+  const { t: tChat } = useT('chat');
+
   // Two subscriptions, mutually exclusive:
   //   - in a thread → listForThread by threadId
   //   - welcome page (no thread yet) → listForUserUnboundChat by org+user
@@ -78,7 +80,9 @@ export function useChatVideoLinks(args: {
   // reactivity rebinds both queries with no chip flicker.
   const threadResult = useQuery(
     api.video_links.queries.listForThread,
-    args.threadId ? { threadId: args.threadId } : 'skip',
+    args.threadId && args.organizationId
+      ? { threadId: args.threadId, organizationId: args.organizationId }
+      : 'skip',
   );
   const unboundResult = useQuery(
     api.video_links.queries.listForUserUnboundChat,
@@ -100,8 +104,10 @@ export function useChatVideoLinks(args: {
       // just don't render it.
       if (j.displayStatus === 'skipped') return false;
       // Hide message-bound jobs from the draft chip area — once the
-      // bindCompletedJobsToMessage mutation has flipped lifecycleStatus,
+      // bindCompletedJobsToMessage mutation has stamped messageBoundAt,
       // the chip belongs to the sent message bubble, not the composer.
+      if (j.messageBoundAt !== undefined) return false;
+      // Soft-delete (trashed/expired/deleted) — hide as well.
       if (j.lifecycleStatus === 'trashed') return false;
       return true;
     });
@@ -136,6 +142,23 @@ export function useChatVideoLinks(args: {
           });
           ingested += 1;
         } catch (err) {
+          // Surface the rejection to the user. ConvexError carries a
+          // structured `code` that maps 1:1 to `videoLink.errors.*` keys;
+          // unstructured errors fall back to the generic copy.
+          const code =
+            err instanceof ConvexError &&
+            typeof err.data === 'object' &&
+            err.data !== null &&
+            'code' in err.data
+              ? String((err.data as { code: unknown }).code)
+              : undefined;
+          toast({
+            title: tChat('videoLink.toast.ingestFailedTitle'),
+            description: tChat(
+              code ? `videoLink.errors.${code}` : 'videoLink.errors.generic',
+            ),
+            variant: 'destructive',
+          });
           console.error(
             '[useChatVideoLinks] ingest failed:',
             err instanceof Error ? err.message : err,
@@ -144,19 +167,19 @@ export function useChatVideoLinks(args: {
       }
       return ingested;
     },
-    [args.threadId, ingestMutation],
+    [args.threadId, ingestMutation, tChat],
   );
 
   const cancelJob = useCallback(
-    async (jobId: string) => {
-      await cancelMutation({ jobId: jobId as Id<'videoLinkJobs'> });
+    async (jobId: Id<'videoLinkJobs'>) => {
+      await cancelMutation({ jobId });
     },
     [cancelMutation],
   );
 
   const retryJob = useCallback(
-    async (jobId: string) => {
-      await retryMutation({ jobId: jobId as Id<'videoLinkJobs'> });
+    async (jobId: Id<'videoLinkJobs'>) => {
+      await retryMutation({ jobId });
     },
     [retryMutation],
   );

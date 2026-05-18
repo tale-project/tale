@@ -2172,21 +2172,30 @@
       "errors": {
         "generic": "Impossible d'analyser cette vidéo",
         "privateOrAgeGated": "Vidéo privée ou à accès restreint",
-        "unavailable": "Vidéo n'est plus disponible",
+        "unavailable": "La vidéo n'est plus disponible",
         "geoblocked": "Vidéo non disponible dans cette région",
         "unsupported": "Ce site n'est pas pris en charge",
-        "transient": "Problème temporaire — réessayer",
-        "videoTooLong": "Vidéo dépasse la limite de 4 heures",
+        "transient": "Problème temporaire — réessaie",
+        "botDetection": "L'hôte vidéo a bloqué l'accès automatisé",
+        "rateLimited": "L'hôte vidéo a limité la requête",
+        "forbidden": "L'hôte vidéo a refusé l'accès (403)",
         "liveStream": "Les directs ne sont pas pris en charge",
         "premiere": "Vidéo en première/à venir non encore disponible",
         "memberOnly": "Réservé aux membres",
-        "botDetection": "L'hôte vidéo a bloqué l'accès automatisé",
-        "rateLimited": "L'hôte vidéo a limité la requête",
-        "playlistsNotSupported": "Les listes de lecture ne sont pas prises en charge — collez un lien vidéo unique",
-        "urlNotSafe": "Ce lien n'est pas autorisé",
-        "audioExtractFailed": "Impossible d'extraire l'audio de cette vidéo",
+        "jsRuntimeMissing": "Le traitement vidéo n'est pas entièrement configuré — contacte ton administrateur",
+        "binaryNotInstalled": "Traitement vidéo pas encore activé — reconstruire le conteneur Convex",
+        "timeout": "Récupération trop longue — réessaie",
+        "outputValidationFailed": "Impossible de valider le fichier vidéo téléchargé",
+        "videoTooLong": "La vidéo dépasse la limite de 4 heures",
         "whisperFailed": "Échec de la transcription",
-        "binary_not_installed": "Traitement vidéo pas encore activé — reconstruire le conteneur Convex"
+        "invalidUrl": "URL invalide",
+        "unsupportedProtocol": "Seuls les liens https:// sont acceptés",
+        "credentialedUrl": "Les liens avec identifiants intégrés ne sont pas acceptés",
+        "ipLiteral": "Les liens vers une IP brute ou localhost ne sont pas acceptés",
+        "playlist": "Les listes de lecture ne sont pas prises en charge — colle un lien vidéo unique",
+        "dnsResolutionFailed": "Impossible de résoudre l'hôte",
+        "privateIpResolved": "Ce lien pointe vers une adresse privée/interne",
+        "inFlightCap": "Trop de vidéos en cours de traitement — attends qu'une se termine"
       },
       "actions": {
         "removeLink": "Retirer",
@@ -2195,7 +2204,10 @@
       "chip": {
         "fallbackTitle": "Lien vidéo",
         "ariaLabel": "Pièce jointe vidéo : {title}",
-        "inProgressTooltip": "Attendre la fin du traitement — ou retirer le chip pour envoyer sans"
+        "inProgressTooltip": "Attends la fin du traitement — ou retire la vignette pour envoyer sans elle"
+      },
+      "toast": {
+        "ingestFailedTitle": "Impossible d'ajouter cette vidéo"
       }
     },
     "fallback": {

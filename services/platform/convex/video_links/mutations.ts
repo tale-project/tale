@@ -1,13 +1,13 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { isPlaylistUrl } from '../../lib/shared/video-url';
 import { internal } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
 import { mutation } from '../_generated/server';
 import { authComponent } from '../auth';
-import {
-  RateLimitExceededError,
-  checkOrganizationRateLimit,
-} from '../lib/rate_limiter/helpers';
+import { checkOrganizationRateLimit } from '../lib/rate_limiter/helpers';
+import { assertThreadAccess } from '../lib/rls/auth/can_access_thread';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 
 /** Per-org cap on in-flight video-link jobs. Prevents one org from soaking
  * all 32 Node-action slots with concurrent yt-dlp/Whisper work. */
@@ -42,10 +42,6 @@ const NON_TERMINAL_STATUSES = [
   'indexing',
 ] as const;
 
-function isNonTerminal(status: string): boolean {
-  return (NON_TERMINAL_STATUSES as readonly string[]).includes(status);
-}
-
 /**
  * Ingest a pasted video URL. Performs auth + org gate, advisory URL
  * safety check (server-side load-bearing DNS check happens in the action,
@@ -75,28 +71,41 @@ export const ingestVideoUrl = mutation({
       throw new Error('Unauthenticated');
     }
     const userId = String(authUser._id);
+    const callerIdentity = {
+      userId,
+      email: authUser.email,
+      name: authUser.name,
+    };
 
-    // Cross-org spoofing gate when a thread was supplied.
-    if (args.threadId !== undefined) {
-      const threadMeta = await ctx.db
-        .query('threadMetadata')
-        .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId!))
-        .unique();
-      if (
-        threadMeta &&
-        threadMeta.organizationId !== undefined &&
-        threadMeta.organizationId !== args.organizationId
-      ) {
-        throw new Error('Thread does not belong to this organization');
-      }
+    // Cross-org gate: caller must be a member of the org they're charging.
+    // Without this, any authenticated user could spend another org's
+    // file:upload rate-limit + in-flight cap by passing the target orgId.
+    await getOrganizationMember(ctx, args.organizationId, callerIdentity);
+
+    // Thread-access gate when a thread was supplied. assertThreadAccess
+    // covers: ownership, sharing, org-membership for the thread's org, and
+    // soft-deleted-thread rejection — strictly stronger than the previous
+    // hand-rolled org-id comparison.
+    const threadIdArg = args.threadId;
+    if (threadIdArg !== undefined) {
+      await assertThreadAccess(
+        ctx,
+        threadIdArg,
+        callerIdentity,
+        args.organizationId,
+      );
     }
 
-    // Refuse standalone playlist URLs synchronously — surfaced as inline
-    // form-error rather than as a chip-then-fail.
+    // Refuse standalone playlist URLs synchronously — surfaced as a toast
+    // before any chip is rendered. ConvexError code matches the i18n key
+    // under `videoLink.errors.*` so the frontend can localize without
+    // string-matching the message.
     if (isPlaylistUrl(args.url)) {
-      throw new Error(
-        'Playlist URLs are not supported — paste a single video link instead',
-      );
+      throw new ConvexError({
+        code: 'playlist',
+        message:
+          'Playlist URLs are not supported — paste a single video link instead',
+      });
     }
 
     // Rate-limit (reuses file:upload bucket: 50/min/org)
@@ -138,10 +147,10 @@ export const ingestVideoUrl = mutation({
         .collect();
       inFlight += rows.length;
       if (inFlight >= MAX_IN_FLIGHT_PER_ORG) {
-        throw new RateLimitExceededError(
-          `At most ${MAX_IN_FLIGHT_PER_ORG} video links can process at once. Wait for one to finish.`,
-          60_000,
-        );
+        throw new ConvexError({
+          code: 'inFlightCap',
+          message: `At most ${MAX_IN_FLIGHT_PER_ORG} video links can process at once. Wait for one to finish.`,
+        });
       }
     }
 
@@ -193,6 +202,15 @@ export const cancelVideoLink = mutation({
 
     const job = await ctx.db.get(args.jobId);
     if (!job) throw new Error('Video link not found');
+
+    // Org-membership gate: a user who has been removed from the org can no
+    // longer touch its rows even on their own historical jobs.
+    await getOrganizationMember(ctx, job.organizationId, {
+      userId,
+      email: authUser.email,
+      name: authUser.name,
+    });
+
     if (job.uploadedBy !== userId) {
       // TODO(prod): allow org admins. For v1, only the uploader can cancel.
       throw new Error('Only the uploader can cancel this video link');
@@ -213,12 +231,18 @@ export const cancelVideoLink = mutation({
     // Propagate cancellation into the audio-transcription pipeline if a
     // Whisper-handoff is in flight. updateFileTranscription is a no-op
     // when the row is missing, so this is safe even if the audio file-
-    // metadata never landed.
-    if (job.fileMetadataId && job.status === 'transcribing_handoff') {
+    // metadata never landed. Only fires when storageId is populated —
+    // Whisper-handoff status implies the audio blob was stored, but the
+    // optional-type guard keeps TS honest and survives any future race.
+    if (
+      job.fileMetadataId &&
+      job.storageId &&
+      job.status === 'transcribing_handoff'
+    ) {
       await ctx.runMutation(
         internal.file_metadata.internal_mutations.updateFileTranscription,
         {
-          storageId: job.storageId!,
+          storageId: job.storageId,
           transcriptionStatus: 'skipped',
         },
       );
@@ -247,6 +271,13 @@ export const retryVideoLink = mutation({
 
     const job = await ctx.db.get(args.jobId);
     if (!job) throw new Error('Video link not found');
+
+    await getOrganizationMember(ctx, job.organizationId, {
+      userId,
+      email: authUser.email,
+      name: authUser.name,
+    });
+
     if (job.uploadedBy !== userId) {
       throw new Error('Only the uploader can retry this video link');
     }
@@ -305,6 +336,25 @@ export const bindCompletedJobsToMessage = mutation({
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
     const userId = String(authUser._id);
+    const callerIdentity = {
+      userId,
+      email: authUser.email,
+      name: authUser.name,
+    };
+
+    // Org-membership gate + thread-access gate. Without these, any
+    // authenticated user could pass another org's threadId here and pull
+    // back the existence + URL hashes of every video-link row in that
+    // thread (the uploader-only filter below only narrows to *their own*
+    // rows, but the scan still leaks the unrelated rows' existence via
+    // timing and the surrounding query).
+    await getOrganizationMember(ctx, args.organizationId, callerIdentity);
+    await assertThreadAccess(
+      ctx,
+      args.threadId,
+      callerIdentity,
+      args.organizationId,
+    );
 
     // Pull two candidate sets, both in any non-terminal-from-our-pov state
     // (captions branch ends at `completed`; Whisper-handoff stays at
@@ -348,7 +398,7 @@ export const bindCompletedJobsToMessage = mutation({
     }
 
     const out: Array<{
-      fileId: string;
+      fileId: Id<'_storage'>;
       fileName: string;
       fileType: string;
       fileSize: number;
@@ -362,11 +412,11 @@ export const bindCompletedJobsToMessage = mutation({
       // Only bind jobs the caller owns — prevents one user's chips from
       // attaching to another user's message in shared threads.
       if (job.uploadedBy !== userId) continue;
-      // 'bound' lifecycle is repurposed here — once bound to a sent
-      // message, the chip disappears from the draft area but the row
-      // stays for citation integrity (cancel after bind only deletes
-      // the audio blob, not the transcript).
-      if ((job.lifecycleStatus as string | undefined) === 'bound') continue;
+      // Skip jobs already bound to a sent message. messageBoundAt is the
+      // single source of truth for bind status (R2 review: the previous
+      // implementation guarded on lifecycleStatus==='bound' but wrote
+      // 'active', so the guard never fired and double-bind was possible).
+      if (job.messageBoundAt !== undefined) continue;
       if (!job.storageId || !job.fileMetadataId) continue;
 
       const fileMeta = await ctx.db.get(job.fileMetadataId);
@@ -377,11 +427,7 @@ export const bindCompletedJobsToMessage = mutation({
         // first send has created one. Already-in-thread rows are no-op
         // on this field.
         ...(job.threadId === undefined ? { threadId: args.threadId } : {}),
-        // Reusing lifecycleStatus as a soft-state marker; 'bound' isn't
-        // in the existing SOFT_DELETE_STATUSES set but the field accepts
-        // any of the validator's literals; tests pin this contract.
-        lifecycleStatus: 'active',
-        statusChangedAt: Date.now(),
+        messageBoundAt: Date.now(),
       });
 
       out.push({
