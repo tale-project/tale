@@ -621,6 +621,13 @@ async function handleYtDlpError(
         attempts,
         delayMs,
         reason: err.reason,
+        // Truncated sanitized stderr so operators can diagnose
+        // `transient`-classified failures without inspecting the DB row
+        // (the classifier returns 'transient' for any pattern it doesn't
+        // recognize — typically because yt-dlp added a new error message
+        // shape upstream, and silent-retry is the worst-case for debug).
+        stderr: err.sanitizedStderr.slice(0, 400),
+        message: err.message,
       }),
     );
     return;
