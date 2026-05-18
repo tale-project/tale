@@ -12,6 +12,10 @@ import { queryWithRLS } from '../lib/rls/helpers/query_with_rls';
 import { getUserOrganizations } from '../lib/rls/organization/get_user_organizations';
 import { validateOrganizationAccess } from '../lib/rls/organization/validate_organization_access';
 import { hasTeamAccess } from '../lib/team_access';
+import {
+  assertCategoryScopeMatchesPromptScope,
+  toCategoryAccessShape,
+} from './category_access';
 import { assertPromptSizes, normalizePromptFields } from './size_guards';
 import {
   promptHistoryResultValidator,
@@ -586,10 +590,12 @@ export const validateSaveArgs = internalQuery({
     teamId: v.optional(v.string()),
     category: v.optional(v.string()),
     /**
-     * Optional structured category id. Not deeply validated here — the
-     * downstream `createPrompt` mutation re-validates scope-match against
-     * the resolved category. This pre-flight is a fast-fail before the
-     * LLM call, not a security gate.
+     * Optional structured category id. Validated here as a cheap
+     * fast-fail before `savePrompt` pays for title generation — a
+     * deleted, cross-org, or scope-incompatible id throws now instead
+     * of slipping through to `createPrompt`. `createPrompt` still
+     * re-validates on the write path; this is a UX guard, not the
+     * security boundary.
      */
     categoryId: v.optional(v.id('promptCategories')),
     tags: v.optional(v.array(v.string())),
@@ -598,6 +604,7 @@ export const validateSaveArgs = internalQuery({
   handler: async (ctx, args) => {
     const user = await requireAuthenticatedUser(ctx);
     await validateOrganizationAccess(ctx, args.organizationId, undefined, user);
+    const teamIds = await getUserTeamIds(ctx, user.userId);
     if (args.scope === 'team') {
       if (!args.teamId) {
         throw new ConvexError({
@@ -605,13 +612,28 @@ export const validateSaveArgs = internalQuery({
           message: 'Team-scoped prompts must specify a team',
         });
       }
-      const teamIds = await getUserTeamIds(ctx, user.userId);
       if (!teamIds.includes(args.teamId)) {
         throw new ConvexError({
           code: 'forbidden',
           message: 'You are not a member of this team',
         });
       }
+    }
+    if (args.categoryId) {
+      const cat = await ctx.db.get(args.categoryId);
+      if (!cat || cat.organizationId !== args.organizationId) {
+        throw new ConvexError({
+          code: 'not_found',
+          message: 'Category not found',
+        });
+      }
+      assertCategoryScopeMatchesPromptScope({
+        promptScope: args.scope,
+        promptTeamId: args.scope === 'team' ? args.teamId : undefined,
+        category: toCategoryAccessShape(cat),
+        userId: user.userId,
+        userTeamIds: teamIds,
+      });
     }
     const normalized = normalizePromptFields({
       content: args.content,

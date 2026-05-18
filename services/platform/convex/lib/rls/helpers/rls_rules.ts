@@ -549,7 +549,27 @@ export async function rlsRules(
         const membership = userOrganizations.find(
           (m) => m.organizationId === category.organizationId,
         );
-        return authorizeRls(membership?.role, 'promptCategories', 'write');
+        if (!authorizeRls(membership?.role, 'promptCategories', 'write')) {
+          return false;
+        }
+        // Mirror the scope model on the write path so the row policy
+        // doesn't rely on every caller to remember the matrix:
+        //   personal — only the creator
+        //   team     — admins/owners of the org who are members of the team
+        //   global   — admins/owners only
+        const isAdminRole =
+          membership?.role === 'admin' || membership?.role === 'owner';
+        if (category.scope === 'personal') {
+          return category.createdBy === user.userId;
+        }
+        if (category.scope === 'team') {
+          if (!isAdminRole) return false;
+          return !!category.teamId && userTeamIds.has(category.teamId);
+        }
+        if (category.scope === 'global') {
+          return isAdminRole;
+        }
+        return false;
       },
       insert: async ({ user: ruleUser }, category) => {
         if (!ruleUser) return false;
@@ -557,7 +577,22 @@ export async function rlsRules(
         const membership = userOrganizations.find(
           (m) => m.organizationId === category.organizationId,
         );
-        return authorizeRls(membership?.role, 'promptCategories', 'write');
+        if (!authorizeRls(membership?.role, 'promptCategories', 'write')) {
+          return false;
+        }
+        const isAdminRole =
+          membership?.role === 'admin' || membership?.role === 'owner';
+        if (category.scope === 'personal') {
+          return category.createdBy === ruleUser.userId;
+        }
+        if (category.scope === 'team') {
+          if (!isAdminRole) return false;
+          return !!category.teamId && userTeamIds.has(category.teamId);
+        }
+        if (category.scope === 'global') {
+          return isAdminRole;
+        }
+        return false;
       },
     },
 

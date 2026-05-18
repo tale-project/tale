@@ -909,10 +909,11 @@ export const restoreFromVersion = mutationWithRLS({
     }
 
     // Resolve the categoryId for the restored state. The snapshot may
-    // carry an id, a legacy string, both, or neither. Re-validate
-    // against the restored scope and silently clear on mismatch (the
-    // snapshotted category may have been valid at the time but isn't
-    // anymore — e.g. team-scope changed teams).
+    // carry an id, a legacy string, both, or neither. Treat the
+    // snapshot values as *inherited* (not caller-supplied) so a
+    // category that was later deleted or whose scope no longer matches
+    // silently clears instead of throwing. Falls back to the row's
+    // current id/string when the snapshot has neither.
     const userTeamIdsForRestore = await getUserTeamIds(ctx, user.userId);
     const restoredCategory = await resolveCategoryIdForWrite(ctx, {
       organizationId: existing.organizationId,
@@ -921,14 +922,12 @@ export const restoreFromVersion = mutationWithRLS({
       userTeamIds: userTeamIdsForRestore,
       promptScope: restoredScope,
       promptTeamId: restoredTeamId,
-      // Prefer the snapshot's id, falling back to its legacy string,
-      // falling back to the row's current id, falling back to the row's
-      // current legacy string. Each fallback covers a partial-migration
-      // shape that real data may exhibit.
-      callerCategoryId: target.categoryId,
-      callerCategoryString: target.categoryId ? undefined : target.category,
-      inheritedCategoryId: existing.categoryId,
-      inheritedCategoryString: existing.category,
+      callerCategoryId: undefined,
+      callerCategoryString: undefined,
+      inheritedCategoryId: target.categoryId ?? existing.categoryId,
+      inheritedCategoryString: target.categoryId
+        ? undefined
+        : (target.category ?? existing.category),
     });
 
     const targetMetadata: PromptVersionMetadata = {

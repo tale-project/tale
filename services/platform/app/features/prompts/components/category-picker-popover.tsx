@@ -137,7 +137,12 @@ export function CategoryPickerPopover({
     if (creating) createInputRef.current?.focus();
   }, [creating]);
 
-  const canCreate = canCreateCategoryInScope({ scope, isOrgAdmin });
+  // Team-scope creation also needs a selected team — without one the
+  // server's bucket-aware create can't decide where to write, and the
+  // mutation throws. Gate the button so it never enters that state.
+  const canCreate =
+    canCreateCategoryInScope({ scope, isOrgAdmin }) &&
+    (scope !== 'team' || !!teamId);
 
   const handleSelect = useCallback(
     (id: Id<'promptCategories'> | undefined) => {
@@ -149,6 +154,7 @@ export function CategoryPickerPopover({
 
   const handleCreate = useCallback(async () => {
     if (!organizationId) return;
+    if (scope === 'team' && !teamId) return;
     const name = createValue.trim();
     if (!name) return;
     try {

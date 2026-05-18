@@ -81,9 +81,11 @@ function SavePromptDialogContent({
     () => [
       { value: 'personal', label: t('scope.personal') },
       { value: 'team', label: t('scope.team') },
-      { value: 'global', label: t('scope.global') },
+      // Global is admin/owner-only on the server (see `createPrompt`);
+      // hide it for non-admins so the option isn't a guaranteed-fail.
+      ...(isOrgAdmin ? [{ value: 'global', label: t('scope.global') }] : []),
     ],
-    [t],
+    [t, isOrgAdmin],
   );
 
   const contentBytes = useMemo(

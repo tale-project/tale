@@ -153,7 +153,7 @@ export function TagChipInput({
           {value.map((tag, idx) => (
             <span
               key={tag}
-              className="text-muted-foreground border-muted-foreground bg-muted flex items-center gap-1 rounded-full border-[1.5px] py-1 pr-1 pl-2.5 text-[13px] font-medium transition-colors"
+              className="text-muted-foreground border-muted-foreground bg-muted flex items-center gap-1 rounded-full border-[1.5px] py-1 pr-1 pl-2.5 text-[13px] font-medium transition-colors motion-reduce:transition-none"
             >
               <span>{tag}</span>
               <button
