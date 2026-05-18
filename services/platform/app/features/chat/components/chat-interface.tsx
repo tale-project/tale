@@ -687,15 +687,27 @@ export function ChatInterface({
     userContext,
     arena: arenaContext ?? undefined,
     teamId: teamFilter?.selectedTeamId ?? undefined,
+    // The hook sets this ref RIGHT BEFORE each setPendingMessage call,
+    // so the auto-scroll intent is fresh when the MutationObserver
+    // picks up the new bubble. Previously this was set here in
+    // `handleSendMessage` BEFORE the (potentially 50-200ms) await, and
+    // unrelated observer fires during the await would downgrade the
+    // ref to 'instant' or clear it — breaking auto-scroll for video-
+    // link sends specifically (those have an extra `await
+    // bindCompletedJobsToMessage` round-trip; plain text and image
+    // attachments don't, which is why they always worked).
+    scrollIntentRef: scrollingToBottomBehaviorRef,
   });
 
   const handleSendMessage = async (
     message: string,
     sentAttachments?: FileAttachment[],
   ) => {
-    // Instant for new threads (no content to scroll past, avoids layout shift
-    // during the budget-banner → thread transition). Smooth for existing threads.
-    scrollingToBottomBehaviorRef.current = threadId ? 'smooth' : 'instant';
+    // Scroll-intent now set inside `useSendMessage` adjacent to each
+    // setPendingMessage call — see `scrollIntentRef` prop above. Setting
+    // it here would re-introduce the video-link race window where a
+    // 50-200 ms `await bindCompletedJobsToMessage` lets observer fires
+    // downgrade the ref before the optimistic bubble lands.
     clearInputValue();
 
     // For image-generation agents, if an editing image is active in the
@@ -738,10 +750,11 @@ export function ChatInterface({
 
   const handleSendMessageDirect = useCallback(
     (message: string) => {
-      scrollingToBottomBehaviorRef.current = threadId ? 'smooth' : 'instant';
+      // Scroll-intent set inside `useSendMessage` (see scrollIntentRef
+      // wiring above). Setting it here would re-introduce the race.
       void sendMessage(message);
     },
-    [sendMessage, threadId],
+    [sendMessage],
   );
 
   // Edit message → open dialog → create branch on submit
@@ -849,7 +862,8 @@ export function ChatInterface({
       .toReversed()
       .find((msg) => msg.role === 'user');
     if (!lastUserMessage?.content) return;
-    scrollingToBottomBehaviorRef.current = 'smooth';
+    // Scroll-intent set inside `useSendMessage` adjacent to each
+    // setPendingMessage call — see scrollIntentRef wiring above.
     void sendMessage(lastUserMessage.content);
   }, [messages, sendMessage]);
 

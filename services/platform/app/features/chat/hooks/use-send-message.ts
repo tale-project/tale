@@ -1,6 +1,11 @@
 import { useNavigate } from '@tanstack/react-router';
 import { ConvexError } from 'convex/values';
-import { useCallback, useRef, startTransition } from 'react';
+import {
+  useCallback,
+  useRef,
+  startTransition,
+  type MutableRefObject,
+} from 'react';
 
 import { useConvexClient } from '@/app/hooks/use-convex-client';
 import { toast } from '@/app/hooks/use-toast';
@@ -72,6 +77,24 @@ interface UseSendMessageParams {
   userContext?: UserContext;
   arena?: ArenaParams;
   teamId?: string;
+  /**
+   * Auto-scroll intent ref owned by chat-interface.tsx. The hook sets it
+   * IMMEDIATELY before each `setPendingMessage(...)` so the intent is
+   * fresh when the MutationObserver picks up the new bubble.
+   *
+   * Why this is per-`setPendingMessage` rather than once at entry:
+   * `bindCompletedJobsToMessage` for video-link attachments awaits a
+   * 50-200 ms server round-trip BEFORE the optimistic message lands. If
+   * the caller sets the intent before that await, any unrelated
+   * Resize/MutationObserver fire during the wait downgrades 'smooth'
+   * → 'instant' (chat-interface.tsx:549-552), or worse, an `onScroll`
+   * with `currentTop < prevTop` clears it to null (line 546). By the
+   * time the optimistic bubble actually mounts, the intent is gone and
+   * auto-scroll-to-bottom doesn't fire — visible as "scroll didn't
+   * follow after sending a video link" while plain text / images work
+   * (those paths skip the bind round-trip).
+   */
+  scrollIntentRef?: MutableRefObject<ScrollBehavior | null>;
 }
 
 /**
@@ -93,6 +116,7 @@ export function useSendMessage({
   userContext,
   arena,
   teamId,
+  scrollIntentRef,
 }: UseSendMessageParams) {
   const { t } = useT('chat');
   const navigate = useNavigate();
@@ -124,6 +148,19 @@ export function useSendMessage({
       }
 
       sendingRef.current = true;
+
+      // Set the auto-scroll-to-bottom intent IMMEDIATELY before any
+      // setPendingMessage call. See `UseSendMessageParams.scrollIntentRef`
+      // docstring — setting it once at the outer `handleSendMessage`
+      // entry (before this hook's awaits) lets unrelated observer
+      // fires downgrade/clear the ref during long awaits (e.g. the
+      // video-link `bindCompletedJobsToMessage` round-trip), so by the
+      // time the optimistic bubble lands, scroll doesn't fire.
+      const markScrollIntent = () => {
+        if (scrollIntentRef) {
+          scrollIntentRef.current = threadId ? 'smooth' : 'instant';
+        }
+      };
 
       // Convert attachments format (synchronous — needed for optimistic message)
       const mutationAttachments: Array<{
@@ -261,6 +298,10 @@ export function useSendMessage({
       // render was only winning a round-trip anyway.
       const lastMessageKey = messages[messages.length - 1]?.key;
       const pendingTimestamp = new Date();
+      // Mark scroll-to-bottom intent IMMEDIATELY before the bubble mounts
+      // — see `markScrollIntent` declaration above for the race-window
+      // reasoning. Covers all three branches below uniformly.
+      markScrollIntent();
       if (isArena) {
         if (currentArena.arenaThreadIdA && currentArena.arenaThreadIdB) {
           setPendingMessage({
@@ -348,6 +389,11 @@ export function useSendMessage({
             currentArena.setArenaThreadIdA(newA);
             currentArena.setArenaThreadIdB(newB);
             setPendingThreadId(tIdA);
+            // Re-mark intent: an `await createThread` round-trip just
+            // landed before this setPendingMessage, and observer fires
+            // during that window may have downgraded/cleared the ref
+            // set earlier above.
+            markScrollIntent();
             setPendingMessage({
               content: messageToSend,
               threadId: tIdA,
@@ -440,6 +486,9 @@ export function useSendMessage({
           let isFirstMessage = false;
 
           if (!currentThreadId) {
+            // Pre-create-thread optimistic update — same scroll-intent
+            // refresh as the other call sites; cheap (a ref write).
+            markScrollIntent();
             setPendingMessage({
               content: messageToSend,
               threadId: 'pending',
@@ -466,6 +515,9 @@ export function useSendMessage({
             // skeleton. usePendingMessages matches via the pendingThreadId
             // fallback path even while URL is still /chat.
             // Only navigation is deferred via startTransition.
+            // Re-mark intent after `await createThread` round-trip
+            // before swapping in the real threadId.
+            markScrollIntent();
             setPendingMessage({
               content: messageToSend,
               threadId: newThreadId,
