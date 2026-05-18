@@ -32,8 +32,18 @@ import { TagChipInput } from './tag-chip-input';
 type PromptScope = 'global' | 'team' | 'personal';
 
 // Radix Select reserves `value=""` for "unselected" and throws if an Item
-// is rendered with it, so the explicit "None" choice rides on a sentinel.
+// is rendered with it, so the explicit "None" choice rides on a sentinel and
+// user-supplied categories are namespaced with `cat:` to avoid any chance of
+// collision with that sentinel.
 const CATEGORY_NONE_VALUE = '__none__';
+const CATEGORY_VALUE_PREFIX = 'cat:';
+const encodeCategory = (c: string) => `${CATEGORY_VALUE_PREFIX}${c}`;
+const decodeCategory = (v: string) =>
+  v === CATEGORY_NONE_VALUE
+    ? ''
+    : v.startsWith(CATEGORY_VALUE_PREFIX)
+      ? v.slice(CATEGORY_VALUE_PREFIX.length)
+      : v;
 
 // Positional tag equality. Mirrors `metadataDiffers` on the server so a
 // reorder counts as an edit. Module-scope so it's a stable reference across
@@ -185,7 +195,10 @@ function PromptFormDialogContent({
   const categoryOptions = useMemo(
     () => [
       { value: CATEGORY_NONE_VALUE, label: t('form.categoryNone') },
-      ...existingCategories.map((c) => ({ value: c, label: c })),
+      ...existingCategories.map((c) => ({
+        value: encodeCategory(c),
+        label: c,
+      })),
     ],
     [existingCategories, t],
   );
@@ -433,8 +446,10 @@ function PromptFormDialogContent({
         </HStack>
         <Select
           options={categoryOptions}
-          value={category === '' ? CATEGORY_NONE_VALUE : category}
-          onValueChange={(v) => setCategory(v === CATEGORY_NONE_VALUE ? '' : v)}
+          value={
+            category === '' ? CATEGORY_NONE_VALUE : encodeCategory(category)
+          }
+          onValueChange={(v) => setCategory(decodeCategory(v))}
           placeholder={t('form.categoryPlaceholder')}
           aria-labelledby={categoryLabelId}
         />

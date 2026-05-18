@@ -490,7 +490,7 @@
     "organization": {
       "title": "Organisation (optional)",
       "detailsTitle": "Organisationsdetails",
-      "detailsDescription": "Grundlegende Informationen zu Ihrer Organisation.",
+      "detailsDescription": "Grundlegende Informationen zu deiner Organisation.",
       "organizationId": "Organisations-ID",
       "copyOrganizationId": "Organisations-ID kopieren",
       "membersTitle": "Organisationsmitglieder",

@@ -311,8 +311,8 @@ describe('assertCategoryScopeMatchesPromptScope', () => {
       throw new Error('expected throw');
     } catch (err) {
       expect(err).toBeInstanceOf(ConvexError);
-      const data = (err as ConvexError<{ code: string }>).data;
-      expect(data.code).toBe('forbidden');
+      if (!(err instanceof ConvexError)) throw err;
+      expect((err.data as { code: string }).code).toBe('forbidden');
     }
   });
 });

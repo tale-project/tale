@@ -112,16 +112,13 @@ export async function findCategoryInBucket(
     nameLower: string;
   },
 ): Promise<Doc<'promptCategories'> | null> {
-  const candidates = await ctx.db
+  for await (const c of ctx.db
     .query('promptCategories')
     .withIndex('by_organizationId_and_nameLower', (q) =>
       q
         .eq('organizationId', args.organizationId)
         .eq('nameLower', args.nameLower),
-    )
-    .collect();
-
-  for (const c of candidates) {
+    )) {
     if (c.scope !== args.scope) continue;
     if (args.scope === 'team' && c.teamId !== args.teamId) continue;
     if (args.scope === 'personal' && c.createdBy !== args.createdBy) continue;

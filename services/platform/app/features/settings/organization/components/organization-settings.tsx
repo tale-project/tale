@@ -207,7 +207,7 @@ export function OrganizationSettings({
             />
 
             {organization && (
-              <div className="mt-4 max-w-sm">
+              <div className="mt-4">
                 <CopyableField
                   value={organization._id}
                   label={tSettings('organization.organizationId')}
