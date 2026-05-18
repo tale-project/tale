@@ -24,6 +24,7 @@ type PlatformTable =
   | 'websites'
   | 'workflowProcessingRecords'
   | 'promptTemplates'
+  | 'promptCategories'
   | 'auditLogs';
 
 type PlatformAction = 'read' | 'write';
@@ -62,6 +63,7 @@ const platformPermissions: Record<
     approvals: ALL,
     websites: ALL,
     promptTemplates: ALL,
+    promptCategories: ALL,
     auditLogs: ALL,
   },
   developer: {
@@ -83,6 +85,7 @@ const platformPermissions: Record<
     approvals: ALL,
     websites: ALL,
     promptTemplates: ALL,
+    promptCategories: ALL,
     auditLogs: ALL,
   },
   editor: {
@@ -104,6 +107,7 @@ const platformPermissions: Record<
     approvals: ALL,
     websites: ALL,
     promptTemplates: ALL,
+    promptCategories: ALL,
     auditLogs: ALL,
   },
   member: {
@@ -125,6 +129,7 @@ const platformPermissions: Record<
     approvals: READ_ONLY,
     websites: READ_ONLY,
     promptTemplates: ALL,
+    promptCategories: ALL,
     auditLogs: READ_ONLY,
   },
   disabled: {
@@ -146,6 +151,7 @@ const platformPermissions: Record<
     approvals: NONE,
     websites: NONE,
     promptTemplates: NONE,
+    promptCategories: NONE,
     auditLogs: NONE,
   },
 };

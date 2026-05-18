@@ -38,3 +38,21 @@ export function useIncrementPromptUsage() {
 export function useRestorePromptFromVersion() {
   return useConvexMutation(api.prompts.mutations.restoreFromVersion);
 }
+
+/** Create a new prompt category at the requested scope. */
+export function useCreatePromptCategory() {
+  return useConvexMutation(api.prompts.categories.createCategory);
+}
+
+/** Rename an existing prompt category. */
+export function useRenamePromptCategory() {
+  return useConvexMutation(api.prompts.categories.renameCategory);
+}
+
+/**
+ * Delete a prompt category. The server clears `categoryId` on every
+ * linked prompt as part of the same transaction.
+ */
+export function useDeletePromptCategory() {
+  return useConvexMutation(api.prompts.categories.deleteCategory);
+}

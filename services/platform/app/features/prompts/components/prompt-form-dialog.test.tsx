@@ -23,6 +23,18 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'test-org-id',
 }));
 
+vi.mock('@/app/hooks/use-current-user', () => ({
+  useCurrentUser: () => ({ data: { userId: 'user-1' } }),
+}));
+
+vi.mock('@/app/hooks/use-current-member-context', () => ({
+  useCurrentMemberContext: () => ({ data: { role: 'admin' } }),
+}));
+
+vi.mock('@/app/hooks/use-toast', () => ({
+  useToast: () => ({ toast: vi.fn() }),
+}));
+
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useTeams: () => ({ teams: [], isLoading: false }),
 }));
@@ -36,6 +48,16 @@ let mockUsePromptResult: { data: unknown; isLoading: boolean } = {
 vi.mock('../hooks/queries', () => ({
   usePrompts: () => ({ prompts: [], isLoading: false }),
   usePrompt: () => mockUsePromptResult,
+  useCategories: () => ({
+    data: { personal: [], team: [], global: [] },
+    isLoading: false,
+  }),
+}));
+
+vi.mock('../hooks/mutations', () => ({
+  useCreatePromptCategory: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useRenamePromptCategory: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDeletePromptCategory: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 import { PromptFormDialog } from './prompt-form-dialog';
@@ -245,7 +267,7 @@ describe('PromptFormDialog', () => {
   });
 
   describe('admin-only global tab', () => {
-    it('disables the global tab when isOrgAdmin=false and scope is not global', () => {
+    it('hides the global tab when isOrgAdmin=false and scope is not global', () => {
       render(
         <PromptFormDialog
           open={true}
@@ -255,12 +277,37 @@ describe('PromptFormDialog', () => {
           isOrgAdmin={false}
         />,
       );
-      // The Tabs component renders option items; find the global one and
-      // confirm it's disabled.
-      const globalTab = screen.getByRole('tab', {
-        name: 'prompts.scope.global',
-      });
-      expect(globalTab).toBeDisabled();
+      expect(
+        screen.queryByRole('tab', { name: 'prompts.scope.global' }),
+      ).toBeNull();
+    });
+
+    it('still renders the global tab for a non-admin editing an already-global prompt', () => {
+      const globalPrompt = {
+        _id: 'prompt-global' as never,
+        _creationTime: 1700000000000,
+        organizationId: 'test-org-id',
+        createdBy: 'user-1',
+        title: 'Existing global',
+        content: 'body',
+        scope: 'global' as const,
+        usageCount: 0,
+        version: 1,
+      };
+      mockUsePromptResult = { data: globalPrompt, isLoading: false };
+      render(
+        <PromptFormDialog
+          open={true}
+          onOpenChange={vi.fn()}
+          onSubmit={vi.fn()}
+          isSubmitting={false}
+          isOrgAdmin={false}
+          initialData={globalPrompt}
+        />,
+      );
+      expect(
+        screen.getByRole('tab', { name: 'prompts.scope.global' }),
+      ).toBeInTheDocument();
     });
   });
 });

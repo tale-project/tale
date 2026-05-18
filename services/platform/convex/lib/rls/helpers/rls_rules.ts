@@ -520,6 +520,82 @@ export async function rlsRules(
       },
     },
 
+    // Prompt Categories - organization-scoped, scope-filtered
+    // (personal: creator; team: team members; global: any org member).
+    // Coarse RLS — the handler still does scope-specific create gating
+    // (admins for team/global, creator-only for personal modify).
+    promptCategories: {
+      read: async (_, category) => {
+        if (!user) return false;
+        if (!userOrgIds.has(category.organizationId)) return false;
+        if (category.scope === 'global') {
+          // visible to any org member
+        } else if (category.scope === 'team') {
+          if (!category.teamId || !userTeamIds.has(category.teamId))
+            return false;
+        } else if (category.scope === 'personal') {
+          if (category.createdBy !== user.userId) return false;
+        } else {
+          return false;
+        }
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === category.organizationId,
+        );
+        return authorizeRls(membership?.role, 'promptCategories', 'read');
+      },
+      modify: async (_, category) => {
+        if (!user) return false;
+        if (!userOrgIds.has(category.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === category.organizationId,
+        );
+        if (!authorizeRls(membership?.role, 'promptCategories', 'write')) {
+          return false;
+        }
+        // Mirror the scope model on the write path so the row policy
+        // doesn't rely on every caller to remember the matrix:
+        //   personal — only the creator
+        //   team     — admins/owners of the org who are members of the team
+        //   global   — admins/owners only
+        const isAdminRole =
+          membership?.role === 'admin' || membership?.role === 'owner';
+        if (category.scope === 'personal') {
+          return category.createdBy === user.userId;
+        }
+        if (category.scope === 'team') {
+          if (!isAdminRole) return false;
+          return !!category.teamId && userTeamIds.has(category.teamId);
+        }
+        if (category.scope === 'global') {
+          return isAdminRole;
+        }
+        return false;
+      },
+      insert: async ({ user: ruleUser }, category) => {
+        if (!ruleUser) return false;
+        if (!userOrgIds.has(category.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === category.organizationId,
+        );
+        if (!authorizeRls(membership?.role, 'promptCategories', 'write')) {
+          return false;
+        }
+        const isAdminRole =
+          membership?.role === 'admin' || membership?.role === 'owner';
+        if (category.scope === 'personal') {
+          return category.createdBy === ruleUser.userId;
+        }
+        if (category.scope === 'team') {
+          if (!isAdminRole) return false;
+          return !!category.teamId && userTeamIds.has(category.teamId);
+        }
+        if (category.scope === 'global') {
+          return isAdminRole;
+        }
+        return false;
+      },
+    },
+
     // Audit Logs - organization-scoped, allow inserts for org members
     auditLogs: {
       read: async (_, log) => {

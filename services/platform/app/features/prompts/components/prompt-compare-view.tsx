@@ -7,10 +7,13 @@ import { useMemo } from 'react';
 
 import { Text } from '@/app/components/ui/typography/text';
 import { useFormatDate } from '@/app/hooks/use-format-date';
+import { useOrganizationId } from '@/app/hooks/use-organization-id';
+import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import type { PromptVersionEntry } from '../hooks/queries';
+import { useCategories } from '../hooks/queries';
 
 interface PromptCompareViewProps {
   current: PromptVersionEntry;
@@ -60,9 +63,28 @@ function tagsString(tags: string[] | undefined): string {
   return tags && tags.length > 0 ? tags.join(', ') : '—';
 }
 
+/**
+ * Resolve the displayed category name for a snapshot entry. `categoryId`
+ * is preferred; the legacy free-form string is the fallback for entries
+ * that predate the migration. A dangling id (category was deleted)
+ * renders the localized "(deleted)" label.
+ */
+function resolveCategoryDisplay(
+  entry: PromptVersionEntry,
+  nameById: Map<Id<'promptCategories'>, string>,
+  deletedLabel: string,
+): string {
+  if (entry.categoryId) {
+    return nameById.get(entry.categoryId) ?? deletedLabel;
+  }
+  return entry.category ?? '—';
+}
+
 function buildMetadataDiff(
   current: PromptVersionEntry,
   snapshot: PromptVersionEntry,
+  nameById: Map<Id<'promptCategories'>, string>,
+  deletedLabel: string,
 ): MetadataDiffRow[] {
   const out: MetadataDiffRow[] = [];
   if (current.title !== snapshot.title) {
@@ -75,11 +97,24 @@ function buildMetadataDiff(
       after: snapshot.description ?? '—',
     });
   }
-  if ((current.category ?? '') !== (snapshot.category ?? '')) {
+  const currentCategoryDisplay = resolveCategoryDisplay(
+    current,
+    nameById,
+    deletedLabel,
+  );
+  const snapshotCategoryDisplay = resolveCategoryDisplay(
+    snapshot,
+    nameById,
+    deletedLabel,
+  );
+  // Compare by what the user sees so a rename of the same id shows up,
+  // but a legacy-string ↔ id transition that resolves to the same name
+  // is correctly suppressed.
+  if (currentCategoryDisplay !== snapshotCategoryDisplay) {
     out.push({
       field: 'category',
-      before: current.category ?? '—',
-      after: snapshot.category ?? '—',
+      before: currentCategoryDisplay || '—',
+      after: snapshotCategoryDisplay || '—',
     });
   }
   const beforeTags = tagsString(current.tags);
@@ -102,14 +137,29 @@ export function PromptCompareView({
 }: PromptCompareViewProps) {
   const { t } = useT('prompts');
   const { formatDate } = useFormatDate();
+  const organizationId = useOrganizationId();
+  const { data: categoriesData } = useCategories(organizationId);
+  const deletedLabel = t('categories.deletedLabel');
+  const nameById = useMemo(() => {
+    const map = new Map<Id<'promptCategories'>, string>();
+    if (!categoriesData) return map;
+    for (const c of [
+      ...categoriesData.personal,
+      ...categoriesData.team,
+      ...categoriesData.global,
+    ]) {
+      map.set(c._id, c.name);
+    }
+    return map;
+  }, [categoriesData]);
 
   const rows = useMemo(
     () => buildDiffRows(current.content, snapshot.content),
     [current.content, snapshot.content],
   );
   const metadataDiff = useMemo(
-    () => buildMetadataDiff(current, snapshot),
-    [current, snapshot],
+    () => buildMetadataDiff(current, snapshot, nameById, deletedLabel),
+    [current, snapshot, nameById, deletedLabel],
   );
   const hasContentChanges = rows.some((r) => r.type !== 'context');
   const hasMetadataChanges = metadataDiff.length > 0;

@@ -20,7 +20,9 @@ interface PromptVersionStoredEntry {
   publishNote?: string;
   title: string;
   description?: string;
+  /** Legacy free-form string; superseded by `categoryId` once migrated. */
   category?: string;
+  categoryId?: Id<'promptCategories'>;
   tags?: string[];
   scope: 'global' | 'team' | 'personal';
   teamId?: string;
@@ -45,7 +47,9 @@ export interface PromptTemplate {
   description?: string;
   scope: 'global' | 'team' | 'personal';
   teamId?: string;
+  /** Legacy free-form string; superseded by `categoryId` once migrated. */
   category?: string;
+  categoryId?: Id<'promptCategories'>;
   tags?: string[];
   usageCount: number;
   sourceMessageId?: string;
@@ -54,10 +58,29 @@ export interface PromptTemplate {
   versionHistory?: PromptVersionStoredEntry[];
 }
 
+export interface PromptCategory {
+  _id: Id<'promptCategories'>;
+  _creationTime: number;
+  organizationId: string;
+  scope: 'global' | 'team' | 'personal';
+  teamId?: string;
+  createdBy: string;
+  name: string;
+  nameLower: string;
+}
+
+export interface CategoriesBucketed {
+  personal: PromptCategory[];
+  team: PromptCategory[];
+  global: PromptCategory[];
+}
+
 interface UsePromptsOptions {
   scope?: 'global' | 'team' | 'personal';
   search?: string;
+  /** Legacy string filter; clients should prefer `categoryIds`. */
   categories?: string[];
+  categoryIds?: Id<'promptCategories'>[];
   tags?: string[];
 }
 
@@ -80,6 +103,10 @@ export function usePrompts(
         categories:
           options.categories && options.categories.length > 0
             ? options.categories
+            : undefined,
+        categoryIds:
+          options.categoryIds && options.categoryIds.length > 0
+            ? options.categoryIds
             : undefined,
         tags:
           options.tags && options.tags.length > 0 ? options.tags : undefined,
@@ -112,6 +139,19 @@ export function usePrompts(
 export function usePromptFacets(organizationId: string | undefined) {
   return useConvexQuery(
     api.prompts.queries.listPromptFacets,
+    organizationId ? { organizationId } : 'skip',
+    { enabled: !!organizationId },
+  );
+}
+
+/**
+ * Categories the caller can see, bucketed by scope. The picker calls
+ * this once and filters in memory by the form's currently-selected
+ * scope (and teamId for team-scope prompts).
+ */
+export function useCategories(organizationId: string | undefined) {
+  return useConvexQuery(
+    api.prompts.categories.listCategories,
     organizationId ? { organizationId } : 'skip',
     { enabled: !!organizationId },
   );

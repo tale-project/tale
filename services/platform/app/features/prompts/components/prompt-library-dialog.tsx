@@ -15,12 +15,13 @@ import { useCurrentUser } from '@/app/hooks/use-current-user';
 import { useDebounce } from '@/app/hooks/use-debounce';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useToast } from '@/app/hooks/use-toast';
+import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import {
-  useCreatePrompt,
   useDeletePrompt,
   useIncrementPromptUsage,
+  useSavePrompt,
   useUpdatePrompt,
 } from '../hooks/mutations';
 import type { PromptTemplate } from '../hooks/queries';
@@ -59,7 +60,12 @@ function PromptLibraryDialogContent({
 
   const [activeTab, setActiveTab] = useState<TabValue>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<
+    Id<'promptCategories'>[]
+  >([]);
+  const [selectedLegacyCategories, setSelectedLegacyCategories] = useState<
+    string[]
+  >([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [formOpen, setFormOpen] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState<PromptTemplate | null>(
@@ -80,7 +86,8 @@ function PromptLibraryDialogContent({
     usePrompts(organizationId ?? '', {
       scope: scopeArg,
       search: debouncedSearch || undefined,
-      categories: selectedCategories,
+      categoryIds: selectedCategoryIds,
+      categories: selectedLegacyCategories,
       tags: selectedTags,
     });
 
@@ -99,9 +106,16 @@ function PromptLibraryDialogContent({
   // categories/tags from the whole org, not just the currently-loaded page.
   const { data: facets } = usePromptFacets(organizationId);
   const availableCategories = useMemo(() => facets?.categories ?? [], [facets]);
+  const availableLegacyCategories = useMemo(
+    () => facets?.legacyCategoryStrings ?? [],
+    [facets],
+  );
   const availableTags = useMemo(() => facets?.tags ?? [], [facets]);
 
-  const createPrompt = useCreatePrompt();
+  // `savePrompt` handles both user-supplied titles (passes through to
+  // createPrompt) and blank titles (AI-generates). The library form
+  // makes title optional, so the same action covers both cases.
+  const createPrompt = useSavePrompt();
   const updatePrompt = useUpdatePrompt();
   const deletePrompt = useDeletePrompt();
   const incrementUsage = useIncrementPromptUsage();
@@ -109,22 +123,14 @@ function PromptLibraryDialogContent({
   const isAdmin =
     memberContext?.role === 'admin' || memberContext?.role === 'owner';
 
-  // If the user lost admin rights mid-session (or the dialog was opened in a
-  // stale 'global' state) snap back to 'all' so the disabled tab can't stay
-  // "selected" and keep firing a scope-global query.
-  useEffect(() => {
-    if (activeTab === 'global' && !isAdmin) {
-      setActiveTab('all');
-    }
-  }, [activeTab, isAdmin]);
-
   // The server now applies category/tag filtering, so the page rows ARE the
   // visible rows. Kept as an alias for the existing JSX usage.
   const visiblePrompts = prompts;
 
   const filtersActive =
     debouncedSearch.length > 0 ||
-    selectedCategories.length > 0 ||
+    selectedCategoryIds.length > 0 ||
+    selectedLegacyCategories.length > 0 ||
     selectedTags.length > 0;
 
   const handleUsePrompt = useCallback(
@@ -157,12 +163,13 @@ function PromptLibraryDialogContent({
       try {
         await createPrompt.mutateAsync({
           organizationId,
-          title: data.title,
+          // Pass title only when the user typed one — blank means
+          // "let the server AI-generate it".
+          title: data.title.trim() || undefined,
           content: data.content,
-          description: data.description || undefined,
           scope: data.scope,
           teamId: data.teamId,
-          category: data.category || undefined,
+          categoryId: data.categoryId,
           tags: data.tags.length > 0 ? data.tags : undefined,
         });
         toast({ title: t('toast.created'), variant: 'success' });
@@ -196,10 +203,9 @@ function PromptLibraryDialogContent({
           promptId: editingPrompt._id,
           title: data.title,
           content: data.content,
-          description: data.description || undefined,
           scope: data.scope,
           teamId: data.teamId,
-          category: data.category || undefined,
+          categoryId: data.categoryId,
           tags: data.tags.length > 0 ? data.tags : undefined,
           expectedVersion: data.expectedVersion,
         });
@@ -279,13 +285,14 @@ function PromptLibraryDialogContent({
 
   const clearFilters = useCallback(() => {
     setSearchQuery('');
-    setSelectedCategories([]);
+    setSelectedCategoryIds([]);
+    setSelectedLegacyCategories([]);
     setSelectedTags([]);
   }, []);
 
   const tabItems = [
     { value: 'all', label: t('tabs.all') },
-    { value: 'global', label: t('tabs.global'), disabled: !isAdmin },
+    { value: 'global', label: t('tabs.global') },
     { value: 'team', label: t('tabs.team') },
     { value: 'personal', label: t('tabs.personal') },
   ];
@@ -330,8 +337,11 @@ function PromptLibraryDialogContent({
             </div>
             <CategoryFilterPopover
               categories={availableCategories}
-              selectedCategories={selectedCategories}
-              onSelectedCategoriesChange={setSelectedCategories}
+              legacyCategories={availableLegacyCategories}
+              selectedIds={selectedCategoryIds}
+              selectedLegacy={selectedLegacyCategories}
+              onSelectedIdsChange={setSelectedCategoryIds}
+              onSelectedLegacyChange={setSelectedLegacyCategories}
             />
             <TagFilterPopover
               tags={availableTags}

@@ -4308,14 +4308,12 @@
       "titlePlaceholder": "Saisir le titre du prompt...",
       "contentLabel": "Contenu",
       "contentPlaceholder": "Saisir le contenu du prompt...",
-      "descriptionLabel": "Description",
-      "descriptionPlaceholder": "Brève description de ce que fait ce prompt...",
       "scopeLabel": "Visibilité",
       "teamLabel": "Équipe",
       "teamPlaceholder": "Sélectionner une équipe...",
+      "noTeamsAvailable": "Tu n'es dans aucune équipe. Demande à un admin de t'ajouter à une équipe, ou enregistre ce prompt comme Personnel.",
+      "titleAutoGenHint": "Laisse vide pour générer automatiquement depuis le contenu.",
       "categoryLabel": "Catégorie",
-      "categoryPlaceholder": "ex. rédaction, analyse, programmation",
-      "categoryNone": "— Aucune —",
       "tagsLabel": "Étiquettes",
       "tagsPlaceholder": "Étiquettes séparées par des virgules...",
       "save": "Enregistrer",
@@ -4397,9 +4395,29 @@
     },
     "addCategory": {
       "inputPlaceholder": "Nom de la catégorie",
-      "cancel": "Annuler",
-      "add": "Ajouter",
-      "remove": "Supprimer {category}"
+      "add": "Ajouter"
+    },
+    "categories": {
+      "pickerPlaceholder": "Choisir une catégorie",
+      "create": "Créer",
+      "rename": "Renommer",
+      "renameSave": "Enregistrer le nom",
+      "renameCancel": "Annuler le renommage",
+      "delete": "Supprimer",
+      "deleteConfirmTitle": "Supprimer la catégorie ?",
+      "deleteConfirmDescription": "Les prompts liés à « {name} » repasseront à « — Aucune — ». Cette action est définitive.",
+      "deleteSuccess": "« {name} » supprimée",
+      "duplicate": "Une catégorie portant ce nom existe déjà",
+      "createForbidden": "Seuls les admins peuvent créer des catégories à cette portée",
+      "cannotManage": "Tu ne peux pas gérer cette catégorie",
+      "deletedLabel": "(supprimée)",
+      "empty": "Aucune catégorie pour le moment",
+      "actions": "Actions pour {name}",
+      "scopeGroup": {
+        "personal": "Personnel",
+        "team": "Équipe",
+        "global": "Global"
+      }
     },
     "sidebar": {
       "sectionTitle": "Bibliothèque de prompts"

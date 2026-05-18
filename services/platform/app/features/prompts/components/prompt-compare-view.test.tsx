@@ -26,6 +26,17 @@ vi.mock('@/app/hooks/use-format-date', () => ({
   useFormatDate: () => ({ formatDate: () => 'April 1, 2026' }),
 }));
 
+vi.mock('@/app/hooks/use-organization-id', () => ({
+  useOrganizationId: () => 'test-org-id',
+}));
+
+vi.mock('../hooks/queries', () => ({
+  useCategories: () => ({
+    data: { personal: [], team: [], global: [] },
+    isLoading: false,
+  }),
+}));
+
 import { PromptCompareView } from './prompt-compare-view';
 
 const baseEntry = (

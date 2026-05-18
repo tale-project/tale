@@ -41,13 +41,15 @@ Um eine Nachricht festzuhalten, die du schon gesendet hast, öffne das Nachricht
 
 Drei Sichtbarkeitsstufen steuern, wer einen Prompt sieht:
 
-| Scope          | Wer ihn sieht                   | Badge-Farbe |
-| -------------- | ------------------------------- | ----------- |
-| **Persönlich** | Nur du.                         | Blau.       |
-| **Team**       | Mitglieder des gewählten Teams. | Orange.     |
-| **Global**     | Alle in der Organisation.       | Grün.       |
+| Scope          | Wer ihn sieht                   | Wer in diesem Scope anlegen darf | Badge-Farbe |
+| -------------- | ------------------------------- | -------------------------------- | ----------- |
+| **Persönlich** | Nur du.                         | Alle.                            | Blau.       |
+| **Team**       | Mitglieder des gewählten Teams. | Mitglieder dieses Teams.         | Orange.     |
+| **Global**     | Alle in der Organisation.       | Nur Admins und Inhaber.          | Grün.       |
 
 Unveröffentlichte Prompts sind unabhängig vom Scope nur für den Ersteller sichtbar.
+
+Einen bestehenden Prompt auf **Global** zu heben — oder eine zuvor globale Version wiederherzustellen — ist ebenfalls nur für Admins und Inhaber. Ein Ersteller ohne Admin-Rechte kann einen bereits globalen Prompt, der ihm gehört, weiter bearbeiten.
 
 ## Bearbeiten und Löschen
 

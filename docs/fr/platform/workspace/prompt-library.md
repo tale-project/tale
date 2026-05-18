@@ -41,13 +41,15 @@ Pour capter un message déjà envoyé, ouvre le menu du message dans la conversa
 
 Trois niveaux de visibilité décident de qui voit un prompt :
 
-| Périmètre     | Qui peut le voir                   | Couleur du badge |
-| ------------- | ---------------------------------- | ---------------- |
-| **Personnel** | Toi uniquement.                    | Bleu.            |
-| **Équipe**    | Membres de l'équipe choisie.       | Orange.          |
-| **Global**    | Tout le monde dans l'organisation. | Vert.            |
+| Périmètre     | Qui peut le voir                   | Qui peut créer à ce périmètre  | Couleur du badge |
+| ------------- | ---------------------------------- | ------------------------------ | ---------------- |
+| **Personnel** | Toi uniquement.                    | Tout le monde.                 | Bleu.            |
+| **Équipe**    | Membres de l'équipe choisie.       | Membres de cette équipe.       | Orange.          |
+| **Global**    | Tout le monde dans l'organisation. | Admins et Propriétaires seuls. | Vert.            |
 
 Les prompts non publiés ne sont visibles que par leur créateur, quel que soit le périmètre.
+
+Promouvoir un prompt existant au périmètre **Global** — ou restaurer une version qui était auparavant Globale — est aussi réservé aux Admins et Propriétaires. Un créateur non-admin peut continuer à éditer un prompt Global qui lui appartient déjà.
 
 ## Éditer et supprimer
 

@@ -23,6 +23,14 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'test-org-id',
 }));
 
+vi.mock('@/app/hooks/use-current-user', () => ({
+  useCurrentUser: () => ({ data: { userId: 'user-1' } }),
+}));
+
+vi.mock('@/app/hooks/use-current-member-context', () => ({
+  useCurrentMemberContext: () => ({ data: { role: 'admin' } }),
+}));
+
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useTeams: () => ({ teams: [], isLoading: false }),
 }));
@@ -37,10 +45,17 @@ vi.mock('@/app/hooks/use-toast', () => ({
 
 vi.mock('../hooks/mutations', () => ({
   useSavePrompt: () => ({ mutateAsync: mockMutateAsync, isPending: false }),
+  useCreatePromptCategory: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useRenamePromptCategory: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDeletePromptCategory: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 vi.mock('../hooks/queries', () => ({
   usePrompts: () => ({ prompts: [], isLoading: false }),
+  useCategories: () => ({
+    data: { personal: [], team: [], global: [] },
+    isLoading: false,
+  }),
 }));
 
 import { SavePromptDialog } from './save-prompt-dialog';

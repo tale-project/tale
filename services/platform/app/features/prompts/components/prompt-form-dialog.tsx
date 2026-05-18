@@ -3,7 +3,14 @@
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { AlertTriangle } from 'lucide-react';
-import { useCallback, useId, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
@@ -13,10 +20,11 @@ import { HStack } from '@/app/components/ui/layout/layout';
 import { Tabs } from '@/app/components/ui/navigation/tabs';
 import { Text } from '@/app/components/ui/typography/text';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
+import { useCurrentUser } from '@/app/hooks/use-current-user';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
+import type { Id } from '@/convex/_generated/dataModel';
 import {
   MAX_PROMPT_CONTENT_BYTES,
-  MAX_PROMPT_DESCRIPTION_LEN,
   MAX_PROMPT_TAG_LEN,
   MAX_PROMPT_TAGS_COUNT,
   MAX_PROMPT_TITLE_LEN,
@@ -25,25 +33,11 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import type { PromptTemplate } from '../hooks/queries';
-import { usePrompt, usePrompts } from '../hooks/queries';
-import { AddCategoryPopover } from './add-category-popover';
+import { useCategories, usePrompt } from '../hooks/queries';
+import { CategoryPickerPopover } from './category-picker-popover';
 import { TagChipInput } from './tag-chip-input';
 
 type PromptScope = 'global' | 'team' | 'personal';
-
-// Radix Select reserves `value=""` for "unselected" and throws if an Item
-// is rendered with it, so the explicit "None" choice rides on a sentinel and
-// user-supplied categories are namespaced with `cat:` to avoid any chance of
-// collision with that sentinel.
-const CATEGORY_NONE_VALUE = '__none__';
-const CATEGORY_VALUE_PREFIX = 'cat:';
-const encodeCategory = (c: string) => `${CATEGORY_VALUE_PREFIX}${c}`;
-const decodeCategory = (v: string) =>
-  v === CATEGORY_NONE_VALUE
-    ? ''
-    : v.startsWith(CATEGORY_VALUE_PREFIX)
-      ? v.slice(CATEGORY_VALUE_PREFIX.length)
-      : v;
 
 // Positional tag equality. Mirrors `metadataDiffers` on the server so a
 // reorder counts as an edit. Module-scope so it's a stable reference across
@@ -66,12 +60,13 @@ interface PromptFormDialogProps {
 }
 
 export interface PromptFormData {
+  /** Optional. When blank on create, the server generates an AI title. */
   title: string;
   content: string;
-  description: string;
   scope: PromptScope;
   teamId?: string;
-  category: string;
+  /** Reference to a `promptCategories` row. `undefined` = no category. */
+  categoryId?: Id<'promptCategories'>;
   tags: string[];
   /** Version the form was opened against. Server uses this for OCC. */
   expectedVersion?: number;
@@ -94,7 +89,8 @@ function PromptFormDialogContent({
   const { t } = useT('prompts');
   const { teams } = useTeams();
   const organizationId = useOrganizationId();
-  const { prompts } = usePrompts(organizationId ?? '');
+  const { data: currentUser } = useCurrentUser();
+  const { data: categoriesData } = useCategories(organizationId);
 
   const initialTags = useMemo(
     () => initialData?.tags ?? [],
@@ -103,21 +99,16 @@ function PromptFormDialogContent({
 
   const [title, setTitle] = useState(initialData?.title ?? '');
   const [content, setContent] = useState(initialData?.content ?? '');
-  const [description, setDescription] = useState(
-    initialData?.description ?? '',
-  );
   const [scope, setScope] = useState<PromptScope>(
     initialData?.scope ?? 'personal',
   );
   const [teamId, setTeamId] = useState(initialData?.teamId);
-  const [category, setCategory] = useState(initialData?.category ?? '');
+  const [categoryId, setCategoryId] = useState(initialData?.categoryId);
   const [tags, setTags] = useState(initialTags);
-  const [localCategories, setLocalCategories] = useState<string[]>([]);
 
   const contentId = useId();
   const bytesId = `${contentId}-bytes`;
   const bytesErrorId = `${contentId}-bytes-error`;
-  const scopeLabelId = useId();
   const categoryLabelId = useId();
 
   const isEditing = !!initialData;
@@ -148,10 +139,9 @@ function PromptFormDialogContent({
     const draftHasEdits =
       title !== (initialData?.title ?? '') ||
       content !== (initialData?.content ?? '') ||
-      description !== (initialData?.description ?? '') ||
       scope !== (initialData?.scope ?? 'personal') ||
       teamId !== initialData?.teamId ||
-      category !== (initialData?.category ?? '') ||
+      categoryId !== initialData?.categoryId ||
       !tagsEqual(tags, initialTags);
     if (
       draftHasEdits &&
@@ -161,47 +151,69 @@ function PromptFormDialogContent({
     }
     setTitle(live.title);
     setContent(live.content);
-    setDescription(live.description ?? '');
     setScope(live.scope);
     setTeamId(live.teamId);
-    setCategory(live.category ?? '');
+    setCategoryId(live.categoryId);
     setTags(live.tags ?? []);
     startVersionRef.current = live.version;
   }, [
     live,
     title,
     content,
-    description,
     scope,
     teamId,
-    category,
+    categoryId,
     tags,
     initialData,
     initialTags,
     t,
   ]);
 
-  const existingCategories = useMemo(() => {
-    const fromPrompts = prompts
-      .map((p) => p.category)
-      .filter((c): c is string => !!c);
-    const merged = [...new Set([...fromPrompts, ...localCategories])];
-    return merged.sort((a, b) => a.localeCompare(b));
-  }, [prompts, localCategories]);
-
-  // Radix Select treats `value=""` as "no selection" and rejects an Item
-  // with that value, so we use a sentinel for the explicit "None" choice and
-  // map it back to '' (the schema's optional-empty form) on submit.
-  const categoryOptions = useMemo(
-    () => [
-      { value: CATEGORY_NONE_VALUE, label: t('form.categoryNone') },
-      ...existingCategories.map((c) => ({
-        value: encodeCategory(c),
-        label: c,
-      })),
-    ],
-    [existingCategories, t],
+  // The picker filters visible categories itself; the form's job is to
+  // build the user's team-id set and, when scope/teamId changes, clear
+  // `categoryId` if it isn't compatible with the new scope (silent
+  // clear, matches the server's safety net). Using stable string-keys
+  // for the effect deps so we don't re-run on every render.
+  const userTeamIds = useMemo(
+    () => (teams ?? []).map((team) => team.id),
+    [teams],
   );
+
+  // Map id -> category for quick lookup of the current selection's scope.
+  const allVisibleCategories = useMemo(() => {
+    if (!categoriesData) return new Map();
+    const m = new Map<
+      Id<'promptCategories'>,
+      { scope: PromptScope; teamId?: string }
+    >();
+    for (const c of categoriesData.personal)
+      m.set(c._id, { scope: c.scope, teamId: c.teamId });
+    for (const c of categoriesData.team)
+      m.set(c._id, { scope: c.scope, teamId: c.teamId });
+    for (const c of categoriesData.global)
+      m.set(c._id, { scope: c.scope, teamId: c.teamId });
+    return m;
+  }, [categoriesData]);
+
+  useEffect(() => {
+    if (!categoryId) return;
+    const sel = allVisibleCategories.get(categoryId);
+    if (!sel) {
+      // Selection no longer visible (deleted, or scope flip made it
+      // invisible) — clear silently.
+      setCategoryId(undefined);
+      return;
+    }
+    const compatible =
+      sel.scope === 'global' ||
+      (scope === 'personal' &&
+        (sel.scope === 'personal' ||
+          (sel.scope === 'team' &&
+            !!sel.teamId &&
+            userTeamIds.includes(sel.teamId)))) ||
+      (scope === 'team' && sel.scope === 'team' && sel.teamId === teamId);
+    if (!compatible) setCategoryId(undefined);
+  }, [scope, teamId, categoryId, allVisibleCategories, userTeamIds]);
 
   const teamOptions = useMemo(
     () =>
@@ -212,17 +224,15 @@ function PromptFormDialogContent({
     [teams],
   );
 
-  // Lock the "global" scope tab for non-admins. Existing globally-scoped
-  // prompts stay editable but no one can promote a personal/team prompt to
-  // global without admin rights.
+  // Hide the "global" scope tab for non-admins entirely. A non-admin
+  // creator editing an already-global prompt still sees the tab so the
+  // current scope is visible and the form's value matches the rendered
+  // selection — they just can't switch other prompts INTO global.
+  const showGlobalTab = isOrgAdmin || scope === 'global';
   const scopeTabItems = [
     { value: 'personal', label: t('scope.personal') },
     { value: 'team', label: t('scope.team') },
-    {
-      value: 'global',
-      label: t('scope.global'),
-      disabled: !isOrgAdmin && scope !== 'global',
-    },
+    ...(showGlobalTab ? [{ value: 'global', label: t('scope.global') }] : []),
   ];
 
   // Server measures the trimmed content (size_guards.assertPromptSizes) — mirror
@@ -239,16 +249,17 @@ function PromptFormDialogContent({
   const isDirty =
     title !== (initialData?.title ?? '') ||
     content !== (initialData?.content ?? '') ||
-    description !== (initialData?.description ?? '') ||
     scope !== (initialData?.scope ?? 'personal') ||
     teamId !== initialData?.teamId ||
-    category !== (initialData?.category ?? '') ||
+    categoryId !== initialData?.categoryId ||
     !tagsEqual(tags, initialTags);
 
-  // Block submit while OCC banner is showing — the user must Load latest
-  // first (which re-anchors startVersionRef so hasNewerVersion flips false).
+  // Title is optional on create — the server AI-generates one when blank.
+  // On edit, a blank title would erase what's already there; the server's
+  // updatePrompt path accepts that, so we let edit clear it too. Block
+  // submit while OCC banner is showing — the user must Load latest first
+  // (which re-anchors startVersionRef so hasNewerVersion flips false).
   const isValid =
-    title.trim().length > 0 &&
     content.trim().length > 0 &&
     !overByteLimit &&
     (scope !== 'team' || !!teamId) &&
@@ -262,10 +273,9 @@ function PromptFormDialogContent({
       onSubmit({
         title: title.trim(),
         content: content.trim(),
-        description: description.trim(),
         scope,
         teamId: scope === 'team' ? teamId : undefined,
-        category: category.trim(),
+        categoryId,
         tags,
         expectedVersion: startVersionRef.current,
       });
@@ -273,21 +283,15 @@ function PromptFormDialogContent({
     [
       title,
       content,
-      description,
       scope,
       teamId,
-      category,
+      categoryId,
       tags,
       isValid,
       isSubmitting,
       onSubmit,
     ],
   );
-
-  const handleAddCategory = useCallback((newCategory: string) => {
-    setLocalCategories((prev) => [...new Set([...prev, newCategory])]);
-    setCategory(newCategory);
-  }, []);
 
   return (
     <FormDialog
@@ -355,22 +359,20 @@ function PromptFormDialogContent({
           </Button>
         </div>
       )}
-      <Input
-        label={t('form.titleLabel')}
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder={t('form.titlePlaceholder')}
-        maxLength={MAX_PROMPT_TITLE_LEN}
-        required
-        aria-required
-      />
-      <Input
-        label={t('form.descriptionLabel')}
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        placeholder={t('form.descriptionPlaceholder')}
-        maxLength={MAX_PROMPT_DESCRIPTION_LEN}
-      />
+      <div className="flex flex-col gap-1">
+        <Input
+          label={t('form.titleLabel')}
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder={t('form.titlePlaceholder')}
+          maxLength={MAX_PROMPT_TITLE_LEN}
+        />
+        {!isEditing && (
+          <Text variant="muted" className="text-xs">
+            {t('form.titleAutoGenHint')}
+          </Text>
+        )}
+      </div>
       <div className="flex flex-col gap-1">
         <Textarea
           id={contentId}
@@ -409,20 +411,16 @@ function PromptFormDialogContent({
           </Text>
         )}
       </div>
-      <div className="flex flex-col gap-2">
-        <label id={scopeLabelId} className="text-sm font-medium">
-          {t('form.scopeLabel')}
-        </label>
-        <div role="group" aria-labelledby={scopeLabelId}>
-          <Tabs
-            items={scopeTabItems}
-            value={scope}
-            onValueChange={(v) => {
-              if (v === 'global' || v === 'team' || v === 'personal')
-                setScope(v);
-            }}
-          />
-        </div>
+      <div role="group" aria-label={t('form.scopeLabel')}>
+        <Tabs
+          items={scopeTabItems}
+          value={scope}
+          onValueChange={(v) => {
+            if (v === 'global' || v === 'team' || v === 'personal') setScope(v);
+          }}
+          listClassName="flex w-full"
+          triggerClassName="flex-1"
+        />
       </div>
       {scope === 'team' && teamOptions.length > 0 && (
         <Select
@@ -434,26 +432,29 @@ function PromptFormDialogContent({
           required
         />
       )}
-      <div className="flex flex-col gap-2">
-        <HStack justify="between" align="center">
+      {scope === 'team' && teamOptions.length === 0 && (
+        <Text variant="muted" className="text-xs">
+          {t('form.noTeamsAvailable')}
+        </Text>
+      )}
+      {!(scope === 'team' && teamOptions.length === 0) && (
+        <div className="flex flex-col gap-2">
           <label id={categoryLabelId} className="text-sm font-medium">
             {t('form.categoryLabel')}
           </label>
-          <AddCategoryPopover
-            existingCategories={existingCategories}
-            onAddCategory={handleAddCategory}
+          <CategoryPickerPopover
+            organizationId={organizationId}
+            userId={currentUser?.userId}
+            isOrgAdmin={isOrgAdmin}
+            scope={scope}
+            teamId={teamId}
+            userTeamIds={userTeamIds}
+            selectedId={categoryId}
+            onSelect={setCategoryId}
+            ariaLabelledBy={categoryLabelId}
           />
-        </HStack>
-        <Select
-          options={categoryOptions}
-          value={
-            category === '' ? CATEGORY_NONE_VALUE : encodeCategory(category)
-          }
-          onValueChange={(v) => setCategory(decodeCategory(v))}
-          placeholder={t('form.categoryPlaceholder')}
-          aria-labelledby={categoryLabelId}
-        />
-      </div>
+        </div>
+      )}
       <TagChipInput
         value={tags}
         onChange={setTags}
