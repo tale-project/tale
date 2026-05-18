@@ -26,6 +26,7 @@ import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { TeamFilterProvider } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
+import { DashboardShellSkeleton } from '@/app/routes/dashboard/dashboard-shell-skeleton';
 import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
@@ -169,11 +170,7 @@ function DashboardLayout() {
         </FullPageCenter>
       );
     }
-    return (
-      <FullPageCenter>
-        <Spinner size="lg" />
-      </FullPageCenter>
-    );
+    return <DashboardShellSkeleton />;
   }
 
   return (
