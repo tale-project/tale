@@ -478,6 +478,7 @@ describe('listByOrganizationHandler', () => {
         createdAt: 1000,
         displayName: 'Alice',
         email: 'alice@example.com',
+        twoFactorEnabled: false,
       },
     ]);
   });
@@ -529,6 +530,7 @@ describe('listByOrganizationHandler', () => {
         createdAt: 1000,
         displayName: undefined,
         email: undefined,
+        twoFactorEnabled: false,
       },
       {
         _id: 'm_2',
@@ -538,6 +540,7 @@ describe('listByOrganizationHandler', () => {
         createdAt: 2000,
         displayName: 'Bob',
         email: 'bob@example.com',
+        twoFactorEnabled: false,
       },
     ]);
   });

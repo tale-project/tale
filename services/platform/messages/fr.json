@@ -489,14 +489,14 @@
     },
     "organization": {
       "title": "Organisation (facultatif)",
+      "detailsTitle": "Détails de l'organisation",
+      "detailsDescription": "Informations de base sur votre organisation.",
       "organizationId": "ID de l'organisation",
-      "organizationIdHelp": "Utilisé pour les intégrations API",
       "copyOrganizationId": "Copier l'ID de l'organisation",
       "membersTitle": "Membres de l'organisation",
       "membersEntityLabel": "membres",
       "manageAccess": "Gérer l'accès à l'organisation",
-      "defaultLocale": "Langue de réponse des agents",
-      "defaultLocaleHelp": "S'applique à la sortie de l'agent. La langue de l'interface suit les préférences de chaque utilisateur.",
+      "defaultLocale": "Langue par défaut (pour les agents)",
       "searchMember": "Rechercher un membre",
       "addMember": "Ajouter un membre",
       "createOrganization": "Créer une organisation",
@@ -4315,6 +4315,7 @@
       "teamPlaceholder": "Sélectionner une équipe...",
       "categoryLabel": "Catégorie",
       "categoryPlaceholder": "ex. rédaction, analyse, programmation",
+      "categoryNone": "— Aucune —",
       "tagsLabel": "Étiquettes",
       "tagsPlaceholder": "Étiquettes séparées par des virgules...",
       "save": "Enregistrer",
@@ -4397,7 +4398,8 @@
     "addCategory": {
       "inputPlaceholder": "Nom de la catégorie",
       "cancel": "Annuler",
-      "add": "Ajouter"
+      "add": "Ajouter",
+      "remove": "Supprimer {category}"
     },
     "sidebar": {
       "sectionTitle": "Bibliothèque de prompts"

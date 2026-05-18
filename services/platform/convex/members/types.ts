@@ -17,6 +17,7 @@ export interface BetterAuthUser {
   createdAt: number;
   updatedAt: number;
   userId?: string | null;
+  twoFactorEnabled?: boolean | null;
 }
 
 /**

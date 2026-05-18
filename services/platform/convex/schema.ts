@@ -53,7 +53,7 @@ import { mcpServersTable } from './mcp_servers/schema';
 import { notificationsTable } from './notifications/schema';
 import { onedriveSyncConfigsTable } from './onedrive/schema';
 import { productsTable } from './products/schema';
-import { promptTemplatesTable } from './prompts/schema';
+import { promptCategoriesTable, promptTemplatesTable } from './prompts/schema';
 import { ssoProvidersTable } from './sso_providers/schema';
 import { messageMetadataTable } from './streaming/schema';
 import { threadTodosTable } from './thread_todos/schema';
@@ -108,6 +108,7 @@ export default defineSchema({
   chatFilterEvents: chatFilterEventsTable,
   usageLedger: usageLedgerTable,
   promptTemplates: promptTemplatesTable,
+  promptCategories: promptCategoriesTable,
   messageFeedback: messageFeedbackTable,
   mcpServers: mcpServersTable,
   brandingBindings: brandingBindingsTable,

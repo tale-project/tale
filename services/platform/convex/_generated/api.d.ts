@@ -656,6 +656,8 @@ import type * as products_update_products from "../products/update_products.js";
 import type * as products_upsert_product_translation from "../products/upsert_product_translation.js";
 import type * as products_validators from "../products/validators.js";
 import type * as prompts_actions from "../prompts/actions.js";
+import type * as prompts_categories from "../prompts/categories.js";
+import type * as prompts_category_access from "../prompts/category_access.js";
 import type * as prompts_constants from "../prompts/constants.js";
 import type * as prompts_generate_title from "../prompts/generate_title.js";
 import type * as prompts_mutations from "../prompts/mutations.js";
@@ -1714,6 +1716,8 @@ declare const fullApi: ApiFromModules<{
   "products/upsert_product_translation": typeof products_upsert_product_translation;
   "products/validators": typeof products_validators;
   "prompts/actions": typeof prompts_actions;
+  "prompts/categories": typeof prompts_categories;
+  "prompts/category_access": typeof prompts_category_access;
   "prompts/constants": typeof prompts_constants;
   "prompts/generate_title": typeof prompts_generate_title;
   "prompts/mutations": typeof prompts_mutations;

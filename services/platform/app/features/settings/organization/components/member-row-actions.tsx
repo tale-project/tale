@@ -21,6 +21,7 @@ type MemberItem = {
   email?: string;
   role?: string;
   displayName?: string;
+  twoFactorEnabled?: boolean;
 };
 
 interface MemberRowActionsProps {

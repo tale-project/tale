@@ -488,15 +488,15 @@
       }
     },
     "organization": {
-      "title": "Organization (optional)",
+      "title": "Organization name",
+      "detailsTitle": "Organization details",
+      "detailsDescription": "Basic information about your organization.",
       "organizationId": "Organization ID",
-      "organizationIdHelp": "Used for API integrations",
       "copyOrganizationId": "Copy organization ID",
       "membersTitle": "Organization members",
       "membersEntityLabel": "members",
       "manageAccess": "Manage access to the organization",
-      "defaultLocale": "Agent response language",
-      "defaultLocaleHelp": "Applies to agent output. User interface language follows each user's own setting.",
+      "defaultLocale": "Default language (for Agents)",
       "searchMember": "Search member",
       "addMember": "Add member",
       "createOrganization": "Create organization",
@@ -4390,6 +4390,7 @@
       "teamPlaceholder": "Select a team...",
       "categoryLabel": "Category",
       "categoryPlaceholder": "e.g., writing, analysis, coding",
+      "categoryNone": "— None —",
       "tagsLabel": "Tags",
       "tagsPlaceholder": "Comma-separated tags...",
       "save": "Save",
@@ -4472,7 +4473,8 @@
     "addCategory": {
       "inputPlaceholder": "Category name",
       "cancel": "Cancel",
-      "add": "Add"
+      "add": "Add",
+      "remove": "Remove {category}"
     },
     "sidebar": {
       "sectionTitle": "Prompt library"
