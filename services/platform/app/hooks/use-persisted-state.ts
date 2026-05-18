@@ -38,22 +38,18 @@ function isValidType<T>(value: unknown, initialValue: T): value is T {
 }
 
 export function usePersistedState<T>(key: string, initialValue: T) {
-  const [value, setValue] = useState(initialValue);
-  const [isHydrated, setIsHydrated] = useState(false);
+  // Lazy init: read localStorage synchronously during the first render so
+  // consumers never see the static initialValue when a stored value exists.
+  // SPA-only app (no SSR) — `window` is always defined here.
+  const [value, setValue] = useState<T>(() => {
+    const item = getItem<T>(key);
+    return item !== undefined && isValidType(item, initialValue)
+      ? item
+      : initialValue;
+  });
   const prevKeyRef = useRef(key);
   const clearedRef = useRef(false);
-
-  // On mount: hydrate from localStorage
-  useEffect(() => {
-    setIsHydrated(true);
-
-    const item = getItem<T>(key);
-    if (item !== undefined && isValidType(item, initialValue)) {
-      setValue(item);
-    }
-    // Only runs on mount (key/initialValue are stable on first render)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const didMountRef = useRef(false);
 
   // On key change: read the new key's value synchronously during render
   // so the persist effect sees the correct value
@@ -68,15 +64,20 @@ export function usePersistedState<T>(key: string, initialValue: T) {
     }
   }
 
-  // Persist value changes to localStorage
+  // Persist value changes to localStorage. Skip the first mount so a hook
+  // that's never been written-to doesn't echo its initial value back to
+  // storage.
   useEffect(() => {
-    if (!isHydrated) return;
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      return;
+    }
     if (clearedRef.current) {
       clearedRef.current = false;
       return;
     }
     setItem(key, value);
-  }, [key, value, isHydrated]);
+  }, [key, value]);
 
   const clear = useCallback(() => {
     clearedRef.current = true;

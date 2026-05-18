@@ -60,9 +60,13 @@ let mockEffectiveAgent: { name: string; displayName: string } | null = {
   name: 'chat-agent',
   displayName: 'Default Chat',
 };
+let mockEffectiveAgentLoading = false;
 
 vi.mock('../hooks/use-effective-agent', () => ({
-  useEffectiveAgent: () => ({ agent: mockEffectiveAgent, isLoading: false }),
+  useEffectiveAgent: () => ({
+    agent: mockEffectiveAgent,
+    isLoading: mockEffectiveAgentLoading,
+  }),
 }));
 
 let mockCanWrite = true;
@@ -123,6 +127,7 @@ beforeEach(() => {
   mockDialogIsOpen = false;
   mockAgents = defaultAgents;
   mockEffectiveAgent = { name: 'chat-agent', displayName: 'Default Chat' };
+  mockEffectiveAgentLoading = false;
 });
 
 describe('AgentSelector', () => {
@@ -140,6 +145,20 @@ describe('AgentSelector', () => {
     mockEffectiveAgent = null;
     render(<AgentSelector organizationId="org-1" />);
     expect(screen.getByText('Default agent')).toBeInTheDocument();
+  });
+
+  it('renders a skeleton inside the trigger while the effective agent is loading', () => {
+    mockEffectiveAgent = null;
+    mockEffectiveAgentLoading = true;
+    render(<AgentSelector organizationId="org-1" />);
+
+    // No "Assistant" / "Default agent" flash while we wait. Trigger button
+    // stays mounted (no layout shift) but disabled, with a skeleton in place
+    // of the label.
+    expect(screen.queryByText('Default agent')).not.toBeInTheDocument();
+    const trigger = screen.getByRole('button', { name: 'Select agent' });
+    expect(trigger).toBeDisabled();
+    expect(screen.getByRole('status')).toBeInTheDocument();
   });
 
   it('shows "Add agent" button when user has write permission', async () => {

@@ -47,6 +47,18 @@ vi.mock('./queries', () => ({
   }),
 }));
 
+let mockIsAuthLoading = false;
+
+vi.mock('@/app/hooks/use-convex-auth', () => ({
+  useAuth: () => ({
+    user: mockIsAuthLoading ? undefined : { userId: 'user-1' },
+    isLoading: mockIsAuthLoading,
+    isAuthenticated: !mockIsAuthLoading,
+    signIn: async () => {},
+    signOut: async () => {},
+  }),
+}));
+
 // Import after mocks are set up
 const { useEffectiveAgent } = await import('./use-effective-agent');
 
@@ -69,10 +81,27 @@ beforeEach(() => {
   mockSelectedAgent = null;
   mockAgents = undefined;
   mockIsLoading = false;
+  mockIsAuthLoading = false;
   mockLocale = 'en';
 });
 
 describe('useEffectiveAgent', () => {
+  describe('when auth is loading', () => {
+    it('returns null agent with isLoading true even when agents have loaded', () => {
+      // The agent localStorage key is keyed on user.userId; while auth is in
+      // flight the wrong key is in use, so selectedAgent would be null and
+      // we'd render the chat-agent fallback for one frame. The hook must
+      // suppress that fallback until auth resolves.
+      mockIsAuthLoading = true;
+      mockAgents = AGENTS;
+      mockSelectedAgent = null;
+
+      const { result } = renderHook(() => useEffectiveAgent(ORG_ID));
+
+      expect(result.current).toEqual({ agent: null, isLoading: true });
+    });
+  });
+
   describe('when agents are loading', () => {
     it('returns null agent with isLoading true when no selected agent', () => {
       mockAgents = undefined;

@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Skeleton } from '@tale/ui/skeleton';
 import { useNavigate } from '@tanstack/react-router';
 import { Bot, ChevronDown, Plus } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
@@ -29,7 +30,8 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
   const navigate = useNavigate();
   const ability = useAbility();
   const { setSelectedAgent } = useChatLayout();
-  const { agent: effectiveAgent } = useEffectiveAgent(organizationId);
+  const { agent: effectiveAgent, isLoading: isAgentLoading } =
+    useEffectiveAgent(organizationId);
   const { agents: allAgents } = useChatAgents(organizationId);
   const readiness = useIntegrationReadiness(organizationId);
   const canManageAgents = ability.can('write', 'agents');
@@ -113,6 +115,7 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
         searchPlaceholder={t('agentSelector.searchPlaceholder')}
         emptyText={t('agentSelector.noResults')}
         aria-label={t('agentSelector.label')}
+        disabled={isAgentLoading}
         trigger={
           <Button
             type="button"
@@ -120,9 +123,14 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
             size="icon"
             variant="ghost"
             aria-label={t('agentSelector.label')}
+            disabled={isAgentLoading}
           >
             <Bot className="size-3.5" aria-hidden="true" />
-            <span>{currentLabel}</span>
+            {isAgentLoading ? (
+              <Skeleton className="h-4 w-20" />
+            ) : (
+              <span>{currentLabel}</span>
+            )}
             <ChevronDown className="size-3" aria-hidden="true" />
           </Button>
         }

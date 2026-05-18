@@ -18,6 +18,7 @@ import {
 import { ChatHeader } from '@/app/features/chat/components/chat-header';
 import { ChatHistorySidebar } from '@/app/features/chat/components/chat-history-sidebar';
 import { ChatInterface } from '@/app/features/chat/components/chat-interface';
+import { MessagesSkeleton } from '@/app/features/chat/components/messages-skeleton';
 import { SharedChatView } from '@/app/features/chat/components/shared-chat-view';
 import { WelcomeContentSkeleton } from '@/app/features/chat/components/welcome-content-skeleton';
 import {
@@ -78,6 +79,20 @@ function ChatSkeleton() {
   );
 }
 
+// Loading placeholder for the existing-thread path. Mirrors ChatSkeleton's
+// outer chrome but shows a messages-list skeleton — an existing thread
+// always has history, so the centered welcome placeholder is misleading.
+function ThreadLoadingSkeleton() {
+  return (
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto">
+      <div className="flex flex-col p-4 sm:p-6">
+        <MessagesSkeleton />
+      </div>
+      <ChatInputSkeleton />
+    </div>
+  );
+}
+
 /**
  * Gates ChatInterface behind a thread ownership check.
  * When a threadId is present, waits for getThreadStatus to resolve:
@@ -126,7 +141,7 @@ function ThreadGate({
 
   // Still loading
   if (threadStatus === undefined) {
-    return <ChatSkeleton />;
+    return <ThreadLoadingSkeleton />;
   }
 
   // Loaded but thread not found / not authorized

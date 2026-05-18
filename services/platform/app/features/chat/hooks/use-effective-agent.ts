@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { useAuth } from '@/app/hooks/use-convex-auth';
 import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
 
 import type { SelectedAgent } from '../context/chat-layout-context';
@@ -30,6 +31,7 @@ export function useEffectiveAgent(organizationId: string): {
 } {
   const { selectedAgent } = useChatLayout();
   const { agents, isLoading } = useChatAgents(organizationId);
+  const { isLoading: isAuthLoading } = useAuth();
   const { i18n } = useTranslation();
 
   const locale = i18n.language;
@@ -60,6 +62,14 @@ export function useEffectiveAgent(organizationId: string): {
 
     return resolve(firstAgent);
   }, [selectedAgent, agents, locale]);
+
+  // While auth is loading, the localStorage key (which embeds user.userId) is
+  // org-scoped and won't match the real user-scoped entry — so `selectedAgent`
+  // would falsely look null and we'd render the chat-agent fallback for one
+  // frame. Treat that window as "agent not yet known" instead.
+  if (isAuthLoading) {
+    return { agent: null, isLoading: true };
+  }
 
   return { agent, isLoading };
 }
