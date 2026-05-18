@@ -51,6 +51,7 @@ import {
   useWorkflowRunApprovals,
   useWorkflowUpdateApprovals,
 } from '../hooks/queries';
+import { useChatVideoLinks } from '../hooks/use-chat-video-links';
 import { useConvexFileUpload } from '../hooks/use-convex-file-upload';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
 import { useFileIndexingStatus } from '../hooks/use-file-indexing-status';
@@ -245,6 +246,14 @@ export function ChatInterface({
     isQueryLoading: isTranscriptionQueryLoading,
     statusMap: transcriptionStatuses,
   } = useFileTranscriptionStatus(attachments);
+
+  const {
+    jobs: videoLinkJobs,
+    isAnyProcessing: isProcessingVideo,
+    ingestUrlsFromText: ingestVideoUrlsFromText,
+    cancelJob: cancelVideoJob,
+    retryJob: retryVideoJob,
+  } = useChatVideoLinks({ threadId, organizationId });
 
   const { data: featureFlags } = useMyFeatureFlags(organizationId);
   const fileUploadDisabled = featureFlags?.fileUpload === false;
@@ -1053,6 +1062,11 @@ export function ChatInterface({
               indexingStatuses={indexingStatuses}
               isTranscribing={isTranscribing || isTranscriptionQueryLoading}
               transcriptionStatuses={transcriptionStatuses}
+              videoLinkJobs={videoLinkJobs}
+              isProcessingVideo={isProcessingVideo}
+              ingestVideoUrlsFromText={ingestVideoUrlsFromText}
+              cancelVideoJob={cancelVideoJob}
+              retryVideoJob={retryVideoJob}
               sendBlocked={
                 isImageGenAgent &&
                 !!activeEditingImage &&

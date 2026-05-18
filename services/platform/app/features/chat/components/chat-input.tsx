@@ -28,6 +28,7 @@ import { CHAT_UPLOAD_ACCEPT, isAudioOrVideo } from '@/lib/shared/file-types';
 import { cn } from '@/lib/utils/cn';
 import { formatFileSize, middleEllipsis } from '@/lib/utils/format/file';
 
+import type { VideoLinkJob } from '../hooks/use-chat-video-links';
 import type { FileAttachment } from '../hooks/use-convex-file-upload';
 import { AgentSelector } from './agent-selector';
 import { useArenaModeOptional } from './arena/arena-mode-context';
@@ -38,6 +39,7 @@ import { DictationButton } from './dictation-button';
 import { ImagePreviewDialog } from './message-bubble';
 import { ModelSelector } from './model-selector';
 import { SavePromptMenu } from './save-prompt-menu';
+import { VideoLinkChip } from './video-link-chip';
 
 // Web Speech requires a fully-qualified BCP-47 tag. Already-regional codes
 // (`de-CH`, future `fr-CA`) pass through; bare base locales pick the most
@@ -96,6 +98,22 @@ interface ChatInputProps extends Omit<
   onSavePrompt?: (content: string) => void;
   onOpenPromptLibrary?: () => void;
   /**
+   * Video-link chip state (from `useChatVideoLinks`). When a user pastes
+   * a video URL the hook's mutation creates a row in `videoLinkJobs`
+   * and the orchestrator action drives it through captions or Whisper.
+   * Chips render in the attachment area; send is gated while any chip
+   * is still processing — mirrors `isTranscribing` for audio uploads.
+   */
+  videoLinkJobs?: VideoLinkJob[];
+  isProcessingVideo?: boolean;
+  ingestVideoUrlsFromText?: (
+    text: string,
+    organizationId: string,
+    userLocale?: string,
+  ) => Promise<number>;
+  cancelVideoJob?: (jobId: string) => Promise<void>;
+  retryVideoJob?: (jobId: string) => Promise<void>;
+  /**
    * When true, the send button is disabled. Unlike `disabled`, the input
    * itself stays editable so the user can still revise their message — they
    * just can't send it in the current state (e.g. an edit reference is
@@ -127,6 +145,11 @@ export function ChatInput({
   indexingStatuses,
   isTranscribing = false,
   transcriptionStatuses,
+  videoLinkJobs = [],
+  isProcessingVideo = false,
+  ingestVideoUrlsFromText,
+  cancelVideoJob,
+  retryVideoJob,
   onSavePrompt,
   onOpenPromptLibrary,
   sendBlocked = false,
@@ -177,6 +200,7 @@ export function ChatInput({
       isUploading ||
       isIndexing ||
       isTranscribing ||
+      isProcessingVideo ||
       sendBlocked
     )
       return;
@@ -218,6 +242,9 @@ export function ChatInput({
 
   const handlePaste = (e: React.ClipboardEvent) => {
     if (inputDisabled || fileUploadDisabled) return;
+    // IME composition guard: CJK input methods fire paste events while
+    // composing; ingesting then can capture an incomplete URL fragment.
+    if ((e.nativeEvent as { isComposing?: boolean }).isComposing) return;
     const items = e.clipboardData?.items;
     if (!items) return;
 
@@ -241,6 +268,24 @@ export function ChatInput({
 
     if (imageFiles.length > 0) {
       void uploadFiles(imageFiles);
+    }
+
+    // Video-link detection. Read both text/plain and text/html (rich-
+    // clipboard sources like Notion/Slack ship only HTML). Don't
+    // preventDefault — URL stays in the textarea so the user can edit
+    // it; the strip-on-send mutation removes it before chatWithAgent.
+    if (ingestVideoUrlsFromText) {
+      const plain = e.clipboardData?.getData('text/plain') ?? '';
+      const html = plain ? '' : (e.clipboardData?.getData('text/html') ?? '');
+      const text =
+        plain ||
+        // Cheap href extraction from rich clipboard. Full HTML parsing
+        // is overkill — we just need the URL chunks.
+        html.match(/href="([^"]+)"/g)?.join(' ') ||
+        '';
+      if (text) {
+        void ingestVideoUrlsFromText(text, organizationId, i18n.language);
+      }
     }
   };
 
@@ -271,6 +316,41 @@ export function ChatInput({
         />
 
         <div className="bg-background border-muted-foreground/50 relative mb-2 flex flex-col gap-2 rounded-2xl border px-5 pt-4">
+          {videoLinkJobs.length > 0 && (
+            <HStack gap={1} wrap className="mb-2">
+              {videoLinkJobs.map((job) => (
+                <VideoLinkChip
+                  key={job.jobId}
+                  job={job}
+                  onCancel={() => {
+                    // Strip the user's pasted URL from the textarea
+                    // BEFORE firing the cancel mutation, so the chip
+                    // and the raw URL disappear together. Literal
+                    // replace per the B1 review (regex over arbitrary
+                    // URL shapes is fragile). No-op if the user edited
+                    // the URL out manually.
+                    if (
+                      onChange &&
+                      job.pastedToken &&
+                      value.includes(job.pastedToken)
+                    ) {
+                      const stripped = value
+                        .replace(job.pastedToken, '')
+                        .replace(/[ \t]+\n/g, '\n')
+                        .replace(/\n{3,}/g, '\n\n')
+                        .replace(/[ \t]{2,}/g, ' ')
+                        .trim();
+                      onChange(stripped);
+                    }
+                    if (cancelVideoJob) void cancelVideoJob(job.jobId);
+                  }}
+                  onRetry={() =>
+                    retryVideoJob ? void retryVideoJob(job.jobId) : undefined
+                  }
+                />
+              ))}
+            </HStack>
+          )}
           {(attachments.length > 0 || uploadingFiles.length > 0) && (
             <HStack gap={1} wrap className="mb-2">
               {imageAttachments.map((attachment) => (
@@ -603,9 +683,13 @@ export function ChatInput({
                 content={
                   isTranscribing && !isLoading
                     ? tChat('transcription.inProgressTooltip')
-                    : sendBlocked && sendBlockedReason && !isLoading
-                      ? sendBlockedReason
-                      : ''
+                    : isProcessingVideo && !isLoading
+                      ? tChat('videoLink.chip.inProgressTooltip', {
+                          defaultValue: 'Processing video…',
+                        })
+                      : sendBlocked && sendBlockedReason && !isLoading
+                        ? sendBlockedReason
+                        : ''
                 }
                 side="top"
               >
@@ -620,6 +704,7 @@ export function ChatInput({
                         isUploading ||
                         isIndexing ||
                         isTranscribing ||
+                        isProcessingVideo ||
                         sendBlocked
                   }
                   size="icon"

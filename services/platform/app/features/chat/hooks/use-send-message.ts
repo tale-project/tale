@@ -5,6 +5,7 @@ import { useCallback, useRef, startTransition } from 'react';
 import { useConvexClient } from '@/app/hooks/use-convex-client';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
+import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 type GuardrailsBlockedCode =
@@ -125,12 +126,48 @@ export function useSendMessage({
       sendingRef.current = true;
 
       // Convert attachments format (synchronous — needed for optimistic message)
-      const mutationAttachments = attachments?.map((a) => ({
-        fileId: a.fileId,
-        fileName: a.fileName,
-        fileType: a.fileType,
-        fileSize: a.fileSize,
-      }));
+      const mutationAttachments: Array<{
+        fileId: Id<'_storage'>;
+        fileName: string;
+        fileType: string;
+        fileSize: number;
+      }> =
+        attachments?.map((a) => ({
+          fileId: a.fileId,
+          fileName: a.fileName,
+          fileType: a.fileType,
+          fileSize: a.fileSize,
+        })) ?? [];
+
+      // Bind any completed video-link jobs in this thread to the outgoing
+      // message. Atomic — the mutation patches lifecycleStatus='bound'
+      // and returns the FileAttachment payloads in one transaction,
+      // closing the chip-vs-drain race that the round-2 review (B8/R2)
+      // flagged. pastedTokens come back so we can strip raw URLs from
+      // the message text (LLM shouldn't see URL + transcript fileId both).
+      let pastedTokensToStrip: string[] = [];
+      if (threadId) {
+        try {
+          const bound = await convexClient.mutation(
+            api.video_links.mutations.bindCompletedJobsToMessage,
+            { organizationId, threadId },
+          );
+          for (const att of bound) {
+            mutationAttachments.push({
+              fileId: att.fileId as Id<'_storage'>,
+              fileName: att.fileName,
+              fileType: att.fileType,
+              fileSize: att.fileSize,
+            });
+            pastedTokensToStrip.push(att.pastedToken);
+          }
+        } catch (err) {
+          console.error(
+            '[use-send-message] video-link bind failed:',
+            err instanceof Error ? err.message : err,
+          );
+        }
+      }
 
       const currentArena = arenaRef.current;
       const modelA = currentArena?.modelA;
@@ -149,6 +186,20 @@ export function useSendMessage({
       // On any error we fall through with the raw text; the server will
       // still re-sanitize authoritatively.
       let messageToSend = message;
+      // Strip any pasted video-link URLs from the outgoing text. Literal
+      // String.replace per token (not regex over arbitrary URL shapes
+      // per the B1 review — regex would mishandle trailing punctuation
+      // and credentialed URLs); fall through with the raw text if a
+      // token isn't found (user edited it). Collapse runs of whitespace
+      // afterwards to clean up double-spaces left behind.
+      if (pastedTokensToStrip.length > 0) {
+        for (const token of pastedTokensToStrip) {
+          if (token && messageToSend.includes(token)) {
+            messageToSend = messageToSend.replace(token, '');
+          }
+        }
+        messageToSend = messageToSend.replace(/\s+/g, ' ').trim();
+      }
       try {
         const precheck = await convexClient.action(
           api.governance.precheck.precheckInput,
@@ -386,6 +437,44 @@ export function useSendMessage({
                 ? messageToSend.slice(0, 50) + '...'
                 : messageToSend;
             await updateThread({ threadId: currentThreadId, title });
+          }
+
+          // Bind pre-thread video-link jobs to the just-created (or
+          // already-existing) thread. The early bind at the top of this
+          // callback gates on `if (threadId)` so it skips welcome-page
+          // first-sends entirely — by here we have a real threadId either
+          // way, which is the moment to pull pre-thread chips in. Without
+          // this second bind, welcome-page video-link pastes lose their
+          // attachment and the LLM only sees the raw URL.
+          try {
+            const bound = await convexClient.mutation(
+              api.video_links.mutations.bindCompletedJobsToMessage,
+              { organizationId, threadId: currentThreadId },
+            );
+            for (const att of bound) {
+              // Skip duplicates if the earlier in-thread bind already added it.
+              if (mutationAttachments.some((a) => a.fileId === att.fileId))
+                continue;
+              mutationAttachments.push({
+                fileId: att.fileId as Id<'_storage'>,
+                fileName: att.fileName,
+                fileType: att.fileType,
+                fileSize: att.fileSize,
+              });
+              if (att.pastedToken && messageToSend.includes(att.pastedToken)) {
+                messageToSend = messageToSend.replace(att.pastedToken, '');
+              }
+            }
+            // Re-tidy the message text once after stripping any newly-bound
+            // pasted URLs. Cheap; only matters if we actually struck a token.
+            if (bound.length > 0) {
+              messageToSend = messageToSend.replace(/\s+/g, ' ').trim();
+            }
+          } catch (err) {
+            console.error(
+              '[use-send-message] post-thread video-link bind failed:',
+              err instanceof Error ? err.message : err,
+            );
           }
 
           // Flip the optimistic spinner IMMEDIATELY — the Node action cold
