@@ -213,13 +213,65 @@ async function runYtdlp(
     const MAX_BYTES = 8 * 1024 * 1024;
     let stdoutBytes = 0;
     let stderrBytes = 0;
+    // Settled-flag pattern. Without this, the timeout handler synchronously
+    // calls `reject` BEFORE `close` fires; the eventual `close` then calls
+    // `reject` a second time (Node silently ignores it) — but more
+    // importantly, callers' `.catch` chain proceeds to `fs.readdir` /
+    // cleanup while the child is still writing to `jobDir` during the
+    // SIGTERM→SIGKILL grace window. Resolve/reject only after `close`.
+    let settled = false;
+    let timedOut = false;
+    let byteCapExceeded = false;
+    let sigkillTimer: NodeJS.Timeout | undefined;
+    let killer: NodeJS.Timeout | undefined;
+    const settleReject = (err: unknown): void => {
+      if (settled) return;
+      settled = true;
+      if (killer) clearTimeout(killer);
+      if (sigkillTimer) clearTimeout(sigkillTimer);
+      reject(err);
+    };
+    const settleResolve = (val: YtDlpSpawnResult): void => {
+      if (settled) return;
+      settled = true;
+      if (killer) clearTimeout(killer);
+      if (sigkillTimer) clearTimeout(sigkillTimer);
+      resolve(val);
+    };
+    const killEscalate = (): void => {
+      try {
+        proc.kill('SIGTERM');
+      } catch {
+        /* already exited */
+      }
+      sigkillTimer = setTimeout(() => {
+        try {
+          proc.kill('SIGKILL');
+        } catch {
+          /* already exited */
+        }
+      }, 5_000);
+    };
+
     proc.stdout.on('data', (d) => {
       stdoutBytes += d.length;
       if (stdoutBytes < MAX_BYTES) stdout += d.toString();
+      else if (!byteCapExceeded) {
+        // Once the cap is hit, terminate the child — letting it keep
+        // streaming wastes CPU/IO and a hostile output (huge JSON dump,
+        // chatty stderr retry loop) can hold the action hostage for the
+        // full wall-clock budget.
+        byteCapExceeded = true;
+        killEscalate();
+      }
     });
     proc.stderr.on('data', (d) => {
       stderrBytes += d.length;
       if (stderrBytes < MAX_BYTES) stderr += d.toString();
+      else if (!byteCapExceeded) {
+        byteCapExceeded = true;
+        killEscalate();
+      }
     });
 
     // SIGTERM → SIGKILL escalation. Gives yt-dlp + its ffmpeg child a 5s
@@ -227,25 +279,15 @@ async function runYtdlp(
     // before we hard-kill the process group. Without the grace period
     // ffmpeg can be orphaned mid-write and leave .part files behind
     // (R2 review M-yt-dlp).
-    let sigkillTimer: NodeJS.Timeout | undefined;
-    const killer = setTimeout(() => {
-      proc.kill('SIGTERM');
-      sigkillTimer = setTimeout(() => {
-        proc.kill('SIGKILL');
-      }, 5_000);
-      const sanitized = sanitizeStderr(stderr);
-      reject(
-        new YtDlpError(
-          'timeout',
-          `yt-dlp timed out after ${timeoutMs}ms`,
-          sanitized,
-        ),
-      );
+    killer = setTimeout(() => {
+      timedOut = true;
+      killEscalate();
+      // Reject is deferred to the `close` handler below so streams have
+      // a chance to drain — otherwise the caller's `.catch` races
+      // jobDir cleanup against still-writing ffmpeg children.
     }, timeoutMs);
 
     proc.on('error', (err) => {
-      clearTimeout(killer);
-      if (sigkillTimer) clearTimeout(sigkillTimer);
       // ENOENT means the yt-dlp binary isn't on $PATH — the container
       // was started from an image built before the Dockerfile yt-dlp
       // install landed. Surface as a NEVER_RETRY reason so the chip
@@ -253,7 +295,7 @@ async function runYtdlp(
       // burning 3 retry cycles with opaque "transient" errors.
       const errno = (err as NodeJS.ErrnoException).code;
       if (errno === 'ENOENT') {
-        reject(
+        settleReject(
           new YtDlpError(
             'binaryNotInstalled',
             `yt-dlp binary not found at PATH — rebuild the Convex container`,
@@ -262,15 +304,33 @@ async function runYtdlp(
         );
         return;
       }
-      reject(err);
+      settleReject(err);
     });
     proc.on('close', (code) => {
-      clearTimeout(killer);
-      if (sigkillTimer) clearTimeout(sigkillTimer);
+      const sanitized = sanitizeStderr(stderr);
+      if (timedOut) {
+        settleReject(
+          new YtDlpError(
+            'timeout',
+            `yt-dlp timed out after ${timeoutMs}ms`,
+            sanitized,
+          ),
+        );
+        return;
+      }
+      if (byteCapExceeded) {
+        settleReject(
+          new YtDlpError(
+            'transient',
+            `yt-dlp output exceeded ${MAX_BYTES} bytes (cap-killed)`,
+            sanitized,
+          ),
+        );
+        return;
+      }
       if (code !== 0) {
-        const sanitized = sanitizeStderr(stderr);
         const reason = classifyYtDlpStderr(sanitized);
-        reject(
+        settleReject(
           new YtDlpError(
             reason,
             `yt-dlp exited ${code} (reason: ${reason})`,
@@ -279,7 +339,7 @@ async function runYtdlp(
         );
         return;
       }
-      resolve({ stdout, stderr });
+      settleResolve({ stdout, stderr });
     });
   });
 }
@@ -390,7 +450,7 @@ export async function ytdlpJson(
   jobDir: string,
   timeoutMs = 90_000,
 ): Promise<YtDlpMetadata> {
-  const { stdout } = await runYtdlp(['-J', url], jobDir, timeoutMs);
+  const { stdout } = await runYtdlp(['-J', '--', url], jobDir, timeoutMs);
   // `-J` produces a single JSON object on stdout. For non-playlist URLs
   // we asked for, it's the video info_dict directly.
   let parsed: unknown;
@@ -423,6 +483,17 @@ export async function ytdlpJson(
  * (e.g. `en`, `en.*`, `zh-Hans`, or `en-orig` for the source-language
  * track when present).
  */
+// Lang token shape: BCP-47-ish identifier (`en`, `zh-Hans`, `pt-BR`,
+// `en-orig`) plus the `-suffix` variants yt-dlp uses for original / ASR
+// tracks. Strict allow-list keeps attacker-controlled metadata keys
+// (`Object.keys(meta.subtitles)`) from injecting commas/regex tokens
+// into the `--sub-langs` value below — yt-dlp parses that as a comma-
+// separated list with regex tokens, so an attacker-supplied key like
+// `en,-danmaku,evil-track` could broaden the selection. Defense-in-depth:
+// `selectCaptionLanguage` only picks from known yt-dlp metadata, but a
+// future code change loosening that step shouldn't open a hole here.
+const LANG_TOKEN_RE = /^[A-Za-z0-9_.\-]{1,32}$/;
+
 export async function ytdlpWriteSubs(
   url: string,
   lang: string,
@@ -434,6 +505,13 @@ export async function ytdlpWriteSubs(
     timeoutMs?: number;
   } = {},
 ): Promise<string | null> {
+  if (!LANG_TOKEN_RE.test(lang)) {
+    throw new YtDlpError(
+      'unsupported',
+      `Refusing to fetch subs: lang token "${lang.slice(0, 20)}" failed allow-list`,
+      '',
+    );
+  }
   const args = [
     '--write-subs',
     ...(opts.includeAutoGenerated ? ['--write-auto-subs'] : []),
@@ -446,12 +524,24 @@ export async function ytdlpWriteSubs(
     // asked for the auto-gen fallback.
     `${lang},-danmaku${opts.includeAutoGenerated ? '' : ',-ai-.*'}`,
     '--skip-download',
+    // Hard cap on the on-disk subtitle file. yt-dlp will refuse to write
+    // a track bigger than this — defends against a hostile uploader
+    // hosting a multi-GB JSON3-converted-to-VTT that would OOM both the
+    // download step and the in-memory parse step. 5 MB is well past any
+    // legitimate transcript (≈ 8h auto-generated VTT at ~1 cue/s).
+    '--max-filesize',
+    '5M',
     '--paths',
     `home:${jobDir}`,
     '--paths',
     `temp:${jobDir}`,
     '-o',
     '%(id)s.%(ext)s',
+    // `--` separator: defense-in-depth against URL-starting-with-dash
+    // being reinterpreted as a flag. `assertSafeUrl` already requires
+    // `https:` so this is currently unreachable, but loosening URL
+    // validation later won't accidentally break this argv shape.
+    '--',
     url,
   ];
   await runYtdlp(args, jobDir, opts.timeoutMs ?? 90_000);
@@ -501,6 +591,8 @@ export async function ytdlpExtractAudio(
     `temp:${jobDir}`,
     '-o',
     '%(id)s.%(ext)s',
+    // `--` separator: defense-in-depth (see ytdlpWriteSubs comment).
+    '--',
     url,
   ];
   await runYtdlp(args, jobDir, timeoutMs);

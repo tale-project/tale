@@ -57,9 +57,24 @@ interface AssertSafeUrlOptions {
 async function defaultResolver(
   hostname: string,
 ): Promise<{ address: string }[]> {
-  // `all: true` returns every A + AAAA record. `verbatim: true` skips
-  // OS-level ordering so we see the same set regardless of distro.
-  return dns.lookup(hostname, { all: true, verbatim: true });
+  // `dns.resolve4` + `dns.resolve6` query the network resolver directly,
+  // bypassing `/etc/hosts` and `nsswitch.conf`. The previous `dns.lookup`
+  // path consults the OS resolver — a compromised container with a
+  // writable hosts file (or one whose nsswitch is misconfigured) could
+  // map a public-looking name to 127.0.0.1 BETWEEN our checks and the
+  // subprocess. Going direct closes that side-channel and also makes
+  // the answer set deterministic across distros.
+  const out: { address: string }[] = [];
+  const results = await Promise.allSettled([
+    dns.resolve4(hostname),
+    dns.resolve6(hostname),
+  ]);
+  for (const r of results) {
+    if (r.status === 'fulfilled') {
+      for (const address of r.value) out.push({ address });
+    }
+  }
+  return out;
 }
 
 /**
@@ -76,18 +91,23 @@ export async function assertSafeUrl(
   url: string,
   opts: AssertSafeUrlOptions = {},
 ): Promise<void> {
-  // Cheap string-level checks first
+  // Cheap string-level checks first. Error messages carry only the
+  // `kind` code (no raw URL, no hostname, no protocol leak) — they land
+  // verbatim in `videoLinkJobs.errorMessage` which the schema's own
+  // docstring promises is "sanitized — no raw URL or tokens". Frontend
+  // surfaces a localized string keyed on `kind`, so no information is
+  // lost.
   if (!isSafeVideoUrl(url)) {
     let parsed: URL | null = null;
     try {
       parsed = new URL(url);
     } catch {
-      throw new UrlSafetyError('invalidUrl', `Invalid URL: ${url}`);
+      throw new UrlSafetyError('invalidUrl', 'Invalid URL');
     }
     if (parsed.protocol !== 'https:') {
       throw new UrlSafetyError(
         'unsupportedProtocol',
-        `Only https:// URLs are accepted (got ${parsed.protocol})`,
+        'Only https:// URLs are accepted',
       );
     }
     if (parsed.username || parsed.password) {
@@ -98,7 +118,7 @@ export async function assertSafeUrl(
     }
     throw new UrlSafetyError(
       'ipLiteral',
-      `Bare IP literal or localhost hostname not accepted: ${parsed.hostname}`,
+      'Bare IP literal or localhost hostname not accepted',
     );
   }
 
@@ -117,18 +137,17 @@ export async function assertSafeUrl(
   let resolved: { address: string }[];
   try {
     resolved = await resolver(hostname);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+  } catch {
     throw new UrlSafetyError(
       'dnsResolutionFailed',
-      `Could not resolve hostname: ${message}`,
+      'Could not resolve hostname',
     );
   }
 
   if (!resolved || resolved.length === 0) {
     throw new UrlSafetyError(
       'dnsResolutionFailed',
-      `Hostname ${hostname} resolved to zero addresses`,
+      'Hostname resolved to zero addresses',
     );
   }
 
@@ -136,7 +155,7 @@ export async function assertSafeUrl(
     if (isPrivateIp(address)) {
       throw new UrlSafetyError(
         'privateIpResolved',
-        `Hostname ${hostname} resolves to a private/internal address`,
+        'Hostname resolves to a private/internal address',
       );
     }
   }
