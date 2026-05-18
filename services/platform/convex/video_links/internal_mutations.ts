@@ -134,6 +134,13 @@ export const updateJob = internalMutation({
     fileMetadataId: v.optional(v.id('fileMetadata')),
     errorReasonCode: v.optional(ERROR_REASON_CODE_VALIDATOR),
     errorMessage: v.optional(v.string()),
+    /**
+     * Retry counter. `handleYtDlpError` computes `attempts =
+     * (job.attempts ?? 0) + 1` locally; without persisting it the
+     * cap-check at MAX_ATTEMPTS=4 never trips and yt-dlp transient
+     * failures retry forever (round-2 V7 / HIGH #12).
+     */
+    attempts: v.optional(v.number()),
   },
   async handler(ctx, args) {
     const { jobId, status, expectedStatus, ...rest } = args;
@@ -259,7 +266,7 @@ export const insertSyntheticFileMetadata = internalMutation({
  * before the storage/RAG deletes complete (which can take seconds).
  *
  * Lifecycle-bound jobs (lifecycleStatus='active' but bound to a sent
- * message via 'bind' state — TODO: dedicated flag) keep their
+ * message via 'bind' state — dedicated flag tracked as follow-up) keep their
  * fileMetadata row for citation integrity but their audio blob deletes.
  * Unbound jobs cleanup everything.
  */
@@ -389,38 +396,45 @@ export const recoverStuckVideoLinkJobs = internalMutation({
       }
     }
 
-    // Lazy GC pass for completed-but-unbound rows.
+    // Lazy GC pass for terminal-but-unbound rows. Sweeps `completed`,
+    // `failed`, and `skipped` — failed rows can still own a stored audio
+    // blob (Phase C patches `storageId` BEFORE Whisper handoff for cancel-
+    // cleanup correctness; if Whisper then fails, the blob persists), and
+    // skipped rows similarly retain state from before cancellation.
     const gcCutoff = now - UNBOUND_GC_AGE_MS;
-    const candidates = await ctx.db
-      .query('videoLinkJobs')
-      .withIndex('by_status', (q) => q.eq('status', 'completed'))
-      .take(UNBOUND_GC_BATCH * 4);
-    for (const row of candidates) {
-      if (gcCount >= UNBOUND_GC_BATCH) break;
-      if (row.messageBoundAt !== undefined) continue;
-      if (row._creationTime > gcCutoff) continue;
-      if (row.storageId) {
-        try {
-          await ctx.storage.delete(row.storageId);
-        } catch (err) {
-          console.warn(
-            `[video_links] GC storage.delete failed for ${row._id}:`,
-            err instanceof Error ? err.message : err,
-          );
+    const gcStatuses = ['completed', 'failed', 'skipped'] as const;
+    outer: for (const status of gcStatuses) {
+      const candidates = await ctx.db
+        .query('videoLinkJobs')
+        .withIndex('by_status', (q) => q.eq('status', status))
+        .take(UNBOUND_GC_BATCH * 4);
+      for (const row of candidates) {
+        if (gcCount >= UNBOUND_GC_BATCH) break outer;
+        if (row.messageBoundAt !== undefined) continue;
+        if (row._creationTime > gcCutoff) continue;
+        if (row.storageId) {
+          try {
+            await ctx.storage.delete(row.storageId);
+          } catch (err) {
+            console.warn(
+              `[video_links] GC storage.delete failed for ${row._id}:`,
+              err instanceof Error ? err.message : err,
+            );
+          }
         }
-      }
-      if (row.fileMetadataId) {
-        try {
-          await ctx.db.delete(row.fileMetadataId);
-        } catch (err) {
-          console.warn(
-            `[video_links] GC fileMetadata.delete failed for ${row._id}:`,
-            err instanceof Error ? err.message : err,
-          );
+        if (row.fileMetadataId) {
+          try {
+            await ctx.db.delete(row.fileMetadataId);
+          } catch (err) {
+            console.warn(
+              `[video_links] GC fileMetadata.delete failed for ${row._id}:`,
+              err instanceof Error ? err.message : err,
+            );
+          }
         }
+        await ctx.db.delete(row._id);
+        gcCount += 1;
       }
-      await ctx.db.delete(row._id);
-      gcCount += 1;
     }
 
     return { recoveredCount, gcCount };

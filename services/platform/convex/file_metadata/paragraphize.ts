@@ -67,7 +67,13 @@ export interface ParagraphizeOptions {
   addTimestamps?: boolean;
 }
 
-function formatHms(totalSec: number): string {
+/**
+ * Format `totalSec` as zero-padded `HH:MM:SS`. Exported because the
+ * video-link orchestrator builds a chapter TOC with the same shape and
+ * was previously carrying a byte-identical local copy — DRY consolidation
+ * from round-2 review.
+ */
+export function formatHms(totalSec: number): string {
   const s = Math.max(0, Math.floor(totalSec));
   const hh = Math.floor(s / 3600);
   const mm = Math.floor((s % 3600) / 60);
@@ -120,10 +126,12 @@ export function joinSegmentsWithParagraphs(
     // accidentally satisfy the >= pauseSec threshold.
     const gap = prev ? Math.max(0, seg.startSec - prev.endSec) : 0;
     const paragraphDuration = seg.endSec - paragraphStart;
-    const speakerChanged =
-      prev !== null &&
-      seg.speaker !== undefined &&
-      seg.speaker !== prev.speaker;
+    // Treat ANY change in `prev.speaker !== seg.speaker` as a boundary —
+    // including transitions to/from undefined. Previously only "new
+    // speaker is defined and differs" counted, so a sequence like
+    // `Alice("hi") → undefined("...") → Bob("...")` glued the
+    // middle, unlabeled cue under Alice's prefix.
+    const speakerChanged = prev !== null && seg.speaker !== prev.speaker;
 
     if (
       current.length > 0 &&

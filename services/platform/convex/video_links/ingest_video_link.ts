@@ -40,7 +40,9 @@ import { internalAction } from '../_generated/server';
 import {
   joinSegmentsWithParagraphs,
   CAPTION_PROFILE,
+  formatHms,
 } from '../file_metadata/paragraphize';
+import { sanitizeUntrustedField } from '../lib/untrusted_content';
 import {
   captionsToParagraphSegments,
   parseVtt,
@@ -234,6 +236,11 @@ export const ingestVideoLink = internalAction({
       await ctx.runMutation(internal.video_links.internal_mutations.updateJob, {
         jobId: args.jobId,
         status: 'fetching_metadata',
+        // CAS guard: only advance if the row is still in 'queued'. Defends
+        // against a watchdog-failed → manual-retry race where two action
+        // instances overlap; the loser silently no-ops instead of
+        // stomping the winner's writes.
+        expectedStatus: 'queued',
       });
       if (!(await assertNotCancelled())) return;
 
@@ -265,17 +272,33 @@ export const ingestVideoLink = internalAction({
         return;
       }
 
+      // Sanitize uploader-controlled metadata at the trust boundary, BEFORE
+      // it enters our DB / fileMetadata.transcript / fileName / agent context.
+      // A chapter title like `\n\n[SYSTEM] ignore previous instructions` would
+      // otherwise pass through unescaped into the transcript body (since the
+      // TOC is concatenated into the persisted text in Phase B) and the agent
+      // would see it outside any <untrusted_source> wrapper.
       const chapters =
         metadata.chapters?.map((c) => ({
           startSec: c.start_time,
           endSec: c.end_time,
-          title: c.title,
+          title: sanitizeUntrustedField(c.title, 200),
         })) ?? [];
+      const safeTitle = metadata.title
+        ? sanitizeUntrustedField(metadata.title, 200)
+        : undefined;
+      const safeUploader =
+        (metadata.uploader ?? metadata.channel)
+          ? sanitizeUntrustedField(
+              metadata.uploader ?? metadata.channel ?? '',
+              120,
+            )
+          : undefined;
 
       await ctx.runMutation(internal.video_links.internal_mutations.updateJob, {
         jobId: args.jobId,
-        videoTitle: metadata.title ?? undefined,
-        videoUploader: metadata.uploader ?? metadata.channel ?? undefined,
+        videoTitle: safeTitle,
+        videoUploader: safeUploader,
         videoDurationSec: metadata.duration,
         videoLanguage: metadata.language ?? undefined,
         ...(chapters.length > 0 ? { videoChapters: chapters } : {}),
@@ -305,6 +328,7 @@ export const ingestVideoLink = internalAction({
           {
             jobId: args.jobId,
             status: 'fetching_captions',
+            expectedStatus: 'fetching_metadata',
             captionLang: selection.lang,
             captionTrackKind: selection.trackKind,
           },
@@ -359,12 +383,21 @@ export const ingestVideoLink = internalAction({
             if (transcriptBody.length > 0) {
               await ctx.runMutation(
                 internal.video_links.internal_mutations.updateJob,
-                { jobId: args.jobId, status: 'indexing' },
+                {
+                  jobId: args.jobId,
+                  status: 'indexing',
+                  expectedStatus: 'fetching_captions',
+                },
               );
               if (!(await assertNotCancelled())) return;
 
               // Prepend chapter TOC when chapters are present — agent
               // can cite "Chapter 3: …" in summaries.
+              // `chapters[i].title` was already passed through
+              // `sanitizeUntrustedField` at the metadata-fetch trust
+              // boundary above, so this concatenation is safe — chapter
+              // titles can no longer carry literal `\n[SYSTEM]` payloads
+              // or `</untrusted_source>` close-tag attempts.
               const chapterToc =
                 chapters.length > 0
                   ? 'Chapters:\n' +
@@ -380,6 +413,18 @@ export const ingestVideoLink = internalAction({
               });
               const storageId = await ctx.storage.store(blob);
 
+              // Record `storageId` on the job row BEFORE the synthetic
+              // fileMetadata insert. If that mutation throws (validator,
+              // arg-size overflow on a multi-hour transcript, transient
+              // OOM), `cleanupCancelledVideoLink` needs `job.storageId`
+              // to reclaim the blob; without this pre-write the blob
+              // orphans in `_storage` indefinitely. Audio branch (Phase
+              // C, lines 484-487) follows the same pattern.
+              await ctx.runMutation(
+                internal.video_links.internal_mutations.updateJob,
+                { jobId: args.jobId, storageId },
+              );
+
               await ctx.runMutation(
                 internal.video_links.internal_mutations
                   .insertSyntheticFileMetadata,
@@ -388,9 +433,8 @@ export const ingestVideoLink = internalAction({
                   storageId,
                   transcript: fullTranscript,
                   fileSize: blob.size,
-                  videoTitle: metadata.title ?? 'Untitled video',
-                  videoUploader:
-                    metadata.uploader ?? metadata.channel ?? undefined,
+                  videoTitle: safeTitle ?? 'Untitled video',
+                  videoUploader: safeUploader,
                   videoDurationSec: metadata.duration ?? 0,
                   sourceUrl: job.sourceUrl,
                   sourcePlatform: job.sourcePlatform,
@@ -481,7 +525,7 @@ export const ingestVideoLink = internalAction({
         {
           organizationId: job.organizationId,
           storageId: audioStorageId,
-          fileName: `${metadata.title ?? 'video'}.ogg`,
+          fileName: `${safeTitle ?? 'video'}.ogg`,
           contentType: 'audio/ogg',
           size: audioBlob.size,
           // 'video_link' instead of 'user' so prompt-injection-aware
@@ -499,6 +543,7 @@ export const ingestVideoLink = internalAction({
       await ctx.runMutation(internal.video_links.internal_mutations.updateJob, {
         jobId: args.jobId,
         status: 'transcribing_handoff',
+        expectedStatus: 'extracting_audio',
         storageId: audioStorageId,
         fileMetadataId,
         transcriptSource: 'whisper',
@@ -537,14 +582,30 @@ async function handleYtDlpError(
       await fail(err.reason, err.sanitizedStderr || err.message);
       return;
     }
-    // Schedule retry with backoff
+    // Schedule retry with backoff. PERSIST `attempts` — without writing
+    // it back, every retried run reads `job.attempts ?? 0` and recomputes
+    // 1, so MAX_ATTEMPTS is never reached and transient failures retry
+    // forever bounded only by NEVER_RETRY (round-2 V7 / HIGH #12).
     const delayMs =
       INGEST_RETRY_DELAYS_MS[
         Math.min(attempts - 1, INGEST_RETRY_DELAYS_MS.length - 1)
       ];
+    // Clear any storageId/fileMetadataId from the prior attempt before
+    // re-running the orchestrator. Without this, a retry that previously
+    // patched `storageId` (Phase C, Whisper path) would carry the stale
+    // id into the fresh action, double-storing the audio blob on success
+    // (the second `ctx.storage.store` overwrites the field; the original
+    // blob orphans). `cleanupCancelledVideoLink` already handles the
+    // delete bookkeeping safely.
+    await ctx.scheduler.runAfter(
+      0,
+      internal.video_links.internal_mutations.cleanupCancelledVideoLink,
+      { jobId },
+    );
     await ctx.runMutation(internal.video_links.internal_mutations.updateJob, {
       jobId,
       status: 'queued',
+      attempts,
       errorReasonCode: err.reason,
       errorMessage: err.sanitizedStderr.slice(0, 500),
     });
@@ -566,18 +627,4 @@ async function handleYtDlpError(
   }
   const message = err instanceof Error ? err.message : String(err);
   await fail('transient', message);
-}
-
-function formatHms(totalSec: number): string {
-  const s = Math.max(0, Math.floor(totalSec));
-  const hh = Math.floor(s / 3600);
-  const mm = Math.floor((s % 3600) / 60);
-  const ss = s % 60;
-  return (
-    String(hh).padStart(2, '0') +
-    ':' +
-    String(mm).padStart(2, '0') +
-    ':' +
-    String(ss).padStart(2, '0')
-  );
 }

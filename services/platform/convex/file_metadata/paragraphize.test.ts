@@ -162,6 +162,28 @@ describe('joinSegmentsWithParagraphs', () => {
       const out = joinSegmentsWithParagraphs(segs, '', { addTimestamps: true });
       expect(out).toBe('[00:00:00] Alice: Hi.\n\n[00:01:00] Bob: Hello.');
     });
+
+    it('breaks paragraph when speaker transitions to undefined', () => {
+      // Round-2 paragraphize fix: previously only "new speaker is
+      // defined and differs" counted as a boundary, so unlabeled cues
+      // following a labeled speaker would glue under that prefix. The
+      // unlabeled cue should start a fresh, unlabeled paragraph.
+      const segs = [
+        seg(0, 2, 'Alice says hi.', 'Alice'),
+        seg(2, 4, 'unlabeled body'),
+      ];
+      const out = joinSegmentsWithParagraphs(segs, '');
+      expect(out).toBe('Alice: Alice says hi.\n\nunlabeled body');
+    });
+
+    it('breaks paragraph when speaker transitions from undefined to defined', () => {
+      const segs = [
+        seg(0, 2, 'unlabeled opener'),
+        seg(2, 4, 'Bob speaks.', 'Bob'),
+      ];
+      const out = joinSegmentsWithParagraphs(segs, '');
+      expect(out).toBe('unlabeled opener\n\nBob: Bob speaks.');
+    });
   });
 
   describe('backward compatibility (Whisper output without timestamps)', () => {
