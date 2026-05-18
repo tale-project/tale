@@ -14,15 +14,25 @@ describe('usePersistedState', () => {
     expect(result.current[0]).toBe('hello');
   });
 
-  it('hydrates from localStorage after mount', () => {
+  it('reads from localStorage synchronously on first render', () => {
     localStorage.setItem('test-key', JSON.stringify('stored-value'));
 
     const { result } = renderHook(() =>
       usePersistedState('test-key', 'default'),
     );
 
-    // After hydration effect runs
+    // Lazy useState initializer reads localStorage during initial render —
+    // no post-mount hydration step, so consumers never observe the default.
     expect(result.current[0]).toBe('stored-value');
+  });
+
+  it('does not write the initial value back to localStorage on mount', () => {
+    renderHook(() => usePersistedState('test-key', 'default'));
+
+    // First-mount persist must be a no-op: a hook that's never been written
+    // to should not echo its initial value to storage (would otherwise
+    // pollute the key and trigger spurious storage events).
+    expect(localStorage.getItem('test-key')).toBeNull();
   });
 
   it('persists value changes to localStorage', () => {
@@ -95,6 +105,22 @@ describe('usePersistedState', () => {
       rerender({ key: 'key-b' });
 
       expect(result.current[0]).toBe('default');
+    });
+
+    it('does not write to the new key on key change when no stored value exists', () => {
+      const { rerender } = renderHook(
+        ({ key }) => usePersistedState(key, 'default'),
+        { initialProps: { key: 'key-a' } },
+      );
+
+      expect(localStorage.getItem('key-b')).toBeNull();
+
+      rerender({ key: 'key-b' });
+
+      // Key swap should NOT echo 'default' back to storage at 'key-b' —
+      // a never-written key must stay un-written so callers can distinguish
+      // "user has set nothing" from "user set the value to default".
+      expect(localStorage.getItem('key-b')).toBeNull();
     });
 
     it('preserves value written to a key after switching away and back', () => {

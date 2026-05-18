@@ -141,7 +141,7 @@ afterEach(() => {
 });
 
 describe('DashboardLayout', () => {
-  it('shows spinner (not outlet) while Convex auth is loading', () => {
+  it('shows skeleton (not outlet) while Convex auth is loading', () => {
     mockUseConvexAuth.mockReturnValue({
       isLoading: true,
       isAuthenticated: false,
@@ -157,10 +157,10 @@ describe('DashboardLayout', () => {
     // Outlet must not render until access is confirmed — child routes mount
     // org-scoped Convex subscriptions that throw on UnauthorizedError.
     expect(screen.queryByTestId('outlet')).not.toBeInTheDocument();
-    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.getAllByRole('status').length).toBeGreaterThan(0);
   });
 
-  it('shows spinner (not outlet) while member context query is loading', () => {
+  it('shows skeleton (not outlet) while member context query is loading', () => {
     mockUseConvexAuth.mockReturnValue({
       isLoading: false,
       isAuthenticated: true,
@@ -174,10 +174,10 @@ describe('DashboardLayout', () => {
     render(<DashboardLayout />);
 
     expect(screen.queryByTestId('outlet')).not.toBeInTheDocument();
-    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.getAllByRole('status').length).toBeGreaterThan(0);
   });
 
-  it('shows spinner when both auth and query are loading', () => {
+  it('shows skeleton when both auth and query are loading', () => {
     mockUseConvexAuth.mockReturnValue({
       isLoading: true,
       isAuthenticated: false,
@@ -191,7 +191,7 @@ describe('DashboardLayout', () => {
     render(<DashboardLayout />);
 
     expect(screen.queryByTestId('outlet')).not.toBeInTheDocument();
-    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.getAllByRole('status').length).toBeGreaterThan(0);
   });
 
   it('renders child routes when auth complete and member has role', () => {
@@ -327,7 +327,7 @@ describe('DashboardLayout', () => {
     expect(mockUseCurrentMemberContext.mock.calls[0]?.[1]).toBe(false);
   });
 
-  it('shows spinner (not outlet) when query errors without prior data', () => {
+  it('shows skeleton (not outlet) when query errors without prior data', () => {
     mockUseConvexAuth.mockReturnValue({
       isLoading: false,
       isAuthenticated: true,
@@ -341,14 +341,14 @@ describe('DashboardLayout', () => {
     render(<DashboardLayout />);
 
     // Without resolved memberContext we can't confirm access — fall through
-    // to the loading spinner rather than rendering Outlet (which would mount
+    // to the loading skeleton rather than rendering Outlet (which would mount
     // org-scoped subscriptions) or AccessDenied (which would be misleading
     // for a transient error).
     expect(screen.queryByTestId('outlet')).not.toBeInTheDocument();
     expect(
       screen.queryByText('accessDenied.noMembership'),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.getAllByRole('status').length).toBeGreaterThan(0);
   });
 
   it('keeps outlet visible when query errors but has previous data', () => {

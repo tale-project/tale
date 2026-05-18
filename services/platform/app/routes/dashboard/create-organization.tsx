@@ -1,10 +1,9 @@
-import { Spinner } from '@tale/ui/spinner';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useEffect } from 'react';
 
-import { FullPageCenter } from '@/app/components/ui/layout/full-page-center';
 import { OrganizationForm } from '@/app/features/organization/components/organization-form';
 import { useUserOrganizations } from '@/app/features/organization/hooks/queries';
+import { DashboardShellSkeleton } from '@/app/routes/dashboard/dashboard-shell-skeleton';
 import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/create-organization')({
@@ -31,11 +30,7 @@ function CreateOrganizationPage() {
   }, [isAuthLoading, isAuthenticated, navigate]);
 
   if (isAuthLoading || isOrgsLoading) {
-    return (
-      <FullPageCenter>
-        <Spinner size="lg" />
-      </FullPageCenter>
-    );
+    return <DashboardShellSkeleton />;
   }
 
   return <OrganizationForm />;

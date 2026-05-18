@@ -18,6 +18,7 @@ import {
 import { ChatHeader } from '@/app/features/chat/components/chat-header';
 import { ChatHistorySidebar } from '@/app/features/chat/components/chat-history-sidebar';
 import { ChatInterface } from '@/app/features/chat/components/chat-interface';
+import { MessagesSkeleton } from '@/app/features/chat/components/messages-skeleton';
 import { SharedChatView } from '@/app/features/chat/components/shared-chat-view';
 import { WelcomeContentSkeleton } from '@/app/features/chat/components/welcome-content-skeleton';
 import {
@@ -54,9 +55,12 @@ export const Route = createFileRoute('/dashboard/$id/chat')({
 
 function ChatInputSkeleton() {
   return (
-    <PanelFooter>
+    // mt-auto mirrors ChatInterface's PanelFooter pinning so the composer
+    // sits at the bottom without relying on a flex-1 sibling. Harmless
+    // inside ChatSkeleton where the sibling already consumes all space.
+    <PanelFooter className="mt-auto">
       <div className="mx-auto w-full max-w-(--chat-max-width)">
-        <div className="bg-background border-muted-foreground/50 relative flex flex-col gap-2 rounded-t-2xl border border-b-0 px-5 pt-4">
+        <div className="bg-background border-muted-foreground/50 relative mb-2 flex flex-col gap-2 rounded-2xl border px-5 pt-4">
           <Skeleton className="h-[100px] w-full bg-transparent" />
           <div className="flex items-center pb-3">
             <Skeleton className="h-5 w-5 rounded" />
@@ -72,6 +76,20 @@ function ChatSkeleton() {
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto">
       <div className="flex flex-1 flex-col items-center justify-center overflow-y-visible p-4 sm:p-8">
         <WelcomeContentSkeleton />
+      </div>
+      <ChatInputSkeleton />
+    </div>
+  );
+}
+
+// Loading placeholder for the existing-thread path. Mirrors ChatInterface's
+// wrapper for the messages-list render (chat-interface.tsx) — content div
+// is natural-height, ChatInputSkeleton pins to bottom via `mt-auto`.
+function ThreadLoadingSkeleton() {
+  return (
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto">
+      <div className="flex flex-col overflow-y-visible p-4 sm:p-6">
+        <MessagesSkeleton />
       </div>
       <ChatInputSkeleton />
     </div>
@@ -126,7 +144,7 @@ function ThreadGate({
 
   // Still loading
   if (threadStatus === undefined) {
-    return <ChatSkeleton />;
+    return <ThreadLoadingSkeleton />;
   }
 
   // Loaded but thread not found / not authorized
