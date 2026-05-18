@@ -67,6 +67,54 @@ export const filterStorageIdsByCallerOrg = internalQuery({
 });
 
 /**
+ * Lookup which of the supplied storage ids correspond to fileMetadata rows
+ * with `source === 'video_link'`. Returns a Map-friendly array of pairs so
+ * callers (RAG retrieval / search tool handlers) can wrap the corresponding
+ * tool-response content in `<untrusted_source>` before handing it to the
+ * agent. Non-video-link rows are omitted from the result entirely.
+ *
+ * Storage ids without a fileMetadata row are silently skipped (hub documents
+ * that index the same id, broken references, etc.) — wrapping is best-effort
+ * defense-in-depth and a miss only loses the wrap, never poisons trust.
+ */
+export const lookupVideoLinkSources = internalQuery({
+  args: { storageIds: v.array(v.id('_storage')) },
+  returns: v.array(
+    v.object({
+      storageId: v.id('_storage'),
+      sourceUrl: v.optional(v.string()),
+    }),
+  ),
+  async handler(ctx, args) {
+    const out: Array<{
+      storageId: (typeof args.storageIds)[number];
+      sourceUrl?: string;
+    }> = [];
+    for (const storageId of args.storageIds) {
+      const meta = await ctx.db
+        .query('fileMetadata')
+        .withIndex('by_storageId', (q) => q.eq('storageId', storageId))
+        .first();
+      if (!meta || meta.source !== 'video_link') continue;
+      const job = await ctx.db
+        .query('videoLinkJobs')
+        .withIndex('by_storageId', (q) => q.eq('storageId', storageId))
+        .first();
+      const entry: {
+        storageId: (typeof args.storageIds)[number];
+        sourceUrl?: string;
+      } = {
+        storageId,
+      };
+      const sourceUrl = job?.sourceUrl ?? meta.sourceUrl;
+      if (sourceUrl) entry.sourceUrl = sourceUrl;
+      out.push(entry);
+    }
+    return out;
+  },
+});
+
+/**
  * Read the SHA-256 checksum computed by Convex on upload. Exists because
  * `ctx.db.system.get(...)` is not available in actions — actions call this
  * internal query instead.

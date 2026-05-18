@@ -1,5 +1,6 @@
-'use node';
-
+// No `'use node'` — this module is pure ECMAScript. `Buffer` is a type-
+// level import (alias for `Uint8Array & { ... }` at compile time), not a
+// runtime dependency, so it doesn't force the Node bundle.
 import type { ParagraphSegment } from '../file_metadata/paragraphize';
 
 /**
@@ -45,8 +46,20 @@ export interface CaptionSegment {
  * Does NOT throw on partial corruption; produces best-effort output so
  * a single bad cue doesn't kill the whole transcript.
  */
+// Hard caps so a hostile VTT (attacker-uploaded video on YouTube /
+// Bilibili / etc.) can't OOM the Convex action.
+// 5 MB ≈ 200 K cue lines after dedup — well past any legitimate transcript.
+const MAX_VTT_BYTES = 5 * 1024 * 1024;
+const MAX_SEGMENTS = 50_000;
+
 export function parseVtt(input: string | Buffer): CaptionSegment[] {
   let text = typeof input === 'string' ? input : input.toString('utf-8');
+  if (text.length > MAX_VTT_BYTES) {
+    // Truncate rather than throw — a malformed-but-genuine long video
+    // (e.g. 6h podcast) should still produce a usable transcript prefix
+    // instead of falling through to Whisper at 15 min wall-clock cost.
+    text = text.slice(0, MAX_VTT_BYTES);
+  }
   // Strip BOM
   if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
   // Normalize line endings
@@ -94,6 +107,9 @@ export function parseVtt(input: string | Buffer): CaptionSegment[] {
       text: clean,
       ...(speaker ? { speaker } : {}),
     });
+    // Hard segment cap so a degenerate VTT (1k cue/s on a long video)
+    // can't push the parser past the action's memory budget.
+    if (segments.length >= MAX_SEGMENTS) break;
   }
 
   return segments;
@@ -130,6 +146,46 @@ function hmsToSec(
   return h * 3600 + m * 60 + s + ms / 1000;
 }
 
+/**
+ * Strip the cocktail of prompt-injection markers, VTT inline tags, and
+ * invisible smuggling code-points that attacker-controlled caption text
+ * commonly carries. Used for BOTH cue body (`rest`) and speaker label —
+ * the speaker leaks into the agent context via `paragraphize.ts` as
+ * `${speaker}: ${body}` and would otherwise bypass every scrubber.
+ *
+ * Length cap is applied last so an attacker who packs a 10 KB speaker
+ * string can't blow up the prompt window.
+ */
+function cleanInlineText(input: string, maxLen?: number): string {
+  let out = input;
+  // Prompt-injection control tokens FIRST so the generic-tag pass below
+  // doesn't partially consume their inner brackets and leave `<>` fragments
+  // behind (e.g. `<<SYS>>` → generic-tag would otherwise eat `<SYS>`).
+  out = out.replace(/<<\/?SYS>>/gi, '');
+  out = out.replace(/<\|[a-zA-Z0-9_-]+\|>/g, '');
+  // Orphaned ChatML openers without their closing `|>` — produced when
+  // the surrounding `<v Speaker>` regex eats the trailing `>` (the
+  // VTT speaker regex captures up to the first `>` in the cue,
+  // truncating a payload like `<|im_start|>` to `<|im_start|` inside
+  // the speaker string). Strip both leading-`<|name|` and inline
+  // residuals so the speaker label can't carry chatml smuggling.
+  out = out.replace(/<\|[a-zA-Z0-9_-]+\|?/g, '');
+  out = out.replace(/\[\/?(INST|SYS|SYSTEM)\]/gi, '');
+  // Standard VTT inline tags (`<c>`, `<c.colorE5E5E5>`, `</v>`, `</c>`) —
+  // case-insensitive so encoder casing variants don't bleed through.
+  out = out.replace(/<\/?[a-zA-Z][^>]*>/g, '');
+  // VTT inline timing tags — 1- or 2-digit hour (some encoders emit
+  // `<0:00:01.500>` instead of the spec-correct `<00:00:01.500>`).
+  out = out.replace(/<\d{1,2}:\d{2}:\d{2}\.\d{3}>/g, '');
+  // Zero-width and bidi-override characters that LLM tokenizers accept
+  // but humans can't see — common smuggling vector.
+  out = out.replace(/[​-‏‪-‮⁠﻿]/g, '');
+  if (maxLen !== undefined && out.length > maxLen) {
+    out = out.slice(0, maxLen);
+  }
+  return out;
+}
+
 function extractSpeakerAndStrip(text: string): {
   speaker?: string;
   text: string;
@@ -140,28 +196,15 @@ function extractSpeakerAndStrip(text: string): {
   let speaker: string | undefined;
   let rest = text;
   if (speakerMatch) {
-    speaker = speakerMatch[1].trim();
+    // Run the captured label through the SAME scrubber as the cue body,
+    // plus a hard length cap, plus newline rejection (the regex `[^>]`
+    // can capture newlines inside a malformed `<v ... >` opener).
+    const raw = speakerMatch[1].replace(/[\r\n\t]/g, ' ').trim();
+    const cleaned = cleanInlineText(raw, 64).trim();
+    speaker = cleaned.length > 0 ? cleaned : undefined;
     rest = text.slice(speakerMatch[0].length);
   }
-  // Strip prompt-injection control tokens FIRST so the generic-tag pass
-  // below doesn't partially consume their inner brackets and leave `<>`
-  // fragments behind (e.g. `<<SYS>>` → generic-tag would otherwise eat
-  // `<SYS>` leaving `<>`). Attacker-controlled caption text MUST NOT
-  // carry these into the LLM context — wrapping with <untrusted_source>
-  // + the trust-rules system prompt mitigates intent, but stripping the
-  // literal tokens is cheap defense-in-depth.
-  rest = rest.replace(/<<\/?SYS>>/gi, '');
-  rest = rest.replace(/<\|[a-zA-Z0-9_-]+\|>/g, '');
-  rest = rest.replace(/\[\/?(INST|SYS|SYSTEM)\]/gi, '');
-  // Strip standard VTT inline tags (`<c>`, `<c.colorE5E5E5>`, `</v>`, `</c>`)
-  // — case-insensitive so encoder casing variants don't bleed through.
-  rest = rest.replace(/<\/?[a-zA-Z][^>]*>/g, '');
-  // Strip VTT inline timing tags — 1- or 2-digit hour (some encoders emit
-  // `<0:00:01.500>` instead of the spec-correct `<00:00:01.500>`).
-  rest = rest.replace(/<\d{1,2}:\d{2}:\d{2}\.\d{3}>/g, '');
-  // Strip zero-width and bidi-override characters that LLM tokenizers
-  // accept but that humans can't see — common smuggling vector.
-  rest = rest.replace(/[​-‏‪-‮⁠﻿]/g, '');
+  rest = cleanInlineText(rest);
   return { speaker, text: rest };
 }
 

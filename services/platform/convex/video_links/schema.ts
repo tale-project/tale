@@ -147,4 +147,13 @@ export const videoLinkJobsTable = defineTable({
     'sourceUrlHash',
   ])
   // Subject-erasure cascade (GDPR right-to-be-forgotten).
-  .index('by_org_user', ['organizationId', 'uploadedBy']);
+  .index('by_org_user', ['organizationId', 'uploadedBy'])
+  // Reverse-lookup from a fileMetadata/transcript storage id back to the
+  // owning job. Required by (a) the Whisper-branch heartbeat in
+  // `internal_mutations.ts:heartbeatJobByStorageId` (called per chunk),
+  // (b) the transcript-source lookup in `file_metadata.internal_queries
+  // .lookupVideoLinkSources` (used to wrap RAG retrieval output in
+  // `<untrusted_source>`), and (c) the cross-table watchdog flip in
+  // `recoverStuckTranscriptions`. Without this index those callers
+  // perform a full-table scan on every chat audio chunk.
+  .index('by_storageId', ['storageId']);

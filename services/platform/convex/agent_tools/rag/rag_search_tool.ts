@@ -21,11 +21,14 @@ import { fetchJson } from '../../../lib/utils/type-cast-helpers';
 import { internal } from '../../_generated/api';
 import { createDebugLog } from '../../lib/debug_log';
 import { ragFetch } from '../../lib/helpers/rag_config';
+import { toId } from '../../lib/type_cast_helpers';
+import { wrapUntrusted } from '../../lib/untrusted_content';
 import { getThreadAncestorChain } from '../../threads/get_thread_ancestor_chain';
 import type { ToolDefinition } from '../types';
 import {
   formatSearchResults,
   type SearchResponse,
+  type SearchResult,
 } from './format_search_results';
 import { listIndexedDocuments } from './helpers/list_indexed_documents';
 
@@ -284,10 +287,31 @@ RESPONSE (list_indexed):
         }
         const result = await fetchJson<RetrieveResponse>(response);
 
-        const text = (result.chunks ?? [])
+        let text = (result.chunks ?? [])
           .sort((a, b) => a.index - b.index)
           .map((c) => c.content)
           .join('\n');
+
+        // Prompt-injection defense: when the retrieved document is a
+        // video-link transcript (attacker-controlled caption text + chapter
+        // titles + uploader-supplied metadata), wrap the payload so the
+        // TRUST RULES system prompt applies to what the agent actually
+        // reads. Hub documents and chat-uploaded files are not wrapped —
+        // their content is presumed user-trusted.
+        const videoSourcesRetrieve = await ctx.runQuery(
+          internal.file_metadata.internal_queries.lookupVideoLinkSources,
+          { storageIds: [toId<'_storage'>(args.fileId)] },
+        );
+        if (videoSourcesRetrieve.length > 0) {
+          const meta: { tool: string; operation?: string; url?: string } = {
+            tool: 'rag_search',
+            operation: 'retrieve',
+          };
+          if (videoSourcesRetrieve[0].sourceUrl) {
+            meta.url = videoSourcesRetrieve[0].sourceUrl;
+          }
+          text = wrapUntrusted(text, meta);
+        }
 
         const hasMore = result.chunk_range.end < result.total_chunks;
 
@@ -405,8 +429,47 @@ RESPONSE (list_indexed):
 
         const result = await fetchJson<SearchResponse>(response);
 
+        // Prompt-injection defense: per-hit wrap for any result that maps
+        // back to a video-link transcript. The RAG service returns chunk
+        // text with attacker-controlled caption/chapter content; without
+        // wrapping it lands in the agent context outside the TRUST RULES
+        // system prompt's reach. Batch-query Convex once with all hit
+        // file_ids; non-video-link hits are unchanged.
+        const candidateIds = result.results
+          .map((r) => r.file_id)
+          .filter(
+            (id): id is string => typeof id === 'string' && id.length > 0,
+          );
+        const wrappedResults: SearchResult[] = result.results;
+        if (candidateIds.length > 0) {
+          const videoSourcesSearch = await ctx.runQuery(
+            internal.file_metadata.internal_queries.lookupVideoLinkSources,
+            { storageIds: candidateIds.map((id) => toId<'_storage'>(id)) },
+          );
+          if (videoSourcesSearch.length > 0) {
+            const byId = new Map(
+              videoSourcesSearch.map((v) => [String(v.storageId), v.sourceUrl]),
+            );
+            for (let i = 0; i < wrappedResults.length; i++) {
+              const r = wrappedResults[i];
+              if (!r.file_id) continue;
+              if (!byId.has(r.file_id)) continue;
+              const meta: { tool: string; operation?: string; url?: string } = {
+                tool: 'rag_search',
+                operation: 'search',
+              };
+              const sourceUrl = byId.get(r.file_id);
+              if (sourceUrl) meta.url = sourceUrl;
+              wrappedResults[i] = {
+                ...r,
+                content: wrapUntrusted(r.content, meta),
+              };
+            }
+          }
+        }
+
         const formatted =
-          formatSearchResults(result.results) ??
+          formatSearchResults(wrappedResults) ??
           'No relevant results found in the knowledge base.';
 
         // Merge citations by fileId — keep one entry per file with highest relevance
