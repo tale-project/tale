@@ -13,7 +13,18 @@ export const promptTemplatesTable = defineTable({
   description: v.optional(v.string()),
   scope: promptScopeValidator,
   teamId: v.optional(v.string()),
+  /**
+   * Legacy free-form category string. Coexists with `categoryId` during the
+   * `promptCategories` transition: writes prefer `categoryId`, reads fall
+   * back to this string when no id is set. A future cleanup migration will
+   * sweep remaining string-only rows once usage drops to near-zero.
+   */
   category: v.optional(v.string()),
+  /**
+   * Reference to the structured `promptCategories` row. Optional during the
+   * transition window — slice 2 wires lazy migration on any prompt mutation.
+   */
+  categoryId: v.optional(v.id('promptCategories')),
   tags: v.optional(v.array(v.string())),
   usageCount: v.number(),
   /** The message ID this prompt was saved from, if any. */
@@ -54,6 +65,8 @@ export const promptTemplatesTable = defineTable({
         title: v.string(),
         description: v.optional(v.string()),
         category: v.optional(v.string()),
+        /** See `promptTemplatesTable.categoryId` — same transition rules. */
+        categoryId: v.optional(v.id('promptCategories')),
         tags: v.optional(v.array(v.string())),
         scope: promptScopeValidator,
         teamId: v.optional(v.string()),
@@ -83,3 +96,47 @@ export const promptTemplatesTable = defineTable({
     'organizationId',
     'lifecycleStatus',
   ]);
+
+/**
+ * Named categories that prompts attach to via `promptTemplates.categoryId`.
+ *
+ * Scope semantics:
+ *  - `personal` — visible to (and manageable by) `createdBy` only.
+ *  - `team`     — visible to members of `teamId`; manageable by org admins.
+ *  - `global`   — visible to the whole org; manageable by org admins.
+ *
+ * The write-side invariant (see `assertCategoryScopeMatchesPromptScope`)
+ * keeps a prompt's category scope at least as permissive as the prompt's
+ * own scope, so any viewer who can read the prompt can also read the
+ * category — there is no per-viewer rendering path.
+ *
+ * Categories with the same `name` may legitimately coexist within an org
+ * (e.g. one user's personal "Drafts" and a team's "Drafts"). Uniqueness is
+ * enforced within a bucket — `(organizationId, scope, teamId, createdBy)`
+ * for personal; `(organizationId, scope, teamId)` for team; `(organizationId,
+ * scope)` for global. `nameLower` exists so that find-or-create on the
+ * lazy-migration path can do case-insensitive lookups without a full scan.
+ */
+export const promptCategoriesTable = defineTable({
+  organizationId: v.string(),
+  scope: promptScopeValidator,
+  /** Required iff `scope === 'team'`. */
+  teamId: v.optional(v.string()),
+  createdBy: v.string(),
+  name: v.string(),
+  /** `name.trim().toLowerCase()` — for case-insensitive dedup scans. */
+  nameLower: v.string(),
+})
+  .index('by_organizationId', ['organizationId'])
+  .index('by_organizationId_and_scope', ['organizationId', 'scope'])
+  .index('by_organizationId_and_scope_and_teamId', [
+    'organizationId',
+    'scope',
+    'teamId',
+  ])
+  .index('by_organizationId_and_scope_and_createdBy', [
+    'organizationId',
+    'scope',
+    'createdBy',
+  ])
+  .index('by_organizationId_and_nameLower', ['organizationId', 'nameLower']);

@@ -47,6 +47,7 @@ type MemberLite = {
   displayName?: string;
   role?: string;
   email?: string;
+  twoFactorEnabled?: boolean;
 };
 
 interface EditMemberDialogProps {
@@ -295,7 +296,7 @@ export function EditMemberDialog({
         )}
       </FormSection>
 
-      {!isEditingSelf && member && (
+      {!isEditingSelf && member && member.twoFactorEnabled && (
         <TwoFactorResetControl
           memberId={member._id}
           memberName={member.displayName ?? member.email ?? ''}
@@ -346,9 +347,6 @@ function TwoFactorResetControl({
   const { t } = useT('twoFactor');
   return (
     <FormSection className="border-t pt-4">
-      <Text variant="caption" className="mb-2">
-        {t('enrollment.title')}
-      </Text>
       <Button
         type="button"
         variant="secondary"

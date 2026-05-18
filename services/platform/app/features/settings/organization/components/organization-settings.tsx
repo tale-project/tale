@@ -168,59 +168,56 @@ export function OrganizationSettings({
 
   return (
     <Stack>
-      <Form onSubmit={handleSubmit(onSubmit)} className="space-y-0">
-        <HStack
-          gap={3}
-          align="end"
-          justify="between"
-          className="sticky bottom-0 z-40"
-        >
-          <Input
-            id="org-name"
-            label={tSettings('organization.title')}
-            {...register('name')}
-            wrapperClassName="max-w-sm flex-1"
-          />
-          {isDirty && (
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting
-                ? tCommon('actions.saving')
-                : tCommon('actions.saveChanges')}
-            </Button>
-          )}
-        </HStack>
+      <PageSection
+        title={tSettings('organization.detailsTitle')}
+        description={tSettings('organization.detailsDescription')}
+      >
+        <Form onSubmit={handleSubmit(onSubmit)} className="space-y-0">
+          <HStack
+            gap={3}
+            align="end"
+            justify="between"
+            className="sticky bottom-0 z-40"
+          >
+            <Input
+              id="org-name"
+              label={tSettings('organization.title')}
+              {...register('name')}
+              wrapperClassName="max-w-sm flex-1"
+            />
+            {isDirty && (
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting
+                  ? tCommon('actions.saving')
+                  : tCommon('actions.saveChanges')}
+              </Button>
+            )}
+          </HStack>
 
-        <div className="mt-4 max-w-sm">
-          <Select
-            id="default-locale"
-            label={tSettings('organization.defaultLocale')}
-            description={tSettings('organization.defaultLocaleHelp')}
-            value={defaultLocale}
-            onValueChange={(value) =>
-              setValue('defaultLocale', value, { shouldDirty: true })
-            }
-            disabled={isSubmitting}
-            options={localeOptions}
-          />
-        </div>
-      </Form>
+          <div className="mt-4 max-w-sm">
+            <Select
+              id="default-locale"
+              label={tSettings('organization.defaultLocale')}
+              value={defaultLocale}
+              onValueChange={(value) =>
+                setValue('defaultLocale', value, { shouldDirty: true })
+              }
+              disabled={isSubmitting}
+              options={localeOptions}
+            />
 
-      {organization && (
-        <div className="mt-4 max-w-sm space-y-2">
-          <Stack gap={1}>
-            <span className="text-foreground text-sm font-medium">
-              {tSettings('organization.organizationId')}
-            </span>
-            <span className="text-muted-foreground text-xs">
-              {tSettings('organization.organizationIdHelp')}
-            </span>
-          </Stack>
-          <CopyableField
-            value={organization._id}
-            copyAriaLabel={tSettings('organization.copyOrganizationId')}
-          />
-        </div>
-      )}
+            {organization && (
+              <div className="mt-4">
+                <CopyableField
+                  value={organization._id}
+                  label={tSettings('organization.organizationId')}
+                  copyAriaLabel={tSettings('organization.copyOrganizationId')}
+                />
+              </div>
+            )}
+          </div>
+        </Form>
+      </PageSection>
 
       <PageSection
         title={tSettings('organization.membersTitle')}

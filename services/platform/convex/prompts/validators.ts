@@ -26,6 +26,7 @@ const promptVersionEntryStoredValidator = v.object({
   title: v.string(),
   description: v.optional(v.string()),
   category: v.optional(v.string()),
+  categoryId: v.optional(v.id('promptCategories')),
   tags: v.optional(v.array(v.string())),
   scope: promptScopeValidator,
   teamId: v.optional(v.string()),
@@ -47,6 +48,7 @@ const promptVersionEntryValidator = v.object({
   title: v.string(),
   description: v.optional(v.string()),
   category: v.optional(v.string()),
+  categoryId: v.optional(v.id('promptCategories')),
   tags: v.optional(v.array(v.string())),
   scope: promptScopeValidator,
   teamId: v.optional(v.string()),
@@ -69,6 +71,7 @@ const promptTemplateBaseFields = {
   scope: promptScopeValidator,
   teamId: v.optional(v.string()),
   category: v.optional(v.string()),
+  categoryId: v.optional(v.id('promptCategories')),
   tags: v.optional(v.array(v.string())),
   usageCount: v.number(),
   sourceMessageId: v.optional(v.string()),
@@ -93,4 +96,31 @@ export const promptHistoryResultValidator = v.object({
   current: promptVersionEntryValidator,
   history: v.array(promptVersionEntryValidator),
   totalCount: v.number(),
+});
+
+/**
+ * Row shape returned by category queries/mutations. Mirrors the
+ * `promptCategoriesTable` definition exactly so `ctx.db.get(...)` round-trips
+ * cleanly through Convex's return-validator check.
+ */
+export const promptCategoryValidator = v.object({
+  _id: v.id('promptCategories'),
+  _creationTime: v.number(),
+  organizationId: v.string(),
+  scope: promptScopeValidator,
+  teamId: v.optional(v.string()),
+  createdBy: v.string(),
+  name: v.string(),
+  nameLower: v.string(),
+});
+
+/**
+ * Grouped result for `listCategories`: the picker uses the buckets directly
+ * to scope the dropdown by the form's current scope/teamId selection without
+ * a second pass on the client.
+ */
+export const listCategoriesResultValidator = v.object({
+  personal: v.array(promptCategoryValidator),
+  team: v.array(promptCategoryValidator),
+  global: v.array(promptCategoryValidator),
 });

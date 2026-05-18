@@ -489,14 +489,14 @@
     },
     "organization": {
       "title": "Organisation (optional)",
+      "detailsTitle": "Organisationsdetails",
+      "detailsDescription": "Grundlegende Informationen zu deiner Organisation.",
       "organizationId": "Organisations-ID",
-      "organizationIdHelp": "Wird für API-Integrationen verwendet",
       "copyOrganizationId": "Organisations-ID kopieren",
       "membersTitle": "Organisationsmitglieder",
       "membersEntityLabel": "Mitglieder",
       "manageAccess": "Zugriff auf die Organisation verwalten",
-      "defaultLocale": "Antwortsprache der Agenten",
-      "defaultLocaleHelp": "Gilt für die Agentenausgabe. Die Sprache der Benutzeroberfläche richtet sich nach der individuellen Einstellung jedes Nutzers.",
+      "defaultLocale": "Standardsprache (für Agenten)",
       "searchMember": "Mitglied suchen",
       "addMember": "Mitglied hinzufügen",
       "createOrganization": "Organisation erstellen",
@@ -4390,6 +4390,7 @@
       "teamPlaceholder": "Team auswählen...",
       "categoryLabel": "Kategorie",
       "categoryPlaceholder": "z.B. Schreiben, Analyse, Programmierung",
+      "categoryNone": "— Keine —",
       "tagsLabel": "Tags",
       "tagsPlaceholder": "Kommagetrennte Tags...",
       "save": "Speichern",
@@ -4472,7 +4473,8 @@
     "addCategory": {
       "inputPlaceholder": "Kategoriename",
       "cancel": "Abbrechen",
-      "add": "Hinzufügen"
+      "add": "Hinzufügen",
+      "remove": "{category} entfernen"
     },
     "sidebar": {
       "sectionTitle": "Prompt-Bibliothek"

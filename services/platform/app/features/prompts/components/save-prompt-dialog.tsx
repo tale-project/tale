@@ -62,12 +62,16 @@ function SavePromptDialogContent({
   const bytesErrorId = `${bytesId}-error`;
   const isPending = savePrompt.isPending;
 
-  const existingCategories = useMemo(() => {
+  const { existingCategories, persistedCategorySet } = useMemo(() => {
     const fromPrompts = prompts
       .map((p) => p.category)
       .filter((c): c is string => !!c);
+    const persisted = new Set(fromPrompts);
     const merged = [...new Set([...fromPrompts, ...localCategories])];
-    return merged.sort((a, b) => a.localeCompare(b));
+    return {
+      existingCategories: merged.sort((a, b) => a.localeCompare(b)),
+      persistedCategorySet: persisted,
+    };
   }, [prompts, localCategories]);
 
   const teamOptions = useMemo(
@@ -176,6 +180,11 @@ function SavePromptDialogContent({
     setCategory(newCategory);
   }, []);
 
+  const handleRemoveLocalCategory = useCallback((cat: string) => {
+    setLocalCategories((prev) => prev.filter((c) => c !== cat));
+    setCategory((prev) => (prev === cat ? '' : prev));
+  }, []);
+
   return (
     <FormDialog
       open={open}
@@ -259,21 +268,46 @@ function SavePromptDialogContent({
         >
           {existingCategories.map((cat) => {
             const selected = category === cat;
+            const isLocalOnly = !persistedCategorySet.has(cat);
             return (
-              <button
+              <span
                 key={cat}
-                type="button"
-                aria-pressed={selected}
-                onClick={() => setCategory((prev) => (prev === cat ? '' : cat))}
                 className={cn(
-                  'rounded-full px-2.5 py-1.5 text-[13px] font-medium transition-colors',
+                  'inline-flex items-center rounded-full text-[13px] font-medium transition-colors',
                   selected
                     ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground hover:bg-accent',
+                    : 'bg-muted text-muted-foreground',
                 )}
               >
-                {cat}
-              </button>
+                <button
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() =>
+                    setCategory((prev) => (prev === cat ? '' : cat))
+                  }
+                  className={cn(
+                    'rounded-full px-2.5 py-1.5',
+                    !selected && 'hover:bg-accent',
+                  )}
+                >
+                  {cat}
+                </button>
+                {isLocalOnly && (
+                  <button
+                    type="button"
+                    aria-label={t('addCategory.remove', { category: cat })}
+                    onClick={() => handleRemoveLocalCategory(cat)}
+                    className={cn(
+                      'rounded-full px-1.5 py-1.5 opacity-70 hover:opacity-100',
+                      selected
+                        ? 'hover:bg-primary-foreground/15'
+                        : 'hover:bg-accent',
+                    )}
+                  >
+                    ×
+                  </button>
+                )}
+              </span>
             );
           })}
           <AddCategoryPopover

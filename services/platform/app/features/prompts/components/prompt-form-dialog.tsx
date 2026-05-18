@@ -15,7 +15,6 @@ import { Text } from '@/app/components/ui/typography/text';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import {
-  MAX_PROMPT_CATEGORY_LEN,
   MAX_PROMPT_CONTENT_BYTES,
   MAX_PROMPT_DESCRIPTION_LEN,
   MAX_PROMPT_TAG_LEN,
@@ -31,6 +30,20 @@ import { AddCategoryPopover } from './add-category-popover';
 import { TagChipInput } from './tag-chip-input';
 
 type PromptScope = 'global' | 'team' | 'personal';
+
+// Radix Select reserves `value=""` for "unselected" and throws if an Item
+// is rendered with it, so the explicit "None" choice rides on a sentinel and
+// user-supplied categories are namespaced with `cat:` to avoid any chance of
+// collision with that sentinel.
+const CATEGORY_NONE_VALUE = '__none__';
+const CATEGORY_VALUE_PREFIX = 'cat:';
+const encodeCategory = (c: string) => `${CATEGORY_VALUE_PREFIX}${c}`;
+const decodeCategory = (v: string) =>
+  v === CATEGORY_NONE_VALUE
+    ? ''
+    : v.startsWith(CATEGORY_VALUE_PREFIX)
+      ? v.slice(CATEGORY_VALUE_PREFIX.length)
+      : v;
 
 // Positional tag equality. Mirrors `metadataDiffers` on the server so a
 // reorder counts as an edit. Module-scope so it's a stable reference across
@@ -176,9 +189,18 @@ function PromptFormDialogContent({
     return merged.sort((a, b) => a.localeCompare(b));
   }, [prompts, localCategories]);
 
+  // Radix Select treats `value=""` as "no selection" and rejects an Item
+  // with that value, so we use a sentinel for the explicit "None" choice and
+  // map it back to '' (the schema's optional-empty form) on submit.
   const categoryOptions = useMemo(
-    () => existingCategories.map((c) => ({ value: c, label: c })),
-    [existingCategories],
+    () => [
+      { value: CATEGORY_NONE_VALUE, label: t('form.categoryNone') },
+      ...existingCategories.map((c) => ({
+        value: encodeCategory(c),
+        label: c,
+      })),
+    ],
+    [existingCategories, t],
   );
 
   const teamOptions = useMemo(
@@ -342,6 +364,13 @@ function PromptFormDialogContent({
         required
         aria-required
       />
+      <Input
+        label={t('form.descriptionLabel')}
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        placeholder={t('form.descriptionPlaceholder')}
+        maxLength={MAX_PROMPT_DESCRIPTION_LEN}
+      />
       <div className="flex flex-col gap-1">
         <Textarea
           id={contentId}
@@ -380,13 +409,6 @@ function PromptFormDialogContent({
           </Text>
         )}
       </div>
-      <Input
-        label={t('form.descriptionLabel')}
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        placeholder={t('form.descriptionPlaceholder')}
-        maxLength={MAX_PROMPT_DESCRIPTION_LEN}
-      />
       <div className="flex flex-col gap-2">
         <label id={scopeLabelId} className="text-sm font-medium">
           {t('form.scopeLabel')}
@@ -422,23 +444,15 @@ function PromptFormDialogContent({
             onAddCategory={handleAddCategory}
           />
         </HStack>
-        {categoryOptions.length > 0 ? (
-          <Select
-            options={categoryOptions}
-            value={category}
-            onValueChange={setCategory}
-            placeholder={t('form.categoryPlaceholder')}
-            aria-labelledby={categoryLabelId}
-          />
-        ) : (
-          <Input
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            placeholder={t('form.categoryPlaceholder')}
-            maxLength={MAX_PROMPT_CATEGORY_LEN}
-            aria-labelledby={categoryLabelId}
-          />
-        )}
+        <Select
+          options={categoryOptions}
+          value={
+            category === '' ? CATEGORY_NONE_VALUE : encodeCategory(category)
+          }
+          onValueChange={(v) => setCategory(decodeCategory(v))}
+          placeholder={t('form.categoryPlaceholder')}
+          aria-labelledby={categoryLabelId}
+        />
       </div>
       <TagChipInput
         value={tags}

@@ -148,6 +148,7 @@ export async function listByOrganizationHandler(
     result.page.map(async (member) => {
       let displayName: string | undefined;
       let email: string | undefined;
+      let twoFactorEnabled = false;
       try {
         const userResult = await ctx.runQuery(
           components.betterAuth.adapter.findOne,
@@ -158,6 +159,7 @@ export async function listByOrganizationHandler(
         );
         displayName = userResult?.name;
         email = userResult?.email;
+        twoFactorEnabled = userResult?.twoFactorEnabled === true;
       } catch (error) {
         console.warn(
           '[Members] Failed to fetch user details',
@@ -178,6 +180,7 @@ export async function listByOrganizationHandler(
         createdAt: member.createdAt,
         displayName,
         email,
+        twoFactorEnabled,
       };
     }),
   );
@@ -194,6 +197,7 @@ export const listByOrganization = query({
       createdAt: v.number(),
       displayName: v.optional(v.string()),
       email: v.optional(v.string()),
+      twoFactorEnabled: v.boolean(),
     }),
   ),
   handler: listByOrganizationHandler,

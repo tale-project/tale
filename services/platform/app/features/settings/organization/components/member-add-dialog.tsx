@@ -186,25 +186,6 @@ export function AddMemberDialog({
           errorMessage={formState.errors.email?.message}
         />
 
-        <FormSection>
-          <Input
-            id="password"
-            type="password"
-            autoComplete="new-password"
-            label={tSettings('form.password')}
-            placeholder={tSettings('form.passwordPlaceholder')}
-            description={tSettings('form.forgotPassword')}
-            {...register('password')}
-            className="w-full"
-          />
-          {password && (
-            <ValidationCheckList
-              items={passwordValidationItems}
-              className="text-xs"
-            />
-          )}
-        </FormSection>
-
         <Select
           value={selectedRole}
           onValueChange={(value) => {
@@ -230,6 +211,25 @@ export function AddMemberDialog({
             { value: 'disabled', label: tSettings('roles.disabled') },
           ]}
         />
+
+        <FormSection>
+          <Input
+            id="password"
+            type="password"
+            autoComplete="new-password"
+            label={tSettings('form.password')}
+            placeholder={tSettings('form.passwordPlaceholder')}
+            description={tSettings('form.forgotPassword')}
+            {...register('password')}
+            className="w-full"
+          />
+          {password && (
+            <ValidationCheckList
+              items={passwordValidationItems}
+              className="text-xs"
+            />
+          )}
+        </FormSection>
       </FormDialog>
 
       <ViewDialog

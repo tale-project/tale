@@ -3,6 +3,7 @@
 import { Check, Copy } from 'lucide-react';
 import * as React from 'react';
 
+import { Description } from '@/app/components/ui/forms/description';
 import { Label } from '@/app/components/ui/forms/label';
 import { HStack } from '@/app/components/ui/layout/layout';
 import { useCopyButton } from '@/app/hooks/use-copy';
@@ -14,6 +15,8 @@ interface CopyableFieldProps {
   value: string;
   /** Optional label for the field */
   label?: string;
+  /** Optional description rendered below the field */
+  description?: React.ReactNode;
   /** Whether to show the value in a monospace font */
   mono?: boolean;
   /** Additional className for the pill container */
@@ -37,6 +40,7 @@ interface CopyableFieldProps {
 export const CopyableField = React.memo(function CopyableField({
   value,
   label,
+  description,
   mono = true,
   inputClassName,
   className,
@@ -51,6 +55,7 @@ export const CopyableField = React.memo(function CopyableField({
   const valueId = `${reactId}-value`;
   const valueTextId = `${reactId}-value-text`;
   const statusId = `${reactId}-status`;
+  const descriptionId = `${reactId}-description`;
   const { copied, onClick } = useCopyButton(value, {
     copiedDuration,
     onSuccess: onCopy,
@@ -66,7 +71,11 @@ export const CopyableField = React.memo(function CopyableField({
         onClick={onClick}
         aria-labelledby={label ? `${labelId} ${valueTextId}` : valueTextId}
         aria-label={copyAriaLabel}
-        aria-describedby={copied ? statusId : undefined}
+        aria-describedby={
+          [description ? descriptionId : null, copied ? statusId : null]
+            .filter(Boolean)
+            .join(' ') || undefined
+        }
         className={cn(
           'ring-border bg-muted/40 hover:bg-muted/60',
           'focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none',
@@ -96,6 +105,11 @@ export const CopyableField = React.memo(function CopyableField({
           />
         )}
       </button>
+      {description && (
+        <Description id={descriptionId} className="text-xs">
+          {description}
+        </Description>
+      )}
       <span id={statusId} className="sr-only" role="status" aria-live="polite">
         {copied ? tCommon('actions.copied') : ''}
       </span>
