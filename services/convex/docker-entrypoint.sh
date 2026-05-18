@@ -564,8 +564,13 @@ monitor_convex() {
     fi
 
     # We DO NOT restart here; Docker restart policy (unless-stopped) handles it.
-    # Clean tmp only (never search/).
-    rm -rf /app/data/convex/tmp/* 2>/dev/null || true
+    # Clean ONLY orphaned vlink-* dirs older than 5 min — NOT every tmp file.
+    # The previous wildcard `rm -rf /app/data/convex/tmp/*` would wipe
+    # arbitrary scratch files belonging to other Node actions (Whisper
+    # chunks, image preprocessing, etc.) on every backend health-check
+    # blip. Pattern + age filter mirrors the boot sweep at the top of
+    # this file.
+    find /app/data/convex/tmp -mindepth 1 -maxdepth 1 -name 'vlink-*' -mmin +5 -exec rm -rf {} + 2>/dev/null || true
 
     # Wait and re-check — if still down, container will exit next loop
     # when max_restarts exceeded. Meanwhile dump diagnostics.

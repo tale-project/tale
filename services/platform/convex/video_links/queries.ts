@@ -121,7 +121,16 @@ export const listForThread = query({
     // soft-fail contract (reactive subscriptions shouldn't throw).
     try {
       await getOrganizationMember(ctx, args.organizationId, callerIdentity);
-    } catch {
+    } catch (error) {
+      // Reactive subscriptions can't throw without dropping the chip UI
+      // entirely, so the soft-fail to `[]` is intentional. But silently
+      // swallowing the error mixes "non-member" (expected) with
+      // configuration / Better Auth bugs (unexpected) — log so the latter
+      // is visible without breaking the contract.
+      console.warn(
+        '[videoLinks.queries.listForThread] org membership lookup failed:',
+        error instanceof Error ? error.message : error,
+      );
       return [];
     }
     const access = await canAccessThread(
@@ -162,7 +171,11 @@ export const listForUserUnboundChat = query({
         email: authUser.email,
         name: authUser.name,
       });
-    } catch {
+    } catch (error) {
+      console.warn(
+        '[videoLinks.queries.listForUserUnboundChat] org membership lookup failed:',
+        error instanceof Error ? error.message : error,
+      );
       return [];
     }
 

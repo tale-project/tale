@@ -1,6 +1,10 @@
 import { ConvexError, v } from 'convex/values';
 
-import { isPlaylistUrl } from '../../lib/shared/video-url';
+import {
+  detectPlatform,
+  isPlaylistUrl,
+  normalizeUrlForHash,
+} from '../../lib/shared/video-url';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { mutation } from '../_generated/server';
@@ -111,7 +115,14 @@ export const ingestVideoUrl = mutation({
     // Rate-limit (reuses file:upload bucket: 50/min/org)
     await checkOrganizationRateLimit(ctx, 'file:upload', args.organizationId);
 
-    const sourceUrlHash = hashUrlForDedup(args.normalizedUrl);
+    // SERVER-SIDE derive the dedup key + platform tag — do NOT trust
+    // client-supplied `normalizedUrl` / `sourcePlatform`. A hostile client
+    // could otherwise (a) collide-hash a different URL into an existing
+    // job's dedup slot to short-circuit fresh ingest, or (b) lie about
+    // platform to confuse downstream chip iconography / telemetry.
+    const serverNormalized = normalizeUrlForHash(args.url);
+    const serverPlatform = detectPlatform(args.url);
+    const sourceUrlHash = hashUrlForDedup(serverNormalized);
 
     // URL-hash dedup: if a completed or in-flight job exists for the same
     // (org, normalized URL) within last 24h, return its id. Saves yt-dlp/
@@ -133,6 +144,15 @@ export const ingestVideoUrl = mutation({
       existing.status !== 'skipped' &&
       now - existing._creationTime < DEDUP_WINDOW_MS
     ) {
+      // Refresh `pastedToken` to the most recent paste's substring. The
+      // bind path uses this verbatim to strip the URL from the outgoing
+      // message text via `String.prototype.replace` — a stale token from
+      // the first paste won't match the second paste's punctuation, and
+      // the raw URL leaks through to the LLM input alongside the
+      // transcript attachment.
+      if (args.pastedToken !== existing.pastedToken) {
+        await ctx.db.patch(existing._id, { pastedToken: args.pastedToken });
+      }
       return existing._id;
     }
 
@@ -160,7 +180,7 @@ export const ingestVideoUrl = mutation({
       uploadedBy: userId,
       sourceUrl: args.url,
       sourceUrlHash,
-      sourcePlatform: args.sourcePlatform,
+      sourcePlatform: serverPlatform,
       pastedToken: args.pastedToken,
       status: 'queued',
       statusChangedAt: now,
@@ -191,7 +211,8 @@ export const ingestVideoUrl = mutation({
  *     thought they cancelled.
  *   - Schedules cleanup action (storage + RAG + maybe-fileMetadata).
  *
- * Auth: uploader OR org admin. (TODO: wire role check; for v1, uploader-only.)
+ * Auth: uploader-only for v1. Org-admin override is a tracked follow-up
+ * issue — see the PR description for the link.
  */
 export const cancelVideoLink = mutation({
   args: { jobId: v.id('videoLinkJobs') },
@@ -212,7 +233,7 @@ export const cancelVideoLink = mutation({
     });
 
     if (job.uploadedBy !== userId) {
-      // TODO(prod): allow org admins. For v1, only the uploader can cancel.
+      // Uploader-only for v1 (org-admin override deferred — tracked).
       throw new Error('Only the uploader can cancel this video link');
     }
 
@@ -285,6 +306,47 @@ export const retryVideoLink = mutation({
       throw new Error(
         `Can only retry failed or skipped video links (current: ${job.status})`,
       );
+    }
+
+    // Cooldown: do not let users hammer-retry a bot-flagged / rate-limited
+    // URL. Each retry burns a yt-dlp call and digs the per-IP block on
+    // YouTube etc. deeper. 15-min cooldown matches the typical block
+    // duration; user can paste the URL fresh to bypass the dedup window
+    // and start a new job if they truly need to.
+    const RETRY_COOLDOWN_MS = 15 * 60_000;
+    if (
+      (job.errorReasonCode === 'botDetection' ||
+        job.errorReasonCode === 'rateLimited') &&
+      Date.now() - (job.statusChangedAt ?? job._creationTime) <
+        RETRY_COOLDOWN_MS
+    ) {
+      throw new ConvexError({
+        code: 'retryCooldown',
+        message:
+          'This video failed with a rate-limit / bot-detection signal. Please wait a few minutes before retrying.',
+      });
+    }
+
+    // Reuse `ingestVideoUrl`'s abuse gates so retries cannot bypass them.
+    // Without this, a user looping `retryVideoLink` over N pre-existing
+    // failed jobs could spawn unlimited concurrent yt-dlp/Whisper work
+    // (round-2 V8 / HIGH #11).
+    await checkOrganizationRateLimit(ctx, 'file:upload', job.organizationId);
+    let inFlight = 0;
+    for (const status of NON_TERMINAL_STATUSES) {
+      const rows = await ctx.db
+        .query('videoLinkJobs')
+        .withIndex('by_organizationId_and_status', (q) =>
+          q.eq('organizationId', job.organizationId).eq('status', status),
+        )
+        .collect();
+      inFlight += rows.length;
+      if (inFlight >= MAX_IN_FLIGHT_PER_ORG) {
+        throw new ConvexError({
+          code: 'inFlightCap',
+          message: `At most ${MAX_IN_FLIGHT_PER_ORG} video links can process at once. Wait for one to finish.`,
+        });
+      }
     }
 
     await ctx.scheduler.runAfter(
@@ -406,6 +468,12 @@ export const bindCompletedJobsToMessage = mutation({
        * this from the outgoing message text so the LLM doesn't see both
        * the raw URL and the transcript-fileId attachment. */
       pastedToken: string;
+      /** Job row id. The send hook tracks this in a local ref so that on
+       * downstream send failure (chatWithAgent throw) it can call
+       * `unbindJobsFromMessage` to reverse the bind — otherwise the chip
+       * disappears from the composer permanently and the user can't
+       * recover the transcript without re-pasting. */
+      jobId: Id<'videoLinkJobs'>;
     }> = [];
 
     for (const job of candidates) {
@@ -439,9 +507,40 @@ export const bindCompletedJobsToMessage = mutation({
         fileName: job.videoTitle ?? 'Video link',
         fileSize: fileMeta.size,
         pastedToken: job.pastedToken,
+        jobId: job._id,
       });
     }
 
     return out;
+  },
+});
+
+/**
+ * Reverse the bind stamped by `bindCompletedJobsToMessage`. Called from
+ * `use-send-message.ts` when the downstream `chatWithAgent` /
+ * `arenaChatAction` invocation throws — without this, the bound chips
+ * stay hidden from the composer (the chip query filters out
+ * `messageBoundAt !== undefined`) so the user loses BOTH the typed text
+ * AND every transcript on a failed send (round-2 V10 / HIGH #17).
+ *
+ * Idempotent: re-invoking for a job that no longer exists or that has
+ * already been un-bound is a silent no-op.
+ */
+export const unbindJobsFromMessage = mutation({
+  args: { jobIds: v.array(v.id('videoLinkJobs')) },
+  async handler(ctx, args) {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+    const userId = String(authUser._id);
+
+    for (const jobId of args.jobIds) {
+      const job = await ctx.db.get(jobId);
+      if (!job) continue;
+      // Ownership gate — a hostile caller can't un-bind another user's
+      // chips. Org-membership gate is implicit via `uploadedBy === userId`.
+      if (job.uploadedBy !== userId) continue;
+      if (job.messageBoundAt === undefined) continue;
+      await ctx.db.patch(jobId, { messageBoundAt: undefined });
+    }
   },
 });

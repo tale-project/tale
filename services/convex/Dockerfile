@@ -27,13 +27,18 @@ FROM ghcr.io/get-convex/convex-backend:5f66740ae8dd506577d27294adc55b81e4fbe91b 
 WORKDIR /app
 
 ARG SOPS_VERSION=3.9.4
-# yt-dlp + Deno: unpinned by design. YouTube rotates the player signature /
-# nsig solver every 1-2 weeks; a stale yt-dlp pin produces silent prod
-# outages. Reproducibility comes from the image digest, not from source
-# version tags. CI should rebuild this image weekly to pull the latest
-# upstream releases. The resolved versions are recorded into
+# yt-dlp + Deno: empty default resolves the actual `releases/latest` tag
+# ONCE at build time (HEAD on the redirect) and reuses it for asset +
+# checksum URLs, defeating the TOCTOU window where the binary and the
+# SHA256SUMS file could come from two different releases if upstream cut
+# a release between curls. Callers wanting a frozen build can pass an
+# explicit tag (e.g. `--build-arg YTDLP_VERSION=2025.10.15`). CI is still
+# expected to rebuild this image weekly to pick up the latest upstream
+# player-signature fixes; the resolved versions land in
 # /etc/yt-dlp-version + /etc/deno-version for runtime inspection.
 # Deno is required by yt-dlp's n-challenge JS solver (yt-dlp ≥ 2025.11).
+ARG YTDLP_VERSION=
+ARG DENO_VERSION=
 # System packages, binary symlinks, app user (UID 1001 to match platform),
 # and LLVM/docs stripping (~155 MB savings on the base image).
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
@@ -52,26 +57,39 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         arm64) YTDLP_ASSET="yt-dlp_linux_aarch64" ;; \
         *) echo "Unsupported arch for yt-dlp: $YTDLP_DPKG_ARCH" >&2; exit 1 ;; \
        esac \
-    && curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/latest/download/${YTDLP_ASSET}" -o /usr/local/bin/yt-dlp \
-    && curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS" -o /tmp/yt-dlp.sums \
+    # Resolve the `latest` redirect to a concrete tag ONCE, then build
+    # asset + checksum URLs from the resolved tag so a release cut between
+    # curls cannot land mismatched binary/sums (round-2 HIGH #21 TOCTOU).
+    && if [ -z "$YTDLP_VERSION" ]; then \
+        YTDLP_TAG=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/yt-dlp/yt-dlp/releases/latest | awk -F/ '{print $NF}'); \
+       else \
+        YTDLP_TAG="$YTDLP_VERSION"; \
+       fi \
+    && curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_TAG}/${YTDLP_ASSET}" -o /usr/local/bin/yt-dlp \
+    && curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_TAG}/SHA2-256SUMS" -o /tmp/yt-dlp.sums \
     && (cd /usr/local/bin && grep "  ${YTDLP_ASSET}$" /tmp/yt-dlp.sums | sed "s| ${YTDLP_ASSET}$|  yt-dlp|" | sha256sum -c -) \
     && chmod 0755 /usr/local/bin/yt-dlp \
-    && yt-dlp --version > /etc/yt-dlp-version \
+    && echo "$YTDLP_TAG" > /etc/yt-dlp-version \
     && rm -f /tmp/yt-dlp.sums \
     # Deno: required by yt-dlp's external JS runtime for n-challenge solving.
-    # Per-arch zip download with checksum verify.
+    # Per-arch zip download with checksum verify against a single resolved tag.
     && DENO_DPKG_ARCH="$(dpkg --print-architecture)" \
     && case "$DENO_DPKG_ARCH" in \
         amd64) DENO_ASSET="deno-x86_64-unknown-linux-gnu.zip" ;; \
         arm64) DENO_ASSET="deno-aarch64-unknown-linux-gnu.zip" ;; \
         *) echo "Unsupported arch for deno: $DENO_DPKG_ARCH" >&2; exit 1 ;; \
        esac \
-    && curl -fsSL "https://github.com/denoland/deno/releases/latest/download/${DENO_ASSET}" -o /tmp/deno.zip \
-    && curl -fsSL "https://github.com/denoland/deno/releases/latest/download/${DENO_ASSET}.sha256sum" -o /tmp/deno.sums \
+    && if [ -z "$DENO_VERSION" ]; then \
+        DENO_TAG=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/denoland/deno/releases/latest | awk -F/ '{print $NF}'); \
+       else \
+        DENO_TAG="$DENO_VERSION"; \
+       fi \
+    && curl -fsSL "https://github.com/denoland/deno/releases/download/${DENO_TAG}/${DENO_ASSET}" -o /tmp/deno.zip \
+    && curl -fsSL "https://github.com/denoland/deno/releases/download/${DENO_TAG}/${DENO_ASSET}.sha256sum" -o /tmp/deno.sums \
     && (cd /tmp && sha256sum -c deno.sums) \
     && unzip -q /tmp/deno.zip -d /usr/local/bin \
     && chmod 0755 /usr/local/bin/deno \
-    && deno --version | head -1 > /etc/deno-version \
+    && echo "$DENO_TAG" > /etc/deno-version \
     && rm -f /tmp/deno.zip /tmp/deno.sums \
     # unzip is only needed for Deno install; remove to keep image lean
     && apt-get purge -y unzip \
