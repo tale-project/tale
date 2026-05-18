@@ -39,6 +39,18 @@ vi.mock('@/app/components/layout/adaptive-header', () => ({
   ),
 }));
 
+vi.mock('../hooks/use-voice-output', () => ({
+  useVoiceModeEffective: () => ({
+    enabled: false,
+    userDefault: false,
+    source: 'default' as const,
+  }),
+}));
+
+vi.mock('./thread-voice-output-switch', () => ({
+  useThreadVoiceOutputCheckboxItem: () => null,
+}));
+
 describe('ChatHeader', () => {
   describe('accessibility', () => {
     it('passes axe audit', async () => {
