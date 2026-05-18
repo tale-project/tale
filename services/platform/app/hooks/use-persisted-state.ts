@@ -50,11 +50,16 @@ export function usePersistedState<T>(key: string, initialValue: T) {
   const prevKeyRef = useRef(key);
   const clearedRef = useRef(false);
   const didMountRef = useRef(false);
+  const skipNextPersistRef = useRef(false);
 
   // On key change: read the new key's value synchronously during render
   // so the persist effect sees the correct value
   if (prevKeyRef.current !== key) {
     prevKeyRef.current = key;
+    // The value we're about to set comes from (or falls back from) the new
+    // key's stored entry — persisting it would be a no-op write at best,
+    // or pollute a never-written key with the initial value at worst.
+    skipNextPersistRef.current = true;
 
     const item = getItem<T>(key);
     if (item !== undefined && isValidType(item, initialValue)) {
@@ -74,6 +79,10 @@ export function usePersistedState<T>(key: string, initialValue: T) {
     }
     if (clearedRef.current) {
       clearedRef.current = false;
+      return;
+    }
+    if (skipNextPersistRef.current) {
+      skipNextPersistRef.current = false;
       return;
     }
     setItem(key, value);

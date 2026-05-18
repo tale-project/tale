@@ -100,6 +100,26 @@ describe('useEffectiveAgent', () => {
 
       expect(result.current).toEqual({ agent: null, isLoading: true });
     });
+
+    it('resolves to chat-agent fallback when auth completes', () => {
+      // This is the transition the flicker fix actually targets: when auth
+      // resolves we must transition cleanly from `null/loading` to the real
+      // agent without an intermediate "Default Chat" flash.
+      mockIsAuthLoading = true;
+      mockAgents = AGENTS;
+      mockSelectedAgent = null;
+
+      const { result, rerender } = renderHook(() => useEffectiveAgent(ORG_ID));
+      expect(result.current).toEqual({ agent: null, isLoading: true });
+
+      mockIsAuthLoading = false;
+      rerender();
+
+      expect(result.current).toEqual({
+        agent: { name: 'chat-agent', displayName: 'Default Chat' },
+        isLoading: false,
+      });
+    });
   });
 
   describe('when agents are loading', () => {

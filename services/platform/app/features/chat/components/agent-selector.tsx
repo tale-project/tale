@@ -115,11 +115,13 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
         searchPlaceholder={t('agentSelector.searchPlaceholder')}
         emptyText={t('agentSelector.noResults')}
         aria-label={t('agentSelector.label')}
-        disabled={isAgentLoading}
         trigger={
+          // min-w-40 (160 px) pins the trigger so the loading→loaded swap
+          // doesn't reflow for common labels. Names longer than ~160 px
+          // (rare, e.g. "Research Agent") still grow on resolve.
           <Button
             type="button"
-            className="gap-2"
+            className="min-w-40 gap-2"
             size="icon"
             variant="ghost"
             aria-label={t('agentSelector.label')}
@@ -127,7 +129,7 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
           >
             <Bot className="size-3.5" aria-hidden="true" />
             {isAgentLoading ? (
-              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-3.5 w-20" />
             ) : (
               <span>{currentLabel}</span>
             )}

@@ -107,6 +107,22 @@ describe('usePersistedState', () => {
       expect(result.current[0]).toBe('default');
     });
 
+    it('does not write to the new key on key change when no stored value exists', () => {
+      const { rerender } = renderHook(
+        ({ key }) => usePersistedState(key, 'default'),
+        { initialProps: { key: 'key-a' } },
+      );
+
+      expect(localStorage.getItem('key-b')).toBeNull();
+
+      rerender({ key: 'key-b' });
+
+      // Key swap should NOT echo 'default' back to storage at 'key-b' —
+      // a never-written key must stay un-written so callers can distinguish
+      // "user has set nothing" from "user set the value to default".
+      expect(localStorage.getItem('key-b')).toBeNull();
+    });
+
     it('preserves value written to a key after switching away and back', () => {
       const { result, rerender } = renderHook(
         ({ key }) => usePersistedState(key, ''),

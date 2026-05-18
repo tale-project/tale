@@ -1,4 +1,4 @@
-import { cleanup } from '@testing-library/react';
+import { cleanup, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/test/utils/a11y';
@@ -153,12 +153,20 @@ describe('AgentSelector', () => {
     render(<AgentSelector organizationId="org-1" />);
 
     // No "Assistant" / "Default agent" flash while we wait. Trigger button
-    // stays mounted (no layout shift) but disabled, with a skeleton in place
-    // of the label.
+    // stays mounted but disabled, with a skeleton in place of the label.
     expect(screen.queryByText('Default agent')).not.toBeInTheDocument();
     const trigger = screen.getByRole('button', { name: 'Select agent' });
     expect(trigger).toBeDisabled();
-    expect(screen.getByRole('status')).toBeInTheDocument();
+    // Trigger keeps its leading + trailing icons so the width footprint is
+    // stable across loading and loaded states.
+    expect(trigger.querySelectorAll('svg')).toHaveLength(2);
+    // Skeleton renders in place of the label, with dimensions matching the
+    // actual label height to avoid vertical jitter on resolve.
+    const skeleton = within(trigger).getByRole('status');
+    expect(skeleton).toHaveClass('h-3.5', 'w-20');
+    // Trigger has a min-width pin so loading→loaded never reflows for the
+    // common label range.
+    expect(trigger).toHaveClass('min-w-40');
   });
 
   it('shows "Add agent" button when user has write permission', async () => {

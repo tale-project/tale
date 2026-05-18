@@ -1,12 +1,11 @@
 import { convexQuery } from '@convex-dev/react-query';
-import { Spinner } from '@tale/ui/spinner';
 import { useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { useAction, useMutation } from 'convex/react';
 import { useEffect, useRef } from 'react';
 
-import { FullPageCenter } from '@/app/components/ui/layout/full-page-center';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { DashboardShellSkeleton } from '@/app/routes/dashboard/dashboard-shell-skeleton';
 import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 
@@ -174,9 +173,5 @@ function DashboardIndex() {
     initializeWorkflows,
   ]);
 
-  return (
-    <FullPageCenter>
-      <Spinner size="lg" />
-    </FullPageCenter>
-  );
+  return <DashboardShellSkeleton />;
 }

@@ -55,9 +55,12 @@ export const Route = createFileRoute('/dashboard/$id/chat')({
 
 function ChatInputSkeleton() {
   return (
-    <PanelFooter>
+    // mt-auto mirrors ChatInterface's PanelFooter pinning so the composer
+    // sits at the bottom without relying on a flex-1 sibling. Harmless
+    // inside ChatSkeleton where the sibling already consumes all space.
+    <PanelFooter className="mt-auto">
       <div className="mx-auto w-full max-w-(--chat-max-width)">
-        <div className="bg-background border-muted-foreground/50 relative flex flex-col gap-2 rounded-t-2xl border border-b-0 px-5 pt-4">
+        <div className="bg-background border-muted-foreground/50 relative mb-2 flex flex-col gap-2 rounded-2xl border px-5 pt-4">
           <Skeleton className="h-[100px] w-full bg-transparent" />
           <div className="flex items-center pb-3">
             <Skeleton className="h-5 w-5 rounded" />
@@ -79,13 +82,13 @@ function ChatSkeleton() {
   );
 }
 
-// Loading placeholder for the existing-thread path. Mirrors ChatSkeleton's
-// outer chrome but shows a messages-list skeleton — an existing thread
-// always has history, so the centered welcome placeholder is misleading.
+// Loading placeholder for the existing-thread path. Mirrors ChatInterface's
+// wrapper for the messages-list render (chat-interface.tsx) — content div
+// is natural-height, ChatInputSkeleton pins to bottom via `mt-auto`.
 function ThreadLoadingSkeleton() {
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto">
-      <div className="flex flex-1 flex-col p-4 sm:p-6">
+      <div className="flex flex-col overflow-y-visible p-4 sm:p-6">
         <MessagesSkeleton />
       </div>
       <ChatInputSkeleton />
