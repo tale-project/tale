@@ -2176,14 +2176,15 @@
         "geoblocked": "Vidéo non disponible dans cette région",
         "unsupported": "Ce site n'est pas pris en charge",
         "transient": "Problème temporaire — réessaie",
-        "botDetection": "L'hôte vidéo a bloqué l'accès automatisé",
-        "rateLimited": "L'hôte vidéo a limité la requête",
-        "forbidden": "L'hôte vidéo a refusé l'accès (403)",
+        "botDetection": "La plateforme vidéo a bloqué l'accès automatisé",
+        "rateLimited": "La plateforme vidéo a limité la requête",
+        "forbidden": "La plateforme vidéo a refusé l'accès (403)",
         "liveStream": "Les directs ne sont pas pris en charge",
         "premiere": "Vidéo en première/à venir non encore disponible",
         "memberOnly": "Réservé aux membres",
         "jsRuntimeMissing": "Le traitement vidéo n'est pas entièrement configuré — contacte ton administrateur",
-        "binaryNotInstalled": "Traitement vidéo pas encore activé — reconstruire le conteneur Convex",
+        "binaryNotInstalled": "Le traitement vidéo n'est pas encore activé — contacte ton administrateur",
+        "retryCooldown": "Cette vidéo vient d'être limitée — attends quelques minutes avant de réessayer",
         "timeout": "Récupération trop longue — réessaie",
         "outputValidationFailed": "Impossible de valider le fichier vidéo téléchargé",
         "videoTooLong": "La vidéo dépasse la limite de 4 heures",
@@ -2203,8 +2204,9 @@
       },
       "chip": {
         "fallbackTitle": "Lien vidéo",
-        "ariaLabel": "Pièce jointe vidéo : {title}",
-        "inProgressTooltip": "Attends la fin du traitement — ou retire la vignette pour envoyer sans elle"
+        "ariaLabel": "Pièce jointe vidéo : {title}",
+        "inProgressTooltip": "Attends la fin du traitement — ou retire la vignette pour envoyer sans elle",
+        "failedSendBlockedTooltip": "Une vidéo a échoué — réessaie-la ou retire la vignette avant d'envoyer"
       },
       "toast": {
         "ingestFailedTitle": "Impossible d'ajouter cette vidéo"

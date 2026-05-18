@@ -2176,14 +2176,15 @@
         "geoblocked": "Video isn't available in this region",
         "unsupported": "This site isn't supported",
         "transient": "Temporary issue — try again",
-        "botDetection": "Video host blocked automated access",
-        "rateLimited": "Video host rate-limited the request",
-        "forbidden": "Video host refused access (403)",
+        "botDetection": "Video platform blocked automated access",
+        "rateLimited": "Video platform rate-limited the request",
+        "forbidden": "Video platform refused access (403)",
         "liveStream": "Live streams aren't supported",
         "premiere": "Premiere/upcoming video not yet available",
         "memberOnly": "Members-only video",
         "jsRuntimeMissing": "Video processing isn't fully configured — contact your admin",
-        "binaryNotInstalled": "Video processing not yet enabled — rebuild the Convex container",
+        "binaryNotInstalled": "Video processing is not enabled yet — please contact your administrator",
+        "retryCooldown": "This video was just rate-limited — please wait a few minutes before retrying",
         "timeout": "Took too long to fetch — try again",
         "outputValidationFailed": "Couldn't validate the downloaded video file",
         "videoTooLong": "Video exceeds the 4h length limit",
@@ -2204,7 +2205,8 @@
       "chip": {
         "fallbackTitle": "Video link",
         "ariaLabel": "Video attachment: {title}",
-        "inProgressTooltip": "Wait for video to finish — or remove the chip to send without it"
+        "inProgressTooltip": "Wait for video to finish — or remove the chip to send without it",
+        "failedSendBlockedTooltip": "A video failed — retry it or remove the chip before sending"
       },
       "toast": {
         "ingestFailedTitle": "Couldn't add this video"

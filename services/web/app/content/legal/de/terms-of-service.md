@@ -67,13 +67,15 @@ Unsere Website kann Links zu Drittanbieter-Websites, -Diensten oder -Ressourcen 
 
 ### 6.2 An den Dienst übermittelte URLs
 
-Wenn du dem Dienst eine URL zum Abruf, zur Transkription oder Analyse übermittelst (einschliesslich Video-Links), sicherst du zu und gewährleistest, dass:
+Wenn du dem Dienst eine URL zum Abruf, zur Transkription oder Analyse übermittelst (einschließlich Video-Links), sicherst du zu und gewährleistest, dass:
 
 - du die Rechte, Lizenzen oder die nach dem Urheberrecht und verwandten Rechten deiner Rechtsordnung anwendbaren gesetzlichen Schranken besitzt, um den Inhalt unter dieser URL abzurufen und zu verarbeiten;
 - deine Nutzung des Dienstes mit den Nutzungsbedingungen der Quellplattform und mit allen anwendbaren Gesetzen vereinbar ist; und
 - der Inhalt nicht rechtsverletzend, ehrverletzend, rechtswidrig oder anderweitig von einer Drittverarbeitung ausgeschlossen ist.
 
-Tale handelt beim Abruf, der Transkription und der Speicherung des abgerufenen Inhalts als Auftragsverarbeiter auf deine Weisung. Wir kuratieren, prüfen oder befürworten von Nutzenden übermittelte URLs nicht.
+Transkripte, Untertitel, Zusammenfassungen und sonstige Artefakte, die der Dienst aus der übermittelten URL ableitet, sind Bearbeitungen des zugrunde liegenden Ausgangsinhalts. Sämtliche Urheber- und Schutzrechte am Originalinhalt verbleiben beim ursprünglichen Rechteinhaber; der Dienst gewährt dir an den abgeleiteten Artefakten keine über deine bestehende Nutzungslizenz am Ausgangsmaterial hinausgehenden Rechte.
+
+Tale handelt in Bezug auf die von dir übermittelten Inhalte (URL-Abruf, Transkription, Speicherung) als Auftragsverarbeiter auf deine Weisung. In Bezug auf die zur Bereitstellung des Dienstes generierten Betriebsmetadaten (Rate-Limit-Zähler, Fehlerklassifikation, Telemetrie) handelt Tale als Verantwortlicher. Wir kuratieren, prüfen oder befürworten von Nutzenden übermittelte URLs nicht.
 
 ### 6.3 Ermessensvorbehalt
 
@@ -81,7 +83,7 @@ Wir können jede übermittelte URL oder gespeicherte Ausgabe nach eigenem Ermess
 
 ### 6.4 Bekanntmachungs- und Maßnahmenverfahren
 
-Wenn du der Meinung bist, dass vom Dienst gespeicherte Inhalte deine Rechte verletzen oder gegen geltendes Recht verstossen, kontaktiere uns über die in Abschnitt 14 angegebene Adresse mit: (i) Angabe des geschützten Werks oder Rechts; (ii) der URL des gespeicherten Inhalts; (iii) deinen Kontaktdaten; und (iv) einer Erklärung in gutem Glauben über die Grundlage deines Anspruchs. Wir prüfen Meldungen zeitnah und können den Inhalt nach eigenem Ermessen innerhalb einer angemessenen Frist entfernen oder den Zugang dazu einschränken. Dieses Verfahren wird zusätzlich zu allen Rechten und Verfahren angeboten, die dir nach geltendem Urheber- oder Inhaltemoderationsrecht zur Verfügung stehen (insbesondere Artikel 16 der EU-Verordnung 2022/2065 — Digital Services Act, soweit anwendbar).
+Wenn du der Meinung bist, dass vom Dienst gespeicherte Inhalte deine Rechte verletzen oder gegen geltendes Recht verstoßen, kontaktiere uns über die in Abschnitt 14 angegebene Adresse mit: (i) Angabe des geschützten Werks oder Rechts; (ii) der URL des gespeicherten Inhalts; (iii) deinen Kontaktdaten; und (iv) einer Erklärung in gutem Glauben über die Grundlage deines Anspruchs. Wir prüfen Meldungen zeitnah und können den Inhalt nach eigenem Ermessen innerhalb einer angemessenen Frist entfernen oder den Zugang dazu einschränken. Dieses Verfahren wird zusätzlich zu allen Rechten und Verfahren angeboten, die dir nach geltendem Urheber- oder Inhaltemoderationsrecht zur Verfügung stehen (insbesondere Artikel 16 der EU-Verordnung 2022/2065 — Digital Services Act, soweit anwendbar).
 
 ### 6.5 Keine Dienstleistungsgarantie
 

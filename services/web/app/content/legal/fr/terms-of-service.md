@@ -73,7 +73,9 @@ Lorsque tu soumets une URL au Service pour récupération, transcription ou anal
 - ton usage du Service est conforme aux conditions d’utilisation de la plateforme source et à l’ensemble du droit applicable ; et
 - le contenu n’est pas contrefaisant, diffamatoire, illicite ou autrement exclu d’un traitement par un tiers.
 
-Tale agit en tant que sous-traitant suivant tes instructions lors de la récupération, de la transcription et du stockage du contenu récupéré. Nous ne sélectionnons, n’examinons ni n’approuvons les URL soumises par les utilisateurs.
+Les transcriptions, sous-titres, résumés et autres artefacts que le Service dérive de l’URL soumise constituent des œuvres dérivées du contenu source sous-jacent. L’ensemble des droits de propriété intellectuelle sur le contenu original demeure entre les mains de leur titulaire d’origine ; le Service ne te confère aucun droit nouveau sur les artefacts dérivés au-delà de ta licence existante d’utilisation du contenu source.
+
+Tale agit en tant que sous-traitant suivant tes instructions à l’égard des contenus que tu soumets (récupération d’URL, transcription, stockage). Tale agit en qualité de responsable de traitement pour les métadonnées d’exploitation générées par le Service (compteurs de limitation de débit, classification d’erreurs, télémétrie nécessaire à la fourniture du Service). Nous ne sélectionnons, n’examinons ni n’approuvons les URL soumises par les utilisateurs.
 
 ### 6.3 Pouvoir d’appréciation
 
