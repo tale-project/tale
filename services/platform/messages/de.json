@@ -2156,6 +2156,48 @@
       "viewTranscript": "Transkript anzeigen",
       "previewSubtitle": "{seconds}s transkribiert"
     },
+    "videoLink": {
+      "statuses": {
+        "queued": "In Warteschlange",
+        "retrying": "Erneuter Versuch…",
+        "fetching_metadata": "Lese Video-Infos…",
+        "fetching_captions": "Lade Untertitel…",
+        "extracting_audio": "Extrahiere Audio…",
+        "transcribing_handoff": "Transkribiere…",
+        "indexing": "Indiziere…",
+        "completed": "Bereit",
+        "failed": "Fehlgeschlagen",
+        "skipped": "Abgebrochen"
+      },
+      "errors": {
+        "generic": "Video konnte nicht analysiert werden",
+        "privateOrAgeGated": "Video ist privat oder altersbeschränkt",
+        "unavailable": "Video ist nicht mehr verfügbar",
+        "geoblocked": "Video ist in dieser Region nicht verfügbar",
+        "unsupported": "Diese Seite wird nicht unterstützt",
+        "transient": "Vorübergehender Fehler — bitte erneut versuchen",
+        "videoTooLong": "Video überschreitet das 4-Stunden-Limit",
+        "liveStream": "Live-Streams werden nicht unterstützt",
+        "premiere": "Premiere/Upcoming-Video noch nicht verfügbar",
+        "memberOnly": "Nur für Mitglieder",
+        "botDetection": "Video-Anbieter blockierte automatisierten Zugriff",
+        "rateLimited": "Video-Anbieter hat die Anfrage gedrosselt",
+        "playlistsNotSupported": "Playlists werden nicht unterstützt — bitte einzelnen Video-Link einfügen",
+        "urlNotSafe": "Diese URL ist nicht erlaubt",
+        "audioExtractFailed": "Audio konnte nicht extrahiert werden",
+        "whisperFailed": "Transkription fehlgeschlagen",
+        "binary_not_installed": "Video-Verarbeitung noch nicht aktiviert — Convex-Container neu erstellen"
+      },
+      "actions": {
+        "removeLink": "Entfernen",
+        "retry": "Erneut versuchen"
+      },
+      "chip": {
+        "fallbackTitle": "Video-Link",
+        "ariaLabel": "Video-Anhang: {title}",
+        "inProgressTooltip": "Auf Video-Verarbeitung warten — oder Chip entfernen, um ohne zu senden"
+      }
+    },
     "fallback": {
       "image": "Bild",
       "file": "Datei"

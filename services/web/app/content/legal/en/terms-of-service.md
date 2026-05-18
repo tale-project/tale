@@ -65,6 +65,8 @@ Our Website may contain links to third-party websites, services, or resources th
 
 The inclusion of a link does not imply endorsement. We encourage you to review the terms and privacy policies of any third-party sites you visit.
 
+When you provide a URL for video transcription or analysis, you warrant that you have the rights or a fair-use basis to process the content. Tale acts at your direction in fetching and transcribing the content, and stores the resulting transcript in your workspace. You are responsible for ensuring your use complies with the source platform's terms and applicable copyright law.
+
 ## 7. Disclaimer of Warranties
 
 The Website is provided on an "as is" and "as available" basis without any warranties of any kind, whether express or implied, including but not limited to implied warranties of merchantability, fitness for a particular purpose, or non-infringement.

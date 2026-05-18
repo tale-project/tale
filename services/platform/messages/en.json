@@ -2156,6 +2156,48 @@
       "viewTranscript": "View transcript",
       "previewSubtitle": "{seconds}s transcribed"
     },
+    "videoLink": {
+      "statuses": {
+        "queued": "Queued",
+        "retrying": "Retrying…",
+        "fetching_metadata": "Reading video info…",
+        "fetching_captions": "Fetching captions…",
+        "extracting_audio": "Extracting audio…",
+        "transcribing_handoff": "Transcribing…",
+        "indexing": "Indexing…",
+        "completed": "Ready",
+        "failed": "Failed",
+        "skipped": "Cancelled"
+      },
+      "errors": {
+        "generic": "Couldn't analyze this video",
+        "privateOrAgeGated": "Video is private or age-restricted",
+        "unavailable": "Video is no longer available",
+        "geoblocked": "Video isn't available in this region",
+        "unsupported": "This site isn't supported",
+        "transient": "Temporary issue — try again",
+        "videoTooLong": "Video exceeds the 4h length limit",
+        "liveStream": "Live streams aren't supported",
+        "premiere": "Premiere/upcoming video not yet available",
+        "memberOnly": "Members-only video",
+        "botDetection": "Video host blocked automated access",
+        "rateLimited": "Video host rate-limited the request",
+        "playlistsNotSupported": "Playlists aren't supported — paste a single video link",
+        "urlNotSafe": "This URL isn't allowed",
+        "audioExtractFailed": "Couldn't extract audio from this video",
+        "whisperFailed": "Transcription failed",
+        "binary_not_installed": "Video processing not yet enabled — rebuild the Convex container"
+      },
+      "actions": {
+        "removeLink": "Remove",
+        "retry": "Try again"
+      },
+      "chip": {
+        "fallbackTitle": "Video link",
+        "ariaLabel": "Video attachment: {title}",
+        "inProgressTooltip": "Wait for video to finish — or remove the chip to send without it"
+      }
+    },
     "fallback": {
       "image": "Image",
       "file": "File"

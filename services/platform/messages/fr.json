@@ -2156,6 +2156,48 @@
       "viewTranscript": "Voir la transcription",
       "previewSubtitle": "{seconds}s transcrites"
     },
+    "videoLink": {
+      "statuses": {
+        "queued": "En file d'attente",
+        "retrying": "Nouvelle tentative…",
+        "fetching_metadata": "Lecture des infos vidéo…",
+        "fetching_captions": "Récupération des sous-titres…",
+        "extracting_audio": "Extraction de l'audio…",
+        "transcribing_handoff": "Transcription en cours…",
+        "indexing": "Indexation en cours…",
+        "completed": "Prêt",
+        "failed": "Échec",
+        "skipped": "Annulé"
+      },
+      "errors": {
+        "generic": "Impossible d'analyser cette vidéo",
+        "privateOrAgeGated": "Vidéo privée ou à accès restreint",
+        "unavailable": "Vidéo n'est plus disponible",
+        "geoblocked": "Vidéo non disponible dans cette région",
+        "unsupported": "Ce site n'est pas pris en charge",
+        "transient": "Problème temporaire — réessayer",
+        "videoTooLong": "Vidéo dépasse la limite de 4 heures",
+        "liveStream": "Les directs ne sont pas pris en charge",
+        "premiere": "Vidéo en première/à venir non encore disponible",
+        "memberOnly": "Réservé aux membres",
+        "botDetection": "L'hôte vidéo a bloqué l'accès automatisé",
+        "rateLimited": "L'hôte vidéo a limité la requête",
+        "playlistsNotSupported": "Les listes de lecture ne sont pas prises en charge — collez un lien vidéo unique",
+        "urlNotSafe": "Ce lien n'est pas autorisé",
+        "audioExtractFailed": "Impossible d'extraire l'audio de cette vidéo",
+        "whisperFailed": "Échec de la transcription",
+        "binary_not_installed": "Traitement vidéo pas encore activé — reconstruire le conteneur Convex"
+      },
+      "actions": {
+        "removeLink": "Retirer",
+        "retry": "Réessayer"
+      },
+      "chip": {
+        "fallbackTitle": "Lien vidéo",
+        "ariaLabel": "Pièce jointe vidéo : {title}",
+        "inProgressTooltip": "Attendre la fin du traitement — ou retirer le chip pour envoyer sans"
+      }
+    },
     "fallback": {
       "image": "Image",
       "file": "Fichier"
