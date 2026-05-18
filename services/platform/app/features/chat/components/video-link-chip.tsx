@@ -77,33 +77,45 @@ export function VideoLinkChip({ job, onCancel, onRetry }: VideoLinkChipProps) {
       role="group"
       aria-label={tChat('videoLink.chip.ariaLabel', { title })}
       className={cn(
-        'group/chip flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm',
+        // `max-w-full` keeps the chip inside its flex parent on every
+        // viewport; `sm:max-w-md` caps it at ~448 px on desktop so a
+        // single long-titled video doesn't eat the whole composer. The
+        // shape switches from `rounded-full` (pill) to `rounded-2xl`
+        // because pills don't look right at 2-line height — once we
+        // allow wrapping, the chip needs a softer corner radius.
+        'group/chip flex max-w-full items-center gap-2 rounded-2xl border px-3 py-1.5 text-sm sm:max-w-md',
         isFailed
           ? 'border-destructive/40 bg-destructive/5 text-destructive'
           : 'border-border bg-muted/40 text-foreground',
       )}
     >
-      <span aria-hidden="true" className="text-base leading-none">
+      <span aria-hidden="true" className="shrink-0 text-base leading-none">
         🎬
       </span>
-      <div className="flex min-w-0 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col">
         {/* Open-source affordance: when the job carries a sourceUrl,
             wrap the title in an external link so the user can verify
             which video the chip represents after the pasted URL gets
             stripped from the textarea. `noopener noreferrer` blocks
-            window.opener token theft and Referer leak. */}
+            window.opener token theft and Referer leak.
+
+            `line-clamp-2` (vs the previous `truncate`) lets long titles
+            wrap to a second line with ellipsis, instead of overflowing
+            the chip horizontally — the chip's max-w above caps width
+            and this caps height. `break-words` lets URL-style or
+            CJK-without-spaces titles break inside long runs. */}
         {job.sourceUrl ? (
           <a
             href={job.sourceUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="truncate font-medium hover:underline focus-visible:underline focus-visible:outline-none"
+            className="line-clamp-2 font-medium break-words hover:underline focus-visible:underline focus-visible:outline-none"
             title={title}
           >
             {title}
           </a>
         ) : (
-          <span className="truncate font-medium" title={title}>
+          <span className="line-clamp-2 font-medium break-words" title={title}>
             {title}
           </span>
         )}
@@ -111,7 +123,7 @@ export function VideoLinkChip({ job, onCancel, onRetry }: VideoLinkChipProps) {
           aria-live={isProcessing ? 'off' : 'polite'}
           aria-atomic="true"
           className={cn(
-            'flex items-center gap-1 text-xs',
+            'flex items-center gap-1 truncate text-xs',
             isFailed ? 'text-destructive' : 'text-muted-foreground',
           )}
         >
@@ -119,9 +131,9 @@ export function VideoLinkChip({ job, onCancel, onRetry }: VideoLinkChipProps) {
               the spinner runs unconditionally for users who explicitly
               asked the OS to suppress animation. */}
           {isProcessing && (
-            <Loader2 className="size-3 motion-safe:animate-spin" />
+            <Loader2 className="size-3 shrink-0 motion-safe:animate-spin" />
           )}
-          {statusText}
+          <span className="truncate">{statusText}</span>
         </span>
       </div>
       {isFailed && (
@@ -129,7 +141,7 @@ export function VideoLinkChip({ job, onCancel, onRetry }: VideoLinkChipProps) {
           type="button"
           onClick={onRetry}
           aria-label={tChat('videoLink.actions.retry')}
-          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex size-11 items-center justify-center rounded-full focus-visible:ring-2 focus-visible:outline-none"
+          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex size-11 shrink-0 items-center justify-center rounded-full focus-visible:ring-2 focus-visible:outline-none"
         >
           <RotateCcw className="size-4" />
         </button>
