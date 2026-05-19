@@ -1,14 +1,18 @@
 import { ConvexError, v } from 'convex/values';
 
+import { CHAT_AUDIO_MAX_DURATION_SEC } from '../../lib/shared/file-types';
 import {
   detectPlatform,
   isPlaylistUrl,
   normalizeUrlForHash,
 } from '../../lib/shared/video-url';
 import { internal } from '../_generated/api';
-import type { Id } from '../_generated/dataModel';
+import type { Doc, Id } from '../_generated/dataModel';
 import { mutation } from '../_generated/server';
+import { createAuditLog } from '../audit_logs/helpers';
 import { authComponent } from '../auth';
+import { checkBudget } from '../governance/budget_enforcement';
+import { resolveBudgetContext } from '../governance/resolve_budget_context';
 import { checkOrganizationRateLimit } from '../lib/rate_limiter/helpers';
 import { assertThreadAccess } from '../lib/rls/auth/can_access_thread';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
@@ -115,6 +119,40 @@ export const ingestVideoUrl = mutation({
     // Rate-limit (reuses file:upload bucket: 50/min/org)
     await checkOrganizationRateLimit(ctx, 'file:upload', args.organizationId);
 
+    // Budget gate. Use the worst-case prospective cost (4h × the default
+    // whisper rate ≈ 144 cents) so an org over its cap can't queue
+    // multi-dollar ingests behind a permissive chat-token check. Real
+    // post-completion charges land in the ledger via
+    // `recordTranscriptionUsage`; this is a pre-spend reservation only.
+    // Captions-branch ingests have $0 actual Whisper cost but still pay
+    // disk + bandwidth — accepting the worst-case overestimate here keeps
+    // the gate conservative and the code simple.
+    const PROSPECTIVE_VIDEO_LINK_COST_CENTS = Math.ceil(
+      (CHAT_AUDIO_MAX_DURATION_SEC / 60) * 0.6,
+    );
+    const { userTeamIds, userRole } = await resolveBudgetContext(
+      ctx,
+      args.organizationId,
+      userId,
+    );
+    const budgetResult = await checkBudget(
+      ctx,
+      args.organizationId,
+      userId,
+      userTeamIds,
+      userRole,
+      PROSPECTIVE_VIDEO_LINK_COST_CENTS,
+      1,
+    );
+    if (!budgetResult.allowed) {
+      throw new ConvexError({
+        code: 'budgetExceeded',
+        message:
+          budgetResult.reason ??
+          'Usage limit reached — contact your administrator.',
+      });
+    }
+
     // SERVER-SIDE derive the dedup key + platform tag — do NOT trust
     // client-supplied `normalizedUrl` / `sourcePlatform`. A hostile client
     // could otherwise (a) collide-hash a different URL into an existing
@@ -145,15 +183,28 @@ export const ingestVideoUrl = mutation({
     // already has content-hash dedup via `findCachedTranscript`.
     const DEDUP_WINDOW_MS = 24 * 60 * 60 * 1000;
     const now = Date.now();
-    const existing = await ctx.db
-      .query('videoLinkJobs')
-      .withIndex('by_organizationId_and_sourceUrlHash', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('sourceUrlHash', sourceUrlHash),
-      )
-      .order('desc')
-      .first();
+    // Welcome-page pastes (threadId=undefined) intentionally skip the
+    // dedup match. Two welcome-page tabs of the same user have the same
+    // (orgId, sourceUrlHash, threadId=undefined, uploadedBy) tuple — the
+    // second paste would otherwise silently return the first paste's
+    // jobId, leaving tab B's composer with no chip referencing anything.
+    // Per-link cost is bounded by the 4h duration cap + MAX_IN_FLIGHT_PER_ORG=3,
+    // and the typical welcome-page scenario is single-link, so a fresh
+    // insert is the cheaper UX bug to accept. Existing-thread dedup
+    // (the load-bearing case — same user re-pastes same link in the
+    // same thread) is unchanged.
+    const existing =
+      args.threadId === undefined
+        ? null
+        : await ctx.db
+            .query('videoLinkJobs')
+            .withIndex('by_organizationId_and_sourceUrlHash', (q) =>
+              q
+                .eq('organizationId', args.organizationId)
+                .eq('sourceUrlHash', sourceUrlHash),
+            )
+            .order('desc')
+            .first();
     if (
       existing &&
       existing.messageBoundAt === undefined &&
@@ -175,21 +226,23 @@ export const ingestVideoUrl = mutation({
       return existing._id;
     }
 
-    // Per-org in-flight concurrency cap. Cheap index-scoped iteration.
+    // Per-org in-flight concurrency cap. Cheap index-scoped iteration —
+    // `for await` rather than `.collect()` so we short-circuit the
+    // moment the cap is hit, never materializing the full result set.
     let inFlight = 0;
     for (const status of NON_TERMINAL_STATUSES) {
-      const rows = await ctx.db
+      for await (const _row of ctx.db
         .query('videoLinkJobs')
         .withIndex('by_organizationId_and_status', (q) =>
           q.eq('organizationId', args.organizationId).eq('status', status),
-        )
-        .collect();
-      inFlight += rows.length;
-      if (inFlight >= MAX_IN_FLIGHT_PER_ORG) {
-        throw new ConvexError({
-          code: 'inFlightCap',
-          message: `At most ${MAX_IN_FLIGHT_PER_ORG} video links can process at once. Wait for one to finish.`,
-        });
+        )) {
+        inFlight += 1;
+        if (inFlight >= MAX_IN_FLIGHT_PER_ORG) {
+          throw new ConvexError({
+            code: 'inFlightCap',
+            message: `At most ${MAX_IN_FLIGHT_PER_ORG} video links can process at once. Wait for one to finish.`,
+          });
+        }
       }
     }
 
@@ -212,6 +265,25 @@ export const ingestVideoUrl = mutation({
       internal.video_links.ingest_video_link.ingestVideoLink,
       { jobId, userLocale: args.userLocale },
     );
+
+    // Audit trail — video-link ingest pulls third-party content into the
+    // org's data plane. We persist sourceUrlHash (not the raw URL) so
+    // tracking-param-bearing share URLs can't leak via the audit log.
+    await createAuditLog(ctx, {
+      organizationId: args.organizationId,
+      actorId: userId,
+      actorType: 'user',
+      action: 'video_link.ingest',
+      category: 'data',
+      resourceType: 'video_link_job',
+      resourceId: String(jobId),
+      status: 'success',
+      metadata: {
+        sourcePlatform: serverPlatform,
+        sourceUrlHash,
+        ...(args.threadId !== undefined && { threadId: args.threadId }),
+      },
+    });
 
     return jobId;
   },
@@ -293,6 +365,22 @@ export const cancelVideoLink = mutation({
       internal.video_links.internal_mutations.cleanupCancelledVideoLink,
       { jobId: args.jobId },
     );
+
+    await createAuditLog(ctx, {
+      organizationId: job.organizationId,
+      actorId: userId,
+      actorType: 'user',
+      action: 'video_link.cancel',
+      category: 'data',
+      resourceType: 'video_link_job',
+      resourceId: String(args.jobId),
+      status: 'success',
+      metadata: {
+        sourcePlatform: job.sourcePlatform,
+        sourceUrlHash: job.sourceUrlHash,
+        previousStatus: job.status,
+      },
+    });
   },
 });
 
@@ -351,20 +439,45 @@ export const retryVideoLink = mutation({
     // failed jobs could spawn unlimited concurrent yt-dlp/Whisper work
     // (round-2 V8 / HIGH #11).
     await checkOrganizationRateLimit(ctx, 'file:upload', job.organizationId);
+    const PROSPECTIVE_VIDEO_LINK_COST_CENTS = Math.ceil(
+      (CHAT_AUDIO_MAX_DURATION_SEC / 60) * 0.6,
+    );
+    const { userTeamIds, userRole } = await resolveBudgetContext(
+      ctx,
+      job.organizationId,
+      userId,
+    );
+    const retryBudgetResult = await checkBudget(
+      ctx,
+      job.organizationId,
+      userId,
+      userTeamIds,
+      userRole,
+      PROSPECTIVE_VIDEO_LINK_COST_CENTS,
+      1,
+    );
+    if (!retryBudgetResult.allowed) {
+      throw new ConvexError({
+        code: 'budgetExceeded',
+        message:
+          retryBudgetResult.reason ??
+          'Usage limit reached — contact your administrator.',
+      });
+    }
     let inFlight = 0;
     for (const status of NON_TERMINAL_STATUSES) {
-      const rows = await ctx.db
+      for await (const _row of ctx.db
         .query('videoLinkJobs')
         .withIndex('by_organizationId_and_status', (q) =>
           q.eq('organizationId', job.organizationId).eq('status', status),
-        )
-        .collect();
-      inFlight += rows.length;
-      if (inFlight >= MAX_IN_FLIGHT_PER_ORG) {
-        throw new ConvexError({
-          code: 'inFlightCap',
-          message: `At most ${MAX_IN_FLIGHT_PER_ORG} video links can process at once. Wait for one to finish.`,
-        });
+        )) {
+        inFlight += 1;
+        if (inFlight >= MAX_IN_FLIGHT_PER_ORG) {
+          throw new ConvexError({
+            code: 'inFlightCap',
+            message: `At most ${MAX_IN_FLIGHT_PER_ORG} video links can process at once. Wait for one to finish.`,
+          });
+        }
       }
     }
 
@@ -394,6 +507,23 @@ export const retryVideoLink = mutation({
       internal.video_links.ingest_video_link.ingestVideoLink,
       { jobId: args.jobId, userLocale: undefined },
     );
+
+    await createAuditLog(ctx, {
+      organizationId: job.organizationId,
+      actorId: userId,
+      actorType: 'user',
+      action: 'video_link.retry',
+      category: 'data',
+      resourceType: 'video_link_job',
+      resourceId: String(args.jobId),
+      status: 'success',
+      metadata: {
+        sourcePlatform: job.sourcePlatform,
+        sourceUrlHash: job.sourceUrlHash,
+        previousErrorReasonCode: job.errorReasonCode,
+        attempts: (job.attempts ?? 0) + 1,
+      },
+    });
   },
 });
 
@@ -443,12 +573,18 @@ export const bindCompletedJobsToMessage = mutation({
     // comes from a reactive join on fileMetadata.transcriptionStatus,
     // see queries.ts:projectJob). We re-run the same projection here so
     // the bind matches what the user sees on the chip.
-    const inThread = await ctx.db
+    // `for await` instead of `.collect()` — long threads can accumulate
+    // dozens-to-hundreds of historical video-link rows. We project the
+    // candidate set inline so the unbound subset is the only thing that
+    // ever materializes.
+    const allCandidates: Doc<'videoLinkJobs'>[] = [];
+    for await (const row of ctx.db
       .query('videoLinkJobs')
       .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
-      .filter((q) => q.neq(q.field('lifecycleStatus'), 'trashed'))
-      .collect();
-    const preThread = await ctx.db
+      .filter((q) => q.neq(q.field('lifecycleStatus'), 'trashed'))) {
+      allCandidates.push(row);
+    }
+    for await (const row of ctx.db
       .query('videoLinkJobs')
       .withIndex('by_org_user', (q) =>
         q.eq('organizationId', args.organizationId).eq('uploadedBy', userId),
@@ -458,9 +594,9 @@ export const bindCompletedJobsToMessage = mutation({
           q.eq(q.field('threadId'), undefined),
           q.neq(q.field('lifecycleStatus'), 'trashed'),
         ),
-      )
-      .collect();
-    const allCandidates = [...inThread, ...preThread];
+      )) {
+      allCandidates.push(row);
+    }
     const candidates = [];
     for (const job of allCandidates) {
       if (job.status === 'completed') {
@@ -551,13 +687,27 @@ export const unbindJobsFromMessage = mutation({
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) throw new Error('Unauthenticated');
     const userId = String(authUser._id);
+    const callerIdentity = {
+      userId,
+      email: authUser.email,
+      name: authUser.name,
+    };
 
     for (const jobId of args.jobIds) {
       const job = await ctx.db.get(jobId);
       if (!job) continue;
       // Ownership gate — a hostile caller can't un-bind another user's
-      // chips. Org-membership gate is implicit via `uploadedBy === userId`.
+      // chips. Previously the org-membership check was assumed implicit
+      // via `uploadedBy === userId`, but a user removed from an org
+      // could still write to their historical rows; mirror the
+      // cancel/retry path which re-asserts org membership on every call.
       if (job.uploadedBy !== userId) continue;
+      try {
+        await getOrganizationMember(ctx, job.organizationId, callerIdentity);
+      } catch {
+        // No longer a member of the row's org — skip the write.
+        continue;
+      }
       if (job.messageBoundAt === undefined) continue;
       await ctx.db.patch(jobId, { messageBoundAt: undefined });
     }

@@ -171,12 +171,30 @@ export const ingestVideoLink = internalAction({
       },
     );
     if (!job) return;
-    if (job.status === 'skipped' || job.status === 'failed') {
-      // Cancelled before this action started. Nothing to do.
+    // Bail on any non-`queued` initial state — `skipped`/`failed` are the
+    // explicit cancel/terminal-error cases, and `completed`/`indexing`/
+    // `transcribing_handoff`/`extracting_audio`/`fetching_*` indicate a
+    // duplicate-schedule or already-running prior instance. Re-running
+    // the orchestrator on those states burns yt-dlp metadata fetches and
+    // (without CAS, before this fix) could overwrite terminal artifacts.
+    if (job.status !== 'queued') {
+      console.warn(
+        JSON.stringify({
+          event: 'video_link.duplicate_schedule',
+          jobId: args.jobId,
+          observedStatus: job.status,
+        }),
+      );
       return;
     }
 
-    /** Re-read the job and bail if it's been cancelled or cascade-deleted. */
+    /** Re-read the job and bail if it's been cancelled, watchdog-failed,
+     * or cascade-deleted. Treats `failed` as terminal in addition to
+     * `skipped` so a watchdog flip mid-flight (e.g. extracting_audio
+     * exceeds its 20-min window) is caught at the next checkpoint and
+     * the worker stops doing expensive work / writing rows. Without
+     * this, a watchdog-induced `failed` could be silently overwritten
+     * by the worker's next CAS-less patch. */
     const assertNotCancelled = async (): Promise<boolean> => {
       const fresh = await ctx.runQuery(
         internal.video_links.internal_queries.getJobById,
@@ -184,12 +202,33 @@ export const ingestVideoLink = internalAction({
           jobId: args.jobId,
         },
       );
-      // Row missing (cascade-deleted by thread cleanup mid-action) is
-      // treated as cancellation — the previous `!fresh ||` short-circuit
-      // returned true here, letting subsequent mutations crash on the
-      // gone row. R2 review.
+      // Row missing (cascade-deleted by thread cleanup or subject erasure
+      // mid-action) is treated as cancellation — the original `!fresh ||`
+      // short-circuit returned true here, letting subsequent mutations
+      // crash on the gone row (R2 review).
       if (!fresh) return false;
-      return fresh.status !== 'skipped';
+      return fresh.status !== 'skipped' && fresh.status !== 'failed';
+    };
+
+    /** Best-effort orphan-blob cleanup when we bail between
+     * `ctx.storage.store` and the cross-table write that would record
+     * the storageId on the job row. Suppresses delete errors (the blob
+     * may have already been reaped by cascade) but logs them. */
+    const deleteOrphanBlob = async (
+      storageId: Id<'_storage'>,
+    ): Promise<void> => {
+      try {
+        await ctx.storage.delete(storageId);
+      } catch (err) {
+        console.warn(
+          JSON.stringify({
+            event: 'video_link.orphan_blob_delete_failed',
+            jobId: args.jobId,
+            storageId,
+            error: err instanceof Error ? err.message : String(err),
+          }),
+        );
+      }
     };
 
     const { jobDir, cleanup } = await createJobDir();
@@ -413,17 +452,38 @@ export const ingestVideoLink = internalAction({
               });
               const storageId = await ctx.storage.store(blob);
 
+              // GDPR / cascade race window: between the storage.store
+              // above and the cross-table writes below, an erasure or
+              // thread-cleanup pass can delete the videoLinkJobs row.
+              // Without this re-check, `insertSyntheticFileMetadata`
+              // would create a fresh fileMetadata row + schedule RAG
+              // ingestion that survives the erasure entirely. The
+              // mutation itself has a defense-in-depth `db.get(jobId)`
+              // guard, but the orchestrator-level bail keeps the failure
+              // surface tight (no scheduled job stays queued).
+              if (!(await assertNotCancelled())) {
+                await deleteOrphanBlob(storageId);
+                return;
+              }
+
               // Record `storageId` on the job row BEFORE the synthetic
-              // fileMetadata insert. If that mutation throws (validator,
-              // arg-size overflow on a multi-hour transcript, transient
-              // OOM), `cleanupCancelledVideoLink` needs `job.storageId`
-              // to reclaim the blob; without this pre-write the blob
-              // orphans in `_storage` indefinitely. Audio branch (Phase
-              // C, lines 484-487) follows the same pattern.
-              await ctx.runMutation(
+              // fileMetadata insert. CAS-gated against `indexing` — if a
+              // watchdog flip raced us during storage.store, the CAS
+              // misses and we drop the orphan blob without further
+              // writes. Audio branch (Phase C, below) follows the same
+              // pattern.
+              const storagePatch = await ctx.runMutation(
                 internal.video_links.internal_mutations.updateJob,
-                { jobId: args.jobId, storageId },
+                {
+                  jobId: args.jobId,
+                  storageId,
+                  expectedStatus: 'indexing',
+                },
               );
+              if (storagePatch !== 'ok') {
+                await deleteOrphanBlob(storageId);
+                return;
+              }
 
               await ctx.runMutation(
                 internal.video_links.internal_mutations
@@ -468,11 +528,39 @@ export const ingestVideoLink = internalAction({
       // -----------------------------------------------------------------
       // Phase C: captions missed → Whisper fallback via audio extract
       // -----------------------------------------------------------------
-      await ctx.runMutation(internal.video_links.internal_mutations.updateJob, {
-        jobId: args.jobId,
-        status: 'extracting_audio',
-      });
+      // Phase C entry can be reached from two pre-states: `fetching_metadata`
+      // (no caption track selected) OR `fetching_captions` (selection
+      // made, but yt-dlp failed to fetch / parsed to empty). Read the
+      // current status BEFORE the patch to choose the right CAS predicate
+      // — without this, a watchdog flip during the long Phase B yt-dlp
+      // call would be silently undone by an unguarded patch here. And
+      // run `assertNotCancelled` BEFORE the patch (the previous order
+      // had it after — which always observed the worker's own write and
+      // so could never detect a watchdog/cancel that landed during the
+      // captions phase).
       if (!(await assertNotCancelled())) return;
+      const phaseCPre = await ctx.runQuery(
+        internal.video_links.internal_queries.getJobById,
+        { jobId: args.jobId },
+      );
+      if (
+        !phaseCPre ||
+        (phaseCPre.status !== 'fetching_metadata' &&
+          phaseCPre.status !== 'fetching_captions')
+      ) {
+        // Either deleted, already in a terminal state, or somehow past
+        // Phase C entry — nothing safe to do.
+        return;
+      }
+      const phaseCEntry = await ctx.runMutation(
+        internal.video_links.internal_mutations.updateJob,
+        {
+          jobId: args.jobId,
+          status: 'extracting_audio',
+          expectedStatus: phaseCPre.status,
+        },
+      );
+      if (phaseCEntry !== 'ok') return;
 
       // Re-validate URL against fresh DNS before the longest yt-dlp call
       // (15-min wall-clock). Defends against rebind across Phase B → C.
@@ -500,15 +588,35 @@ export const ingestVideoLink = internalAction({
       const audioBlob = new Blob([audioBuf], { type: 'audio/ogg' });
       const audioStorageId = await ctx.storage.store(audioBlob);
 
+      // GDPR / cascade race window: between storage.store and the
+      // saveFileMetadata cross-table write below, erasure can delete
+      // the job row. Without this check, saveFileMetadata would land
+      // an orphan fileMetadata row + schedule transcribe_audio that
+      // both survive the erasure pass.
+      if (!(await assertNotCancelled())) {
+        await deleteOrphanBlob(audioStorageId);
+        return;
+      }
+
       // CRITICAL: record `storageId` on the job row BEFORE inserting the
       // fileMetadata row. If `saveFileMetadata` fails (validator, OOM,
       // network blip) the cancel cleanup path needs `job.storageId` to
       // find the blob and delete it — without this pre-write the blob
-      // orphans in `_storage` indefinitely (R2 cluster E).
-      await ctx.runMutation(internal.video_links.internal_mutations.updateJob, {
-        jobId: args.jobId,
-        storageId: audioStorageId,
-      });
+      // orphans in `_storage` indefinitely (R2 cluster E). CAS-gated
+      // against `extracting_audio` so a watchdog flip during the long
+      // yt-dlp call gets caught here.
+      const audioStoragePatch = await ctx.runMutation(
+        internal.video_links.internal_mutations.updateJob,
+        {
+          jobId: args.jobId,
+          storageId: audioStorageId,
+          expectedStatus: 'extracting_audio',
+        },
+      );
+      if (audioStoragePatch !== 'ok') {
+        await deleteOrphanBlob(audioStorageId);
+        return;
+      }
 
       // Internal variant (not the public `api.file_metadata.mutations.*`).
       // Scheduled actions run with no user context — the public mutation

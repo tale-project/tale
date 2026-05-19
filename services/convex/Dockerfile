@@ -27,18 +27,19 @@ FROM ghcr.io/get-convex/convex-backend:5f66740ae8dd506577d27294adc55b81e4fbe91b 
 WORKDIR /app
 
 ARG SOPS_VERSION=3.9.4
-# yt-dlp + Deno: empty default resolves the actual `releases/latest` tag
-# ONCE at build time (HEAD on the redirect) and reuses it for asset +
-# checksum URLs, defeating the TOCTOU window where the binary and the
-# SHA256SUMS file could come from two different releases if upstream cut
-# a release between curls. Callers wanting a frozen build can pass an
-# explicit tag (e.g. `--build-arg YTDLP_VERSION=2025.10.15`). CI is still
-# expected to rebuild this image weekly to pick up the latest upstream
-# player-signature fixes; the resolved versions land in
+# yt-dlp + Deno: pinned defaults to specific upstream releases so two
+# image builds an hour apart produce byte-identical binaries. Builders
+# wanting the absolute newest player-signature fixes pass an explicit
+# build-arg (e.g. `--build-arg YTDLP_VERSION=2026.05.10`); ops should
+# rebuild this image roughly monthly to pick up upstream fixes (the
+# default pins exactly so an upgrade is a deliberate version bump, not
+# a silent moving target). Empty defaults are still supported and fall
+# back to resolving the `releases/latest` redirect — handy for local
+# dev but discouraged for production. Resolved versions land in
 # /etc/yt-dlp-version + /etc/deno-version for runtime inspection.
 # Deno is required by yt-dlp's n-challenge JS solver (yt-dlp ≥ 2025.11).
-ARG YTDLP_VERSION=
-ARG DENO_VERSION=
+ARG YTDLP_VERSION=2026.05.10
+ARG DENO_VERSION=v2.5.4
 # System packages, binary symlinks, app user (UID 1001 to match platform),
 # and LLVM/docs stripping (~155 MB savings on the base image).
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \

@@ -59,7 +59,11 @@ async function projectJob(
     errorReasonCode
   ) {
     displayStatus = 'retrying';
-    progress = progress ?? `Attempt ${job.attempts}`;
+    // Emit a structured token the chip can resolve via i18n
+    // (`chat.videoLink.statuses.attemptNumber` `{n}` ICU). The previous
+    // raw string `"Attempt N"` was English-only and bypassed
+    // localization for de/fr users — see G8 of the fix plan.
+    progress = progress ?? `__VL_ATTEMPT__${job.attempts}`;
   }
 
   // Whisper-handoff: project the linked fileMetadata's transcription
@@ -141,13 +145,17 @@ export const listForThread = query({
     );
     if (!access) return [];
 
-    const jobs = await ctx.db
+    // `for await` instead of `.collect()` — a long thread can accumulate
+    // dozens-to-hundreds of historical rows and this is the reactive
+    // subscription path, so the scan re-fires on every matching-row write.
+    const out: VideoLinkJobView[] = [];
+    for await (const job of ctx.db
       .query('videoLinkJobs')
       .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
-      .order('asc')
-      .collect();
-
-    return Promise.all(jobs.map((j) => projectJob(ctx, j)));
+      .order('asc')) {
+      out.push(await projectJob(ctx, job));
+    }
+    return out;
   },
 });
 
@@ -179,15 +187,18 @@ export const listForUserUnboundChat = query({
       return [];
     }
 
-    const jobs = await ctx.db
+    // Welcome-page chip area is reactive; stream to project each row
+    // inline rather than materializing the full unbound set.
+    const out: VideoLinkJobView[] = [];
+    for await (const job of ctx.db
       .query('videoLinkJobs')
       .withIndex('by_org_user', (q) =>
         q.eq('organizationId', args.organizationId).eq('uploadedBy', userId),
       )
       .filter((q) => q.eq(q.field('threadId'), undefined))
-      .order('asc')
-      .collect();
-
-    return Promise.all(jobs.map((j) => projectJob(ctx, j)));
+      .order('asc')) {
+      out.push(await projectJob(ctx, job));
+    }
+    return out;
   },
 });

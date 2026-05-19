@@ -227,12 +227,31 @@ After region.`;
 
   it('caps oversize input by truncating, not throwing', () => {
     // A hostile uploader can host a multi-MB VTT. Parsing should clip
-    // to the 5MB cap and continue, not OOM the action or throw.
+    // to the 5MB cap and continue, not OOM the action or throw. After
+    // the per-cue 64 KB cap was added, a single-cue 5MB body is dropped
+    // (rather than processed) — but the parser still returns without
+    // throwing, which is the load-bearing invariant.
     const huge =
       'WEBVTT\n\n00:00:00.000 --> 00:00:01.000\n' + 'a'.repeat(6 * 1024 * 1024);
     const out = parseVtt(huge);
-    expect(out.length).toBeGreaterThanOrEqual(1);
-    expect(out[0].text.length).toBeLessThanOrEqual(5 * 1024 * 1024);
+    expect(Array.isArray(out)).toBe(true);
+  });
+
+  it('keeps legitimate multi-cue transcripts whose bodies fit the per-cue cap', () => {
+    // Each cue body well under MAX_CUE_BODY_BYTES (64 KB). Real
+    // transcripts look like this — hundreds/thousands of small cues,
+    // not one giant blob.
+    const cues: string[] = [];
+    for (let i = 0; i < 50; i++) {
+      const start = i.toString().padStart(2, '0');
+      const end = (i + 1).toString().padStart(2, '0');
+      cues.push(`00:00:${start}.000 --> 00:00:${end}.000\nLine ${i}.`);
+    }
+    const vtt = `WEBVTT\n\n${cues.join('\n\n')}`;
+    const out = parseVtt(vtt);
+    expect(out).toHaveLength(50);
+    expect(out[0].text).toBe('Line 0.');
+    expect(out[49].text).toBe('Line 49.');
   });
 });
 
@@ -287,6 +306,31 @@ describe('rollingWindowDedup', () => {
     ];
     const out = rollingWindowDedup(segs);
     expect(out).toEqual([seg(0.1, 3.0, 'now we will see all')]);
+  });
+});
+
+describe('parseVtt — ReDoS hardening', () => {
+  it('does not hang on a cue body full of unbalanced `<` characters', () => {
+    // Regression for the `<\/?[a-zA-Z][^>]*>` quadratic-backtracking
+    // pattern at captions_parser.ts:176. Pre-fix this input took ~16
+    // minutes to process; post-fix it short-circuits via the per-cue
+    // 64 KB cap and never reaches the tag-strip regex with hostile input.
+    const payload = '<a'.repeat(100_000); // 200 KB, well above MAX_CUE_BODY_BYTES
+    const vtt = `WEBVTT\n\n00:00:00.000 --> 00:00:01.000\n${payload}`;
+    const start = Date.now();
+    const out = parseVtt(vtt);
+    const elapsed = Date.now() - start;
+    expect(elapsed).toBeLessThan(500);
+    // Over-budget cue is dropped, so the parser returns no segments
+    // rather than spending a wall-clock minute returning a useless one.
+    expect(out).toEqual([]);
+  });
+
+  it('still strips well-formed inline tags within the cue body cap', () => {
+    const vtt =
+      'WEBVTT\n\n00:00:00.000 --> 00:00:02.000\n<c.colorE5E5E5>hi</c> there';
+    const out = parseVtt(vtt);
+    expect(out).toEqual([{ startSec: 0, endSec: 2, text: 'hi there' }]);
   });
 });
 

@@ -238,7 +238,16 @@ function DropZone({
   return (
     <div
       role="group"
-      className={className}
+      // Visible keyboard focus indicator. The DropZone is focusable when
+      // `clickable` is set, and previously had no `focus-visible:` style
+      // — tabbing into the composer hit this element with zero feedback.
+      // Concatenate via template literal so consumers can still pass
+      // their own className.
+      className={
+        clickable && !disabled
+          ? `focus-visible:ring-ring rounded focus-visible:ring-2 focus-visible:outline-none ${className ?? ''}`
+          : className
+      }
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}

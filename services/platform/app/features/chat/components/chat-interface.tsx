@@ -708,6 +708,13 @@ export function ChatInterface({
     // it here would re-introduce the video-link race window where a
     // 50-200 ms `await bindCompletedJobsToMessage` lets observer fires
     // downgrade the ref before the optimistic bubble lands.
+    // Snapshot the input value BEFORE clearing so a failed send can
+    // restore the typed text. Without this, a network blip / model-
+    // access denial / chat-filter block in `sendMessage` leaves the
+    // composer empty and the user has to retype the whole prompt.
+    // Mirror the chip-unbind rollback (`useSendMessage` already does
+    // that on failure) so both typed text and attachments survive.
+    const draftSnapshot = inputValue;
     clearInputValue();
 
     // For image-generation agents, if an editing image is active in the
@@ -733,7 +740,14 @@ export function ChatInterface({
       setDismissedImageKey(null);
     }
 
-    await sendMessage(message, finalAttachments);
+    try {
+      await sendMessage(message, finalAttachments);
+    } catch (err) {
+      // Restore the draft so the user can retry or edit. The chip
+      // unbind already happens inside `useSendMessage`'s catch.
+      setInputValue(draftSnapshot);
+      throw err;
+    }
   };
 
   // No client-side optimistic loading needed — server sets

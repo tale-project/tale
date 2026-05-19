@@ -440,10 +440,19 @@ export const transcribeAudio = internalAction({
           chunk,
           args.fileName,
         );
+        // Timestamps are only meaningful for video-link transcripts —
+        // they let the agent cite "Chapter 3 @ 12:34" in summaries.
+        // Regular microphone recordings don't carry that context, so
+        // adding [HH:MM:SS] prefixes there changes the artifact format
+        // for every user with no upside. Gate on the source: only
+        // video-link-sourced fileMetadata rows opt in.
         const paragraphs = joinSegmentsWithParagraphs(
           whisperSegmentsToParagraphSegments(result.segments, chunkStartSec),
           result.text ?? '',
-          { profile: WHISPER_PROFILE, addTimestamps: true },
+          {
+            profile: WHISPER_PROFILE,
+            addTimestamps: preCheck?.source === 'video_link',
+          },
         );
         if (paragraphs.length > 0) {
           chunkParagraphs.push(paragraphs);

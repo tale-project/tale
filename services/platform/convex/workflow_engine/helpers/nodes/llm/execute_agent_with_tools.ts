@@ -29,6 +29,7 @@ import {
 } from '../../../../lib/context_management';
 import { createAgentConfig } from '../../../../lib/create_agent_config';
 import { createDebugLog } from '../../../../lib/debug_log';
+import { UNTRUSTED_CONTENT_SYSTEM_PROMPT } from '../../../../lib/untrusted_content';
 import type {
   NormalizedConfig,
   ProcessedPrompts,
@@ -228,7 +229,19 @@ export async function executeAgentWithTools(
     }
   }
 
-  checkPromptBudget(prompts.systemPrompt, prompts.userPrompt);
+  // Prompt-injection defense: prepend the TRUST RULES system prompt so
+  // the LLM treats any `<untrusted_source>`-wrapped content (from
+  // document.retrieve / rag.search / rag.get_chunks / integration tool
+  // outputs) as data, not instructions. Without this, every wrap added
+  // to the tool layer is decorative — workflow LLM nodes have no trust
+  // contract by default (unlike the chat path which builds the prompt
+  // via `build_system_prompt.ts`).
+  const augmentedPrompts: ProcessedPrompts = {
+    ...prompts,
+    systemPrompt: `${UNTRUSTED_CONTENT_SYSTEM_PROMPT}\n\n${prompts.systemPrompt}`,
+  };
+
+  checkPromptBudget(augmentedPrompts.systemPrompt, augmentedPrompts.userPrompt);
 
   const hasTools = config.tools && config.tools.length > 0;
   const needsJsonOutput = config.outputFormat === 'json' && config.outputSchema;
@@ -268,7 +281,7 @@ export async function executeAgentWithTools(
     return executeJsonOutputWithoutTools(
       contextWithOrg,
       config,
-      prompts,
+      augmentedPrompts,
       zodSchema,
       threadId,
       _args.userId,
@@ -292,7 +305,7 @@ export async function executeAgentWithTools(
   return executeTextOutput(
     contextWithOrg,
     config,
-    prompts,
+    augmentedPrompts,
     threadId,
     _args.userId,
     _args.languageModel,

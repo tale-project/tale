@@ -18,6 +18,7 @@ import { fetchDocumentContent } from '../../../agent_tools/documents/helpers/fet
 import { getDocumentEffectiveDate } from '../../../documents/transform_to_document_item';
 import type { DocumentMetadata } from '../../../documents/types';
 import { toConvexJsonRecord, toId } from '../../../lib/type_cast_helpers';
+import { wrapUntrusted } from '../../../lib/untrusted_content';
 import { jsonRecordValidator } from '../../../lib/validators/json';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import { applyDocxStructured } from './helpers/apply_docx_structured';
@@ -293,11 +294,28 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
             `Document with file ID "${params.fileId}" not found in this organization`,
           );
         }
-        return await fetchDocumentContent(params.fileId, {
+        const result = await fetchDocumentContent(params.fileId, {
           chunkStart: params.chunkStart,
           chunkEnd: params.chunkEnd,
           returnChunks: params.returnChunks,
         });
+        // Prompt-injection defense for the workflow path. The
+        // agent-tool sibling `retrieveDocument` already wraps video-
+        // link-sourced content in `<untrusted_source>`; the workflow
+        // path was missing it, so attacker-controlled transcript text
+        // could reach a downstream LLM step (`step.run`) unwrapped.
+        const videoSources = await ctx.runQuery(
+          internal.file_metadata.internal_queries.lookupVideoLinkSources,
+          { storageIds: [toId<'_storage'>(params.fileId)] },
+        );
+        if (videoSources.length > 0) {
+          const meta: { tool: string; url?: string } = {
+            tool: 'document_retrieve',
+          };
+          if (videoSources[0].sourceUrl) meta.url = videoSources[0].sourceUrl;
+          result.content = wrapUntrusted(result.content, meta);
+        }
+        return result;
       }
 
       case 'generate_docx': {

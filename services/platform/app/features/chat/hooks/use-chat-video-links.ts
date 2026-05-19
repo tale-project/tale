@@ -157,12 +157,15 @@ export function useChatVideoLinks(args: {
           // Surface the rejection to the user. ConvexError carries a
           // structured `code` that maps 1:1 to `videoLink.errors.*` keys;
           // unstructured errors fall back to the generic copy.
+          // After the `instanceof ConvexError`, type-check, and
+          // `'code' in err.data` narrowings, TS already knows
+          // `err.data.code: unknown` — no cast required.
           const code =
             err instanceof ConvexError &&
             typeof err.data === 'object' &&
             err.data !== null &&
             'code' in err.data
-              ? String((err.data as { code: unknown }).code)
+              ? String(err.data.code)
               : undefined;
           toast({
             title: tChat('videoLink.toast.ingestFailedTitle'),

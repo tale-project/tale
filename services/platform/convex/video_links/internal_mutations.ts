@@ -94,6 +94,19 @@ const ERROR_REASON_CODE_VALIDATOR = v.union(
  * Used by the orchestrator action (`ingest_video_link.ts`) at every
  * phase boundary.
  */
+/**
+ * Result of `updateJob`. Callers that need to know whether their CAS hit
+ * (and bail out on a miss without doing further work) check for `'ok'`.
+ * Callers that don't pass `expectedStatus` will always get `'ok'` or
+ * `'not_found'` — never `'cas_miss'`.
+ */
+const UPDATE_JOB_RESULT_VALIDATOR = v.union(
+  v.literal('ok'),
+  v.literal('cas_miss'),
+  v.literal('not_found'),
+);
+export type UpdateJobResult = 'ok' | 'cas_miss' | 'not_found';
+
 export const updateJob = internalMutation({
   args: {
     jobId: v.id('videoLinkJobs'),
@@ -142,11 +155,12 @@ export const updateJob = internalMutation({
      */
     attempts: v.optional(v.number()),
   },
-  async handler(ctx, args) {
+  returns: UPDATE_JOB_RESULT_VALIDATOR,
+  async handler(ctx, args): Promise<UpdateJobResult> {
     const { jobId, status, expectedStatus, ...rest } = args;
     if (expectedStatus !== undefined) {
       const existing = await ctx.db.get(jobId);
-      if (!existing) return; // row already cascaded — treat as cancellation
+      if (!existing) return 'not_found';
       if (existing.status !== expectedStatus) {
         console.warn(
           JSON.stringify({
@@ -156,8 +170,14 @@ export const updateJob = internalMutation({
             actual: existing.status,
           }),
         );
-        return;
+        return 'cas_miss';
       }
+    } else {
+      // Without CAS the patch still needs the row to exist, otherwise
+      // `ctx.db.patch` throws — return `not_found` so callers can bail
+      // gracefully (orchestrator action vs cascade-delete race).
+      const existing = await ctx.db.get(jobId);
+      if (!existing) return 'not_found';
     }
     const patch: Record<string, unknown> = { ...rest };
     if (status !== undefined) {
@@ -165,6 +185,7 @@ export const updateJob = internalMutation({
       patch.statusChangedAt = Date.now();
     }
     await ctx.db.patch(jobId, patch);
+    return 'ok';
   },
 });
 
@@ -198,6 +219,26 @@ export const insertSyntheticFileMetadata = internalMutation({
     uploadedBy: v.string(),
   },
   async handler(ctx, args) {
+    // GDPR / cascade race guard: if the parent job row was erased (subject
+    // erasure, thread cleanup) between the orchestrator's storage.store
+    // and this mutation landing, do NOT create a new fileMetadata row that
+    // would survive the erasure pass. Clean up the orphan blob the
+    // orchestrator already wrote and bail. The orchestrator also checks
+    // `assertNotCancelled` before calling us, but Convex mutations run
+    // serialized so the in-mutation check closes the structural window.
+    const job = await ctx.db.get(args.jobId);
+    if (!job) {
+      try {
+        await ctx.storage.delete(args.storageId);
+      } catch (err) {
+        console.warn(
+          `[video_links] orphan blob delete (erased job) failed for ${args.storageId}:`,
+          err instanceof Error ? err.message : err,
+        );
+      }
+      return null;
+    }
+
     const provenanceHeader = [
       `Source: ${args.sourceUrl}`,
       `Platform: ${args.sourcePlatform}`,
@@ -276,6 +317,15 @@ export const cleanupCancelledVideoLink = internalMutation({
     const job = await ctx.db.get(args.jobId);
     if (!job) return;
 
+    // Message-bound rows belong to a sent user-message — their transcript
+    // blob (captions branch) or `fileMetadata.transcript` text (whisper
+    // branch) is part of the bubble's content of record. A cleanup
+    // accidentally scheduled against a bound row (admin override, future
+    // DSAR purge, mis-fired retry) MUST NOT delete the blob/row. The
+    // inline comment below previously claimed this guard existed in code
+    // — it didn't; this is the load-bearing check.
+    if (job.messageBoundAt !== undefined) return;
+
     // _storage blob: always delete if present and not message-bound.
     // (Message-bound jobs have audio replaced by transcript already, so
     // this branch only fires for audio blobs from failed Whisper runs.)
@@ -316,9 +366,13 @@ export const heartbeatJobByStorageId = internalMutation({
     progress: v.optional(v.string()),
   },
   async handler(ctx, args) {
+    // Use the dedicated `by_storageId` index (declared on the schema) —
+    // a bare `.filter()` here triggers a full-table scan, which fires on
+    // every Whisper chunk of every non-video audio upload. The cost
+    // grows linearly with the org's lifetime video-link history.
     const job = await ctx.db
       .query('videoLinkJobs')
-      .filter((q) => q.eq(q.field('storageId'), args.storageId))
+      .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
       .first();
     if (!job) return;
     if (job.status !== 'transcribing_handoff') return;
@@ -367,6 +421,13 @@ const STATUS_WINDOWS: ReadonlyArray<
  * multiple ticks without exhausting the mutation budget. */
 const UNBOUND_GC_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const UNBOUND_GC_BATCH = 50;
+// Per-status cap on the recovery pass. Without this, a yt-dlp outage that
+// piles up thousands of stuck rows would have the cron `.collect()` them
+// all into a single mutation and trip Convex's 8000-document / 16 MB
+// transaction ceiling — the mutation aborts every tick, the backlog
+// never drains. Mirror the GC pass's `UNBOUND_GC_BATCH * 4 = 200` cap so
+// a backlog converges over multiple ticks instead.
+const STUCK_RECOVERY_BATCH = 200;
 
 export const recoverStuckVideoLinkJobs = internalMutation({
   args: {},
@@ -380,10 +441,17 @@ export const recoverStuckVideoLinkJobs = internalMutation({
       const rows = await ctx.db
         .query('videoLinkJobs')
         .withIndex('by_status', (q) => q.eq('status', status))
-        .collect();
+        .take(STUCK_RECOVERY_BATCH);
       for (const row of rows) {
         const checkpoint = row.statusChangedAt ?? row._creationTime;
         if (checkpoint > cutoff) continue;
+        // CAS guard: re-read the row INSIDE this mutation's snapshot — if
+        // the worker raced us and already advanced status, do not stomp.
+        // Within a single Convex mutation the read above is consistent
+        // with this re-read; the practical race is the watchdog mutation
+        // landing JUST BEFORE the worker's next `updateJob` mutation —
+        // see the matching `expectedStatus` bail in the orchestrator.
+        if (row.status !== status) continue;
         await ctx.db.patch(row._id, {
           status: 'failed',
           statusChangedAt: now,
@@ -393,6 +461,16 @@ export const recoverStuckVideoLinkJobs = internalMutation({
           )}min — watchdog flipped to failed`,
         });
         recoveredCount += 1;
+        // Schedule cleanup so any half-extracted audio blob / orphan
+        // fileMetadata row from the worker's interrupted Phase C is
+        // reaped. The cleanup mutation is now `messageBoundAt`-gated, so
+        // a freshly-bound row in the same tick wouldn't be touched even
+        // if the watchdog mis-fired.
+        await ctx.scheduler.runAfter(
+          0,
+          internal.video_links.internal_mutations.cleanupCancelledVideoLink,
+          { jobId: row._id },
+        );
       }
     }
 

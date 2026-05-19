@@ -258,10 +258,24 @@ export function ChatInput({
   );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
+    if (e.key !== 'Enter' || e.shiftKey) return;
+    // IME composition guard. macOS Pinyin / Japanese Kotoeri commits a
+    // candidate via Enter; without these checks the textarea swallows
+    // the commit and sends the half-composed romaji. `isComposing` is
+    // the modern WHATWG API, `isComposingRef.current` is our React
+    // mirror (composition events arrive on the DOM but React's
+    // synthetic event types don't expose `isComposing`), and
+    // `keyCode === 229` is the legacy Safari path. All three are
+    // necessary to cover Chromium + WebKit + Firefox.
+    if (
+      e.nativeEvent.isComposing ||
+      isComposingRef.current ||
+      e.keyCode === 229
+    ) {
+      return;
     }
+    e.preventDefault();
+    handleSendMessage();
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
@@ -270,11 +284,15 @@ export function ChatInput({
     // otherwise enqueue an ingest mutation AND the chip-cancel strip path
     // could later `value.replace(token, '')` while the IME is still
     // committing characters — corrupting the commit buffer.
-    if (
-      isComposingRef.current ||
-      (e.nativeEvent as ClipboardEvent & { isComposing?: boolean })
-        .isComposing === true
-    ) {
+    // React typing gap: the DOM ClipboardEvent has an `isComposing` flag
+    // but React's synthetic ClipboardEvent typings omit it. The runtime
+    // value is present on every Chromium/WebKit/Firefox; the cast
+    // surfaces it without a wider type widening that would let other
+    // missing fields slip through.
+    const nativeClipboard = e.nativeEvent as ClipboardEvent & {
+      isComposing?: boolean;
+    };
+    if (isComposingRef.current || nativeClipboard.isComposing === true) {
       return;
     }
     const items = e.clipboardData?.items;
@@ -353,11 +371,21 @@ export function ChatInput({
         onTextDrop={
           ingestVideoUrlsFromText
             ? (text) => {
+                // Mirror the paste-handler gate so a drag-and-drop URL
+                // followed by an immediate Enter doesn't beat the chip
+                // into existence — without this, the send-gate doesn't
+                // know an ingest is in-flight and the agent receives
+                // the raw URL instead of the transcript.
+                pasteIngestInFlightRef.current = true;
+                setPasteIngestPending(true);
                 void ingestVideoUrlsFromText(
                   text,
                   organizationId,
                   i18n.language,
-                );
+                ).finally(() => {
+                  pasteIngestInFlightRef.current = false;
+                  setPasteIngestPending(false);
+                });
               }
             : undefined
         }
@@ -769,8 +797,19 @@ export function ChatInput({
                 lang={speechLang}
                 onTranscript={handleTranscript}
               />
-              <Tooltip
-                content={
+              {(() => {
+                const sendDisabled = isLoading
+                  ? !onStopGenerating
+                  : (!value.trim() && attachments.length === 0) ||
+                    inputDisabled ||
+                    isUploading ||
+                    isIndexing ||
+                    isTranscribing ||
+                    isProcessingVideo ||
+                    hasFailedVideoJobs ||
+                    pasteIngestPending ||
+                    sendBlocked;
+                const tooltipContent =
                   isTranscribing && !isLoading
                     ? tChat('transcription.inProgressTooltip')
                     : isProcessingVideo && !isLoading
@@ -779,39 +818,60 @@ export function ChatInput({
                         ? tChat('videoLink.chip.failedSendBlockedTooltip')
                         : sendBlocked && sendBlockedReason && !isLoading
                           ? sendBlockedReason
-                          : ''
-                }
-                side="top"
-              >
-                <Button
-                  type="button"
-                  onClick={isLoading ? onStopGenerating : handleSendMessage}
-                  disabled={
-                    isLoading
-                      ? !onStopGenerating
-                      : (!value.trim() && attachments.length === 0) ||
-                        inputDisabled ||
-                        isUploading ||
-                        isIndexing ||
-                        isTranscribing ||
-                        isProcessingVideo ||
-                        hasFailedVideoJobs ||
-                        pasteIngestPending ||
-                        sendBlocked
-                  }
-                  size="icon"
-                  className="rounded-full"
-                  aria-label={
-                    isLoading ? tChat('stopGenerating') : tChat('send')
-                  }
-                >
-                  {isLoading ? (
-                    <CircleStop className="size-4" />
-                  ) : (
-                    <ArrowUp className="size-4" />
-                  )}
-                </Button>
-              </Tooltip>
+                          : '';
+                // Native `disabled` swallows pointer events on
+                // Chromium/WebKit, so the Tooltip trigger never fires
+                // when the button is in exactly the states the tooltip
+                // is meant to explain. Wrap the disabled button in a
+                // focusable inline span; the span receives pointer +
+                // focus events that drive the tooltip while the button
+                // itself stays semantically `aria-disabled` so screen
+                // readers and keyboard activation still observe the
+                // disabled state.
+                const button = (
+                  <Button
+                    type="button"
+                    onClick={isLoading ? onStopGenerating : handleSendMessage}
+                    disabled={sendDisabled}
+                    size="icon"
+                    className="rounded-full"
+                    aria-label={
+                      isLoading ? tChat('stopGenerating') : tChat('send')
+                    }
+                  >
+                    {isLoading ? (
+                      <CircleStop className="size-4" />
+                    ) : (
+                      <ArrowUp className="size-4" />
+                    )}
+                  </Button>
+                );
+                return (
+                  <Tooltip content={tooltipContent} side="top">
+                    {sendDisabled && tooltipContent ? (
+                      // role="group" + tabIndex=0 makes the wrapper a
+                      // focusable region that the Tooltip's Radix
+                      // pointer/focus listeners can attach to —
+                      // browsers swallow pointer events on a `disabled`
+                      // native button, so the Tooltip would otherwise
+                      // never fire in exactly the states the tooltip
+                      // is meant to explain. The inner Button still
+                      // carries the semantic `disabled` state.
+                      <span
+                        role="group"
+                        // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- focusable wrapper required so Tooltip works on a disabled child button
+                        tabIndex={0}
+                        aria-disabled="true"
+                        className="inline-flex"
+                      >
+                        {button}
+                      </span>
+                    ) : (
+                      button
+                    )}
+                  </Tooltip>
+                );
+              })()}
             </HStack>
           </HStack>
         </div>

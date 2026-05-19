@@ -6,6 +6,8 @@ import type { ActionCtx } from '../../../_generated/server';
 import type { SearchResponse } from '../../../agent_tools/rag/format_search_results';
 import { fetchDocumentChunks } from '../../../agent_tools/rag/helpers/fetch_document_chunks';
 import { ragFetch } from '../../../lib/helpers/rag_config';
+import { toId } from '../../../lib/type_cast_helpers';
+import { wrapUntrusted } from '../../../lib/untrusted_content';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import { deleteDocumentById } from './helpers/delete_document';
 import type { RagActionParams } from './helpers/types';
@@ -73,6 +75,24 @@ export const ragAction: ActionDefinition<RagActionParams> = {
         // to the workflow's org before forwarding to RAG.
         await assertStorageIdsInOrg(ctx, _variables, [migratedParams.fileId]);
         const result = await fetchDocumentChunks(migratedParams.fileId);
+        // Prompt-injection defense: video-link-sourced chunks contain
+        // attacker-controlled transcript text. Mirror the wrap that
+        // `rag_search_tool.ts` applies on the agent-tool side.
+        const videoSources = await ctx.runQuery(
+          internal.file_metadata.internal_queries.lookupVideoLinkSources,
+          { storageIds: [toId<'_storage'>(migratedParams.fileId)] },
+        );
+        if (videoSources.length > 0) {
+          const meta: { tool: string; operation: string; url?: string } = {
+            tool: 'rag_action',
+            operation: 'get_chunks',
+          };
+          if (videoSources[0].sourceUrl) meta.url = videoSources[0].sourceUrl;
+          result.chunks = result.chunks.map((c) => ({
+            ...c,
+            content: wrapUntrusted(c.content, meta),
+          }));
+        }
         return { ...result, executionTimeMs: Date.now() - startTime };
       }
       case 'search': {
@@ -103,8 +123,44 @@ export const ragAction: ActionDefinition<RagActionParams> = {
           }
 
           const result = await fetchJson<SearchResponse>(response);
+          // Prompt-injection defense: per-result content wrap for any
+          // file ids that map to a video-link source. Mirror the
+          // `rag_search_tool.ts` search-mode wrap.
+          let wrappedResults = result.results;
+          if (wrappedResults.length > 0) {
+            const fileIds = wrappedResults
+              .map((r) => r.file_id)
+              .filter((id): id is string => Boolean(id));
+            if (fileIds.length > 0) {
+              const videoSources = await ctx.runQuery(
+                internal.file_metadata.internal_queries.lookupVideoLinkSources,
+                {
+                  storageIds: fileIds.map((id) => toId<'_storage'>(id)),
+                },
+              );
+              if (videoSources.length > 0) {
+                const byId = new Map(
+                  videoSources.map((src) => [
+                    String(src.storageId),
+                    src.sourceUrl,
+                  ]),
+                );
+                wrappedResults = wrappedResults.map((r) => {
+                  if (!r.file_id || !byId.has(r.file_id)) return r;
+                  const meta: {
+                    tool: string;
+                    operation: string;
+                    url?: string;
+                  } = { tool: 'rag_action', operation: 'search' };
+                  const url = byId.get(r.file_id);
+                  if (url) meta.url = url;
+                  return { ...r, content: wrapUntrusted(r.content, meta) };
+                });
+              }
+            }
+          }
           return {
-            results: result.results,
+            results: wrappedResults,
             totalResults: result.total_results,
             processingTimeMs: result.processing_time_ms,
             executionTimeMs: Date.now() - startTime,

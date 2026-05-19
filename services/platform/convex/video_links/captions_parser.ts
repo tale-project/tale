@@ -51,6 +51,12 @@ export interface CaptionSegment {
 // 5 MB ≈ 200 K cue lines after dedup — well past any legitimate transcript.
 const MAX_VTT_BYTES = 5 * 1024 * 1024;
 const MAX_SEGMENTS = 50_000;
+// Per-cue body cap. Legitimate cues are <2 KB; 64 KB is 30× headroom and
+// blocks the ReDoS attack where a single attacker-crafted cue absorbs
+// the entire 5 MB VTT budget (the inline-tag regex below is O(n) per
+// match but the cue iterates *every* `<` character — without this cap
+// a 5 MB unbalanced-`<` payload pegs CPU for minutes).
+const MAX_CUE_BODY_BYTES = 64 * 1024;
 
 export function parseVtt(input: string | Buffer): CaptionSegment[] {
   let text = typeof input === 'string' ? input : input.toString('utf-8');
@@ -92,6 +98,7 @@ export function parseVtt(input: string | Buffer): CaptionSegment[] {
     const textLines = lines.slice(timestampIdx + 1);
     const merged = textLines.join('\n').trim();
     if (!merged) continue;
+    if (merged.length > MAX_CUE_BODY_BYTES) continue;
 
     // Decode HTML entities FIRST, then strip tags — otherwise an attacker
     // who HTML-encodes `&lt;system&gt;` in caption text bypasses the tag
@@ -173,7 +180,11 @@ function cleanInlineText(input: string, maxLen?: number): string {
   out = out.replace(/\[\/?(INST|SYS|SYSTEM)\]/gi, '');
   // Standard VTT inline tags (`<c>`, `<c.colorE5E5E5>`, `</v>`, `</c>`) —
   // case-insensitive so encoder casing variants don't bleed through.
-  out = out.replace(/<\/?[a-zA-Z][^>]*>/g, '');
+  // The body is bounded at 1024 chars and `\n` is excluded so an
+  // adversarial cue full of unbalanced `<` characters can't trigger
+  // O(n²) backtracking — `[^>]*` is greedy and re-scans the rest of the
+  // string on every failed `<` opener.
+  out = out.replace(/<\/?[a-zA-Z][^>\n]{0,1024}>/g, '');
   // VTT inline timing tags — 1- or 2-digit hour (some encoders emit
   // `<0:00:01.500>` instead of the spec-correct `<00:00:01.500>`).
   out = out.replace(/<\d{1,2}:\d{2}:\d{2}\.\d{3}>/g, '');

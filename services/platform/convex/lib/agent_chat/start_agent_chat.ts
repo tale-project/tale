@@ -565,12 +565,16 @@ async function buildMessageWithAttachments(
           )
           .first();
         // Video-link provenance lives on `videoLinkJobs` (single writer).
-        // JOIN by storageId; legacy fileMetadata.sourceUrl/etc kept as
-        // fallback for rows from older orchestrator builds.
+        // JOIN by storageId via the dedicated `by_storageId` index — the
+        // previous `by_threadId` form had no `.eq()` clause, so it was a
+        // full-table scan filtered by `storageId` for every audio/video
+        // attachment on every chat send. Cost grew linearly with the
+        // org's lifetime video-link history.
         const videoLink = await ctx.db
           .query('videoLinkJobs')
-          .withIndex('by_threadId') // any index ordering is fine — we filter
-          .filter((q) => q.eq(q.field('storageId'), attachment.fileId))
+          .withIndex('by_storageId', (q) =>
+            q.eq('storageId', attachment.fileId),
+          )
           .first();
         return { attachment, meta, videoLink };
       }),

@@ -1,6 +1,6 @@
 'use client';
 
-import { Loader2, RotateCcw, X } from 'lucide-react';
+import { AlertCircle, Loader2, RotateCcw, X } from 'lucide-react';
 
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -56,6 +56,11 @@ export function VideoLinkChip({ job, onCancel, onRetry }: VideoLinkChipProps) {
   // (4) prevents the "stuck on Transcribing…" anti-pattern — transcribe_audio
   // emits per-chunk progress via heartbeatJobByStorageId; the chip needs to
   // surface that rather than burying it under the static i18n label.
+  // Server-side may emit a structured `__VL_ATTEMPT__N` progress token
+  // for retry state instead of an English literal — resolve it to a
+  // localized "Attempt N" string here. Other progress strings (Whisper
+  // chunk progress) are still plain text and surfaced as-is.
+  const renderedProgress = renderProgressToken(job.progress, tChat);
   const statusText = isFailed
     ? tChat(`videoLink.errors.${job.errorReasonCode ?? 'generic'}`, {
         defaultValue: tChat('videoLink.errors.generic'),
@@ -64,8 +69,8 @@ export function VideoLinkChip({ job, onCancel, onRetry }: VideoLinkChipProps) {
       ? formatDurationLabel(job.videoDurationSec)
       : job.displayStatus === 'retrying' && job.errorReasonCode
         ? `${tChat('videoLink.statuses.retrying')} (${tChat(`videoLink.errors.${job.errorReasonCode}`, { defaultValue: tChat('videoLink.errors.generic') })})`
-        : isProcessing && job.progress
-          ? job.progress
+        : isProcessing && renderedProgress
+          ? renderedProgress
           : tChat(`videoLink.statuses.${job.displayStatus}`, {
               defaultValue: tChat('videoLink.statuses.queued'),
             });
@@ -76,14 +81,14 @@ export function VideoLinkChip({ job, onCancel, onRetry }: VideoLinkChipProps) {
     <div
       role="group"
       aria-label={tChat('videoLink.chip.ariaLabel', { title })}
+      aria-busy={isProcessing}
       className={cn(
         // `max-w-full` keeps the chip inside its flex parent on every
-        // viewport; `sm:max-w-md` caps it at ~448 px on desktop so a
-        // single long-titled video doesn't eat the whole composer. The
-        // shape switches from `rounded-full` (pill) to `rounded-2xl`
-        // because pills don't look right at 2-line height — once we
-        // allow wrapping, the chip needs a softer corner radius.
-        'group/chip flex max-w-full items-center gap-2 rounded-2xl border px-3 py-1.5 text-sm sm:max-w-md',
+        // viewport; `lg:max-w-md` caps it at ~448 px on desktop, matching
+        // `message-bubble.tsx`'s user-bubble width — same breakpoint
+        // prevents a sm-lg-viewport bounce where the chip is wider than
+        // the bubble that replaces it on send.
+        'group/chip flex max-w-full items-center gap-2 rounded-2xl border px-3 py-1.5 text-sm lg:max-w-md',
         isFailed
           ? 'border-destructive/40 bg-destructive/5 text-destructive'
           : 'border-border bg-muted/40 text-foreground',
@@ -109,7 +114,10 @@ export function VideoLinkChip({ job, onCancel, onRetry }: VideoLinkChipProps) {
             href={job.sourceUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="line-clamp-2 font-medium break-words hover:underline focus-visible:underline focus-visible:outline-none"
+            // Visible focus ring — `focus-visible:underline` on its own
+            // is not a sufficient SC 2.4.7 / 1.4.11 non-text-contrast
+            // focus indicator. Mirror the icon buttons' ring style.
+            className="focus-visible:ring-ring line-clamp-2 rounded font-medium break-words hover:underline focus-visible:ring-2 focus-visible:outline-none"
             title={title}
           >
             {title}
@@ -119,19 +127,31 @@ export function VideoLinkChip({ job, onCancel, onRetry }: VideoLinkChipProps) {
             {title}
           </span>
         )}
+        {/* Live region stays `polite` throughout — including during
+            processing — so screen-reader users hear status transitions
+            (queued → fetching → completed). Previously the region was
+            silenced while `isProcessing`, which both swallowed the
+            mount announcement and suppressed every phase-transition
+            update. `aria-atomic=false` so a single token change inside
+            the region doesn't reread the whole label on every tick. */}
         <span
-          aria-live={isProcessing ? 'off' : 'polite'}
-          aria-atomic="true"
+          aria-live="polite"
+          aria-atomic="false"
           className={cn(
             'flex items-center gap-1 truncate text-xs',
             isFailed ? 'text-destructive' : 'text-muted-foreground',
           )}
         >
-          {/* `motion-safe:` honours `prefers-reduced-motion`. Otherwise
-              the spinner runs unconditionally for users who explicitly
-              asked the OS to suppress animation. */}
+          {/* Loader and error icons are decorative — the status text
+              span carries the semantics via the live region above. */}
           {isProcessing && (
-            <Loader2 className="size-3 shrink-0 motion-safe:animate-spin" />
+            <Loader2
+              aria-hidden="true"
+              className="size-3 shrink-0 motion-safe:animate-spin"
+            />
+          )}
+          {isFailed && (
+            <AlertCircle aria-hidden="true" className="size-3 shrink-0" />
           )}
           <span className="truncate">{statusText}</span>
         </span>
@@ -164,4 +184,21 @@ function formatDurationLabel(durationSec: number | undefined): string {
   const mm = Math.floor(totalSec / 60);
   const ss = totalSec % 60;
   return `${mm}:${String(ss).padStart(2, '0')}`;
+}
+
+/** Resolve server-side structured progress tokens to localized strings.
+ * Currently only `__VL_ATTEMPT__N` is structured; other progress values
+ * (Whisper chunk progress) are plain text and returned unchanged. */
+function renderProgressToken(
+  progress: string | undefined,
+  tChat: (key: string, vars?: Record<string, unknown>) => string,
+): string | undefined {
+  if (!progress) return progress;
+  const attemptMatch = /^__VL_ATTEMPT__(\d+)$/.exec(progress);
+  if (attemptMatch) {
+    return tChat('videoLink.statuses.attemptNumber', {
+      n: attemptMatch[1],
+    });
+  }
+  return progress;
 }

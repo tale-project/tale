@@ -26,7 +26,10 @@ function extractGuardrailsBlockedCode(
   if (typeof data !== 'object' || data === null || !('code' in data)) {
     return null;
   }
-  const code = (data as Record<string, unknown>)['code'];
+  // After the `'code' in data` narrowing, TS infers
+  // `data: object & Record<'code', unknown>`, so direct access is
+  // type-safe — no cast required.
+  const code = data.code;
   if (
     code === 'pii.blocked' ||
     code === 'chat_filter.blocked' ||
@@ -213,10 +216,19 @@ export function useSendMessage({
           // Surface the failure — without a toast the user clicks send,
           // sees their video chip vanish, gets an unrelated AI reply, and
           // reads it as "the AI ignored my video".
+          // Server-side `err.message` may be locale-mixed (English from
+          // the mutation handler vs. user's UI locale); prefer a
+          // localized fallback when the error doesn't carry a useful
+          // user-visible string of its own. The `Error` branch still
+          // surfaces ConvexError messages that are deliberately user-
+          // facing (rate-limit / cooldown / inFlightCap / budget).
+          const description =
+            err instanceof Error && err.message
+              ? err.message
+              : t('videoLink.toast.bindFailedDescription');
           toast({
             title: t('toast.sendFailed'),
-            description:
-              err instanceof Error ? err.message : 'video-link bind failed',
+            description,
             variant: 'destructive',
           });
         }

@@ -2160,6 +2160,7 @@
       "statuses": {
         "queued": "En file d'attente",
         "retrying": "Nouvelle tentative…",
+        "attemptNumber": "Tentative {n}",
         "fetching_metadata": "Lecture des infos vidéo…",
         "fetching_captions": "Récupération des sous-titres…",
         "extracting_audio": "Extraction de l'audio…",
@@ -2196,7 +2197,8 @@
         "playlist": "Les listes de lecture ne sont pas prises en charge — colle un lien vidéo unique",
         "dnsResolutionFailed": "Impossible de résoudre l'hôte",
         "privateIpResolved": "Ce lien pointe vers une adresse privée/interne",
-        "inFlightCap": "Trop de vidéos en cours de traitement — attends qu'une se termine"
+        "inFlightCap": "Trop de vidéos en cours de traitement — attends qu'une se termine",
+        "budgetExceeded": "Limite d'usage atteinte — contacte ton administrateur"
       },
       "actions": {
         "removeLink": "Retirer",
@@ -2209,7 +2211,8 @@
         "failedSendBlockedTooltip": "Une vidéo a échoué — réessaie-la ou retire la vignette avant d'envoyer"
       },
       "toast": {
-        "ingestFailedTitle": "Impossible d'ajouter cette vidéo"
+        "ingestFailedTitle": "Impossible d'ajouter cette vidéo",
+        "bindFailedDescription": "Impossible de joindre la transcription vidéo — réessaie"
       }
     },
     "fallback": {

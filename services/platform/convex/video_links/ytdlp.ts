@@ -146,20 +146,46 @@ function resolveSupportedFlags(): Promise<string[]> {
 /** Sanitization regex set — strip credentials + URLs + auth headers from
  * stderr before logging. yt-dlp's stderr can echo back signed URLs, cookies,
  * and proxy credentials in some failure modes. */
-const SANITIZE_PATTERNS: ReadonlyArray<[RegExp, string]> = [
+type Replacement = string | ((match: string) => string);
+const SANITIZE_PATTERNS: ReadonlyArray<readonly [RegExp, Replacement]> = [
   [/https?:\/\/[^\s]+/g, 'https://<redacted>'],
   [/Bearer\s+[A-Za-z0-9._-]+/gi, 'Bearer <redacted>'],
   [/--username\s+\S+/gi, '--username <redacted>'],
   [/--password\s+\S+/gi, '--password <redacted>'],
   [/--cookies(-from-browser)?\s+\S+/gi, '--cookies <redacted>'],
+  [/--proxy\s+\S+/gi, '--proxy <redacted>'],
   [/Authorization:\s*\S+/gi, 'Authorization: <redacted>'],
+  // Cookie / Set-Cookie headers: yt-dlp -v dumps full cookie jars on
+  // some failure paths. Strip the whole header value, not just the
+  // first attribute pair.
+  [/(?:Set-)?Cookie:\s*[^\r\n]+/gi, 'Cookie: <redacted>'],
+  // S3-style presigned URL params; yt-dlp may print these stripped from
+  // their parent URL when reporting "Got HTTP Error" lines.
   [/Signature=[^&\s]+/g, 'Signature=<redacted>'],
   [/Policy=[^&\s]+/g, 'Policy=<redacted>'],
+  // YouTube + general OAuth/session token params that can appear bare
+  // in error messages (no `https://` prefix to match URL pattern).
+  // Preserve the key name so operators can identify the leak; redact
+  // only the value.
+  [
+    /\b(po_token|visitor_data|cpn|pot|sig|signature|access_token|id_token|refresh_token|SAPISIDHASH|SAPISID)=[^\s&]+/gi,
+    (m: string): string => `${m.split('=')[0]}=<redacted>`,
+  ],
+  // Standalone JWTs (header.payload.signature, three base64url segments).
+  [
+    /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g,
+    '<redacted-jwt>',
+  ],
 ];
 
 function sanitizeStderr(raw: string): string {
   let out = raw;
-  for (const [re, sub] of SANITIZE_PATTERNS) out = out.replace(re, sub);
+  for (const [re, sub] of SANITIZE_PATTERNS) {
+    // String.replace's overload signature accepts either a string or a
+    // function; the union widening matters for the typechecker only.
+    out =
+      typeof sub === 'function' ? out.replace(re, sub) : out.replace(re, sub);
+  }
   return out.slice(-800); // tail only — full stderr can be MB on chatty errors
 }
 
@@ -272,9 +298,16 @@ async function runYtdlp(
   // call probes `--help` and caches; subsequent calls are free.
   const commonFlags = await resolveSupportedFlags();
   return new Promise((resolve, reject) => {
+    // `detached: true` puts the child in its own process group so we can
+    // signal the whole group with `process.kill(-pid, ...)` on timeout.
+    // Without this, yt-dlp's ffmpeg grandchild orphans when the Convex
+    // action is hard-killed — the wrapper Node process terminates but
+    // ffmpeg continues to its natural exit, leaving disk/CPU usage that
+    // the entrypoint's 60-min tmpdir sweep can only partially reclaim.
     const proc = spawn(YTDLP_BIN, [...commonFlags, ...args], {
       stdio: ['ignore', 'pipe', 'pipe'],
       cwd: jobDir,
+      detached: true,
       // env stripped to the minimum yt-dlp + ffmpeg need. NEVER pass
       // process.env — Convex secrets (SOPS_AGE_KEY, db creds, provider
       // tokens) would land in the child's environment.
@@ -317,19 +350,28 @@ async function runYtdlp(
       if (sigkillTimer) clearTimeout(sigkillTimer);
       resolve(val);
     };
-    const killEscalate = (): void => {
+    // Group-targeted kill: `-pid` (negative, leading-minus) signals the
+    // whole process group. yt-dlp spawns ffmpeg as a child; without the
+    // group target, our `proc.kill` reaches yt-dlp only and ffmpeg
+    // continues converting until natural exit. The fall-back `proc.kill`
+    // handles edge cases where setpgid hasn't run yet (very early
+    // failures) — same signal, narrower target.
+    const killGroup = (signal: NodeJS.Signals): void => {
+      const pid = proc.pid;
+      if (pid === undefined) return;
       try {
-        proc.kill('SIGTERM');
+        process.kill(-pid, signal);
       } catch {
-        /* already exited */
-      }
-      sigkillTimer = setTimeout(() => {
         try {
-          proc.kill('SIGKILL');
+          proc.kill(signal);
         } catch {
           /* already exited */
         }
-      }, 5_000);
+      }
+    };
+    const killEscalate = (): void => {
+      killGroup('SIGTERM');
+      sigkillTimer = setTimeout(() => killGroup('SIGKILL'), 5_000);
     };
 
     proc.stdout.on('data', (d) => {
@@ -372,6 +414,9 @@ async function runYtdlp(
       // install landed. Surface as a NEVER_RETRY reason so the chip
       // flips to failed immediately with a clear message, instead of
       // burning 3 retry cycles with opaque "transient" errors.
+      // Third-party-gap cast: Node's `'error'` event typings declare
+      // `Error` but the runtime always populates `.code` for spawn
+      // failures — `NodeJS.ErrnoException` is the lib.d.ts shape.
       const errno = (err as NodeJS.ErrnoException).code;
       if (errno === 'ENOENT') {
         settleReject(

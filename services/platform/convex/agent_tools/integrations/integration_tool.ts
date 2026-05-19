@@ -212,7 +212,11 @@ Write operations create approval cards. When telling the user an approval card i
               integration: args.integrationName,
               operation: args.operation,
             }),
-            raw: result,
+            // `raw: result` was previously included here as a structured
+            // mirror of `content`. It was a prompt-injection vector: the
+            // LLM saw the same payload twice, once wrapped and once
+            // bare. `fileReferences` / `citations` cover the legitimate
+            // structured-output need without exposing the raw text.
             costCents,
           },
           ...(fileReferences ? { fileReferences } : {}),
@@ -272,7 +276,7 @@ function readStringContextField(ctx: ToolCtx, key: string): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
-function safeStringifyResult(result: unknown): string {
+export function safeStringifyResult(result: unknown): string {
   try {
     return JSON.stringify(result, null, 2);
   } catch {

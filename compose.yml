@@ -291,6 +291,26 @@ services:
     # No ports published — access only via Caddy on the internal network.
     # Ports 3210/3211/6791 remain host-internal to this container.
 
+    # NET_ADMIN: required for the entrypoint's SSRF egress firewall
+    # (iptables REJECT rules for IMDS + link-local + RFC1918). Without
+    # this cap, the entrypoint logs a warning and skips the firewall —
+    # yt-dlp's own DNS resolution then becomes a DNS-rebinding SSRF
+    # vector against the host's cloud metadata service (AWS/GCP/Azure).
+    cap_add:
+      - NET_ADMIN
+
+    # Per-container resource caps. yt-dlp + ffmpeg subprocesses peak
+    # ~300-500 MB each; APPLICATION_MAX_CONCURRENT_NODE_ACTIONS=32 means
+    # the worst case is 32 parallel ingest jobs. mem_limit caps blast
+    # radius; pids_limit defends against fork-bomb regressions; nofile
+    # gives breathing room for concurrent yt-dlp + ffmpeg + Convex.
+    mem_limit: 12g
+    pids_limit: 4096
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+
     volumes:
       # Independent convex data volume. Once Phase 2 migration completes, this
       # contains everything platform-data previously held under /app/data/.

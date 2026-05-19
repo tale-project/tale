@@ -2160,6 +2160,7 @@
       "statuses": {
         "queued": "In Warteschlange",
         "retrying": "Erneuter Versuch…",
+        "attemptNumber": "Versuch {n}",
         "fetching_metadata": "Lese Video-Infos…",
         "fetching_captions": "Lade Untertitel…",
         "extracting_audio": "Extrahiere Audio…",
@@ -2182,8 +2183,8 @@
         "liveStream": "Live-Streams werden nicht unterstützt",
         "premiere": "Premiere/Vorschau-Video noch nicht verfügbar",
         "memberOnly": "Nur für Mitglieder",
-        "jsRuntimeMissing": "Video-Verarbeitung nicht vollständig konfiguriert — Admin kontaktieren",
-        "binaryNotInstalled": "Video-Verarbeitung noch nicht aktiviert — bitte Administrator kontaktieren",
+        "jsRuntimeMissing": "Video-Verarbeitung nicht vollständig konfiguriert — Administrator kontaktieren",
+        "binaryNotInstalled": "Video-Verarbeitung noch nicht aktiviert — Administrator kontaktieren",
         "retryCooldown": "Dieses Video wurde gerade gedrosselt — bitte einige Minuten warten",
         "timeout": "Anfrage hat zu lange gedauert — erneut versuchen",
         "outputValidationFailed": "Heruntergeladene Video-Datei konnte nicht validiert werden",
@@ -2196,7 +2197,8 @@
         "playlist": "Playlists werden nicht unterstützt — einzelnen Video-Link einfügen",
         "dnsResolutionFailed": "Hostname konnte nicht aufgelöst werden",
         "privateIpResolved": "Dieser Link verweist auf eine private/interne Adresse",
-        "inFlightCap": "Zu viele Videos in Verarbeitung — bitte warten, bis eines fertig ist"
+        "inFlightCap": "Zu viele Videos in Verarbeitung — bitte warten, bis eines fertig ist",
+        "budgetExceeded": "Nutzungslimit erreicht — Administrator kontaktieren"
       },
       "actions": {
         "removeLink": "Entfernen",
@@ -2209,7 +2211,8 @@
         "failedSendBlockedTooltip": "Ein Video ist fehlgeschlagen — bitte erneut versuchen oder Chip entfernen"
       },
       "toast": {
-        "ingestFailedTitle": "Video konnte nicht hinzugefügt werden"
+        "ingestFailedTitle": "Video konnte nicht hinzugefügt werden",
+        "bindFailedDescription": "Video-Transkript konnte nicht angehängt werden — bitte erneut versuchen"
       }
     },
     "fallback": {
