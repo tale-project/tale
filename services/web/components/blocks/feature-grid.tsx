@@ -2,7 +2,7 @@ import { Image } from '@tale/ui/image';
 import { motion, useReducedMotion } from 'framer-motion';
 import type { ComponentType, SVGProps } from 'react';
 
-import { SiteContainer } from '@/app/components/layout/site-container';
+import { SiteContainer } from '@/components/layout/site-container';
 
 type FeatureIcon = ComponentType<SVGProps<SVGSVGElement>>;
 

@@ -3,21 +3,21 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { Check } from 'lucide-react';
 import type { ReactNode } from 'react';
 
+import type { HardwareMode } from '@/app/pages/hardware-pricing-page';
 import {
   CompareTable,
   LabelWithInfo,
   type CompareRow,
   type CompareTier,
-} from '@/app/components/blocks/compare-table';
-import { SpecValue } from '@/app/components/blocks/hardware-spec-value';
+} from '@/components/blocks/compare-table';
+import { SpecValue } from '@/components/blocks/hardware-spec-value';
 import {
   clusterSpec,
   nodeSpec,
   type SpecLines,
-} from '@/app/components/blocks/hardware-specs';
-import { LocalizedLink } from '@/app/components/layout/localized-link';
-import { SiteContainer } from '@/app/components/layout/site-container';
-import type { HardwareMode } from '@/app/pages/hardware-pricing-page';
+} from '@/components/blocks/hardware-specs';
+import { LocalizedLink } from '@/components/layout/localized-link';
+import { SiteContainer } from '@/components/layout/site-container';
 import { useT } from '@/lib/i18n/client';
 
 /**

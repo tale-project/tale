@@ -1,11 +1,11 @@
 import { useNavigate, useSearch } from '@tanstack/react-router';
 
-import { HardwareCompare } from '@/app/components/blocks/hardware-compare';
+import { HardwareCompare } from '@/components/blocks/hardware-compare';
 import {
   LEASING_TERMS,
   type LeasingTerm,
-} from '@/app/components/blocks/hardware-specs';
-import { HardwareTiers } from '@/app/components/blocks/hardware-tiers';
+} from '@/components/blocks/hardware-specs';
+import { HardwareTiers } from '@/components/blocks/hardware-tiers';
 import { useT } from '@/lib/i18n/client';
 import { localizedPath } from '@/lib/i18n/locales';
 import { useCurrentLocale } from '@/lib/i18n/use-current-locale';

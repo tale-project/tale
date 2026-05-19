@@ -3,11 +3,11 @@ import { formatCurrency } from '@tale/ui/format';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Check } from 'lucide-react';
 
-import type { Billing } from '@/app/components/blocks/pricing-section';
-import { TierCard } from '@/app/components/blocks/tier-card';
-import { UserCountControl } from '@/app/components/blocks/user-count-control';
-import { LocalizedLink } from '@/app/components/layout/localized-link';
-import { SiteContainer } from '@/app/components/layout/site-container';
+import type { Billing } from '@/components/blocks/pricing-section';
+import { TierCard } from '@/components/blocks/tier-card';
+import { UserCountControl } from '@/components/blocks/user-count-control';
+import { LocalizedLink } from '@/components/layout/localized-link';
+import { SiteContainer } from '@/components/layout/site-container';
 import { DOCS_URL } from '@/lib/docs-url';
 import { useT } from '@/lib/i18n/client';
 import {

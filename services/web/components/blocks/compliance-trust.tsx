@@ -2,7 +2,7 @@ import { Image } from '@tale/ui/image';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Layers, Shield } from 'lucide-react';
 
-import { SiteContainer } from '@/app/components/layout/site-container';
+import { SiteContainer } from '@/components/layout/site-container';
 import { useT } from '@/lib/i18n/client';
 
 const easeOut = [0.22, 1, 0.36, 1] as const;

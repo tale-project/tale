@@ -8,8 +8,8 @@ import {
   ChatIcon,
   ConversationsIcon,
   WorkflowsIcon,
-} from '@/app/components/icons/marketing-icons';
-import { SiteContainer } from '@/app/components/layout/site-container';
+} from '@/components/icons/marketing-icons';
+import { SiteContainer } from '@/components/layout/site-container';
 import { useT } from '@/lib/i18n/client';
 
 type FeatureIcon = ComponentType<SVGProps<SVGSVGElement>>;

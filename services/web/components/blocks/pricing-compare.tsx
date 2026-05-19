@@ -8,9 +8,9 @@ import {
   LabelWithInfo,
   type CompareRow,
   type CompareTier,
-} from '@/app/components/blocks/compare-table';
-import { LocalizedLink } from '@/app/components/layout/localized-link';
-import { SiteContainer } from '@/app/components/layout/site-container';
+} from '@/components/blocks/compare-table';
+import { LocalizedLink } from '@/components/layout/localized-link';
+import { SiteContainer } from '@/components/layout/site-container';
 import { useT } from '@/lib/i18n/client';
 import type { Region } from '@/lib/pricing/region';
 

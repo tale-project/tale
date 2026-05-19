@@ -1,7 +1,7 @@
 import { Accordion, AccordionItem } from '@tale/ui/accordion';
 import { motion, useReducedMotion } from 'framer-motion';
 
-import { SiteContainer } from '@/app/components/layout/site-container';
+import { SiteContainer } from '@/components/layout/site-container';
 import { useT } from '@/lib/i18n/client';
 
 const easeOut = [0.22, 1, 0.36, 1] as const;

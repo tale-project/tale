@@ -1,8 +1,8 @@
 import { LocaleSync } from '@tale/ui/i18n/sync';
 import { Outlet, createRootRoute } from '@tanstack/react-router';
 
-import { SiteFooter } from '@/app/components/layout/site-footer';
-import { SiteHeader } from '@/app/components/layout/site-header';
+import { SiteFooter } from '@/components/layout/site-footer';
+import { SiteHeader } from '@/components/layout/site-header';
 import { useT } from '@/lib/i18n/client';
 import { resolveRegionalLocale } from '@/lib/i18n/locales';
 import { useCurrentLocale } from '@/lib/i18n/use-current-locale';

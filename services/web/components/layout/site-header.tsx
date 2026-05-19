@@ -4,7 +4,7 @@ import { SiteHeader as SiteHeaderShell } from '@tale/webui/layout/site-header';
 import { useRouterState } from '@tanstack/react-router';
 import { useEffect } from 'react';
 
-import { LocalizedLink } from '@/app/components/layout/localized-link';
+import { LocalizedLink } from '@/components/layout/localized-link';
 import { DOCS_URL } from '@/lib/docs-url';
 import { useT } from '@/lib/i18n/client';
 

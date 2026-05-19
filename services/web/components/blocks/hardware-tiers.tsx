@@ -2,6 +2,10 @@ import { Button } from '@tale/ui/button';
 import { formatCurrency } from '@tale/ui/format';
 import { motion, useReducedMotion } from 'framer-motion';
 
+import type {
+  HardwareBilling,
+  HardwareMode,
+} from '@/app/pages/hardware-pricing-page';
 import {
   LEASING_TERMS,
   clusterBuyPrice,
@@ -11,15 +15,11 @@ import {
   nodeMetrics,
   type LeasingTerm,
   type TierMetrics,
-} from '@/app/components/blocks/hardware-specs';
-import { TierCard } from '@/app/components/blocks/tier-card';
-import { LocalizedLink } from '@/app/components/layout/localized-link';
-import { SiteContainer } from '@/app/components/layout/site-container';
-import { ProgressBar } from '@/app/components/progress-bar';
-import type {
-  HardwareBilling,
-  HardwareMode,
-} from '@/app/pages/hardware-pricing-page';
+} from '@/components/blocks/hardware-specs';
+import { TierCard } from '@/components/blocks/tier-card';
+import { LocalizedLink } from '@/components/layout/localized-link';
+import { SiteContainer } from '@/components/layout/site-container';
+import { ProgressBar } from '@/components/progress-bar';
 import { useT } from '@/lib/i18n/client';
 
 /**
