@@ -14,6 +14,7 @@ vi.mock('../../_generated/api', () => ({
     file_metadata: {
       internal_queries: {
         getByStorageId: 'mock-get-by-storage-id',
+        lookupVideoLinkSources: 'mock-lookup-video-link-sources',
       },
     },
   },
