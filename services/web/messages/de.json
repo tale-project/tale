@@ -367,7 +367,8 @@
       "subtitle": "Übersicht über jede Konfiguration",
       "categories": {
         "model": "Empfohlenes KI-Modell",
-        "size": "Grösse",
+        "size": "Größe",
+        "sizeInfo": "Richtwerte — die tatsächliche Größe kann leicht abweichen.",
         "gpu": "Chip (GPU)",
         "cpu": "Chip (CPU)",
         "ram": "KI-RAM",

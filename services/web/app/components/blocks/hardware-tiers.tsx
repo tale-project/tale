@@ -57,7 +57,7 @@ const TIERS: Tier[] = [
     popular: true,
     pricing: {
       cluster: { rental: 2800, buy: 55_700 },
-      node: { rental: 500, buy: 8800 },
+      node: { rental: 500, buy: 14_990 },
     },
     metrics: {
       cluster: { quality: 75, speed: 50, storage: 100 },

@@ -23,5 +23,13 @@
         "description": "Wir unterstützen OpenAI, Anthropic, Gemini und andere grosse Cloud-KI-Anbieter in EU/CH — bessere Preise, höhere Verfügbarkeit und nutzungsbasierte Abrechnung."
       }
     }
+  },
+  "hardwarePricing": {
+    "compare": {
+      "categories": {
+        "size": "Grösse",
+        "sizeInfo": "Richtwerte — die tatsächliche Grösse kann leicht abweichen."
+      }
+    }
   }
 }

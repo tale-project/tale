@@ -368,6 +368,7 @@
       "categories": {
         "model": "Recommended AI model",
         "size": "Size",
+        "sizeInfo": "Approximate dimensions — actual size may vary slightly.",
         "gpu": "Chip (GPU)",
         "cpu": "Chip (CPU)",
         "ram": "AI RAM",

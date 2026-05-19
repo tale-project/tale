@@ -107,27 +107,44 @@ function SpecValue({ value }: { value: string }): ReactNode {
           // i18next returns the key when the translation is missing —
           // fall back to plain text so unknown bracketed tokens don't
           // surface a tooltip with the raw key as content.
-          if (info === key) continue;
+          const hasTooltip = info !== key;
           const start = match.index ?? 0;
-          if (start > lastIndex) parts.push(line.slice(lastIndex, start));
+          if (start > lastIndex) {
+            // Replace the trailing space before "(" with a non-breaking
+            // space so the styled paren group never wraps away from its
+            // preceding value (e.g. "96GB (UMA)" stays as one unit).
+            let chunk = line.slice(lastIndex, start);
+            if (chunk.endsWith(' ')) chunk = chunk.slice(0, -1) + '\u00A0';
+            parts.push(chunk);
+          }
           parts.push(
-            <Fragment key={`${lineIdx}-${start}`}>
+            <span
+              key={`${lineIdx}-${start}`}
+              className="text-fg-subtle inline-block align-super text-xs whitespace-nowrap"
+            >
               {'('}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    className="cursor-help underline decoration-dotted underline-offset-2"
+              {hasTooltip ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className="cursor-help underline decoration-dotted underline-offset-2"
+                    >
+                      {inner}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    side="top"
+                    className="max-w-xs text-center whitespace-normal"
                   >
-                    {inner}
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-xs text-center">
-                  {info}
-                </TooltipContent>
-              </Tooltip>
+                    {info}
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
+                inner
+              )}
               {')'}
-            </Fragment>,
+            </span>,
           );
           lastIndex = start + match[0].length;
         }
@@ -229,6 +246,11 @@ export function HardwareCompare({ mode }: HardwareCompareProps) {
             <LabelWithInfo
               label={t('compare.categories.ram')}
               info={t('compare.categories.ramInfo')}
+            />
+          ) : axis.row === 'size' ? (
+            <LabelWithInfo
+              label={t('compare.categories.size')}
+              info={t('compare.categories.sizeInfo')}
             />
           ) : (
             t(`compare.categories.${axis.row}`)

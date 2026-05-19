@@ -368,6 +368,7 @@
       "categories": {
         "model": "Modèle d'IA recommandé",
         "size": "Taille",
+        "sizeInfo": "Valeurs indicatives — les dimensions réelles peuvent varier légèrement.",
         "gpu": "Puce (GPU)",
         "cpu": "Puce (CPU)",
         "ram": "RAM IA",
