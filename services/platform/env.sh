@@ -46,6 +46,7 @@ env_normalize_common() {
 	  # They can be overridden via environment variables in .env when needed.
 	  export RAG_URL="${RAG_URL:-http://rag:8001}"
 	  export CRAWLER_URL="${CRAWLER_URL:-http://crawler:8002}"
+	  export SANDBOX_URL="${SANDBOX_URL:-http://sandbox:8003}"
 	  export SEARCH_SERVICE_URL="${SEARCH_SERVICE_URL:-http://search:8080}"
 
 	  # Convex instance configuration
