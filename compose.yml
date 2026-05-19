@@ -596,6 +596,13 @@ services:
       context: services/sandbox
       dockerfile: Dockerfile
     container_name: tale-sandbox
+    # Port mapping: host:container (for development)
+    # `bun dev` runs the convex-local-backend on the host, so the executeCode
+    # Node action needs to reach the spawner via 127.0.0.1:8003. Same shape
+    # as rag (8001) and crawler (8002). The `tale deploy` CLI generator
+    # omits this in production.
+    ports:
+      - '8003:8003'
     env_file:
       - .env
     environment:
