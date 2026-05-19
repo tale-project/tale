@@ -95,6 +95,7 @@ export async function spawnerExecute(
   } catch (err) {
     throw new Error(
       `sandbox spawner unreachable at ${url}: ${err instanceof Error ? err.message : String(err)}`,
+      { cause: err },
     );
   }
 
@@ -110,6 +111,7 @@ export async function spawnerExecute(
     const text = await res.text().catch(() => '');
     throw new Error(`sandbox spawner ${res.status}: ${text || res.statusText}`);
   }
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- spawner-side schema is validated at the spawner; trust the wire contract here
   return (await res.json()) as SpawnerExecuteResponse;
 }
 
