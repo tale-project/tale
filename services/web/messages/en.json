@@ -328,8 +328,10 @@
     "configIncludes": "Configuration includes:",
     "billing": {
       "ariaLabel": "Payment option",
-      "renting": "Renting",
-      "buying": "Buying (financing possible)"
+      "leasing": "Leasing",
+      "buying": "Buying",
+      "termAriaLabel": "Leasing term",
+      "termHeading": "Months:"
     },
     "modesAriaLabel": "Deployment mode",
     "deploymentNote": "All hardware configurations are silent (noise-free) and can be deployed at your site and maintained remotely by our team, or hosted in our secure data centers.",

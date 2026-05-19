@@ -25,36 +25,41 @@ interface BasePayload extends FieldValues {
   website?: string;
 }
 
-interface FormCardProps {
+interface FormCardProps<T extends BasePayload> {
   eyebrow?: string;
   title: string;
   description?: ReactNode;
   formKind: SubmitRequest['form'];
   /** Form instance built by the caller via useForm + zodResolver. */
-  form: UseFormReturn<BasePayload>;
+  form: UseFormReturn<T>;
   /** Render the actual fields. */
   children: ReactNode;
   /** Submit button label. */
   submitLabel: string;
   /** Default values used when resetting after a successful submit. */
-  defaultValues: BasePayload;
+  defaultValues: T;
 }
 
-export function FormCard({
+export function FormCard<T extends BasePayload>({
   eyebrow,
   title,
   description,
   formKind,
-  form,
+  form: formExternal,
   children,
   submitLabel,
   defaultValues,
-}: FormCardProps) {
+}: FormCardProps<T>) {
   const { t } = useT('forms');
   const reduceMotion = useReducedMotion();
   const [submitted, setSubmitted] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
+  // Internal type narrowing: T extends BasePayload, so every BasePayload
+  // field is present on T at runtime. React-hook-form's `Path<T>` is
+  // invariant in T though, so we widen to BasePayload once for the
+  // generic-erasing field operations below.
+  const form = formExternal as unknown as UseFormReturn<BasePayload>;
   const { setValue } = form;
   useEffect(() => {
     setValue('startedAt', Date.now(), { shouldValidate: false });

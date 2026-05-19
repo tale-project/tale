@@ -44,8 +44,7 @@ export function ContactPage() {
     <FormCard
       title={t('title')}
       description={<p>{t('description')}</p>}
-      // oxlint-disable-next-line typescript/no-explicit-any, typescript/no-unsafe-type-assertion -- FormCard expects a base shape; runtime payload is shape-compatible
-      form={form as any}
+      form={form}
       defaultValues={defaultValues}
       formKind="contact"
       submitLabel={t('submit')}

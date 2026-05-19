@@ -328,8 +328,10 @@
     "configIncludes": "Konfiguration enthält:",
     "billing": {
       "ariaLabel": "Zahlungsoption",
-      "renting": "Miete",
-      "buying": "Kauf (Finanzierung möglich)"
+      "leasing": "Leasing",
+      "buying": "Kauf",
+      "termAriaLabel": "Leasinglaufzeit",
+      "termHeading": "Monate:"
     },
     "modesAriaLabel": "Bereitstellungsmodus",
     "deploymentNote": "Alle Hardware-Konfigurationen sind geräuschlos und können bei dir vor Ort installiert und remote von unserem Team gewartet werden — oder in unseren sicheren Rechenzentren gehostet werden.",

@@ -1,15 +1,13 @@
 import { useNavigate, useSearch } from '@tanstack/react-router';
 
 import { PricingCompare } from '@/app/components/blocks/pricing-compare';
-import {
-  DEFAULT_USERS,
-  PricingTiers,
-} from '@/app/components/blocks/pricing-tiers';
+import { PricingTiers } from '@/app/components/blocks/pricing-tiers';
 import {
   detectDefaultRegion,
   REGIONS,
   type Region,
 } from '@/lib/pricing/region';
+import { DEFAULT_USERS } from '@/lib/pricing/tiers';
 
 export type Billing = 'monthly' | 'yearly';
 

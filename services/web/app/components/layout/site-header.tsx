@@ -1,8 +1,6 @@
 import { Button } from '@tale/ui/button';
 import { TaleLogo } from '@tale/ui/logo';
 import { SiteHeader as SiteHeaderShell } from '@tale/webui/layout/site-header';
-import { useRouterState } from '@tanstack/react-router';
-import { useEffect } from 'react';
 
 import { LocalizedLink } from '@/app/components/layout/localized-link';
 import { DOCS_URL } from '@/lib/docs-url';
@@ -21,18 +19,6 @@ const NAV_ITEMS: readonly NavItem[] = [
 
 export function SiteHeader() {
   const { t } = useT('nav');
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-
-  // After client-side hash navigation, ensure smooth scroll to the target.
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const hash = window.location.hash.replace('#', '');
-    if (!hash) return;
-    requestAnimationFrame(() => {
-      const target = document.getElementById(hash);
-      target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-  }, [pathname]);
 
   const desktopNav = NAV_ITEMS.map((item) => (
     <LocalizedLink
