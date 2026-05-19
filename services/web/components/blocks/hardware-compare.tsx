@@ -1,5 +1,4 @@
 import { Button } from '@tale/ui/button';
-import { motion, useReducedMotion } from 'framer-motion';
 import { Check } from 'lucide-react';
 import type { ReactNode } from 'react';
 
@@ -16,8 +15,8 @@ import {
   nodeSpec,
   type SpecLines,
 } from '@/components/blocks/hardware-specs';
+import { MarketingSection } from '@/components/blocks/marketing-section';
 import { LocalizedLink } from '@/components/layout/localized-link';
-import { SiteContainer } from '@/components/layout/site-container';
 import { useT } from '@/lib/i18n/client';
 
 /**
@@ -29,8 +28,6 @@ import { useT } from '@/lib/i18n/client';
  * definitions in `hardware-specs.ts`; everything else (CTAs, span rows,
  * section dividers) is composed inline.
  */
-
-const easeOut = [0.22, 1, 0.36, 1] as const;
 
 const TIER_KEYS = ['quality', 'hybrid', 'speed'] as const;
 type TierKey = (typeof TIER_KEYS)[number];
@@ -75,7 +72,6 @@ interface HardwareCompareProps {
 
 export function HardwareCompare({ mode }: HardwareCompareProps) {
   const { t } = useT('hardwarePricing');
-  const reduceMotion = useReducedMotion();
 
   const specs: Record<TierKey, SpecLines> = {
     quality:
@@ -252,33 +248,12 @@ export function HardwareCompare({ mode }: HardwareCompareProps) {
   ];
 
   return (
-    <section className="border-border-base border-b py-20">
-      <SiteContainer>
-        <motion.header
-          initial={reduceMotion ? false : { opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: '-15%' }}
-          transition={
-            reduceMotion ? { duration: 0 } : { duration: 0.6, ease: easeOut }
-          }
-          className="mx-auto flex max-w-[1120px] flex-col items-center gap-3 text-center"
-        >
-          <h2
-            className="text-fg-base text-3xl font-medium md:text-[48px]"
-            style={{ letterSpacing: '-2.14px', lineHeight: 1.083 }}
-          >
-            {t('compare.title')}
-          </h2>
-          <p
-            className="text-fg-muted text-base md:text-lg"
-            style={{ letterSpacing: '-0.27px', lineHeight: 1.556 }}
-          >
-            {t('compare.subtitle')}
-          </p>
-        </motion.header>
-
-        <CompareTable caption={t('compare.title')} tiers={tiers} rows={rows} />
-      </SiteContainer>
-    </section>
+    <MarketingSection
+      variant="subsection"
+      title={t('compare.title')}
+      description={t('compare.subtitle')}
+    >
+      <CompareTable caption={t('compare.title')} tiers={tiers} rows={rows} />
+    </MarketingSection>
   );
 }
