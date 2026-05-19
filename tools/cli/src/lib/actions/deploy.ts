@@ -18,7 +18,7 @@ import {
   isStatefulService,
 } from '../compose/types';
 import { dockerCompose } from '../docker/docker-compose';
-import { ensureNetwork } from '../docker/ensure-network';
+import { ensureNetwork, ensureSandboxNetwork } from '../docker/ensure-network';
 import { ensureVolumes } from '../docker/ensure-volumes';
 import { exec } from '../docker/exec';
 import { getContainerVersion } from '../docker/get-container-version';
@@ -55,6 +55,11 @@ async function ensureInfrastructure(
   const networkCreated = await ensureNetwork('internal');
   if (!networkCreated) {
     throw new Error('Failed to create required network');
+  }
+  // Sandbox bridge: fixed name `tale-sandbox-net`, internal-only, IPv6 off.
+  const sandboxNetworkCreated = await ensureSandboxNetwork();
+  if (!sandboxNetworkCreated) {
+    throw new Error('Failed to create sandbox network');
   }
 }
 

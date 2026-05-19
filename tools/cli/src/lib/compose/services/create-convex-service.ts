@@ -15,6 +15,25 @@ export function createConvexService(config: ServiceConfig): ComposeService {
   return {
     image: `${config.registry}/tale-convex:${config.version}`,
     container_name: `${getProjectId()}-convex`,
+    // NET_ADMIN: required for the entrypoint's SSRF egress firewall
+    // (iptables REJECT rules for IMDS + link-local + RFC1918). Without
+    // this cap, services/convex/docker-entrypoint.sh:79 logs a warning
+    // and skips the firewall — yt-dlp's own DNS resolution then becomes
+    // a DNS-rebinding SSRF vector against the host's cloud metadata
+    // service. The compose.yml had this all along; the CLI generator
+    // was silently dropping it (R1.17). Bonus fix surfaced by the
+    // sandbox review.
+    cap_add: ['NET_ADMIN'],
+    // Per-container resource caps. yt-dlp + ffmpeg subprocesses peak
+    // ~300-500 MB each; APPLICATION_MAX_CONCURRENT_NODE_ACTIONS=32 means
+    // the worst case is 32 parallel ingest jobs. mem_limit caps blast
+    // radius; pids_limit defends against fork-bomb regressions; nofile
+    // gives breathing room for concurrent yt-dlp + ffmpeg + Convex.
+    mem_limit: '12g',
+    pids_limit: 4096,
+    ulimits: {
+      nofile: { soft: 65536, hard: 65536 },
+    },
     volumes: ['convex-data:/app/data', 'caddy-data:/caddy-data:ro'],
     env_file: ['.env'],
     restart: 'unless-stopped',

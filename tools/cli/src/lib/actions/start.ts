@@ -10,7 +10,7 @@ import { findComposeOverride } from '../compose/find-compose-override';
 import { DEV_VOLUME_NAMES } from '../compose/generators/constants';
 import { generateDevCompose } from '../compose/generators/generate-dev-compose';
 import { dockerCompose } from '../docker/docker-compose';
-import { ensureNetwork } from '../docker/ensure-network';
+import { ensureNetwork, ensureSandboxNetwork } from '../docker/ensure-network';
 import { ensureVolumes } from '../docker/ensure-volumes';
 import { exec } from '../docker/exec';
 import { findProject } from '../project/find-project';
@@ -226,6 +226,14 @@ export async function start(options: StartOptions): Promise<void> {
     const networkOk = await ensureNetwork('internal', devPrefix);
     if (!networkOk) {
       throw new Error('Failed to create dev network');
+    }
+    // Sandbox bridge has a fixed Docker name (tale-sandbox-net) and lives
+    // outside the project-prefixed naming scheme so the spawner can target
+    // it directly from `docker run --network`. Internal-only (no internet)
+    // and IPv6-disabled (R1.3 v4-allowlist-bypass mitigation).
+    const sandboxNetworkOk = await ensureSandboxNetwork();
+    if (!sandboxNetworkOk) {
+      throw new Error('Failed to create sandbox network');
     }
   });
 

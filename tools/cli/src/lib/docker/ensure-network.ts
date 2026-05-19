@@ -7,7 +7,10 @@ async function networkExists(networkName: string): Promise<boolean> {
   return result.success;
 }
 
-async function createNetwork(networkName: string): Promise<boolean> {
+async function createNetwork(
+  networkName: string,
+  extraArgs: string[] = [],
+): Promise<boolean> {
   const exists = await networkExists(networkName);
   if (exists) {
     logger.debug(`Network ${networkName} already exists`);
@@ -20,6 +23,7 @@ async function createNetwork(networkName: string): Promise<boolean> {
     'create',
     '--label',
     `project=${getProjectId()}`,
+    ...extraArgs,
     networkName,
   );
   if (!result.success) {
@@ -36,4 +40,20 @@ export async function ensureNetwork(
 ): Promise<boolean> {
   const fullName = `${prefix}${networkName}`;
   return createNetwork(fullName);
+}
+
+/**
+ * The sandbox network is shared across blue/green and across dev/prod —
+ * it's pinned to a fixed Docker name (`tale-sandbox-net`) so the spawner
+ * can `docker run --network tale-sandbox-net` without discovering the
+ * compose-project-prefixed default. `--internal` blocks all internet
+ * from this network so the per-call runtime containers can only reach
+ * pypi/npm via the egress proxy sidecar.
+ */
+export async function ensureSandboxNetwork(): Promise<boolean> {
+  return createNetwork('tale-sandbox-net', [
+    '--internal',
+    '--ipv6=false',
+    '--driver=bridge',
+  ]);
 }
