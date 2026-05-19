@@ -12,7 +12,6 @@ import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
-import { formatVideoLinkAttachmentMarkdown } from '@/lib/shared/video-link-markdown';
 
 type GuardrailsBlockedCode =
   | 'pii.blocked'
@@ -198,24 +197,22 @@ export function useSendMessage({
           fileSize: a.fileSize,
         })) ?? [];
 
-      // Synchronously derive video-link attachments + markdown + pasted-
-      // token strip list from the click-time snapshot owned by
-      // chat-interface.tsx (sourced from `useChatVideoLinks`'s reactive
-      // jobs list). This used to be an awaited `bindCompletedJobsToMessage`
-      // round-trip that gated `setPendingMessage`; that 50-200 ms gap is
-      // what the user reported as "the composer doesn't clear quickly"
-      // and "the bubble first shows a plain link then switches to the
-      // styled card" — both symptoms collapse once optimistic builds
-      // sync-from-local and the bubble lands in the same React commit as
-      // `clearInputValue` (chat-interface.tsx:718). The bind mutation
-      // still runs (see below, after setPendingMessage) to stamp
-      // `messageBoundAt` server-side — it just no longer blocks UI.
-      // `boundJobIdsLocal` is pre-seeded with snapshot ids so the
-      // catch path below can call `unbindJobsFromMessage` if a downstream
-      // `chatWithAgent` throw rolls everything back (round-2 V10 / HIGH
-      // #17).
+      // Synchronously derive video-link attachments + pasted-token strip
+      // list from the click-time snapshot owned by chat-interface.tsx
+      // (sourced from `useChatVideoLinks`'s reactive jobs list). This used
+      // to be an awaited `bindCompletedJobsToMessage` round-trip that
+      // gated `setPendingMessage`; that 50-200 ms gap is what the user
+      // reported as "the composer doesn't clear quickly" and "the bubble
+      // first shows a plain link then switches to the styled card" — both
+      // symptoms collapse once optimistic builds sync-from-local and the
+      // bubble lands in the same React commit as `clearInputValue`
+      // (chat-interface.tsx:718). The bind mutation still runs (see
+      // below, after setPendingMessage) to stamp `messageBoundAt`
+      // server-side — it just no longer blocks UI. `boundJobIdsLocal` is
+      // pre-seeded with snapshot ids so the catch path below can call
+      // `unbindJobsFromMessage` if a downstream `chatWithAgent` throw
+      // rolls everything back (round-2 V10 / HIGH #17).
       const pastedTokensToStrip: string[] = [];
-      const snapshotMarkdown: string[] = [];
       const snapshotJobIds: Array<Id<'videoLinkJobs'>> = [];
       const boundJobIdsLocal: Array<Id<'videoLinkJobs'>> = [];
       if (videoLinkSnapshot && videoLinkSnapshot.length > 0) {
@@ -243,18 +240,6 @@ export function useSendMessage({
           pastedTokensToStrip.push(job.pastedToken);
           snapshotJobIds.push(job.jobId);
           boundJobIdsLocal.push(job.jobId);
-          snapshotMarkdown.push(
-            formatVideoLinkAttachmentMarkdown({
-              fileId: job.storageId,
-              fileName,
-              fileType,
-              fileSize,
-              videoTitle: job.videoTitle,
-              videoUploader: job.videoUploader,
-              sourcePlatform: job.sourcePlatform,
-              videoDurationSec: job.videoDurationSec,
-            }),
-          );
         }
       }
 
@@ -343,19 +328,15 @@ export function useSendMessage({
       // render was only winning a round-trip anyway.
       const lastMessageKey = messages[messages.length - 1]?.key;
       const pendingTimestamp = new Date();
-      // Append the same per-attachment markdown that the server's
-      // `buildMessageWithAttachments` (start_agent_chat.ts) emits, using
-      // the shared formatter. Without parity here the optimistic body and
-      // the persisted body differ by ~2 lines of literal text (user
-      // bubbles render `whitespace-pre-wrap` so the brackets/asterisks
-      // ARE shown, not formatted) and the user sees the bubble grow on
-      // the optimistic→persisted swap.
-      const optimisticContent =
-        snapshotMarkdown.length > 0
-          ? messageToSend
-            ? `${messageToSend}\n\n${snapshotMarkdown.join('\n\n')}`
-            : snapshotMarkdown.join('\n\n')
-          : messageToSend;
+      // Video-link metadata rides on `attachments[]` (rendered by the
+      // bubble's `file-displays`), not in `content`. The server still
+      // builds the verbose `🎬 [...]` markdown via
+      // `buildMessageWithAttachments`, but the persisted body is stripped
+      // back out on read (`stripInternalFileReferences` in
+      // use-message-processing.ts) before the bubble sees it — so
+      // appending it here would just make the optimistic bubble flicker
+      // larger-then-smaller on the persisted swap.
+      const optimisticContent = messageToSend;
       // Mark scroll-to-bottom intent IMMEDIATELY before the bubble mounts
       // — see `markScrollIntent` declaration above for the race-window
       // reasoning. Covers all three branches below uniformly.
@@ -431,28 +412,17 @@ export function useSendMessage({
           }
           if (driftDetected) {
             messageToSend = messageToSend.replace(/\s+/g, ' ').trim();
-            // No shared `videoTitle`/`sourcePlatform` payload from bind
-            // for the late arrivals, so the optimistic markdown for
-            // these is a plain attachment footer — close enough to the
-            // server output that the bubble height delta on persisted
-            // swap is one line at most. Accepted compromise per the
-            // approved plan; the snapshot-hit path (~99% of sends)
-            // stays byte-identical.
-            const driftMarkdown = bound
-              .filter((att) => !snapshotIdSet.has(att.jobId))
-              .map(
-                (att) =>
-                  `🎬 [${att.fileName}] (video)\n*(fileId: ${att.fileId} | fileName: ${att.fileName} | fileType: ${att.fileType} | fileSize: ${att.fileSize})*`,
-              );
-            const reconciledMarkdown = [...snapshotMarkdown, ...driftMarkdown];
-            const reconciledContent = messageToSend
-              ? `${messageToSend}\n\n${reconciledMarkdown.join('\n\n')}`
-              : reconciledMarkdown.join('\n\n');
+            // Late-arrival attachments get patched onto the pending
+            // message via the `attachments[]` array; the bubble's
+            // `file-displays` picks up the new card on the next commit.
+            // `content` carries only the typed text (server-side markdown
+            // is stripped before display), so it stays stable across the
+            // drift patch and the eventual persisted swap.
             markScrollIntent();
             if (isArena) {
               if (currentArena?.arenaThreadIdA && currentArena.arenaThreadIdB) {
                 setPendingMessage({
-                  content: reconciledContent,
+                  content: messageToSend,
                   threadId: currentArena.arenaThreadIdA,
                   arenaThreadIdB: currentArena.arenaThreadIdB,
                   attachments: mutationAttachments,
@@ -462,7 +432,7 @@ export function useSendMessage({
               }
             } else {
               setPendingMessage({
-                content: reconciledContent,
+                content: messageToSend,
                 threadId,
                 attachments: mutationAttachments,
                 timestamp: pendingTimestamp,

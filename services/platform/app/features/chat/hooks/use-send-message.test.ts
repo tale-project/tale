@@ -166,7 +166,7 @@ describe('useSendMessage — error handling', () => {
     expect(mockChatWithAgent).not.toHaveBeenCalled();
   });
 
-  it('renders optimistic body with attachment markdown synchronously from video-link snapshot', async () => {
+  it('renders optimistic body with the typed text only; video-link metadata routed through attachments[]', async () => {
     // Drop the bind call onto a never-resolving promise so the
     // `setPendingMessage` assertion below proves the bubble lands
     // BEFORE the bg bind round-trip — the whole point of this fix.
@@ -208,14 +208,24 @@ describe('useSendMessage — error handling', () => {
     // URL stripped from the typed text — was `https://youtu.be/abc` in the
     // pastedToken on the snapshot.
     expect(pending?.content).not.toContain('https://youtu.be/abc');
-    // Markdown footer present — `(fileId: kg2_storage_a)` is the only
-    // place storageId appears in the body. Tied to the exact formatter
-    // output asserted in lib/shared/video-link-markdown.test.ts.
-    expect(pending?.content).toContain('fileId: kg2_storage_a');
-    expect(pending?.content).toContain('🎬 [A Walk Through the Forest]');
-    // Attachment array populated from the snapshot's storage id.
+    // No verbose `🎬 [...] (...) — transcript indexed; call
+    // document_retrieve(...)` markdown in the optimistic body. The bubble
+    // renders user content as `whitespace-pre-wrap`, so this raw text
+    // would be SHOWN. Server-side `buildMessageWithAttachments` still
+    // builds the markdown for the agent prompt; the persisted view is
+    // stripped before display via `stripInternalFileReferences`.
+    expect(pending?.content).not.toContain('🎬');
+    expect(pending?.content).not.toContain('fileId: kg2_storage_a');
+    expect(pending?.content).toBe('summarize this please');
+    // Attachment array populated from the snapshot's storage id — this
+    // is what `file-displays` renders as the video card.
     expect(pending?.attachments).toHaveLength(1);
     expect(pending?.attachments?.[0]?.fileId).toBe('kg2_storage_a');
+    expect(pending?.attachments?.[0]?.fileName).toBe(
+      'A Walk Through the Forest',
+    );
+    expect(pending?.attachments?.[0]?.fileType).toBe('video/mp4');
+    expect(pending?.attachments?.[0]?.fileSize).toBe(238923776);
   });
 
   it('calls unmarkJobsSent on bind failure so the chip reappears', async () => {

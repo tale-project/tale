@@ -1,20 +1,16 @@
 /**
  * Shared markdown formatter for video-link attachments.
  *
- * Used by:
- *   - server `buildMessageWithAttachments` (start_agent_chat.ts) — appends
- *     this block to the persisted user-message body so the agent can read
- *     fileId + provenance inline.
- *   - client `useSendMessage` optimistic render path — same block is
- *     synthesized client-side at click-time so the optimistic bubble is
- *     byte-identical to the persisted bubble. Without parity, the
- *     optimistic→persisted swap visibly grows the bubble (the user-role
- *     renderer at message-bubble.tsx:447-450 is `whitespace-pre-wrap`, so
- *     these literal brackets / asterisks are SHOWN, not formatted).
+ * Used by server `buildMessageWithAttachments` (start_agent_chat.ts) to
+ * append a fileId + provenance block to the persisted user-message body
+ * so the agent can read it inline. On the client the bubble strips this
+ * block back out (`stripInternalFileReferences` in
+ * use-message-processing.ts) and renders the video as an attachment card
+ * — the optimistic path therefore puts only the typed text in `content`
+ * and the metadata on `attachments[]`, matching the post-strip shape.
  *
- * If you change the template here, the client and server stay in sync
- * automatically. The golden-string test (in this folder's `.test.ts`)
- * guards against accidental whitespace / punctuation drift.
+ * The golden-string test (in this folder's `.test.ts`) guards against
+ * accidental whitespace / punctuation drift in the template.
  */
 import { sanitizeUntrustedField } from './sanitize-untrusted-field';
 

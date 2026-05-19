@@ -601,13 +601,13 @@ async function buildMessageWithAttachments(
           videoLink?.videoDurationSec ?? meta.videoDurationSec;
 
         if (sourceUrl) {
-          // Template lives in `lib/shared/video-link-markdown.ts` so the
-          // client `use-send-message` optimistic path produces a
-          // byte-identical block — without parity, the user sees the
-          // bubble grow on optimistic→persisted swap because
-          // `message-bubble.tsx:447-450` renders user content as
-          // `whitespace-pre-wrap` (the brackets/asterisks below are SHOWN,
-          // not formatted). Inputs are still resolved here: provenance
+          // Template lives in `lib/shared/video-link-markdown.ts`. This
+          // block is appended to the persisted user-message body so the
+          // agent can read fileId + provenance inline; the client strips
+          // it back out via `stripInternalFileReferences`
+          // (use-message-processing.ts) before rendering — the bubble
+          // shows the video as an attachment card built from
+          // `attachments[]`. Inputs are still resolved here: provenance
           // prefers `videoLinkJobs` over legacy `fileMetadata` fields,
           // and duration falls back to `transcriptionDurationSec` for
           // rows the server has but pre-yt-dlp-metadata builds wrote
