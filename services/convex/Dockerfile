@@ -85,13 +85,15 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
        else \
         DENO_TAG="$DENO_VERSION"; \
        fi \
-    && curl -fsSL "https://github.com/denoland/deno/releases/download/${DENO_TAG}/${DENO_ASSET}" -o /tmp/deno.zip \
+    # Upstream `.sha256sum` file references the original asset filename, so
+    # download to that name (not `deno.zip`) and run sha256sum -c from /tmp.
+    && curl -fsSL "https://github.com/denoland/deno/releases/download/${DENO_TAG}/${DENO_ASSET}" -o "/tmp/${DENO_ASSET}" \
     && curl -fsSL "https://github.com/denoland/deno/releases/download/${DENO_TAG}/${DENO_ASSET}.sha256sum" -o /tmp/deno.sums \
     && (cd /tmp && sha256sum -c deno.sums) \
-    && unzip -q /tmp/deno.zip -d /usr/local/bin \
+    && unzip -q "/tmp/${DENO_ASSET}" -d /usr/local/bin \
     && chmod 0755 /usr/local/bin/deno \
     && echo "$DENO_TAG" > /etc/deno-version \
-    && rm -f /tmp/deno.zip /tmp/deno.sums \
+    && rm -f "/tmp/${DENO_ASSET}" /tmp/deno.sums \
     # unzip is only needed for Deno install; remove to keep image lean
     && apt-get purge -y unzip \
     && apt-get autoremove -y \
