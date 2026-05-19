@@ -9,9 +9,9 @@ import type { TFunction } from 'i18next';
 // `messages/global.json` under `specs.types.*` — keep the two in sync.
 // =============================================================================
 
-export type TierKey = 'quality' | 'hybrid' | 'speed';
-export type NodeKey = TierKey;
-export type ClusterKey = TierKey;
+type TierKey = 'quality' | 'hybrid' | 'speed';
+type NodeKey = TierKey;
+type ClusterKey = TierKey;
 
 type RamId = 'uma' | 'vram' | 'ddr5' | 'ddr5_ecc';
 type ChipId = 'apple_silicon' | 'nvidia_rtx_pro_6000' | 'amd_epyc_4545p_zen5';
@@ -38,7 +38,7 @@ interface Node {
   buyPrice: number;
 }
 
-export const NODES: Record<NodeKey, Node> = {
+const NODES: Record<NodeKey, Node> = {
   quality: {
     aiRam: { id: 'uma', gb: 96 },
     systemRam: null,
@@ -68,10 +68,7 @@ export const NODES: Record<NodeKey, Node> = {
 };
 
 /** Number of each node type composing a cluster. */
-export const CLUSTER_COMPOSITION: Record<
-  ClusterKey,
-  Record<NodeKey, number>
-> = {
+const CLUSTER_COMPOSITION: Record<ClusterKey, Record<NodeKey, number>> = {
   quality: { quality: 6, hybrid: 1, speed: 0 },
   hybrid: { quality: 3, hybrid: 1, speed: 1 },
   speed: { quality: 0, hybrid: 1, speed: 2 },
