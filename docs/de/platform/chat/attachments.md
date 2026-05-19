@@ -45,7 +45,7 @@ Wichtige Limits und Verhaltensregeln:
 - **Erneuter Versuch nach Rate-Limit:** Wenn die Quellplattform uns drosselt (Bot-Erkennung), bleibt der Chip für eine 15-minütige Wartezeit, bevor ein erneuter Versuch erlaubt ist.
 - **Fehlgeschlagener Chip blockiert Senden:** Wenn ein Video-Chip im Fehlzustand ist, bleibt der Senden-Button deaktiviert — zuerst erneut versuchen oder Chip entfernen, damit der Agent nicht nach einem Transkript gefragt wird, das nie angekommen ist.
 
-Transkripte aus Video-Links werden in `<untrusted_source>`-Marker eingebettet, bevor der Agent sie sieht — Uploader-kontrollierter Untertitel-Text und Titel werden als Daten behandelt, nie als Anweisungen. Die Quell-URL bleibt am Chip und im Transkript-Header sichtbar, damit du und der Agent die Herkunft verifizieren könnt. Das Einfügen von Links unterliegt den [Nutzungsbedingungen](/de/legal/terms-of-service) — du bestätigst, dass du das Recht hast, das Video zu verarbeiten, und akzeptierst die Bedingungen der Quellplattform beim Einfügen.
+Transkripte aus Video-Links werden in `<untrusted_source>`-Marker eingebettet, bevor der Agent sie sieht — Uploader-kontrollierter Untertitel-Text und Titel werden als Daten behandelt, nie als Anweisungen. Die Quell-URL bleibt am Chip und in der Transkript-Kopfzeile sichtbar, damit du und der Agent die Herkunft verifizieren könnt. Das Einfügen von Links unterliegt den [Nutzungsbedingungen](/de/legal/terms-of-service) — du bestätigst, dass du das Recht hast, das Video zu verarbeiten, und akzeptierst die Bedingungen der Quellplattform beim Einfügen.
 
 ## Grössen- und Mengen-Limits
 

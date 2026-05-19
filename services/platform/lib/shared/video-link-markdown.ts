@@ -18,7 +18,7 @@
  */
 import { sanitizeUntrustedField } from './sanitize-untrusted-field';
 
-export interface VideoLinkAttachmentMarkdownInput {
+interface VideoLinkAttachmentMarkdownInput {
   fileId: string;
   fileName: string;
   fileType: string;

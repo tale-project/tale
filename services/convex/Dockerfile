@@ -30,7 +30,7 @@ ARG SOPS_VERSION=3.9.4
 # yt-dlp + Deno: pinned defaults to specific upstream releases so two
 # image builds an hour apart produce byte-identical binaries. Builders
 # wanting the absolute newest player-signature fixes pass an explicit
-# build-arg (e.g. `--build-arg YTDLP_VERSION=2026.05.10`); ops should
+# build-arg (e.g. `--build-arg YTDLP_VERSION=2026.03.17`); ops should
 # rebuild this image roughly monthly to pick up upstream fixes (the
 # default pins exactly so an upgrade is a deliberate version bump, not
 # a silent moving target). Empty defaults are still supported and fall
@@ -38,7 +38,7 @@ ARG SOPS_VERSION=3.9.4
 # dev but discouraged for production. Resolved versions land in
 # /etc/yt-dlp-version + /etc/deno-version for runtime inspection.
 # Deno is required by yt-dlp's n-challenge JS solver (yt-dlp ≥ 2025.11).
-ARG YTDLP_VERSION=2026.05.10
+ARG YTDLP_VERSION=2026.03.17
 ARG DENO_VERSION=v2.5.4
 # System packages, binary symlinks, app user (UID 1001 to match platform),
 # and LLVM/docs stripping (~155 MB savings on the base image).

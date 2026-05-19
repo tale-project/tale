@@ -335,21 +335,6 @@ async function runYtdlp(
     let timedOut = false;
     let byteCapExceeded = false;
     let sigkillTimer: NodeJS.Timeout | undefined;
-    let killer: NodeJS.Timeout | undefined;
-    const settleReject = (err: unknown): void => {
-      if (settled) return;
-      settled = true;
-      if (killer) clearTimeout(killer);
-      if (sigkillTimer) clearTimeout(sigkillTimer);
-      reject(err);
-    };
-    const settleResolve = (val: YtDlpSpawnResult): void => {
-      if (settled) return;
-      settled = true;
-      if (killer) clearTimeout(killer);
-      if (sigkillTimer) clearTimeout(sigkillTimer);
-      resolve(val);
-    };
     // Group-targeted kill: `-pid` (negative, leading-minus) signals the
     // whole process group. yt-dlp spawns ffmpeg as a child; without the
     // group target, our `proc.kill` reaches yt-dlp only and ffmpeg
@@ -374,6 +359,34 @@ async function runYtdlp(
       sigkillTimer = setTimeout(() => killGroup('SIGKILL'), 5_000);
     };
 
+    // SIGTERM → SIGKILL escalation. Gives yt-dlp + its ffmpeg child a 5s
+    // window to flush partial files, close sockets, and exit cleanly
+    // before we hard-kill the process group. Without the grace period
+    // ffmpeg can be orphaned mid-write and leave .part files behind
+    // (R2 review M-yt-dlp). Reject is deferred to the `close` handler
+    // below so streams have a chance to drain — otherwise the caller's
+    // `.catch` races jobDir cleanup against still-writing ffmpeg
+    // children.
+    const killer = setTimeout(() => {
+      timedOut = true;
+      killEscalate();
+    }, timeoutMs);
+
+    const settleReject = (err: unknown): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(killer);
+      if (sigkillTimer) clearTimeout(sigkillTimer);
+      reject(err);
+    };
+    const settleResolve = (val: YtDlpSpawnResult): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(killer);
+      if (sigkillTimer) clearTimeout(sigkillTimer);
+      resolve(val);
+    };
+
     proc.stdout.on('data', (d) => {
       stdoutBytes += d.length;
       if (stdoutBytes < MAX_BYTES) stdout += d.toString();
@@ -394,19 +407,6 @@ async function runYtdlp(
         killEscalate();
       }
     });
-
-    // SIGTERM → SIGKILL escalation. Gives yt-dlp + its ffmpeg child a 5s
-    // window to flush partial files, close sockets, and exit cleanly
-    // before we hard-kill the process group. Without the grace period
-    // ffmpeg can be orphaned mid-write and leave .part files behind
-    // (R2 review M-yt-dlp).
-    killer = setTimeout(() => {
-      timedOut = true;
-      killEscalate();
-      // Reject is deferred to the `close` handler below so streams have
-      // a chance to drain — otherwise the caller's `.catch` races
-      // jobDir cleanup against still-writing ffmpeg children.
-    }, timeoutMs);
 
     proc.on('error', (err) => {
       // ENOENT means the yt-dlp binary isn't on $PATH — the container
@@ -616,7 +616,7 @@ export async function ytdlpJson(
 // `en,-danmaku,evil-track` could broaden the selection. Defense-in-depth:
 // `selectCaptionLanguage` only picks from known yt-dlp metadata, but a
 // future code change loosening that step shouldn't open a hole here.
-const LANG_TOKEN_RE = /^[A-Za-z0-9_.\-]{1,32}$/;
+const LANG_TOKEN_RE = /^[A-Za-z0-9_.-]{1,32}$/;
 
 export async function ytdlpWriteSubs(
   url: string,

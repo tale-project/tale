@@ -21,7 +21,7 @@
  * for telemetry/chip-icon only, never gates processing.
  */
 
-export interface ExtractedVideoUrl {
+interface ExtractedVideoUrl {
   /** The cleaned URL handed to the backend (trailing punctuation stripped,
    * surrounding markdown emphasis stripped, fragment dropped for dedup). */
   url: string;
