@@ -39,6 +39,7 @@ export const TOOL_NAMES = [
   'conversation_read',
   'update_todos',
   'propose_memory',
+  'code_run',
 ] as const;
 
 export type ToolName = (typeof TOOL_NAMES)[number];

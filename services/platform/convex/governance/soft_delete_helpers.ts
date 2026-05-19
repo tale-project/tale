@@ -156,6 +156,14 @@ export const SOFT_DELETE_RESOURCE_CONFIG: Record<
     displayNameField: 'action',
     authorField: 'subjectUserId',
   },
+  sandboxExecution: {
+    tableName: 'sandboxExecutions',
+    statusField: 'lifecycleStatus',
+    auditPrefix: 'sandbox_execution',
+    auditResourceType: 'sandbox_execution',
+    displayNameField: 'purpose',
+    authorField: 'uploadedBy',
+  },
 };
 
 interface SoftDeletableRow {
