@@ -68,7 +68,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
        fi \
     && curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_TAG}/${YTDLP_ASSET}" -o /usr/local/bin/yt-dlp \
     && curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_TAG}/SHA2-256SUMS" -o /tmp/yt-dlp.sums \
-    && (cd /usr/local/bin && grep "  ${YTDLP_ASSET}$" /tmp/yt-dlp.sums | sed "s| ${YTDLP_ASSET}$|  yt-dlp|" | sha256sum -c -) \
+    && (cd /usr/local/bin && grep "  ${YTDLP_ASSET}$" /tmp/yt-dlp.sums | sed "s|  ${YTDLP_ASSET}$|  yt-dlp|" | sha256sum -c -) \
     && chmod 0755 /usr/local/bin/yt-dlp \
     && echo "$YTDLP_TAG" > /etc/yt-dlp-version \
     && rm -f /tmp/yt-dlp.sums \

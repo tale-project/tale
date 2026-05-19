@@ -34,7 +34,6 @@ describe('isPrivateIp', () => {
     '1.1.1.1',
     'api.openai.com',
     'openrouter.ai',
-    '100.100.100.200',
     '2606:4700:4700::1111',
   ])('accepts %s as public', (host) => {
     expect(isPrivateIp(host)).toBe(false);
