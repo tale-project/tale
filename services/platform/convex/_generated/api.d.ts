@@ -16,6 +16,7 @@ import type * as agent_tools_approval_shared from "../agent_tools/approval_share
 import type * as agent_tools_artifacts_apply_patches from "../agent_tools/artifacts/apply_patches.js";
 import type * as agent_tools_artifacts_artifact_create_tool from "../agent_tools/artifacts/artifact_create_tool.js";
 import type * as agent_tools_artifacts_artifact_edit_tool from "../agent_tools/artifacts/artifact_edit_tool.js";
+import type * as agent_tools_artifacts_artifact_run_tool from "../agent_tools/artifacts/artifact_run_tool.js";
 import type * as agent_tools_artifacts_shared from "../agent_tools/artifacts/shared.js";
 import type * as agent_tools_artifacts_stream_state from "../agent_tools/artifacts/stream_state.js";
 import type * as agent_tools_conversations_conversation_read_tool from "../agent_tools/conversations/conversation_read_tool.js";
@@ -1090,6 +1091,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/artifacts/apply_patches": typeof agent_tools_artifacts_apply_patches;
   "agent_tools/artifacts/artifact_create_tool": typeof agent_tools_artifacts_artifact_create_tool;
   "agent_tools/artifacts/artifact_edit_tool": typeof agent_tools_artifacts_artifact_edit_tool;
+  "agent_tools/artifacts/artifact_run_tool": typeof agent_tools_artifacts_artifact_run_tool;
   "agent_tools/artifacts/shared": typeof agent_tools_artifacts_shared;
   "agent_tools/artifacts/stream_state": typeof agent_tools_artifacts_stream_state;
   "agent_tools/conversations/conversation_read_tool": typeof agent_tools_conversations_conversation_read_tool;
