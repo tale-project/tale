@@ -28,6 +28,8 @@ const TYPE_ICONS: Record<
   mermaid: GitBranch,
   svg: ImageIcon,
   markdown: FileText,
+  python_runnable: Code,
+  node_runnable: Code,
 };
 
 interface ArtifactBarProps {

@@ -39,6 +39,7 @@ export const artifactRunErrorCodeValidator = v.union(
 export const artifactRunOutputFileValidator = v.object({
   name: v.string(),
   fileMetadataId: v.id('fileMetadata'),
+  storageId: v.id('_storage'),
   size: v.number(),
   contentType: v.string(),
 });

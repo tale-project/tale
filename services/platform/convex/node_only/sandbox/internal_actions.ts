@@ -474,6 +474,7 @@ export const executeCode = internalAction({
             runOutputFiles: insertedFiles.map((f) => ({
               name: f.name,
               fileMetadataId: f.fileMetadataId,
+              storageId: f.storageId,
               size: f.size,
               contentType: f.contentType,
             })),

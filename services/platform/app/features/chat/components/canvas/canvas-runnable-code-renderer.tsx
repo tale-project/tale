@@ -33,6 +33,7 @@ import { CanvasCodeRenderer } from './canvas-code-renderer';
 interface RunOutputFile {
   name: string;
   fileMetadataId: Id<'fileMetadata'>;
+  storageId: Id<'_storage'>;
   size: number;
   contentType: string;
 }
@@ -63,13 +64,7 @@ function iconForContentType(contentType: string): typeof FileIcon {
 }
 
 function FileChip({ file }: { file: RunOutputFile }) {
-  // The run-state row stores fileMetadataId. We need the underlying
-  // storageId to build a download URL. Fetch the fileMetadata row and
-  // derive the URL through the existing storage helper.
-  const metadata = useQuery(api.file_metadata.queries.getById, {
-    fileMetadataId: file.fileMetadataId,
-  });
-  const fileUrl = useFileUrl(metadata?.storageId, !metadata);
+  const { data: fileUrl } = useFileUrl(file.storageId);
   const Icon = iconForContentType(file.contentType);
   const disabled = !fileUrl;
   return (
