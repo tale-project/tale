@@ -22,7 +22,10 @@ export interface DockerRunInput {
   startedAtMs: number;
 }
 
-const UUID_RE = /^[a-f0-9-]{1,64}$/i;
+// executionId is either a UUID (hex + hyphens) from a direct caller or a
+// Convex doc id (lowercase alphanumeric). Both produce safe Docker container
+// names — alphanumeric + dash/underscore only.
+const UUID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 const ORG_RE = /^[a-zA-Z0-9_-]{1,128}$/;
 const VOL_RE = /^[a-zA-Z0-9_.-]{1,128}$/;
 const HOST_DIR_RE = /^\/[a-zA-Z0-9_./-]{1,256}$/;

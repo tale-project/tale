@@ -189,7 +189,7 @@ export async function executeRequest(
   cfg: SpawnerConfig,
   req: ExecuteRequest,
 ): Promise<ExecuteResponse> {
-  if (!/^[a-f0-9-]{1,64}$/i.test(req.executionId)) {
+  if (!/^[a-zA-Z0-9_-]{1,64}$/.test(req.executionId)) {
     return makeError('SPAWNER_UNAVAILABLE', 'invalid executionId', 0);
   }
   if (!/^[a-zA-Z0-9_-]{1,128}$/.test(req.organizationId)) {
