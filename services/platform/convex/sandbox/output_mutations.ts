@@ -31,6 +31,7 @@ export const insertOutputFiles = internalMutation({
     v.object({
       name: v.string(),
       fileMetadataId: v.id('fileMetadata'),
+      storageId: v.id('_storage'),
       size: v.number(),
       contentType: v.string(),
     }),
@@ -40,6 +41,7 @@ export const insertOutputFiles = internalMutation({
     const out: {
       name: string;
       fileMetadataId: Id<'fileMetadata'>;
+      storageId: Id<'_storage'>;
       size: number;
       contentType: string;
     }[] = [];
@@ -59,6 +61,7 @@ export const insertOutputFiles = internalMutation({
       out.push({
         name: f.name,
         fileMetadataId,
+        storageId: f.storageId,
         size: f.size,
         contentType: f.contentType,
       });
