@@ -18,7 +18,6 @@ import type * as agent_tools_artifacts_artifact_create_tool from "../agent_tools
 import type * as agent_tools_artifacts_artifact_edit_tool from "../agent_tools/artifacts/artifact_edit_tool.js";
 import type * as agent_tools_artifacts_shared from "../agent_tools/artifacts/shared.js";
 import type * as agent_tools_artifacts_stream_state from "../agent_tools/artifacts/stream_state.js";
-import type * as agent_tools_code_code_run_tool from "../agent_tools/code/code_run_tool.js";
 import type * as agent_tools_conversations_conversation_read_tool from "../agent_tools/conversations/conversation_read_tool.js";
 import type * as agent_tools_conversations_helpers_read_conversation_by_id from "../agent_tools/conversations/helpers/read_conversation_by_id.js";
 import type * as agent_tools_conversations_helpers_read_conversation_list from "../agent_tools/conversations/helpers/read_conversation_list.js";
@@ -1093,7 +1092,6 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/artifacts/artifact_edit_tool": typeof agent_tools_artifacts_artifact_edit_tool;
   "agent_tools/artifacts/shared": typeof agent_tools_artifacts_shared;
   "agent_tools/artifacts/stream_state": typeof agent_tools_artifacts_stream_state;
-  "agent_tools/code/code_run_tool": typeof agent_tools_code_code_run_tool;
   "agent_tools/conversations/conversation_read_tool": typeof agent_tools_conversations_conversation_read_tool;
   "agent_tools/conversations/helpers/read_conversation_by_id": typeof agent_tools_conversations_helpers_read_conversation_by_id;
   "agent_tools/conversations/helpers/read_conversation_list": typeof agent_tools_conversations_helpers_read_conversation_list;

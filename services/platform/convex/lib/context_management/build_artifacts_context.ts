@@ -66,8 +66,12 @@ export async function buildArtifactsContext(
     const langAttr = artifact.language
       ? ` language=${JSON.stringify(artifact.language)}`
       : '';
+    // For runnable artifacts, surface the last-run state so the LLM can
+    // pick the right next action (patch to fix a failure, leave alone if
+    // completed, etc.) without needing to call a separate tool to peek.
+    const runAttr = buildRunAttrs(artifact);
     blocks.push(
-      `<artifact id="${artifact._id}" type="${artifact.type}"${langAttr} title=${JSON.stringify(artifact.title)} revision="${artifact.revision}">\n${body}\n</artifact>`,
+      `<artifact id="${artifact._id}" type="${artifact.type}"${langAttr}${runAttr} title=${JSON.stringify(artifact.title)} revision="${artifact.revision}">\n${body}\n</artifact>`,
     );
   }
   blocks.reverse();
@@ -95,6 +99,35 @@ function truncateArtifactBody(content: string): string {
  * instruction. Replacing the closing-tag form with a backslash-escaped
  * variant keeps the bytes the model sees readable but breaks the parse.
  */
+interface ArtifactRowForContext {
+  type: string;
+  runStatus?: string;
+  runErrorCode?: string;
+  runOutputFiles?: { name: string }[];
+}
+
+function buildRunAttrs(artifact: ArtifactRowForContext): string {
+  if (
+    artifact.type !== 'python_runnable' &&
+    artifact.type !== 'node_runnable'
+  ) {
+    return '';
+  }
+  const parts: string[] = [];
+  if (artifact.runStatus) parts.push(`runStatus="${artifact.runStatus}"`);
+  if (artifact.runErrorCode) {
+    parts.push(`runErrorCode="${artifact.runErrorCode}"`);
+  }
+  if (artifact.runOutputFiles && artifact.runOutputFiles.length > 0) {
+    const names = artifact.runOutputFiles
+      .map((f) => f.name)
+      .join(',')
+      .slice(0, 200);
+    parts.push(`runOutputFiles=${JSON.stringify(names)}`);
+  }
+  return parts.length ? ' ' + parts.join(' ') : '';
+}
+
 function sanitizeArtifactBody(body: string): string {
   return body
     .replace(/<\/artifact>/gi, '<\\/artifact>')
