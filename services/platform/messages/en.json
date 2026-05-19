@@ -2402,7 +2402,8 @@
       "streamingWriting": "AI is writing…",
       "streamingPatch": "AI is editing…",
       "cancel": "Cancel edit",
-      "streamingDuringEdit": "Agent is updating this artifact — your draft is saved. Cancel to discard."
+      "streamingDuringEdit": "Agent is updating this artifact — your draft is saved. Cancel to discard.",
+      "runDone": "Done"
     },
     "artifacts": {
       "barLabel": "Artifacts in this thread",

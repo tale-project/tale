@@ -2402,7 +2402,8 @@
       "streamingWriting": "KI schreibt…",
       "streamingPatch": "KI bearbeitet…",
       "cancel": "Bearbeitung abbrechen",
-      "streamingDuringEdit": "Der Agent aktualisiert dieses Artefakt — dein Entwurf bleibt gespeichert. Klicke auf Abbrechen, um ihn zu verwerfen."
+      "streamingDuringEdit": "Der Agent aktualisiert dieses Artefakt — dein Entwurf bleibt gespeichert. Klicke auf Abbrechen, um ihn zu verwerfen.",
+      "runDone": "Fertig"
     },
     "artifacts": {
       "barLabel": "Artefakte in diesem Thread",
