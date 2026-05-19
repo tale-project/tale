@@ -2,12 +2,12 @@ import { Button } from '@tale/ui/button';
 import { formatCurrency } from '@tale/ui/format';
 import { Check } from 'lucide-react';
 
-import { MarketingSection } from '@/components/blocks/marketing-section';
-import type { Billing } from '@/components/blocks/pricing-section';
-import { SegmentedRadio } from '@/components/blocks/segmented-radio';
-import { TierCard } from '@/components/blocks/tier-card';
-import { UserCountControl } from '@/components/blocks/user-count-control';
-import { LocalizedLink } from '@/components/layout/localized-link';
+import { MarketingSection } from '@/app/components/blocks/marketing-section';
+import type { Billing } from '@/app/components/blocks/pricing-section';
+import { SegmentedRadio } from '@/app/components/blocks/segmented-radio';
+import { TierCard } from '@/app/components/blocks/tier-card';
+import { UserCountControl } from '@/app/components/blocks/user-count-control';
+import { LocalizedLink } from '@/app/components/layout/localized-link';
 import { DOCS_URL } from '@/lib/docs-url';
 import { useT } from '@/lib/i18n/client';
 import {

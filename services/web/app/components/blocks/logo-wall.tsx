@@ -1,7 +1,7 @@
-import { AtlassianIcon } from '@/components/icons/atlassian-icon';
-import { GoogleIcon } from '@/components/icons/google-icon';
-import { MicrosoftIcon } from '@/components/icons/microsoft-icon';
-import { SiteContainer } from '@/components/layout/site-container';
+import { AtlassianIcon } from '@/app/components/icons/atlassian-icon';
+import { GoogleIcon } from '@/app/components/icons/google-icon';
+import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
+import { SiteContainer } from '@/app/components/layout/site-container';
 import { useT } from '@/lib/i18n/client';
 
 export function LogoWall() {

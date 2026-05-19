@@ -5,7 +5,7 @@ import { Children, isValidElement } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-import { SiteContainer } from '@/components/layout/site-container';
+import { SiteContainer } from '@/app/components/layout/site-container';
 import { useT } from '@/lib/i18n/client';
 import { localizedPath } from '@/lib/i18n/locales';
 import type { SupportedLocale } from '@/lib/i18n/locales';

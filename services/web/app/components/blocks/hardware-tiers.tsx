@@ -1,10 +1,6 @@
 import { Button } from '@tale/ui/button';
 import { formatCurrency } from '@tale/ui/format';
 
-import type {
-  HardwareBilling,
-  HardwareMode,
-} from '@/app/pages/hardware-pricing-page';
 import {
   LEASING_TERMS,
   clusterBuyPrice,
@@ -14,12 +10,16 @@ import {
   nodeMetrics,
   type LeasingTerm,
   type TierMetrics,
-} from '@/components/blocks/hardware-specs';
-import { MarketingSection } from '@/components/blocks/marketing-section';
-import { SegmentedRadio } from '@/components/blocks/segmented-radio';
-import { TierCard } from '@/components/blocks/tier-card';
-import { LocalizedLink } from '@/components/layout/localized-link';
-import { ProgressBar } from '@/components/progress-bar';
+} from '@/app/components/blocks/hardware-specs';
+import { MarketingSection } from '@/app/components/blocks/marketing-section';
+import { SegmentedRadio } from '@/app/components/blocks/segmented-radio';
+import { TierCard } from '@/app/components/blocks/tier-card';
+import { LocalizedLink } from '@/app/components/layout/localized-link';
+import { ProgressBar } from '@/app/components/progress-bar';
+import type {
+  HardwareBilling,
+  HardwareMode,
+} from '@/app/pages/hardware-pricing-page';
 import { useT } from '@/lib/i18n/client';
 
 /**

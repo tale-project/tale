@@ -4,8 +4,8 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { CircleDollarSign, Hotel, Scale, type LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 
-import { LocalizedLink } from '@/components/layout/localized-link';
-import { SiteContainer } from '@/components/layout/site-container';
+import { LocalizedLink } from '@/app/components/layout/localized-link';
+import { SiteContainer } from '@/app/components/layout/site-container';
 import { useT } from '@/lib/i18n/client';
 
 const easeOut = [0.22, 1, 0.36, 1] as const;

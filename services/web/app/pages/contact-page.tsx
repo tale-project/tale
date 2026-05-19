@@ -4,7 +4,7 @@ import { Input } from '@tale/ui/input';
 import { Textarea } from '@tale/ui/textarea';
 import { useForm } from 'react-hook-form';
 
-import { FormCard } from '@/components/blocks/form-card';
+import { FormCard } from '@/app/components/blocks/form-card';
 import { type ContactInput, contactSchema } from '@/lib/forms/schemas';
 import { useT } from '@/lib/i18n/client';
 import { localizedPath } from '@/lib/i18n/locales';

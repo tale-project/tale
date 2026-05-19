@@ -1,7 +1,7 @@
 import { useNavigate, useSearch } from '@tanstack/react-router';
 
-import { PricingCompare } from '@/components/blocks/pricing-compare';
-import { PricingTiers } from '@/components/blocks/pricing-tiers';
+import { PricingCompare } from '@/app/components/blocks/pricing-compare';
+import { PricingTiers } from '@/app/components/blocks/pricing-tiers';
 import {
   detectDefaultRegion,
   REGIONS,

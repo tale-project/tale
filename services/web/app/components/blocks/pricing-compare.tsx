@@ -7,9 +7,9 @@ import {
   LabelWithInfo,
   type CompareRow,
   type CompareTier,
-} from '@/components/blocks/compare-table';
-import { MarketingSection } from '@/components/blocks/marketing-section';
-import { LocalizedLink } from '@/components/layout/localized-link';
+} from '@/app/components/blocks/compare-table';
+import { MarketingSection } from '@/app/components/blocks/marketing-section';
+import { LocalizedLink } from '@/app/components/layout/localized-link';
 import { EXTERNAL_LINKS } from '@/lib/external-links';
 import { useT } from '@/lib/i18n/client';
 import type { Region } from '@/lib/pricing/region';

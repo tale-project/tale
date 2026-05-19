@@ -1,13 +1,13 @@
 import { Bot, LaptopMinimal, ListMinus, Lock } from 'lucide-react';
 
-import { ComplianceTrust } from '@/components/blocks/compliance-trust';
-import { CtaDeploy } from '@/components/blocks/cta-deploy';
-import { FaqAccordion } from '@/components/blocks/faq-accordion';
-import { FeatureGrid } from '@/components/blocks/feature-grid';
-import { FeatureSectors } from '@/components/blocks/feature-sectors';
-import { FeatureSecure } from '@/components/blocks/feature-secure';
-import { HeroHeadline } from '@/components/blocks/hero-headline';
-import { LogoWall } from '@/components/blocks/logo-wall';
+import { ComplianceTrust } from '@/app/components/blocks/compliance-trust';
+import { CtaDeploy } from '@/app/components/blocks/cta-deploy';
+import { FaqAccordion } from '@/app/components/blocks/faq-accordion';
+import { FeatureGrid } from '@/app/components/blocks/feature-grid';
+import { FeatureSectors } from '@/app/components/blocks/feature-sectors';
+import { FeatureSecure } from '@/app/components/blocks/feature-secure';
+import { HeroHeadline } from '@/app/components/blocks/hero-headline';
+import { LogoWall } from '@/app/components/blocks/logo-wall';
 import { useT } from '@/lib/i18n/client';
 import { localizedPath } from '@/lib/i18n/locales';
 import { useCurrentLocale } from '@/lib/i18n/use-current-locale';

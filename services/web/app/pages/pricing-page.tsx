@@ -1,4 +1,4 @@
-import { PricingSection } from '@/components/blocks/pricing-section';
+import { PricingSection } from '@/app/components/blocks/pricing-section';
 import { useT } from '@/lib/i18n/client';
 import { localizedPath } from '@/lib/i18n/locales';
 import { useCurrentLocale } from '@/lib/i18n/use-current-locale';

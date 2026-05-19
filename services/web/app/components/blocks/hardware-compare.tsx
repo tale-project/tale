@@ -2,21 +2,21 @@ import { Button } from '@tale/ui/button';
 import { Check } from 'lucide-react';
 import type { ReactNode } from 'react';
 
-import type { HardwareMode } from '@/app/pages/hardware-pricing-page';
 import {
   CompareTable,
   LabelWithInfo,
   type CompareRow,
   type CompareTier,
-} from '@/components/blocks/compare-table';
-import { SpecValue } from '@/components/blocks/hardware-spec-value';
+} from '@/app/components/blocks/compare-table';
+import { SpecValue } from '@/app/components/blocks/hardware-spec-value';
 import {
   clusterSpec,
   nodeSpec,
   type SpecLines,
-} from '@/components/blocks/hardware-specs';
-import { MarketingSection } from '@/components/blocks/marketing-section';
-import { LocalizedLink } from '@/components/layout/localized-link';
+} from '@/app/components/blocks/hardware-specs';
+import { MarketingSection } from '@/app/components/blocks/marketing-section';
+import { LocalizedLink } from '@/app/components/layout/localized-link';
+import type { HardwareMode } from '@/app/pages/hardware-pricing-page';
 import { EXTERNAL_LINKS } from '@/lib/external-links';
 import { useT } from '@/lib/i18n/client';
 

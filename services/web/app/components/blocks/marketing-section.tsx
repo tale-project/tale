@@ -1,7 +1,7 @@
 import { motion, useReducedMotion } from 'framer-motion';
 import type { ElementType, ReactNode } from 'react';
 
-import { SiteContainer } from '@/components/layout/site-container';
+import { SiteContainer } from '@/app/components/layout/site-container';
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
 

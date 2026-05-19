@@ -6,12 +6,12 @@ import {
 import { Link } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 
-import { GithubIcon } from '@/components/icons/github-icon';
-import { ExternalLink } from '@/components/layout/external-link';
+import { GithubIcon } from '@/app/components/icons/github-icon';
+import { ExternalLink } from '@/app/components/layout/external-link';
 import {
   LocalizedLink,
   type LocalizedRoutePath,
-} from '@/components/layout/localized-link';
+} from '@/app/components/layout/localized-link';
 import { EXTERNAL_LINKS } from '@/lib/external-links';
 import { useT } from '@/lib/i18n/client';
 import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
