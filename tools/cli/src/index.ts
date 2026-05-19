@@ -7,6 +7,7 @@ import { createCleanupCommand } from './commands/cleanup';
 import { createConfigCommand } from './commands/config';
 import { createConvexCommand } from './commands/convex';
 import { createDeployCommand } from './commands/deploy';
+import { createDoctorCommand } from './commands/doctor';
 import { createInitCommand } from './commands/init';
 import { createLogsCommand } from './commands/logs';
 import { createResetCommand } from './commands/reset';
@@ -45,5 +46,6 @@ program.addCommand(createLogsCommand());
 program.addCommand(createRollbackCommand());
 program.addCommand(createResetCommand());
 program.addCommand(createCleanupCommand());
+program.addCommand(createDoctorCommand());
 
 await program.parseAsync();

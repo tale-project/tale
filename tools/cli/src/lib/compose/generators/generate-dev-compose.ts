@@ -11,6 +11,8 @@ import { createDbService } from '../services/create-db-service';
 import { createPlatformService } from '../services/create-platform-service';
 import { createProxyService } from '../services/create-proxy-service';
 import { createRagService } from '../services/create-rag-service';
+import { createSandboxEgressService } from '../services/create-sandbox-egress-service';
+import { createSandboxService } from '../services/create-sandbox-service';
 import type { ComposeConfig, ServiceConfig } from '../types';
 import { DEV_VOLUME_NAMES } from './constants';
 
@@ -153,6 +155,8 @@ export function generateDevCompose(
       platform,
       rag,
       crawler,
+      'sandbox-egress': createSandboxEgressService(config),
+      sandbox: createSandboxService(config),
     },
     volumes,
     networks: {
@@ -160,6 +164,10 @@ export function generateDevCompose(
         external: true,
         name: `${devPrefix}internal`,
       },
+      // Sandbox bridge — internal-only, IPv6 disabled (declared in
+      // start.ts via ensureNetwork; here referenced as external so the
+      // generator emits the right ref).
+      sandbox: { external: true, name: 'tale-sandbox-net' },
     },
   };
 
