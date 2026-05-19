@@ -535,6 +535,91 @@ services:
         aliases:
           - ${HOST:-tale.local}
 
+  # ============================================================================
+  # Tale Sandbox Egress (tinyproxy) — HTTPS forward proxy
+  # ----------------------------------------------------------------------------
+  # Filters CONNECT host requests against an allow-list of package registries
+  # (pypi.org, files.pythonhosted.org, registry.npmjs.org, github package
+  # endpoints). Sandbox runtime containers reach pypi/npm via this proxy; all
+  # other internet is unreachable because the sandbox bridge is `internal:true`.
+  # See plan §2.
+  # ============================================================================
+  sandbox-egress:
+    image: ghcr.io/tale-project/tale/tale-sandbox-egress:${VERSION:-latest}
+    pull_policy: ${PULL_POLICY:-build}
+    build:
+      context: services/sandbox-egress
+      dockerfile: Dockerfile
+    container_name: tale-sandbox-egress
+    env_file:
+      - .env
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'nc', '-z', '127.0.0.1', '3128']
+      interval: 10s
+      timeout: 3s
+      retries: 2
+      start_period: 5s
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+    networks:
+      - sandbox
+
+  # ============================================================================
+  # Tale Sandbox Spawner — thin stateless docker-run service for `code_run`
+  # ----------------------------------------------------------------------------
+  # Mounts /var/run/docker.sock to spawn ephemeral sibling containers per call.
+  # Reachable only on the `internal` bridge by the platform/convex service;
+  # joined to `sandbox` only to issue `docker run` (the runtime containers
+  # themselves attach to `sandbox` for egress via tinyproxy).
+  #
+  # SECURITY: docker.sock = host root. Explicit threat acceptance per plan
+  # "Security model". Spawner accepts only HMAC-signed typed JSON over HTTP;
+  # `services/sandbox/src/docker_args.ts` validates every argv field with
+  # regexes so a malformed input never reaches `docker run`. Future hardening:
+  # SANDBOX_RUNTIME=runsc opt-in (gVisor), `opa-docker-authz` daemon plugin
+  # for HostConfig body filtering, dockerd userns-remap.
+  # ============================================================================
+  sandbox:
+    image: ghcr.io/tale-project/tale/tale-sandbox:${VERSION:-latest}
+    pull_policy: ${PULL_POLICY:-build}
+    build:
+      context: services/sandbox
+      dockerfile: Dockerfile
+    container_name: tale-sandbox
+    env_file:
+      - .env
+    environment:
+      SANDBOX_RUNTIME: ${SANDBOX_RUNTIME:-runc}
+      SANDBOX_RUNTIME_IMAGE: ${SANDBOX_RUNTIME_IMAGE:-tale-sandbox-runtime:latest}
+      SANDBOX_EGRESS_NETWORK: tale-sandbox-net
+      SANDBOX_EGRESS_PROXY: http://sandbox-egress:3128
+    volumes:
+      # The spawner needs the host docker socket to spawn sibling containers.
+      # This is the security boundary — see header comment.
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:8003/health']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    depends_on:
+      sandbox-egress:
+        condition: service_healthy
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+    networks:
+      - internal
+      - sandbox
+
 # ============================================================================
 # Volumes
 # ============================================================================
@@ -588,3 +673,17 @@ networks:
   # Internal network for Tale services
   internal:
     driver: bridge
+
+  # Sandbox network — internal-only bridge for code_run runtime containers + the
+  # tinyproxy egress sidecar. `internal: true` blocks all internet from this
+  # network; the only outbound is through sandbox-egress (host allow-list).
+  # IPv6 disabled to prevent v4 allow-list bypass via v6 routes (R1.3).
+  #
+  # `name:` pins the Docker-level network name so the spawner (which calls
+  # `docker run --network tale-sandbox-net` on sibling containers) doesn't
+  # have to discover the compose-project-prefixed default.
+  sandbox:
+    name: tale-sandbox-net
+    driver: bridge
+    internal: true
+    enable_ipv6: false
