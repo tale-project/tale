@@ -2,6 +2,14 @@ import { Button } from '@tale/ui/button';
 import { formatCurrency } from '@tale/ui/format';
 import { motion, useReducedMotion } from 'framer-motion';
 
+import {
+  clusterMetrics,
+  clusterPricing,
+  nodeMetrics,
+  nodePricing,
+  type Pricing,
+  type TierMetrics,
+} from '@/app/components/blocks/hardware-specs';
 import { TierCard } from '@/app/components/blocks/tier-card';
 import { LocalizedLink } from '@/app/components/layout/localized-link';
 import { SiteContainer } from '@/app/components/layout/site-container';
@@ -12,70 +20,19 @@ import type {
 } from '@/app/pages/hardware-pricing-page';
 import { useT } from '@/lib/i18n/client';
 
+/**
+ * Pricing-card grid + mode/billing toggles — the upper half of the
+ * hardware pricing page. All pricing and progress-bar metrics are
+ * derived in `hardware-specs.ts`; this component is purely
+ * presentational over those derivations.
+ */
+
 const easeOut = [0.22, 1, 0.36, 1] as const;
 const HARDWARE_LOCALE = 'en-US';
 const HARDWARE_CURRENCY = 'CHF';
 
-type TierKey = 'quality' | 'hybrid' | 'speed';
-
-interface TierMetrics {
-  quality: number;
-  speed: number;
-  storage: number;
-}
-
-interface TierPricing {
-  /** Monthly rental price in CHF (rounded). */
-  rental: number;
-  /** One-off purchase price in CHF (rounded). */
-  buy: number;
-}
-
-interface Tier {
-  key: TierKey;
-  popular?: boolean;
-  /** Rental + buy prices, per mode. */
-  pricing: Record<HardwareMode, TierPricing>;
-  /** Score 0–100 per mode and axis; rendered as comparative progress bars. */
-  metrics: Record<HardwareMode, TierMetrics>;
-}
-
-const TIERS: Tier[] = [
-  {
-    key: 'quality',
-    pricing: {
-      cluster: { rental: 2800, buy: 55_700 },
-      node: { rental: 300, buy: 4000 },
-    },
-    metrics: {
-      cluster: { quality: 100, speed: 25, storage: 100 },
-      node: { quality: 67, speed: 17, storage: 6 },
-    },
-  },
-  {
-    key: 'hybrid',
-    popular: true,
-    pricing: {
-      cluster: { rental: 2800, buy: 55_700 },
-      node: { rental: 500, buy: 14_990 },
-    },
-    metrics: {
-      cluster: { quality: 75, speed: 50, storage: 100 },
-      node: { quality: 0, speed: 0, storage: 100 },
-    },
-  },
-  {
-    key: 'speed',
-    pricing: {
-      cluster: { rental: 2800, buy: 55_700 },
-      node: { rental: 800, buy: 14_600 },
-    },
-    metrics: {
-      cluster: { quality: 25, speed: 100, storage: 100 },
-      node: { quality: 17, speed: 67, storage: 22 },
-    },
-  },
-];
+const TIER_KEYS = ['quality', 'hybrid', 'speed'] as const;
+type TierKey = (typeof TIER_KEYS)[number];
 
 const METRIC_AXES = ['quality', 'speed', 'storage'] as const;
 const HARDWARE_MODES = [
@@ -86,6 +43,26 @@ const HARDWARE_BILLINGS = [
   'buying',
   'renting',
 ] as const satisfies readonly HardwareBilling[];
+
+interface Tier {
+  key: TierKey;
+  popular: boolean;
+  pricing: Record<HardwareMode, Pricing>;
+  metrics: Record<HardwareMode, TierMetrics>;
+}
+
+const TIERS: Tier[] = TIER_KEYS.map((key) => ({
+  key,
+  popular: key === 'hybrid',
+  pricing: {
+    cluster: clusterPricing(key),
+    node: nodePricing(key),
+  },
+  metrics: {
+    cluster: clusterMetrics(key),
+    node: nodeMetrics(key),
+  },
+}));
 
 interface HardwareTiersProps {
   mode: HardwareMode;
@@ -131,116 +108,87 @@ export function HardwareTiers({
         </motion.header>
 
         <div className="mx-auto mt-10 flex flex-col items-center gap-3 md:flex-row md:justify-center md:gap-4">
-          <div
-            role="radiogroup"
-            aria-label={t('modesAriaLabel')}
-            className="bg-bg-elevated flex w-fit items-center gap-1 rounded-md p-0.5"
-          >
-            {HARDWARE_MODES.map((option) => {
-              const isActive = mode === option;
-              return (
-                <button
-                  key={option}
-                  type="button"
-                  role="radio"
-                  aria-checked={isActive}
-                  onClick={() => onModeChange(option)}
-                  className={`rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors ${
-                    isActive
-                      ? 'bg-bg-base text-fg-base shadow-sm'
-                      : 'text-fg-muted hover:text-fg-base cursor-pointer'
-                  }`}
-                >
-                  {t(`modes.${option}`)}
-                </button>
-              );
-            })}
-          </div>
-
-          <div
-            role="radiogroup"
-            aria-label={t('billing.ariaLabel')}
-            className="bg-bg-elevated flex w-fit items-center gap-1 rounded-md p-0.5"
-          >
-            {HARDWARE_BILLINGS.map((option) => {
-              const isActive = billing === option;
-              return (
-                <button
-                  key={option}
-                  type="button"
-                  role="radio"
-                  aria-checked={isActive}
-                  onClick={() => onBillingChange(option)}
-                  className={`rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors ${
-                    isActive
-                      ? 'bg-bg-base text-fg-base shadow-sm'
-                      : 'text-fg-muted hover:text-fg-base cursor-pointer'
-                  }`}
-                >
-                  {t(`billing.${option}`)}
-                </button>
-              );
-            })}
-          </div>
+          <SegmentedRadio
+            ariaLabel={t('modesAriaLabel')}
+            options={HARDWARE_MODES}
+            value={mode}
+            onChange={onModeChange}
+            renderLabel={(option) => t(`modes.${option}`)}
+          />
+          <SegmentedRadio
+            ariaLabel={t('billing.ariaLabel')}
+            options={HARDWARE_BILLINGS}
+            value={billing}
+            onChange={onBillingChange}
+            renderLabel={(option) => t(`billing.${option}`)}
+          />
         </div>
 
         <div className="border-border-base mx-auto mt-12 grid max-w-[1120px] grid-cols-1 overflow-hidden border lg:grid-cols-3">
-          {TIERS.map((tier, idx) => (
-            <TierCard
-              key={tier.key}
-              name={t(`tierNames.${mode}.${tier.key}`)}
-              popular={tier.popular}
-              price={formatCurrency(
-                billing === 'renting'
-                  ? tier.pricing[mode].rental
-                  : tier.pricing[mode].buy,
-                {
-                  currency: HARDWARE_CURRENCY,
-                  locale: HARDWARE_LOCALE,
-                  approximate: true,
-                },
-              )}
-              priceSuffix={t(
-                billing === 'renting'
-                  ? `tiers.${tier.key}.priceSuffix`
-                  : `tiers.${tier.key}.buySuffix`,
-              )}
-              tagline={t(
-                mode === 'node'
-                  ? `tiers.${tier.key}.nodeTagline`
-                  : `tiers.${tier.key}.tagline`,
-              )}
-              animationDelay={idx * 0.06}
-            >
-              <dl className="border-border-base flex flex-col gap-4 border-t pt-6">
-                {METRIC_AXES.map((axis) => (
-                  <div key={axis} className="flex flex-col gap-2">
-                    <dt className="text-fg-muted text-sm">
-                      {t(`metrics.${axis}`)}
-                    </dt>
-                    <dd>
-                      <ProgressBar
-                        value={tier.metrics[mode][axis]}
-                        ariaLabel={`${t(`metrics.${axis}`)}: ${tier.metrics[mode][axis]}%`}
-                      />
-                    </dd>
-                  </div>
-                ))}
-              </dl>
+          {TIERS.map((tier, idx) => {
+            const price = formatCurrency(
+              billing === 'renting'
+                ? tier.pricing[mode].rental
+                : tier.pricing[mode].buy,
+              {
+                currency: HARDWARE_CURRENCY,
+                locale: HARDWARE_LOCALE,
+                approximate: true,
+              },
+            );
+            const priceSuffix = t(
+              billing === 'renting'
+                ? `tiers.${tier.key}.priceSuffix`
+                : `tiers.${tier.key}.buySuffix`,
+            );
+            const tagline = t(
+              mode === 'node'
+                ? `tiers.${tier.key}.nodeTagline`
+                : `tiers.${tier.key}.tagline`,
+            );
 
-              <div className="mt-auto pt-2">
-                <Button
-                  asChild
-                  variant={tier.popular ? 'primary' : 'secondary'}
-                  fullWidth
-                >
-                  <LocalizedLink to="/request-demo">
-                    {t(`tiers.${tier.key}.cta`)}
-                  </LocalizedLink>
-                </Button>
-              </div>
-            </TierCard>
-          ))}
+            return (
+              <TierCard
+                key={tier.key}
+                name={t(`tierNames.${mode}.${tier.key}`)}
+                popular={tier.popular}
+                price={price}
+                priceSuffix={priceSuffix}
+                tagline={tagline}
+                animationDelay={idx * 0.06}
+              >
+                <dl className="border-border-base flex flex-col gap-4 border-t pt-6">
+                  {METRIC_AXES.map((axis) => {
+                    const value = tier.metrics[mode][axis];
+                    const label = t(`metrics.${axis}`);
+                    return (
+                      <div key={axis} className="flex flex-col gap-2">
+                        <dt className="text-fg-muted text-sm">{label}</dt>
+                        <dd>
+                          <ProgressBar
+                            value={value}
+                            ariaLabel={`${label}: ${value}%`}
+                          />
+                        </dd>
+                      </div>
+                    );
+                  })}
+                </dl>
+
+                <div className="mt-auto pt-2">
+                  <Button
+                    asChild
+                    variant={tier.popular ? 'primary' : 'secondary'}
+                    fullWidth
+                  >
+                    <LocalizedLink to="/request-demo">
+                      {t(`tiers.${tier.key}.cta`)}
+                    </LocalizedLink>
+                  </Button>
+                </div>
+              </TierCard>
+            );
+          })}
         </div>
 
         <p
@@ -251,5 +199,53 @@ export function HardwareTiers({
         </p>
       </SiteContainer>
     </section>
+  );
+}
+
+interface SegmentedRadioProps<T extends string> {
+  ariaLabel: string;
+  options: readonly T[];
+  value: T;
+  onChange: (next: T) => void;
+  renderLabel: (option: T) => string;
+}
+
+/**
+ * Pill-style radio group used for the mode (node/cluster) and billing
+ * (buying/renting) toggles. Kept local since no other block needs it.
+ */
+function SegmentedRadio<T extends string>({
+  ariaLabel,
+  options,
+  value,
+  onChange,
+  renderLabel,
+}: SegmentedRadioProps<T>) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label={ariaLabel}
+      className="bg-bg-elevated flex w-fit items-center gap-1 rounded-md p-0.5"
+    >
+      {options.map((option) => {
+        const isActive = value === option;
+        return (
+          <button
+            key={option}
+            type="button"
+            role="radio"
+            aria-checked={isActive}
+            onClick={() => onChange(option)}
+            className={`rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors ${
+              isActive
+                ? 'bg-bg-base text-fg-base shadow-sm'
+                : 'text-fg-muted hover:text-fg-base cursor-pointer'
+            }`}
+          >
+            {renderLabel(option)}
+          </button>
+        );
+      })}
+    </div>
   );
 }

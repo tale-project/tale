@@ -347,7 +347,7 @@
         "priceSuffix": "+ TVA/mois",
         "buySuffix": "+ TVA",
         "tagline": "Équilibré entre précision et vitesse.",
-        "nodeTagline": "Associe le contrôle local des données à l'inférence cloud.",
+        "nodeTagline": "Associe le contrôle local des données à une inférence rapide.",
         "cta": "Nous contacter",
         "highlightQuality": "Élevée",
         "highlightSpeed": "Élevée"
@@ -419,9 +419,9 @@
       "suffix": "."
     },
     "metrics": {
-      "quality": "Qualité",
-      "speed": "Vitesse",
-      "storage": "Stockage"
+      "quality": "Qualité de sortie",
+      "speed": "Vitesse en tokens",
+      "storage": "Stockage de données"
     }
   },
   "requestDemo": {

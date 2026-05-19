@@ -1,13 +1,7 @@
 import { Button } from '@tale/ui/button';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@tale/ui/tooltip';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Check, Minus } from 'lucide-react';
-import { Fragment, type ReactNode } from 'react';
+import { Check } from 'lucide-react';
+import type { ReactNode } from 'react';
 
 import {
   CompareTable,
@@ -15,34 +9,54 @@ import {
   type CompareRow,
   type CompareTier,
 } from '@/app/components/blocks/compare-table';
+import { SpecValue } from '@/app/components/blocks/hardware-spec-value';
+import {
+  clusterSpec,
+  nodeSpec,
+  type SpecLines,
+} from '@/app/components/blocks/hardware-specs';
 import { LocalizedLink } from '@/app/components/layout/localized-link';
 import { SiteContainer } from '@/app/components/layout/site-container';
 import type { HardwareMode } from '@/app/pages/hardware-pricing-page';
 import { useT } from '@/lib/i18n/client';
+
+/**
+ * Detailed hardware comparison table — the lower half of the hardware
+ * pricing page. The upper half is rendered by `HardwareTiers` and shows
+ * the per-tier pricing cards.
+ *
+ * Cell content for the specs section is derived from the node/cluster
+ * definitions in `hardware-specs.ts`; everything else (CTAs, span rows,
+ * section dividers) is composed inline.
+ */
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
 
 const TIER_KEYS = ['quality', 'hybrid', 'speed'] as const;
 type TierKey = (typeof TIER_KEYS)[number];
 
-const SPEC_AXES = [
-  { row: 'ram', values: ['qualityRam', 'hybridRam', 'speedRam'] },
-  {
-    row: 'systemRam',
-    values: ['qualitySystemRam', 'hybridSystemRam', 'speedSystemRam'],
-  },
-  { row: 'gpu', values: ['qualityGpu', 'hybridGpu', 'speedGpu'] },
-  { row: 'cpu', values: ['qualityCpu', 'hybridCpu', 'speedCpu'] },
-  { row: 'ssd', values: ['qualitySsd', 'hybridSsd', 'speedSsd'] },
-  { row: 'hdd', values: ['qualityHdd', 'hybridHdd', 'speedHdd'] },
-  { row: 'size', values: ['qualitySize', 'hybridSize', 'speedSize'] },
-] as const;
-
-interface HardwareCompareProps {
-  mode: HardwareMode;
+/**
+ * Compare-table specifications axes. Each axis maps a translation row
+ * key (`compare.categories.{row}`) to a {@link SpecLines} field. Axes
+ * marked `withInfo: true` render a `(?)` tooltip on the row label,
+ * sourced from `compare.categories.{row}Info`.
+ */
+interface SpecAxis {
+  row: 'ram' | 'systemRam' | 'gpu' | 'cpu' | 'ssd' | 'hdd' | 'size';
+  field: keyof SpecLines;
+  withInfo?: boolean;
 }
+const SPEC_AXES: readonly SpecAxis[] = [
+  { row: 'ram', field: 'aiRam', withInfo: true },
+  { row: 'systemRam', field: 'systemRam' },
+  { row: 'gpu', field: 'gpu' },
+  { row: 'cpu', field: 'cpu' },
+  { row: 'ssd', field: 'ssd' },
+  { row: 'hdd', field: 'hdd' },
+  { row: 'size', field: 'size', withInfo: true },
+];
 
-const VERSION_KEYS = {
+const VERSION_KEYS: Record<HardwareMode, Record<TierKey, string>> = {
   node: {
     quality: 'nodeQuality',
     hybrid: 'nodeApplication',
@@ -53,118 +67,22 @@ const VERSION_KEYS = {
     hybrid: 'clusterHybrid',
     speed: 'clusterSpeed',
   },
-} as const;
+};
 
-const SPEC_TOKEN_REGEX = /\(([^)]+)\)/g;
-
-/**
- * Convention: each tooltip's info key is the bracketed token normalised
- * to lowercase + stripped of non-alphanumerics, with an `Info` suffix.
- *
- *   `UMA`      → `umaInfo`
- *   `DDR5 ECC` → `ddr5eccInfo`
- *   `m.2 NVMe` → `m2nvmeInfo`
- *   `Zen 5`    → `zen5Info`
- *
- * Tokens whose derived key has no translation render as plain text —
- * adding a new acronym only requires adding the matching `xInfo` entry
- * under `hardwarePricing.compare.categories.*` in every locale.
- */
-function tokenInfoKey(token: string): string {
-  return token.toLowerCase().replace(/[^a-z0-9]/g, '') + 'Info';
-}
-
-/**
- * Renders a spec cell value. Every bracketed token whose
- * {@link tokenInfoKey} resolves to an existing translation is wrapped
- * in a tooltip-equipped trigger; everything else renders as plain
- * text. Multi-line values (`\n`) stack vertically.
- */
-function SpecValue({ value }: { value: string }): ReactNode {
-  const { t } = useT('hardwarePricing');
-  if (!value) return null;
-  if (value === '-') {
-    return (
-      <Minus
-        className="text-fg-muted mx-auto h-5 w-5"
-        strokeWidth={2}
-        role="img"
-        aria-label={t('compare.cellLabels.notAvailable')}
-      />
-    );
-  }
-
-  const lines = value.split('\n');
-  return (
-    <TooltipProvider delayDuration={150}>
-      {lines.map((line, lineIdx) => {
-        const parts: ReactNode[] = [];
-        let lastIndex = 0;
-        for (const match of line.matchAll(SPEC_TOKEN_REGEX)) {
-          const inner = match[1];
-          const key = `compare.categories.${tokenInfoKey(inner)}`;
-          const info = t(key);
-          // i18next returns the key when the translation is missing —
-          // fall back to plain text so unknown bracketed tokens don't
-          // surface a tooltip with the raw key as content.
-          const hasTooltip = info !== key;
-          const start = match.index ?? 0;
-          if (start > lastIndex) {
-            // Replace the trailing space before "(" with a non-breaking
-            // space so the styled paren group never wraps away from its
-            // preceding value (e.g. "96GB (UMA)" stays as one unit).
-            let chunk = line.slice(lastIndex, start);
-            if (chunk.endsWith(' ')) chunk = chunk.slice(0, -1) + '\u00A0';
-            parts.push(chunk);
-          }
-          parts.push(
-            <span
-              key={`${lineIdx}-${start}`}
-              className="text-fg-subtle inline-block align-super text-xs whitespace-nowrap"
-            >
-              {'('}
-              {hasTooltip ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      className="cursor-help underline decoration-dotted underline-offset-2"
-                    >
-                      {inner}
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent
-                    side="top"
-                    className="max-w-xs text-center whitespace-normal"
-                  >
-                    {info}
-                  </TooltipContent>
-                </Tooltip>
-              ) : (
-                inner
-              )}
-              {')'}
-            </span>,
-          );
-          lastIndex = start + match[0].length;
-        }
-        if (lastIndex < line.length) parts.push(line.slice(lastIndex));
-        return (
-          <span key={lineIdx} className="block">
-            {parts.map((part, i) => (
-              <Fragment key={i}>{part}</Fragment>
-            ))}
-          </span>
-        );
-      })}
-    </TooltipProvider>
-  );
+interface HardwareCompareProps {
+  mode: HardwareMode;
 }
 
 export function HardwareCompare({ mode }: HardwareCompareProps) {
   const { t } = useT('hardwarePricing');
   const reduceMotion = useReducedMotion();
-  const versionKeys = VERSION_KEYS[mode];
+
+  const specs: Record<TierKey, SpecLines> = {
+    quality:
+      mode === 'node' ? nodeSpec(t, 'quality') : clusterSpec(t, 'quality'),
+    hybrid: mode === 'node' ? nodeSpec(t, 'hybrid') : clusterSpec(t, 'hybrid'),
+    speed: mode === 'node' ? nodeSpec(t, 'speed') : clusterSpec(t, 'speed'),
+  };
 
   const tiers: CompareTier<TierKey>[] = TIER_KEYS.map((key) => ({
     key,
@@ -192,134 +110,145 @@ export function HardwareCompare({ mode }: HardwareCompareProps) {
     />
   );
 
+  const rowLabel = (axis: SpecAxis): ReactNode =>
+    axis.withInfo ? (
+      <LabelWithInfo
+        label={t(`compare.categories.${axis.row}`)}
+        info={t(`compare.categories.${axis.row}Info`)}
+      />
+    ) : (
+      t(`compare.categories.${axis.row}`)
+    );
+
+  const versionRow: CompareRow<TierKey> = {
+    kind: 'data',
+    rowKey: 'version',
+    label: t('compare.categories.version'),
+    cells: {
+      quality: (
+        <SpecValue value={t(`versions.${VERSION_KEYS[mode].quality}`)} />
+      ),
+      hybrid: <SpecValue value={t(`versions.${VERSION_KEYS[mode].hybrid}`)} />,
+      speed: <SpecValue value={t(`versions.${VERSION_KEYS[mode].speed}`)} />,
+    },
+  };
+
+  // Product numbers are only displayed in node mode — clusters are
+  // billed and shipped as composed systems with no top-level SKU.
+  const productNumberRow: CompareRow<TierKey> | null =
+    mode === 'node'
+      ? {
+          kind: 'data',
+          rowKey: 'productNumber',
+          label: t('compare.categories.productNumber'),
+          cells: {
+            quality: t('productNumbers.quality'),
+            hybrid: t('productNumbers.hybrid'),
+            speed: t('productNumbers.speed'),
+          },
+        }
+      : null;
+
+  const specRows: CompareRow<TierKey>[] = SPEC_AXES.map((axis) => {
+    // In node mode, the Quality tier has a single Apple Silicon SoC —
+    // merge the GPU and CPU cells of that column visually (rowSpan=2 on
+    // GPU, no Quality cell on CPU).
+    const mergeQualityChip = mode === 'node' && axis.row === 'gpu';
+    const skipQualityChip = mode === 'node' && axis.row === 'cpu';
+
+    const cells: Partial<Record<TierKey, ReactNode>> = {
+      hybrid: <SpecValue value={specs.hybrid[axis.field]} />,
+      speed: <SpecValue value={specs.speed[axis.field]} />,
+    };
+    if (!skipQualityChip) {
+      cells.quality = <SpecValue value={specs.quality[axis.field]} />;
+    }
+
+    const row: CompareRow<TierKey> = {
+      kind: 'data',
+      rowKey: axis.row,
+      label: rowLabel(axis),
+      cells,
+    };
+    if (mergeQualityChip) row.cellSpans = { quality: 2 };
+    return row;
+  });
+
+  const modelRow: CompareRow<TierKey> = {
+    kind: 'data',
+    rowKey: 'model',
+    label: t('compare.categories.model'),
+    cells: {
+      quality: <SpecValue value={t('models.quality')} />,
+      hybrid: <SpecValue value={t('models.hybrid')} />,
+      speed: <SpecValue value={t('models.speed')} />,
+    },
+  };
+
+  const cablesRow: CompareRow<TierKey> = {
+    kind: 'data',
+    rowKey: 'cables',
+    label: t('compare.categories.cables'),
+    cells: {
+      quality: checkIcon,
+      hybrid: checkIcon,
+      speed: checkIcon,
+    },
+  };
+
+  const confidentialComputingRow: CompareRow<TierKey> = {
+    kind: 'span',
+    label: t('compare.categories.confidentialComputing'),
+    content: t('compare.cellLabels.onRequest'),
+  };
+
+  const softwareRow: CompareRow<TierKey> = {
+    kind: 'span',
+    label: t('extras.software.title'),
+    content: (
+      <>
+        {t('extras.software.prefix')}{' '}
+        <LocalizedLink
+          to="/pricing"
+          className="text-fg-base font-medium underline underline-offset-4"
+        >
+          {t('extras.software.linkLabel')}
+        </LocalizedLink>
+        {t('extras.software.suffix')}
+      </>
+    ),
+  };
+
+  const termsRow: CompareRow<TierKey> = {
+    kind: 'span',
+    label: t('terms.title'),
+    content: (
+      <>
+        {t('terms.prefix')}{' '}
+        <a
+          href="https://talecorp-my.sharepoint.com/:b:/g/personal/ym_tale_dev/IQDoJBWnXoqqQLlapn6eOPEcAUkySXRa3AUSrKFwYMl0VCU?e=JWmiZc"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-fg-base font-medium underline underline-offset-4"
+        >
+          {t('terms.linkLabel')}
+        </a>
+        {t('terms.suffix')}
+      </>
+    ),
+  };
+
   const rows: CompareRow<TierKey>[] = [
-    {
-      kind: 'data',
-      rowKey: 'version',
-      label: t('compare.categories.version'),
-      cells: {
-        quality: <SpecValue value={t(`versions.${versionKeys.quality}`)} />,
-        hybrid: <SpecValue value={t(`versions.${versionKeys.hybrid}`)} />,
-        speed: <SpecValue value={t(`versions.${versionKeys.speed}`)} />,
-      },
-    },
-    ...(mode === 'node'
-      ? [
-          {
-            kind: 'data',
-            rowKey: 'productNumber',
-            label: t('compare.categories.productNumber'),
-            cells: {
-              quality: t('productNumbers.quality'),
-              hybrid: t('productNumbers.hybrid'),
-              speed: t('productNumbers.speed'),
-            },
-          } satisfies CompareRow<TierKey>,
-        ]
-      : []),
+    versionRow,
+    ...(productNumberRow ? [productNumberRow] : []),
     { kind: 'section', label: t('compare.sections.specifications') },
-    ...SPEC_AXES.map((axis) => {
-      // In node mode, Quality has a single Apple Silicon SoC — merge the
-      // GPU and CPU cells of that column into one (rowSpan=2 on GPU, no
-      // Quality cell on CPU).
-      const mergeQualityChip = mode === 'node' && axis.row === 'gpu';
-      const skipQualityChip = mode === 'node' && axis.row === 'cpu';
-
-      // Every spec value gets routed through `SpecValue` — it wraps any
-      // bracketed token that has an entry in `SPEC_TOOLTIPS` with a
-      // tooltip trigger, and is a no-op for values without one.
-      const cells: Partial<Record<TierKey, ReactNode>> = {
-        hybrid: <SpecValue value={t(`specs.${mode}.${axis.values[1]}`)} />,
-        speed: <SpecValue value={t(`specs.${mode}.${axis.values[2]}`)} />,
-      };
-      if (!skipQualityChip) {
-        cells.quality = (
-          <SpecValue value={t(`specs.${mode}.${axis.values[0]}`)} />
-        );
-      }
-
-      const row: CompareRow<TierKey> = {
-        kind: 'data',
-        rowKey: axis.row,
-        label:
-          axis.row === 'ram' ? (
-            <LabelWithInfo
-              label={t('compare.categories.ram')}
-              info={t('compare.categories.ramInfo')}
-            />
-          ) : axis.row === 'size' ? (
-            <LabelWithInfo
-              label={t('compare.categories.size')}
-              info={t('compare.categories.sizeInfo')}
-            />
-          ) : (
-            t(`compare.categories.${axis.row}`)
-          ),
-        cells,
-      };
-      if (mergeQualityChip) row.cellSpans = { quality: 2 };
-      return row;
-    }),
+    ...specRows,
     { kind: 'section', label: t('compare.sections.other') },
-    {
-      kind: 'data',
-      rowKey: 'model',
-      label: t('compare.categories.model'),
-      cells: {
-        quality: <SpecValue value={t('models.quality')} />,
-        hybrid: <SpecValue value={t('models.hybrid')} />,
-        speed: <SpecValue value={t('models.speed')} />,
-      },
-    },
-    {
-      kind: 'data',
-      rowKey: 'cables',
-      label: t('compare.categories.cables'),
-      cells: {
-        quality: checkIcon,
-        hybrid: checkIcon,
-        speed: checkIcon,
-      },
-    },
-    {
-      kind: 'span',
-      label: t('compare.categories.confidentialComputing'),
-      content: t('compare.cellLabels.onRequest'),
-    },
-    {
-      kind: 'span',
-      label: t('extras.software.title'),
-      content: (
-        <>
-          {t('extras.software.prefix')}{' '}
-          <LocalizedLink
-            to="/pricing"
-            className="text-fg-base font-medium underline underline-offset-4"
-          >
-            {t('extras.software.linkLabel')}
-          </LocalizedLink>
-          {t('extras.software.suffix')}
-        </>
-      ),
-    },
-    {
-      kind: 'span',
-      label: t('terms.title'),
-      content: (
-        <>
-          {t('terms.prefix')}{' '}
-          <a
-            href="https://talecorp-my.sharepoint.com/:b:/g/personal/ym_tale_dev/IQDoJBWnXoqqQLlapn6eOPEcAUkySXRa3AUSrKFwYMl0VCU?e=JWmiZc"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-fg-base font-medium underline underline-offset-4"
-          >
-            {t('terms.linkLabel')}
-          </a>
-          {t('terms.suffix')}
-        </>
-      ),
-    },
+    modelRow,
+    cablesRow,
+    confidentialComputingRow,
+    softwareRow,
+    termsRow,
   ];
 
   return (

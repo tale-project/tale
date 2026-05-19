@@ -41,51 +41,32 @@
       }
     },
     "specs": {
-      "cluster": {
-        "qualityRam": "864GB (UMA)",
-        "hybridRam": "576GB (UMA)\n96GB (VRAM)",
-        "speedRam": "288GB (VRAM)",
-        "qualitySystemRam": "96GB (DDR5)",
-        "hybridSystemRam": "160GB (DDR5 ECC)",
-        "speedSystemRam": "288GB (DDR5 ECC)",
-        "qualityGpu": "9× Apple Silicon",
-        "hybridGpu": "6× Apple Silicon\n1× NVIDIA RTX PRO 6000 Max-Q",
-        "speedGpu": "3× NVIDIA RTX PRO 6000 Max-Q",
-        "qualityCpu": "1× AMD EPYC 4545P (Zen 5)",
-        "hybridCpu": "2× AMD EPYC 4545P (Zen 5)",
-        "speedCpu": "4× AMD EPYC 4545P (Zen 5)",
-        "qualitySsd": "10TB (m.2 NVMe)",
-        "hybridSsd": "11TB (m.2 NVMe)",
-        "speedSsd": "7TB (m.2 NVMe)",
-        "qualityHdd": "-",
-        "hybridHdd": "-",
-        "speedHdd": "-",
-        "qualitySize": "500mm × 500mm × 1500mm",
-        "hybridSize": "500mm × 500mm × 1500mm",
-        "speedSize": "1500mm × 500mm × 500mm"
+      "types": {
+        "uma": "UMA",
+        "vram": "VRAM",
+        "ddr5": "DDR5",
+        "ddr5_ecc": "DDR5 ECC",
+        "m2_nvme": "m.2 NVMe",
+        "apple_silicon": "Apple Silicon",
+        "nvidia_rtx_pro_6000": "NVIDIA RTX PRO 6000",
+        "amd_epyc_4545p_zen5": "AMD EPYC 4545P (Zen 5)"
       },
-      "node": {
-        "qualityRam": "96GB (UMA)",
-        "hybridRam": "-",
-        "speedRam": "96GB (VRAM)",
-        "qualitySystemRam": "-",
-        "hybridSystemRam": "96GB (DDR5 ECC)",
-        "speedSystemRam": "64GB (DDR5 ECC)",
-        "qualityGpu": "1× Apple Silicon",
-        "hybridGpu": "-",
-        "speedGpu": "1× NVIDIA RTX PRO 6000 Max-Q",
-        "qualityCpu": "-",
-        "hybridCpu": "1× AMD EPYC 4545P (Zen 5)",
-        "speedCpu": "1× AMD EPYC 4545P (Zen 5)",
-        "qualitySsd": "1TB (m.2 NVMe)",
-        "hybridSsd": "4TB (m.2 NVMe)",
-        "speedSsd": "1TB (m.2 NVMe)",
-        "qualityHdd": "-",
-        "hybridHdd": "-",
-        "speedHdd": "-",
-        "qualitySize": "192mm × 366mm × 270mm",
-        "hybridSize": "192mm × 366mm × 270mm",
-        "speedSize": "192mm × 366mm × 270mm"
+      "line": {
+        "ram": "{gb}GB ({type})",
+        "chip": "{count}× {name}",
+        "ssd": "{tb}TB ({type})"
+      },
+      "sizes": {
+        "node": {
+          "quality": "192mm × 366mm × 270mm",
+          "hybrid": "192mm × 366mm × 270mm",
+          "speed": "192mm × 366mm × 270mm"
+        },
+        "cluster": {
+          "quality": "500mm × 500mm × 1500mm",
+          "hybrid": "500mm × 500mm × 1500mm",
+          "speed": "1500mm × 500mm × 500mm"
+        }
       }
     }
   }

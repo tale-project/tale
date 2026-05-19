@@ -347,7 +347,7 @@
         "priceSuffix": "+ VAT/month",
         "buySuffix": "+ VAT",
         "tagline": "Balanced between accuracy and speed.",
-        "nodeTagline": "Combines local data control with cloud inference.",
+        "nodeTagline": "Combines local data control with high-speed inference.",
         "cta": "Contact us",
         "highlightQuality": "High",
         "highlightSpeed": "High"
@@ -419,9 +419,9 @@
       "suffix": "."
     },
     "metrics": {
-      "quality": "Quality",
-      "speed": "Speed",
-      "storage": "Storage"
+      "quality": "Output quality",
+      "speed": "Token speed",
+      "storage": "Data storage"
     }
   },
   "requestDemo": {

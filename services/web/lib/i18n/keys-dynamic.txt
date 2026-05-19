@@ -43,6 +43,13 @@ requestDemo.eyebrow
 # even though the hardware page does not currently print it.
 hardwarePricing.configIncludes
 
+# Hardware spec lookups — keys are dispatched off the typed identifiers in
+# `hardware-specs.ts` (`aiRam.type`, `gpu.chip`, etc.) and the per-tier
+# size lookup `specs.sizes.{mode}.{key}`. Adding/removing a type or tier
+# means editing the JSON values, never these prefixes.
+hardwarePricing.specs.types
+hardwarePricing.specs.sizes
+
 # Pricing-compare legacy aggregate values — superseded by per-row strings.
 # Remove once design confirms the rolled-up labels are no longer needed.
 pricing.compare.values.communityDeployment

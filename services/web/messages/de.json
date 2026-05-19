@@ -347,7 +347,7 @@
         "priceSuffix": "+ MwSt./Monat",
         "buySuffix": "+ MwSt.",
         "tagline": "Ausgewogen zwischen Genauigkeit und Geschwindigkeit.",
-        "nodeTagline": "Verbindet lokale Datenkontrolle mit Inferenz aus der Cloud.",
+        "nodeTagline": "Verbindet lokale Datenkontrolle mit schneller Inferenz.",
         "cta": "Kontakt aufnehmen",
         "highlightQuality": "Hoch",
         "highlightSpeed": "Hoch"
@@ -419,9 +419,9 @@
       "suffix": "."
     },
     "metrics": {
-      "quality": "Qualität",
-      "speed": "Geschwindigkeit",
-      "storage": "Speicher"
+      "quality": "Ausgabequalität",
+      "speed": "Token-Geschwindigkeit",
+      "storage": "Datenspeicher"
     }
   },
   "requestDemo": {
