@@ -51,7 +51,12 @@ async function handleHealth(): Promise<Response> {
 
 async function handleExecute(req: Request): Promise<Response> {
   const body = await req.text();
-  if (!verify(body, req.headers.get(SIGNATURE_HEADER), cfg.sandboxToken)) {
+  // HMAC is opt-in. When SANDBOX_TOKEN is unset the spawner accepts
+  // unsigned requests (rag/crawler-parity; see config.ts + plan §1 Auth).
+  if (
+    cfg.sandboxToken !== null &&
+    !verify(body, req.headers.get(SIGNATURE_HEADER), cfg.sandboxToken)
+  ) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), {
       status: 401,
       headers: { 'content-type': 'application/json' },
@@ -95,7 +100,10 @@ async function handleExecute(req: Request): Promise<Response> {
 
 async function handleCancel(req: Request, id: string): Promise<Response> {
   const body = await req.text();
-  if (!verify(body, req.headers.get(SIGNATURE_HEADER), cfg.sandboxToken)) {
+  if (
+    cfg.sandboxToken !== null &&
+    !verify(body, req.headers.get(SIGNATURE_HEADER), cfg.sandboxToken)
+  ) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), {
       status: 401,
       headers: { 'content-type': 'application/json' },
@@ -152,6 +160,11 @@ async function main(): Promise<void> {
   console.log(
     `[sandbox] spawner listening on :${server.port}; runtime=${cfg.runtime}; image=${cfg.runtimeImage}; maxConcurrent=${cfg.maxConcurrent}`,
   );
+  if (cfg.sandboxToken === null) {
+    console.warn(
+      '[sandbox] WARNING: SANDBOX_TOKEN unset — accepting unsigned requests on the internal network (rag/crawler-parity dev mode). Set SANDBOX_TOKEN to enforce HMAC auth.',
+    );
+  }
 
   // Keep the periodic sweep handle so it isn't GC'd.
   void stopPeriodic;

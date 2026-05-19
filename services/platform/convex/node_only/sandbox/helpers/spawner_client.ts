@@ -58,14 +58,13 @@ function getSpawnerUrl(): string {
   return process.env.SANDBOX_URL ?? 'http://sandbox:8003';
 }
 
-function getSpawnerToken(): string {
+function getSpawnerToken(): string | null {
+  // Optional. When unset on both sides, requests go unsigned and the
+  // spawner accepts them (rag/crawler-parity, internal-trust mode).
+  // `tale init` generates SANDBOX_TOKEN by default so production
+  // deployments stay HMAC-on.
   const token = process.env.SANDBOX_TOKEN;
-  if (!token) {
-    throw new Error(
-      'SANDBOX_TOKEN env var is required for sandbox/code_run; set it in .env',
-    );
-  }
-  return token;
+  return token && token.length > 0 ? token : null;
 }
 
 /**
@@ -81,14 +80,18 @@ export async function spawnerExecute(
   const token = getSpawnerToken();
   const bodyJson = JSON.stringify(body);
 
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+  };
+  if (token !== null) {
+    headers[SIGNATURE_HEADER] = sign(bodyJson, token);
+  }
+
   let res: Response;
   try {
     res = await fetch(url, {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        [SIGNATURE_HEADER]: sign(bodyJson, token),
-      },
+      headers,
       body: bodyJson,
       signal,
     });
@@ -119,15 +122,14 @@ export async function spawnerCancel(executionId: string): Promise<void> {
   const url = `${getSpawnerUrl()}/v1/cancel/${encodeURIComponent(executionId)}`;
   const token = getSpawnerToken();
   const body = '';
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+  };
+  if (token !== null) {
+    headers[SIGNATURE_HEADER] = sign(body, token);
+  }
   try {
-    await fetch(url, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        [SIGNATURE_HEADER]: sign(body, token),
-      },
-      body,
-    });
+    await fetch(url, { method: 'POST', headers, body });
   } catch {
     // Cancellation is best-effort; the watchdog cron will reap stuck rows.
   }

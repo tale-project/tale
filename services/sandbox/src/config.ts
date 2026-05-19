@@ -3,14 +3,6 @@
 
 import type { SpawnerConfig } from './types.ts';
 
-function requireEnv(name: string): string {
-  const v = process.env[name];
-  if (!v || v.length === 0) {
-    throw new Error(`Missing required env var: ${name}`);
-  }
-  return v;
-}
-
 function numEnv(name: string, fallback: number): number {
   const v = process.env[name];
   if (v === undefined || v === '') return fallback;
@@ -28,9 +20,12 @@ export function loadConfig(): SpawnerConfig {
       `SANDBOX_RUNTIME must be 'runc' or 'runsc'; got: ${runtime}`,
     );
   }
+  const rawToken = process.env.SANDBOX_TOKEN;
   return {
     port: numEnv('SANDBOX_PORT', 8003),
-    sandboxToken: requireEnv('SANDBOX_TOKEN'),
+    // Empty string treated as unset so `SANDBOX_TOKEN=` in .env behaves
+    // the same as not declaring it at all.
+    sandboxToken: rawToken && rawToken.length > 0 ? rawToken : null,
     runtimeImage:
       process.env.SANDBOX_RUNTIME_IMAGE ?? 'tale-sandbox-runtime:latest',
     runtime,
