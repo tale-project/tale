@@ -403,18 +403,43 @@ The source you emit in \`content\` is executed in a sandboxed Linux container im
         const editedByMessageId = messageId ?? '';
 
         let artifactId: string;
-        if (state?.artifactId !== undefined) {
+        // Race-recovery: when `onInputDelta`'s placeholder insert mutation
+        // hadn't returned yet by the time `execute` started, `state.artifactId`
+        // is still undefined here — but the placeholder row may already exist
+        // in the DB (with this tool-call's `toolCallId`). Falling straight
+        // through to `createArtifact` would land a *second* row for the same
+        // tool call (one empty placeholder + one with full content), which
+        // surfaces in the UI as two duplicate-titled `v1` tabs. Look up the
+        // placeholder by toolCallId before deciding to insert a new row.
+        let placeholderId: string | undefined =
+          state?.artifactId !== undefined
+            ? String(state.artifactId)
+            : undefined;
+        if (placeholderId === undefined) {
+          const orphan = await ctx.runQuery(
+            internal.artifacts.internal_queries
+              .findStreamingPlaceholderByToolCallId,
+            {
+              organizationId,
+              threadId,
+              toolCallId: options.toolCallId,
+            },
+          );
+          if (orphan) placeholderId = String(orphan._id);
+        }
+        if (placeholderId !== undefined) {
           await ctx.runMutation(
             internal.artifacts.internal_mutations.finalizeStreamedCreate,
             {
-              artifactId: state.artifactId,
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- string came from state.artifactId or row._id, both already typed as Id<'artifacts'> in their sources
+              artifactId: placeholderId as never,
               title: args.title,
               language: args.language,
               content: args.content,
               editedByMessageId,
             },
           );
-          artifactId = state.artifactId;
+          artifactId = placeholderId;
         } else {
           const inserted = await ctx.runMutation(
             internal.artifacts.internal_mutations.createArtifact,
