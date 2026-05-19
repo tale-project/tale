@@ -14,6 +14,8 @@ import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
 import { internal } from '../../_generated/api';
+import { buildDownloadUrl } from '../../lib/helpers/public_storage_url';
+import { appendFilePart } from '../files/helpers/append_file_part';
 import type { ToolDefinition } from '../types';
 
 const codeRunArgs = z.object({
@@ -235,6 +237,19 @@ The returned \`files[0].fileMetadataId\` can be passed to \`document_write\` to 
       );
 
       if (result.success) {
+        // Attach each output file as a downloadable card on the current
+        // assistant message — matches what excel_tool / pdf_tool / docx_tool
+        // do today via `appendFilePart`. Without this the file lives in
+        // `fileMetadata` but never appears as a chat attachment, which is
+        // what the user just saw (LLM said "file is ready" but no chip).
+        for (const f of result.files) {
+          const downloadUrl = buildDownloadUrl(String(f.storageId), f.name);
+          await appendFilePart(ctx, {
+            fileName: f.name,
+            mimeType: f.contentType,
+            downloadUrl,
+          });
+        }
         return {
           success: true,
           executionId: String(result.executionId),

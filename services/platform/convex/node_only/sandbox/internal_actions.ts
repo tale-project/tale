@@ -96,6 +96,7 @@ export const executeCode = internalAction({
       v.object({
         name: v.string(),
         fileMetadataId: v.id('fileMetadata'),
+        storageId: v.id('_storage'),
         size: v.number(),
         contentType: v.string(),
       }),
