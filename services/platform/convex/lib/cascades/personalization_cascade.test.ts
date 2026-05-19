@@ -125,14 +125,19 @@ describe('cascadeOnOrgDeleted', () => {
     await cascadeOnOrgDeleted(ctx, 'o_1');
 
     // Every query must hit an index (no full-table scan): memories + prefs
-    // use `by_organizationId`; TTS chunks use `by_org_createdAt` because
-    // that's the only index on the chunks table that fronts organizationId.
-    const indexedNames = new Set(['by_organizationId', 'by_org_createdAt']);
+    // use `by_organizationId`; TTS chunks use `by_org_createdAt`; videoLink
+    // jobs use `by_organizationId_and_status` (the only index on
+    // videoLinkJobs that fronts organizationId).
+    const indexedNames = new Set([
+      'by_organizationId',
+      'by_org_createdAt',
+      'by_organizationId_and_status',
+    ]);
     expect(lastIndexUsed.every((u) => indexedNames.has(u.name))).toBe(true);
-    // 1 query each for memories + prefs (collect path), then the TTS sweep
-    // pages via `by_org_createdAt` — terminates after one page when the
-    // returned slice is shorter than PAGE_SIZE.
-    expect(lastIndexUsed).toHaveLength(3);
+    // 1 query each for memories + prefs (collect path), then the TTS and
+    // videoLink sweeps each page once — terminating when the returned
+    // slice is shorter than PAGE_SIZE.
+    expect(lastIndexUsed).toHaveLength(4);
     expect(deleted).toEqual(
       expect.arrayContaining(['mem_a', 'mem_b', 'pref_a', 'tts_a']),
     );

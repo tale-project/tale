@@ -14,6 +14,7 @@
 import { listMessages, saveMessage } from '@convex-dev/agent';
 
 import { isAudioOrVideo, isSpreadsheet } from '../../../lib/shared/file-types';
+import { formatVideoLinkAttachmentMarkdown } from '../../../lib/shared/video-link-markdown';
 import { components, internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
@@ -563,7 +564,19 @@ async function buildMessageWithAttachments(
             q.eq('storageId', attachment.fileId),
           )
           .first();
-        return { attachment, meta };
+        // Video-link provenance lives on `videoLinkJobs` (single writer).
+        // JOIN by storageId via the dedicated `by_storageId` index — the
+        // previous `by_threadId` form had no `.eq()` clause, so it was a
+        // full-table scan filtered by `storageId` for every audio/video
+        // attachment on every chat send. Cost grew linearly with the
+        // org's lifetime video-link history.
+        const videoLink = await ctx.db
+          .query('videoLinkJobs')
+          .withIndex('by_storageId', (q) =>
+            q.eq('storageId', attachment.fileId),
+          )
+          .first();
+        return { attachment, meta, videoLink };
       }),
     );
     // One-line reference per audio/video attachment — same compact pattern
@@ -571,14 +584,60 @@ async function buildMessageWithAttachments(
     // make user bubbles into walls of text for long meetings); it lives in
     // RAG where the agent can retrieve it via document_retrieve(fileId).
     const audioMarkdown: string[] = [];
-    for (const { attachment, meta } of audioMetadata) {
-      const icon = attachment.fileType.startsWith('video/') ? '🎥' : '🎙️';
+    for (const { attachment, meta, videoLink } of audioMetadata) {
+      const icon = attachment.fileType.startsWith('video/') ? '🎬' : '🎙️';
       if (meta?.transcriptionStatus === 'completed' && meta.transcript) {
         const durationNote = meta.transcriptionDurationSec
           ? `, ${Math.round(meta.transcriptionDurationSec)}s transcribed`
           : '';
+        // Video-link provenance: prefer videoLinkJobs row (canonical
+        // single-writer); fall back to legacy fileMetadata fields for
+        // rows written by older orchestrator builds.
+        const sourceUrl = videoLink?.sourceUrl ?? meta.sourceUrl;
+        const sourcePlatform = videoLink?.sourcePlatform ?? meta.sourcePlatform;
+        const videoTitle = videoLink?.videoTitle ?? meta.videoTitle;
+        const videoUploader = videoLink?.videoUploader ?? meta.videoUploader;
+        const videoDurationSec =
+          videoLink?.videoDurationSec ?? meta.videoDurationSec;
+
+        if (sourceUrl) {
+          // Template lives in `lib/shared/video-link-markdown.ts`. This
+          // block is appended to the persisted user-message body so the
+          // agent can read fileId + provenance inline; the client strips
+          // it back out via `stripInternalFileReferences`
+          // (use-message-processing.ts) before rendering — the bubble
+          // shows the video as an attachment card built from
+          // `attachments[]`. Inputs are still resolved here: provenance
+          // prefers `videoLinkJobs` over legacy `fileMetadata` fields,
+          // and duration falls back to `transcriptionDurationSec` for
+          // rows the server has but pre-yt-dlp-metadata builds wrote
+          // without `videoDurationSec`.
+          //
+          // Functional invariants preserved:
+          //   - "View Transcript" button rendering (file-displays.tsx,
+          //     drives off fileMetadata via useQuery — not from this
+          //     markdown string)
+          //   - Transcript blob in _storage (insertSyntheticFileMetadata
+          //     / transcribe_audio paths unchanged)
+          //   - Group 1 `<untrusted_source>` wrap at retrieve_document /
+          //     rag_search tool-response boundary
+          audioMarkdown.push(
+            formatVideoLinkAttachmentMarkdown({
+              fileId: attachment.fileId,
+              fileName: attachment.fileName,
+              fileType: attachment.fileType,
+              fileSize: attachment.fileSize,
+              videoTitle,
+              videoUploader,
+              sourcePlatform,
+              videoDurationSec:
+                videoDurationSec ?? meta.transcriptionDurationSec,
+            }),
+          );
+          continue;
+        }
         audioMarkdown.push(
-          `${icon} [${attachment.fileName}] (${attachment.fileType}${durationNote}) — transcript is stored as a document; call document_retrieve with fileId=${attachment.fileId} to read the full text\n*(fileId: ${attachment.fileId} | fileName: ${attachment.fileName} | fileType: ${attachment.fileType} | fileSize: ${attachment.fileSize})*`,
+          `${icon} [${attachment.fileName}] (${attachment.fileType}${durationNote}) — transcript is stored as a document; paragraphs prefixed [HH:MM:SS] timestamps — cite them when summarizing. Call document_retrieve with fileId=${attachment.fileId} to read the full text\n*(fileId: ${attachment.fileId} | fileName: ${attachment.fileName} | fileType: ${attachment.fileType} | fileSize: ${attachment.fileSize})*`,
         );
       } else {
         const reason =

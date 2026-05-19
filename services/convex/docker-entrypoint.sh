@@ -42,6 +42,46 @@ if [ "$(id -u)" = '0' ]; then
   mkdir -p "$data_dir/convex" "$data_dir/agents" "$data_dir/workflows" \
            "$data_dir/integrations" "$data_dir/providers" "$data_dir/branding"
   chown -R app:app "$data_dir"
+
+  # ----------------------------------------------------------------------------
+  # SSRF egress firewall (defense-in-depth)
+  # ----------------------------------------------------------------------------
+  # yt-dlp opens its own sockets (outside `safe_fetch.ts`'s pinned-IP path);
+  # `url_safety.ts` resolves DNS once for validation but does NOT pin the
+  # IP across yt-dlp's re-resolution. A short-TTL DNS rebind can flip a
+  # public-looking host to cloud IMDS or RFC1918 between the two lookups.
+  # Block at the kernel layer so the entire egress surface (yt-dlp,
+  # ffmpeg, deno, safe_fetch fallbacks) is fenced in one place.
+  #
+  # Skipped when iptables isn't available (e.g. local Mac docker without
+  # NET_ADMIN) so dev environments still boot — production compose grants
+  # NET_ADMIN; absence here is logged for the operator.
+  if [ "${TALE_SKIP_SSRF_FIREWALL:-0}" != "1" ] && command -v iptables >/dev/null 2>&1; then
+    if iptables -L OUTPUT >/dev/null 2>&1; then
+      log_info "Installing SSRF egress firewall (REJECT IMDS + link-local + RFC1918)"
+      # Cloud instance metadata service (AWS/GCP/Azure IMDSv1 footprint).
+      iptables -A OUTPUT -d 169.254.169.254/32 -j REJECT --reject-with icmp-net-prohibited 2>/dev/null || \
+        log_warn "iptables: failed to reject 169.254.169.254/32 (continuing without IMDS guard)"
+      # All link-local — covers Azure 168.63.129.16 and other variants.
+      iptables -A OUTPUT -d 169.254.0.0/16 -j REJECT --reject-with icmp-net-prohibited 2>/dev/null || true
+      # RFC1918 — Docker bridge subnets in the same compose network are
+      # exempt via the `-o lo` and the docker0 default acceptance; only
+      # external private ranges (corp VPN, cloud VPC peers) get blocked.
+      # If the convex container itself shares a docker network with
+      # platform/rag and they're on 172.16/12, this still works because
+      # those flows leave via the bridge driver, not OUTPUT to the host
+      # netns. If the operator runs in a non-default docker-network mode
+      # set TALE_SKIP_SSRF_FIREWALL=1 to bypass.
+      iptables -A OUTPUT -d 10.0.0.0/8 -j REJECT --reject-with icmp-net-prohibited 2>/dev/null || true
+      iptables -A OUTPUT -d 172.16.0.0/12 -j REJECT --reject-with icmp-net-prohibited 2>/dev/null || true
+      iptables -A OUTPUT -d 192.168.0.0/16 -j REJECT --reject-with icmp-net-prohibited 2>/dev/null || true
+    else
+      log_warn "iptables present but no NET_ADMIN capability — SSRF firewall NOT installed (set cap_add: [NET_ADMIN] in compose.yml)"
+    fi
+  else
+    log_warn "iptables unavailable or TALE_SKIP_SSRF_FIREWALL=1 — SSRF firewall NOT installed (dev mode)"
+  fi
+
   exec gosu app "$0" "$@"
 fi
 
@@ -210,6 +250,21 @@ fi
 mkdir -p /app/data/convex
 export TMPDIR=/app/data/convex/tmp
 mkdir -p "$TMPDIR"
+
+# Orphan video-link tmp dirs from crashed/killed ingest_video_link.ts actions.
+# Each job creates /app/data/convex/tmp/vlink-<uuid>/; on success the action's
+# finally-block rm -rfs it, but kill -9 / OOM / container restart can leak.
+# 60min cutoff is well past the 15min audio-extract wall-clock.
+find "$TMPDIR" -mindepth 1 -maxdepth 1 -name 'vlink-*' -mmin +60 -exec rm -rf {} + 2>/dev/null || true
+
+# yt-dlp version log — no network call, just confirms the binary baked
+# into the image at build time. Real "is video ingestion working?" check
+# happens at first ingest attempt (ENOENT → binary_not_installed fail-
+# fast in convex/video_links/ytdlp.ts; upstream extractor regression →
+# transient error visible on the chip within ~30s of a paste).
+if [ -f /etc/yt-dlp-version ]; then
+  log_info "yt-dlp $(cat /etc/yt-dlp-version) baked into image"
+fi
 
 # ============================================================================
 # Builtin seed (version-marker gated)
@@ -549,8 +604,13 @@ monitor_convex() {
     fi
 
     # We DO NOT restart here; Docker restart policy (unless-stopped) handles it.
-    # Clean tmp only (never search/).
-    rm -rf /app/data/convex/tmp/* 2>/dev/null || true
+    # Clean ONLY orphaned vlink-* dirs older than 5 min — NOT every tmp file.
+    # The previous wildcard `rm -rf /app/data/convex/tmp/*` would wipe
+    # arbitrary scratch files belonging to other Node actions (Whisper
+    # chunks, image preprocessing, etc.) on every backend health-check
+    # blip. Pattern + age filter mirrors the boot sweep at the top of
+    # this file.
+    find /app/data/convex/tmp -mindepth 1 -maxdepth 1 -name 'vlink-*' -mmin +5 -exec rm -rf {} + 2>/dev/null || true
 
     # Wait and re-check — if still down, container will exit next loop
     # when max_restarts exceeded. Meanwhile dump diagnostics.

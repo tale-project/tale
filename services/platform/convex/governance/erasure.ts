@@ -642,6 +642,16 @@ const perCategoryValidator = v.object({
     // so accept (and silently retain) the array here.
     ragPurgeStorageIds: v.optional(v.array(v.string())),
   }),
+  videoLinks: v.object({
+    rows: v.number(),
+    blobs: v.number(),
+    skippedByHold: v.number(),
+    // Same shape as fileMetadata.ragPurgeStorageIds — see comment there.
+    // Captions-branch transcripts are indexed in RAG by `storageId`, so
+    // the dispatcher fans out a DELETE per id alongside the fileMetadata
+    // sweep.
+    ragPurgeStorageIds: v.optional(v.array(v.string())),
+  }),
   usageLedger: rowsAndHoldValidator,
   twoFactorAttempts: rowsAndHoldValidator,
   policyAcknowledgements: rowsAndHoldValidator,
@@ -1075,6 +1085,82 @@ export const eraseSubjectFileMetadata = internalMutation({
       // is consistent with the (about-to-be-deleted) DB row.
       ragPurgeStorageIds.push(String(meta.storageId));
       await ctx.db.delete(meta._id);
+      rows++;
+    }
+    return { rows, blobs, ragPurgeStorageIds, skippedByHold: 0 };
+  },
+});
+
+/**
+ * Subject-erasure for `videoLinkJobs`. Mirrors `eraseSubjectFileMetadata`:
+ * blob-first delete order (Convex `_storage` writes are not rolled back on
+ * mutation abort), accumulate `ragPurgeStorageIds` for the dispatcher to
+ * fan out to the RAG service.
+ *
+ * Why this is its own erasure category, not folded into fileMetadata:
+ *   - `videoLinkJobs` is a sidecar that can own a `_storage` blob (audio in
+ *     the Whisper branch, transcript text in the captions branch) even when
+ *     the linked `fileMetadata` row never made it (orchestrator crashed
+ *     between `ctx.storage.store` and `insertSyntheticFileMetadata`).
+ *   - Welcome-page pastes carry `threadId: undefined`, so the thread
+ *     cascade in `cascadeDeleteThreadChildren` doesn't reach them.
+ *   - The schema's `by_org_user` index was declared specifically for this
+ *     erasure path; without a caller, the GDPR right-to-be-forgotten path
+ *     silently misses every video-link transcript belonging to the
+ *     subject.
+ */
+export const eraseSubjectVideoLinks = internalMutation({
+  args: { organizationId: v.string(), userId: v.string() },
+  returns: v.object({
+    rows: v.number(),
+    blobs: v.number(),
+    ragPurgeStorageIds: v.array(v.string()),
+    skippedByHold: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    const iter = () =>
+      ctx.db
+        .query('videoLinkJobs')
+        .withIndex('by_org_user', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .eq('uploadedBy', args.userId),
+        );
+    const guard = await countOrSkip(
+      ctx,
+      args.organizationId,
+      args.userId,
+      iter,
+    );
+    if (guard.heldByOrgOrUser) {
+      return {
+        rows: 0,
+        blobs: 0,
+        ragPurgeStorageIds: [],
+        skippedByHold: guard.skippedByHold,
+      };
+    }
+    let rows = 0;
+    let blobs = 0;
+    const ragPurgeStorageIds: string[] = [];
+    for await (const job of iter()) {
+      if (job.storageId) {
+        try {
+          await ctx.storage.delete(job.storageId);
+          blobs++;
+        } catch (error) {
+          console.warn(
+            `[gdprErasure] videoLink storage.delete failed for ${String(job.storageId)}:`,
+            error instanceof Error ? error.message : error,
+          );
+        }
+        // Even if storage.delete failed, propagate to RAG. The captions
+        // branch ingests the transcript blob via `uploadFileToRag` keyed
+        // on `storageId`, so we must purge under that id whether or not
+        // the blob itself is reachable.
+        ragPurgeStorageIds.push(String(job.storageId));
+      }
+      await ctx.db.delete(job._id);
       rows++;
     }
     return { rows, blobs, ragPurgeStorageIds, skippedByHold: 0 };
@@ -1551,6 +1637,7 @@ export const processErasureRequest = internalAction({
       userPreferences: { rows: 0, skippedByHold: 0 },
       messageFeedback: { rows: 0, skippedByHold: 0 },
       fileMetadata: { rows: 0, blobs: 0, skippedByHold: 0 },
+      videoLinks: { rows: 0, blobs: 0, skippedByHold: 0 },
       usageLedger: { rows: 0, skippedByHold: 0 },
       twoFactorAttempts: { rows: 0, skippedByHold: 0 },
       policyAcknowledgements: { rows: 0, skippedByHold: 0 },
@@ -1721,6 +1808,40 @@ export const processErasureRequest = internalAction({
           );
         }
       }
+      // videoLinkJobs are erased here, AFTER fileMetadata, so the
+      // dispatcher's RAG fan-out can include captions-branch transcripts
+      // (indexed in RAG via `uploadFileToRag` keyed on storageId) in the
+      // same pass. Without this category, the GDPR right-to-be-forgotten
+      // path silently misses every video transcript belonging to the
+      // subject — schema's `by_org_user` index existed for this purpose
+      // with no caller until now.
+      perCategory.videoLinks = await ctx.runMutation(
+        internal.governance.erasure.eraseSubjectVideoLinks,
+        {
+          organizationId: state.organizationId,
+          userId: state.targetUserId,
+        },
+      );
+      for (const storageId of perCategory.videoLinks.ragPurgeStorageIds ?? []) {
+        try {
+          const res = await ragFetch(
+            `/api/v1/documents/${encodeURIComponent(storageId)}`,
+            { method: 'DELETE', timeoutMs: 10_000 },
+          );
+          if (res.ok || res.status === 404) {
+            ragDocumentsRemoved += 1;
+          } else {
+            console.warn(
+              `[gdprErasure] RAG DELETE returned ${res.status} for video-link storageId=${storageId}`,
+            );
+          }
+        } catch (error) {
+          console.warn(
+            `[gdprErasure] RAG DELETE failed for video-link storageId=${storageId}:`,
+            error instanceof Error ? error.message : error,
+          );
+        }
+      }
       perCategory.usageLedger = await ctx.runMutation(
         internal.governance.erasure.eraseSubjectUsageLedger,
         {
@@ -1839,6 +1960,11 @@ interface FileMetadataCounts extends RowsAndHold {
   ragPurgeStorageIds?: string[];
 }
 
+interface VideoLinksCounts extends RowsAndHold {
+  blobs: number;
+  ragPurgeStorageIds?: string[];
+}
+
 interface LoginAttemptsCounts {
   attempts: number;
   blockCounters: number;
@@ -1850,6 +1976,7 @@ interface PerCategoryCounts {
   userPreferences: RowsAndHold;
   messageFeedback: RowsAndHold;
   fileMetadata: FileMetadataCounts;
+  videoLinks: VideoLinksCounts;
   usageLedger: RowsAndHold;
   twoFactorAttempts: RowsAndHold;
   policyAcknowledgements: RowsAndHold;

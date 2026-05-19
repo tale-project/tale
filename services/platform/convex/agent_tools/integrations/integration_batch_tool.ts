@@ -10,8 +10,10 @@ import { createTool } from '@convex-dev/agent';
 import { z } from 'zod/v4';
 
 import { internal } from '../../_generated/api';
+import { wrapUntrusted } from '../../lib/untrusted_content';
 import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
 import type { ToolDefinition } from '../types';
+import { safeStringifyResult } from './integration_tool';
 import type { BatchOperationResult } from './types';
 
 const batchOperationSchema = z.object({
@@ -106,7 +108,24 @@ Max 10 operations. Use 'id' field to identify results.`,
           failureCount: result.stats.failureCount,
         });
 
-        return result as BatchOperationResult;
+        // Prompt-injection defense: each item's `data` is an
+        // attacker-controlled integration response. Wrap each in
+        // `<untrusted_source>` so the TRUST RULES system prompt applies.
+        // Item-level `error` and `success`/timing fields stay
+        // structured for the model's control-flow needs.
+        const wrapped = result as BatchOperationResult;
+        wrapped.results = wrapped.results.map((item) => {
+          if (item.data === undefined) return item;
+          return {
+            ...item,
+            data: wrapUntrusted(safeStringifyResult(item.data), {
+              tool: 'integration',
+              integration: args.integrationName,
+              operation: item.operation,
+            }),
+          };
+        });
+        return wrapped;
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : String(error);

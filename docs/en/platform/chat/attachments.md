@@ -31,6 +31,22 @@ A status pill on the attachment tracks progress — _Transcribing…_, _Transcri
 
 Transcription requires a provider model tagged `transcription` — Admins configure this once under [AI providers](/platform/admin/providers). Transcription calls are billed per minute of audio and recorded in the usage ledger alongside chat tokens.
 
+## Video links
+
+You can also paste a video URL directly into the composer and Tale will pull the transcript or audio from the source platform before sending. The accepted host list is anything `yt-dlp` recognises — YouTube, Vimeo, Bilibili, TikTok, and so on. Paste the URL and a chip appears in the attachment area while the server fetches captions or extracts audio.
+
+The flow tries the cheapest path first: if the source has uploader-provided or auto-generated captions, Tale downloads those and skips audio extraction entirely. When no usable captions exist, the audio track is extracted and run through the same Whisper transcription pipeline as a file upload. Either way the chip shows live status — _Reading video info_, _Fetching captions_, _Extracting audio_, _Transcribing_, then _Ready_ — and the transcript becomes a regular attachment on the outgoing message.
+
+Limits and behaviour to know about:
+
+- **Length cap:** the same 4-hour limit as file uploads applies after the platform reports the video duration. Longer videos are rejected before audio is extracted.
+- **One link, one chip:** playlists are rejected; paste a single video link.
+- **Per-org concurrency:** at most three videos can process at once per organisation. Submitting a fourth surfaces an inline error.
+- **Retry after rate-limit:** when the source platform throttles us (bot detection), the chip stays for a 15-minute cooldown before retry is allowed.
+- **Failed chip blocks send:** if any video chip is in the failed state, the Send button stays disabled — retry or remove the chip first so the agent isn't asked to answer about a transcript that never arrived.
+
+Transcripts from video links are wrapped in `<untrusted_source>` markers before the agent sees them — uploader-controlled caption text and titles are treated as data, never as instructions. The video's source URL is preserved on the chip and in the transcript header so you and the agent can verify provenance. Pasting links is governed by the [terms of service](/legal/terms-of-service) — you confirm you have the right to process the video and accept the source platform's terms when you paste.
+
 ## Size and count limits
 
 The default caps on attachments per message:

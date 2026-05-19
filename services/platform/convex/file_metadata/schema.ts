@@ -7,7 +7,16 @@ export const fileMetadataTable = defineTable({
   organizationId: v.string(),
   storageId: v.id('_storage'),
   documentId: v.optional(v.id('documents')),
-  source: v.optional(v.union(v.literal('user'), v.literal('agent'))),
+  source: v.optional(
+    v.union(
+      v.literal('user'),
+      v.literal('agent'),
+      // Video-link synthetic rows — transcript text originated from a
+      // third-party site fetched via yt-dlp. Trust-distinct from
+      // user-authored uploads (R2 prompt-injection review).
+      v.literal('video_link'),
+    ),
+  ),
   fileName: v.string(),
   contentType: v.string(),
   size: v.number(),
@@ -83,6 +92,25 @@ export const fileMetadataTable = defineTable({
   threadId: v.optional(v.string()),
   lifecycleStatus: v.optional(lifecycleStatusValidator),
   statusChangedAt: v.optional(v.number()),
+  /**
+   * Video-link provenance — LEGACY/FALLBACK ONLY.
+   *
+   * @deprecated New writes go to `videoLinkJobs` (which carries the same
+   * fields as live ingest state). `start_agent_chat.ts` JOINs videoLinkJobs
+   * by storageId and prefers values from there; these fields are kept only
+   * so rows written by older orchestrator builds (which DID copy them
+   * here) continue to render with provenance. Per the project's
+   * "deprecate, don't delete" rule, they remain `v.optional` indefinitely.
+   *
+   * NO `videoThumbnailUrl` here: `services/platform/server.ts` CSP
+   * (img-src 'self' data: blob:) hard-blocks remote <img>. Add via the
+   * existing `/api/image-proxy` pattern when chip thumbnail is promoted.
+   */
+  sourceUrl: v.optional(v.string()),
+  sourcePlatform: v.optional(v.string()),
+  videoTitle: v.optional(v.string()),
+  videoUploader: v.optional(v.string()),
+  videoDurationSec: v.optional(v.number()),
 })
   .index('by_organizationId', ['organizationId'])
   .index('by_organizationId_and_lifecycleStatus', [

@@ -1,0 +1,164 @@
+'use node';
+
+import { promises as dns } from 'node:dns';
+
+import { isPlaylistUrl, isSafeVideoUrl } from '../../lib/shared/video-url';
+import { isPrivateIp } from '../lib/http/safe_fetch';
+
+/**
+ * Server-side SSRF guard for yt-dlp invocations.
+ *
+ * Pre-resolves the URL's hostname via Node DNS and checks EVERY returned
+ * address against the shared `isPrivateIp` predicate. This closes the
+ * DNS-rebinding gap that string-based hostname checks leave open: an
+ * attacker domain `evil.com` that resolves to a public IP at submit time
+ * but flips to `169.254.169.254` before yt-dlp resolves it would still be
+ * caught here because we resolve BEFORE the subprocess runs, AND we walk
+ * every A/AAAA record (not just the first).
+ *
+ * Called twice in the orchestrator:
+ *   1. From `ingestVideoUrl` mutation at submit time (cheap pre-check).
+ *   2. From `ingest_video_link.ts` action immediately before each
+ *      `yt-dlp` invocation (closes the rebind window further; not
+ *      perfect — see `--force-ipv4` in ytdlp.ts and the in-process
+ *      isPrivateIp coverage in `lib/http/safe_fetch.ts` for the rest
+ *      of the subprocess-layer defense. yt-dlp itself has no CLI knob
+ *      to cap redirect chains).
+ *
+ * The frontend `isSafeVideoUrl` from `lib/shared/video-url.ts` runs the
+ * advisory string-based checks for instant UX feedback. This server-side
+ * check is the load-bearing one — frontend can be bypassed (request can
+ * be forged), so duplicating the cheap checks here is intentional
+ * defense in depth, not redundancy.
+ */
+
+type UrlSafetyErrorKind =
+  | 'invalidUrl'
+  | 'unsupportedProtocol'
+  | 'credentialedUrl'
+  | 'ipLiteral'
+  | 'playlist'
+  | 'dnsResolutionFailed'
+  | 'privateIpResolved';
+
+export class UrlSafetyError extends Error {
+  readonly kind: UrlSafetyErrorKind;
+
+  constructor(kind: UrlSafetyErrorKind, message: string) {
+    super(message);
+    this.name = 'UrlSafetyError';
+    this.kind = kind;
+  }
+}
+
+interface AssertSafeUrlOptions {
+  /** Override resolver — only for testing. Production uses Node's default. */
+  resolver?: (hostname: string) => Promise<{ address: string }[]>;
+}
+
+async function defaultResolver(
+  hostname: string,
+): Promise<{ address: string }[]> {
+  // `dns.resolve4` + `dns.resolve6` query the network resolver directly,
+  // bypassing `/etc/hosts` and `nsswitch.conf`. The previous `dns.lookup`
+  // path consults the OS resolver — a compromised container with a
+  // writable hosts file (or one whose nsswitch is misconfigured) could
+  // map a public-looking name to 127.0.0.1 BETWEEN our checks and the
+  // subprocess. Going direct closes that side-channel and also makes
+  // the answer set deterministic across distros.
+  const out: { address: string }[] = [];
+  const results = await Promise.allSettled([
+    dns.resolve4(hostname),
+    dns.resolve6(hostname),
+  ]);
+  for (const r of results) {
+    if (r.status === 'fulfilled') {
+      for (const address of r.value) out.push({ address });
+    }
+  }
+  return out;
+}
+
+/**
+ * Throw `UrlSafetyError` if `url` is unsafe to hand to yt-dlp.
+ *
+ * Layered checks (cheap → expensive):
+ *  1. URL parse + protocol (https only)
+ *  2. No credentials (user/pass in URL)
+ *  3. No bare IP literal hostnames (decimal/hex/IPv6/dotted)
+ *  4. Not a standalone playlist URL
+ *  5. DNS resolve hostname → every IP through `isPrivateIp`
+ */
+export async function assertSafeUrl(
+  url: string,
+  opts: AssertSafeUrlOptions = {},
+): Promise<void> {
+  // Cheap string-level checks first. Error messages carry only the
+  // `kind` code (no raw URL, no hostname, no protocol leak) — they land
+  // verbatim in `videoLinkJobs.errorMessage` which the schema's own
+  // docstring promises is "sanitized — no raw URL or tokens". Frontend
+  // surfaces a localized string keyed on `kind`, so no information is
+  // lost.
+  if (!isSafeVideoUrl(url)) {
+    let parsed: URL | null = null;
+    try {
+      parsed = new URL(url);
+    } catch {
+      throw new UrlSafetyError('invalidUrl', 'Invalid URL');
+    }
+    if (parsed.protocol !== 'https:') {
+      throw new UrlSafetyError(
+        'unsupportedProtocol',
+        'Only https:// URLs are accepted',
+      );
+    }
+    if (parsed.username || parsed.password) {
+      throw new UrlSafetyError(
+        'credentialedUrl',
+        'URLs with credentials are not accepted',
+      );
+    }
+    throw new UrlSafetyError(
+      'ipLiteral',
+      'Bare IP literal or localhost hostname not accepted',
+    );
+  }
+
+  if (isPlaylistUrl(url)) {
+    throw new UrlSafetyError(
+      'playlist',
+      'Standalone playlist URLs are not accepted — paste a single video link instead',
+    );
+  }
+
+  // DNS resolve + check every A/AAAA record against the shared private-IP
+  // predicate. This is the load-bearing defense — it closes the
+  // string-only-check rebind gap.
+  const { hostname } = new URL(url);
+  const resolver = opts.resolver ?? defaultResolver;
+  let resolved: { address: string }[];
+  try {
+    resolved = await resolver(hostname);
+  } catch {
+    throw new UrlSafetyError(
+      'dnsResolutionFailed',
+      'Could not resolve hostname',
+    );
+  }
+
+  if (!resolved || resolved.length === 0) {
+    throw new UrlSafetyError(
+      'dnsResolutionFailed',
+      'Hostname resolved to zero addresses',
+    );
+  }
+
+  for (const { address } of resolved) {
+    if (isPrivateIp(address)) {
+      throw new UrlSafetyError(
+        'privateIpResolved',
+        'Hostname resolves to a private/internal address',
+      );
+    }
+  }
+}

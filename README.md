@@ -157,7 +157,7 @@ The docs site and platform UI both ship three base locales (`en`, `de`, `fr`) pl
 ### For everyday users
 
 - **[Getting started](docs/platform/member/overview.md)** — install Tale and open the app
-- **[AI chat basics](docs/platform/chat/basics.md)** — chat, attach files, pick agents
+- **[AI chat basics](docs/platform/chat/basics.md)** — chat, attach files, paste video links, pick agents
 - **[Knowledge base](docs/platform/workspace/knowledge-base.md)** — documents and websites
 - **[Conversations](docs/platform/workspace/conversations.md)** — customer inbox
 - **[Approvals](docs/platform/workspace/approvals.md)** — review AI actions

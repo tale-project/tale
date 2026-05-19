@@ -69,6 +69,7 @@ import {
   userPasswordMetadataTable,
 } from './users/schema';
 import { vendorsTable } from './vendors/schema';
+import { videoLinkJobsTable } from './video_links/schema';
 import { websitesTable } from './websites/schema';
 import {
   wfDefinitionsTable,
@@ -151,6 +152,7 @@ export default defineSchema({
   products: productsTable,
   ssoProviders: ssoProvidersTable,
   vendors: vendorsTable,
+  videoLinkJobs: videoLinkJobsTable,
   websites: websitesTable,
   wfApiKeys: wfApiKeysTable,
   wfDefinitions: wfDefinitionsTable,

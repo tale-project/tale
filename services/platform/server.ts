@@ -202,7 +202,9 @@ function buildContentSecurityPolicy(env: EnvConfig) {
     baseUri: ["'self'"],
     formAction: ["'self'"],
     objectSrc: ["'none'"],
-    mediaSrc: ["'none'"],
+    // TTS playback streams audio from same-origin `/http_api/api/tts-audio`
+    // via `<audio>.src`, so `'self'` is required.
+    mediaSrc: ["'self'"],
   };
 }
 

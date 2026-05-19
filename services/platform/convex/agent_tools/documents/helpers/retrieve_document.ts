@@ -4,6 +4,7 @@ import type { z } from 'zod/v4';
 import { internal } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
 import { toId } from '../../../lib/type_cast_helpers';
+import { wrapUntrusted } from '../../../lib/untrusted_content';
 import type { documentRetrieveArgs } from '../document_retrieve_tool';
 import {
   fetchDocumentContent,
@@ -93,11 +94,29 @@ export async function retrieveDocument(
     chunkEnd: args.chunkEnd,
   });
 
+  // Prompt-injection defense: transcripts/captions reaching the agent via
+  // this tool originate from attacker-controlled video metadata (uploader,
+  // chapter titles, caption text). The earlier `<untrusted_source>` wrapper
+  // in start_agent_chat.ts:628 only covered the short reference line; the
+  // actual body travels through here. Wrap any video-link-sourced result
+  // so the TRUST RULES system prompt actually applies to the payload the
+  // model reads.
+  const videoSources = await ctx.runQuery(
+    internal.file_metadata.internal_queries.lookupVideoLinkSources,
+    { storageIds: [toId<'_storage'>(args.fileId)] },
+  );
+  if (videoSources.length > 0) {
+    const meta: { tool: string; url?: string } = { tool: 'document_retrieve' };
+    if (videoSources[0].sourceUrl) meta.url = videoSources[0].sourceUrl;
+    result.content = wrapUntrusted(result.content, meta);
+  }
+
   debugLog('tool:document_retrieve success', {
     fileId: args.fileId,
     totalChunks: result.totalChunks,
     totalChars: result.totalChars,
     truncated: result.truncated,
+    wrappedAsUntrusted: videoSources.length > 0,
   });
 
   return result;

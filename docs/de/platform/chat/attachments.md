@@ -31,6 +31,22 @@ Ein Status-Pill am Anhang zeigt den Fortschritt — _Transkribiere…_, _Transkr
 
 Transkription braucht ein Anbieter-Modell mit Tag `transcription` — Admins konfigurieren das einmalig unter [KI-Anbieter](/de/platform/admin/providers). Transkriptions-Aufrufe werden pro Audio-Minute abgerechnet und im Nutzungs-Ledger neben den Chat-Tokens erfasst.
 
+## Video-Links
+
+Du kannst auch eine Video-URL direkt in den Composer einfügen — Tale holt dann das Transkript oder die Audio-Spur von der Quellplattform, bevor die Nachricht rausgeht. Die akzeptierte Host-Liste ist alles, was `yt-dlp` erkennt — YouTube, Vimeo, Bilibili, TikTok und so weiter. Füg die URL ein, und ein Chip erscheint im Anhang-Bereich, während der Server Untertitel lädt oder Audio extrahiert.
+
+Der Ablauf probiert den günstigsten Weg zuerst: Gibt es vom Uploader bereitgestellte oder automatisch erzeugte Untertitel, lädt Tale diese und überspringt die Audio-Extraktion komplett. Wenn keine brauchbaren Untertitel existieren, wird die Audio-Spur extrahiert und durch dieselbe Whisper-Pipeline geschickt wie ein Datei-Upload. So oder so zeigt der Chip den Live-Status — _Lese Video-Infos_, _Lade Untertitel_, _Extrahiere Audio_, _Transkribiere_, dann _Bereit_ — und das Transkript wird zu einem normalen Anhang an der Ausgangs-Nachricht.
+
+Wichtige Limits und Verhaltensregeln:
+
+- **Längenbegrenzung:** Dasselbe 4-Stunden-Limit wie bei Datei-Uploads greift, sobald die Plattform die Video-Dauer meldet. Längere Videos werden abgelehnt, bevor Audio extrahiert wird.
+- **Ein Link, ein Chip:** Playlists werden abgelehnt — füg einen einzelnen Video-Link ein.
+- **Pro-Organisation-Parallelität:** Maximal drei Videos werden gleichzeitig pro Organisation verarbeitet. Ein viertes löst einen Inline-Fehler aus.
+- **Erneuter Versuch nach Rate-Limit:** Wenn die Quellplattform uns drosselt (Bot-Erkennung), bleibt der Chip für eine 15-minütige Wartezeit, bevor ein erneuter Versuch erlaubt ist.
+- **Fehlgeschlagener Chip blockiert Senden:** Wenn ein Video-Chip im Fehlzustand ist, bleibt der Senden-Button deaktiviert — zuerst erneut versuchen oder Chip entfernen, damit der Agent nicht nach einem Transkript gefragt wird, das nie angekommen ist.
+
+Transkripte aus Video-Links werden in `<untrusted_source>`-Marker eingebettet, bevor der Agent sie sieht — Uploader-kontrollierter Untertitel-Text und Titel werden als Daten behandelt, nie als Anweisungen. Die Quell-URL bleibt am Chip und in der Transkript-Kopfzeile sichtbar, damit du und der Agent die Herkunft verifizieren könnt. Das Einfügen von Links unterliegt den [Nutzungsbedingungen](/de/legal/terms-of-service) — du bestätigst, dass du das Recht hast, das Video zu verarbeiten, und akzeptierst die Bedingungen der Quellplattform beim Einfügen.
+
 ## Grössen- und Mengen-Limits
 
 Die Standard-Obergrenzen für Anhänge pro Nachricht:

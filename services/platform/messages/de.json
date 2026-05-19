@@ -2156,6 +2156,65 @@
       "viewTranscript": "Transkript anzeigen",
       "previewSubtitle": "{seconds}s transkribiert"
     },
+    "videoLink": {
+      "statuses": {
+        "queued": "In Warteschlange",
+        "retrying": "Erneuter Versuch…",
+        "attemptNumber": "Versuch {n}",
+        "fetching_metadata": "Lese Video-Infos…",
+        "fetching_captions": "Lade Untertitel…",
+        "extracting_audio": "Extrahiere Audio…",
+        "transcribing_handoff": "Transkribiere…",
+        "indexing": "Indiziere…",
+        "completed": "Bereit",
+        "failed": "Fehlgeschlagen",
+        "skipped": "Abgebrochen"
+      },
+      "errors": {
+        "generic": "Video konnte nicht analysiert werden",
+        "privateOrAgeGated": "Video ist privat oder altersbeschränkt",
+        "unavailable": "Video ist nicht mehr verfügbar",
+        "geoblocked": "Video ist in dieser Region nicht verfügbar",
+        "unsupported": "Diese Seite wird nicht unterstützt",
+        "transient": "Vorübergehender Fehler — erneut versuchen",
+        "botDetection": "Video-Plattform hat automatisierten Zugriff blockiert",
+        "rateLimited": "Video-Plattform hat die Anfrage gedrosselt",
+        "forbidden": "Video-Plattform hat den Zugriff verweigert (403)",
+        "liveStream": "Live-Streams werden nicht unterstützt",
+        "premiere": "Premiere/Vorschau-Video noch nicht verfügbar",
+        "memberOnly": "Nur für Mitglieder",
+        "jsRuntimeMissing": "Video-Verarbeitung nicht vollständig konfiguriert — Administrator kontaktieren",
+        "binaryNotInstalled": "Video-Verarbeitung noch nicht aktiviert — Administrator kontaktieren",
+        "retryCooldown": "Dieses Video wurde gerade gedrosselt — bitte einige Minuten warten",
+        "timeout": "Anfrage hat zu lange gedauert — erneut versuchen",
+        "outputValidationFailed": "Heruntergeladene Video-Datei konnte nicht validiert werden",
+        "videoTooLong": "Video überschreitet das 4-Stunden-Limit",
+        "whisperFailed": "Transkription fehlgeschlagen",
+        "invalidUrl": "URL ist ungültig",
+        "unsupportedProtocol": "Nur https://-Links werden akzeptiert",
+        "credentialedUrl": "Links mit eingebetteten Zugangsdaten werden nicht akzeptiert",
+        "ipLiteral": "Reine IP- und localhost-Links werden nicht akzeptiert",
+        "playlist": "Playlists werden nicht unterstützt — einzelnen Video-Link einfügen",
+        "dnsResolutionFailed": "Hostname konnte nicht aufgelöst werden",
+        "privateIpResolved": "Dieser Link verweist auf eine private/interne Adresse",
+        "inFlightCap": "Zu viele Videos in Verarbeitung — bitte warten, bis eines fertig ist",
+        "budgetExceeded": "Nutzungslimit erreicht — Administrator kontaktieren"
+      },
+      "actions": {
+        "removeLink": "Entfernen",
+        "retry": "Erneut versuchen"
+      },
+      "chip": {
+        "fallbackTitle": "Video-Link",
+        "ariaLabel": "Video-Anhang: {title}",
+        "inProgressTooltip": "Auf Video-Verarbeitung warten — oder Chip entfernen, um ohne zu senden",
+        "failedSendBlockedTooltip": "Ein Video ist fehlgeschlagen — bitte erneut versuchen oder Chip entfernen"
+      },
+      "toast": {
+        "ingestFailedTitle": "Video konnte nicht hinzugefügt werden",
+        "bindFailedDescription": "Video-Transkript konnte nicht angehängt werden — bitte erneut versuchen"
+      }
+    },
     "fallback": {
       "image": "Bild",
       "file": "Datei"

@@ -2156,6 +2156,65 @@
       "viewTranscript": "View transcript",
       "previewSubtitle": "{seconds}s transcribed"
     },
+    "videoLink": {
+      "statuses": {
+        "queued": "Queued",
+        "retrying": "Retrying…",
+        "attemptNumber": "Attempt {n}",
+        "fetching_metadata": "Reading video info…",
+        "fetching_captions": "Fetching captions…",
+        "extracting_audio": "Extracting audio…",
+        "transcribing_handoff": "Transcribing…",
+        "indexing": "Indexing…",
+        "completed": "Ready",
+        "failed": "Failed",
+        "skipped": "Cancelled"
+      },
+      "errors": {
+        "generic": "Couldn't analyze this video",
+        "privateOrAgeGated": "Video is private or age-restricted",
+        "unavailable": "Video is no longer available",
+        "geoblocked": "Video isn't available in this region",
+        "unsupported": "This site isn't supported",
+        "transient": "Temporary issue — try again",
+        "botDetection": "Video platform blocked automated access",
+        "rateLimited": "Video platform rate-limited the request",
+        "forbidden": "Video platform refused access (403)",
+        "liveStream": "Live streams aren't supported",
+        "premiere": "Premiere/upcoming video not yet available",
+        "memberOnly": "Members-only video",
+        "jsRuntimeMissing": "Video processing isn't fully configured — contact your administrator",
+        "binaryNotInstalled": "Video processing is not enabled yet — contact your administrator",
+        "retryCooldown": "This video was just rate-limited — please wait a few minutes before retrying",
+        "timeout": "Took too long to fetch — try again",
+        "outputValidationFailed": "Couldn't validate the downloaded video file",
+        "videoTooLong": "Video exceeds the 4h length limit",
+        "whisperFailed": "Transcription failed",
+        "invalidUrl": "URL is malformed",
+        "unsupportedProtocol": "Only https:// links are accepted",
+        "credentialedUrl": "Links with embedded credentials aren't accepted",
+        "ipLiteral": "Bare IP and localhost links aren't accepted",
+        "playlist": "Playlists aren't supported — paste a single video link",
+        "dnsResolutionFailed": "Couldn't resolve the host",
+        "privateIpResolved": "This link points to a private/internal address",
+        "inFlightCap": "Too many videos processing — wait for one to finish",
+        "budgetExceeded": "Usage limit reached — contact your administrator"
+      },
+      "actions": {
+        "removeLink": "Remove",
+        "retry": "Try again"
+      },
+      "chip": {
+        "fallbackTitle": "Video link",
+        "ariaLabel": "Video attachment: {title}",
+        "inProgressTooltip": "Wait for video to finish — or remove the chip to send without it",
+        "failedSendBlockedTooltip": "A video failed — retry it or remove the chip before sending"
+      },
+      "toast": {
+        "ingestFailedTitle": "Couldn't add this video",
+        "bindFailedDescription": "Couldn't attach the video transcript — please retry"
+      }
+    },
     "fallback": {
       "image": "Image",
       "file": "File"

@@ -15,8 +15,22 @@ export const saveFileMetadata = internalMutation({
     contentType: v.string(),
     size: v.number(),
     documentId: v.optional(v.id('documents')),
-    source: v.optional(v.union(v.literal('user'), v.literal('agent'))),
+    source: v.optional(
+      v.union(v.literal('user'), v.literal('agent'), v.literal('video_link')),
+    ),
     uploadedBy: v.optional(v.string()),
+    /** Chat-bound files (audio uploads, video-link transcripts) carry the
+     * thread id so the soft-delete cascade + RAG thread-scope auth chain
+     * work. Document Hub uploads omit this. */
+    threadId: v.optional(v.string()),
+    /** Video-link provenance: when the file originated from yt-dlp, the
+     * orchestrator hands these in so the synthetic row carries the source
+     * URL + title + uploader for citation + agent hint enrichment. */
+    sourceUrl: v.optional(v.string()),
+    sourcePlatform: v.optional(v.string()),
+    videoTitle: v.optional(v.string()),
+    videoUploader: v.optional(v.string()),
+    videoDurationSec: v.optional(v.number()),
   },
   async handler(ctx, args) {
     const existing = await ctx.db
@@ -39,6 +53,15 @@ export const saveFileMetadata = internalMutation({
       if (args.uploadedBy !== undefined) {
         patchData.uploadedBy = args.uploadedBy;
       }
+      if (args.threadId !== undefined) patchData.threadId = args.threadId;
+      if (args.sourceUrl !== undefined) patchData.sourceUrl = args.sourceUrl;
+      if (args.sourcePlatform !== undefined)
+        patchData.sourcePlatform = args.sourcePlatform;
+      if (args.videoTitle !== undefined) patchData.videoTitle = args.videoTitle;
+      if (args.videoUploader !== undefined)
+        patchData.videoUploader = args.videoUploader;
+      if (args.videoDurationSec !== undefined)
+        patchData.videoDurationSec = args.videoDurationSec;
       await ctx.db.patch(existing._id, patchData);
       return existing._id;
     }
@@ -61,6 +84,18 @@ export const saveFileMetadata = internalMutation({
       ...(args.documentId !== undefined && { documentId: args.documentId }),
       ...(args.source !== undefined && { source: args.source }),
       ...(args.uploadedBy !== undefined && { uploadedBy: args.uploadedBy }),
+      ...(args.threadId !== undefined && { threadId: args.threadId }),
+      ...(args.sourceUrl !== undefined && { sourceUrl: args.sourceUrl }),
+      ...(args.sourcePlatform !== undefined && {
+        sourcePlatform: args.sourcePlatform,
+      }),
+      ...(args.videoTitle !== undefined && { videoTitle: args.videoTitle }),
+      ...(args.videoUploader !== undefined && {
+        videoUploader: args.videoUploader,
+      }),
+      ...(args.videoDurationSec !== undefined && {
+        videoDurationSec: args.videoDurationSec,
+      }),
     });
 
     if (!isAudio) {
@@ -271,6 +306,42 @@ export const updateFileTranscription = internalMutation({
       patch.transcriptRagError = args.transcriptRagError;
     }
     await ctx.db.patch(metadata._id, patch);
+
+    // Mirror the terminal transcription state onto the owning videoLinkJob,
+    // if any. Without this, a Whisper-branch job that succeeds stays at
+    // `'transcribing_handoff'` forever — the chip displays correctly via
+    // the reactive projection in queries.ts:projectJob, but the row never
+    // graduates to `'completed'`/`'failed'`, so the lazy GC pass (which
+    // keys on those terminal statuses) never reclaims the audio blob.
+    // Reverse-lookup uses the `by_storageId` index added alongside this
+    // change so it's O(1), not a table scan.
+    if (
+      args.transcriptionStatus === 'completed' ||
+      args.transcriptionStatus === 'failed' ||
+      args.transcriptionStatus === 'skipped'
+    ) {
+      const linkedJob = await ctx.db
+        .query('videoLinkJobs')
+        .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
+        .first();
+      if (linkedJob && linkedJob.status === 'transcribing_handoff') {
+        const nextStatus =
+          args.transcriptionStatus === 'completed'
+            ? ('completed' as const)
+            : args.transcriptionStatus === 'skipped'
+              ? ('skipped' as const)
+              : ('failed' as const);
+        await ctx.db.patch(linkedJob._id, {
+          status: nextStatus,
+          statusChangedAt: Date.now(),
+          ...(nextStatus === 'failed' && {
+            errorReasonCode: 'whisperFailed',
+            errorMessage:
+              args.transcriptionError ?? 'Whisper transcription failed',
+          }),
+        });
+      }
+    }
   },
 });
 
@@ -324,8 +395,33 @@ export const recoverStuckTranscriptions = internalMutation({
           transcriptionStatus: 'failed',
           transcriptionError: 'Transcription timed out (watchdog)',
         });
+        // Cascade the failure back to the owning videoLinkJobs row when
+        // present. Without this, a videoLinkJob stuck at
+        // `'transcribing_handoff'` would stay there forever: the
+        // recoverStuckVideoLinkJobs sweep deliberately skips
+        // `transcribing_handoff` (delegated to this sweep), and the chip
+        // projection's reactive join would render the failed state
+        // transiently — but the row itself never reaches a terminal
+        // status, which means `cleanupCancelledVideoLink` never gets
+        // called and the audio blob orphans. Reverse-lookup by storageId
+        // (new `by_storageId` index) and flip in the same tick.
+        const linkedJob = await ctx.db
+          .query('videoLinkJobs')
+          .withIndex('by_storageId', (q) => q.eq('storageId', row.storageId))
+          .first();
+        if (linkedJob && linkedJob.status === 'transcribing_handoff') {
+          await ctx.db.patch(linkedJob._id, {
+            status: 'failed',
+            statusChangedAt: Date.now(),
+            errorReasonCode: 'whisperFailed',
+            errorMessage: 'Whisper transcription timed out (watchdog)',
+          });
+        }
       }
     }
+    // Video-link watchdog runs on its own cron entry now (see crons.ts);
+    // the previous piggy-back here let a single fileMetadata loop throw
+    // disable both sweeps at once.
     return null;
   },
 });

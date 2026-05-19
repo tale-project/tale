@@ -2156,6 +2156,65 @@
       "viewTranscript": "Voir la transcription",
       "previewSubtitle": "{seconds}s transcrites"
     },
+    "videoLink": {
+      "statuses": {
+        "queued": "En file d'attente",
+        "retrying": "Nouvelle tentative…",
+        "attemptNumber": "Tentative {n}",
+        "fetching_metadata": "Lecture des infos vidéo…",
+        "fetching_captions": "Récupération des sous-titres…",
+        "extracting_audio": "Extraction de l'audio…",
+        "transcribing_handoff": "Transcription en cours…",
+        "indexing": "Indexation en cours…",
+        "completed": "Prêt",
+        "failed": "Échec",
+        "skipped": "Annulé"
+      },
+      "errors": {
+        "generic": "Impossible d'analyser cette vidéo",
+        "privateOrAgeGated": "Vidéo privée ou à accès restreint",
+        "unavailable": "La vidéo n'est plus disponible",
+        "geoblocked": "Vidéo non disponible dans cette région",
+        "unsupported": "Ce site n'est pas pris en charge",
+        "transient": "Problème temporaire — réessaie",
+        "botDetection": "La plateforme vidéo a bloqué l'accès automatisé",
+        "rateLimited": "La plateforme vidéo a limité la requête",
+        "forbidden": "La plateforme vidéo a refusé l'accès (403)",
+        "liveStream": "Les directs ne sont pas pris en charge",
+        "premiere": "Vidéo en première/à venir non encore disponible",
+        "memberOnly": "Réservé aux membres",
+        "jsRuntimeMissing": "Le traitement vidéo n'est pas entièrement configuré — contacte ton administrateur",
+        "binaryNotInstalled": "Le traitement vidéo n'est pas encore activé — contacte ton administrateur",
+        "retryCooldown": "Cette vidéo vient d'être limitée — attends quelques minutes avant de réessayer",
+        "timeout": "Récupération trop longue — réessaie",
+        "outputValidationFailed": "Impossible de valider le fichier vidéo téléchargé",
+        "videoTooLong": "La vidéo dépasse la limite de 4 heures",
+        "whisperFailed": "Échec de la transcription",
+        "invalidUrl": "URL invalide",
+        "unsupportedProtocol": "Seuls les liens https:// sont acceptés",
+        "credentialedUrl": "Les liens avec identifiants intégrés ne sont pas acceptés",
+        "ipLiteral": "Les liens vers une IP brute ou localhost ne sont pas acceptés",
+        "playlist": "Les listes de lecture ne sont pas prises en charge — colle un lien vidéo unique",
+        "dnsResolutionFailed": "Impossible de résoudre l'hôte",
+        "privateIpResolved": "Ce lien pointe vers une adresse privée/interne",
+        "inFlightCap": "Trop de vidéos en cours de traitement — attends qu'une se termine",
+        "budgetExceeded": "Limite d'usage atteinte — contacte ton administrateur"
+      },
+      "actions": {
+        "removeLink": "Retirer",
+        "retry": "Réessayer"
+      },
+      "chip": {
+        "fallbackTitle": "Lien vidéo",
+        "ariaLabel": "Pièce jointe vidéo : {title}",
+        "inProgressTooltip": "Attends la fin du traitement — ou retire la vignette pour envoyer sans elle",
+        "failedSendBlockedTooltip": "Une vidéo a échoué — réessaie-la ou retire la vignette avant d'envoyer"
+      },
+      "toast": {
+        "ingestFailedTitle": "Impossible d'ajouter cette vidéo",
+        "bindFailedDescription": "Impossible de joindre la transcription vidéo — réessaie"
+      }
+    },
     "fallback": {
       "image": "Image",
       "file": "Fichier"

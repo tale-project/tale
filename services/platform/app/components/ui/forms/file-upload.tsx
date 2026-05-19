@@ -123,6 +123,14 @@ interface DropZoneProps {
   children: ReactNode;
   className?: string;
   onFilesSelected: (files: File[]) => void;
+  /**
+   * Optional text-drop handler. Fires when the drop carries no files but
+   * does carry a `text/uri-list` or `text/plain` payload (e.g. user
+   * dragged a URL from the browser address bar). Receives the raw text;
+   * caller decides whether to extract URLs, ingest as a chat message,
+   * etc. Without this, URL drops are silently dropped (R2 review M3).
+   */
+  onTextDrop?: (text: string) => void;
   accept?: string;
   disabled?: boolean;
   inputId?: string;
@@ -135,6 +143,7 @@ function DropZone({
   children,
   className,
   onFilesSelected,
+  onTextDrop,
   accept,
   disabled,
   inputId = 'file-upload',
@@ -181,9 +190,19 @@ function DropZone({
       const files = e.dataTransfer.files;
       if (files && files.length > 0) {
         onFilesSelected(Array.from(files));
+        return;
+      }
+      // No files — check for a text drop (URL from address bar, link
+      // text, etc.). Prefer the W3C-standard `text/uri-list`; fall back
+      // to `text/plain` for older sources.
+      if (onTextDrop) {
+        const uriList = e.dataTransfer.getData('text/uri-list');
+        const plain = e.dataTransfer.getData('text/plain');
+        const text = uriList || plain;
+        if (text) onTextDrop(text);
       }
     },
-    [setIsDragOver, onFilesSelected, disabled],
+    [setIsDragOver, onFilesSelected, onTextDrop, disabled],
   );
 
   const handleClick = useCallback(() => {
@@ -219,7 +238,16 @@ function DropZone({
   return (
     <div
       role="group"
-      className={className}
+      // Visible keyboard focus indicator. The DropZone is focusable when
+      // `clickable` is set, and previously had no `focus-visible:` style
+      // — tabbing into the composer hit this element with zero feedback.
+      // Concatenate via template literal so consumers can still pass
+      // their own className.
+      className={
+        clickable && !disabled
+          ? `focus-visible:ring-ring rounded focus-visible:ring-2 focus-visible:outline-none ${className ?? ''}`
+          : className
+      }
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}

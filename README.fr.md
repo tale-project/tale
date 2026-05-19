@@ -157,7 +157,7 @@ Le site de doc et l'UI de la plateforme tournent en trois langues de base (`en`,
 ### Pour les utilisateurs au quotidien
 
 - **[Démarrage](docs/fr/platform/member/overview.md)** — installer Tale et ouvrir l'app
-- **[Bases du chat IA](docs/fr/platform/chat/basics.md)** — discuter, joindre des fichiers, choisir un agent
+- **[Bases du chat IA](docs/fr/platform/chat/basics.md)** — discuter, joindre des fichiers, coller des liens vidéo, choisir un agent
 - **[Base de connaissances](docs/fr/platform/workspace/knowledge-base.md)** — documents et sites web
 - **[Conversations](docs/fr/platform/workspace/conversations.md)** — inbox client
 - **[Approbations](docs/fr/platform/workspace/approvals.md)** — relire les actions IA

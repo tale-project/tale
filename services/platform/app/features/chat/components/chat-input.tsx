@@ -28,6 +28,7 @@ import { CHAT_UPLOAD_ACCEPT, isAudioOrVideo } from '@/lib/shared/file-types';
 import { cn } from '@/lib/utils/cn';
 import { formatFileSize, middleEllipsis } from '@/lib/utils/format/file';
 
+import type { VideoLinkJob } from '../hooks/use-chat-video-links';
 import type { FileAttachment } from '../hooks/use-convex-file-upload';
 import { AgentSelector } from './agent-selector';
 import { useArenaModeOptional } from './arena/arena-mode-context';
@@ -38,6 +39,7 @@ import { DictationButton } from './dictation-button';
 import { ImagePreviewDialog } from './message-bubble';
 import { ModelSelector } from './model-selector';
 import { SavePromptMenu } from './save-prompt-menu';
+import { VideoLinkChip } from './video-link-chip';
 
 // Web Speech requires a fully-qualified BCP-47 tag. Already-regional codes
 // (`de-CH`, future `fr-CA`) pass through; bare base locales pick the most
@@ -96,6 +98,28 @@ interface ChatInputProps extends Omit<
   onSavePrompt?: (content: string) => void;
   onOpenPromptLibrary?: () => void;
   /**
+   * Video-link chip state (from `useChatVideoLinks`). When a user pastes
+   * a video URL the hook's mutation creates a row in `videoLinkJobs`
+   * and the orchestrator action drives it through captions or Whisper.
+   * Chips render in the attachment area; send is gated while any chip
+   * is still processing — mirrors `isTranscribing` for audio uploads.
+   */
+  videoLinkJobs?: VideoLinkJob[];
+  isProcessingVideo?: boolean;
+  /** True when any video-link chip is in a terminal `failed` state. Send
+   * is blocked while this is set so the user explicitly retries / removes
+   * the failed chip — otherwise the message ships without that transcript
+   * and the agent replies to the raw URL, which reads as "the AI ignored
+   * my video" (round-2 V10 / HIGH #18). */
+  hasFailedVideoJobs?: boolean;
+  ingestVideoUrlsFromText?: (
+    text: string,
+    organizationId: string,
+    userLocale?: string,
+  ) => Promise<number>;
+  cancelVideoJob?: (jobId: Id<'videoLinkJobs'>) => Promise<void>;
+  retryVideoJob?: (jobId: Id<'videoLinkJobs'>) => Promise<void>;
+  /**
    * When true, the send button is disabled. Unlike `disabled`, the input
    * itself stays editable so the user can still revise their message — they
    * just can't send it in the current state (e.g. an edit reference is
@@ -127,6 +151,12 @@ export function ChatInput({
   indexingStatuses,
   isTranscribing = false,
   transcriptionStatuses,
+  videoLinkJobs = [],
+  isProcessingVideo = false,
+  hasFailedVideoJobs = false,
+  ingestVideoUrlsFromText,
+  cancelVideoJob,
+  retryVideoJob,
   onSavePrompt,
   onOpenPromptLibrary,
   sendBlocked = false,
@@ -155,6 +185,21 @@ export function ChatInput({
   const textareaLabelId = `${textareaId}-label`;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // True while a CJK IME (Chinese / Japanese / Korean) is composing a
+  // pre-commit string. Cross-browser fallback for
+  // `e.nativeEvent.isComposing`, which not every browser surfaces on the
+  // paste event itself. Blocks `handlePaste` and the chip-cancel strip
+  // path so we don't mutate the textarea while an IME commit is in
+  // flight (round-2 V10 / HIGH #19).
+  const isComposingRef = useRef(false);
+  // Set as soon as a paste begins ingest; cleared in `.finally`. The
+  // send-gate ORs this in so a paste-then-Enter race can't bypass the
+  // chip rendering (chip query won't show the row until the mutation
+  // round-trip lands, but `ingestVideoUrlsFromText` runs fire-and-forget
+  // so without this flag the gate has nothing to watch) — round-2 V10 /
+  // HIGH #23.
+  const pasteIngestInFlightRef = useRef(false);
+  const [pasteIngestPending, setPasteIngestPending] = useState(false);
   const [previewImage, setPreviewImage] = useState<{
     src: string;
     alt: string;
@@ -177,6 +222,9 @@ export function ChatInput({
       isUploading ||
       isIndexing ||
       isTranscribing ||
+      isProcessingVideo ||
+      hasFailedVideoJobs ||
+      pasteIngestPending ||
       sendBlocked
     )
       return;
@@ -210,14 +258,43 @@ export function ChatInput({
   );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
+    if (e.key !== 'Enter' || e.shiftKey) return;
+    // IME composition guard. macOS Pinyin / Japanese Kotoeri commits a
+    // candidate via Enter; without these checks the textarea swallows
+    // the commit and sends the half-composed romaji. `isComposing` is
+    // the modern WHATWG API, `isComposingRef.current` is our React
+    // mirror (composition events arrive on the DOM but React's
+    // synthetic event types don't expose `isComposing`), and
+    // `keyCode === 229` is the legacy Safari path. All three are
+    // necessary to cover Chromium + WebKit + Firefox.
+    if (
+      e.nativeEvent.isComposing ||
+      isComposingRef.current ||
+      e.keyCode === 229
+    ) {
+      return;
     }
+    e.preventDefault();
+    handleSendMessage();
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
     if (inputDisabled || fileUploadDisabled) return;
+    // Bail when an IME composition is mid-flight. The paste handler would
+    // otherwise enqueue an ingest mutation AND the chip-cancel strip path
+    // could later `value.replace(token, '')` while the IME is still
+    // committing characters — corrupting the commit buffer.
+    // React typing gap: the DOM ClipboardEvent has an `isComposing` flag
+    // but React's synthetic ClipboardEvent typings omit it. The runtime
+    // value is present on every Chromium/WebKit/Firefox; the cast
+    // surfaces it without a wider type widening that would let other
+    // missing fields slip through.
+    const nativeClipboard = e.nativeEvent as ClipboardEvent & {
+      isComposing?: boolean;
+    };
+    if (isComposingRef.current || nativeClipboard.isComposing === true) {
+      return;
+    }
     const items = e.clipboardData?.items;
     if (!items) return;
 
@@ -242,6 +319,40 @@ export function ChatInput({
     if (imageFiles.length > 0) {
       void uploadFiles(imageFiles);
     }
+
+    // Video-link detection. Read both text/plain and text/html (rich-
+    // clipboard sources like Notion/Slack ship only HTML). Don't
+    // preventDefault — URL stays in the textarea so the user can edit
+    // it; the strip-on-send mutation removes it before chatWithAgent.
+    if (ingestVideoUrlsFromText) {
+      const plain = e.clipboardData?.getData('text/plain') ?? '';
+      const html = plain ? '' : (e.clipboardData?.getData('text/html') ?? '');
+      const text =
+        plain ||
+        // Cheap href extraction from rich clipboard. Full HTML parsing
+        // is overkill — we just need the URL chunks. Accept both
+        // double-quoted and single-quoted href forms (Slack/Notion ship
+        // double, some older email clients ship single).
+        html.match(/href=["']([^"']+)["']/g)?.join(' ') ||
+        '';
+      if (text) {
+        // Set the in-flight ref BEFORE awaiting the ingest so the send-
+        // gate sees the pending state on the very next render. Cleared
+        // in `.finally`. Without this, a user who pastes then hits
+        // Enter immediately would ship the message before the mutation
+        // round-trip lands and the chip query reflects the new row.
+        pasteIngestInFlightRef.current = true;
+        setPasteIngestPending(true);
+        void ingestVideoUrlsFromText(
+          text,
+          organizationId,
+          i18n.language,
+        ).finally(() => {
+          pasteIngestInFlightRef.current = false;
+          setPasteIngestPending(false);
+        });
+      }
+    }
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -257,6 +368,27 @@ export function ChatInput({
       <FileUpload.DropZone
         className="relative flex h-full min-h-0 flex-1 flex-col"
         onFilesSelected={uploadFiles}
+        onTextDrop={
+          ingestVideoUrlsFromText
+            ? (text) => {
+                // Mirror the paste-handler gate so a drag-and-drop URL
+                // followed by an immediate Enter doesn't beat the chip
+                // into existence — without this, the send-gate doesn't
+                // know an ingest is in-flight and the agent receives
+                // the raw URL instead of the transcript.
+                pasteIngestInFlightRef.current = true;
+                setPasteIngestPending(true);
+                void ingestVideoUrlsFromText(
+                  text,
+                  organizationId,
+                  i18n.language,
+                ).finally(() => {
+                  pasteIngestInFlightRef.current = false;
+                  setPasteIngestPending(false);
+                });
+              }
+            : undefined
+        }
         clickable={false}
         disabled={inputDisabled || fileUploadDisabled}
       >
@@ -271,6 +403,61 @@ export function ChatInput({
         />
 
         <div className="bg-background border-muted-foreground/50 relative mb-2 flex flex-col gap-2 rounded-2xl border px-5 pt-4">
+          {videoLinkJobs.length > 0 && (
+            <HStack gap={1} wrap className="mb-2">
+              {videoLinkJobs.map((job) => (
+                <VideoLinkChip
+                  key={job.jobId}
+                  job={job}
+                  onCancel={() => {
+                    // Strip the user's pasted URL from the textarea
+                    // BEFORE firing the cancel mutation, so the chip
+                    // and the raw URL disappear together. Literal
+                    // replace per the B1 review (regex over arbitrary
+                    // URL shapes is fragile). No-op if the user edited
+                    // the URL out manually. Use `setRangeText` on the
+                    // DOM node so the caret position and undo stack
+                    // survive — `onChange(stripped)` would otherwise
+                    // jump the caret to the end and clobber any active
+                    // selection.
+                    if (isComposingRef.current) {
+                      // Don't mutate the value mid-IME-commit; defer.
+                      if (cancelVideoJob) void cancelVideoJob(job.jobId);
+                      return;
+                    }
+                    if (
+                      onChange &&
+                      job.pastedToken &&
+                      value.includes(job.pastedToken)
+                    ) {
+                      const idx = value.indexOf(job.pastedToken);
+                      const textarea = textareaRef.current;
+                      if (textarea && idx >= 0) {
+                        textarea.setRangeText(
+                          '',
+                          idx,
+                          idx + job.pastedToken.length,
+                          'preserve',
+                        );
+                        // setRangeText fires `input` but not `change` on
+                        // some browsers — propagate explicitly so React
+                        // controlled-input state stays in sync.
+                        onChange(textarea.value);
+                      } else {
+                        // Fallback when the ref isn't attached (e.g.
+                        // chip rendered before textarea mounted).
+                        onChange(value.replace(job.pastedToken, ''));
+                      }
+                    }
+                    if (cancelVideoJob) void cancelVideoJob(job.jobId);
+                  }}
+                  onRetry={() =>
+                    retryVideoJob ? void retryVideoJob(job.jobId) : undefined
+                  }
+                />
+              ))}
+            </HStack>
+          )}
           {(attachments.length > 0 || uploadingFiles.length > 0) && (
             <HStack gap={1} wrap className="mb-2">
               {imageAttachments.map((attachment) => (
@@ -534,6 +721,17 @@ export function ChatInput({
               onChange={(e) => handleInputChange(e.target.value)}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
+              // Track IME composition so the paste handler and the chip
+              // cancel-strip path don't mutate the textarea mid-commit.
+              // `e.nativeEvent.isComposing` on the paste event is the
+              // primary signal; this ref is the cross-browser fallback
+              // for browsers that don't surface it (mostly older Safari).
+              onCompositionStart={() => {
+                isComposingRef.current = true;
+              }}
+              onCompositionEnd={() => {
+                isComposingRef.current = false;
+              }}
               className="text-foreground placeholder:text-muted-foreground relative min-h-[100px] resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
               disabled={inputDisabled}
               placeholder=""
@@ -599,42 +797,81 @@ export function ChatInput({
                 lang={speechLang}
                 onTranscript={handleTranscript}
               />
-              <Tooltip
-                content={
+              {(() => {
+                const sendDisabled = isLoading
+                  ? !onStopGenerating
+                  : (!value.trim() && attachments.length === 0) ||
+                    inputDisabled ||
+                    isUploading ||
+                    isIndexing ||
+                    isTranscribing ||
+                    isProcessingVideo ||
+                    hasFailedVideoJobs ||
+                    pasteIngestPending ||
+                    sendBlocked;
+                const tooltipContent =
                   isTranscribing && !isLoading
                     ? tChat('transcription.inProgressTooltip')
-                    : sendBlocked && sendBlockedReason && !isLoading
-                      ? sendBlockedReason
-                      : ''
-                }
-                side="top"
-              >
-                <Button
-                  type="button"
-                  onClick={isLoading ? onStopGenerating : handleSendMessage}
-                  disabled={
-                    isLoading
-                      ? !onStopGenerating
-                      : (!value.trim() && attachments.length === 0) ||
-                        inputDisabled ||
-                        isUploading ||
-                        isIndexing ||
-                        isTranscribing ||
-                        sendBlocked
-                  }
-                  size="icon"
-                  className="rounded-full"
-                  aria-label={
-                    isLoading ? tChat('stopGenerating') : tChat('send')
-                  }
-                >
-                  {isLoading ? (
-                    <CircleStop className="size-4" />
-                  ) : (
-                    <ArrowUp className="size-4" />
-                  )}
-                </Button>
-              </Tooltip>
+                    : isProcessingVideo && !isLoading
+                      ? tChat('videoLink.chip.inProgressTooltip')
+                      : hasFailedVideoJobs && !isLoading
+                        ? tChat('videoLink.chip.failedSendBlockedTooltip')
+                        : sendBlocked && sendBlockedReason && !isLoading
+                          ? sendBlockedReason
+                          : '';
+                // Native `disabled` swallows pointer events on
+                // Chromium/WebKit, so the Tooltip trigger never fires
+                // when the button is in exactly the states the tooltip
+                // is meant to explain. Wrap the disabled button in a
+                // focusable inline span; the span receives pointer +
+                // focus events that drive the tooltip while the button
+                // itself stays semantically `aria-disabled` so screen
+                // readers and keyboard activation still observe the
+                // disabled state.
+                const button = (
+                  <Button
+                    type="button"
+                    onClick={isLoading ? onStopGenerating : handleSendMessage}
+                    disabled={sendDisabled}
+                    size="icon"
+                    className="rounded-full"
+                    aria-label={
+                      isLoading ? tChat('stopGenerating') : tChat('send')
+                    }
+                  >
+                    {isLoading ? (
+                      <CircleStop className="size-4" />
+                    ) : (
+                      <ArrowUp className="size-4" />
+                    )}
+                  </Button>
+                );
+                return (
+                  <Tooltip content={tooltipContent} side="top">
+                    {sendDisabled && tooltipContent ? (
+                      // role="group" + tabIndex=0 makes the wrapper a
+                      // focusable region that the Tooltip's Radix
+                      // pointer/focus listeners can attach to —
+                      // browsers swallow pointer events on a `disabled`
+                      // native button, so the Tooltip would otherwise
+                      // never fire in exactly the states the tooltip
+                      // is meant to explain. The inner Button still
+                      // carries the semantic `disabled` state.
+                      <span
+                        role="group"
+                        // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- focusable wrapper required so Tooltip works on a disabled child button
+                        tabIndex={0}
+                        aria-disabled="true"
+                        className="inline-flex"
+                      >
+                        {button}
+                      </span>
+                    ) : (
+                      button
+                    )}
+                  </Tooltip>
+                );
+              })()}
             </HStack>
           </HStack>
         </div>

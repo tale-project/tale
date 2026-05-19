@@ -157,7 +157,7 @@ Doku-Seite und Plattform-UI laufen in drei Basis-Sprachen (`en`, `de`, `fr`) plu
 ### Für alltägliche Nutzer
 
 - **[Erste Schritte](docs/de/platform/member/overview.md)** — Tale installieren und die App öffnen
-- **[KI-Chat-Grundlagen](docs/de/platform/chat/basics.md)** — chatten, Dateien anhängen, Agents auswählen
+- **[KI-Chat-Grundlagen](docs/de/platform/chat/basics.md)** — chatten, Dateien anhängen, Video-Links einfügen, Agents auswählen
 - **[Wissensdatenbank](docs/de/platform/workspace/knowledge-base.md)** — Dokumente und Websites
 - **[Konversationen](docs/de/platform/workspace/conversations.md)** — Kunden-Posteingang
 - **[Genehmigungen](docs/de/platform/workspace/approvals.md)** — KI-Aktionen prüfen

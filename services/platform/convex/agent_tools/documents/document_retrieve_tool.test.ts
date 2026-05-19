@@ -14,6 +14,7 @@ vi.mock('../../_generated/api', () => ({
     file_metadata: {
       internal_queries: {
         getByStorageId: 'mock-get-by-storage-id',
+        lookupVideoLinkSources: 'mock-lookup-video-link-sources',
       },
     },
   },
@@ -39,7 +40,8 @@ function createMockCtx(overrides?: Record<string, unknown>) {
       fileId: 'file-storage-123',
       title: 'Test',
     }) // findDocumentByFileId
-    .mockResolvedValueOnce(['doc123', 'doc456']); // getAccessibleDocumentIds
+    .mockResolvedValueOnce(['doc123', 'doc456']) // getAccessibleDocumentIds
+    .mockResolvedValueOnce([]); // lookupVideoLinkSources — no video-link metadata
   return {
     organizationId: 'org1',
     userId: 'user1',
@@ -211,7 +213,8 @@ describe('retrieveDocument helper', () => {
           organizationId: 'org1',
           storageId: 'chat-upload-1',
           ragStatus: 'completed',
-        }), // getByStorageId — chat attachment, indexed
+        }) // getByStorageId — chat attachment, indexed
+        .mockResolvedValueOnce([]), // lookupVideoLinkSources
     });
 
     const result = await retrieveDocument(ctx as never, {
@@ -293,7 +296,8 @@ describe('retrieveDocument helper', () => {
         organizationId: 'org1',
         storageId: 'chat-upload-1',
         ragStatus: 'completed',
-      }); // getByStorageId
+      }) // getByStorageId
+      .mockResolvedValueOnce([]); // lookupVideoLinkSources
     const ctx = createMockCtx({ runQuery });
 
     await retrieveDocument(ctx as never, { fileId: 'chat-upload-1' });
@@ -383,7 +387,8 @@ describe('retrieveDocument helper', () => {
         fileId: 'file/with/slashes',
         title: 'Test',
       }) // findDocumentByFileId
-      .mockResolvedValueOnce(['doc-slashes']); // getAccessibleDocumentIds
+      .mockResolvedValueOnce(['doc-slashes']) // getAccessibleDocumentIds
+      .mockResolvedValueOnce([]); // lookupVideoLinkSources
     const ctx = createMockCtx({ runQuery });
 
     await retrieveDocument(ctx as never, {

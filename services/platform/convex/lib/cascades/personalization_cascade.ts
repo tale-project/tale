@@ -127,4 +127,35 @@ export async function cascadeOnOrgDeleted(
     }
     if (page.length < PAGE_SIZE) break;
   }
+
+  // videoLinkJobs are org-scoped (welcome-page pastes carry `threadId:
+  // undefined` so the thread-cascade path doesn't reach them) and own a
+  // `_storage` blob (audio for Whisper-branch, transcript text for
+  // captions-branch). Without this sweep the row + blob outlive the org
+  // forever — a hard GDPR Art 17 violation. Pattern mirrors the TTS branch
+  // above: db.delete-before-storage.delete, paged with the same budget.
+  for (let i = 0; i < 30; i++) {
+    const page = await ctx.db
+      .query('videoLinkJobs')
+      .withIndex('by_organizationId_and_status', (q) =>
+        q.eq('organizationId', organizationId),
+      )
+      .take(PAGE_SIZE);
+    if (page.length === 0) break;
+    for (const job of page) {
+      const storageId = job.storageId;
+      await ctx.db.delete(job._id);
+      if (storageId) {
+        try {
+          await ctx.storage.delete(storageId);
+        } catch (error) {
+          console.warn(
+            `[cascadeOnOrgDeleted] videoLink storage.delete failed for ${String(storageId)}:`,
+            error,
+          );
+        }
+      }
+    }
+    if (page.length < PAGE_SIZE) break;
+  }
 }

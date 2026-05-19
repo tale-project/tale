@@ -31,6 +31,22 @@ Une pastille de statut sur la pièce jointe suit la progression — _Transcripti
 
 La transcription a besoin d'un modèle de fournisseur taggé `transcription` — les Admins configurent ça une fois dans [Fournisseurs IA](/fr/platform/admin/providers). Les appels de transcription sont facturés à la minute d'audio et enregistrés dans le registre d'usage à côté des tokens de chat.
 
+## Liens vidéo
+
+Tu peux aussi coller une URL vidéo directement dans le composer : Tale récupère la transcription ou la piste audio depuis la plateforme source avant l'envoi. La liste des hôtes acceptés correspond à tout ce que `yt-dlp` reconnaît — YouTube, Vimeo, Bilibili, TikTok, etc. Colle l'URL et une vignette apparaît dans la zone de pièces jointes pendant que le serveur récupère les sous-titres ou extrait l'audio.
+
+Le flux essaie d'abord le chemin le moins coûteux : si la source dispose de sous-titres fournis par l'uploader ou auto-générés, Tale les télécharge et saute complètement l'extraction audio. Quand aucun sous-titre exploitable n'existe, la piste audio est extraite et passe par la même pipeline Whisper qu'un téléversement de fichier. Dans les deux cas, la vignette affiche le statut en direct — _Lecture des infos vidéo_, _Récupération des sous-titres_, _Extraction de l'audio_, _Transcription en cours_, puis _Prêt_ — et la transcription devient une pièce jointe normale sur le message sortant.
+
+Limites et comportements importants :
+
+- **Plafond de durée :** la même limite de 4 heures qu'aux téléversements s'applique dès que la plateforme renvoie la durée. Les vidéos plus longues sont rejetées avant l'extraction audio.
+- **Un lien, une vignette :** les listes de lecture sont rejetées ; colle un lien vidéo unique.
+- **Concurrence par organisation :** au maximum trois vidéos peuvent être traitées en parallèle par organisation. Un quatrième envoi déclenche une erreur inline.
+- **Nouvelle tentative après limitation :** quand la plateforme source nous limite (détection de bot), la vignette reste pendant un délai de 15 minutes avant qu'une nouvelle tentative ne soit autorisée.
+- **Vignette en échec bloque l'envoi :** si une vignette vidéo est en état d'échec, le bouton Envoyer reste désactivé — réessaie ou retire la vignette d'abord, pour que l'agent ne soit pas interrogé sur une transcription qui n'est jamais arrivée.
+
+Les transcriptions issues de liens vidéo sont enveloppées dans des marqueurs `<untrusted_source>` avant d'arriver à l'agent — le texte des sous-titres et les titres contrôlés par l'uploader sont traités comme des données, jamais comme des instructions. L'URL source reste sur la vignette et dans l'en-tête de la transcription pour que toi et l'agent puissiez vérifier la provenance. Coller des liens est régi par les [conditions d'utilisation](/fr/legal/terms-of-service) — tu confirmes que tu as le droit de traiter la vidéo et tu acceptes les conditions de la plateforme source en collant.
+
 ## Limites de taille et de nombre
 
 Les plafonds par défaut pour les pièces jointes par message :

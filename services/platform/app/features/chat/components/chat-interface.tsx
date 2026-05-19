@@ -51,6 +51,7 @@ import {
   useWorkflowRunApprovals,
   useWorkflowUpdateApprovals,
 } from '../hooks/queries';
+import { useChatVideoLinks } from '../hooks/use-chat-video-links';
 import { useConvexFileUpload } from '../hooks/use-convex-file-upload';
 import { useEffectiveAgent } from '../hooks/use-effective-agent';
 import { useFileIndexingStatus } from '../hooks/use-file-indexing-status';
@@ -245,6 +246,17 @@ export function ChatInterface({
     isQueryLoading: isTranscriptionQueryLoading,
     statusMap: transcriptionStatuses,
   } = useFileTranscriptionStatus(attachments);
+
+  const {
+    jobs: videoLinkJobs,
+    isAnyProcessing: isProcessingVideo,
+    hasFailedJobs: hasFailedVideoJobs,
+    ingestUrlsFromText: ingestVideoUrlsFromText,
+    cancelJob: cancelVideoJob,
+    retryJob: retryVideoJob,
+    markJobsSent: markVideoJobsSent,
+    unmarkJobsSent: unmarkVideoJobsSent,
+  } = useChatVideoLinks({ threadId, organizationId });
 
   const { data: featureFlags } = useMyFeatureFlags(organizationId);
   const fileUploadDisabled = featureFlags?.fileUpload === false;
@@ -677,15 +689,60 @@ export function ChatInterface({
     userContext,
     arena: arenaContext ?? undefined,
     teamId: teamFilter?.selectedTeamId ?? undefined,
+    // The hook sets this ref RIGHT BEFORE each setPendingMessage call,
+    // so the auto-scroll intent is fresh when the MutationObserver
+    // picks up the new bubble. Previously this was set here in
+    // `handleSendMessage` BEFORE the (potentially 50-200ms) await, and
+    // unrelated observer fires during the await would downgrade the
+    // ref to 'instant' or clear it — breaking auto-scroll for video-
+    // link sends specifically (those have an extra `await
+    // bindCompletedJobsToMessage` round-trip; plain text and image
+    // attachments don't, which is why they always worked).
+    scrollIntentRef: scrollingToBottomBehaviorRef,
+    // Restore the composer chips on send-failure paths inside
+    // `useSendMessage` (bind throw, precheck-block, chatWithAgent throw).
+    // Mirrors the `setInputValue(draftSnapshot)` rollback we do here
+    // for the typed text below.
+    unmarkJobsSent: unmarkVideoJobsSent,
   });
 
   const handleSendMessage = async (
     message: string,
     sentAttachments?: FileAttachment[],
   ) => {
-    // Instant for new threads (no content to scroll past, avoids layout shift
-    // during the budget-banner → thread transition). Smooth for existing threads.
-    scrollingToBottomBehaviorRef.current = threadId ? 'smooth' : 'instant';
+    // Scroll-intent now set inside `useSendMessage` adjacent to each
+    // setPendingMessage call — see `scrollIntentRef` prop above. Setting
+    // it here would re-introduce the video-link race window where a
+    // 50-200 ms `await bindCompletedJobsToMessage` lets observer fires
+    // downgrade the ref before the optimistic bubble lands.
+    // Snapshot the input value BEFORE clearing so a failed send can
+    // restore the typed text. Without this, a network blip / model-
+    // access denial / chat-filter block in `sendMessage` leaves the
+    // composer empty and the user has to retype the whole prompt.
+    // Mirror the chip-unbind rollback (`useSendMessage` already does
+    // that on failure) so both typed text and attachments survive.
+    const draftSnapshot = inputValue;
+
+    // Snapshot the completed video-link chips at click-time. Mirror the
+    // server's bind-mutation predicate (mutations.ts:540 +
+    // queries.ts:projectJob) so the snapshot, the bg bind, and the
+    // optimistic markdown all agree on which chips are "ready to send".
+    // Hiding the chips synchronously here (`markVideoJobsSent`) is what
+    // makes the composer empty in the same React commit as
+    // `clearInputValue()` — without this, the chip lingers in the
+    // composer for the 50-200 ms `bindCompletedJobsToMessage` round-trip
+    // and the user reads it as "the input box doesn't clear quickly".
+    const videoLinkSnapshot = videoLinkJobs.filter(
+      (j) =>
+        j.displayStatus === 'completed' &&
+        j.messageBoundAt === undefined &&
+        j.lifecycleStatus !== 'trashed' &&
+        j.storageId !== undefined,
+    );
+    const snapshotJobIds = videoLinkSnapshot.map((j) => j.jobId);
+    if (snapshotJobIds.length > 0) {
+      markVideoJobsSent(snapshotJobIds);
+    }
     clearInputValue();
 
     // For image-generation agents, if an editing image is active in the
@@ -711,7 +768,15 @@ export function ChatInterface({
       setDismissedImageKey(null);
     }
 
-    await sendMessage(message, finalAttachments);
+    try {
+      await sendMessage(message, finalAttachments, videoLinkSnapshot);
+    } catch (err) {
+      // Restore the draft so the user can retry or edit. The chip
+      // unbind already happens inside `useSendMessage`'s catch via the
+      // `unmarkJobsSent` prop wired above.
+      setInputValue(draftSnapshot);
+      throw err;
+    }
   };
 
   // No client-side optimistic loading needed — server sets
@@ -728,10 +793,11 @@ export function ChatInterface({
 
   const handleSendMessageDirect = useCallback(
     (message: string) => {
-      scrollingToBottomBehaviorRef.current = threadId ? 'smooth' : 'instant';
+      // Scroll-intent set inside `useSendMessage` (see scrollIntentRef
+      // wiring above). Setting it here would re-introduce the race.
       void sendMessage(message);
     },
-    [sendMessage, threadId],
+    [sendMessage],
   );
 
   // Edit message → open dialog → create branch on submit
@@ -839,7 +905,8 @@ export function ChatInterface({
       .toReversed()
       .find((msg) => msg.role === 'user');
     if (!lastUserMessage?.content) return;
-    scrollingToBottomBehaviorRef.current = 'smooth';
+    // Scroll-intent set inside `useSendMessage` adjacent to each
+    // setPendingMessage call — see scrollIntentRef wiring above.
     void sendMessage(lastUserMessage.content);
   }, [messages, sendMessage]);
 
@@ -1053,6 +1120,12 @@ export function ChatInterface({
               indexingStatuses={indexingStatuses}
               isTranscribing={isTranscribing || isTranscriptionQueryLoading}
               transcriptionStatuses={transcriptionStatuses}
+              videoLinkJobs={videoLinkJobs}
+              isProcessingVideo={isProcessingVideo}
+              hasFailedVideoJobs={hasFailedVideoJobs}
+              ingestVideoUrlsFromText={ingestVideoUrlsFromText}
+              cancelVideoJob={cancelVideoJob}
+              retryVideoJob={retryVideoJob}
               sendBlocked={
                 isImageGenAgent &&
                 !!activeEditingImage &&

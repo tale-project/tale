@@ -4,7 +4,7 @@ description: Conditions régissant l’usage du site Tale exploité par Ruler Gm
 noindex: true
 ---
 
-**Dernière mise à jour :** 01.04.2026
+**Dernière mise à jour :** 18.05.2026
 
 ## 1. Introduction
 
@@ -59,11 +59,35 @@ En soumettant des informations via nos formulaires de contact ou de demande de d
 
 La soumission d’un formulaire ne crée pas de relation contractuelle entre toi et Ruler GmbH. Une relation contractuelle n’est établie qu’à la signature d’un accord distinct.
 
-## 6. Liens et ressources de tiers
+## 6. Liens de tiers, URL soumises et analyse vidéo
 
-Notre Site peut contenir des liens vers des sites, services ou ressources tiers qui ne nous appartiennent ni ne sont contrôlés par nous, y compris notre site de documentation, formations et accords de service. Nous n’avons pas de contrôle et n’assumons aucune responsabilité pour le contenu, les pratiques de confidentialité ou la disponibilité de sites ou services tiers.
+### 6.1 Liens depuis le Site
 
-L’inclusion d’un lien ne vaut pas approbation. Nous t’encourageons à lire les conditions et politiques de confidentialité de tout site tiers visité.
+Notre Site peut contenir des liens vers des sites, services ou ressources tiers qui ne nous appartiennent ni ne sont contrôlés par nous, y compris notre site de documentation, formations et accords de service. Nous n’avons pas de contrôle et n’assumons aucune responsabilité pour le contenu, les pratiques de confidentialité ou la disponibilité de sites ou services tiers. L’inclusion d’un lien ne vaut pas approbation. Nous t’encourageons à lire les conditions et politiques de confidentialité de tout site tiers visité.
+
+### 6.2 URL que tu soumets au Service
+
+Lorsque tu soumets une URL au Service pour récupération, transcription ou analyse (y compris des liens vidéo), tu déclares et garantis que :
+
+- tu disposes des droits, licences ou des exceptions légales applicables au titre du droit d’auteur et des droits voisins de ta juridiction pour récupérer et traiter le contenu situé à cette URL ;
+- ton usage du Service est conforme aux conditions d’utilisation de la plateforme source et à l’ensemble du droit applicable ; et
+- le contenu n’est pas contrefaisant, diffamatoire, illicite ou autrement exclu d’un traitement par un tiers.
+
+Les transcriptions, sous-titres, résumés et autres artefacts que le Service dérive de l’URL soumise constituent des œuvres dérivées du contenu source sous-jacent. L’ensemble des droits de propriété intellectuelle sur le contenu original demeure entre les mains de leur titulaire d’origine ; le Service ne te confère aucun droit nouveau sur les artefacts dérivés au-delà de ta licence existante d’utilisation du contenu source. Dans la relation entre toi et le Service, les artefacts dérivés t’appartiennent — sous réserve constante des droits sous-jacents du titulaire des droits — et le Service ne revendique aucune propriété sur les transcriptions ou résumés que tu génères à partir de tes propres URL soumises.
+
+Tale agit en tant que sous-traitant suivant tes instructions à l’égard des contenus que tu soumets (récupération d’URL, transcription, stockage). Tale agit en qualité de responsable de traitement pour les métadonnées d’exploitation générées par le Service (compteurs de limitation de débit, classification d’erreurs, télémétrie nécessaire à la fourniture du Service). Nous ne sélectionnons, n’examinons ni n’approuvons les URL soumises par les utilisateurs.
+
+### 6.3 Pouvoir d’appréciation
+
+Nous pouvons refuser, limiter, suspendre ou supprimer toute URL soumise ou toute sortie stockée à notre seule discrétion, notamment en cas de plainte, si le traitement dépasse les limites de la plateforme ou si la plateforme source bloque nos requêtes. Nous pouvons également rejeter certaines catégories d’URL (par exemple les diffusions en direct, les contenus à accès restreint par l’âge ou les points d’extrémité de listes de lecture) pour des motifs techniques ou de politique interne.
+
+### 6.4 Procédure de notification et d’action
+
+Si tu estimes qu’un contenu stocké par le Service porte atteinte à tes droits ou contrevient au droit applicable, contacte-nous à l’adresse indiquée à la Section 14 en précisant : (i) l’œuvre ou le droit protégé en cause ; (ii) l’URL du contenu stocké ; (iii) tes coordonnées ; et (iv) une déclaration faite de bonne foi du fondement de ta réclamation. Nous examinons les signalements rapidement et pouvons, à notre discrétion, supprimer le contenu ou en restreindre l’accès dans un délai raisonnable. Cette procédure s’ajoute, sans s’y substituer, aux droits et procédures dont tu disposes au titre du droit d’auteur ou de la modération des contenus applicables (notamment l’article 16 du règlement (UE) 2022/2065 — Digital Services Act, lorsqu’il s’applique).
+
+### 6.5 Aucune garantie de service
+
+La récupération d’URL et la transcription sont fournies sur la base de meilleurs efforts. Nous ne garantissons pas qu’une URL donnée puisse être traitée, que les transcriptions soient exactes ou complètes, ni que le traitement soit disponible à un moment donné. La précision de la transcription automatique varie selon la qualité audio, la langue et le comportement de la plateforme source.
 
 ## 7. Exclusion de garanties
 

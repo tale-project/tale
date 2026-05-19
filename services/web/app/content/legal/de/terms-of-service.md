@@ -4,7 +4,7 @@ description: Bedingungen für die Nutzung der von Ruler GmbH betriebenen Tale-We
 noindex: true
 ---
 
-**Letzte Aktualisierung:** 01.04.2026
+**Letzte Aktualisierung:** 18.05.2026
 
 ## 1. Einleitung
 
@@ -59,11 +59,35 @@ Mit der Einsendung von Informationen über unsere Kontakt- oder Demo-Anfrageform
 
 Das Absenden eines Formulars begründet kein Vertragsverhältnis zwischen dir und der Ruler GmbH. Ein Vertragsverhältnis kommt erst mit Abschluss eines gesonderten Vertrags zustande.
 
-## 6. Drittanbieter-Links und -Ressourcen
+## 6. Drittanbieter-Links, von dir übermittelte URLs und Video-Analyse
 
-Unsere Website kann Links zu Drittanbieter-Websites, -Diensten oder -Ressourcen enthalten, die nicht von uns betrieben oder kontrolliert werden, einschließlich unserer Dokumentations-Site, Schulungsangebote und Service-Vereinbarungen. Wir haben keine Kontrolle über und übernehmen keine Verantwortung für Inhalte, Datenschutzpraktiken oder Verfügbarkeit solcher Drittanbieter-Websites oder -Dienste.
+### 6.1 Links von der Website
 
-Die Aufnahme eines Links stellt keine Empfehlung dar. Wir empfehlen dir, die Bedingungen und Datenschutzerklärungen aller besuchten Drittanbieter-Seiten zu lesen.
+Unsere Website kann Links zu Drittanbieter-Websites, -Diensten oder -Ressourcen enthalten, die nicht von uns betrieben oder kontrolliert werden, einschließlich unserer Dokumentations-Site, Schulungsangebote und Service-Vereinbarungen. Wir haben keine Kontrolle über und übernehmen keine Verantwortung für Inhalte, Datenschutzpraktiken oder Verfügbarkeit solcher Drittanbieter-Websites oder -Dienste. Die Aufnahme eines Links stellt keine Empfehlung dar. Wir empfehlen dir, die Bedingungen und Datenschutzerklärungen aller besuchten Drittanbieter-Seiten zu lesen.
+
+### 6.2 An den Dienst übermittelte URLs
+
+Wenn du dem Dienst eine URL zum Abruf, zur Transkription oder Analyse übermittelst (einschließlich Video-Links), sicherst du zu und gewährleistest, dass:
+
+- du die Rechte, Lizenzen oder die nach dem Urheberrecht und verwandten Rechten deiner Rechtsordnung anwendbaren gesetzlichen Schranken besitzt, um den Inhalt unter dieser URL abzurufen und zu verarbeiten;
+- deine Nutzung des Dienstes mit den Nutzungsbedingungen der Quellplattform und mit allen anwendbaren Gesetzen vereinbar ist; und
+- der Inhalt nicht rechtsverletzend, ehrverletzend, rechtswidrig oder anderweitig von einer Drittverarbeitung ausgeschlossen ist.
+
+Transkripte, Untertitel, Zusammenfassungen und sonstige Artefakte, die der Dienst aus der übermittelten URL ableitet, sind Bearbeitungen des zugrunde liegenden Ausgangsinhalts. Sämtliche Urheber- und Schutzrechte am Originalinhalt verbleiben beim ursprünglichen Rechteinhaber; der Dienst gewährt dir an den abgeleiteten Artefakten keine über deine bestehende Nutzungslizenz am Ausgangsmaterial hinausgehenden Rechte. Im Verhältnis zwischen dir und dem Dienst stehen die abgeleiteten Artefakte dir zu — stets vorbehaltlich der zugrunde liegenden Rechte des Rechteinhabers — und der Dienst erhebt keinen Eigentumsanspruch auf Transkripte oder Zusammenfassungen, die du aus deinen eigenen übermittelten URLs erzeugst.
+
+Tale handelt in Bezug auf die von dir übermittelten Inhalte (URL-Abruf, Transkription, Speicherung) als Auftragsverarbeiter auf deine Weisung. In Bezug auf die zur Bereitstellung des Dienstes generierten Betriebsmetadaten (Rate-Limit-Zähler, Fehlerklassifikation, Telemetrie) handelt Tale als Verantwortlicher. Wir kuratieren, prüfen oder befürworten von Nutzenden übermittelte URLs nicht.
+
+### 6.3 Ermessensvorbehalt
+
+Wir können jede übermittelte URL oder gespeicherte Ausgabe nach eigenem Ermessen ablehnen, drosseln, aussetzen oder entfernen, insbesondere bei Beschwerden, bei Überschreitung von Plattformlimits oder wenn die Quellplattform unsere Anfragen blockiert. Wir können auch Kategorien von URLs (zum Beispiel Live-Streams, altersbeschränkte Inhalte oder Playlist-Endpunkte) aus technischen oder grundsätzlichen Gründen ablehnen.
+
+### 6.4 Bekanntmachungs- und Maßnahmenverfahren
+
+Wenn du der Meinung bist, dass vom Dienst gespeicherte Inhalte deine Rechte verletzen oder gegen geltendes Recht verstoßen, kontaktiere uns über die in Abschnitt 14 angegebene Adresse mit: (i) Angabe des geschützten Werks oder Rechts; (ii) der URL des gespeicherten Inhalts; (iii) deinen Kontaktdaten; und (iv) einer Erklärung in gutem Glauben über die Grundlage deines Anspruchs. Wir prüfen Meldungen zeitnah und können den Inhalt nach eigenem Ermessen innerhalb einer angemessenen Frist entfernen oder den Zugang dazu einschränken. Dieses Verfahren wird zusätzlich zu allen Rechten und Verfahren angeboten, die dir nach geltendem Urheber- oder Inhaltemoderationsrecht zur Verfügung stehen (insbesondere Artikel 16 der EU-Verordnung 2022/2065 — Digital Services Act, soweit anwendbar).
+
+### 6.5 Keine Dienstleistungsgarantie
+
+Der URL-Abruf und die Transkription werden nach bestem Bemühen erbracht. Wir gewährleisten nicht, dass eine bestimmte URL verarbeitbar ist, dass Transkripte richtig oder vollständig sind oder dass die Verarbeitung zu einem bestimmten Zeitpunkt verfügbar ist. Die Genauigkeit der automatisierten Transkription hängt von Audioqualität, Sprache und Verhalten der Quellplattform ab.
 
 ## 7. Haftungsausschluss
 
