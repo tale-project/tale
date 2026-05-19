@@ -25,10 +25,9 @@ function isHardwareBilling(value: unknown): value is HardwareBilling {
 }
 
 function parseLeasingTerm(value: unknown): LeasingTerm | undefined {
-  const num = typeof value === 'string' ? Number.parseInt(value, 10) : value;
-  return (LEASING_TERMS as readonly number[]).includes(num as number)
-    ? (num as LeasingTerm)
-    : undefined;
+  const num = typeof value === 'string' ? Number(value) : value;
+  if (typeof num !== 'number' || !Number.isInteger(num)) return undefined;
+  return LEASING_TERMS.find((t) => t === num);
 }
 
 export function HardwarePricingPage() {

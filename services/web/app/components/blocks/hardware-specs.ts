@@ -263,7 +263,15 @@ function nodeRaw(key: NodeKey): RawMetrics {
 
 function clusterRaw(key: ClusterKey): RawMetrics {
   const comp = CLUSTER_COMPOSITION[key];
-  const zero: RawMetrics = { aiRamGB: 0, speed: 0, ssdTB: 0, buy: 0 };
+  // Seed `buy` with the infra surcharge so the quality metric
+  // (aiRamGB / buy) divides by the true cluster price that customers see,
+  // matching what `clusterBuyPrice()` returns.
+  const zero: RawMetrics = {
+    aiRamGB: 0,
+    speed: 0,
+    ssdTB: 0,
+    buy: CLUSTER_INFRA_SURCHARGE,
+  };
   return TIER_KEYS.reduce((acc, nk) => {
     const c = comp[nk];
     if (!c) return acc;
