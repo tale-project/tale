@@ -254,6 +254,8 @@ export function ChatInterface({
     ingestUrlsFromText: ingestVideoUrlsFromText,
     cancelJob: cancelVideoJob,
     retryJob: retryVideoJob,
+    markJobsSent: markVideoJobsSent,
+    unmarkJobsSent: unmarkVideoJobsSent,
   } = useChatVideoLinks({ threadId, organizationId });
 
   const { data: featureFlags } = useMyFeatureFlags(organizationId);
@@ -697,6 +699,11 @@ export function ChatInterface({
     // bindCompletedJobsToMessage` round-trip; plain text and image
     // attachments don't, which is why they always worked).
     scrollIntentRef: scrollingToBottomBehaviorRef,
+    // Restore the composer chips on send-failure paths inside
+    // `useSendMessage` (bind throw, precheck-block, chatWithAgent throw).
+    // Mirrors the `setInputValue(draftSnapshot)` rollback we do here
+    // for the typed text below.
+    unmarkJobsSent: unmarkVideoJobsSent,
   });
 
   const handleSendMessage = async (
@@ -715,6 +722,27 @@ export function ChatInterface({
     // Mirror the chip-unbind rollback (`useSendMessage` already does
     // that on failure) so both typed text and attachments survive.
     const draftSnapshot = inputValue;
+
+    // Snapshot the completed video-link chips at click-time. Mirror the
+    // server's bind-mutation predicate (mutations.ts:540 +
+    // queries.ts:projectJob) so the snapshot, the bg bind, and the
+    // optimistic markdown all agree on which chips are "ready to send".
+    // Hiding the chips synchronously here (`markVideoJobsSent`) is what
+    // makes the composer empty in the same React commit as
+    // `clearInputValue()` — without this, the chip lingers in the
+    // composer for the 50-200 ms `bindCompletedJobsToMessage` round-trip
+    // and the user reads it as "the input box doesn't clear quickly".
+    const videoLinkSnapshot = videoLinkJobs.filter(
+      (j) =>
+        j.displayStatus === 'completed' &&
+        j.messageBoundAt === undefined &&
+        j.lifecycleStatus !== 'trashed' &&
+        j.storageId !== undefined,
+    );
+    const snapshotJobIds = videoLinkSnapshot.map((j) => j.jobId);
+    if (snapshotJobIds.length > 0) {
+      markVideoJobsSent(snapshotJobIds);
+    }
     clearInputValue();
 
     // For image-generation agents, if an editing image is active in the
@@ -741,10 +769,11 @@ export function ChatInterface({
     }
 
     try {
-      await sendMessage(message, finalAttachments);
+      await sendMessage(message, finalAttachments, videoLinkSnapshot);
     } catch (err) {
       // Restore the draft so the user can retry or edit. The chip
-      // unbind already happens inside `useSendMessage`'s catch.
+      // unbind already happens inside `useSendMessage`'s catch via the
+      // `unmarkJobsSent` prop wired above.
       setInputValue(draftSnapshot);
       throw err;
     }

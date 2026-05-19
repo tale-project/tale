@@ -12,6 +12,7 @@ import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import { formatVideoLinkAttachmentMarkdown } from '@/lib/shared/video-link-markdown';
 
 type GuardrailsBlockedCode =
   | 'pii.blocked'
@@ -51,6 +52,7 @@ import {
   useCreateThread,
   useUpdateThread,
 } from './mutations';
+import type { VideoLinkJob } from './use-chat-video-links';
 import type { ChatMessage } from './use-message-processing';
 import { clearSendPending, markSendPending } from './use-pending-send';
 import { resetGlobalFreeze } from './use-stream-buffer';
@@ -98,6 +100,18 @@ interface UseSendMessageParams {
    * (those paths skip the bind round-trip).
    */
   scrollIntentRef?: MutableRefObject<ScrollBehavior | null>;
+  /**
+   * Restore the composer chips for the given videoLinkJob ids. Called from
+   * inside `sendMessage` when bind or downstream `chatWithAgent` throws so
+   * the chips the caller hid synchronously on click-time reappear in the
+   * composer. Pair with the click-side `markJobsSent` exposed by
+   * `useChatVideoLinks` — see chat-interface.tsx for the click-side hide.
+   * Without this rollback the chips stay invisible forever (they were
+   * hidden by a client-side Set, not by `messageBoundAt`) and the user
+   * loses both the typed text AND every transcript attachment on a
+   * failed send.
+   */
+  unmarkJobsSent?: (jobIds: Array<Id<'videoLinkJobs'>>) => void;
 }
 
 /**
@@ -120,6 +134,7 @@ export function useSendMessage({
   arena,
   teamId,
   scrollIntentRef,
+  unmarkJobsSent,
 }: UseSendMessageParams) {
   const { t } = useT('chat');
   const navigate = useNavigate();
@@ -140,7 +155,11 @@ export function useSendMessage({
   const sendingRef = useRef(false);
 
   const sendMessage = useCallback(
-    async (message: string, attachments?: FileAttachment[]) => {
+    async (
+      message: string,
+      attachments?: FileAttachment[],
+      videoLinkSnapshot?: VideoLinkJob[],
+    ) => {
       if (sendingRef.current) return;
       if (!selectedAgent) {
         toast({
@@ -179,58 +198,63 @@ export function useSendMessage({
           fileSize: a.fileSize,
         })) ?? [];
 
-      // Bind any completed video-link jobs in this thread to the outgoing
-      // message. Atomic — the mutation patches lifecycleStatus='bound'
-      // and returns the FileAttachment payloads in one transaction,
-      // closing the chip-vs-drain race that the round-2 review (B8/R2)
-      // flagged. pastedTokens come back so we can strip raw URLs from
-      // the message text (LLM shouldn't see URL + transcript fileId both).
-      // Bound jobIds are tracked in `boundJobIdsLocal` so the catch block
-      // below can call `unbindJobsFromMessage` on send failure — without
-      // that reverse, chips disappear from the composer permanently
-      // because `useChatVideoLinks` filters out rows with
-      // `messageBoundAt !== undefined` (round-2 V10 / HIGH #17).
+      // Synchronously derive video-link attachments + markdown + pasted-
+      // token strip list from the click-time snapshot owned by
+      // chat-interface.tsx (sourced from `useChatVideoLinks`'s reactive
+      // jobs list). This used to be an awaited `bindCompletedJobsToMessage`
+      // round-trip that gated `setPendingMessage`; that 50-200 ms gap is
+      // what the user reported as "the composer doesn't clear quickly"
+      // and "the bubble first shows a plain link then switches to the
+      // styled card" — both symptoms collapse once optimistic builds
+      // sync-from-local and the bubble lands in the same React commit as
+      // `clearInputValue` (chat-interface.tsx:718). The bind mutation
+      // still runs (see below, after setPendingMessage) to stamp
+      // `messageBoundAt` server-side — it just no longer blocks UI.
+      // `boundJobIdsLocal` is pre-seeded with snapshot ids so the
+      // catch path below can call `unbindJobsFromMessage` if a downstream
+      // `chatWithAgent` throw rolls everything back (round-2 V10 / HIGH
+      // #17).
       const pastedTokensToStrip: string[] = [];
+      const snapshotMarkdown: string[] = [];
+      const snapshotJobIds: Array<Id<'videoLinkJobs'>> = [];
       const boundJobIdsLocal: Array<Id<'videoLinkJobs'>> = [];
-      if (threadId) {
-        try {
-          const bound = await convexClient.mutation(
-            api.video_links.mutations.bindCompletedJobsToMessage,
-            { organizationId, threadId },
-          );
-          for (const att of bound) {
-            mutationAttachments.push({
-              fileId: att.fileId,
-              fileName: att.fileName,
-              fileType: att.fileType,
-              fileSize: att.fileSize,
-            });
-            pastedTokensToStrip.push(att.pastedToken);
-            boundJobIdsLocal.push(att.jobId);
-          }
-        } catch (err) {
-          console.error(
-            '[use-send-message] video-link bind failed:',
-            err instanceof Error ? err.message : err,
-          );
-          // Surface the failure — without a toast the user clicks send,
-          // sees their video chip vanish, gets an unrelated AI reply, and
-          // reads it as "the AI ignored my video".
-          // Server-side `err.message` may be locale-mixed (English from
-          // the mutation handler vs. user's UI locale); prefer a
-          // localized fallback when the error doesn't carry a useful
-          // user-visible string of its own. The `Error` branch still
-          // surfaces ConvexError messages that are deliberately user-
-          // facing (rate-limit / cooldown / inFlightCap / budget).
-          const description =
-            err instanceof Error && err.message
-              ? err.message
-              : t('videoLink.toast.bindFailedDescription');
-          toast({
-            title: t('toast.sendFailed'),
-            description,
-            variant: 'destructive',
+      if (videoLinkSnapshot && videoLinkSnapshot.length > 0) {
+        for (const job of videoLinkSnapshot) {
+          // Re-assert the bind predicate to defend against a stale
+          // snapshot (a chip status flipping between the click-handler
+          // read and this point). Server bind would also skip these
+          // rows, so optimistic and persisted stay aligned.
+          if (job.displayStatus !== 'completed') continue;
+          if (job.messageBoundAt !== undefined) continue;
+          if (job.lifecycleStatus === 'trashed') continue;
+          if (!job.storageId) continue;
+          // fileType sentinel matches the bind mutation's output —
+          // `isAudioOrVideo` in start_agent_chat.ts picks the video icon
+          // and the `🎬 [...]` template branch off this exact string.
+          const fileType = 'video/mp4';
+          const fileName = job.videoTitle ?? 'Video link';
+          const fileSize = job.fileSize ?? 0;
+          mutationAttachments.push({
+            fileId: job.storageId,
+            fileName,
+            fileType,
+            fileSize,
           });
+          pastedTokensToStrip.push(job.pastedToken);
+          snapshotJobIds.push(job.jobId);
+          boundJobIdsLocal.push(job.jobId);
+          snapshotMarkdown.push(
+            formatVideoLinkAttachmentMarkdown({
+              fileId: job.storageId,
+              fileName,
+              fileType,
+              fileSize,
+              videoTitle: job.videoTitle,
+              videoUploader: job.videoUploader,
+              sourcePlatform: job.sourcePlatform,
+              videoDurationSec: job.videoDurationSec,
+            }),
+          );
         }
       }
 
@@ -276,6 +300,15 @@ export function useSendMessage({
         );
         if (precheck.blocked) {
           clearChatState();
+          // Restore the chips the caller hid synchronously on click —
+          // the block branch never reaches the bg-bind path, so without
+          // this the chips stay invisible (they were filtered out of
+          // `useChatVideoLinks` by the client-side hide set, not by
+          // `messageBoundAt`) and the user loses both their typed text
+          // and every transcript attachment on a guardrails block.
+          if (unmarkJobsSent && snapshotJobIds.length > 0) {
+            unmarkJobsSent(snapshotJobIds);
+          }
           const title =
             precheck.code === 'pii.blocked'
               ? t('toast.piiBlocked')
@@ -310,6 +343,19 @@ export function useSendMessage({
       // render was only winning a round-trip anyway.
       const lastMessageKey = messages[messages.length - 1]?.key;
       const pendingTimestamp = new Date();
+      // Append the same per-attachment markdown that the server's
+      // `buildMessageWithAttachments` (start_agent_chat.ts) emits, using
+      // the shared formatter. Without parity here the optimistic body and
+      // the persisted body differ by ~2 lines of literal text (user
+      // bubbles render `whitespace-pre-wrap` so the brackets/asterisks
+      // ARE shown, not formatted) and the user sees the bubble grow on
+      // the optimistic→persisted swap.
+      const optimisticContent =
+        snapshotMarkdown.length > 0
+          ? messageToSend
+            ? `${messageToSend}\n\n${snapshotMarkdown.join('\n\n')}`
+            : snapshotMarkdown.join('\n\n')
+          : messageToSend;
       // Mark scroll-to-bottom intent IMMEDIATELY before the bubble mounts
       // — see `markScrollIntent` declaration above for the race-window
       // reasoning. Covers all three branches below uniformly.
@@ -317,7 +363,7 @@ export function useSendMessage({
       if (isArena) {
         if (currentArena.arenaThreadIdA && currentArena.arenaThreadIdB) {
           setPendingMessage({
-            content: messageToSend,
+            content: optimisticContent,
             threadId: currentArena.arenaThreadIdA,
             arenaThreadIdB: currentArena.arenaThreadIdB,
             attachments: mutationAttachments,
@@ -329,7 +375,7 @@ export function useSendMessage({
           // or neither exists yet (new chat). Use the known A ID so
           // ArenaColumn A can match and display the optimistic message.
           setPendingMessage({
-            content: messageToSend,
+            content: optimisticContent,
             threadId: currentArena.arenaThreadIdA ?? 'pending',
             attachments: mutationAttachments,
             timestamp: pendingTimestamp,
@@ -338,12 +384,114 @@ export function useSendMessage({
         }
       } else {
         setPendingMessage({
-          content: messageToSend,
+          content: optimisticContent,
           threadId: threadId ?? 'pending',
           attachments: mutationAttachments,
           timestamp: pendingTimestamp,
           lastMessageKey,
         });
+      }
+
+      // Background bind. With `setPendingMessage` already rendered above,
+      // the bind no longer gates UI; it just stamps `messageBoundAt`
+      // server-side so the chip migrates from the composer query to its
+      // "bound to a sent message" state authoritatively. The single
+      // transactional write is still the source of truth for the
+      // chip-vs-drain race the round-2 review (B8/R2) flagged. If bind
+      // returns rows the click-time snapshot missed (a chip that
+      // completed during the click→precheck window), patch them onto the
+      // pending message with a second `setPendingMessage` call so the
+      // user-visible state stays correct without waiting for the
+      // persisted server swap.
+      if (threadId && videoLinkSnapshot && videoLinkSnapshot.length > 0) {
+        try {
+          const bound = await convexClient.mutation(
+            api.video_links.mutations.bindCompletedJobsToMessage,
+            { organizationId, threadId },
+          );
+          // Reconcile drift between snapshot and bind. The expected case
+          // is `bound` ⊇ `snapshotJobIds` (snapshot was an instant in
+          // time; nothing should disappear) but `bound` may carry an
+          // extra job if a chip completed mid-click. Add those.
+          const snapshotIdSet = new Set(snapshotJobIds);
+          let driftDetected = false;
+          for (const att of bound) {
+            if (snapshotIdSet.has(att.jobId)) continue;
+            driftDetected = true;
+            mutationAttachments.push({
+              fileId: att.fileId,
+              fileName: att.fileName,
+              fileType: att.fileType,
+              fileSize: att.fileSize,
+            });
+            if (att.pastedToken && messageToSend.includes(att.pastedToken)) {
+              messageToSend = messageToSend.replace(att.pastedToken, '');
+            }
+            boundJobIdsLocal.push(att.jobId);
+          }
+          if (driftDetected) {
+            messageToSend = messageToSend.replace(/\s+/g, ' ').trim();
+            // No shared `videoTitle`/`sourcePlatform` payload from bind
+            // for the late arrivals, so the optimistic markdown for
+            // these is a plain attachment footer — close enough to the
+            // server output that the bubble height delta on persisted
+            // swap is one line at most. Accepted compromise per the
+            // approved plan; the snapshot-hit path (~99% of sends)
+            // stays byte-identical.
+            const driftMarkdown = bound
+              .filter((att) => !snapshotIdSet.has(att.jobId))
+              .map(
+                (att) =>
+                  `🎬 [${att.fileName}] (video)\n*(fileId: ${att.fileId} | fileName: ${att.fileName} | fileType: ${att.fileType} | fileSize: ${att.fileSize})*`,
+              );
+            const reconciledMarkdown = [...snapshotMarkdown, ...driftMarkdown];
+            const reconciledContent = messageToSend
+              ? `${messageToSend}\n\n${reconciledMarkdown.join('\n\n')}`
+              : reconciledMarkdown.join('\n\n');
+            markScrollIntent();
+            if (isArena) {
+              if (currentArena?.arenaThreadIdA && currentArena.arenaThreadIdB) {
+                setPendingMessage({
+                  content: reconciledContent,
+                  threadId: currentArena.arenaThreadIdA,
+                  arenaThreadIdB: currentArena.arenaThreadIdB,
+                  attachments: mutationAttachments,
+                  timestamp: pendingTimestamp,
+                  lastMessageKey,
+                });
+              }
+            } else {
+              setPendingMessage({
+                content: reconciledContent,
+                threadId,
+                attachments: mutationAttachments,
+                timestamp: pendingTimestamp,
+                lastMessageKey,
+              });
+            }
+          }
+        } catch (err) {
+          console.error(
+            '[use-send-message] background video-link bind failed:',
+            err instanceof Error ? err.message : err,
+          );
+          // Restore the chips that were hidden synchronously on click —
+          // without this the user sees their text + attachments vanish
+          // and has no way to retry without re-pasting (round-2 V10 /
+          // HIGH #17 spirit, adapted for the new sync-hide path).
+          if (unmarkJobsSent && snapshotJobIds.length > 0) {
+            unmarkJobsSent(snapshotJobIds);
+          }
+          const description =
+            err instanceof Error && err.message
+              ? err.message
+              : t('videoLink.toast.bindFailedDescription');
+          toast({
+            title: t('toast.sendFailed'),
+            description,
+            variant: 'destructive',
+          });
+        }
       }
 
       // Track threads we've flagged optimistic-pending so the catch block can
@@ -642,6 +790,15 @@ export function useSendMessage({
             );
           }
         }
+        // Restore the chips the caller hid synchronously on click. The
+        // server `unbindJobsFromMessage` above reverses `messageBoundAt`,
+        // but the chips are *also* hidden by the client-side hide-set on
+        // the composer hook — that's why a separate client rollback is
+        // needed. Both paths are idempotent (set ops on `Set` / patch on
+        // a row that's already unbound).
+        if (unmarkJobsSent && boundJobIdsLocal.length > 0) {
+          unmarkJobsSent(boundJobIdsLocal);
+        }
         clearChatState();
         resetGlobalFreeze();
 
@@ -707,6 +864,8 @@ export function useSendMessage({
       t,
       convexClient,
       teamId,
+      scrollIntentRef,
+      unmarkJobsSent,
     ],
   );
 

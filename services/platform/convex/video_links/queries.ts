@@ -33,6 +33,13 @@ interface VideoLinkJobView {
   errorMessage?: string;
   attempts?: number;
   storageId?: Id<'_storage'>;
+  /** Size in bytes of the transcript blob in `_storage`. Sourced from
+   * `fileMetadata.size` — same field the bind mutation puts on the
+   * outgoing attachment payload — so the client optimistic render lands a
+   * byte-identical `fileSize: ...` in the message body footer. Undefined
+   * for jobs that haven't finished transcription yet (no fileMetadataId
+   * row). */
+  fileSize?: number;
   lifecycleStatus?: string;
   messageBoundAt?: number;
   uploadedBy: string;
@@ -68,20 +75,28 @@ async function projectJob(
 
   // Whisper-handoff: project the linked fileMetadata's transcription
   // state into displayStatus. The chip stays reactive through this read.
-  if (job.status === 'transcribing_handoff' && job.fileMetadataId) {
+  // Also pull `fileMetadata.size` regardless of status so the client
+  // optimistic render can stamp the same `fileSize` the bind mutation
+  // will put on the outgoing attachment — without parity the optimistic
+  // → persisted swap shows a numeric flicker in the bubble body.
+  let fileSize: number | undefined;
+  if (job.fileMetadataId) {
     const meta = await ctx.db.get(job.fileMetadataId);
     if (meta) {
-      if (meta.transcriptionStatus === 'running') {
-        displayStatus = 'transcribing_handoff';
-        progress = meta.transcriptionProgress ?? progress;
-      } else if (meta.transcriptionStatus === 'completed') {
-        displayStatus = 'completed';
-      } else if (meta.transcriptionStatus === 'failed') {
-        displayStatus = 'failed';
-        errorReasonCode = errorReasonCode ?? 'whisperFailed';
-        errorMessage = errorMessage ?? meta.transcriptionError;
-      } else if (meta.transcriptionStatus === 'skipped') {
-        displayStatus = 'skipped';
+      fileSize = meta.size;
+      if (job.status === 'transcribing_handoff') {
+        if (meta.transcriptionStatus === 'running') {
+          displayStatus = 'transcribing_handoff';
+          progress = meta.transcriptionProgress ?? progress;
+        } else if (meta.transcriptionStatus === 'completed') {
+          displayStatus = 'completed';
+        } else if (meta.transcriptionStatus === 'failed') {
+          displayStatus = 'failed';
+          errorReasonCode = errorReasonCode ?? 'whisperFailed';
+          errorMessage = errorMessage ?? meta.transcriptionError;
+        } else if (meta.transcriptionStatus === 'skipped') {
+          displayStatus = 'skipped';
+        }
       }
     }
   }
@@ -102,6 +117,7 @@ async function projectJob(
     errorMessage,
     attempts: job.attempts,
     storageId: job.storageId,
+    fileSize,
     lifecycleStatus: job.lifecycleStatus,
     messageBoundAt: job.messageBoundAt,
     uploadedBy: job.uploadedBy,

@@ -28,8 +28,12 @@ vi.mock('@/app/hooks/use-toast', () => ({
 }));
 
 const mockConvexAction = vi.fn();
+const mockConvexMutation = vi.fn();
 vi.mock('@/app/hooks/use-convex-client', () => ({
-  useConvexClient: () => ({ action: mockConvexAction }),
+  useConvexClient: () => ({
+    action: mockConvexAction,
+    mutation: mockConvexMutation,
+  }),
 }));
 
 vi.mock('@/lib/i18n/client', () => ({
@@ -65,6 +69,9 @@ describe('useSendMessage — error handling', () => {
       streamId: 'stream_1',
     });
     mockConvexAction.mockResolvedValue({ blocked: false });
+    // Default: no-op bind / unbind. Tests that exercise the snapshot
+    // path override `mockConvexMutation` per-case.
+    mockConvexMutation.mockResolvedValue([]);
   });
 
   it('calls clearChatState and resetGlobalFreeze on error', async () => {
@@ -157,6 +164,92 @@ describe('useSendMessage — error handling', () => {
 
     expect(mockToast).toHaveBeenCalledTimes(2);
     expect(mockChatWithAgent).not.toHaveBeenCalled();
+  });
+
+  it('renders optimistic body with attachment markdown synchronously from video-link snapshot', async () => {
+    // Drop the bind call onto a never-resolving promise so the
+    // `setPendingMessage` assertion below proves the bubble lands
+    // BEFORE the bg bind round-trip — the whole point of this fix.
+    mockConvexMutation.mockReturnValue(new Promise(() => {}));
+
+    const params = createParams();
+    const { result } = renderHook(() => useSendMessage(params));
+
+    const snapshot = [
+      {
+        jobId: 'kg_job_a' as never,
+        sourceUrl: 'https://youtu.be/abc',
+        sourcePlatform: 'YouTube',
+        pastedToken: 'https://youtu.be/abc',
+        videoTitle: 'A Walk Through the Forest',
+        videoUploader: 'ExampleChannel',
+        videoDurationSec: 305,
+        displayStatus: 'completed',
+        storageId: 'kg2_storage_a' as never,
+        fileSize: 238923776,
+        uploadedBy: 'user_1',
+        createdAt: 0,
+      },
+    ];
+
+    await act(async () => {
+      void result.current.sendMessage(
+        'summarize this https://youtu.be/abc please',
+        undefined,
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test fixture; the hook only reads the projected fields named above.
+        snapshot as unknown as Parameters<typeof result.current.sendMessage>[2],
+      );
+    });
+
+    expect(params.setPendingMessage).toHaveBeenCalled();
+    const lastCall = vi.mocked(params.setPendingMessage).mock.calls.at(-1);
+    const pending = lastCall?.[0];
+    expect(pending).toBeTruthy();
+    // URL stripped from the typed text — was `https://youtu.be/abc` in the
+    // pastedToken on the snapshot.
+    expect(pending?.content).not.toContain('https://youtu.be/abc');
+    // Markdown footer present — `(fileId: kg2_storage_a)` is the only
+    // place storageId appears in the body. Tied to the exact formatter
+    // output asserted in lib/shared/video-link-markdown.test.ts.
+    expect(pending?.content).toContain('fileId: kg2_storage_a');
+    expect(pending?.content).toContain('🎬 [A Walk Through the Forest]');
+    // Attachment array populated from the snapshot's storage id.
+    expect(pending?.attachments).toHaveLength(1);
+    expect(pending?.attachments?.[0]?.fileId).toBe('kg2_storage_a');
+  });
+
+  it('calls unmarkJobsSent on bind failure so the chip reappears', async () => {
+    mockConvexMutation.mockRejectedValue(new Error('bind exploded'));
+    const unmarkJobsSent = vi.fn();
+
+    const params = createParams({ unmarkJobsSent });
+    const { result } = renderHook(() => useSendMessage(params));
+
+    const snapshot = [
+      {
+        jobId: 'kg_job_b' as never,
+        sourceUrl: 'https://youtu.be/xyz',
+        sourcePlatform: 'YouTube',
+        pastedToken: 'https://youtu.be/xyz',
+        videoTitle: 'X',
+        displayStatus: 'completed',
+        storageId: 'kg2_storage_b' as never,
+        fileSize: 1024,
+        uploadedBy: 'user_1',
+        createdAt: 0,
+      },
+    ];
+
+    await act(async () => {
+      await result.current.sendMessage(
+        'summarize',
+        undefined,
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- see fixture note above.
+        snapshot as unknown as Parameters<typeof result.current.sendMessage>[2],
+      );
+    });
+
+    expect(unmarkJobsSent).toHaveBeenCalledWith(['kg_job_b']);
   });
 
   it('allows sending a new message after a previous error', async () => {

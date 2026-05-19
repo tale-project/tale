@@ -14,6 +14,7 @@
 import { listMessages, saveMessage } from '@convex-dev/agent';
 
 import { isAudioOrVideo, isSpreadsheet } from '../../../lib/shared/file-types';
+import { formatVideoLinkAttachmentMarkdown } from '../../../lib/shared/video-link-markdown';
 import { components, internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
@@ -32,7 +33,6 @@ import {
   computeDeduplicationState,
   type AgentListMessagesResult,
 } from '../message_deduplication';
-import { sanitizeUntrustedField } from '../untrusted_content';
 import type {
   SerializableAgentConfig,
   AgentHooksConfig,
@@ -601,46 +601,17 @@ async function buildMessageWithAttachments(
           videoLink?.videoDurationSec ?? meta.videoDurationSec;
 
         if (sourceUrl) {
-          // Attacker-controlled fields from yt-dlp metadata: title,
-          // uploader, platform string. Strip newlines + zero-width chars
-          // and clamp length before interpolating into the user-role
-          // message text; then wrap the whole video block in
-          // <untrusted_source> so the trust-rules system prompt applies.
-          const safeTitle = sanitizeUntrustedField(
-            videoTitle ?? attachment.fileName,
-            120,
-          );
-          const safeUploader = videoUploader
-            ? sanitizeUntrustedField(videoUploader, 80)
-            : '';
-          const safePlatform = sourcePlatform
-            ? sanitizeUntrustedField(sourcePlatform, 32)
-            : '';
-          const platformNote = safePlatform ? ` from ${safePlatform}` : '';
-          const uploaderNote = safeUploader
-            ? `, uploader: ${safeUploader}`
-            : '';
-          const durSec = videoDurationSec ?? meta.transcriptionDurationSec ?? 0;
-          const durText =
-            durSec >= 3600
-              ? `${Math.floor(durSec / 3600)}h ${Math.floor((durSec % 3600) / 60)}m`
-              : `${Math.round(durSec / 60)}m`;
-          // Keep the inline reference as short as the image / document
-          // branches above. The previous template was ~5 lines of prose
-          // ("— transcript stored as a document; paragraphs prefixed
-          // [HH:MM:SS] timestamps — cite them when summarizing. Call
-          // document_retrieve with fileId=…") which only ever lived in
-          // the user-visible bubble (LLM gets the same instruction from
-          // `document_retrieve`'s tool description and from
-          // `agent_response/build_system_prompt`'s TRUST RULES). That
-          // body-text bloat was the dominant cause of the visible
-          // optimistic→persisted reflow ("bounce" — ResizeObserver
-          // refires scrollTo when content grows). Shrunk to one
-          // descriptive line + the fileId footer so the persisted
-          // bubble's height delta vs. optimistic matches the image /
-          // document path that the user has already confirmed feels
-          // natural. The fileId is still in scope for the agent to call
-          // `document_retrieve` / `rag_search`.
+          // Template lives in `lib/shared/video-link-markdown.ts` so the
+          // client `use-send-message` optimistic path produces a
+          // byte-identical block — without parity, the user sees the
+          // bubble grow on optimistic→persisted swap because
+          // `message-bubble.tsx:447-450` renders user content as
+          // `whitespace-pre-wrap` (the brackets/asterisks below are SHOWN,
+          // not formatted). Inputs are still resolved here: provenance
+          // prefers `videoLinkJobs` over legacy `fileMetadata` fields,
+          // and duration falls back to `transcriptionDurationSec` for
+          // rows the server has but pre-yt-dlp-metadata builds wrote
+          // without `videoDurationSec`.
           //
           // Functional invariants preserved:
           //   - "View Transcript" button rendering (file-displays.tsx,
@@ -650,8 +621,19 @@ async function buildMessageWithAttachments(
           //     / transcribe_audio paths unchanged)
           //   - Group 1 `<untrusted_source>` wrap at retrieve_document /
           //     rag_search tool-response boundary
-          const inner = `${icon} [${safeTitle}] (video${platformNote}, ${durText}${uploaderNote})\n*(fileId: ${attachment.fileId} | fileName: ${attachment.fileName} | fileType: ${attachment.fileType} | fileSize: ${attachment.fileSize})*`;
-          audioMarkdown.push(inner);
+          audioMarkdown.push(
+            formatVideoLinkAttachmentMarkdown({
+              fileId: attachment.fileId,
+              fileName: attachment.fileName,
+              fileType: attachment.fileType,
+              fileSize: attachment.fileSize,
+              videoTitle,
+              videoUploader,
+              sourcePlatform,
+              videoDurationSec:
+                videoDurationSec ?? meta.transcriptionDurationSec,
+            }),
+          );
           continue;
         }
         audioMarkdown.push(

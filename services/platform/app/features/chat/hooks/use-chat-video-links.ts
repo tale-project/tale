@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery } from 'convex/react';
 import { ConvexError } from 'convex/values';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
@@ -39,6 +39,11 @@ export interface VideoLinkJob {
   errorMessage?: string;
   attempts?: number;
   storageId?: Id<'_storage'>;
+  /** Size of the transcript blob from `fileMetadata.size`. Surfaced so the
+   * client optimistic-render path (use-send-message.ts) can stamp the
+   * same value the bind mutation puts on the outgoing attachment — keeps
+   * the optimistic and persisted bubble bodies byte-identical. */
+  fileSize?: number;
   lifecycleStatus?: string;
   messageBoundAt?: number;
   uploadedBy: string;
@@ -72,6 +77,14 @@ export interface UseChatVideoLinksResult {
   ) => Promise<number>;
   cancelJob: (jobId: Id<'videoLinkJobs'>) => Promise<void>;
   retryJob: (jobId: Id<'videoLinkJobs'>) => Promise<void>;
+  /** Hide chips synchronously on send-click. Without this, the chip
+   * stays in the composer until the server `bindCompletedJobsToMessage`
+   * mutation patches `messageBoundAt` and the Convex subscription
+   * re-fires — a 200–400 ms gap the user reads as "composer not
+   * clearing". Pair with `unmarkJobsSent` on the send-failure rollback
+   * path. */
+  markJobsSent: (jobIds: Array<Id<'videoLinkJobs'>>) => void;
+  unmarkJobsSent: (jobIds: Array<Id<'videoLinkJobs'>>) => void;
 }
 
 export function useChatVideoLinks(args: {
@@ -104,6 +117,64 @@ export function useChatVideoLinks(args: {
   const cancelMutation = useMutation(api.video_links.mutations.cancelVideoLink);
   const retryMutation = useMutation(api.video_links.mutations.retryVideoLink);
 
+  // Client-side "just-sent" set so chips can vanish in the same React
+  // commit as `clearInputValue()` — without this the chip sits there for
+  // the 50–200 ms it takes the bind mutation to round-trip and the
+  // subscription to re-emit with `messageBoundAt !== undefined`. The set
+  // lives on the hook instance, dies on chat unmount, and is pruned by
+  // the effect below once the subscription catches up (so we don't leak
+  // entries even when bind succeeds normally).
+  const [hideJobIds, setHideJobIds] = useState<
+    ReadonlySet<Id<'videoLinkJobs'>>
+  >(() => new Set());
+
+  const markJobsSent = useCallback((jobIds: Array<Id<'videoLinkJobs'>>) => {
+    if (jobIds.length === 0) return;
+    setHideJobIds((prev) => {
+      const next = new Set(prev);
+      for (const id of jobIds) next.add(id);
+      return next;
+    });
+  }, []);
+
+  const unmarkJobsSent = useCallback((jobIds: Array<Id<'videoLinkJobs'>>) => {
+    if (jobIds.length === 0) return;
+    setHideJobIds((prev) => {
+      if (jobIds.every((id) => !prev.has(id))) return prev;
+      const next = new Set(prev);
+      for (const id of jobIds) next.delete(id);
+      return next;
+    });
+  }, []);
+
+  // Prune `hideJobIds` once the subscription catches up: keep only ids
+  // whose row is still visible in `queryResult` AND not yet bound. The
+  // subscription's own filter would also drop bound rows, so the cleanup
+  // here is what stops the set from growing unboundedly across many
+  // sends in a long-lived chat session.
+  useEffect(() => {
+    if (!queryResult) return;
+    setHideJobIds((prev) => {
+      if (prev.size === 0) return prev;
+      const visibleUnbound = new Set<Id<'videoLinkJobs'>>();
+      for (const j of queryResult) {
+        if (j.messageBoundAt === undefined) {
+          visibleUnbound.add(j.jobId);
+        }
+      }
+      let mutated = false;
+      const next = new Set<Id<'videoLinkJobs'>>();
+      for (const id of prev) {
+        if (visibleUnbound.has(id)) {
+          next.add(id);
+        } else {
+          mutated = true;
+        }
+      }
+      return mutated ? next : prev;
+    });
+  }, [queryResult]);
+
   const jobs = useMemo<VideoLinkJob[]>(() => {
     if (!queryResult) return [];
     return queryResult.filter((j) => {
@@ -117,9 +188,12 @@ export function useChatVideoLinks(args: {
       if (j.messageBoundAt !== undefined) return false;
       // Soft-delete (trashed/expired/deleted) — hide as well.
       if (j.lifecycleStatus === 'trashed') return false;
+      // Client-side "just-sent" hide for the same-frame composer empty
+      // (see `hideJobIds` declaration above for the rationale).
+      if (hideJobIds.has(j.jobId)) return false;
       return true;
     });
-  }, [queryResult]);
+  }, [queryResult, hideJobIds]);
 
   const isAnyProcessing = useMemo(
     () => jobs.some((j) => NON_TERMINAL.has(j.displayStatus)),
@@ -206,5 +280,7 @@ export function useChatVideoLinks(args: {
     ingestUrlsFromText,
     cancelJob,
     retryJob,
+    markJobsSent,
+    unmarkJobsSent,
   };
 }
