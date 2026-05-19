@@ -102,7 +102,96 @@ interface ArtifactCreateFailure {
   message: string;
 }
 
-type ArtifactCreateResult = ArtifactCreateSuccess | ArtifactCreateFailure;
+/** Run outcome forwarded to the LLM for runnable artifact types. Lets the
+ * model see that the sandbox actually failed (vs. just "source row written")
+ * and decide whether to patch the code with `artifact_edit` or report the
+ * error to the user. Mirrors the shape `executeCode` returns. */
+export interface ArtifactCreateRunOutcome {
+  runStatus: 'completed' | 'failed' | 'cancelled';
+  runExitCode: number | null;
+  runErrorCode?: string;
+  runErrorMessage?: string;
+  runStdoutPreview: string;
+  runStderrPreview: string;
+  durationMs: number;
+  files: Array<{
+    name: string;
+    storageId: string;
+    fileMetadataId: string;
+    size: number;
+    contentType: string;
+  }>;
+  executionId: string;
+}
+
+interface ArtifactCreateRunResult extends ArtifactCreateRunOutcome {
+  success: boolean; // runStatus === 'completed' AND files.length > 0
+  artifactId: string;
+  revision: number;
+  message: string;
+}
+
+type ArtifactCreateResult =
+  | ArtifactCreateSuccess
+  | ArtifactCreateFailure
+  | ArtifactCreateRunResult;
+
+interface ExecuteCodeResult {
+  executionId: string;
+  success: boolean;
+  status: 'completed' | 'failed' | 'cancelled';
+  exitCode: number | null;
+  errorCode?: string;
+  errorMessage?: string;
+  stdoutPreview: string;
+  stderrPreview: string;
+  durationMs: number;
+  files: Array<{
+    name: string;
+    storageId: string;
+    fileMetadataId: string;
+    size: number;
+    contentType: string;
+  }>;
+}
+
+function buildRunnableCreateResult(
+  args: ArtifactCreateInput,
+  artifactId: string,
+  run: ExecuteCodeResult,
+): ArtifactCreateRunResult {
+  const completed = run.status === 'completed';
+  const hasFiles = run.files.length > 0;
+  const success = completed && hasFiles;
+  // The LLM uses this `message` as its primary signal of what to tell the
+  // user. Be explicit about failures so it doesn't say "file generated"
+  // when no file was actually produced.
+  let message: string;
+  if (success) {
+    message = `Created artifact "${args.title}" (${args.type}) and ran the code; produced ${run.files.length} output file(s) in ${run.durationMs}ms.`;
+  } else if (run.errorCode) {
+    message = `Created artifact "${args.title}" (${args.type}). Run FAILED: ${run.errorCode}${run.errorMessage ? ` — ${run.errorMessage}` : ''}. Read runStderrPreview and call artifact_edit to fix, or report the failure to the user. Do NOT say the file is ready.`;
+  } else {
+    message = `Created artifact "${args.title}" (${args.type}). Run did not produce any output files (status=${run.status}). Inspect stdout/stderr and decide next step.`;
+  }
+  return {
+    success,
+    artifactId,
+    revision: 1,
+    message,
+    runStatus: run.status,
+    runExitCode: run.exitCode,
+    ...(run.errorCode !== undefined && { runErrorCode: run.errorCode }),
+    ...(run.errorMessage !== undefined && {
+      runErrorMessage: run.errorMessage,
+    }),
+    runStdoutPreview: run.stdoutPreview,
+    runStderrPreview: run.stderrPreview,
+    durationMs: run.durationMs,
+    files: run.files,
+    executionId: run.executionId,
+  };
+}
 
 export const artifactCreateTool = {
   name: 'artifact_create' as const,
@@ -159,7 +248,30 @@ Therefore: features that require **runtime intelligence** — translating user i
 
 \`localStorage\` and \`sessionStorage\` are available, but **in-memory and per-iframe-load only** — anything saved is lost the next time the artifact is rendered. Do not show "saved" / "remembered" / "记忆已保存" UI copy that implies persistence across sessions; treat storage as transient working memory, not durable state.
 
-**RESPONSE:** returns the new \`artifactId\` and \`revision: 1\`. The artifact's content is rendered live in the Canvas pane as you stream it.`,
+**RUNNABLE TYPES** (\`python_runnable\` / \`node_runnable\`):
+
+The source you emit in \`content\` is executed in a sandboxed Linux container immediately after the artifact is created. Write any deliverable files (\`.pptx\`, \`.pdf\`, \`.xlsx\`, generated images, etc.) under \`/workspace/output/\` — they're uploaded to the chat as attachments. Outputs **must** be under \`/workspace/output/\`; nothing else is collected. Defaults: Python 3.12 / Node 24, wall-clock ≤30s (raise via \`timeoutMs\`, max 300000), memory 1 GB, 1 CPU, egress only to package registries.
+
+**On runnable-type response, INSPECT \`runStatus\` BEFORE replying to the user.**
+
+- \`runStatus: "completed"\` AND \`files.length > 0\` → tell the user the file is ready and what it contains.
+- \`runStatus: "completed"\` BUT \`files.length === 0\` → the script ran but wrote no output. Probably a bug in the script's output path. Read \`runStdoutPreview\` / \`runStderrPreview\`, then \`artifact_edit\`.
+- \`runStatus: "failed"\` → READ \`runStderrPreview\` first, then decide:
+
+| \`runErrorCode\` | Meaning | Recovery |
+|---|---|---|
+| \`RUNTIME_ERROR\` | Code threw (most common) | Read stderr traceback, \`artifact_edit\` with \`mode: "patch"\` to fix the bug |
+| \`TIMEOUT\` | Wall-clock exceeded | \`artifact_edit\` to split the work or raise \`timeoutMs\` |
+| \`OOM\` | Memory cap hit (1 GB) | \`artifact_edit\` to stream / reduce data in memory |
+| \`EGRESS_DENIED\` | Tried to reach a non-registry host | \`artifact_edit\` to remove the external call — use the \`web\` tool instead |
+| \`INSTALL_FAILED\` | Package install errored | Read stderr, \`artifact_edit\` with corrected \`packages\` list |
+| \`PACKAGE_NOT_FOUND\` | A spec doesn't resolve | \`artifact_edit\` with an alternate package name |
+| \`QUOTA_EXCEEDED\` | Org daily CPU cap | Don't retry — tell the user to wait |
+| \`SPAWNER_UNAVAILABLE\` | Transient infra | One retry via \`artifact_edit\` no-op rewrite is fine; if it fails again, surface to user |
+
+**NEVER tell the user "文件已生成" / "file generated" / similar unless \`success === true\` AND \`files.length > 0\`.** Failing this rule is the most reported bug for this tool.
+
+**RESPONSE:** returns the new \`artifactId\` and \`revision: 1\`. For runnable types it also returns \`runStatus\`, \`runErrorCode\`, \`runStderrPreview\`, \`files[]\`, and \`executionId\`. The artifact's content is rendered live in the Canvas pane as you stream it.`,
     inputSchema: artifactCreateArgs,
     onInputStart: async (_ctx: ToolCtx, options: ToolExecutionOptions) => {
       initState(options.toolCallId, 'artifact_create');
@@ -321,7 +433,11 @@ Therefore: features that require **runtime intelligence** — translating user i
 
         // Runnable types: source has settled in the artifact row; now run
         // it in the sandbox and stream phase events into the row's
-        // run* fields (canvas-runnable-code-renderer subscribes).
+        // run* fields (canvas-runnable-code-renderer subscribes). The run
+        // outcome is also forwarded to the LLM in this tool's return so it
+        // can react to failures (read stderr, propose a patch) — without
+        // that the LLM would see `success: true` and hallucinate "file
+        // generated" even when the run actually failed.
         const runtimeLanguage = runnableLanguage(args.type);
         if (isRunnableArtifactType(args.type) && runtimeLanguage) {
           if (!userId) {
@@ -351,7 +467,7 @@ Therefore: features that require **runtime intelligence** — translating user i
             },
           );
           const accessibleThreadIds = [threadId];
-          await ctx.runAction(
+          const runResult = await ctx.runAction(
             internal.node_only.sandbox.internal_actions.executeCode,
             {
               organizationId,
@@ -377,6 +493,7 @@ Therefore: features that require **runtime intelligence** — translating user i
               artifactId: artifactId as unknown as never,
             },
           );
+          return buildRunnableCreateResult(args, artifactId, runResult);
         }
 
         return {

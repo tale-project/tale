@@ -99,7 +99,101 @@ interface ArtifactEditFailure {
   failedIndex?: number;
 }
 
-type ArtifactEditResult = ArtifactEditSuccess | ArtifactEditFailure;
+interface ArtifactEditRunOutcome {
+  runStatus: 'completed' | 'failed' | 'cancelled';
+  runExitCode: number | null;
+  runErrorCode?: string;
+  runErrorMessage?: string;
+  runStdoutPreview: string;
+  runStderrPreview: string;
+  durationMs: number;
+  files: Array<{
+    name: string;
+    storageId: string;
+    fileMetadataId: string;
+    size: number;
+    contentType: string;
+  }>;
+  executionId: string;
+}
+
+interface ArtifactEditRunResult extends ArtifactEditRunOutcome {
+  success: boolean;
+  artifactId: string;
+  revision: number;
+  applied: number;
+  content: string;
+  message: string;
+}
+
+type ArtifactEditResult =
+  | ArtifactEditSuccess
+  | ArtifactEditFailure
+  | ArtifactEditRunResult;
+
+interface ExecuteCodeResult {
+  executionId: string;
+  success: boolean;
+  status: 'completed' | 'failed' | 'cancelled';
+  exitCode: number | null;
+  errorCode?: string;
+  errorMessage?: string;
+  stdoutPreview: string;
+  stderrPreview: string;
+  durationMs: number;
+  files: Array<{
+    name: string;
+    storageId: string;
+    fileMetadataId: string;
+    size: number;
+    contentType: string;
+  }>;
+}
+
+function mergeRunIntoEditResult(
+  base: {
+    artifactId: string;
+    revision: number;
+    applied: number;
+    content: string;
+  },
+  baseMessage: string,
+  run: ExecuteCodeResult,
+): ArtifactEditRunResult {
+  const completed = run.status === 'completed';
+  const hasFiles = run.files.length > 0;
+  const success = completed && hasFiles;
+  // Compose a directive message: edit succeeded (baseMessage) PLUS run
+  // outcome. The LLM uses this as its primary signal of what to tell the
+  // user, so we must be explicit about failures.
+  let message: string;
+  if (success) {
+    message = `${baseMessage} Ran the new revision; produced ${run.files.length} output file(s) in ${run.durationMs}ms.`;
+  } else if (run.errorCode) {
+    message = `${baseMessage} Re-run FAILED: ${run.errorCode}${run.errorMessage ? ` — ${run.errorMessage}` : ''}. Read runStderrPreview and call artifact_edit again to fix, or report the failure to the user. Do NOT say the file is ready.`;
+  } else {
+    message = `${baseMessage} Re-run produced no output files (status=${run.status}). Inspect stdout/stderr and decide next step.`;
+  }
+  return {
+    success,
+    artifactId: base.artifactId,
+    revision: base.revision,
+    applied: base.applied,
+    content: base.content,
+    message,
+    runStatus: run.status,
+    runExitCode: run.exitCode,
+    ...(run.errorCode !== undefined && { runErrorCode: run.errorCode }),
+    ...(run.errorMessage !== undefined && {
+      runErrorMessage: run.errorMessage,
+    }),
+    runStdoutPreview: run.stdoutPreview,
+    runStderrPreview: run.stderrPreview,
+    durationMs: run.durationMs,
+    files: run.files,
+    executionId: run.executionId,
+  };
+}
 
 export const artifactEditTool = {
   name: 'artifact_edit' as const,
@@ -121,7 +215,28 @@ export const artifactEditTool = {
 
 **WHEN ADDING NEW FEATURES TO AN HTML ARTIFACT:** the same constraints from \`artifact_create\` apply — the iframe is offline (no \`fetch\` / WebSocket to any host), only the bundled \`/canvas-libs/*\` libraries are loadable, and features that need runtime intelligence (translate user input, score answers, conversational replies) belong in chat, not in the page. Don't introduce hardcoded lookup tables to fake AI behaviour.
 
-**RESPONSE:** returns the new \`revision\` number, how many patches were applied (\`applied\`), and the artifact's new \`content\` so you can reason about further edits in the same turn.`,
+**EDITING A RUNNABLE ARTIFACT** (\`python_runnable\` / \`node_runnable\`):
+
+Editing a runnable artifact automatically re-runs it in the sandbox after the patch / rewrite settles. The previous run's \`runPackages\` / \`runOptions\` persist across edits — you do NOT re-specify packages. The same \`runStatus\` / \`runErrorCode\` / \`runStderrPreview\` / \`files[]\` block from \`artifact_create\` is returned here.
+
+**On runnable-type response, INSPECT \`runStatus\` BEFORE replying:**
+
+- \`runStatus: "completed"\` AND \`files.length > 0\` → tell the user the new revision is ready.
+- \`runStatus: "failed"\` → READ \`runStderrPreview\`. Most likely another \`artifact_edit\` patch is needed to fix what the stderr identifies. \`runErrorCode\` recovery table (same as \`artifact_create\`):
+
+| \`runErrorCode\` | Recovery |
+|---|---|
+| \`RUNTIME_ERROR\` | Read stderr traceback, another \`artifact_edit\` to fix |
+| \`TIMEOUT\` | Another edit to split work / raise \`timeoutMs\` |
+| \`OOM\` | Stream / reduce memory footprint |
+| \`EGRESS_DENIED\` | Remove the external call — use \`web\` tool instead |
+| \`INSTALL_FAILED\` / \`PACKAGE_NOT_FOUND\` | Fix the \`packages\` list via another edit |
+| \`QUOTA_EXCEEDED\` | Stop — tell the user to wait |
+| \`SPAWNER_UNAVAILABLE\` | Transient infra; one no-op rewrite retry is fine |
+
+**NEVER tell the user "文件已生成" / "file generated" unless \`success === true\` AND \`files.length > 0\`.**
+
+**RESPONSE:** returns the new \`revision\` number, how many patches were applied (\`applied\`), and the artifact's new \`content\` so you can reason about further edits in the same turn. For runnable types it also returns \`runStatus\`, \`runErrorCode\`, \`runStderrPreview\`, \`files[]\`, and \`executionId\`.`,
     inputSchema: artifactEditArgs,
     onInputStart: async (_ctx: ToolCtx, options: ToolExecutionOptions) => {
       initState(options.toolCallId, 'artifact_edit');
@@ -278,10 +393,10 @@ export const artifactEditTool = {
         type: string,
         title: string,
         newContent: string,
-      ): Promise<void> => {
+      ): Promise<ExecuteCodeResult | null> => {
         const language = runnableLanguage(type as never);
-        if (!isRunnableArtifactType(type) || !language) return;
-        if (!organizationId || !threadId || !userId) return;
+        if (!isRunnableArtifactType(type) || !language) return null;
+        if (!organizationId || !threadId || !userId) return null;
         // Reload to pick up the latest runPackages / runOptions captured at
         // create time. These persist on the artifact row across edits.
         const fresh = await ctx.runQuery(
@@ -292,7 +407,7 @@ export const artifactEditTool = {
             expectedThreadId: threadId,
           },
         );
-        if (!fresh) return;
+        if (!fresh) return null;
         await ctx.runMutation(
           internal.artifacts.internal_mutations.initArtifactRun,
           {
@@ -303,7 +418,7 @@ export const artifactEditTool = {
             }),
           },
         );
-        await ctx.runAction(
+        const raw: unknown = await ctx.runAction(
           internal.node_only.sandbox.internal_actions.executeCode,
           {
             organizationId,
@@ -327,6 +442,8 @@ export const artifactEditTool = {
             artifactId,
           },
         );
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- executeCode is typed `any` via the stale agent-SDK codegen path; the runtime shape is ExecuteCodeResult (asserted at the action return site).
+        return raw as ExecuteCodeResult;
       };
 
       try {
@@ -383,19 +500,32 @@ export const artifactEditTool = {
               failedIndex: result.failedIndex,
             };
           }
-          await maybeRerun(
+          const run = await maybeRerun(
             artifactId,
             artifact.type,
             artifact.title,
             result.content,
           );
+          const baseMessage = `Applied ${args.patches.length} patch(es) to "${artifact.title}". New revision: ${result.revision}.`;
+          if (run) {
+            return mergeRunIntoEditResult(
+              {
+                artifactId: args.artifactId,
+                revision: result.revision,
+                applied: args.patches.length,
+                content: result.content,
+              },
+              baseMessage,
+              run,
+            );
+          }
           return {
             success: true,
             artifactId: args.artifactId,
             revision: result.revision,
             applied: args.patches.length,
             content: result.content,
-            message: `Applied ${args.patches.length} patch(es) to "${artifact.title}". New revision: ${result.revision}.`,
+            message: baseMessage,
           };
         }
 
@@ -415,19 +545,32 @@ export const artifactEditTool = {
           );
           return { success: false, message: result.error };
         }
-        await maybeRerun(
+        const run = await maybeRerun(
           artifactId,
           artifact.type,
           artifact.title,
           args.content,
         );
+        const baseMessage = `Rewrote "${artifact.title}". New revision: ${result.revision}.`;
+        if (run) {
+          return mergeRunIntoEditResult(
+            {
+              artifactId: args.artifactId,
+              revision: result.revision,
+              applied: 1,
+              content: args.content,
+            },
+            baseMessage,
+            run,
+          );
+        }
         return {
           success: true,
           artifactId: args.artifactId,
           revision: result.revision,
           applied: 1,
           content: args.content,
-          message: `Rewrote "${artifact.title}". New revision: ${result.revision}.`,
+          message: baseMessage,
         };
       } catch (err) {
         if (state?.artifactId !== undefined) {
