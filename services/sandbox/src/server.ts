@@ -87,15 +87,43 @@ async function handleExecute(req: Request): Promise<Response> {
     );
   }
   inFlightSet.add(parsed.executionId);
-  try {
-    const result = await executeRequest(cfg, parsed);
-    return new Response(JSON.stringify(result), {
-      status: 200,
-      headers: { 'content-type': 'application/json' },
-    });
-  } finally {
-    inFlightSet.delete(parsed.executionId);
-  }
+
+  // Stream phase events + final result via Server-Sent Events so the convex
+  // action can patch the artifact row's runProgress as soon as the runtime
+  // entrypoint emits a PHASE marker (Refinement 2). Back-compat: a
+  // non-streaming client can still parse the last `data:` block as JSON
+  // and get the final result.
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const enc = new TextEncoder();
+      const send = (event: string, data: unknown) => {
+        controller.enqueue(
+          enc.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
+        );
+      };
+      try {
+        const result = await executeRequest(cfg, parsed, {
+          onPhase: (e) => send('phase', e),
+        });
+        send('result', result);
+      } catch (err) {
+        send('error', {
+          message: err instanceof Error ? err.message : String(err),
+        });
+      } finally {
+        inFlightSet.delete(parsed.executionId);
+        controller.close();
+      }
+    },
+  });
+  return new Response(stream, {
+    status: 200,
+    headers: {
+      'content-type': 'text/event-stream',
+      'cache-control': 'no-cache, no-transform',
+      'x-accel-buffering': 'no',
+    },
+  });
 }
 
 async function handleCancel(req: Request, id: string): Promise<Response> {

@@ -7,7 +7,41 @@ export const artifactTypeValidator = v.union(
   v.literal('markdown'),
   v.literal('mermaid'),
   v.literal('code'),
+  // Runnable types: source code that executes in the server sandbox. The
+  // artifact's `content` is the script; the `run*` fields below carry the
+  // execution state (status, stdout/stderr preview, output files, ...).
+  // Editing a runnable artifact via artifact_edit re-runs the script.
+  v.literal('python_runnable'),
+  v.literal('node_runnable'),
 );
+
+export const artifactRunStatusValidator = v.union(
+  v.literal('queued'),
+  v.literal('installing'),
+  v.literal('running'),
+  v.literal('completed'),
+  v.literal('failed'),
+  v.literal('cancelled'),
+);
+
+export const artifactRunErrorCodeValidator = v.union(
+  v.literal('TIMEOUT'),
+  v.literal('OOM'),
+  v.literal('EGRESS_DENIED'),
+  v.literal('INSTALL_FAILED'),
+  v.literal('PACKAGE_NOT_FOUND'),
+  v.literal('QUOTA_EXCEEDED'),
+  v.literal('RUNTIME_ERROR'),
+  v.literal('SPAWNER_UNAVAILABLE'),
+  v.literal('CANCELLED'),
+);
+
+export const artifactRunOutputFileValidator = v.object({
+  name: v.string(),
+  fileMetadataId: v.id('fileMetadata'),
+  size: v.number(),
+  contentType: v.string(),
+});
 
 export const artifactEditKindValidator = v.union(
   v.literal('create'),
@@ -80,6 +114,37 @@ export const artifactsTable = defineTable({
   // preview over the (still settled) source — patch mode never writes
   // `streamingContent`, so this is the only mid-stream signal users have.
   streamingPatches: v.optional(v.array(artifactPatchValidator)),
+
+  // --- Runnable-artifact run state (populated only when type is
+  // `python_runnable` / `node_runnable`). All optional per the
+  // [feedback_deprecate_dont_delete_schema_fields] rule so existing rows
+  // pass the read validator unchanged. The canvas-runnable-code-renderer
+  // subscribes to these fields for live progress + final output display.
+  runPackages: v.optional(v.array(v.string())),
+  runOptions: v.optional(
+    v.object({
+      allowSdist: v.optional(v.boolean()),
+      allowInstallScripts: v.optional(v.boolean()),
+    }),
+  ),
+  runStatus: v.optional(artifactRunStatusValidator),
+  // Human-readable hint shown in the canvas while running (e.g.
+  // "Installing python-pptx==1.0.2"). Mirrors videoLinkJobs.progress.
+  runProgress: v.optional(v.string()),
+  runStartedAt: v.optional(v.number()),
+  runCompletedAt: v.optional(v.number()),
+  runExitCode: v.optional(v.number()),
+  runErrorCode: v.optional(artifactRunErrorCodeValidator),
+  runErrorMessage: v.optional(v.string()),
+  runStdoutPreview: v.optional(v.string()),
+  runStderrPreview: v.optional(v.string()),
+  runStdoutStorageId: v.optional(v.id('_storage')),
+  runStderrStorageId: v.optional(v.id('_storage')),
+  runOutputFiles: v.optional(v.array(artifactRunOutputFileValidator)),
+  // Link to the latest per-execution audit row. The sandboxExecutions
+  // table is the source of truth for execution history; the artifact row
+  // holds only the *latest* result for fast canvas reads.
+  runExecutionId: v.optional(v.id('sandboxExecutions')),
 })
   .index('by_organizationId', ['organizationId'])
   .index('by_organizationId_and_thread', ['organizationId', 'threadId'])
