@@ -16,22 +16,22 @@ import {
   REGIONS,
   type Region,
 } from '@/lib/pricing/region';
-
-const PER_USER_MONTHLY: Record<Region, number> = { CH: 12, DE: 14 };
-const STORAGE_PER_TB_MONTHLY: Record<Region, number> = { CH: 10, DE: 12 };
-
-export const DEFAULT_USERS = 25;
+import {
+  PER_USER_MONTHLY,
+  STORAGE_PER_TB_MONTHLY,
+  enterpriseMonthlyTotal,
+} from '@/lib/pricing/tiers';
 
 const BILLINGS: readonly Billing[] = ['yearly', 'monthly'] as const;
 
-const COMMUNITY_FEATURES = [
+const COMMUNITY_FEATURE_KEYS = [
   'community.feature1',
   'community.feature2',
   'community.feature3',
   'community.feature4',
 ] as const;
 
-const ENTERPRISE_FEATURES = [
+const ENTERPRISE_FEATURE_KEYS = [
   'enterprise.feature1',
   'enterprise.feature2',
   'enterprise.feature3',
@@ -87,10 +87,11 @@ export function PricingTiers({
 }: PricingTiersProps) {
   const { t } = useT('pricing');
 
-  const perUserMonthly = PER_USER_MONTHLY[region];
-  const totalMonthly = perUserMonthly * users;
-  const enterprisePrice = formatMoney(totalMonthly, region);
-  const perUserPrice = formatMoney(perUserMonthly, region);
+  const enterprisePrice = formatMoney(
+    enterpriseMonthlyTotal(region, users),
+    region,
+  );
+  const perUserPrice = formatMoney(PER_USER_MONTHLY[region], region);
   const storagePrice = formatMoney(STORAGE_PER_TB_MONTHLY[region], region);
 
   return (
@@ -146,7 +147,7 @@ export function PricingTiers({
               {t('planIncludes')}
             </p>
             <ul role="list" className="flex flex-col gap-3">
-              {COMMUNITY_FEATURES.map((featureKey) => (
+              {COMMUNITY_FEATURE_KEYS.map((featureKey) => (
                 <li
                   key={featureKey}
                   className="text-fg-base flex items-start gap-2 text-sm"
@@ -194,7 +195,7 @@ export function PricingTiers({
               {t('planIncludes')}
             </p>
             <ul role="list" className="flex flex-col gap-3">
-              {ENTERPRISE_FEATURES.map((featureKey) => (
+              {ENTERPRISE_FEATURE_KEYS.map((featureKey) => (
                 <li
                   key={featureKey}
                   className="text-fg-base flex items-start gap-2 text-sm"
