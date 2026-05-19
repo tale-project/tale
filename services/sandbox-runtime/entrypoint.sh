@@ -31,6 +31,16 @@ LANG_NAME="$1"
 PACKAGES_FILE="${2:-/workspace/code/packages.json}"
 OPTIONS_FILE="${3:-/workspace/code/options.json}"
 
+# The spawner pipes a tar archive of code/ + input/ to our stdin (this is
+# the only way to deliver the user's program into a `--tmpfs /workspace`
+# container, since tmpfs volumes don't persist between separate `docker run`
+# invocations). The archive contains code/main.{py,js} + code/packages.json
+# + code/options.json + optionally input/<files>.
+mkdir -p /workspace/code /workspace/input /workspace/output
+if [ ! -t 0 ]; then
+  tar -xf - -C /workspace 2>/dev/null || true
+fi
+
 echo "PHASE: installing"
 
 ALLOW_SDIST="false"

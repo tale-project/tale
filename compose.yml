@@ -566,7 +566,13 @@ services:
         max-size: '10m'
         max-file: '3'
     networks:
+      # `sandbox` is internal-only — only sandbox-egress + the per-call
+      # runtime containers attach. Runtime containers reach pypi/npm by
+      # CONNECT to sandbox-egress:3128, which is on BOTH networks. The
+      # `internal` Tale network is a regular bridge with NAT so tinyproxy
+      # can resolve and reach the upstream registries.
       - sandbox
+      - internal
 
   # ============================================================================
   # Tale Sandbox Spawner — thin stateless docker-run service for `code_run`
@@ -601,6 +607,11 @@ services:
       # The spawner needs the host docker socket to spawn sibling containers.
       # This is the security boundary — see header comment.
       - /var/run/docker.sock:/var/run/docker.sock
+      # 1:1 bind: per-call workspace dirs are created here by the spawner
+      # and mounted into the runtime container at the SAME host path (the
+      # docker daemon resolves --mount source paths against the host fs,
+      # so the spawner and the daemon must agree on the path).
+      - /var/lib/tale-sandbox:/var/lib/tale-sandbox
     restart: unless-stopped
     healthcheck:
       test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:8003/health']
@@ -675,15 +686,12 @@ networks:
     driver: bridge
 
   # Sandbox network — internal-only bridge for code_run runtime containers + the
-  # tinyproxy egress sidecar. `internal: true` blocks all internet from this
-  # network; the only outbound is through sandbox-egress (host allow-list).
-  # IPv6 disabled to prevent v4 allow-list bypass via v6 routes (R1.3).
-  #
-  # `name:` pins the Docker-level network name so the spawner (which calls
-  # `docker run --network tale-sandbox-net` on sibling containers) doesn't
-  # have to discover the compose-project-prefixed default.
+  # tinyproxy egress sidecar. The CLI (start.ts / deploy.ts via
+  # ensureSandboxNetwork) pre-creates the network with `--internal --ipv6=false`
+  # so it can carry both `tale-sandbox-net` and the bridge-driver flags that
+  # compose's `networks:` block can't express atomically. We mark it external
+  # here so compose attaches to the existing network rather than overwriting
+  # its driver options.
   sandbox:
+    external: true
     name: tale-sandbox-net
-    driver: bridge
-    internal: true
-    enable_ipv6: false

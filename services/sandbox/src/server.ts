@@ -28,11 +28,18 @@ function inFlightIds(): string[] {
 }
 
 async function handleHealth(): Promise<Response> {
-  // /health pings docker daemon — caches not used for v1.
-  const info = await runDocker(['info', '--format', '{{.ServerVersion}}']);
+  // Probe docker daemon reachability. Use `docker version --format` over the
+  // older `docker info --format` because some Debian-packaged CLIs (e.g.
+  // docker.io 20.10 in our base image) panic when templating a newer-API
+  // `info` response. `docker version` is a much smaller surface that has
+  // been compatible across the 20.10 ↔ 29.x gap.
+  const info = await runDocker(['version', '--format', '{{.Server.Version}}']);
   if (info.exitCode !== 0) {
     return new Response(
-      JSON.stringify({ status: 'unhealthy', error: info.stderr.trim() }),
+      JSON.stringify({
+        status: 'unhealthy',
+        error: info.stderr.trim() || info.stdout.trim(),
+      }),
       { status: 503, headers: { 'content-type': 'application/json' } },
     );
   }

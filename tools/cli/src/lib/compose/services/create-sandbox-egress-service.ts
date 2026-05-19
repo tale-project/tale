@@ -30,6 +30,9 @@ export function createSandboxEgressService(
       start_period: '5s',
     },
     logging: DEFAULT_LOGGING,
-    networks: ['sandbox'],
+    // `sandbox` is internal-only; sandbox-egress also needs `internal` so it
+    // can resolve and reach pypi/npm (those need DNS + NAT). Runtime
+    // containers stay solely on `sandbox` and tunnel through this proxy.
+    networks: ['sandbox', 'internal'],
   };
 }

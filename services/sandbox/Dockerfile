@@ -8,11 +8,13 @@ FROM oven/bun:1.1-debian
 
 WORKDIR /app
 
-# docker CLI for spawning sibling containers via mounted socket.
+# docker CLI for spawning sibling containers via mounted socket. The
+# Debian-shipped `docker.io` package is API 1.41 (too old; current
+# daemons require ≥1.44). Pull the official static CLI binary instead.
+COPY --from=docker:27-cli /usr/local/bin/docker /usr/local/bin/docker
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates \
       curl \
-      docker.io \
     && rm -rf /var/lib/apt/lists/*
 
 COPY package.json bun.lockb* tsconfig.json /app/

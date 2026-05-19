@@ -5,11 +5,16 @@
 // handling, stdin piping, and timeouts.
 
 export interface RunDockerOptions {
-  stdin?: string;
+  stdin?: string | Uint8Array;
   // Set true when we expect a binary blob (tar stream) on stdout.
   captureBinaryStdout?: boolean;
   timeoutMs?: number;
   signal?: AbortSignal;
+  // When set, on host-side timeout the CLI process is killed AND
+  // `docker kill <killOnTimeoutContainer>` is invoked so the actual
+  // sibling container stops. Without this the container keeps running
+  // after the CLI disconnects (R5 test).
+  killOnTimeoutContainer?: string;
 }
 
 export interface RunDockerResult {
@@ -54,6 +59,18 @@ export async function runDocker(
         timer = setTimeout(() => {
           timedOut = true;
           proc.kill('SIGKILL');
+          // Killing the docker CLI process doesn't stop the sibling
+          // container it spawned — issue an explicit `docker kill` so
+          // the runtime container actually terminates instead of
+          // running to completion in the background.
+          if (opts.killOnTimeoutContainer) {
+            const target = opts.killOnTimeoutContainer;
+            const killer = Bun.spawn(
+              [DOCKER_BIN, 'kill', '--signal=SIGKILL', target],
+              { stdout: 'ignore', stderr: 'ignore', stdin: 'ignore' },
+            );
+            void killer.exited;
+          }
           resolve();
         }, opts.timeoutMs);
       }),

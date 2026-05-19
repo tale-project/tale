@@ -34,7 +34,13 @@ export function createSandboxService(config: ServiceConfig): ComposeService {
       SANDBOX_EGRESS_NETWORK: 'tale-sandbox-net',
       SANDBOX_EGRESS_PROXY: 'http://sandbox-egress:3128',
     },
-    volumes: ['/var/run/docker.sock:/var/run/docker.sock'],
+    volumes: [
+      '/var/run/docker.sock:/var/run/docker.sock',
+      // 1:1 bind so per-call workspace dirs created by the spawner are
+      // visible to the docker daemon at the same host path when it mounts
+      // them into the runtime container.
+      '/var/lib/tale-sandbox:/var/lib/tale-sandbox',
+    ],
     restart: 'unless-stopped',
     healthcheck: {
       test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:8003/health'],

@@ -2,7 +2,7 @@
 //
 // Pure function so the unit test (R1.22 #1 regression gate) can snapshot the
 // argv without invoking docker. CRITICAL: user code is NEVER passed via argv
-// (it's written to a file the spawner controls). Only typed identifiers
+// (it's piped to the container's stdin as a tar). Only typed identifiers
 // (UUID, orgId after validation, language, image) reach argv positions.
 
 import type { Language, SpawnerConfig } from './types.ts';
@@ -12,15 +12,20 @@ export interface DockerRunInput {
   organizationId: string;
   language: Language;
   timeoutMs: number;
-  workspaceVolume: string;
   pipCacheVolume: string;
   npmCacheVolume: string;
+  // Host path (1:1 mounted into the spawner) that becomes /workspace inside
+  // the runtime container. Used instead of --tmpfs because docker cp cannot
+  // read from tmpfs mounts and we need to harvest files from /workspace/output
+  // after the container exits.
+  workspaceHostDir: string;
   startedAtMs: number;
 }
 
 const UUID_RE = /^[a-f0-9-]{1,64}$/i;
 const ORG_RE = /^[a-zA-Z0-9_-]{1,128}$/;
 const VOL_RE = /^[a-zA-Z0-9_.-]{1,128}$/;
+const HOST_DIR_RE = /^\/[a-zA-Z0-9_./-]{1,256}$/;
 
 function assertSafe(name: string, value: string, re: RegExp): void {
   if (!re.test(value)) {
@@ -39,17 +44,18 @@ export function buildDockerRunArgs(
   // string land here would otherwise be a container-escape primitive.
   assertSafe('executionId', inp.executionId, UUID_RE);
   assertSafe('organizationId', inp.organizationId, ORG_RE);
-  assertSafe('workspaceVolume', inp.workspaceVolume, VOL_RE);
   assertSafe('pipCacheVolume', inp.pipCacheVolume, VOL_RE);
   assertSafe('npmCacheVolume', inp.npmCacheVolume, VOL_RE);
+  assertSafe('workspaceHostDir', inp.workspaceHostDir, HOST_DIR_RE);
   if (inp.language !== 'python' && inp.language !== 'node') {
     throw new Error(`docker_args: bad language: ${inp.language as string}`);
   }
 
   const containerName = `tale-sbx-${inp.executionId}`;
+  // No `--rm` because spawn.ts removes the container explicitly after
+  // harvesting outputs from the host bind-mounted workspace dir.
   return [
     'run',
-    '--rm',
     `--runtime=${cfg.runtime}`,
     '--name',
     containerName,
@@ -72,7 +78,14 @@ export function buildDockerRunArgs(
     `--env`,
     `PIP_CACHE_DIR=/cache/pip`,
     `--env`,
+    `UV_CACHE_DIR=/cache/pip`,
+    `--env`,
     `NPM_CONFIG_CACHE=/cache/npm`,
+    // `--read-only` makes the nobody user's $HOME=/nonexistent un-writable;
+    // every tool that touches $HOME (uv, npm, fontconfig) errors out. Point
+    // HOME at the tmpfs /tmp so transient state goes somewhere writable.
+    `--env`,
+    `HOME=/tmp`,
     '--cpus=1',
     '--memory=1500m',
     '--memory-swap=1500m',
@@ -89,6 +102,14 @@ export function buildDockerRunArgs(
     '--read-only',
     '--tmpfs',
     '/tmp:exec,nosuid,nodev,size=128m',
+    // Workspace is a host bind mount so the spawner can write the staging
+    // bundle directly from Bun fs (no tar pipe needed) and read output files
+    // back via Bun fs (docker cp cannot read from --tmpfs mounts). Total
+    // disk usage is capped by `--ulimit fsize` (100 MB per file) plus the
+    // post-run cleanup in spawn.ts. Trades the tmpfs ENOSPC cap (R2.2) for
+    // workable harvest semantics; see plan §"Trade-offs explicitly chosen".
+    '--mount',
+    `type=bind,src=${inp.workspaceHostDir},dst=/workspace`,
     '--cap-drop=ALL',
     '--security-opt',
     'no-new-privileges',
@@ -100,13 +121,12 @@ export function buildDockerRunArgs(
     '--user',
     '65534:65534',
     '--mount',
-    `type=volume,src=${inp.workspaceVolume},dst=/workspace`,
-    '--mount',
     `type=volume,src=${inp.pipCacheVolume},dst=/cache/pip`,
     '--mount',
     `type=volume,src=${inp.npmCacheVolume},dst=/cache/npm`,
+    // The runtime image's ENTRYPOINT is already `/entrypoint.sh`, so we only
+    // pass the entrypoint's positional args here.
     cfg.runtimeImage,
-    '/entrypoint.sh',
     inp.language,
     '/workspace/code/packages.json',
     '/workspace/code/options.json',

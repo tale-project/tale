@@ -27,8 +27,10 @@ echo "[sandbox-egress] config:"
 sed 's/^/  /' /etc/tinyproxy/tinyproxy.conf
 
 # tinyproxy logs to file by default; tail to stdout in background so docker
-# logs surfaces them.
+# logs surfaces them. Chown to nobody so tinyproxy (which drops privs)
+# can write to it.
 touch /var/log/tinyproxy/tinyproxy.log
+chown nobody:nobody /var/log/tinyproxy/tinyproxy.log
 tail -n0 -F /var/log/tinyproxy/tinyproxy.log &
 
 exec tinyproxy -d -c /etc/tinyproxy/tinyproxy.conf
