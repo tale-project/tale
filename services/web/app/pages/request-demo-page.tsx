@@ -74,8 +74,7 @@ export function RequestDemoPage() {
           <p className="mt-6">{t('paragraph2')}</p>
         </>
       }
-      // oxlint-disable-next-line typescript/no-explicit-any -- FormCard expects a base shape; runtime payload is shape-compatible
-      form={form as any}
+      form={form}
       defaultValues={defaultValues}
       formKind="request-demo"
       submitLabel={t('submit')}
