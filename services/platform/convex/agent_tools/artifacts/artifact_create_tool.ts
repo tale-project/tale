@@ -382,7 +382,7 @@ Do NOT call \`artifact_create\` again to "try a different approach" — that cre
         // execution is NOT triggered here — that's `artifact_run`'s job.
         if (isRunnableArtifactType(args.type)) {
           await ctx.runMutation(
-            internal.artifacts.internal_mutations.initArtifactRun,
+            internal.artifacts.internal_mutations.setArtifactRunConfig,
             {
               // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- value came from createArtifact / state above
               artifactId: artifactId as unknown as never,

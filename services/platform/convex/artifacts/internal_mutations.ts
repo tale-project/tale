@@ -435,6 +435,40 @@ export const cleanupStaleStreams = internalMutation({
 // The canvas-runnable-code-renderer subscribes to the artifact row and
 // gets reactive updates for the progress chip + output file display.
 
+/**
+ * Persist run config (packages / install-script options) on a runnable
+ * artifact row WITHOUT touching `runStatus`. Called by `artifact_create`
+ * after the source settles so the separate `artifact_run` tool can pick
+ * up these defaults later. Distinct from `initArtifactRun` which also
+ * resets run-state fields and queues the row — that's only correct when
+ * a run is actually about to start.
+ */
+export const setArtifactRunConfig = internalMutation({
+  args: {
+    artifactId: v.id('artifacts'),
+    runPackages: v.array(v.string()),
+    runOptions: v.optional(
+      v.object({
+        allowSdist: v.optional(v.boolean()),
+        allowInstallScripts: v.optional(v.boolean()),
+      }),
+    ),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.artifactId);
+    if (!row) return null;
+    if (row.type !== 'python_runnable' && row.type !== 'node_runnable') {
+      return null;
+    }
+    await ctx.db.patch(args.artifactId, {
+      runPackages: args.runPackages,
+      ...(args.runOptions !== undefined && { runOptions: args.runOptions }),
+    });
+    return null;
+  },
+});
+
 export const initArtifactRun = internalMutation({
   args: {
     artifactId: v.id('artifacts'),

@@ -156,6 +156,19 @@ function CanvasRunnableCodeRendererComponent({
   const outputFiles: RunOutputFile[] = (artifact?.runOutputFiles ??
     []) as RunOutputFile[];
 
+  // Hide the execution panel entirely while there's nothing to show — i.e.
+  // during source streaming (artifact_create still authoring) and after
+  // artifact_create settles but before artifact_run has been invoked. The
+  // bare "Run" header with no body felt empty / confusing in user testing.
+  // Once artifact_run kicks off (runStatus !== undefined) or any prior-run
+  // artefact (files / stderr / errorCode) is present, the panel re-appears.
+  const showExecutionPanel =
+    runStatus !== undefined ||
+    runErrorCode !== undefined ||
+    outputFiles.length > 0 ||
+    (stderrPreview !== undefined && stderrPreview.length > 0) ||
+    (stdoutPreview !== undefined && stdoutPreview.length > 0);
+
   // Execution panel always sits ABOVE the source code so the file chip is
   // visible immediately. We deliberately do NOT use Tailwind `md:` responsive
   // prefixes for layout switching here — those are viewport-based, but the
@@ -164,56 +177,58 @@ function CanvasRunnableCodeRendererComponent({
   // viewports with narrow canvases (the panel ends up squeezed off-screen).
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="border-border bg-muted/10 flex shrink-0 flex-col gap-3 overflow-auto border-b p-4">
-        <div className="flex items-center justify-between">
-          <span className="text-muted-foreground text-xs font-medium uppercase">
-            Run
-          </span>
-          <StatusBadge runStatus={runStatus} runProgress={runProgress} />
-        </div>
-
-        {runErrorCode && (
-          <div className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border p-2 text-xs">
-            <div className="font-semibold">{runErrorCode}</div>
-            {runErrorMessage && (
-              <div className="mt-1 break-words">{runErrorMessage}</div>
-            )}
-          </div>
-        )}
-
-        {outputFiles.length > 0 && (
-          <div className="flex flex-col gap-2">
-            <span className="text-muted-foreground text-xs font-medium">
-              Files
+      {showExecutionPanel && (
+        <div className="border-border bg-muted/10 flex shrink-0 flex-col gap-3 overflow-auto border-b p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground text-xs font-medium uppercase">
+              Run
             </span>
-            {outputFiles.map((f) => (
-              <FileChip key={String(f.fileMetadataId)} file={f} />
-            ))}
+            <StatusBadge runStatus={runStatus} runProgress={runProgress} />
           </div>
-        )}
 
-        {stdoutPreview && stdoutPreview.length > 0 && (
-          <details className="text-xs">
-            <summary className="text-muted-foreground cursor-pointer font-medium">
-              stdout ({stdoutPreview.length} chars)
-            </summary>
-            <pre className="bg-muted/40 mt-1 max-h-40 overflow-auto rounded p-2 font-mono whitespace-pre-wrap">
-              {stdoutPreview}
-            </pre>
-          </details>
-        )}
+          {runErrorCode && (
+            <div className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border p-2 text-xs">
+              <div className="font-semibold">{runErrorCode}</div>
+              {runErrorMessage && (
+                <div className="mt-1 break-words">{runErrorMessage}</div>
+              )}
+            </div>
+          )}
 
-        {stderrPreview && stderrPreview.length > 0 && (
-          <details className="text-xs" open={runStatus === 'failed'}>
-            <summary className="text-muted-foreground cursor-pointer font-medium">
-              stderr ({stderrPreview.length} chars)
-            </summary>
-            <pre className="bg-muted/40 text-destructive mt-1 max-h-40 overflow-auto rounded p-2 font-mono whitespace-pre-wrap">
-              {stderrPreview}
-            </pre>
-          </details>
-        )}
-      </div>
+          {outputFiles.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <span className="text-muted-foreground text-xs font-medium">
+                Files
+              </span>
+              {outputFiles.map((f) => (
+                <FileChip key={String(f.fileMetadataId)} file={f} />
+              ))}
+            </div>
+          )}
+
+          {stdoutPreview && stdoutPreview.length > 0 && (
+            <details className="text-xs">
+              <summary className="text-muted-foreground cursor-pointer font-medium">
+                stdout ({stdoutPreview.length} chars)
+              </summary>
+              <pre className="bg-muted/40 mt-1 max-h-40 overflow-auto rounded p-2 font-mono whitespace-pre-wrap">
+                {stdoutPreview}
+              </pre>
+            </details>
+          )}
+
+          {stderrPreview && stderrPreview.length > 0 && (
+            <details className="text-xs" open={runStatus === 'failed'}>
+              <summary className="text-muted-foreground cursor-pointer font-medium">
+                stderr ({stderrPreview.length} chars)
+              </summary>
+              <pre className="bg-muted/40 text-destructive mt-1 max-h-40 overflow-auto rounded p-2 font-mono whitespace-pre-wrap">
+                {stderrPreview}
+              </pre>
+            </details>
+          )}
+        </div>
+      )}
 
       <div className="min-h-0 flex-1">
         <CanvasCodeRenderer
