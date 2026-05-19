@@ -12,11 +12,18 @@ if (typeof window !== 'undefined') {
   // once at module init rather than in a component effect so it isn't tied
   // to any single view in the layout tree.
   router.subscribe('onResolved', () => {
-    const hash = window.location.hash.replace('#', '');
+    const hash = window.location.hash.slice(1);
     if (!hash) return;
     requestAnimationFrame(() => {
       const target = document.getElementById(hash);
-      target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (!target) return;
+      const prefersReducedMotion = window.matchMedia(
+        '(prefers-reduced-motion: reduce)',
+      ).matches;
+      target.scrollIntoView({
+        behavior: prefersReducedMotion ? 'auto' : 'smooth',
+        block: 'start',
+      });
     });
   });
 }

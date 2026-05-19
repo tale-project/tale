@@ -50,7 +50,7 @@ export function MarketingSection({
 
   return (
     <section
-      className={`border-border-base ${isLead ? 'scroll-mt-16 ' : ''}border-b py-20`}
+      className={`border-border-base${isLead ? ' scroll-mt-16' : ''} border-b py-20`}
     >
       <SiteContainer>
         <motion.header
