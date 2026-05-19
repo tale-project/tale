@@ -54,6 +54,7 @@ import { notificationsTable } from './notifications/schema';
 import { onedriveSyncConfigsTable } from './onedrive/schema';
 import { productsTable } from './products/schema';
 import { promptCategoriesTable, promptTemplatesTable } from './prompts/schema';
+import { sandboxExecutionsTable } from './sandbox/schema';
 import { ssoProvidersTable } from './sso_providers/schema';
 import { messageMetadataTable } from './streaming/schema';
 import { threadTodosTable } from './thread_todos/schema';
@@ -152,6 +153,7 @@ export default defineSchema({
   products: productsTable,
   ssoProviders: ssoProvidersTable,
   vendors: vendorsTable,
+  sandboxExecutions: sandboxExecutionsTable,
   videoLinkJobs: videoLinkJobsTable,
   websites: websitesTable,
   wfApiKeys: wfApiKeysTable,

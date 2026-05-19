@@ -62,6 +62,11 @@ export const SOFT_DELETE_RESOURCE_TYPES = [
   'auditLog',
   'chatFilterEvent',
   'memoryAudit',
+  // Sandbox `code_run` audit rows — retention parity with workflowExecution.
+  // Trash flips lifecycleStatus='trashed'; grace-period sweep cascades to
+  // codeStorageId/stdoutStorageId/stderrStorageId + outputFiles[*]
+  // .fileMetadataId via the standard storage erasure helper.
+  'sandboxExecution',
 ] as const;
 
 export type SoftDeleteResourceType =
