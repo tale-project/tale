@@ -21,7 +21,12 @@ import { z } from 'zod/v4';
 
 import { internal } from '../../_generated/api';
 import type { ToolDefinition } from '../types';
-import { artifactTypeEnum, isValidArtifactType } from './shared';
+import {
+  artifactTypeEnum,
+  isRunnableArtifactType,
+  isValidArtifactType,
+  runnableLanguage,
+} from './shared';
 import {
   clearState,
   getState,
@@ -33,7 +38,7 @@ import {
 
 const artifactCreateArgs = z.object({
   type: artifactTypeEnum.describe(
-    'Artifact type. `html` and `svg` render as a runnable preview in the Canvas pane; `markdown` and `mermaid` render formatted; `code` is a plain syntax-highlighted snippet.',
+    'Artifact type. `html` and `svg` render in the browser canvas. `markdown` and `mermaid` render formatted. `code` is a static syntax-highlighted snippet. `python_runnable` / `node_runnable` execute server-side in the sandbox: write your output files to `/workspace/output/` (e.g. `.pptx`, `.pdf`) and they appear as chat attachments + chips in the canvas.',
   ),
   title: z
     .string()
@@ -44,7 +49,7 @@ const artifactCreateArgs = z.object({
     .string()
     .min(1)
     .describe(
-      'Full content of the artifact. For `html`, a complete HTML document including <!doctype html> and any inline <script>/<style>. For `svg`, a complete <svg>…</svg> root.',
+      'Full content of the artifact. For `html`, a complete HTML document. For `svg`, a complete <svg>…</svg> root. For `python_runnable` / `node_runnable`, the script source — the runtime writes it to /workspace/code/main.{py,js} and runs it.',
     ),
   language: z
     .string()
@@ -52,6 +57,34 @@ const artifactCreateArgs = z.object({
     .optional()
     .describe(
       'Optional language hint when type=`code` (e.g. "ts", "python"). Ignored for other types.',
+    ),
+  packages: z
+    .array(z.string().max(120))
+    .max(20)
+    .optional()
+    .describe(
+      'Runnable types only. Pip or npm specs to install before executing. Examples: ["python-pptx==1.0.2", "pillow"]. Pinned versions strongly preferred. By default `pip --only-binary=:all:` and `npm --ignore-scripts` (use `allowSdist` / `allowInstallScripts` to override).',
+    ),
+  allowSdist: z
+    .boolean()
+    .optional()
+    .describe(
+      'python_runnable only. Defaults false — sdist installs are blocked because they run arbitrary setup.py code. Set true only when a needed package has no wheel.',
+    ),
+  allowInstallScripts: z
+    .boolean()
+    .optional()
+    .describe(
+      'node_runnable only. Defaults false — preinstall/postinstall scripts are skipped. Set true if a package needs them (e.g. canvas).',
+    ),
+  timeoutMs: z
+    .number()
+    .int()
+    .min(1_000)
+    .max(300_000)
+    .optional()
+    .describe(
+      'Runnable types only. Wall-clock cap including package install. Default 30000, max 300000.',
     ),
 });
 
@@ -238,7 +271,7 @@ Therefore: features that require **runtime intelligence** — translating user i
       args: ArtifactCreateInput,
       options: ToolExecutionOptions,
     ): Promise<ArtifactCreateResult> => {
-      const { organizationId, threadId, messageId } = ctx;
+      const { organizationId, threadId, messageId, userId } = ctx;
       const state = getState(options.toolCallId);
       try {
         if (!organizationId || !threadId) {
@@ -257,6 +290,7 @@ Therefore: features that require **runtime intelligence** — translating user i
 
         const editedByMessageId = messageId ?? '';
 
+        let artifactId: string;
         if (state?.artifactId !== undefined) {
           await ctx.runMutation(
             internal.artifacts.internal_mutations.finalizeStreamedCreate,
@@ -268,30 +302,87 @@ Therefore: features that require **runtime intelligence** — translating user i
               editedByMessageId,
             },
           );
-          return {
-            success: true,
-            artifactId: state.artifactId,
-            revision: 1,
-            message: `Created artifact "${args.title}" (${args.type}, ${args.content.length} chars).`,
-          };
+          artifactId = state.artifactId;
+        } else {
+          const inserted = await ctx.runMutation(
+            internal.artifacts.internal_mutations.createArtifact,
+            {
+              organizationId,
+              threadId,
+              type: args.type,
+              title: args.title,
+              language: args.language,
+              content: args.content,
+              createdByMessageId: editedByMessageId,
+            },
+          );
+          artifactId = inserted.artifactId;
         }
 
-        const inserted = await ctx.runMutation(
-          internal.artifacts.internal_mutations.createArtifact,
-          {
-            organizationId,
-            threadId,
-            type: args.type,
-            title: args.title,
-            language: args.language,
-            content: args.content,
-            createdByMessageId: editedByMessageId,
-          },
-        );
+        // Runnable types: source has settled in the artifact row; now run
+        // it in the sandbox and stream phase events into the row's
+        // run* fields (canvas-runnable-code-renderer subscribes).
+        const runtimeLanguage = runnableLanguage(args.type);
+        if (isRunnableArtifactType(args.type) && runtimeLanguage) {
+          if (!userId) {
+            return {
+              success: false,
+              message:
+                'python_runnable / node_runnable require userId in the tool context.',
+            };
+          }
+          await ctx.runMutation(
+            internal.artifacts.internal_mutations.initArtifactRun,
+            {
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- value came from createArtifact / state above
+              artifactId: artifactId as unknown as never,
+              runPackages: args.packages ?? [],
+              ...((args.allowSdist !== undefined ||
+                args.allowInstallScripts !== undefined) && {
+                runOptions: {
+                  ...(args.allowSdist !== undefined && {
+                    allowSdist: args.allowSdist,
+                  }),
+                  ...(args.allowInstallScripts !== undefined && {
+                    allowInstallScripts: args.allowInstallScripts,
+                  }),
+                },
+              }),
+            },
+          );
+          const accessibleThreadIds = [threadId];
+          await ctx.runAction(
+            internal.node_only.sandbox.internal_actions.executeCode,
+            {
+              organizationId,
+              uploadedBy: userId,
+              threadId,
+              accessibleThreadIds,
+              ...(messageId !== undefined && { messageId }),
+              ...(options.toolCallId && { toolCallId: options.toolCallId }),
+              language: runtimeLanguage,
+              code: args.content,
+              ...(args.packages !== undefined && { packages: args.packages }),
+              ...(args.timeoutMs !== undefined && {
+                timeoutMs: args.timeoutMs,
+              }),
+              ...(args.allowSdist !== undefined && {
+                allowSdist: args.allowSdist,
+              }),
+              ...(args.allowInstallScripts !== undefined && {
+                allowInstallScripts: args.allowInstallScripts,
+              }),
+              purpose: args.title,
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- artifactId came from createArtifact above
+              artifactId: artifactId as unknown as never,
+            },
+          );
+        }
+
         return {
           success: true,
-          artifactId: inserted.artifactId,
-          revision: inserted.revision,
+          artifactId,
+          revision: 1,
           message: `Created artifact "${args.title}" (${args.type}, ${args.content.length} chars).`,
         };
       } finally {
