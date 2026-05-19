@@ -7,6 +7,8 @@ import remarkGfm from 'remark-gfm';
 
 import { SiteContainer } from '@/components/layout/site-container';
 import { useT } from '@/lib/i18n/client';
+import { localizedPath } from '@/lib/i18n/locales';
+import type { SupportedLocale } from '@/lib/i18n/locales';
 import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
 import { getLegalDocument } from '@/lib/legal/content';
 import type { LegalSlug } from '@/lib/legal/slugs';
@@ -16,12 +18,11 @@ interface LegalPageProps {
   slug: LegalSlug;
 }
 
-function legalPath(locale: string, slug: LegalSlug): string {
-  const base = locale === 'en' ? '' : `/${locale}`;
-  return `${base}/legal/${slug}`;
+function legalPath(locale: SupportedLocale, slug: LegalSlug): string {
+  return localizedPath(locale, `/legal/${slug}`);
 }
 
-function pdfHref(locale: string, slug: LegalSlug): string {
+function pdfHref(locale: SupportedLocale, slug: LegalSlug): string {
   return `${legalPath(locale, slug)}.pdf`;
 }
 
