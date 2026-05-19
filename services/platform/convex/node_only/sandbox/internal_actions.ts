@@ -174,7 +174,8 @@ export const executeCode = internalAction({
           code: 'QUOTA_EXCEEDED',
           message:
             err.data && typeof err.data === 'object' && 'message' in err.data
-              ? String((err.data as { message?: string }).message)
+              ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ConvexError data shape is loose; we just type-narrowed the message key
+                String((err.data as { message?: string }).message)
               : 'Sandbox quota exceeded',
         });
       }
@@ -442,7 +443,7 @@ export const executeCode = internalAction({
         durationMs: Date.now() - startedAt,
         actualSeconds: (Date.now() - startedAt) / 1000,
       });
-      throw new Error(`Sandbox spawner failed: ${message}`);
+      throw new Error(`Sandbox spawner failed: ${message}`, { cause: err });
     } finally {
       clearInterval(heartbeat);
     }
