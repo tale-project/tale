@@ -4,6 +4,9 @@ import { internalMutation } from '../_generated/server';
 import { applyPatches } from '../agent_tools/artifacts/apply_patches';
 import {
   artifactPatchValidator,
+  artifactRunErrorCodeValidator,
+  artifactRunOutputFileValidator,
+  artifactRunStatusValidator,
   artifactTypeValidator,
   liveStreamModeValidator,
 } from './schema';
@@ -419,5 +422,139 @@ export const cleanupStaleStreams = internalMutation({
       }
     }
     return { cleared };
+  },
+});
+
+// =============================================================================
+// Runnable-artifact run-state mutations (Refinement 2)
+// =============================================================================
+//
+// These mutate the `run*` fields on a runnable artifact (`python_runnable` /
+// `node_runnable`). The executeCode internal action calls them between
+// `setRunning` and `finalize` as PHASE markers stream from the spawner.
+// The canvas-runnable-code-renderer subscribes to the artifact row and
+// gets reactive updates for the progress chip + output file display.
+
+export const initArtifactRun = internalMutation({
+  args: {
+    artifactId: v.id('artifacts'),
+    runPackages: v.array(v.string()),
+    runOptions: v.optional(
+      v.object({
+        allowSdist: v.optional(v.boolean()),
+        allowInstallScripts: v.optional(v.boolean()),
+      }),
+    ),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.artifactId);
+    if (!row) return null;
+    if (row.type !== 'python_runnable' && row.type !== 'node_runnable') {
+      // Defensive: callers should only invoke this on runnable types. Skip
+      // silently so an out-of-band call can't corrupt a static artifact.
+      return null;
+    }
+    await ctx.db.patch(args.artifactId, {
+      runPackages: args.runPackages,
+      ...(args.runOptions !== undefined && { runOptions: args.runOptions }),
+      runStatus: 'queued',
+      runProgress: 'Queued',
+      runStartedAt: Date.now(),
+      // Clear any stale fields from a prior run of the same artifact (the
+      // edit flow re-uses the row for subsequent executions).
+      runCompletedAt: undefined,
+      runExitCode: undefined,
+      runErrorCode: undefined,
+      runErrorMessage: undefined,
+      runStdoutPreview: undefined,
+      runStderrPreview: undefined,
+      runStdoutStorageId: undefined,
+      runStderrStorageId: undefined,
+      runOutputFiles: [],
+      runExecutionId: undefined,
+    });
+    return null;
+  },
+});
+
+export const patchArtifactRunProgress = internalMutation({
+  args: {
+    artifactId: v.id('artifacts'),
+    runStatus: v.optional(artifactRunStatusValidator),
+    runProgress: v.optional(v.string()),
+    runExecutionId: v.optional(v.id('sandboxExecutions')),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.artifactId);
+    if (!row) return null;
+    if (row.type !== 'python_runnable' && row.type !== 'node_runnable') {
+      return null;
+    }
+    const patch: Record<string, unknown> = {};
+    if (args.runStatus !== undefined) patch.runStatus = args.runStatus;
+    if (args.runProgress !== undefined) patch.runProgress = args.runProgress;
+    if (args.runExecutionId !== undefined) {
+      patch.runExecutionId = args.runExecutionId;
+    }
+    if (Object.keys(patch).length === 0) return null;
+    await ctx.db.patch(args.artifactId, patch);
+    return null;
+  },
+});
+
+export const finalizeArtifactRun = internalMutation({
+  args: {
+    artifactId: v.id('artifacts'),
+    runStatus: v.union(
+      v.literal('completed'),
+      v.literal('failed'),
+      v.literal('cancelled'),
+    ),
+    runExitCode: v.optional(v.number()),
+    runErrorCode: v.optional(artifactRunErrorCodeValidator),
+    runErrorMessage: v.optional(v.string()),
+    runStdoutPreview: v.optional(v.string()),
+    runStderrPreview: v.optional(v.string()),
+    runStdoutStorageId: v.optional(v.id('_storage')),
+    runStderrStorageId: v.optional(v.id('_storage')),
+    runOutputFiles: v.array(artifactRunOutputFileValidator),
+    runExecutionId: v.id('sandboxExecutions'),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.artifactId);
+    if (!row) return null;
+    if (row.type !== 'python_runnable' && row.type !== 'node_runnable') {
+      return null;
+    }
+    await ctx.db.patch(args.artifactId, {
+      runStatus: args.runStatus,
+      runProgress: undefined,
+      runCompletedAt: Date.now(),
+      ...(args.runExitCode !== undefined && { runExitCode: args.runExitCode }),
+      ...(args.runErrorCode !== undefined && {
+        runErrorCode: args.runErrorCode,
+      }),
+      ...(args.runErrorMessage !== undefined && {
+        runErrorMessage: args.runErrorMessage,
+      }),
+      ...(args.runStdoutPreview !== undefined && {
+        runStdoutPreview: args.runStdoutPreview,
+      }),
+      ...(args.runStderrPreview !== undefined && {
+        runStderrPreview: args.runStderrPreview,
+      }),
+      ...(args.runStdoutStorageId !== undefined && {
+        runStdoutStorageId: args.runStdoutStorageId,
+      }),
+      ...(args.runStderrStorageId !== undefined && {
+        runStderrStorageId: args.runStderrStorageId,
+      }),
+      runOutputFiles: args.runOutputFiles,
+      runExecutionId: args.runExecutionId,
+    });
+    return null;
   },
 });

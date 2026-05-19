@@ -185,9 +185,22 @@ function guessContentType(name: string): string {
   return 'application/octet-stream';
 }
 
+/**
+ * Phase events emitted while the runtime container is running. The server's
+ * SSE handler relays these to the convex action; the action then writes the
+ * artifact row's `runStatus` + `runProgress` so the canvas shows live
+ * progress instead of a frozen spinner (Refinement 2).
+ */
+export type PhaseEvent = { phase: 'installing' } | { phase: 'running' };
+
+export interface ExecuteRequestOptions {
+  onPhase?: (event: PhaseEvent) => void;
+}
+
 export async function executeRequest(
   cfg: SpawnerConfig,
   req: ExecuteRequest,
+  opts: ExecuteRequestOptions = {},
 ): Promise<ExecuteResponse> {
   if (!/^[a-zA-Z0-9_-]{1,64}$/.test(req.executionId)) {
     return makeError('SPAWNER_UNAVAILABLE', 'invalid executionId', 0);
@@ -239,10 +252,34 @@ export async function executeRequest(
     }, timeoutMs);
     let result: Awaited<ReturnType<typeof runDocker>>;
     try {
+      // Line-buffered phase parser. The runtime image's entrypoint emits
+      // "PHASE: installing\n" then later "PHASE: running\n" on stdout. We
+      // accumulate bytes until we see a newline, then scan each line for
+      // those markers and fire the onPhase callback. Other lines (user's
+      // own prints) are ignored — the full stdout is still captured in
+      // result.stdout for the final response.
+      let lineBuf = '';
+      const decoder = new TextDecoder('utf-8', { fatal: false });
+      const onChunk = opts.onPhase
+        ? (chunk: Uint8Array) => {
+            lineBuf += decoder.decode(chunk, { stream: true });
+            let nl: number;
+            while ((nl = lineBuf.indexOf('\n')) !== -1) {
+              const line = lineBuf.slice(0, nl);
+              lineBuf = lineBuf.slice(nl + 1);
+              if (line === PHASE_INSTALL) {
+                opts.onPhase?.({ phase: 'installing' });
+              } else if (line === PHASE_RUN) {
+                opts.onPhase?.({ phase: 'running' });
+              }
+            }
+          }
+        : undefined;
       result = await runDocker(argv, {
         timeoutMs: timeoutMs + 30_000,
         signal: abort.signal,
         killOnTimeoutContainer: containerName,
+        ...(onChunk && { onStdoutChunk: onChunk }),
       });
     } finally {
       clearTimeout(killTimer);

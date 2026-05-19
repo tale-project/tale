@@ -15,6 +15,12 @@ export interface RunDockerOptions {
   // sibling container stops. Without this the container keeps running
   // after the CLI disconnects (R5 test).
   killOnTimeoutContainer?: string;
+  // Per-chunk stdout callback fired while the subprocess is alive. Used
+  // by the phase-marker parser in spawn.ts to emit phase events to the
+  // SSE stream as soon as the container's entrypoint emits them, rather
+  // than waiting for the container to exit (Refinement 2). The callback
+  // is plain bytes; the caller is responsible for line-buffering.
+  onStdoutChunk?: (chunk: Uint8Array) => void;
 }
 
 export interface RunDockerResult {
@@ -42,9 +48,39 @@ export async function runDocker(
     await proc.stdin.end();
   }
 
-  // Concurrent reads to avoid pipe-back-pressure deadlock.
+  // Concurrent reads to avoid pipe-back-pressure deadlock. When the caller
+  // wants chunk callbacks (for live phase parsing), we read stdout via a
+  // reader loop and fire the callback per chunk while still accumulating the
+  // full buffer for the final return value.
+  const collectStdout = async (): Promise<ArrayBuffer> => {
+    if (!opts.onStdoutChunk) {
+      return new Response(proc.stdout).arrayBuffer();
+    }
+    const reader = (proc.stdout as ReadableStream<Uint8Array>).getReader();
+    const collected: Uint8Array[] = [];
+    let total = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value && value.byteLength > 0) {
+        opts.onStdoutChunk(value);
+        collected.push(value);
+        total += value.byteLength;
+      }
+    }
+    const merged = new Uint8Array(total);
+    let off = 0;
+    for (const c of collected) {
+      merged.set(c, off);
+      off += c.byteLength;
+    }
+    return merged.buffer.slice(
+      merged.byteOffset,
+      merged.byteOffset + merged.byteLength,
+    );
+  };
   const [stdoutBytes, stderrBytes] = await Promise.all([
-    new Response(proc.stdout).arrayBuffer(),
+    collectStdout(),
     new Response(proc.stderr).arrayBuffer(),
   ]);
 
