@@ -596,6 +596,25 @@ export async function rlsRules(
       },
     },
 
+    // Audit Log Chain Genesis - internal per-org serialization sentinel for
+    // the audit hash chain (see audit_logs/schema.ts). Carries no user data;
+    // any org member who can produce an audit-logged write must be able to
+    // upsert and patch this row, so gate purely on org membership.
+    auditLogChainGenesis: {
+      read: async (_, row) => {
+        if (!user) return false;
+        return userOrgIds.has(row.organizationId);
+      },
+      insert: async ({ user: ruleUser }, row) => {
+        if (!ruleUser) return false;
+        return userOrgIds.has(row.organizationId);
+      },
+      modify: async (_, row) => {
+        if (!user) return false;
+        return userOrgIds.has(row.organizationId);
+      },
+    },
+
     // Audit Logs - organization-scoped, allow inserts for org members
     auditLogs: {
       read: async (_, log) => {
@@ -606,7 +625,17 @@ export async function rlsRules(
         );
         return authorizeRls(membership?.role, 'auditLogs', 'read');
       },
-      modify: async () => false, // Audit logs are immutable
+      // Audit-log row content is immutable; the chain hash + verifyIntegrity
+      // job enforce that. Convex-helpers RLS only sees the document, not the
+      // patch diff, so we cannot block "edit field X" while allowing the
+      // forward-chain link patch (chainSuccessor) that createAuditLog must
+      // perform on the predecessor row to serialize concurrent writers via
+      // OCC. Gate modify on org membership; any tampering with other fields
+      // is caught by the next write's self-check against the recomputed hash.
+      modify: async (_, log) => {
+        if (!user) return false;
+        return userOrgIds.has(log.organizationId);
+      },
       insert: async ({ user: ruleUser }, log) => {
         if (!ruleUser) return false;
         if (!userOrgIds.has(log.organizationId)) return false;
