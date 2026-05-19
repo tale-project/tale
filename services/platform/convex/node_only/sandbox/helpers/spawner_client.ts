@@ -55,7 +55,12 @@ function sign(body: string, token: string): string {
 }
 
 function getSpawnerUrl(): string {
-  return process.env.SANDBOX_URL ?? 'http://sandbox:8003';
+  // Mirrors RAG_URL / CRAWLER_URL convention: default to host loopback
+  // so `bun dev`'s local convex-local-backend (running on the host) can
+  // reach the spawner via the published port. Docker compose sets
+  // SANDBOX_URL=http://sandbox:8003 on the tale-convex container so the
+  // dockerized convex resolves through Docker DNS instead.
+  return process.env.SANDBOX_URL ?? 'http://localhost:8003';
 }
 
 function getSpawnerToken(): string | null {
