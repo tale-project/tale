@@ -22,6 +22,7 @@ import { getString, isRecord } from '../../../lib/utils/type-guards';
 import { internal } from '../../_generated/api';
 import { toId } from '../../lib/type_cast_helpers';
 import type { ToolDefinition } from '../types';
+import { isRunnableArtifactType, runnableLanguage } from './shared';
 import {
   type StreamingPatchPair,
   clearState,
@@ -263,9 +264,71 @@ export const artifactEditTool = {
       args: ArtifactEditInput,
       options: ToolExecutionOptions,
     ): Promise<ArtifactEditResult> => {
-      const { messageId } = ctx;
+      const { messageId, organizationId, threadId, userId } = ctx;
       const editedByMessageId = messageId ?? '';
       const state = getState(options.toolCallId);
+
+      // Re-execute a runnable artifact after the edit settles. Called by both
+      // patch and rewrite success branches. The artifact row's `runPackages`
+      // / `runOptions` / `runTimeoutMs` (if present) are reused so the LLM
+      // doesn't need to re-specify them on every edit; if absent the
+      // executeCode action's own defaults apply.
+      const maybeRerun = async (
+        artifactId: ReturnType<typeof toId<'artifacts'>>,
+        type: string,
+        title: string,
+        newContent: string,
+      ): Promise<void> => {
+        const language = runnableLanguage(type as never);
+        if (!isRunnableArtifactType(type) || !language) return;
+        if (!organizationId || !threadId || !userId) return;
+        // Reload to pick up the latest runPackages / runOptions captured at
+        // create time. These persist on the artifact row across edits.
+        const fresh = await ctx.runQuery(
+          internal.artifacts.internal_queries.getById,
+          {
+            artifactId,
+            expectedOrganizationId: organizationId,
+            expectedThreadId: threadId,
+          },
+        );
+        if (!fresh) return;
+        await ctx.runMutation(
+          internal.artifacts.internal_mutations.initArtifactRun,
+          {
+            artifactId,
+            runPackages: fresh.runPackages ?? [],
+            ...(fresh.runOptions !== undefined && {
+              runOptions: fresh.runOptions,
+            }),
+          },
+        );
+        await ctx.runAction(
+          internal.node_only.sandbox.internal_actions.executeCode,
+          {
+            organizationId,
+            uploadedBy: userId,
+            threadId,
+            accessibleThreadIds: [threadId],
+            ...(messageId !== undefined && { messageId }),
+            ...(options.toolCallId && { toolCallId: options.toolCallId }),
+            language,
+            code: newContent,
+            ...(fresh.runPackages !== undefined && {
+              packages: fresh.runPackages,
+            }),
+            ...(fresh.runOptions?.allowSdist !== undefined && {
+              allowSdist: fresh.runOptions.allowSdist,
+            }),
+            ...(fresh.runOptions?.allowInstallScripts !== undefined && {
+              allowInstallScripts: fresh.runOptions.allowInstallScripts,
+            }),
+            purpose: `Re-run after edit: ${title}`,
+            artifactId,
+          },
+        );
+      };
+
       try {
         const artifactId = toId<'artifacts'>(args.artifactId);
         let artifact;
@@ -320,6 +383,12 @@ export const artifactEditTool = {
               failedIndex: result.failedIndex,
             };
           }
+          await maybeRerun(
+            artifactId,
+            artifact.type,
+            artifact.title,
+            result.content,
+          );
           return {
             success: true,
             artifactId: args.artifactId,
@@ -346,6 +415,12 @@ export const artifactEditTool = {
           );
           return { success: false, message: result.error };
         }
+        await maybeRerun(
+          artifactId,
+          artifact.type,
+          artifact.title,
+          args.content,
+        );
         return {
           success: true,
           artifactId: args.artifactId,

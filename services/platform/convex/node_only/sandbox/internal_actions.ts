@@ -72,6 +72,10 @@ export const executeCode = internalAction({
     allowSdist: v.optional(v.boolean()),
     allowInstallScripts: v.optional(v.boolean()),
     purpose: v.string(),
+    // When set, the action wires PHASE events from the spawner SSE to
+    // patchArtifactRunProgress and finalizeArtifactRun (Refinement 2 —
+    // canvas shows live progress instead of a frozen spinner).
+    artifactId: v.optional(v.id('artifacts')),
   },
   returns: v.object({
     executionId: v.id('sandboxExecutions'),
@@ -274,6 +278,31 @@ export const executeCode = internalAction({
           }),
         },
         abort.signal,
+        {
+          onPhase: args.artifactId
+            ? async (phase) => {
+                const message =
+                  phase === 'installing'
+                    ? args.packages && args.packages.length > 0
+                      ? `Installing ${args.packages.join(', ')}`
+                      : 'Preparing sandbox'
+                    : 'Running code';
+                await ctx.runMutation(
+                  internal.artifacts.internal_mutations
+                    .patchArtifactRunProgress,
+                  {
+                    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed by args.artifactId guard
+                    artifactId: args.artifactId as NonNullable<
+                      typeof args.artifactId
+                    >,
+                    runStatus: phase,
+                    runProgress: message,
+                    runExecutionId: executionId,
+                  },
+                );
+              }
+            : undefined,
+        },
       );
 
       // ---- file upload (all-or-nothing) ----
@@ -411,6 +440,47 @@ export const executeCode = internalAction({
         durationMs,
         actualSeconds,
       });
+
+      // When this run is tied to a runnable artifact, finalize the artifact
+      // row so the canvas-runnable-code-renderer sees the completed state
+      // + output file chips (Refinement 2). The audit row above already
+      // holds the per-execution forensics; the artifact row holds the
+      // *latest* state for fast canvas reads.
+      if (args.artifactId) {
+        await ctx.runMutation(
+          internal.artifacts.internal_mutations.finalizeArtifactRun,
+          {
+            artifactId: args.artifactId,
+            runStatus: spawnerResult.status,
+            ...(spawnerResult.exitCode !== null && {
+              runExitCode: spawnerResult.exitCode,
+            }),
+            ...(spawnerResult.errorCode !== undefined && {
+              runErrorCode: spawnerResult.errorCode,
+            }),
+            ...(spawnerResult.errorMessage !== undefined && {
+              runErrorMessage: spawnerResult.errorMessage,
+            }),
+            runStdoutPreview: stdoutPreview,
+            runStderrPreview: stderrPreview,
+            ...(stdoutStorageId !== undefined && {
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+              runStdoutStorageId: stdoutStorageId as unknown as never,
+            }),
+            ...(stderrStorageId !== undefined && {
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+              runStderrStorageId: stderrStorageId as unknown as never,
+            }),
+            runOutputFiles: insertedFiles.map((f) => ({
+              name: f.name,
+              fileMetadataId: f.fileMetadataId,
+              size: f.size,
+              contentType: f.contentType,
+            })),
+            runExecutionId: executionId,
+          },
+        );
+      }
 
       return {
         executionId,

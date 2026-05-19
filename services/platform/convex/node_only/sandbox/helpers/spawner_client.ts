@@ -72,14 +72,28 @@ function getSpawnerToken(): string | null {
   return token && token.length > 0 ? token : null;
 }
 
+export type SpawnerPhase = 'installing' | 'running';
+
+export interface SpawnerExecuteCallbacks {
+  /** Fired as soon as the runtime entrypoint emits a PHASE marker. */
+  onPhase?: (phase: SpawnerPhase) => Promise<void> | void;
+}
+
 /**
- * POST /v1/execute. Throws on transport / 5xx / 401; returns the spawner's
- * own success-shape `{status, errorCode, ...}` otherwise so the caller can
- * decide failure semantics.
+ * POST /v1/execute as SSE. The spawner emits zero or more `event: phase`
+ * lines followed by exactly one `event: result` line. We invoke `onPhase`
+ * per phase event and return the parsed result. The function is still
+ * async-await — the streaming is internal.
+ *
+ * Throws on transport / 5xx / 401; returns the spawner's own
+ * success-shape `{status, errorCode, ...}` otherwise so the caller can
+ * decide failure semantics. The SSE-vs-JSON change is transparent to the
+ * caller: it still gets a single SpawnerExecuteResponse.
  */
 export async function spawnerExecute(
   body: SpawnerExecuteBody,
   signal: AbortSignal,
+  callbacks: SpawnerExecuteCallbacks = {},
 ): Promise<SpawnerExecuteResponse> {
   const url = `${getSpawnerUrl()}/v1/execute`;
   const token = getSpawnerToken();
@@ -87,6 +101,7 @@ export async function spawnerExecute(
 
   const headers: Record<string, string> = {
     'content-type': 'application/json',
+    accept: 'text/event-stream',
   };
   if (token !== null) {
     headers[SIGNATURE_HEADER] = sign(bodyJson, token);
@@ -119,8 +134,78 @@ export async function spawnerExecute(
     const text = await res.text().catch(() => '');
     throw new Error(`sandbox spawner ${res.status}: ${text || res.statusText}`);
   }
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- spawner-side schema is validated at the spawner; trust the wire contract here
-  return (await res.json()) as SpawnerExecuteResponse;
+  if (!res.body) {
+    throw new Error('sandbox spawner returned no body');
+  }
+
+  // SSE parser: events are separated by `\n\n`; each event has `event:` and
+  // `data:` lines. We accumulate text and process complete events as they
+  // arrive, dispatching phase callbacks and capturing the final result.
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  let buf = '';
+  let finalResult: SpawnerExecuteResponse | null = null;
+  let errorEvent: string | null = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let boundary: number;
+    while ((boundary = buf.indexOf('\n\n')) !== -1) {
+      const eventText = buf.slice(0, boundary);
+      buf = buf.slice(boundary + 2);
+      const parsed = parseSseEvent(eventText);
+      if (!parsed) continue;
+      if (parsed.event === 'phase') {
+        const phase = parsed.data.phase as SpawnerPhase | undefined;
+        if (phase && callbacks.onPhase) {
+          try {
+            await callbacks.onPhase(phase);
+          } catch {
+            // Don't let an onPhase failure abort the underlying execution.
+          }
+        }
+      } else if (parsed.event === 'result') {
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- spawner-side schema is validated at the spawner; trust the wire contract here
+        finalResult = parsed.data as SpawnerExecuteResponse;
+      } else if (parsed.event === 'error') {
+        errorEvent = String(parsed.data.message ?? 'sandbox spawner error');
+      }
+    }
+  }
+
+  if (errorEvent !== null) {
+    throw new Error(`sandbox spawner SSE error: ${errorEvent}`);
+  }
+  if (finalResult === null) {
+    throw new Error('sandbox spawner stream ended without a result event');
+  }
+  return finalResult;
+}
+
+function parseSseEvent(
+  block: string,
+): { event: string; data: Record<string, unknown> } | null {
+  let event = 'message';
+  const dataLines: string[] = [];
+  for (const raw of block.split('\n')) {
+    if (raw.startsWith('event:')) {
+      event = raw.slice(6).trim();
+    } else if (raw.startsWith('data:')) {
+      dataLines.push(raw.slice(5).trimStart());
+    }
+  }
+  if (dataLines.length === 0) return null;
+  try {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- wire JSON
+    return {
+      event,
+      data: JSON.parse(dataLines.join('\n')) as Record<string, unknown>,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export async function spawnerCancel(executionId: string): Promise<void> {
