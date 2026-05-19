@@ -63,7 +63,7 @@ export const NODES: Record<NodeKey, Node> = {
     gpu: { id: 'nvidia_rtx_pro_6000', count: 1 },
     cpu: { id: 'amd_epyc_4545p_zen5', count: 1 },
     ssdTB: 1,
-    buyPrice: 14_590,
+    buyPrice: 13_690,
   },
 };
 
@@ -72,9 +72,9 @@ export const CLUSTER_COMPOSITION: Record<
   ClusterKey,
   Record<NodeKey, number>
 > = {
-  quality: { quality: 9, hybrid: 1, speed: 0 },
-  hybrid: { quality: 6, hybrid: 1, speed: 1 },
-  speed: { quality: 0, hybrid: 1, speed: 3 },
+  quality: { quality: 6, hybrid: 1, speed: 0 },
+  hybrid: { quality: 3, hybrid: 1, speed: 1 },
+  speed: { quality: 0, hybrid: 1, speed: 2 },
 };
 
 const TIER_KEYS: readonly TierKey[] = ['quality', 'hybrid', 'speed'];
@@ -163,29 +163,50 @@ export function clusterSpec(t: TFunction, key: ClusterKey): SpecLines {
 }
 
 // =============================================================================
-// Pricing — node prices listed; cluster prices = sum of contained nodes.
+// Pricing — node buy prices listed; cluster buy = sum of contained nodes
+// plus a flat infrastructure surcharge. Monthly leasing is derived on
+// demand from buy × per-term factor.
 // =============================================================================
 
-export interface Pricing {
-  rental: number;
-  buy: number;
+/**
+ * Flat surcharge added to every cluster — covers the cables, network
+ * equipment, and rack that ship with the cluster and aren't billed
+ * per-node.
+ */
+const CLUSTER_INFRA_SURCHARGE = 790;
+
+export function nodeBuyPrice(key: NodeKey): number {
+  return NODES[key].buyPrice;
 }
 
-/** Monthly rental ≈ 5% of buy, rounded up to the nearest CHF 100. */
-const rentalFromBuy = (buy: number) => Math.ceil((buy * 0.05) / 100) * 100;
-
-export function nodePricing(key: NodeKey): Pricing {
-  const buy = NODES[key].buyPrice;
-  return { rental: rentalFromBuy(buy), buy };
-}
-
-export function clusterPricing(key: ClusterKey): Pricing {
+export function clusterBuyPrice(key: ClusterKey): number {
   const comp = CLUSTER_COMPOSITION[key];
-  const buy = TIER_KEYS.reduce(
-    (sum, nk) => sum + NODES[nk].buyPrice * comp[nk],
-    0,
-  );
-  return { rental: rentalFromBuy(buy), buy };
+  let buy = 0;
+  for (const nk of TIER_KEYS) buy += NODES[nk].buyPrice * comp[nk];
+  return buy + CLUSTER_INFRA_SURCHARGE;
+}
+
+export const LEASING_TERMS = [12, 24, 36, 48, 60] as const;
+export type LeasingTerm = (typeof LEASING_TERMS)[number];
+
+/**
+ * Indicative monthly leasing factor by term length. Monthly payment is
+ * `buy × factor`. Shorter terms have a higher monthly rate but lower
+ * total cost; longer terms amortise more interest. Real quotes depend
+ * on the leasing partner — these are marketing approximations,
+ * rendered with the `approximate: true` currency flag.
+ */
+const LEASING_FACTOR: Record<LeasingTerm, number> = {
+  12: 0.085,
+  24: 0.045,
+  36: 0.03,
+  48: 0.025,
+  60: 0.02,
+};
+
+/** Indicative monthly leasing payment, rounded to the nearest CHF 100. */
+export function leasingMonthly(buy: number, term: LeasingTerm): number {
+  return Math.round((buy * LEASING_FACTOR[term]) / 100) * 100;
 }
 
 // =============================================================================

@@ -328,8 +328,10 @@
     "configIncludes": "La configuration inclut :",
     "billing": {
       "ariaLabel": "Option de paiement",
-      "renting": "Location",
-      "buying": "Achat (financement possible)"
+      "leasing": "Leasing",
+      "buying": "Achat",
+      "termAriaLabel": "Durée du leasing",
+      "termHeading": "Mois :"
     },
     "modesAriaLabel": "Mode de déploiement",
     "deploymentNote": "Toutes les configurations matérielles sont silencieuses (sans bruit) et peuvent être déployées chez toi et maintenues à distance par notre équipe, ou hébergées dans nos centres de données sécurisés.",

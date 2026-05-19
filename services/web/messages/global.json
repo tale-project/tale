@@ -16,12 +16,12 @@
       "cluster": "Cluster"
     },
     "versions": {
-      "nodeQuality": "26.02 (NQ)",
-      "nodeApplication": "26.02 (NA)",
-      "nodeSpeed": "26.02 (NS)",
-      "clusterQuality": "26.02 (CQ)",
-      "clusterHybrid": "26.02 (CH)",
-      "clusterSpeed": "26.02 (CS)"
+      "nodeQuality": "26.01 (NQ)",
+      "nodeApplication": "26.01 (NA)",
+      "nodeSpeed": "26.01 (NS)",
+      "clusterQuality": "26.01 (CQ)",
+      "clusterHybrid": "26.01 (CH)",
+      "clusterSpeed": "26.01 (CS)"
     },
     "productNumbers": {
       "quality": "P0005",

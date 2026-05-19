@@ -3,11 +3,13 @@ import { formatCurrency } from '@tale/ui/format';
 import { motion, useReducedMotion } from 'framer-motion';
 
 import {
+  LEASING_TERMS,
+  clusterBuyPrice,
   clusterMetrics,
-  clusterPricing,
+  leasingMonthly,
+  nodeBuyPrice,
   nodeMetrics,
-  nodePricing,
-  type Pricing,
+  type LeasingTerm,
   type TierMetrics,
 } from '@/app/components/blocks/hardware-specs';
 import { TierCard } from '@/app/components/blocks/tier-card';
@@ -21,10 +23,9 @@ import type {
 import { useT } from '@/lib/i18n/client';
 
 /**
- * Pricing-card grid + mode/billing toggles — the upper half of the
- * hardware pricing page. All pricing and progress-bar metrics are
- * derived in `hardware-specs.ts`; this component is purely
- * presentational over those derivations.
+ * Pricing-card grid + toggles — the upper half of the hardware pricing
+ * page. Tiers expose only their buy price; leasing payments are derived
+ * on demand from `(buy, term)` so the rate-table lives in one place.
  */
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
@@ -41,22 +42,22 @@ const HARDWARE_MODES = [
 ] as const satisfies readonly HardwareMode[];
 const HARDWARE_BILLINGS = [
   'buying',
-  'renting',
+  'leasing',
 ] as const satisfies readonly HardwareBilling[];
 
 interface Tier {
   key: TierKey;
   popular: boolean;
-  pricing: Record<HardwareMode, Pricing>;
+  buyPrice: Record<HardwareMode, number>;
   metrics: Record<HardwareMode, TierMetrics>;
 }
 
 const TIERS: Tier[] = TIER_KEYS.map((key) => ({
   key,
   popular: key === 'hybrid',
-  pricing: {
-    cluster: clusterPricing(key),
-    node: nodePricing(key),
+  buyPrice: {
+    cluster: clusterBuyPrice(key),
+    node: nodeBuyPrice(key),
   },
   metrics: {
     cluster: clusterMetrics(key),
@@ -69,6 +70,8 @@ interface HardwareTiersProps {
   onModeChange: (mode: HardwareMode) => void;
   billing: HardwareBilling;
   onBillingChange: (billing: HardwareBilling) => void;
+  term: LeasingTerm;
+  onTermChange: (term: LeasingTerm) => void;
 }
 
 export function HardwareTiers({
@@ -76,6 +79,8 @@ export function HardwareTiers({
   onModeChange,
   billing,
   onBillingChange,
+  term,
+  onTermChange,
 }: HardwareTiersProps) {
   const { t } = useT('hardwarePricing');
   const reduceMotion = useReducedMotion();
@@ -107,7 +112,7 @@ export function HardwareTiers({
           </p>
         </motion.header>
 
-        <div className="mx-auto mt-10 flex flex-col items-center gap-3 md:flex-row md:justify-center md:gap-4">
+        <div className="mx-auto mt-10 flex flex-col items-center gap-3 md:flex-row md:flex-wrap md:justify-center md:gap-4">
           <SegmentedRadio
             ariaLabel={t('modesAriaLabel')}
             options={HARDWARE_MODES}
@@ -122,14 +127,27 @@ export function HardwareTiers({
             onChange={onBillingChange}
             renderLabel={(option) => t(`billing.${option}`)}
           />
+          {billing === 'leasing' && (
+            <div className="flex items-center gap-2">
+              <span className="text-fg-muted text-sm">
+                {t('billing.termHeading')}
+              </span>
+              <SegmentedRadio
+                ariaLabel={t('billing.termAriaLabel')}
+                options={LEASING_TERMS}
+                value={term}
+                onChange={onTermChange}
+                renderLabel={(option) => String(option)}
+              />
+            </div>
+          )}
         </div>
 
         <div className="border-border-base mx-auto mt-12 grid max-w-[1120px] grid-cols-1 overflow-hidden border lg:grid-cols-3">
           {TIERS.map((tier, idx) => {
+            const buy = tier.buyPrice[mode];
             const price = formatCurrency(
-              billing === 'renting'
-                ? tier.pricing[mode].rental
-                : tier.pricing[mode].buy,
+              billing === 'leasing' ? leasingMonthly(buy, term) : buy,
               {
                 currency: HARDWARE_CURRENCY,
                 locale: HARDWARE_LOCALE,
@@ -137,7 +155,7 @@ export function HardwareTiers({
               },
             );
             const priceSuffix = t(
-              billing === 'renting'
+              billing === 'leasing'
                 ? `tiers.${tier.key}.priceSuffix`
                 : `tiers.${tier.key}.buySuffix`,
             );
@@ -202,7 +220,7 @@ export function HardwareTiers({
   );
 }
 
-interface SegmentedRadioProps<T extends string> {
+interface SegmentedRadioProps<T extends string | number> {
   ariaLabel: string;
   options: readonly T[];
   value: T;
@@ -211,10 +229,11 @@ interface SegmentedRadioProps<T extends string> {
 }
 
 /**
- * Pill-style radio group used for the mode (node/cluster) and billing
- * (buying/renting) toggles. Kept local since no other block needs it.
+ * Pill-style radio group used for the mode, billing, and leasing-term
+ * toggles. Accepts string or numeric values so the term selector can
+ * pass `12 | 24 | …` directly.
  */
-function SegmentedRadio<T extends string>({
+function SegmentedRadio<T extends string | number>({
   ariaLabel,
   options,
   value,
@@ -231,7 +250,7 @@ function SegmentedRadio<T extends string>({
         const isActive = value === option;
         return (
           <button
-            key={option}
+            key={String(option)}
             type="button"
             role="radio"
             aria-checked={isActive}
