@@ -1,0 +1,31 @@
+# Tale Sandbox Egress — tinyproxy config
+# Rendered at startup by entrypoint.sh (no template vars currently in use,
+# but keep envsubst-ready so we can introduce them without re-tooling).
+
+User nobody
+Group nobody
+
+Port 3128
+Listen 0.0.0.0
+Timeout 600
+DefaultErrorFile "/usr/share/tinyproxy/default.html"
+LogLevel Info
+LogFile "/var/log/tinyproxy/tinyproxy.log"
+PidFile "/tmp/tinyproxy.pid"
+MaxClients 100
+ViaProxyName "tale-sandbox-egress"
+
+# CONNECT method (HTTPS tunneling) — required for pip/npm/uv installs.
+# Only the standard TLS port; nothing else.
+ConnectPort 443
+
+# Host-name allow-list (default-deny). Allowlist contents are rewritten
+# by entrypoint.sh from SANDBOX_EGRESS_ALLOWLIST or the default registry set.
+FilterDefaultDeny Yes
+FilterCaseSensitive No
+FilterExtended Yes
+FilterURLs Off
+Filter "/etc/tinyproxy/allowlist"
+
+# Disable upstream chaining and X-Tinyproxy header to reduce surface.
+DisableViaHeader No

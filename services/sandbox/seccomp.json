@@ -1,0 +1,3 @@
+{
+  "__comment_": "Tale Sandbox Runtime — custom seccomp profile (v1.x hardening target). v1 relies on Docker's built-in default profile which already blocks unshare/keyctl/add_key/bpf/mount/pivot_root. This file is a placeholder; when wired in via --security-opt=seccomp=/etc/sandbox-seccomp.json it should be a copy of Docker's default profile (https://github.com/moby/moby/blob/master/profiles/seccomp/default.json) with the following additional syscalls moved to defaultAction=SCMP_ACT_ERRNO: ptrace, userfaultfd, io_uring_setup, io_uring_register, io_uring_enter, perf_event_open. See plan §'Security model'."
+}
