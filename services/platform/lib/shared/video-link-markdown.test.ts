@@ -24,7 +24,7 @@ describe('formatVideoLinkAttachmentMarkdown', () => {
       videoDurationSec: 305,
     });
     expect(out).toBe(
-      '🎬 [Chengdu China — A Walk Through the Forest] (video from YouTube, 5m, uploader: ExampleChannel)\n' +
+      '🎬 [Chengdu China — A Walk Through the Forest] (video from YouTube, 5m, uploader: ExampleChannel) — transcript indexed; call document_retrieve(fileId) to read\n' +
         '*(fileId: kg2_storage_abc | fileName: Chengdu China,...side A Forest | fileType: video/mp4 | fileSize: 238923776)*',
     );
   });
@@ -39,7 +39,7 @@ describe('formatVideoLinkAttachmentMarkdown', () => {
       videoDurationSec: 60,
     });
     expect(out).toBe(
-      '🎬 [Untitled] (video, 1m)\n' +
+      '🎬 [Untitled] (video, 1m) — transcript indexed; call document_retrieve(fileId) to read\n' +
         '*(fileId: kg2_xyz | fileName: clip.mp4 | fileType: video/mp4 | fileSize: 1024)*',
     );
   });
@@ -55,7 +55,7 @@ describe('formatVideoLinkAttachmentMarkdown', () => {
       videoDurationSec: 120,
     });
     expect(out).toBe(
-      '🎬 [Untitled] (video from Vimeo, 2m)\n' +
+      '🎬 [Untitled] (video from Vimeo, 2m) — transcript indexed; call document_retrieve(fileId) to read\n' +
         '*(fileId: kg2_xyz | fileName: clip.mp4 | fileType: video/mp4 | fileSize: 1024)*',
     );
   });

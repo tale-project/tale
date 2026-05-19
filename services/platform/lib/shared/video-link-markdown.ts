@@ -53,5 +53,5 @@ export function formatVideoLinkAttachmentMarkdown(
     durSec >= 3600
       ? `${Math.floor(durSec / 3600)}h ${Math.floor((durSec % 3600) / 60)}m`
       : `${Math.round(durSec / 60)}m`;
-  return `${icon} [${safeTitle}] (video${platformNote}, ${durText}${uploaderNote})\n*(fileId: ${input.fileId} | fileName: ${input.fileName} | fileType: ${input.fileType} | fileSize: ${input.fileSize})*`;
+  return `${icon} [${safeTitle}] (video${platformNote}, ${durText}${uploaderNote}) — transcript indexed; call document_retrieve(fileId) to read\n*(fileId: ${input.fileId} | fileName: ${input.fileName} | fileType: ${input.fileType} | fileSize: ${input.fileSize})*`;
 }
