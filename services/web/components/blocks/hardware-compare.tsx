@@ -17,6 +17,7 @@ import {
 } from '@/components/blocks/hardware-specs';
 import { MarketingSection } from '@/components/blocks/marketing-section';
 import { LocalizedLink } from '@/components/layout/localized-link';
+import { EXTERNAL_LINKS } from '@/lib/external-links';
 import { useT } from '@/lib/i18n/client';
 
 /**
@@ -222,7 +223,7 @@ export function HardwareCompare({ mode }: HardwareCompareProps) {
       <>
         {t('terms.prefix')}{' '}
         <a
-          href="https://talecorp-my.sharepoint.com/:b:/g/personal/ym_tale_dev/IQDoJBWnXoqqQLlapn6eOPEcAUkySXRa3AUSrKFwYMl0VCU?e=JWmiZc"
+          href={EXTERNAL_LINKS.hardwareTerms}
           target="_blank"
           rel="noopener noreferrer"
           className="text-fg-base font-medium underline underline-offset-4"

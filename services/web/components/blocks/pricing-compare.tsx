@@ -10,6 +10,7 @@ import {
 } from '@/components/blocks/compare-table';
 import { MarketingSection } from '@/components/blocks/marketing-section';
 import { LocalizedLink } from '@/components/layout/localized-link';
+import { EXTERNAL_LINKS } from '@/lib/external-links';
 import { useT } from '@/lib/i18n/client';
 import type { Region } from '@/lib/pricing/region';
 
@@ -204,7 +205,7 @@ export function PricingCompare({ region }: PricingCompareProps) {
         <>
           {t('extras.training.description')}{' '}
           <a
-            href="https://www.edoobox.com/de/Ruler/AI%20Training.html"
+            href={EXTERNAL_LINKS.aiTraining}
             target="_blank"
             rel="noopener noreferrer"
             className="text-fg-base font-medium underline underline-offset-4"
@@ -243,7 +244,7 @@ export function PricingCompare({ region }: PricingCompareProps) {
         <>
           {t('terms.prefix')}{' '}
           <a
-            href="https://talecorp-my.sharepoint.com/:b:/g/personal/ym_tale_dev/IQDMsO0J9N-4RJtStv-1_IurAV_aXuHPQB5hfWnda5wSluA?e=cfXpDs"
+            href={EXTERNAL_LINKS.softwareTerms}
             target="_blank"
             rel="noopener noreferrer"
             className="text-fg-base font-medium underline underline-offset-4"

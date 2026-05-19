@@ -12,6 +12,7 @@ import {
   LocalizedLink,
   type LocalizedRoutePath,
 } from '@/components/layout/localized-link';
+import { EXTERNAL_LINKS } from '@/lib/external-links';
 import { useT } from '@/lib/i18n/client';
 import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
 import type { LegalSlug } from '@/lib/legal/slugs';
@@ -93,7 +94,7 @@ export function SiteFooter() {
       links: [
         <ExternalLink
           key="aiTraining"
-          href="https://www.edoobox.com/de/Ruler/AI%20Training.html"
+          href={EXTERNAL_LINKS.aiTraining}
           className={linkClass}
         >
           {t('aiTraining')}
@@ -105,14 +106,14 @@ export function SiteFooter() {
       links: [
         <ExternalLink
           key="serviceAgreement"
-          href="https://talecorp-my.sharepoint.com/:b:/g/personal/ym_tale_dev/IQDMsO0J9N-4RJtStv-1_IurAV_aXuHPQB5hfWnda5wSluA?e=cfXpDs"
+          href={EXTERNAL_LINKS.softwareTerms}
           className={linkClass}
         >
           {t('serviceAgreement')}
         </ExternalLink>,
         <ExternalLink
           key="hardwareAgreement"
-          href="https://talecorp-my.sharepoint.com/:b:/g/personal/ym_tale_dev/IQDoJBWnXoqqQLlapn6eOPEcAUkySXRa3AUSrKFwYMl0VCU?e=JWmiZc"
+          href={EXTERNAL_LINKS.hardwareTerms}
           className={linkClass}
         >
           {t('hardwareAgreement')}
@@ -155,7 +156,7 @@ export function SiteFooter() {
           {t('address.country')}
           <br />
           <ExternalLink
-            href="https://www.uid.admin.ch/Detail.aspx?uid_id=CHE186532610"
+            href={EXTERNAL_LINKS.vatCheck}
             className="hover:text-fg-base underline transition-colors"
           >
             {t('address.vatId')}
@@ -173,7 +174,7 @@ export function SiteFooter() {
       llmsFullTxtLabel={t('llmsFullTxtLabel')}
       bottomTrailing={
         <a
-          href="https://github.com/tale-project/tale"
+          href={EXTERNAL_LINKS.github}
           target="_blank"
           rel="noopener noreferrer"
           aria-label={t('githubAriaLabel')}
