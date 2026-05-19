@@ -67,7 +67,10 @@ export interface CancelResponse {
 
 export interface SpawnerConfig {
   port: number;
-  sandboxToken: string;
+  // Optional. When null, spawner accepts unsigned requests (rag/crawler-
+  // parity, internal-trust mode). `tale init` populates this in prod;
+  // `bun dev` typically runs without it.
+  sandboxToken: string | null;
   runtimeImage: string;
   runtime: 'runc' | 'runsc';
   defaultTimeoutMs: number;
