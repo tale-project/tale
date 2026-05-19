@@ -244,6 +244,16 @@ Do NOT call \`artifact_create\` again to "try a different approach" — that cre
         title.length > 0 &&
         isValidArtifactType(type)
       ) {
+        // Close the guard SYNCHRONOUSLY before awaiting the insert. The AI SDK
+        // dispatches deltas without waiting for the prior `onInputDelta` to
+        // return, so if we flipped `rowInitialized = true` only after the
+        // await, a second delta arriving mid-roundtrip would also pass this
+        // check and insert a *second* placeholder row — producing two
+        // duplicate-titled v1 tabs in the artifact bar for one tool call.
+        // Flipping it now guarantees at most one insert per tool call.
+        state.rowInitialized = true;
+        state.lastFlushedTitle = title;
+        state.lastFlushedLanguage = language;
         const inserted = await ctx.runMutation(
           internal.artifacts.internal_mutations.createArtifact,
           {
@@ -264,9 +274,6 @@ Do NOT call \`artifact_create\` again to "try a different approach" — that cre
           },
         );
         state.artifactId = inserted.artifactId;
-        state.rowInitialized = true;
-        state.lastFlushedTitle = title;
-        state.lastFlushedLanguage = language;
         return;
       }
 
