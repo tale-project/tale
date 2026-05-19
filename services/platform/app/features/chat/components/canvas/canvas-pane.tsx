@@ -43,6 +43,12 @@ const CanvasCodeRenderer = lazyComponent(() =>
   })),
 );
 
+const CanvasRunnableCodeRenderer = lazyComponent(() =>
+  import('./canvas-runnable-code-renderer').then((m) => ({
+    default: m.CanvasRunnableCodeRenderer,
+  })),
+);
+
 const CanvasHtmlRenderer = lazyComponent<
   React.ComponentProps<
     typeof import('./canvas-html-renderer').CanvasHtmlRenderer
@@ -140,6 +146,8 @@ const TYPE_ICONS: Record<CanvasContentType, typeof Code> = {
   mermaid: GitBranch,
   svg: Image,
   markdown: FileText,
+  python_runnable: Code,
+  node_runnable: Code,
 };
 
 const TYPE_LABELS: Record<CanvasContentType, string> = {
@@ -148,6 +156,8 @@ const TYPE_LABELS: Record<CanvasContentType, string> = {
   mermaid: 'Mermaid',
   svg: 'SVG',
   markdown: 'Markdown',
+  python_runnable: 'Python (sandbox)',
+  node_runnable: 'Node (sandbox)',
 };
 
 const MIN_WIDTH = 320;
@@ -492,6 +502,8 @@ function CanvasPaneComponent() {
       mermaid: 'mmd',
       svg: 'svg',
       markdown: 'md',
+      python_runnable: 'py',
+      node_runnable: 'js',
     };
     const ext = extensions[canvasType];
     const mimeTypes: Record<CanvasContentType, string> = {
@@ -500,6 +512,8 @@ function CanvasPaneComponent() {
       mermaid: 'text/plain',
       svg: 'image/svg+xml',
       markdown: 'text/markdown',
+      python_runnable: 'text/x-python',
+      node_runnable: 'application/javascript',
     };
     const blob = new Blob([displayedContent], { type: mimeTypes[canvasType] });
     const url = URL.createObjectURL(blob);
@@ -833,6 +847,15 @@ function CanvasPaneComponent() {
             onContentChange={onContentChange}
           />
         )}
+        {!showStreamingSource &&
+          (canvasType === 'python_runnable' ||
+            canvasType === 'node_runnable') && (
+            <CanvasRunnableCodeRenderer
+              artifactId={artifactId}
+              source={displayedContent}
+              language={canvasType === 'python_runnable' ? 'python' : 'node'}
+            />
+          )}
       </div>
     </div>
   );

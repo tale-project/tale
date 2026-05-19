@@ -16,7 +16,12 @@ export type CanvasContentType =
   | 'html'
   | 'mermaid'
   | 'svg'
-  | 'markdown';
+  | 'markdown'
+  // Runnable types — source code that executes in the server sandbox.
+  // The CanvasRunnableCodeRenderer subscribes to the artifact row's
+  // `run*` fields for live progress and final output file display.
+  | 'python_runnable'
+  | 'node_runnable';
 
 interface CanvasState {
   isCanvasOpen: boolean;
