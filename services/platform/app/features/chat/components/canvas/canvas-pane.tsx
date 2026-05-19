@@ -799,16 +799,18 @@ function CanvasPaneComponent() {
           justSettled && 'ring-success/40 ring-2 ring-inset',
         )}
       >
-        {showStreamingSource && (
-          <CanvasCodeRenderer
-            code={sourceCode}
-            language={streamingHighlightLang}
-            isEditing={false}
-            isStreaming={isContentStreaming}
-            highlightPatches={sourcePatches}
-            onContentChange={onContentChange}
-          />
-        )}
+        {showStreamingSource &&
+          canvasType !== 'python_runnable' &&
+          canvasType !== 'node_runnable' && (
+            <CanvasCodeRenderer
+              code={sourceCode}
+              language={streamingHighlightLang}
+              isEditing={false}
+              isStreaming={isContentStreaming}
+              highlightPatches={sourcePatches}
+              onContentChange={onContentChange}
+            />
+          )}
         {!showStreamingSource && canvasType === 'code' && (
           <CanvasCodeRenderer
             code={displayedContent}
@@ -847,15 +849,15 @@ function CanvasPaneComponent() {
             onContentChange={onContentChange}
           />
         )}
-        {!showStreamingSource &&
-          (canvasType === 'python_runnable' ||
-            canvasType === 'node_runnable') && (
-            <CanvasRunnableCodeRenderer
-              artifactId={artifactId}
-              source={displayedContent}
-              language={canvasType === 'python_runnable' ? 'python' : 'node'}
-            />
-          )}
+        {(canvasType === 'python_runnable' ||
+          canvasType === 'node_runnable') && (
+          <CanvasRunnableCodeRenderer
+            artifactId={artifactId}
+            source={showStreamingSource ? sourceCode : displayedContent}
+            language={canvasType === 'python_runnable' ? 'python' : 'node'}
+            isStreaming={isContentStreaming}
+          />
+        )}
       </div>
     </div>
   );
