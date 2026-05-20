@@ -27,7 +27,7 @@ export const TIMESTAMP_HEADER = 'x-tale-sandbox-timestamp';
 // laptops where a few seconds of NTP drift is normal.
 export const TIMESTAMP_TOLERANCE_MS = 60_000;
 
-export function buildSignedString(
+function buildSignedString(
   method: string,
   path: string,
   timestamp: string,
@@ -48,7 +48,7 @@ export function sign(
   return createHmac('sha256', token).update(signedString).digest('hex');
 }
 
-export interface VerifyResult {
+interface VerifyResult {
   ok: boolean;
   reason?:
     | 'missing_signature'
