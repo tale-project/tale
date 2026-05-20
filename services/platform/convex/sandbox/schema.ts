@@ -17,28 +17,37 @@ import {
  *   queued     — inserted atomically inside reserveSlotAndInsert (concurrent
  *                cap + daily CPU budget both checked in the same mutation).
  *   installing — pip / npm install is fetching dependencies; this is a real
- *                phase the spawner emits an SSE event for.
- *   running    — flipped after the spawner HTTP call begins; heartbeatAt
- *                refreshed every 60s by the Convex action so the watchdog
- *                can distinguish "Convex hard-killed the action" from
- *                "still working".
+ *                phase the spawner emits an SSE event for. The audit row
+ *                stays in `installing` for the entire spawner round-trip;
+ *                the artifact row mirrors a finer `installing → running`
+ *                progression for the canvas UI, but the audit row only
+ *                tracks the coarse `installing → terminal` transition.
  *   completed  — exitCode === 0 and the file harvest succeeded.
  *   failed     — any non-success outcome; `errorCode` carries the cause.
  *   cancelled  — client aborted via /v1/cancel or LLM-side abort signal.
  *
+ * The schema validator still accepts `running` as a historical literal so
+ * legacy rows from earlier deploys read cleanly; new writes never use it.
+ *
  * The watchdog (see `internal_mutations.ts:recoverStuckSandboxes`) sweeps
- * BOTH `queued` and `running` rows past `SANDBOX_WATCHDOG_CUTOFF_MS` so a
- * throw between `reserveSlotAndInsert` and `setRunning` cannot leak a
- * quota slot forever.
+ * `queued`, `installing`, AND any legacy `running` rows past
+ * `SANDBOX_WATCHDOG_CUTOFF_MS` so a throw between `reserveSlotAndInsert`
+ * and any subsequent patch cannot leak a quota slot forever. When the
+ * watchdog reaps a row that's bound to a runnable artifact (artifactId
+ * non-null), it cascades the failure to the artifact row so the canvas
+ * spinner terminates immediately.
  *
  * Indexes:
  *   by_organizationId_and_status — quota counting (reserveSlot scan)
  *   by_organizationId            — daily CPU-budget sum + per-org history
+ *                                  + opportunistic 90-day GC sweep
  *   by_status                    — watchdog sweep across all orgs
+ *   by_artifactId                — watchdog cascade lookup
  *
  * This is an audit table; user-facing soft-delete / trash UI is intentionally
- * NOT wired up for v1 (audit retention is handled by the watchdog cron's
- * TTL pass, not a user-deletable lifecycle).
+ * NOT wired up. Retention is 90 days; cleanup runs opportunistically
+ * inside `reserveSlotAndInsert` via the `cleanup:sandbox` rate limiter
+ * (1/hour/org), not via a `crons.ts` entry.
  */
 export const sandboxExecutionsTable = defineTable({
   organizationId: v.string(),
