@@ -280,6 +280,7 @@ export const executeCode = internalAction({
             toolCallId: args.toolCallId,
           }),
           ...(args.agentSlug !== undefined && { agentSlug: args.agentSlug }),
+          ...(args.artifactId !== undefined && { artifactId: args.artifactId }),
           language: args.language,
           purpose: args.purpose,
           codePreview,

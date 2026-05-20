@@ -47,6 +47,12 @@ export const sandboxExecutionsTable = defineTable({
   toolCallId: v.optional(v.string()),
   uploadedBy: v.string(),
   agentSlug: v.optional(v.string()),
+  // Back-link to the runnable artifact this execution belongs to. Optional
+  // because not every sandbox execution is artifact-bound (future free-form
+  // sandbox callers would leave this unset). Watchdog uses this to cascade
+  // failure to the artifact row when it reaps a stuck execution — otherwise
+  // the canvas spinner stays spinning until the audit row is GC'd.
+  artifactId: v.optional(v.id('artifacts')),
 
   language: sandboxLanguageValidator,
   purpose: v.optional(v.string()),
@@ -96,7 +102,8 @@ export const sandboxExecutionsTable = defineTable({
 })
   .index('by_organizationId_and_status', ['organizationId', 'status'])
   .index('by_organizationId', ['organizationId'])
-  .index('by_status', ['status']);
+  .index('by_status', ['status'])
+  .index('by_artifactId', ['artifactId']);
 
 export const SANDBOX_MAX_CONCURRENT_PER_ORG = 4;
 export const SANDBOX_DAILY_CPU_BUDGET_SECONDS = 1800;

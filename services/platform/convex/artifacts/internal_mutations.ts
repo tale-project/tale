@@ -1,6 +1,7 @@
-import { ConvexError, v } from 'convex/values';
+import { type Infer, ConvexError, v } from 'convex/values';
 
-import { internalMutation } from '../_generated/server';
+import type { Id } from '../_generated/dataModel';
+import { internalMutation, type MutationCtx } from '../_generated/server';
 import { applyPatches } from '../agent_tools/artifacts/apply_patches';
 import {
   sandboxRunProgressValidator,
@@ -14,6 +15,9 @@ import {
   artifactTypeValidator,
   liveStreamModeValidator,
 } from './schema';
+
+type ArtifactRunErrorCode = Infer<typeof artifactRunErrorCodeValidator>;
+type ArtifactRunOutputFile = Infer<typeof artifactRunOutputFileValidator>;
 
 const STALE_STREAM_THRESHOLD_MS = 60_000;
 /**
@@ -494,6 +498,21 @@ export const initArtifactRun = internalMutation({
       // silently so an out-of-band call can't corrupt a static artifact.
       return null;
     }
+    // Refuse to reset a run that's still in flight. Two parallel artifact_run
+    // tool calls on the same artifact would otherwise both reset the row to
+    // 'queued', drop each other's progress events, and leak a sandbox slot.
+    // The artifact_run tool catches this and returns a structured failure so
+    // the LLM gets a clear "wait for the current run to finish" signal.
+    if (
+      row.runStatus === 'queued' ||
+      row.runStatus === 'installing' ||
+      row.runStatus === 'running'
+    ) {
+      throw new ConvexError({
+        code: 'RUN_IN_FLIGHT',
+        message: `artifact ${args.artifactId} already has a run in flight (status: ${row.runStatus}); wait for it to settle before starting another.`,
+      });
+    }
     await ctx.db.patch(args.artifactId, {
       runStatus: 'queued',
       runProgress: { kind: 'queued' },
@@ -552,6 +571,81 @@ export const patchArtifactRunProgress = internalMutation({
   },
 });
 
+/**
+ * Shared finalize logic so mutations that can't call into other mutations
+ * directly (Convex disallows nested `runMutation` inside a mutation) can
+ * still terminate an artifact row from the same transaction — e.g. the
+ * sandbox watchdog cascading failure when it reaps a stuck execution.
+ */
+export async function applyFinalizeArtifactRun(
+  ctx: MutationCtx,
+  args: {
+    artifactId: Id<'artifacts'>;
+    runStatus: 'completed' | 'failed' | 'cancelled';
+    runExitCode?: number;
+    runErrorCode?: ArtifactRunErrorCode;
+    runErrorMessage?: string;
+    runStdoutPreview?: string;
+    runStderrPreview?: string;
+    runStdoutStorageId?: Id<'_storage'>;
+    runStderrStorageId?: Id<'_storage'>;
+    runOutputFiles: ArtifactRunOutputFile[];
+    // Optional because a tool-side catch path may fire before
+    // reserveSlotAndInsert ever returned an executionId (e.g. QUOTA_EXCEEDED
+    // pre-insert). In that case we leave the artifact row's existing
+    // runExecutionId untouched.
+    runExecutionId?: Id<'sandboxExecutions'>;
+  },
+): Promise<void> {
+  const row = await ctx.db.get(args.artifactId);
+  if (!row) return;
+  if (row.type !== 'python_runnable' && row.type !== 'node_runnable') {
+    return;
+  }
+  // Monotonic guard mirrors `sandbox.finalize`: a late infra-failure path
+  // calling finalizeArtifactRun must not clobber a watchdog-written
+  // failed/cancelled state. The race window here is the same one
+  // failExecution's per-run rollback is designed to close — when both
+  // hit, the first writer wins.
+  if (
+    row.runStatus !== undefined &&
+    sandboxTerminalStatuses.has(row.runStatus)
+  ) {
+    console.warn(
+      `[finalizeArtifactRun] no-op: artifact ${args.artifactId} already terminal as ${row.runStatus}; dropping incoming ${args.runStatus}`,
+    );
+    return;
+  }
+  await ctx.db.patch(args.artifactId, {
+    runStatus: args.runStatus,
+    runProgress: undefined,
+    runCompletedAt: Date.now(),
+    ...(args.runExitCode !== undefined && { runExitCode: args.runExitCode }),
+    ...(args.runErrorCode !== undefined && {
+      runErrorCode: args.runErrorCode,
+    }),
+    ...(args.runErrorMessage !== undefined && {
+      runErrorMessage: args.runErrorMessage,
+    }),
+    ...(args.runStdoutPreview !== undefined && {
+      runStdoutPreview: args.runStdoutPreview,
+    }),
+    ...(args.runStderrPreview !== undefined && {
+      runStderrPreview: args.runStderrPreview,
+    }),
+    ...(args.runStdoutStorageId !== undefined && {
+      runStdoutStorageId: args.runStdoutStorageId,
+    }),
+    ...(args.runStderrStorageId !== undefined && {
+      runStderrStorageId: args.runStderrStorageId,
+    }),
+    runOutputFiles: args.runOutputFiles,
+    ...(args.runExecutionId !== undefined && {
+      runExecutionId: args.runExecutionId,
+    }),
+  });
+}
+
 export const finalizeArtifactRun = internalMutation({
   args: {
     artifactId: v.id('artifacts'),
@@ -568,55 +662,11 @@ export const finalizeArtifactRun = internalMutation({
     runStdoutStorageId: v.optional(v.id('_storage')),
     runStderrStorageId: v.optional(v.id('_storage')),
     runOutputFiles: v.array(artifactRunOutputFileValidator),
-    runExecutionId: v.id('sandboxExecutions'),
+    runExecutionId: v.optional(v.id('sandboxExecutions')),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const row = await ctx.db.get(args.artifactId);
-    if (!row) return null;
-    if (row.type !== 'python_runnable' && row.type !== 'node_runnable') {
-      return null;
-    }
-    // Monotonic guard mirrors `sandbox.finalize`: a late infra-failure path
-    // calling finalizeArtifactRun must not clobber a watchdog-written
-    // failed/cancelled state. The race window here is the same one
-    // failExecution's per-run rollback is designed to close — when both
-    // hit, the first writer wins.
-    if (
-      row.runStatus !== undefined &&
-      sandboxTerminalStatuses.has(row.runStatus)
-    ) {
-      console.warn(
-        `[finalizeArtifactRun] no-op: artifact ${args.artifactId} already terminal as ${row.runStatus}; dropping incoming ${args.runStatus}`,
-      );
-      return null;
-    }
-    await ctx.db.patch(args.artifactId, {
-      runStatus: args.runStatus,
-      runProgress: undefined,
-      runCompletedAt: Date.now(),
-      ...(args.runExitCode !== undefined && { runExitCode: args.runExitCode }),
-      ...(args.runErrorCode !== undefined && {
-        runErrorCode: args.runErrorCode,
-      }),
-      ...(args.runErrorMessage !== undefined && {
-        runErrorMessage: args.runErrorMessage,
-      }),
-      ...(args.runStdoutPreview !== undefined && {
-        runStdoutPreview: args.runStdoutPreview,
-      }),
-      ...(args.runStderrPreview !== undefined && {
-        runStderrPreview: args.runStderrPreview,
-      }),
-      ...(args.runStdoutStorageId !== undefined && {
-        runStdoutStorageId: args.runStdoutStorageId,
-      }),
-      ...(args.runStderrStorageId !== undefined && {
-        runStderrStorageId: args.runStderrStorageId,
-      }),
-      runOutputFiles: args.runOutputFiles,
-      runExecutionId: args.runExecutionId,
-    });
+    await applyFinalizeArtifactRun(ctx, args);
     return null;
   },
 });

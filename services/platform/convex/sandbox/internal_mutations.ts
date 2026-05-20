@@ -1,6 +1,7 @@
 import { ConvexError, v } from 'convex/values';
 
 import { internalMutation } from '../_generated/server';
+import { applyFinalizeArtifactRun } from '../artifacts/internal_mutations';
 import {
   SANDBOX_DAILY_CPU_BUDGET_SECONDS,
   SANDBOX_MAX_CONCURRENT_PER_ORG,
@@ -37,6 +38,7 @@ export const reserveSlotAndInsert = internalMutation({
     messageId: v.optional(v.string()),
     toolCallId: v.optional(v.string()),
     agentSlug: v.optional(v.string()),
+    artifactId: v.optional(v.id('artifacts')),
     language: sandboxLanguageValidator,
     purpose: v.optional(v.string()),
     codePreview: v.string(),
@@ -111,6 +113,7 @@ export const reserveSlotAndInsert = internalMutation({
       ...(args.messageId !== undefined && { messageId: args.messageId }),
       ...(args.toolCallId !== undefined && { toolCallId: args.toolCallId }),
       ...(args.agentSlug !== undefined && { agentSlug: args.agentSlug }),
+      ...(args.artifactId !== undefined && { artifactId: args.artifactId }),
       language: args.language,
       ...(args.purpose !== undefined && { purpose: args.purpose }),
       codePreview: args.codePreview,
@@ -276,6 +279,19 @@ export const recoverStuckSandboxes = internalMutation({
           errorMessage: `Watchdog reaped a stuck ${status} row`,
           actualSeconds: row.estimatedSeconds,
         });
+        // Cascade to the artifact row if this execution was bound to one,
+        // so the canvas spinner terminates as soon as the watchdog runs
+        // (otherwise the runnable card spins until the audit row TTLs out).
+        if (row.artifactId) {
+          await applyFinalizeArtifactRun(ctx, {
+            artifactId: row.artifactId,
+            runStatus: 'failed',
+            runErrorCode: 'SPAWNER_UNAVAILABLE',
+            runErrorMessage: `Watchdog reaped a stuck ${status} sandbox execution`,
+            runOutputFiles: [],
+            runExecutionId: row._id,
+          });
+        }
         recovered += 1;
       }
     }
