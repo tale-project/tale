@@ -243,6 +243,25 @@ USE THIS TOOL after \`artifact_create\` (to actually run a newly authored script
       const effectiveAllowInstallScripts =
         args.allowInstallScripts ?? artifact.runOptions?.allowInstallScripts;
 
+      // Resolve the agentSlug attribution from threadMetadata. The audit
+      // row records this so per-agent usage / model-cost analytics
+      // (project_usage_analytics) can attribute sandbox spend correctly.
+      // Best-effort: if the lookup fails or the metadata row is missing,
+      // we just skip the field — sandbox execution is not blocked.
+      const threadMeta = await ctx
+        .runQuery(internal.threads.internal_queries.getThreadMetadata, {
+          threadId,
+          callerOrgId: organizationId,
+        })
+        .catch((err) => {
+          console.warn(
+            '[artifact_run_tool] threadMetadata lookup failed:',
+            err,
+          );
+          return null;
+        });
+      const agentSlug = threadMeta?.agentSlug;
+
       let raw: unknown;
       try {
         raw = await ctx.runAction(
@@ -251,9 +270,9 @@ USE THIS TOOL after \`artifact_create\` (to actually run a newly authored script
             organizationId,
             uploadedBy: userId,
             threadId,
-            accessibleThreadIds: [threadId],
             ...(messageId !== undefined && { messageId }),
             ...(options.toolCallId && { toolCallId: options.toolCallId }),
+            ...(agentSlug !== undefined && { agentSlug }),
             language,
             code: artifact.content,
             ...(effectivePackages.length > 0 && {

@@ -203,7 +203,6 @@ export const executeCode = internalAction({
     organizationId: v.string(),
     uploadedBy: v.string(),
     threadId: v.optional(v.string()),
-    accessibleThreadIds: v.array(v.string()),
     messageId: v.optional(v.string()),
     toolCallId: v.optional(v.string()),
     agentSlug: v.optional(v.string()),
