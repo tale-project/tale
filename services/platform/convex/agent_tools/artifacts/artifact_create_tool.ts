@@ -394,6 +394,32 @@ Do NOT call \`artifact_create\` again to "try a different approach" — that cre
           revision: 1,
           message: `Created artifact "${args.title}" (${args.type}, ${args.content.length} chars).`,
         };
+      } catch (err) {
+        // If anything threw between the placeholder insert and a successful
+        // settle (mutation failure, OCC conflict, content-too-large, ...),
+        // the placeholder row is still flagged as streaming. Clear those
+        // flags now so the canvas spinner stops immediately instead of
+        // waiting for cleanupStaleStreams to sweep the row 60s later.
+        const placeholderId =
+          state?.artifactId !== undefined ? state.artifactId : undefined;
+        if (placeholderId !== undefined) {
+          try {
+            await ctx.runMutation(
+              internal.artifacts.internal_mutations.abortStream,
+              { artifactId: placeholderId },
+            );
+          } catch (abortErr) {
+            console.warn(
+              '[artifact_create_tool] abortStream after execute throw failed:',
+              abortErr,
+            );
+          }
+        }
+        const message = err instanceof Error ? err.message : String(err);
+        return {
+          success: false,
+          message: `artifact_create failed: ${message}`,
+        };
       } finally {
         clearState(options.toolCallId);
       }

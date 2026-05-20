@@ -97,6 +97,13 @@ interface ArtifactEditFailure {
   success: false;
   message: string;
   failedIndex?: number;
+  // OCC conflict signaling: when another writer landed between the LLM's
+  // read and this call, the underlying mutation returns stale=true with
+  // the row's current revision. Surfacing both lets the LLM re-read the
+  // artifact and retry with the right baseline instead of looping on
+  // "patch didn't match" with the same stale search snippet.
+  stale?: boolean;
+  currentRevision?: number;
 }
 
 type ArtifactEditResult = ArtifactEditSuccess | ArtifactEditFailure;
@@ -324,6 +331,10 @@ This tool patches the source but does **NOT** automatically re-execute. After a 
                 ? result.error
                 : `Patch ${result.failedIndex + 1} failed: ${result.error}`,
               failedIndex: result.failedIndex,
+              ...(result.stale !== undefined && { stale: result.stale }),
+              ...(result.currentRevision !== undefined && {
+                currentRevision: result.currentRevision,
+              }),
             };
           }
           const baseMessage = isRunnableArtifactType(artifact.type)
@@ -353,7 +364,12 @@ This tool patches the source but does **NOT** automatically re-execute. After a 
             internal.artifacts.internal_mutations.abortStream,
             { artifactId },
           );
-          return { success: false, message: result.error };
+          return {
+            success: false,
+            message: result.error,
+            stale: result.stale,
+            currentRevision: result.currentRevision,
+          };
         }
         const baseMessage = isRunnableArtifactType(artifact.type)
           ? `Rewrote "${artifact.title}". New revision: ${result.revision}. Call \`artifact_run\` with this artifactId to execute the rewritten script.`
