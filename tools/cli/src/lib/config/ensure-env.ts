@@ -515,7 +515,7 @@ function generateEnvContent(config: EnvConfig): string {
     '# SOPS_AGE_KEY_FILE=',
     '',
     '# ============================================================================',
-    '# Sandbox (code_run) Configuration',
+    '# Sandbox (artifact_run) Configuration',
     '# ============================================================================',
     '# Shared HMAC secret. Convex signs every request to the sandbox spawner',
     '# with this; the spawner rejects unsigned/wrong-signed requests. Rotate',

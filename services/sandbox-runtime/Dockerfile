@@ -1,6 +1,6 @@
 # Tale Sandbox Runtime
 #
-# Executed inside an ephemeral container per `code_run` tool call.
+# Executed inside an ephemeral container per `artifact_run` tool call.
 # See /home/larry/.claude/plans/presentation-generation-from-prompts-delightful-aho.md §3
 #
 # Layers: python:3.12-slim-bookworm + uv + Node 24 + fontconfig (for Pillow).
@@ -36,7 +36,7 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV NPM_CONFIG_UPDATE_NOTIFIER=false
 
-COPY entrypoint.sh /entrypoint.sh
+COPY services/sandbox-runtime/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Default user is nobody; spawner pins --user 65534:65534 to make this

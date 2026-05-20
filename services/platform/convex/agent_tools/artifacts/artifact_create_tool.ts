@@ -76,15 +76,9 @@ const artifactCreateArgs = z.object({
     .describe(
       'node_runnable only. Defaults false — preinstall/postinstall scripts are skipped. Set true if a package needs them (e.g. canvas).',
     ),
-  timeoutMs: z
-    .number()
-    .int()
-    .min(1_000)
-    .max(300_000)
-    .optional()
-    .describe(
-      'Runnable types only. Wall-clock cap including package install. Default 30000, max 300000.',
-    ),
+  // (No timeoutMs field at create time — `artifact_run` accepts a per-call
+  // `timeoutMs` instead. The artifacts schema has no `runTimeoutMs` column,
+  // so a create-time value would be silently dropped.)
 });
 
 type ArtifactCreateInput = z.infer<typeof artifactCreateArgs>;
@@ -102,27 +96,6 @@ interface ArtifactCreateFailure {
 }
 
 type ArtifactCreateResult = ArtifactCreateSuccess | ArtifactCreateFailure;
-
-// Legacy types from the unified create-runs-it flow (Refinement 3). Kept
-// exported in case any caller imports them; the runnable branch in
-// `execute` no longer constructs them — execution moved to `artifact_run`.
-export interface ArtifactCreateRunOutcome {
-  runStatus: 'completed' | 'failed' | 'cancelled';
-  runExitCode: number | null;
-  runErrorCode?: string;
-  runErrorMessage?: string;
-  runStdoutPreview: string;
-  runStderrPreview: string;
-  durationMs: number;
-  files: Array<{
-    name: string;
-    storageId: string;
-    fileMetadataId: string;
-    size: number;
-    contentType: string;
-  }>;
-  executionId: string;
-}
 
 export const artifactCreateTool = {
   name: 'artifact_create' as const,
@@ -177,11 +150,11 @@ Therefore: features that require **runtime intelligence** — translating user i
 
 **Do NOT fake AI features with hardcoded lookup tables or random output.** A "translation tool" backed by 30 baked-in phrases, a "feedback engine" backed by canned responses, a "personalised recommendation" picked at random — these produce hollow, demo-shaped pages that feel impressive at a glance and fall apart on first real use. If the user asks for something that genuinely needs intelligence, prefer to deliver it in chat rather than build a plausible-looking shell.
 
-\`localStorage\` and \`sessionStorage\` are available, but **in-memory and per-iframe-load only** — anything saved is lost the next time the artifact is rendered. Do not show "saved" / "remembered" / "记忆已保存" UI copy that implies persistence across sessions; treat storage as transient working memory, not durable state.
+\`localStorage\` and \`sessionStorage\` are available, but **in-memory and per-iframe-load only** — anything saved is lost the next time the artifact is rendered. Do not show "saved" / "remembered" UI copy in any language that implies persistence across sessions; treat storage as transient working memory, not durable state.
 
 **RUNNABLE TYPES** (\`python_runnable\` / \`node_runnable\`):
 
-The \`content\` you emit is the script source. This tool **only writes the source** — it does **NOT** automatically execute. You must follow up with the \`artifact_run\` tool to actually run the script and produce output files. The \`packages\`, \`allowSdist\`, \`allowInstallScripts\`, and \`timeoutMs\` you pass here are persisted on the artifact row so subsequent \`artifact_run\` calls reuse them automatically. Write deliverable files (\`.pptx\`, \`.pdf\`, \`.xlsx\`, images, etc.) to \`/workspace/output/\` — only that directory's contents are returned.
+The \`content\` you emit is the script source. This tool **only writes the source** — it does **NOT** automatically execute. You must follow up with the \`artifact_run\` tool to actually run the script and produce output files. The \`packages\`, \`allowSdist\`, and \`allowInstallScripts\` you pass here are persisted on the artifact row so subsequent \`artifact_run\` calls reuse them automatically; the per-call \`timeoutMs\` is supplied at \`artifact_run\` time, not here. Write deliverable files (\`.pptx\`, \`.pdf\`, \`.xlsx\`, images, etc.) to \`/workspace/output/\` — only that directory's contents are returned.
 
 Typical sequence for a runnable artifact:
 1. \`artifact_create\` (this tool) — writes the source. Returns \`artifactId\`.

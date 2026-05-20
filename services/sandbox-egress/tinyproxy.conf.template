@@ -9,7 +9,9 @@ Port 3128
 Listen 0.0.0.0
 Timeout 600
 DefaultErrorFile "/usr/share/tinyproxy/default.html"
-LogLevel Info
+# Notice (not Info) — Info logs full request lines including query strings,
+# which can leak tokens/secrets a sandboxed user pastes into a URL.
+LogLevel Notice
 LogFile "/var/log/tinyproxy/tinyproxy.log"
 PidFile "/tmp/tinyproxy.pid"
 MaxClients 100
@@ -27,5 +29,30 @@ FilterExtended Yes
 FilterURLs Off
 Filter "/etc/tinyproxy/allowlist"
 
-# Disable upstream chaining and X-Tinyproxy header to reduce surface.
-DisableViaHeader No
+# Client allow-list (network-layer): only loopback (healthcheck) and the
+# Docker user-network CIDRs that the sandbox runtime containers attach to.
+# 172.16.0.0/12 covers the default Docker bridge-driver range; if the
+# operator configures a tighter sandbox subnet they can override the
+# allowlist via SANDBOX_EGRESS_CLIENT_CIDR. ::1 covers IPv6 loopback for
+# the healthcheck on dual-stack hosts.
+Allow 127.0.0.1
+Allow ::1
+Allow 172.16.0.0/12
+
+# Strip outbound headers that would either leak client provenance or
+# advertise the presence of a proxy. DisableViaHeader replaces the default
+# `No` (which emitted `Via: 1.1 tale-sandbox-egress`); AnonymousHeader is
+# an allowlist — only headers listed here pass through to upstream.
+DisableViaHeader Yes
+AnonymousHeader "Host"
+AnonymousHeader "Authorization"
+AnonymousHeader "Content-Type"
+AnonymousHeader "Content-Length"
+AnonymousHeader "User-Agent"
+AnonymousHeader "Accept"
+AnonymousHeader "Accept-Encoding"
+AnonymousHeader "Accept-Language"
+AnonymousHeader "Connection"
+AnonymousHeader "Proxy-Connection"
+# Explicitly excluded by virtue of not being listed above:
+#   X-Forwarded-For, Forwarded, Via, From, X-Real-IP

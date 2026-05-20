@@ -1,7 +1,14 @@
 // HTTP request / response shapes for the sandbox spawner.
-// Mirrors the Convex action's `executeCode` and the `code_run` tool output.
+// Mirrors the Convex action's `executeCode` and the agent's `artifact_run`.
+//
+// Wire-protocol enums live in `./wire.ts` (single source of truth); this
+// file imports them as type aliases so existing call sites in spawn.ts,
+// server.ts, docker-args.ts, etc. keep working unchanged.
 
-export type Language = 'python' | 'node';
+import type { SandboxErrorCode, SandboxLanguage } from './wire.ts';
+
+export type Language = SandboxLanguage;
+export type ErrorCode = SandboxErrorCode;
 
 export interface InputFileBase64 {
   name: string;
@@ -10,7 +17,7 @@ export interface InputFileBase64 {
 
 export interface ExecuteRequest {
   // Stable id from the Convex action; used for container name + label and
-  // for /v1/cancel/:uuid. Caller must supply this so cancellation has
+  // for /v1/cancel/:id. Caller must supply this so cancellation has
   // something to address before the spawner has finished spinning up.
   executionId: string;
   organizationId: string;
@@ -25,18 +32,9 @@ export interface ExecuteRequest {
   };
 }
 
-export type ErrorCode =
-  | 'TIMEOUT'
-  | 'OOM'
-  | 'EGRESS_DENIED'
-  | 'INSTALL_FAILED'
-  | 'PACKAGE_NOT_FOUND'
-  | 'QUOTA_EXCEEDED'
-  | 'RUNTIME_ERROR'
-  | 'SPAWNER_UNAVAILABLE'
-  | 'CANCELLED';
-
 export interface OutputFile {
+  // Wire-format shape: bytes inline (base64). The Convex side uploads these
+  // to `_storage` and persists a separate validator with `fileMetadataId`.
   name: string;
   contentBase64: string;
   size: number;
@@ -51,6 +49,10 @@ export interface ExecuteResponse {
   stdoutBase64: string;
   stderrBase64: string;
   durationMs: number;
+  // Per-phase timing kept for back-compat with existing platform-side type
+  // shape (`spawner_client.ts:SpawnerExecuteResponse`). Currently always
+  // null — the spawner's `classifyPhases` helper is a stub. Removed in a
+  // follow-up commit alongside spawner_client + spawn.ts cleanup.
   installMs: number | null;
   runMs: number | null;
   truncated: {
@@ -63,10 +65,12 @@ export interface ExecuteResponse {
 
 export interface SpawnerConfig {
   port: number;
-  // Optional. When null, spawner accepts unsigned requests (rag/crawler-
-  // parity, internal-trust mode). `tale init` populates this in prod;
-  // `bun dev` typically runs without it.
+  // Optional. When null AND `allowUnauth` is false the spawner refuses to
+  // start; loaded via `loadConfig()` so the policy is decided once at boot.
   sandboxToken: string | null;
+  // Explicit opt-in for development / rag-crawler parity flow (`bun dev`).
+  // Defaults to false; loadConfig sets it from SANDBOX_ALLOW_UNAUTH.
+  allowUnauth: boolean;
   runtimeImage: string;
   runtime: 'runc' | 'runsc';
   defaultTimeoutMs: number;
@@ -80,4 +84,7 @@ export interface SpawnerConfig {
   stderrMaxBytes: number;
   outputFileMaxBytes: number;
   outputTotalMaxBytes: number;
+  // Maximum request body size (bytes) for /v1/execute. Defaults to 256 KB
+  // to bound the unsigned-mode OOM surface (audit finding).
+  maxRequestBodyBytes: number;
 }

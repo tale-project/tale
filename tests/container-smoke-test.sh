@@ -127,7 +127,7 @@ if [ "${SKIP_BUILD:-false}" != "true" ]; then
     printf "  ${BOLD}%-15s %-45s %10s${NC}\n" "SERVICE" "IMAGE" "SIZE"
     echo "  ─────────────────────────────────────────────────────────────────────"
     TOTAL_SIZE_MB=0
-    for svc in db convex crawler rag platform proxy; do
+    for svc in db convex crawler rag platform proxy sandbox sandbox-egress; do
         # Get the image name from compose config. Use anchored grep so we
         # don't match service names that *contain* the target (e.g. "db"
         # would otherwise match "tale-san**db**ox-egress").
@@ -239,7 +239,7 @@ wait_for_healthy() {
     done
 }
 
-SERVICES=(db convex crawler rag platform proxy)
+SERVICES=(db convex crawler rag platform proxy sandbox sandbox-egress)
 HEALTH_FAILED=0
 
 for svc in "${SERVICES[@]}"; do
@@ -368,6 +368,59 @@ else
         pass "RAG → DB connectivity"
     else
         fail "RAG → DB connectivity"
+    fi
+fi
+
+# =============================================================================
+# 6. Sandbox /v1/execute end-to-end probe
+# =============================================================================
+# Submits a 1-line python program signed with the test SANDBOX_TOKEN and
+# asserts the SSE stream emits an `event: result` payload with status
+# "completed". The spawner pulls tale-sandbox-runtime at boot; we don't
+# probe the runtime image directly here — if the spawner is healthy and
+# the boot pull succeeded, /v1/execute will exercise it.
+header "Sandbox /v1/execute end-to-end"
+
+# Pull SANDBOX_TOKEN from .env.test rather than re-defining it, so any local
+# rotation only has to happen in one place.
+SANDBOX_TOKEN_VAL=$(grep -E '^SANDBOX_TOKEN=' "${PROJECT_ROOT}/.env.test" | head -1 | cut -d= -f2-)
+if [ -z "${SANDBOX_TOKEN_VAL}" ]; then
+    fail "Sandbox e2e: SANDBOX_TOKEN missing from .env.test"
+else
+    SANDBOX_BODY='{"executionId":"smoke","organizationId":"smoke","language":"python","code":"print(1)","timeoutMs":30000}'
+    # HMAC-SHA256(body) using the token; openssl is in the base ubuntu-latest
+    # image and on every dev box we support.
+    SANDBOX_SIG=$(printf '%s' "${SANDBOX_BODY}" \
+        | openssl dgst -sha256 -hmac "${SANDBOX_TOKEN_VAL}" -r 2>/dev/null \
+        | awk '{print $1}')
+    if [ -z "${SANDBOX_SIG}" ]; then
+        fail "Sandbox e2e: failed to compute HMAC signature"
+    else
+        SANDBOX_OUT=$(mktemp)
+        # The endpoint streams SSE; --max-time bounds the probe. A 1-line
+        # python program completes in under 5s once the runtime image is
+        # warm, but allow 60s to absorb cold-image pulls on a fresh runner.
+        SANDBOX_HTTP=$(curl -sS \
+            -o "${SANDBOX_OUT}" \
+            -w "%{http_code}" \
+            --max-time 60 \
+            -X POST \
+            -H "content-type: application/json" \
+            -H "x-tale-sandbox-signature: ${SANDBOX_SIG}" \
+            --data-binary "${SANDBOX_BODY}" \
+            "http://localhost:8003/v1/execute" 2>/dev/null || echo "000")
+
+        if [ "${SANDBOX_HTTP}" = "200" ] \
+           && grep -q '^event: result' "${SANDBOX_OUT}" \
+           && grep -q '"status":"completed"' "${SANDBOX_OUT}"; then
+            pass "Sandbox /v1/execute: completed result"
+        else
+            echo -e "  ${YELLOW}sandbox response (HTTP ${SANDBOX_HTTP}):${NC}"
+            head -c 4000 "${SANDBOX_OUT}" | sed 's/^/    /' || echo "    (empty body)"
+            echo ""
+            fail "Sandbox /v1/execute: expected HTTP 200 + completed result"
+        fi
+        rm -f "${SANDBOX_OUT}"
     fi
 fi
 

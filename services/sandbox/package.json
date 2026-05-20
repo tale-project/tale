@@ -1,12 +1,16 @@
 {
-  "name": "@tale/sandbox-spawner",
+  "name": "@tale/sandbox",
   "version": "0.1.0",
   "private": true,
-  "description": "Tale sandbox spawner — thin stateless docker-run service for code_run",
+  "description": "Tale sandbox spawner — thin stateless docker-run service for artifact_run",
   "type": "module",
   "scripts": {
     "dev": "bun --hot src/server.ts",
     "start": "bun src/server.ts",
+    "lint": "bunx oxlint --type-aware",
+    "lint:fix": "bunx oxlint --type-aware --fix",
+    "format": "bunx oxfmt",
+    "format:check": "bunx oxfmt --check",
     "typecheck": "tsc --noEmit",
     "test": "bun test"
   },

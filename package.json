@@ -17,6 +17,7 @@
     "services/rag",
     "services/db",
     "services/proxy",
+    "services/sandbox",
     "tools/cli",
     "tools/plop"
   ],

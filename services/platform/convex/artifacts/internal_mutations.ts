@@ -3,6 +3,10 @@ import { ConvexError, v } from 'convex/values';
 import { internalMutation } from '../_generated/server';
 import { applyPatches } from '../agent_tools/artifacts/apply_patches';
 import {
+  sandboxRunProgressValidator,
+  sandboxTerminalStatuses,
+} from '../sandbox/wire';
+import {
   artifactPatchValidator,
   artifactRunErrorCodeValidator,
   artifactRunOutputFileValidator,
@@ -469,16 +473,17 @@ export const setArtifactRunConfig = internalMutation({
   },
 });
 
+/**
+ * Reset the artifact's per-execution state to "queued" before kicking off
+ * a new run. Does NOT touch `runPackages` / `runOptions` — those are
+ * create-time defaults stored on the row by `setArtifactRunConfig`; the
+ * agent's per-call `artifact_run` override is applied transiently to the
+ * spawner request, not persisted. This keeps the documented contract
+ * ("one-off overrides for THIS run only") matching the actual behavior.
+ */
 export const initArtifactRun = internalMutation({
   args: {
     artifactId: v.id('artifacts'),
-    runPackages: v.array(v.string()),
-    runOptions: v.optional(
-      v.object({
-        allowSdist: v.optional(v.boolean()),
-        allowInstallScripts: v.optional(v.boolean()),
-      }),
-    ),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -490,10 +495,8 @@ export const initArtifactRun = internalMutation({
       return null;
     }
     await ctx.db.patch(args.artifactId, {
-      runPackages: args.runPackages,
-      ...(args.runOptions !== undefined && { runOptions: args.runOptions }),
       runStatus: 'queued',
-      runProgress: 'Queued',
+      runProgress: { kind: 'queued' },
       runStartedAt: Date.now(),
       // Clear any stale fields from a prior run of the same artifact (the
       // edit flow re-uses the row for subsequent executions).
@@ -516,7 +519,7 @@ export const patchArtifactRunProgress = internalMutation({
   args: {
     artifactId: v.id('artifacts'),
     runStatus: v.optional(artifactRunStatusValidator),
-    runProgress: v.optional(v.string()),
+    runProgress: v.optional(sandboxRunProgressValidator),
     runExecutionId: v.optional(v.id('sandboxExecutions')),
   },
   returns: v.null(),
@@ -524,6 +527,17 @@ export const patchArtifactRunProgress = internalMutation({
     const row = await ctx.db.get(args.artifactId);
     if (!row) return null;
     if (row.type !== 'python_runnable' && row.type !== 'node_runnable') {
+      return null;
+    }
+    // Refuse to rewind a terminal artifact: a late phase event arriving
+    // after finalizeArtifactRun must not flip the canvas back to running.
+    if (
+      row.runStatus !== undefined &&
+      sandboxTerminalStatuses.has(row.runStatus)
+    ) {
+      console.warn(
+        `[patchArtifactRunProgress] no-op: artifact ${args.artifactId} already terminal as ${row.runStatus}`,
+      );
       return null;
     }
     const patch: Record<string, unknown> = {};
@@ -561,6 +575,20 @@ export const finalizeArtifactRun = internalMutation({
     const row = await ctx.db.get(args.artifactId);
     if (!row) return null;
     if (row.type !== 'python_runnable' && row.type !== 'node_runnable') {
+      return null;
+    }
+    // Monotonic guard mirrors `sandbox.finalize`: a late infra-failure path
+    // calling finalizeArtifactRun must not clobber a watchdog-written
+    // failed/cancelled state. The race window here is the same one
+    // failExecution's per-run rollback is designed to close — when both
+    // hit, the first writer wins.
+    if (
+      row.runStatus !== undefined &&
+      sandboxTerminalStatuses.has(row.runStatus)
+    ) {
+      console.warn(
+        `[finalizeArtifactRun] no-op: artifact ${args.artifactId} already terminal as ${row.runStatus}; dropping incoming ${args.runStatus}`,
+      );
       return null;
     }
     await ctx.db.patch(args.artifactId, {

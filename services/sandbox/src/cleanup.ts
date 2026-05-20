@@ -1,25 +1,29 @@
-// Three-layer cleanup, per plan §1.
+// Two-layer cleanup, audit-cleaned per round-2 findings.
 //
-//   1. Boot sweep: kill any tale.sandbox=1 container/volume left behind.
-//   2. Periodic sweep: every 5 min, kill anything older than 2× max_timeout
-//      that isn't in the in-memory in-flight set.
-//   3. SIGTERM handler: kill in-flight before exit.
+//   1. Boot sweep: docker rm any tale.sandbox=1 container left over from a
+//      previous spawner process, AND host-dir sweep over old session dirs
+//      whose mtime is past the watchdog cutoff. The dead "volume sweep"
+//      that the original code shipped is gone — workspaces are host bind
+//      mounts (no volume), and the cache volumes carry a different label
+//      and MUST NOT be reaped.
+//   2. Periodic sweep: every 5 min, kill any tale-sbx-* container whose
+//      `tale.started=<ms>` label is older than 2× max_timeout AND whose
+//      session id isn't in the live in-flight set. Same host-dir sweep
+//      for orphan session dirs.
+//   3. SIGTERM handler (in server.ts after refactor): stop accepting new
+//      requests, wait for in-flight count to drop, then exit.
 
-import { isInFlight } from './spawn.ts';
-import { runDocker, dockerKill, dockerRm } from './spawn_util.ts';
+import { readdir, rm, stat } from 'node:fs/promises';
+import { join } from 'node:path';
+
+import { runDocker, dockerRm } from './spawn-util.ts';
+import { cancelExecution, inFlightIds, isInFlight } from './spawn.ts';
 import type { SpawnerConfig } from './types.ts';
 
 const PERIODIC_INTERVAL_MS = 5 * 60_000;
 
-async function listLabeled(
-  scope: 'container' | 'volume',
-  label: string,
-): Promise<string[]> {
-  const args =
-    scope === 'container'
-      ? ['ps', '-aq', '-f', `label=${label}`]
-      : ['volume', 'ls', '-q', '-f', `label=${label}`];
-  const result = await runDocker(args);
+async function listLabeledContainers(label: string): Promise<string[]> {
+  const result = await runDocker(['ps', '-aq', '-f', `label=${label}`]);
   if (result.exitCode !== 0) return [];
   return result.stdout
     .split('\n')
@@ -27,26 +31,76 @@ async function listLabeled(
     .filter((s) => s.length > 0);
 }
 
-export async function bootSweep(): Promise<void> {
-  // Containers first; volumes after (volume rm fails on attached volumes).
-  const containers = await listLabeled('container', 'tale.sandbox=1');
-  for (const c of containers) {
-    await dockerRm(c);
+async function sweepHostSessionDirs(
+  cfg: SpawnerConfig,
+  staleThreshold: number,
+): Promise<number> {
+  let entries;
+  try {
+    entries = await readdir(cfg.hostSessionRoot, { withFileTypes: true });
+  } catch (err) {
+    // Root not yet created (first boot) — fine.
+    if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
+      return 0;
+    }
+    console.warn(
+      `[sandbox.cleanup] failed to read host session root ${cfg.hostSessionRoot}:`,
+      err,
+    );
+    return 0;
   }
-  const stagingContainers = await listLabeled(
-    'container',
+  let removed = 0;
+  for (const e of entries) {
+    if (!e.isDirectory()) continue;
+    if (isInFlight(e.name)) continue;
+    const abs = join(cfg.hostSessionRoot, e.name);
+    let st;
+    try {
+      st = await stat(abs);
+    } catch (err) {
+      console.warn(`[sandbox.cleanup] stat ${abs} failed:`, err);
+      continue;
+    }
+    if (st.mtimeMs >= staleThreshold) continue;
+    try {
+      await rm(abs, { recursive: true, force: true });
+      removed += 1;
+    } catch (err) {
+      console.warn(`[sandbox.cleanup] rm ${abs} failed:`, err);
+    }
+  }
+  return removed;
+}
+
+export async function bootSweep(cfg?: SpawnerConfig): Promise<void> {
+  const containers = await listLabeledContainers('tale.sandbox=1');
+  for (const c of containers) {
+    try {
+      await dockerRm(c);
+    } catch (err) {
+      console.warn(`[sandbox.bootSweep] dockerRm ${c} failed:`, err);
+    }
+  }
+  const stagingContainers = await listLabeledContainers(
     'tale.sandbox-staging=1',
   );
   for (const c of stagingContainers) {
-    await dockerRm(c);
+    try {
+      await dockerRm(c);
+    } catch (err) {
+      console.warn(`[sandbox.bootSweep] dockerRm staging ${c} failed:`, err);
+    }
   }
-  const volumes = await listLabeled('volume', 'tale.sandbox=1');
-  for (const v of volumes) {
-    await runDocker(['volume', 'rm', '--force', v]);
+  let dirsRemoved = 0;
+  if (cfg) {
+    // Any session dir on disk at boot belongs to a previous spawner
+    // process; nothing is in-flight yet, so we can clean them
+    // unconditionally (no mtime check).
+    dirsRemoved = await sweepHostSessionDirs(cfg, Date.now() + 1);
   }
-  if (containers.length > 0 || volumes.length > 0) {
+  if (containers.length > 0 || dirsRemoved > 0) {
     console.log(
-      `[sandbox] boot sweep removed ${containers.length} container(s) and ${volumes.length} volume(s)`,
+      `[sandbox] boot sweep removed ${containers.length} container(s) and ${dirsRemoved} session dir(s)`,
     );
   }
 }
@@ -54,7 +108,6 @@ export async function bootSweep(): Promise<void> {
 export function startPeriodicSweep(cfg: SpawnerConfig): () => void {
   const interval = setInterval(async () => {
     try {
-      // List containers with full label data so we can compare started time.
       const result = await runDocker([
         'ps',
         '-a',
@@ -73,49 +126,81 @@ export function startPeriodicSweep(cfg: SpawnerConfig): () => void {
         if (!m) continue;
         const started = Number.parseInt(m[1] ?? '0', 10);
         if (Number.isNaN(started) || started >= staleThreshold) continue;
-        // session id is the second component of the name (tale-sbx-<uuid>).
+        // session id is the second component of the name (tale-sbx-<id>).
         const sessionId = name.replace(/^tale-sbx-/, '');
         if (isInFlight(sessionId)) continue;
-        await dockerKill(name);
-        await dockerRm(name);
+        try {
+          await dockerRm(name);
+        } catch (err) {
+          console.warn(
+            `[sandbox.periodic] dockerRm stale ${name} failed:`,
+            err,
+          );
+          continue;
+        }
         console.log(
-          `[sandbox] periodic sweep killed stale container ${name} (started ${new Date(started).toISOString()})`,
+          `[sandbox] periodic sweep removed stale container ${name} (started ${new Date(started).toISOString()})`,
         );
       }
-      // Also reap orphan session volumes whose label-started is older than
-      // threshold. (Workspace volume is tagged with tale.session=<uuid>.)
-      const vols = await runDocker([
-        'volume',
-        'ls',
-        '--filter',
-        'label=tale.sandbox=1',
-        '--format',
-        '{{.Name}}',
-      ]);
-      for (const v of vols.stdout.split('\n')) {
-        const n = v.trim();
-        if (!n) continue;
-        const sessionId = n.replace(/^tale-sbx-/, '');
-        if (isInFlight(sessionId)) continue;
-        // If the named container is gone but the volume remains, drop it.
-        const exists = await runDocker(['inspect', `tale-sbx-${sessionId}`]);
-        if (exists.exitCode === 0) continue;
-        await runDocker(['volume', 'rm', '--force', n]);
-      }
+      // Host-dir sweep: per-execution session dirs that lived past the
+      // stale threshold without an active in-flight entry are orphaned.
+      // Replaces the old volume-sweep block that targeted volumes nobody
+      // creates (audit finding R2-3 C5).
+      await sweepHostSessionDirs(cfg, staleThreshold);
     } catch (err) {
-      console.warn(`[sandbox] periodic sweep error: ${String(err)}`);
+      console.warn(`[sandbox.periodic] sweep error:`, err);
     }
   }, PERIODIC_INTERVAL_MS);
   return () => clearInterval(interval);
 }
 
-export function installSignalHandlers(getInFlight: () => string[]): void {
+/**
+ * Graceful shutdown handler.
+ *
+ * The original code called `process.exit(0)` immediately after issuing
+ * `docker kill` for every in-flight id — but `executeRequest`'s finally
+ * block (which rm -rfs the host session dir) was racing with the exit,
+ * so SIGTERM mid-execution leaked the host workspace. The new flow:
+ *
+ *   1. Mark "draining" so the HTTP layer stops accepting new work
+ *      (callers pass the stop callback in).
+ *   2. Issue `cancelExecution` for every in-flight id; this aborts the
+ *      runDocker subprocess via AbortSignal and lets each
+ *      `executeRequest` proceed to its finally block.
+ *   3. Wait (with a 20s ceiling) for the in-flight Map to drain.
+ *   4. exit().
+ */
+export function installSignalHandlers(stopAccepting: () => void): void {
+  let shuttingDown = false;
   const onTerm = async (sig: string) => {
-    console.log(`[sandbox] received ${sig}; killing in-flight containers`);
-    const ids = getInFlight();
-    for (const id of ids) {
-      await dockerKill(`tale-sbx-${id}`);
-      await runDocker(['volume', 'rm', '--force', `tale-sbx-${id}`]);
+    if (shuttingDown) {
+      console.warn(`[sandbox] received second ${sig}; forcing exit`);
+      process.exit(1);
+    }
+    shuttingDown = true;
+    console.log(`[sandbox] received ${sig}; draining in-flight executions`);
+    try {
+      stopAccepting();
+    } catch (err) {
+      console.warn(`[sandbox.shutdown] stopAccepting failed:`, err);
+    }
+    const ids = inFlightIds();
+    await Promise.allSettled(
+      ids.map((id) =>
+        cancelExecution(id).catch((err) => {
+          console.warn(`[sandbox.shutdown] cancel ${id} failed:`, err);
+        }),
+      ),
+    );
+    const deadline = Date.now() + 20_000;
+    while (inFlightIds().length > 0 && Date.now() < deadline) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 200));
+    }
+    const remaining = inFlightIds();
+    if (remaining.length > 0) {
+      console.warn(
+        `[sandbox] shutdown deadline; ${remaining.length} execution(s) still in-flight (${remaining.join(', ')})`,
+      );
     }
     process.exit(0);
   };

@@ -11,7 +11,7 @@ import { DEFAULT_LOGGING } from '../types';
  * over HTTP (reachable only on the `internal` network), and the docker
  * argv builder validates every identifier with strict regexes so a
  * malformed input never reaches `docker run` (see
- * services/sandbox/src/docker_args.ts).
+ * services/sandbox/src/docker-args.ts).
  *
  * Joined to BOTH networks:
  *   - `internal` — so the platform container can reach it on
@@ -26,11 +26,13 @@ export function createSandboxService(config: ServiceConfig): ComposeService {
   return {
     image: `${config.registry}/tale-sandbox:${config.version}`,
     container_name: `${getProjectId()}-sandbox`,
-    // Dev convention: publish 8003 to host loopback so `bun dev`'s local
-    // convex-local-backend (running on the host) can reach the spawner.
-    // Matches rag (8001) and crawler (8002). The `tale deploy` generator
-    // can omit this for hardened prod deployments — same as those services.
-    ports: ['8003:8003'],
+    // Bind to host loopback ONLY. The spawner mounts /var/run/docker.sock
+    // and (in dev opt-in unauth mode) is reachable without HMAC; exposing
+    // it on 0.0.0.0 would be remote root via docker.sock to any peer that
+    // can route to the host. Convex reaches the spawner through the
+    // `internal` Docker network (http://sandbox:8003), not this published
+    // port. The loopback bind is for `bun dev` running convex on the host.
+    ports: ['127.0.0.1:8003:8003'],
     env_file: ['.env'],
     environment: {
       SANDBOX_RUNTIME: '${SANDBOX_RUNTIME:-runc}',

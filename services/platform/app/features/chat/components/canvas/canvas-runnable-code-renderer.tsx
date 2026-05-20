@@ -1,10 +1,16 @@
 'use client';
 
-// Canvas pane for `python_runnable` / `node_runnable` artifacts (Refinement
-// 2). Left side shows the source code (re-uses CanvasCodeRenderer). Right
+// Canvas pane for `python_runnable` / `node_runnable` artifacts.
+// Left side shows the source code (re-uses CanvasCodeRenderer). Right
 // side shows the live execution state — progress chip while the spawner
 // streams PHASE events, then stdout preview + downloadable output-file
 // chips on completion (or errorCode + stderr tail on failure).
+//
+// Every user-visible string is keyed via `useT('chat')` against the
+// `canvas.run*` / `canvas.runStatus.*` / `canvas.runErrorCode.*` /
+// `canvas.runProgress.*` namespaces. The server never writes English
+// (or any other) literals into `runProgress`; it writes a structured
+// `{kind, package?, version?}` shape and we render it here via ICU.
 
 import { Badge } from '@tale/ui/badge';
 import { useQuery } from 'convex/react';
@@ -23,6 +29,11 @@ import { memo } from 'react';
 
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
+import type {
+  SandboxErrorCode,
+  SandboxRunProgressKind,
+  SandboxRunStatus,
+} from '@/convex/sandbox/wire';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { formatFileSize } from '@/lib/utils/format/file';
@@ -33,9 +44,20 @@ import { CanvasCodeRenderer } from './canvas-code-renderer';
 interface RunOutputFile {
   name: string;
   fileMetadataId: Id<'fileMetadata'>;
-  storageId: Id<'_storage'>;
+  // Optional because the shared `sandboxOutputFileValidator` makes
+  // storageId optional (the sandbox audit row doesn't carry it, only the
+  // artifact run-row does). Rows written through `finalizeArtifactRun`
+  // always populate it; the renderer gates the download link on the
+  // value being present.
+  storageId?: Id<'_storage'>;
   size: number;
   contentType: string;
+}
+
+interface RunProgress {
+  kind: SandboxRunProgressKind;
+  package?: string;
+  version?: string;
 }
 
 interface CanvasRunnableCodeRendererProps {
@@ -64,6 +86,7 @@ function iconForContentType(contentType: string): typeof FileIcon {
 }
 
 function FileChip({ file }: { file: RunOutputFile }) {
+  const { t } = useT('chat');
   const { data: fileUrl } = useFileUrl(file.storageId);
   const Icon = iconForContentType(file.contentType);
   const disabled = !fileUrl;
@@ -73,6 +96,7 @@ function FileChip({ file }: { file: RunOutputFile }) {
       download={file.name}
       target={fileUrl ? '_blank' : undefined}
       rel="noreferrer"
+      aria-label={t('canvas.runOpenFile', { name: file.name })}
       onClick={(e) => {
         if (disabled) e.preventDefault();
       }}
@@ -81,14 +105,17 @@ function FileChip({ file }: { file: RunOutputFile }) {
         disabled && 'opacity-60',
       )}
     >
-      <Icon className="text-muted-foreground size-4 shrink-0" />
+      <Icon className="text-muted-foreground size-4 shrink-0" aria-hidden />
       <div className="flex min-w-0 flex-1 flex-col">
         <span className="truncate font-medium">{file.name}</span>
         <span className="text-muted-foreground text-xs">
           {formatFileSize(file.size)}
         </span>
       </div>
-      <Download className="text-muted-foreground size-3.5 shrink-0" />
+      <Download
+        className="text-muted-foreground size-3.5 shrink-0"
+        aria-hidden
+      />
     </a>
   );
 }
@@ -97,8 +124,8 @@ function StatusBadge({
   runStatus,
   runProgress,
 }: {
-  runStatus?: string;
-  runProgress?: string;
+  runStatus?: SandboxRunStatus;
+  runProgress?: RunProgress;
 }) {
   const { t } = useT('chat');
   if (!runStatus) return null;
@@ -108,6 +135,8 @@ function StatusBadge({
         variant="outline"
         icon={CheckCircle2}
         className="text-success border-success/40"
+        role="status"
+        aria-live="polite"
       >
         {t('canvas.runDone')}
       </Badge>
@@ -119,12 +148,24 @@ function StatusBadge({
         variant="outline"
         icon={AlertTriangle}
         className="text-destructive border-destructive/40"
+        role="status"
+        aria-live="polite"
       >
-        {runStatus}
+        {t(`canvas.runStatus.${runStatus}`)}
       </Badge>
     );
   }
-  // queued / installing / running — live progress with spinner
+  // queued / installing / running — live progress with spinner.
+  const progressText = runProgress
+    ? t(`canvas.runProgress.${runProgress.kind}`, {
+        ...(runProgress.package !== undefined && {
+          package: runProgress.package,
+        }),
+        ...(runProgress.version !== undefined && {
+          version: runProgress.version,
+        }),
+      })
+    : t(`canvas.runStatus.${runStatus}`);
   return (
     <Badge
       variant="outline"
@@ -135,7 +176,7 @@ function StatusBadge({
       role="status"
       aria-live="polite"
     >
-      {runProgress ?? runStatus}
+      {progressText}
     </Badge>
   );
 }
@@ -146,15 +187,15 @@ function CanvasRunnableCodeRendererComponent({
   language,
   isStreaming,
 }: CanvasRunnableCodeRendererProps) {
+  const { t } = useT('chat');
   const artifact = useQuery(api.artifacts.queries.getById, { artifactId });
-  const runStatus = artifact?.runStatus;
-  const runProgress = artifact?.runProgress;
-  const runErrorCode = artifact?.runErrorCode;
+  const runStatus: SandboxRunStatus | undefined = artifact?.runStatus;
+  const runProgress: RunProgress | undefined = artifact?.runProgress;
+  const runErrorCode: SandboxErrorCode | undefined = artifact?.runErrorCode;
   const runErrorMessage = artifact?.runErrorMessage;
   const stdoutPreview = artifact?.runStdoutPreview;
   const stderrPreview = artifact?.runStderrPreview;
-  const outputFiles: RunOutputFile[] = (artifact?.runOutputFiles ??
-    []) as RunOutputFile[];
+  const outputFiles: RunOutputFile[] = artifact?.runOutputFiles ?? [];
 
   // Hide the execution panel entirely while there's nothing to show — i.e.
   // during source streaming (artifact_create still authoring) and after
@@ -181,14 +222,19 @@ function CanvasRunnableCodeRendererComponent({
         <div className="border-border bg-muted/10 flex shrink-0 flex-col gap-3 overflow-auto border-b p-4">
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground text-xs font-medium uppercase">
-              Run
+              {t('canvas.runStarted')}
             </span>
             <StatusBadge runStatus={runStatus} runProgress={runProgress} />
           </div>
 
           {runErrorCode && (
-            <div className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border p-2 text-xs">
-              <div className="font-semibold">{runErrorCode}</div>
+            <div
+              className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border p-2 text-xs"
+              role="alert"
+            >
+              <div className="font-semibold">
+                {t(`canvas.runErrorCode.${runErrorCode}`)}
+              </div>
               {runErrorMessage && (
                 <div className="mt-1 break-words">{runErrorMessage}</div>
               )}
@@ -198,7 +244,7 @@ function CanvasRunnableCodeRendererComponent({
           {outputFiles.length > 0 && (
             <div className="flex flex-col gap-2">
               <span className="text-muted-foreground text-xs font-medium">
-                Files
+                {t('canvas.runFiles')}
               </span>
               {outputFiles.map((f) => (
                 <FileChip key={String(f.fileMetadataId)} file={f} />
@@ -209,7 +255,7 @@ function CanvasRunnableCodeRendererComponent({
           {stdoutPreview && stdoutPreview.length > 0 && (
             <details className="text-xs">
               <summary className="text-muted-foreground cursor-pointer font-medium">
-                stdout ({stdoutPreview.length} chars)
+                {t('canvas.runStdout', { chars: stdoutPreview.length })}
               </summary>
               <pre className="bg-muted/40 mt-1 max-h-40 overflow-auto rounded p-2 font-mono whitespace-pre-wrap">
                 {stdoutPreview}
@@ -220,7 +266,7 @@ function CanvasRunnableCodeRendererComponent({
           {stderrPreview && stderrPreview.length > 0 && (
             <details className="text-xs" open={runStatus === 'failed'}>
               <summary className="text-muted-foreground cursor-pointer font-medium">
-                stderr ({stderrPreview.length} chars)
+                {t('canvas.runStderr', { chars: stderrPreview.length })}
               </summary>
               <pre className="bg-muted/40 text-destructive mt-1 max-h-40 overflow-auto rounded p-2 font-mono whitespace-pre-wrap">
                 {stderrPreview}

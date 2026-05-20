@@ -1,32 +1,44 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
-import { lifecycleStatusValidator } from '../governance/soft_delete_validators';
+import {
+  sandboxErrorCodeValidator,
+  sandboxLanguageValidator,
+  sandboxOutputFileValidator,
+  sandboxRunStatusValidator,
+  sandboxTruncatedValidator,
+} from './wire';
 
 /**
- * Audit row for one `code_run` tool call.
+ * Audit row for one `artifact_run` invocation (one tool call → one row,
+ * append-only).
  *
- * Lifecycle:
- *   queued    — inserted atomically inside reserveSlotAndInsert (concurrent
- *               cap + daily CPU budget both checked in the same mutation).
- *   running   — flipped after the spawner HTTP call begins; heartbeatAt
- *               refreshed every 60s by the Convex action so the watchdog
- *               can distinguish "Convex hard-killed the action" from
- *               "still working".
- *   completed — exitCode === 0 and the file harvest succeeded.
- *   failed    — any non-success outcome; `errorCode` carries the cause.
- *   cancelled — client aborted via /v1/cancel or LLM-side abort signal.
+ * Lifecycle (validator union = `sandboxRunStatusValidator`):
+ *   queued     — inserted atomically inside reserveSlotAndInsert (concurrent
+ *                cap + daily CPU budget both checked in the same mutation).
+ *   installing — pip / npm install is fetching dependencies; this is a real
+ *                phase the spawner emits an SSE event for.
+ *   running    — flipped after the spawner HTTP call begins; heartbeatAt
+ *                refreshed every 60s by the Convex action so the watchdog
+ *                can distinguish "Convex hard-killed the action" from
+ *                "still working".
+ *   completed  — exitCode === 0 and the file harvest succeeded.
+ *   failed     — any non-success outcome; `errorCode` carries the cause.
+ *   cancelled  — client aborted via /v1/cancel or LLM-side abort signal.
  *
- * Status is intentionally thin (5 values); every "why" lives in errorCode
- * so audit queries don't have to special-case ad-hoc kill modes.
+ * The watchdog (see `internal_mutations.ts:recoverStuckSandboxes`) sweeps
+ * BOTH `queued` and `running` rows past `SANDBOX_WATCHDOG_CUTOFF_MS` so a
+ * throw between `reserveSlotAndInsert` and `setRunning` cannot leak a
+ * quota slot forever.
  *
  * Indexes:
- *   by_organizationId_and_status      — quota counting (reserveSlot scan)
- *   by_organizationId                 — daily CPU-budget sum + general
- *                                       per-org history
- *   by_org_user                       — GDPR right-to-be-forgotten cascade
- *   by_status                         — watchdog sweep across all orgs
- *   by_threadId                       — chat-pane history (future UI)
+ *   by_organizationId_and_status — quota counting (reserveSlot scan)
+ *   by_organizationId            — daily CPU-budget sum + per-org history
+ *   by_status                    — watchdog sweep across all orgs
+ *
+ * This is an audit table; user-facing soft-delete / trash UI is intentionally
+ * NOT wired up for v1 (audit retention is handled by the watchdog cron's
+ * TTL pass, not a user-deletable lifecycle).
  */
 export const sandboxExecutionsTable = defineTable({
   organizationId: v.string(),
@@ -36,7 +48,7 @@ export const sandboxExecutionsTable = defineTable({
   uploadedBy: v.string(),
   agentSlug: v.optional(v.string()),
 
-  language: v.union(v.literal('python'), v.literal('node')),
+  language: sandboxLanguageValidator,
   purpose: v.optional(v.string()),
 
   // Preview kept inline so the chat-pane card can render without an extra
@@ -51,13 +63,7 @@ export const sandboxExecutionsTable = defineTable({
     }),
   ),
 
-  status: v.union(
-    v.literal('queued'),
-    v.literal('running'),
-    v.literal('completed'),
-    v.literal('failed'),
-    v.literal('cancelled'),
-  ),
+  status: sandboxRunStatusValidator,
   // Every status patch must update this. Watchdog reads
   // `now - heartbeatAt` (not statusChangedAt) so a long-running but
   // healthy job isn't reaped.
@@ -77,49 +83,20 @@ export const sandboxExecutionsTable = defineTable({
   stdoutStorageId: v.optional(v.id('_storage')),
   stderrStorageId: v.optional(v.id('_storage')),
 
-  outputFiles: v.array(
-    v.object({
-      name: v.string(),
-      fileMetadataId: v.id('fileMetadata'),
-      size: v.number(),
-      contentType: v.string(),
-    }),
-  ),
+  outputFiles: v.array(sandboxOutputFileValidator),
   // Spawner reports per-call caps were hit; the tool result mirrors these
   // so the LLM can react ("re-run with smaller scope").
-  truncated: v.optional(
-    v.object({
-      stdout: v.boolean(),
-      stderr: v.boolean(),
-      files: v.number(),
-    }),
-  ),
+  truncated: v.optional(sandboxTruncatedValidator),
 
   startedAt: v.number(),
   completedAt: v.optional(v.number()),
 
-  errorCode: v.optional(
-    v.union(
-      v.literal('TIMEOUT'),
-      v.literal('OOM'),
-      v.literal('EGRESS_DENIED'),
-      v.literal('INSTALL_FAILED'),
-      v.literal('PACKAGE_NOT_FOUND'),
-      v.literal('QUOTA_EXCEEDED'),
-      v.literal('RUNTIME_ERROR'),
-      v.literal('SPAWNER_UNAVAILABLE'),
-      v.literal('CANCELLED'),
-    ),
-  ),
+  errorCode: v.optional(sandboxErrorCodeValidator),
   errorMessage: v.optional(v.string()),
-
-  lifecycleStatus: v.optional(lifecycleStatusValidator),
 })
   .index('by_organizationId_and_status', ['organizationId', 'status'])
   .index('by_organizationId', ['organizationId'])
-  .index('by_org_user', ['organizationId', 'uploadedBy'])
-  .index('by_status', ['status'])
-  .index('by_threadId', ['threadId']);
+  .index('by_status', ['status']);
 
 export const SANDBOX_MAX_CONCURRENT_PER_ORG = 4;
 export const SANDBOX_DAILY_CPU_BUDGET_SECONDS = 1800;

@@ -1,33 +1,34 @@
 'use node';
 
-// `executeCode` — the action the `code_run` agent tool calls.
+// `executeCode` — the action the `artifact_run` agent tool calls.
 //
 // Owns the spawner round-trip + storage transactionality:
 //   1. reserveSlotAndInsert mutation (atomic quota + audit row insert).
-//   2. resolveInputFiles internal query (IDOR + org/thread scoping).
-//   3. ctx.storage.get → base64 for each input file.
-//   4. setRunning mutation + start a 60s heartbeat loop.
-//   5. POST /v1/execute on the spawner with AbortSignal wired through.
-//   6. Upload every output blob; if all succeed, single batched
+//   2. setRunning('installing') mutation + start a 60s heartbeat loop.
+//   3. POST /v1/execute on the spawner with AbortSignal wired through.
+//   4. Upload every output blob; if all succeed, single batched
 //      `insertOutputFiles` mutation. On any storage failure, delete the
 //      blobs we already wrote so we don't orphan `_storage`.
-//   7. Upload stdout/stderr to `_storage` when over the preview cap.
-//   8. finalize mutation with the structured result.
-//   9. usageLedger row (TODO: wire in once schema accepts cpuSeconds —
-//      see plan §4 step 9; ledger schema extension is a separate PR).
+//   5. Upload stdout/stderr to `_storage` when over the preview cap.
+//   6. finalize mutation with the structured result.
 //
-// Error rule (per R1.13 / [feedback_no_empty_catch]):
+// Every failure path goes through the same `failExecution` helper which
+// finalizes the audit row, finalizes the artifact row if one was tied to
+// this run, and rolls back any uploaded storage blobs. This makes the
+// "canvas spinner stuck forever" failure mode (R1 finding) structurally
+// impossible — there is one terminate-and-clean code path, not six.
+//
+// Error rule:
 //   - Infrastructure failures (spawner unreachable, action timeout, quota
-//     mutation throw) → THROW so the agent SDK surfaces them clearly.
+//     mutation throw) → finalize + THROW so the agent SDK surfaces them.
 //   - User-code failures (exit ≠ 0, sandbox timeout, OOM, install failure)
-//     → RETURN structured `{success: false, status: 'failed', errorCode, ...}`
-//     so the LLM can read and react.
+//     → finalize + RETURN structured result so the LLM can read and react.
 
 import { ConvexError, v } from 'convex/values';
 
 import { internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
-import { internalAction } from '../../_generated/server';
+import { internalAction, type ActionCtx } from '../../_generated/server';
 import {
   SANDBOX_CODE_PREVIEW_MAX,
   SANDBOX_DEFAULT_TIMEOUT_MS,
@@ -35,21 +36,13 @@ import {
   SANDBOX_STDERR_PREVIEW_MAX,
   SANDBOX_STDOUT_PREVIEW_MAX,
 } from '../../sandbox/schema';
+import {
+  sandboxErrorCodeValidator,
+  sandboxLanguageValidator,
+  type SandboxErrorCode,
+  type SandboxRunProgressKind,
+} from '../../sandbox/wire';
 import { spawnerCancel, spawnerExecute } from './helpers/spawner_client';
-
-const languageValidator = v.union(v.literal('python'), v.literal('node'));
-
-const errorCodeValidator = v.union(
-  v.literal('TIMEOUT'),
-  v.literal('OOM'),
-  v.literal('EGRESS_DENIED'),
-  v.literal('INSTALL_FAILED'),
-  v.literal('PACKAGE_NOT_FOUND'),
-  v.literal('QUOTA_EXCEEDED'),
-  v.literal('RUNTIME_ERROR'),
-  v.literal('SPAWNER_UNAVAILABLE'),
-  v.literal('CANCELLED'),
-);
 
 const HEARTBEAT_INTERVAL_MS = 60_000;
 
@@ -63,16 +56,7 @@ type ExecuteCodeResult = {
   success: boolean;
   status: 'completed' | 'failed' | 'cancelled';
   exitCode: number | null;
-  errorCode?:
-    | 'TIMEOUT'
-    | 'OOM'
-    | 'EGRESS_DENIED'
-    | 'INSTALL_FAILED'
-    | 'PACKAGE_NOT_FOUND'
-    | 'QUOTA_EXCEEDED'
-    | 'RUNTIME_ERROR'
-    | 'SPAWNER_UNAVAILABLE'
-    | 'CANCELLED';
+  errorCode?: SandboxErrorCode;
   errorMessage?: string;
   stdoutPreview: string;
   stderrPreview: string;
@@ -87,6 +71,133 @@ type ExecuteCodeResult = {
   }>;
 };
 
+interface FailContext {
+  ctx: ActionCtx;
+  executionId: Id<'sandboxExecutions'>;
+  artifactId?: Id<'artifacts'>;
+  uploadedStorageIds: Set<string>;
+  startedAt: number;
+}
+
+/**
+ * One-stop failure handler. Finalizes the audit row, finalizes the artifact
+ * row (so the canvas spinner stops), and cascade-deletes any `_storage`
+ * blobs we already wrote. Always returns the structured result the caller
+ * can `return` directly.
+ */
+async function failExecution(
+  fc: FailContext,
+  status: 'failed' | 'cancelled',
+  errorCode: SandboxErrorCode,
+  errorMessage: string,
+  extra?: {
+    stdoutPreview?: string;
+    stderrPreview?: string;
+    exitCode?: number | null;
+  },
+): Promise<ExecuteCodeResult> {
+  const durationMs = Date.now() - fc.startedAt;
+  // Roll back any _storage blobs we already wrote so we don't orphan them.
+  for (const sid of fc.uploadedStorageIds) {
+    try {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- delete needs Id<'_storage'>
+      await fc.ctx.storage.delete(sid as unknown as Id<'_storage'>);
+    } catch (err) {
+      console.warn(
+        `[sandbox.failExecution] storage.delete(${sid}) failed:`,
+        err,
+      );
+    }
+  }
+  fc.uploadedStorageIds.clear();
+
+  try {
+    await fc.ctx.runMutation(internal.sandbox.internal_mutations.finalize, {
+      executionId: fc.executionId,
+      status,
+      errorCode,
+      errorMessage,
+      ...(extra?.stdoutPreview !== undefined && {
+        stdoutPreview: extra.stdoutPreview,
+      }),
+      ...(extra?.stderrPreview !== undefined && {
+        stderrPreview: extra.stderrPreview,
+      }),
+      ...(extra?.exitCode !== undefined &&
+        extra.exitCode !== null && { exitCode: extra.exitCode }),
+      outputFiles: [],
+      durationMs,
+      actualSeconds: durationMs / 1000,
+    });
+  } catch (err) {
+    console.warn(`[sandbox.failExecution] audit finalize failed:`, err);
+  }
+
+  if (fc.artifactId) {
+    try {
+      await fc.ctx.runMutation(
+        internal.artifacts.internal_mutations.finalizeArtifactRun,
+        {
+          artifactId: fc.artifactId,
+          runStatus: status,
+          runErrorCode: errorCode,
+          runErrorMessage: errorMessage,
+          ...(extra?.exitCode !== undefined &&
+            extra.exitCode !== null && { runExitCode: extra.exitCode }),
+          ...(extra?.stdoutPreview !== undefined && {
+            runStdoutPreview: extra.stdoutPreview,
+          }),
+          ...(extra?.stderrPreview !== undefined && {
+            runStderrPreview: extra.stderrPreview,
+          }),
+          runOutputFiles: [],
+          runExecutionId: fc.executionId,
+        },
+      );
+    } catch (err) {
+      console.warn(`[sandbox.failExecution] artifact finalize failed:`, err);
+    }
+  }
+
+  return {
+    executionId: fc.executionId,
+    success: false,
+    status,
+    exitCode: extra?.exitCode ?? null,
+    errorCode,
+    errorMessage,
+    stdoutPreview: extra?.stdoutPreview ?? '',
+    stderrPreview: extra?.stderrPreview ?? '',
+    durationMs,
+    truncated: { stdout: false, stderr: false, files: 0 },
+    files: [],
+  };
+}
+
+function buildInstallProgress(packages: string[] | undefined): {
+  kind: SandboxRunProgressKind;
+  package?: string;
+  version?: string;
+} {
+  if (!packages || packages.length === 0) {
+    return { kind: 'installing' };
+  }
+  // `python-pptx==1.0.2` → { package: 'python-pptx', version: '1.0.2' }.
+  // Anything that doesn't match the canonical pip/npm spec falls back to
+  // the no-version variant; the UI message map handles both via ICU.
+  const first = packages[0];
+  if (first === undefined) return { kind: 'installing' };
+  const match = first.match(/^([^@=<>!~]+)(?:[@=]=?([^@=<>!~ ]+))?/);
+  if (match && match[1]) {
+    return {
+      kind: 'installingPackage',
+      package: match[1].trim(),
+      ...(match[2] !== undefined && { version: match[2].trim() }),
+    };
+  }
+  return { kind: 'installing' };
+}
+
 export const executeCode = internalAction({
   args: {
     organizationId: v.string(),
@@ -97,19 +208,16 @@ export const executeCode = internalAction({
     toolCallId: v.optional(v.string()),
     agentSlug: v.optional(v.string()),
 
-    language: languageValidator,
+    language: sandboxLanguageValidator,
     code: v.string(),
     packages: v.optional(v.array(v.string())),
-    inputFiles: v.optional(
-      v.array(v.object({ name: v.string(), fileId: v.string() })),
-    ),
     timeoutMs: v.optional(v.number()),
     allowSdist: v.optional(v.boolean()),
     allowInstallScripts: v.optional(v.boolean()),
     purpose: v.string(),
     // When set, the action wires PHASE events from the spawner SSE to
-    // patchArtifactRunProgress and finalizeArtifactRun (Refinement 2 —
-    // canvas shows live progress instead of a frozen spinner).
+    // patchArtifactRunProgress and finalizeArtifactRun — canvas shows
+    // live progress instead of a frozen spinner.
     artifactId: v.optional(v.id('artifacts')),
   },
   returns: v.object({
@@ -121,7 +229,7 @@ export const executeCode = internalAction({
       v.literal('cancelled'),
     ),
     exitCode: v.union(v.number(), v.null()),
-    errorCode: v.optional(errorCodeValidator),
+    errorCode: v.optional(sandboxErrorCodeValidator),
     errorMessage: v.optional(v.string()),
     stdoutPreview: v.string(),
     stderrPreview: v.string(),
@@ -151,7 +259,7 @@ export const executeCode = internalAction({
     // ---- codePreview / codeStorageId split ----
     const codeBytes = Buffer.byteLength(args.code, 'utf8');
     let codePreview = args.code;
-    let codeStorageId: string | undefined;
+    let codeStorageId: Id<'_storage'> | undefined;
     if (codeBytes > SANDBOX_CODE_PREVIEW_MAX) {
       const blob = new Blob([args.code], { type: 'text/plain' });
       codeStorageId = await ctx.storage.store(blob);
@@ -159,10 +267,6 @@ export const executeCode = internalAction({
     }
 
     // ---- atomic reservation (concurrent cap + daily CPU budget + insert) ----
-    // Annotate directly with the branded id type rather than deriving from
-    // `typeof internal.sandbox.internal_mutations.reserveSlotAndInsert`.
-    // Deriving here closes a cycle through `_generated/api.d.ts` that breaks
-    // type inference for every Convex consumer in the codebase.
     let executionId: Id<'sandboxExecutions'>;
     try {
       executionId = await ctx.runMutation(
@@ -172,15 +276,14 @@ export const executeCode = internalAction({
           uploadedBy: args.uploadedBy,
           ...(args.threadId !== undefined && { threadId: args.threadId }),
           ...(args.messageId !== undefined && { messageId: args.messageId }),
-          ...(args.toolCallId !== undefined && { toolCallId: args.toolCallId }),
+          ...(args.toolCallId !== undefined && {
+            toolCallId: args.toolCallId,
+          }),
           ...(args.agentSlug !== undefined && { agentSlug: args.agentSlug }),
           language: args.language,
           purpose: args.purpose,
           codePreview,
-          ...(codeStorageId !== undefined && {
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- storage.store returns Id<'_storage'>
-            codeStorageId: codeStorageId as unknown as never,
-          }),
+          ...(codeStorageId !== undefined && { codeStorageId }),
           packages: args.packages ?? [],
           ...((args.allowSdist !== undefined ||
             args.allowInstallScripts !== undefined) && {
@@ -197,8 +300,8 @@ export const executeCode = internalAction({
         },
       );
     } catch (err) {
-      // Quota errors are user-facing — surface as structured result rather
-      // than throwing, so the LLM can decide to wait / retry / abort.
+      // Quota errors are user-facing — surface as ConvexError. The tool's
+      // wrapper translates this into structured agent-visible output.
       if (
         err instanceof ConvexError &&
         typeof err.data === 'object' &&
@@ -206,78 +309,48 @@ export const executeCode = internalAction({
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ConvexError data shape is loose
         (err.data as { code?: string }).code === 'QUOTA_EXCEEDED'
       ) {
-        // We never got an executionId, so synthesize a clearly-unreal one.
-        // The tool's wrapper will surface this back to the LLM cleanly.
+        const dataMessage =
+          err.data && typeof err.data === 'object' && 'message' in err.data
+            ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ConvexError data shape is loose; we just type-narrowed the message key
+              String((err.data as { message?: string }).message)
+            : 'Sandbox quota exceeded';
         throw new ConvexError({
           code: 'QUOTA_EXCEEDED',
-          message:
-            err.data && typeof err.data === 'object' && 'message' in err.data
-              ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ConvexError data shape is loose; we just type-narrowed the message key
-                String((err.data as { message?: string }).message)
-              : 'Sandbox quota exceeded',
+          message: dataMessage,
         });
       }
       throw err;
     }
 
-    // ---- input file resolution + IDOR check ----
-    let stagedInputs: { name: string; contentBase64: string }[] = [];
-    if (args.inputFiles && args.inputFiles.length > 0) {
-      const resolved = await ctx.runQuery(
-        internal.sandbox.internal_queries.resolveInputFiles,
-        {
-          organizationId: args.organizationId,
-          accessibleThreadIds: args.accessibleThreadIds,
-          fileIds: args.inputFiles.map((f) => f.fileId),
-        },
-      );
-      if (!resolved.ok) {
-        await ctx.runMutation(internal.sandbox.internal_mutations.finalize, {
-          executionId,
-          status: 'failed',
-          errorCode: 'SPAWNER_UNAVAILABLE',
-          errorMessage: `Input file rejected: ${resolved.reason}`,
-          outputFiles: [],
-          durationMs: 0,
-          actualSeconds: 0,
-        });
-        return {
-          executionId,
-          success: false,
-          status: 'failed' as const,
-          exitCode: null,
-          errorCode: 'SPAWNER_UNAVAILABLE' as const,
-          errorMessage: `Input file rejected: ${resolved.reason}`,
-          stdoutPreview: '',
-          stderrPreview: '',
-          durationMs: 0,
-          truncated: { stdout: false, stderr: false, files: 0 },
-          files: [],
-        };
-      }
-      stagedInputs = await Promise.all(
-        resolved.files.map(async (rf, i) => {
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- storage id from resolveInputFiles is the branded type
-          const blob = await ctx.storage.get(rf.storageId as never);
-          if (!blob) {
-            throw new Error(
-              `Sandbox: failed to read storage blob for ${rf.fileName}`,
-            );
-          }
-          const ab = await blob.arrayBuffer();
-          const requested = args.inputFiles?.[i];
-          return {
-            name: requested?.name ?? rf.fileName,
-            contentBase64: Buffer.from(ab).toString('base64'),
-          };
-        }),
+    const startedAt = Date.now();
+    const uploadedStorageIds = new Set<string>();
+    const fc: FailContext = {
+      ctx,
+      executionId,
+      ...(args.artifactId !== undefined && { artifactId: args.artifactId }),
+      uploadedStorageIds,
+      startedAt,
+    };
+
+    // ---- flip status to installing, start heartbeat ----
+    // The spawner emits a real `installing` phase event later, but flipping
+    // to `installing` here means the watchdog can also reap rows that get
+    // stuck before the spawner ever responds (the `queued` sweep handles
+    // throws between this point and reserveSlotAndInsert, but `installing`
+    // also signals the canvas to show a progress spinner immediately).
+    try {
+      await ctx.runMutation(internal.sandbox.internal_mutations.setRunning, {
+        executionId,
+        status: 'installing',
+      });
+    } catch (err) {
+      return failExecution(
+        fc,
+        'failed',
+        'SPAWNER_UNAVAILABLE',
+        `failed to flip audit row to installing: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
-
-    // ---- flip status, start heartbeat ----
-    await ctx.runMutation(internal.sandbox.internal_mutations.setRunning, {
-      executionId,
-    });
 
     const heartbeat = setInterval(() => {
       void ctx.runMutation(internal.sandbox.internal_mutations.heartbeat, {
@@ -286,7 +359,6 @@ export const executeCode = internalAction({
     }, HEARTBEAT_INTERVAL_MS);
 
     const abort = new AbortController();
-    const startedAt = Date.now();
 
     try {
       const spawnerResult = await spawnerExecute(
@@ -296,7 +368,6 @@ export const executeCode = internalAction({
           language: args.language,
           code: args.code,
           ...(args.packages !== undefined && { packages: args.packages }),
-          ...(stagedInputs.length > 0 && { inputFiles: stagedInputs }),
           timeoutMs,
           ...((args.allowSdist !== undefined ||
             args.allowInstallScripts !== undefined) && {
@@ -314,12 +385,26 @@ export const executeCode = internalAction({
         {
           onPhase: args.artifactId
             ? async (phase) => {
-                const message =
+                // Structured progress — UI renders the localized text via
+                // the `chat.runnable.progress.*` i18n keys. We never write
+                // English literals into the artifact row anymore.
+                const runProgress =
                   phase === 'installing'
-                    ? args.packages && args.packages.length > 0
-                      ? `Installing ${args.packages.join(', ')}`
-                      : 'Preparing sandbox'
-                    : 'Running code';
+                    ? buildInstallProgress(args.packages)
+                    : phase === 'running'
+                      ? { kind: 'running' as const }
+                      : phase === 'preparing'
+                        ? { kind: 'preparing' as const }
+                        : undefined;
+                const runStatus =
+                  phase === 'installing'
+                    ? 'installing'
+                    : phase === 'running'
+                      ? 'running'
+                      : phase === 'preparing'
+                        ? 'installing'
+                        : undefined;
+                if (!runStatus) return;
                 await ctx.runMutation(
                   internal.artifacts.internal_mutations
                     .patchArtifactRunProgress,
@@ -328,8 +413,8 @@ export const executeCode = internalAction({
                     artifactId: args.artifactId as NonNullable<
                       typeof args.artifactId
                     >,
-                    runStatus: phase,
-                    runProgress: message,
+                    runStatus,
+                    ...(runProgress && { runProgress }),
                     runExecutionId: executionId,
                   },
                 );
@@ -339,21 +424,18 @@ export const executeCode = internalAction({
       );
 
       // ---- file upload (all-or-nothing) ----
-      const uploadedStorageIds: string[] = [];
-      let uploadFailureMessage: string | undefined;
-      const stagedForInsert: {
+      const stagedForInsert: Array<{
         name: string;
-        // oxlint-disable-next-line typescript/no-explicit-any -- normalized as Id<'_storage'> in mutation arg validator
-        storageId: any;
+        storageId: Id<'_storage'>;
         size: number;
         contentType: string;
-      }[] = [];
+      }> = [];
       for (const f of spawnerResult.outputFiles) {
         try {
           const bytes = Buffer.from(f.contentBase64, 'base64');
           const blob = new Blob([bytes], { type: f.contentType });
           const storageId = await ctx.storage.store(blob);
-          uploadedStorageIds.push(String(storageId));
+          uploadedStorageIds.add(String(storageId));
           stagedForInsert.push({
             name: f.name,
             storageId,
@@ -361,49 +443,25 @@ export const executeCode = internalAction({
             contentType: f.contentType,
           });
         } catch (err) {
-          uploadFailureMessage =
-            err instanceof Error ? err.message : String(err);
-          break;
+          return failExecution(
+            fc,
+            'failed',
+            'SPAWNER_UNAVAILABLE',
+            `Output upload failed: ${err instanceof Error ? err.message : String(err)}`,
+            {
+              stdoutPreview: spawnerResult.stdoutBase64
+                ? Buffer.from(spawnerResult.stdoutBase64, 'base64')
+                    .toString('utf8')
+                    .slice(0, SANDBOX_STDOUT_PREVIEW_MAX)
+                : '',
+              stderrPreview: spawnerResult.stderrBase64
+                ? Buffer.from(spawnerResult.stderrBase64, 'base64')
+                    .toString('utf8')
+                    .slice(0, SANDBOX_STDERR_PREVIEW_MAX)
+                : '',
+            },
+          );
         }
-      }
-      if (uploadFailureMessage !== undefined) {
-        // Roll back uploads we already wrote so _storage doesn't orphan.
-        for (const sid of uploadedStorageIds) {
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- delete needs Id<'_storage'>
-          await ctx.storage.delete(sid as never).catch(() => {});
-        }
-        await ctx.runMutation(internal.sandbox.internal_mutations.finalize, {
-          executionId,
-          status: 'failed',
-          errorCode: 'SPAWNER_UNAVAILABLE',
-          errorMessage: `Output upload failed: ${uploadFailureMessage}`,
-          stdoutPreview: spawnerResult.stdoutBase64
-            ? Buffer.from(spawnerResult.stdoutBase64, 'base64')
-                .toString('utf8')
-                .slice(0, SANDBOX_STDOUT_PREVIEW_MAX)
-            : '',
-          stderrPreview: spawnerResult.stderrBase64
-            ? Buffer.from(spawnerResult.stderrBase64, 'base64')
-                .toString('utf8')
-                .slice(0, SANDBOX_STDERR_PREVIEW_MAX)
-            : '',
-          outputFiles: [],
-          durationMs: Date.now() - startedAt,
-          actualSeconds: (Date.now() - startedAt) / 1000,
-        });
-        return {
-          executionId,
-          success: false,
-          status: 'failed' as const,
-          exitCode: null,
-          errorCode: 'SPAWNER_UNAVAILABLE' as const,
-          errorMessage: `Output upload failed: ${uploadFailureMessage}`,
-          stdoutPreview: '',
-          stderrPreview: '',
-          durationMs: Date.now() - startedAt,
-          truncated: { stdout: false, stderr: false, files: 0 },
-          files: [],
-        };
       }
 
       const insertedFiles = await ctx.runMutation(
@@ -427,15 +485,17 @@ export const executeCode = internalAction({
       ).toString('utf8');
       const stdoutPreview = stdoutText.slice(0, SANDBOX_STDOUT_PREVIEW_MAX);
       const stderrPreview = stderrText.slice(0, SANDBOX_STDERR_PREVIEW_MAX);
-      let stdoutStorageId: string | undefined;
-      let stderrStorageId: string | undefined;
+      let stdoutStorageId: Id<'_storage'> | undefined;
+      let stderrStorageId: Id<'_storage'> | undefined;
       if (stdoutText.length > SANDBOX_STDOUT_PREVIEW_MAX) {
         const blob = new Blob([stdoutText], { type: 'text/plain' });
         stdoutStorageId = await ctx.storage.store(blob);
+        uploadedStorageIds.add(String(stdoutStorageId));
       }
       if (stderrText.length > SANDBOX_STDERR_PREVIEW_MAX) {
         const blob = new Blob([stderrText], { type: 'text/plain' });
         stderrStorageId = await ctx.storage.store(blob);
+        uploadedStorageIds.add(String(stderrStorageId));
       }
 
       const durationMs = spawnerResult.durationMs;
@@ -455,14 +515,8 @@ export const executeCode = internalAction({
         }),
         stdoutPreview,
         stderrPreview,
-        ...(stdoutStorageId !== undefined && {
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- store returns Id<'_storage'>
-          stdoutStorageId: stdoutStorageId as unknown as never,
-        }),
-        ...(stderrStorageId !== undefined && {
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-          stderrStorageId: stderrStorageId as unknown as never,
-        }),
+        ...(stdoutStorageId !== undefined && { stdoutStorageId }),
+        ...(stderrStorageId !== undefined && { stderrStorageId }),
         outputFiles: insertedFiles.map((f) => ({
           name: f.name,
           fileMetadataId: f.fileMetadataId,
@@ -476,9 +530,9 @@ export const executeCode = internalAction({
 
       // When this run is tied to a runnable artifact, finalize the artifact
       // row so the canvas-runnable-code-renderer sees the completed state
-      // + output file chips (Refinement 2). The audit row above already
-      // holds the per-execution forensics; the artifact row holds the
-      // *latest* state for fast canvas reads.
+      // + output file chips. The audit row above already holds the
+      // per-execution forensics; the artifact row holds the *latest* state
+      // for fast canvas reads.
       if (args.artifactId) {
         await ctx.runMutation(
           internal.artifacts.internal_mutations.finalizeArtifactRun,
@@ -497,12 +551,10 @@ export const executeCode = internalAction({
             runStdoutPreview: stdoutPreview,
             runStderrPreview: stderrPreview,
             ...(stdoutStorageId !== undefined && {
-              // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-              runStdoutStorageId: stdoutStorageId as unknown as never,
+              runStdoutStorageId: stdoutStorageId,
             }),
             ...(stderrStorageId !== undefined && {
-              // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-              runStderrStorageId: stderrStorageId as unknown as never,
+              runStderrStorageId: stderrStorageId,
             }),
             runOutputFiles: insertedFiles.map((f) => ({
               name: f.name,
@@ -515,6 +567,10 @@ export const executeCode = internalAction({
           },
         );
       }
+
+      // Successful path — the storage IDs are now owned by mutations; drop
+      // them from the rollback set so the finally block doesn't double-free.
+      uploadedStorageIds.clear();
 
       return {
         executionId,
@@ -534,23 +590,26 @@ export const executeCode = internalAction({
         files: insertedFiles,
       };
     } catch (err) {
-      // Infra failure: throw so the agent SDK surfaces it. We still finalize
-      // the audit row to release the slot.
+      // Infra failure: best-effort spawner cancel (idempotent if container
+      // already gone) and route through failExecution so the audit + artifact
+      // rows both terminate AND any uploaded blobs are reclaimed.
       const message = err instanceof Error ? err.message : String(err);
-      // Best-effort spawner cancel (idempotent if container already gone).
-      await spawnerCancel(String(executionId));
-      await ctx.runMutation(internal.sandbox.internal_mutations.finalize, {
-        executionId,
-        status: 'failed',
-        errorCode: 'SPAWNER_UNAVAILABLE',
-        errorMessage: message,
-        outputFiles: [],
-        durationMs: Date.now() - startedAt,
-        actualSeconds: (Date.now() - startedAt) / 1000,
-      });
+      try {
+        await spawnerCancel(String(executionId));
+      } catch (cancelErr) {
+        console.warn(
+          `[sandbox.executeCode] best-effort spawnerCancel failed:`,
+          cancelErr,
+        );
+      }
+      await failExecution(fc, 'failed', 'SPAWNER_UNAVAILABLE', message);
       throw new Error(`Sandbox spawner failed: ${message}`, { cause: err });
     } finally {
       clearInterval(heartbeat);
+      // Abort any in-flight fetch from spawnerExecute so the spawner-side
+      // request can tear down promptly when the action exits (success,
+      // structured failure, OR thrown infra error).
+      abort.abort('action-exit');
     }
   },
 });

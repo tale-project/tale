@@ -5,15 +5,10 @@ import { Button } from '@tale/ui/button';
 import { useMutation, useQuery } from 'convex/react';
 import {
   Check,
-  Code,
   Copy,
   Download,
   Eye,
   FileDown,
-  FileText,
-  GitBranch,
-  Globe,
-  Image,
   Loader2,
   Maximize2,
   Minimize2,
@@ -35,6 +30,12 @@ import { useStreamedArtifactContent } from '../../hooks/use-streamed-artifact-co
 import { useCanvas, type CanvasContentType } from './canvas-context';
 import type { CanvasHtmlRendererHandle } from './canvas-html-renderer';
 import type { CanvasMarkdownRendererHandle } from './canvas-markdown-renderer';
+import {
+  CANVAS_TYPE_EXTENSIONS,
+  CANVAS_TYPE_ICONS,
+  CANVAS_TYPE_LABEL_KEYS,
+  CANVAS_TYPE_MIME_TYPES,
+} from './icon-map';
 import { printHtmlInHiddenIframe } from './print-via-iframe';
 
 const CanvasCodeRenderer = lazyComponent(() =>
@@ -139,26 +140,6 @@ function buildMarkdownPrintHtml(renderedHtml: string): string {
   // renderedHtml — re-prepending the artifact title would double-up.
   return `<style>${MARKDOWN_PRINT_STYLES}</style><article>${renderedHtml}</article>`;
 }
-
-const TYPE_ICONS: Record<CanvasContentType, typeof Code> = {
-  code: Code,
-  html: Globe,
-  mermaid: GitBranch,
-  svg: Image,
-  markdown: FileText,
-  python_runnable: Code,
-  node_runnable: Code,
-};
-
-const TYPE_LABELS: Record<CanvasContentType, string> = {
-  code: 'Code',
-  html: 'HTML',
-  mermaid: 'Mermaid',
-  svg: 'SVG',
-  markdown: 'Markdown',
-  python_runnable: 'Python (sandbox)',
-  node_runnable: 'Node (sandbox)',
-};
 
 const MIN_WIDTH = 320;
 const MAX_WIDTH = 900;
@@ -496,26 +477,16 @@ function CanvasPaneComponent() {
   }, [displayedContent]);
 
   const handleDownload = useCallback(() => {
-    const extensions: Record<CanvasContentType, string> = {
-      code: canvasLanguage ?? 'txt',
-      html: 'html',
-      mermaid: 'mmd',
-      svg: 'svg',
-      markdown: 'md',
-      python_runnable: 'py',
-      node_runnable: 'js',
-    };
-    const ext = extensions[canvasType];
-    const mimeTypes: Record<CanvasContentType, string> = {
-      code: 'text/plain',
-      html: 'text/html',
-      mermaid: 'text/plain',
-      svg: 'image/svg+xml',
-      markdown: 'text/markdown',
-      python_runnable: 'text/x-python',
-      node_runnable: 'application/javascript',
-    };
-    const blob = new Blob([displayedContent], { type: mimeTypes[canvasType] });
+    // For `code` artifacts, prefer the artifact's language as the extension
+    // (e.g. `.ts`, `.rs`) — `CANVAS_TYPE_EXTENSIONS.code` is just a fallback
+    // for when language is missing.
+    const ext =
+      canvasType === 'code'
+        ? (canvasLanguage ?? CANVAS_TYPE_EXTENSIONS.code)
+        : CANVAS_TYPE_EXTENSIONS[canvasType];
+    const blob = new Blob([displayedContent], {
+      type: CANVAS_TYPE_MIME_TYPES[canvasType],
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -594,7 +565,7 @@ function CanvasPaneComponent() {
 
   if (!isCanvasOpen || !artifactId) return null;
 
-  const TypeIcon = TYPE_ICONS[canvasType];
+  const TypeIcon = CANVAS_TYPE_ICONS[canvasType];
 
   return (
     <div
@@ -646,7 +617,7 @@ function CanvasPaneComponent() {
           <TypeIcon className="text-muted-foreground size-4 shrink-0" />
           <span className="truncate text-sm font-medium">{canvasTitle}</span>
           <Badge variant="outline" className="shrink-0 text-xs">
-            {TYPE_LABELS[canvasType]}
+            {t(CANVAS_TYPE_LABEL_KEYS[canvasType])}
           </Badge>
           {isStreaming && (
             <Badge

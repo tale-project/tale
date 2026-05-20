@@ -1,6 +1,6 @@
 // Thin Bun-native wrapper around `docker` invocations.
 //
-// Centralised so docker_args.ts stays a pure argv builder (unit-testable) and
+// Centralised so docker-args.ts stays a pure argv builder (unit-testable) and
 // every actual docker call goes through one shape with consistent stdout/stderr
 // handling, stdin piping, and timeouts.
 
@@ -44,7 +44,7 @@ export async function runDocker(
   });
 
   if (opts.stdin !== undefined && proc.stdin) {
-    proc.stdin.write(opts.stdin);
+    void proc.stdin.write(opts.stdin);
     await proc.stdin.end();
   }
 
@@ -130,10 +130,49 @@ export async function runDocker(
   };
 }
 
-export async function dockerKill(containerName: string): Promise<void> {
-  await runDocker(['kill', '--signal=SIGKILL', containerName]);
+/**
+ * Send a signal to a container. Default is SIGTERM (graceful); cancel paths
+ * escalate to KILL when the graceful kill timed out. Callers wrap this in
+ * `withTimeout` so a wedged daemon cannot block the HTTP cancel response.
+ */
+export async function dockerKill(
+  containerName: string,
+  signal: 'TERM' | 'KILL' = 'TERM',
+): Promise<void> {
+  await runDocker(['kill', `--signal=SIG${signal}`, containerName]);
 }
 
 export async function dockerRm(containerName: string): Promise<void> {
   await runDocker(['rm', '--force', containerName]);
+}
+
+/**
+ * Best-effort `docker pull` of an image, retried with exponential backoff.
+ * Used once at spawner boot so the first /v1/execute call doesn't pay a cold
+ * registry round-trip. Returns true on success; the caller decides whether
+ * to fail-closed on a persistent failure.
+ */
+export async function ensureImage(
+  image: string,
+  opts: { attempts?: number } = {},
+): Promise<boolean> {
+  const inspect = await runDocker(['image', 'inspect', image]);
+  if (inspect.exitCode === 0) return true;
+  const attempts = opts.attempts ?? 3;
+  for (let i = 0; i < attempts; i++) {
+    const result = await runDocker(['pull', image]);
+    if (result.exitCode === 0) return true;
+    if (i < attempts - 1) {
+      const delayMs = 1000 * (i + 1);
+      console.warn(
+        `[sandbox] docker pull ${image} attempt ${i + 1} failed; retrying in ${delayMs}ms — stderr: ${result.stderr.trim()}`,
+      );
+      await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
+    } else {
+      console.error(
+        `[sandbox] docker pull ${image} failed after ${attempts} attempts — stderr: ${result.stderr.trim()}`,
+      );
+    }
+  }
+  return false;
 }
