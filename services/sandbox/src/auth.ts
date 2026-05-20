@@ -9,7 +9,7 @@ import { timingSafeEqual, createHmac } from 'node:crypto';
 
 export const SIGNATURE_HEADER = 'x-tale-sandbox-signature';
 
-export function sign(body: string, token: string): string {
+function sign(body: string, token: string): string {
   return createHmac('sha256', token).update(body).digest('hex');
 }
 

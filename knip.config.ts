@@ -49,6 +49,13 @@ export default {
       ],
       project: ['**/*.{ts,tsx}'],
     },
+    'services/sandbox': {
+      // Standalone Bun HTTP service. Not in root workspaces (own bun.lock);
+      // declare here so knip can resolve its entry points and ignore them
+      // from the "unused" sweep.
+      entry: ['src/**/*.test.ts'],
+      project: ['src/**/*.ts'],
+    },
     'services/docs': {
       vite: { config: ['vite.config.ts'] },
       entry: [

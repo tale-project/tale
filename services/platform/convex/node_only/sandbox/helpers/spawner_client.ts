@@ -158,7 +158,11 @@ export async function spawnerExecute(
       const parsed = parseSseEvent(eventText);
       if (!parsed) continue;
       if (parsed.event === 'phase') {
-        const phase = parsed.data.phase as SpawnerPhase | undefined;
+        const rawPhase = parsed.data.phase;
+        const phase: SpawnerPhase | undefined =
+          rawPhase === 'installing' || rawPhase === 'running'
+            ? rawPhase
+            : undefined;
         if (phase && callbacks.onPhase) {
           try {
             await callbacks.onPhase(phase);
@@ -168,9 +172,13 @@ export async function spawnerExecute(
         }
       } else if (parsed.event === 'result') {
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- spawner-side schema is validated at the spawner; trust the wire contract here
-        finalResult = parsed.data as SpawnerExecuteResponse;
+        finalResult = parsed.data as unknown as SpawnerExecuteResponse;
       } else if (parsed.event === 'error') {
-        errorEvent = String(parsed.data.message ?? 'sandbox spawner error');
+        const rawMessage = parsed.data.message;
+        errorEvent =
+          typeof rawMessage === 'string' && rawMessage.length > 0
+            ? rawMessage
+            : 'sandbox spawner error';
       }
     }
   }
@@ -198,11 +206,16 @@ function parseSseEvent(
   }
   if (dataLines.length === 0) return null;
   try {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- wire JSON
-    return {
-      event,
-      data: JSON.parse(dataLines.join('\n')) as Record<string, unknown>,
-    };
+    const parsed: unknown = JSON.parse(dataLines.join('\n'));
+    if (
+      parsed === null ||
+      typeof parsed !== 'object' ||
+      Array.isArray(parsed)
+    ) {
+      return null;
+    }
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- wire JSON; the object guard above rules out null/array, so indexing string keys is sound
+    return { event, data: parsed as Record<string, unknown> };
   } catch {
     return null;
   }

@@ -67,7 +67,10 @@ warn() {
 get_image() {
     local service=$1
     cd "${PROJECT_ROOT}"
-    ${COMPOSE_CMD} config --images 2>/dev/null | grep "${service}" | head -1
+    # Anchor to `/tale-${service}:` so we don't match a different service
+    # whose name happens to contain `${service}` as a substring (e.g. plain
+    # `db` would otherwise match `tale-san**db**ox-egress`).
+    ${COMPOSE_CMD} config --images 2>/dev/null | grep "/tale-${service}:" | head -1
 }
 
 # =============================================================================

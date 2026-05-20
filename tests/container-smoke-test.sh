@@ -66,6 +66,9 @@ cleanup() {
     fi
     header "Tearing down test containers"
     ${COMPOSE_CMD} down -v --remove-orphans 2>/dev/null || true
+    # The sandbox network is declared `external:` in compose.yml — `compose
+    # down` won't remove it. Drop it manually so the next run starts clean.
+    docker network rm tale-sandbox-net >/dev/null 2>&1 || true
 }
 
 trap cleanup EXIT
@@ -75,6 +78,18 @@ trap cleanup EXIT
 # initialise volume mount-points.
 cd "${PROJECT_ROOT}"
 ${COMPOSE_CMD} down -v --remove-orphans 2>/dev/null || true
+
+# Pre-create the sandbox bridge. It's declared `external:` in compose.yml
+# because the CLI (`tale start` / `tale deploy`) owns its lifecycle —
+# `--internal --ipv6=false` can't be expressed atomically in a compose
+# `networks:` block. Smoke tests don't go through the CLI, so we create it
+# here with the same shape ensureSandboxNetwork() uses.
+docker network rm tale-sandbox-net >/dev/null 2>&1 || true
+docker network create \
+    --internal \
+    --ipv6=false \
+    --driver=bridge \
+    tale-sandbox-net >/dev/null
 
 # Ensure dummy .env exists to satisfy compose.yml env_file declarations
 if [ ! -f "${PROJECT_ROOT}/.env" ]; then
@@ -113,11 +128,13 @@ if [ "${SKIP_BUILD:-false}" != "true" ]; then
     echo "  ─────────────────────────────────────────────────────────────────────"
     TOTAL_SIZE_MB=0
     for svc in db convex crawler rag platform proxy; do
-        # Get the image name from compose config
-        img=$(cd "${PROJECT_ROOT}" && ${COMPOSE_CMD} config --images 2>/dev/null | grep "${svc}" | head -1)
+        # Get the image name from compose config. Use anchored grep so we
+        # don't match service names that *contain* the target (e.g. "db"
+        # would otherwise match "tale-san**db**ox-egress").
+        img=$(cd "${PROJECT_ROOT}" && ${COMPOSE_CMD} config --images 2>/dev/null | grep "/tale-${svc}:" | head -1)
         if [ -z "$img" ]; then
             # Fallback: look for tale images in docker images list
-            img=$(docker images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | grep "tale-${svc}" | head -1)
+            img=$(docker images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | grep "tale-${svc}:" | head -1)
         fi
         if [ -n "$img" ]; then
             size=$(docker images --format '{{.Size}}' "$img" 2>/dev/null | head -1)

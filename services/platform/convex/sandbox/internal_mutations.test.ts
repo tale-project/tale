@@ -58,7 +58,7 @@ function createMockCtx(opts: MockCtxOptions = {}) {
   // returning the right async iterator can be selected.
   function makeBuilder() {
     const calls: Array<Record<string, unknown>> = [];
-    const builder: Record<string, unknown> = {};
+    const builder: Record<string | symbol, unknown> = {};
     builder.withIndex = vi.fn((_name: string, cb: (q: unknown) => unknown) => {
       const q = {
         eq: (field: string, value: unknown) => {

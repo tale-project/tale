@@ -16,7 +16,7 @@ export const artifactTypeEnum = z.enum([
 
 export type ArtifactType = z.infer<typeof artifactTypeEnum>;
 
-const RUNNABLE_TYPES = new Set<ArtifactType>([
+const RUNNABLE_TYPES: ReadonlySet<string> = new Set<ArtifactType>([
   'python_runnable',
   'node_runnable',
 ]);
@@ -34,7 +34,7 @@ export function isValidArtifactType(value: string): value is ArtifactType {
 }
 
 export function isRunnableArtifactType(value: string): boolean {
-  return RUNNABLE_TYPES.has(value as ArtifactType);
+  return RUNNABLE_TYPES.has(value);
 }
 
 export function runnableLanguage(type: ArtifactType): 'python' | 'node' | null {

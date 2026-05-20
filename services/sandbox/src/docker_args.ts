@@ -7,7 +7,7 @@
 
 import type { Language, SpawnerConfig } from './types.ts';
 
-export interface DockerRunInput {
+interface DockerRunInput {
   executionId: string;
   organizationId: string;
   language: Language;

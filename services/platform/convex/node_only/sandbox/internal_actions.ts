@@ -26,6 +26,7 @@
 import { ConvexError, v } from 'convex/values';
 
 import { internal } from '../../_generated/api';
+import type { Id } from '../../_generated/dataModel';
 import { internalAction } from '../../_generated/server';
 import {
   SANDBOX_CODE_PREVIEW_MAX,
@@ -51,6 +52,40 @@ const errorCodeValidator = v.union(
 );
 
 const HEARTBEAT_INTERVAL_MS = 60_000;
+
+// Explicit handler return type. Required to break a self-referential type
+// cycle: without it, the inferred type of `executeCode` depends on its own
+// handler's return type (which reaches `internal.sandbox.*` through
+// `_generated/api.d.ts`). The cycle collapses every Convex consumer in the
+// codebase to `any` — see PR #1727 CI breakage.
+type ExecuteCodeResult = {
+  executionId: Id<'sandboxExecutions'>;
+  success: boolean;
+  status: 'completed' | 'failed' | 'cancelled';
+  exitCode: number | null;
+  errorCode?:
+    | 'TIMEOUT'
+    | 'OOM'
+    | 'EGRESS_DENIED'
+    | 'INSTALL_FAILED'
+    | 'PACKAGE_NOT_FOUND'
+    | 'QUOTA_EXCEEDED'
+    | 'RUNTIME_ERROR'
+    | 'SPAWNER_UNAVAILABLE'
+    | 'CANCELLED';
+  errorMessage?: string;
+  stdoutPreview: string;
+  stderrPreview: string;
+  durationMs: number;
+  truncated: { stdout: boolean; stderr: boolean; files: number };
+  files: Array<{
+    name: string;
+    fileMetadataId: Id<'fileMetadata'>;
+    storageId: Id<'_storage'>;
+    size: number;
+    contentType: string;
+  }>;
+};
 
 export const executeCode = internalAction({
   args: {
@@ -106,7 +141,7 @@ export const executeCode = internalAction({
       }),
     ),
   }),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<ExecuteCodeResult> => {
     const timeoutMs = Math.min(
       Math.max(args.timeoutMs ?? SANDBOX_DEFAULT_TIMEOUT_MS, 1_000),
       SANDBOX_MAX_TIMEOUT_MS,
@@ -124,13 +159,11 @@ export const executeCode = internalAction({
     }
 
     // ---- atomic reservation (concurrent cap + daily CPU budget + insert) ----
-    let executionId: Awaited<
-      ReturnType<
-        typeof ctx.runMutation<
-          typeof internal.sandbox.internal_mutations.reserveSlotAndInsert
-        >
-      >
-    >;
+    // Annotate directly with the branded id type rather than deriving from
+    // `typeof internal.sandbox.internal_mutations.reserveSlotAndInsert`.
+    // Deriving here closes a cycle through `_generated/api.d.ts` that breaks
+    // type inference for every Convex consumer in the codebase.
+    let executionId: Id<'sandboxExecutions'>;
     try {
       executionId = await ctx.runMutation(
         internal.sandbox.internal_mutations.reserveSlotAndInsert,

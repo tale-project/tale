@@ -191,9 +191,9 @@ function guessContentType(name: string): string {
  * artifact row's `runStatus` + `runProgress` so the canvas shows live
  * progress instead of a frozen spinner (Refinement 2).
  */
-export type PhaseEvent = { phase: 'installing' } | { phase: 'running' };
+type PhaseEvent = { phase: 'installing' } | { phase: 'running' };
 
-export interface ExecuteRequestOptions {
+interface ExecuteRequestOptions {
   onPhase?: (event: PhaseEvent) => void;
 }
 
