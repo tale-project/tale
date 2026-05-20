@@ -398,12 +398,14 @@ export async function executeRequest(
     const exitCode = result.exitCode;
 
     const stdoutWithoutPhases = stripPhaseMarkers(result.stdout);
+    const stdoutClean = stripControlChars(stdoutWithoutPhases);
+    const stderrClean = stripControlChars(result.stderr);
     const { text: stdoutCapped, truncated: stdoutTrunc } = capText(
-      stdoutWithoutPhases,
+      stdoutClean,
       cfg.stdoutMaxBytes,
     );
     const { text: stderrCapped, truncated: stderrTrunc } = capText(
-      result.stderr,
+      stderrClean,
       cfg.stderrMaxBytes,
     );
 
@@ -513,6 +515,34 @@ function stripPhaseMarkers(stdout: string): string {
     .split('\n')
     .filter((line) => line !== PHASE_INSTALL && line !== PHASE_RUN)
     .join('\n');
+}
+
+// Strip ANSI CSI / OSC sequences and bare control characters that user
+// code (or pip/npm progress bars) emits. Without this, the chat-canvas
+// pre-renders raw escape codes as garbage glyphs, and `\r` overwrites
+// drag stdout lines into each other in the UI. Done once on the spawner
+// side so both the preview and the overflow-storage blob are clean.
+//
+// Pattern coverage:
+//   \x1b\[ ... <final>   — CSI sequences (color, cursor, erase, ...)
+//   \x1b\] ... \x07      — OSC sequences (terminator: BEL)
+//   \x1b\] ... \x1b\\    — OSC sequences (terminator: ST)
+//   \x07                 — bare BEL
+//   \r (not \r\n)        — lone carriage return → newline (progress bars)
+// Tabs (\t) are deliberately kept; they render fine in the UI.
+const ANSI_CSI_RE = /\x1b\[[0-9;?]*[ -/]*[@-~]/g;
+const ANSI_OSC_BEL_RE = /\x1b\][^\x07]*\x07/g;
+const ANSI_OSC_ST_RE = /\x1b\][^\x1b]*\x1b\\/g;
+const ESC_AND_CONTROL_RE = /[\x07\x08\x0b\x0c\x0e-\x1a\x1c-\x1f]/g;
+
+function stripControlChars(text: string): string {
+  return text
+    .replace(ANSI_OSC_BEL_RE, '')
+    .replace(ANSI_OSC_ST_RE, '')
+    .replace(ANSI_CSI_RE, '')
+    .replace(ESC_AND_CONTROL_RE, '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n');
 }
 
 function capText(

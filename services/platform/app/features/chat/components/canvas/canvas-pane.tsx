@@ -35,6 +35,8 @@ import {
   CANVAS_TYPE_ICONS,
   CANVAS_TYPE_LABEL_KEYS,
   CANVAS_TYPE_MIME_TYPES,
+  isRunnableArtifactType,
+  runnableLanguage,
 } from './icon-map';
 import { printHtmlInHiddenIframe } from './print-via-iframe';
 
@@ -770,18 +772,16 @@ function CanvasPaneComponent() {
           justSettled && 'ring-success/40 ring-2 ring-inset',
         )}
       >
-        {showStreamingSource &&
-          canvasType !== 'python_runnable' &&
-          canvasType !== 'node_runnable' && (
-            <CanvasCodeRenderer
-              code={sourceCode}
-              language={streamingHighlightLang}
-              isEditing={false}
-              isStreaming={isContentStreaming}
-              highlightPatches={sourcePatches}
-              onContentChange={onContentChange}
-            />
-          )}
+        {showStreamingSource && !isRunnableArtifactType(canvasType) && (
+          <CanvasCodeRenderer
+            code={sourceCode}
+            language={streamingHighlightLang}
+            isEditing={false}
+            isStreaming={isContentStreaming}
+            highlightPatches={sourcePatches}
+            onContentChange={onContentChange}
+          />
+        )}
         {!showStreamingSource && canvasType === 'code' && (
           <CanvasCodeRenderer
             code={displayedContent}
@@ -820,12 +820,13 @@ function CanvasPaneComponent() {
             onContentChange={onContentChange}
           />
         )}
-        {(canvasType === 'python_runnable' ||
-          canvasType === 'node_runnable') && (
+        {isRunnableArtifactType(canvasType) && (
           <CanvasRunnableCodeRenderer
             artifactId={artifactId}
             source={showStreamingSource ? sourceCode : displayedContent}
-            language={canvasType === 'python_runnable' ? 'python' : 'node'}
+            language={
+              runnableLanguage(canvasType) === 'python' ? 'python' : 'node'
+            }
             isStreaming={isContentStreaming}
           />
         )}
