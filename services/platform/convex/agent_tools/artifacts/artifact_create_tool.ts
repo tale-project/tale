@@ -301,59 +301,28 @@ Do NOT call \`artifact_create\` again to "try a different approach" — that cre
 
         const editedByMessageId = messageId ?? '';
 
-        let artifactId: string;
-        // Race-recovery: when `onInputDelta`'s placeholder insert mutation
-        // hadn't returned yet by the time `execute` started, `state.artifactId`
-        // is still undefined here — but the placeholder row may already exist
-        // in the DB (with this tool-call's `toolCallId`). Falling straight
-        // through to `createArtifact` would land a *second* row for the same
-        // tool call (one empty placeholder + one with full content), which
-        // surfaces in the UI as two duplicate-titled `v1` tabs. Look up the
-        // placeholder by toolCallId before deciding to insert a new row.
-        let placeholderId: string | undefined =
-          state?.artifactId !== undefined
-            ? String(state.artifactId)
-            : undefined;
-        if (placeholderId === undefined) {
-          const orphan = await ctx.runQuery(
-            internal.artifacts.internal_queries
-              .findStreamingPlaceholderByToolCallId,
-            {
-              organizationId,
-              threadId,
-              toolCallId: options.toolCallId,
-            },
-          );
-          if (orphan) placeholderId = String(orphan._id);
-        }
-        if (placeholderId !== undefined) {
-          await ctx.runMutation(
-            internal.artifacts.internal_mutations.finalizeStreamedCreate,
-            {
-              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- string came from state.artifactId or row._id, both already typed as Id<'artifacts'> in their sources
-              artifactId: placeholderId as never,
-              title: args.title,
-              language: args.language,
-              content: args.content,
-              editedByMessageId,
-            },
-          );
-          artifactId = placeholderId;
-        } else {
-          const inserted = await ctx.runMutation(
-            internal.artifacts.internal_mutations.createArtifact,
-            {
-              organizationId,
-              threadId,
-              type: args.type,
-              title: args.title,
-              language: args.language,
-              content: args.content,
-              createdByMessageId: editedByMessageId,
-            },
-          );
-          artifactId = inserted.artifactId;
-        }
+        // Single settle call. `createArtifact` is idempotent on `toolCallId`:
+        // if `onInputDelta` already inserted a streaming placeholder for this
+        // tool call, the mutation finalizes that row in place (writes the
+        // canonical content, appends the revision row, clears streaming
+        // flags). If no placeholder exists — e.g. title never parsed during
+        // streaming, or onInputDelta crashed — it inserts a fresh settled
+        // row. Convex OCC handles any race between this call and the
+        // placeholder insert so the result is always exactly one row.
+        const inserted = await ctx.runMutation(
+          internal.artifacts.internal_mutations.createArtifact,
+          {
+            organizationId,
+            threadId,
+            type: args.type,
+            title: args.title,
+            language: args.language,
+            content: args.content,
+            createdByMessageId: editedByMessageId,
+            toolCallId: options.toolCallId,
+          },
+        );
+        const artifactId: string = inserted.artifactId;
 
         // Runnable types: source has settled in the artifact row. Persist
         // the run config (packages / sdist+script flags) on the row so the
