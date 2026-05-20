@@ -69,6 +69,11 @@ cleanup() {
     # The sandbox network is declared `external:` in compose.yml — `compose
     # down` won't remove it. Drop it manually so the next run starts clean.
     docker network rm tale-sandbox-net >/dev/null 2>&1 || true
+    # Only remove .env if we created it (CREATED_ENV=1). Otherwise we'd
+    # clobber a developer's real .env when the smoke test exits.
+    if [ "${CREATED_ENV:-0}" = "1" ]; then
+        rm -f "${PROJECT_ROOT}/.env"
+    fi
 }
 
 trap cleanup EXIT
@@ -91,10 +96,14 @@ docker network create \
     --driver=bridge \
     tale-sandbox-net >/dev/null
 
-# Ensure dummy .env exists to satisfy compose.yml env_file declarations
+# Ensure dummy .env exists to satisfy compose.yml env_file declarations.
+# Track whether we created it so the cleanup trap doesn't delete a real
+# .env if one already existed on a developer's box.
+CREATED_ENV=0
 if [ ! -f "${PROJECT_ROOT}/.env" ]; then
     echo -e "  ${YELLOW}⚠ No .env file found — creating placeholder with defaults${NC}"
     cp "${PROJECT_ROOT}/.env.test" "${PROJECT_ROOT}/.env"
+    CREATED_ENV=1
 fi
 
 # =============================================================================
@@ -387,10 +396,19 @@ SANDBOX_TOKEN_VAL=$(grep -E '^SANDBOX_TOKEN=' "${PROJECT_ROOT}/.env.test" | head
 if [ -z "${SANDBOX_TOKEN_VAL}" ]; then
     fail "Sandbox e2e: SANDBOX_TOKEN missing from .env.test"
 else
-    SANDBOX_BODY='{"executionId":"smoke","organizationId":"smoke","language":"python","code":"print(1)","timeoutMs":30000}'
-    # HMAC-SHA256(body) using the token; openssl is in the base ubuntu-latest
-    # image and on every dev box we support.
-    SANDBOX_SIG=$(printf '%s' "${SANDBOX_BODY}" \
+    # Unique per-run executionId so re-running the test (or a stale entry
+    # left in the spawner's in-flight registry from a previous run) doesn't
+    # return 409 Duplicate.
+    SMOKE_EXEC_ID="smoke-$$-$(date +%s)$(date +%N | head -c 6)"
+    SANDBOX_BODY="{\"executionId\":\"${SMOKE_EXEC_ID}\",\"organizationId\":\"smoke\",\"language\":\"python\",\"code\":\"print(1)\",\"timeoutMs\":30000}"
+    SANDBOX_TS=$(($(date +%s%N) / 1000000))
+    SANDBOX_PATH="/v1/execute"
+    # New signing contract (auth.ts): METHOD\npath\ntimestamp\nsha256Hex(body)
+    SANDBOX_BODY_HASH=$(printf '%s' "${SANDBOX_BODY}" \
+        | openssl dgst -sha256 -r 2>/dev/null \
+        | awk '{print $1}')
+    SANDBOX_SIGNED_STRING=$(printf 'POST\n%s\n%s\n%s' "${SANDBOX_PATH}" "${SANDBOX_TS}" "${SANDBOX_BODY_HASH}")
+    SANDBOX_SIG=$(printf '%s' "${SANDBOX_SIGNED_STRING}" \
         | openssl dgst -sha256 -hmac "${SANDBOX_TOKEN_VAL}" -r 2>/dev/null \
         | awk '{print $1}')
     if [ -z "${SANDBOX_SIG}" ]; then
@@ -407,8 +425,9 @@ else
             -X POST \
             -H "content-type: application/json" \
             -H "x-tale-sandbox-signature: ${SANDBOX_SIG}" \
+            -H "x-tale-sandbox-timestamp: ${SANDBOX_TS}" \
             --data-binary "${SANDBOX_BODY}" \
-            "http://localhost:8003/v1/execute" 2>/dev/null || echo "000")
+            "http://localhost:8003${SANDBOX_PATH}" 2>/dev/null || echo "000")
 
         if [ "${SANDBOX_HTTP}" = "200" ] \
            && grep -q '^event: result' "${SANDBOX_OUT}" \
@@ -421,6 +440,34 @@ else
             fail "Sandbox /v1/execute: expected HTTP 200 + completed result"
         fi
         rm -f "${SANDBOX_OUT}"
+    fi
+
+    # ---- Negative cases ----
+    # Missing signature header → 401. Defense-in-depth that the spawner
+    # actually enforces HMAC under .env.test (which DOES define a token).
+    NEG_HTTP=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 10 \
+        -X POST \
+        -H "content-type: application/json" \
+        --data-binary '{"executionId":"unauth","organizationId":"smoke","language":"python","code":"print(1)"}' \
+        "http://localhost:8003/v1/execute" 2>/dev/null || echo "000")
+    if [ "${NEG_HTTP}" = "401" ]; then
+        pass "Sandbox /v1/execute: 401 without signature"
+    else
+        fail "Sandbox /v1/execute: expected 401 without signature, got ${NEG_HTTP}"
+    fi
+
+    # 256 KB + 1 body → 413. Tests the streaming body cap before HMAC
+    # check; we don't bother signing because the byte cap fires first.
+    TOO_BIG=$(printf 'x%.0s' $(seq 1 262145))
+    NEG_HTTP=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 10 \
+        -X POST \
+        -H "content-type: application/json" \
+        --data-binary "${TOO_BIG}" \
+        "http://localhost:8003/v1/execute" 2>/dev/null || echo "000")
+    if [ "${NEG_HTTP}" = "413" ]; then
+        pass "Sandbox /v1/execute: 413 on oversized body"
+    else
+        fail "Sandbox /v1/execute: expected 413 on oversized body, got ${NEG_HTTP}"
     fi
 fi
 
