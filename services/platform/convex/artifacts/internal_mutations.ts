@@ -54,10 +54,63 @@ export function assertContentSize(content: string): void {
 }
 
 /**
+ * Patch a streaming-create placeholder row into its settled form and append
+ * the matching `artifactRevisions` row. Plain helper (not an `internalMutation`)
+ * so callers inside another mutation transaction can invoke it — Convex
+ * disallows nested `runMutation`. Mirrors `applyFinalizeArtifactRun` below.
+ */
+export async function applyFinalizeStreamedCreate(
+  ctx: MutationCtx,
+  args: {
+    artifactId: Id<'artifacts'>;
+    title: string;
+    language?: string;
+    content: string;
+    editedByMessageId: string;
+    revision: number;
+  },
+): Promise<void> {
+  const now = Date.now();
+  await ctx.db.patch(args.artifactId, {
+    title: args.title,
+    language: args.language,
+    content: args.content,
+    streamingContent: undefined,
+    streamingPatches: undefined,
+    liveStreamMode: undefined,
+    liveStreamStartedAt: undefined,
+    toolCallId: undefined,
+    updatedAt: now,
+  });
+  await ctx.db.insert('artifactRevisions', {
+    artifactId: args.artifactId,
+    revision: args.revision,
+    content: args.content,
+    editedByMessageId: args.editedByMessageId,
+    editKind: 'create',
+    createdAt: now,
+  });
+}
+
+/**
  * Insert a new artifact (revision 1) and its initial revision row. Used by
- * the `artifact_create` tool both at the streaming-placeholder moment and
- * at the final settle. When `liveStreamMode` is provided, the row is
- * marked as actively-streaming.
+ * the `artifact_create` tool both at the streaming-placeholder moment
+ * (`liveStreamMode='create'`, empty content) and at the final settle
+ * (no `liveStreamMode`, full content).
+ *
+ * Idempotent on `toolCallId`: the tool's `onInputDelta` and `execute` hooks
+ * each call this mutation in separate Convex transactions. Convex per-mutation
+ * atomicity does NOT extend across two `runMutation` calls from the same
+ * action — so without dedup, a slow placeholder insert could let `execute`
+ * fall through to a second insert, producing two rows for one tool call.
+ *
+ * The dedup pattern: scan the org+thread index for an existing row carrying
+ * the same `toolCallId`. If found, return / finalize-in-place instead of
+ * inserting. Convex OCC validates the read range at commit time; if the
+ * other half of the race committed first, the loser's read set is
+ * invalidated and the runtime retries — on retry the loser sees the
+ * winner's row and takes the dedup branch. Net result: exactly one row per
+ * `toolCallId`, regardless of timing.
  */
 export const createArtifact = internalMutation({
   args: {
@@ -71,7 +124,8 @@ export const createArtifact = internalMutation({
     liveStreamMode: v.optional(liveStreamModeValidator),
     // Set by the artifact_create tool so the canvas can filter
     // `tool-input-delta` rows in the agent SDK's streamDeltas down to this
-    // artifact's stream during the create flow.
+    // artifact's stream during the create flow. Also used as the dedup key
+    // — see header comment.
     toolCallId: v.optional(v.string()),
   },
   returns: v.object({ artifactId: v.id('artifacts'), revision: v.number() }),
@@ -79,6 +133,39 @@ export const createArtifact = internalMutation({
     assertContentSize(args.content);
     const now = Date.now();
     const isStreaming = args.liveStreamMode !== undefined;
+
+    if (args.toolCallId !== undefined) {
+      for await (const row of ctx.db
+        .query('artifacts')
+        .withIndex('by_organizationId_and_thread', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .eq('threadId', args.threadId),
+        )) {
+        if (row.toolCallId !== args.toolCallId) continue;
+        if (isStreaming) {
+          // Streaming-write caller arriving on an existing row: a duplicate
+          // `onInputDelta` insert (the synchronous `rowInitialized` guard in
+          // stream_state.ts normally prevents this, defensive belt-and-suspenders).
+          return { artifactId: row._id, revision: row.revision };
+        }
+        if (row.liveStreamMode === 'create') {
+          // Settle caller arriving on the placeholder: finalize in place.
+          await applyFinalizeStreamedCreate(ctx, {
+            artifactId: row._id,
+            title: args.title,
+            language: args.language,
+            content: args.content,
+            editedByMessageId: args.createdByMessageId,
+            revision: row.revision,
+          });
+          return { artifactId: row._id, revision: row.revision };
+        }
+        // Settle caller arriving on an already-settled row: idempotent return.
+        return { artifactId: row._id, revision: row.revision };
+      }
+    }
+
     const artifactId = await ctx.db.insert('artifacts', {
       organizationId: args.organizationId,
       threadId: args.threadId,
@@ -114,6 +201,13 @@ export const createArtifact = internalMutation({
  * Settle the streaming-placeholder row inserted by `createArtifact`:
  * write the canonical title/language/content, drop streamingContent,
  * write the initial revision row, and clear streaming flags.
+ *
+ * Kept as an external entry point for callers that already hold the
+ * placeholder's `artifactId`. The `artifact_create` tool no longer calls
+ * this directly — `createArtifact` itself handles the finalize-in-place
+ * branch via `applyFinalizeStreamedCreate` so the dedup logic stays in
+ * one place. Retained for future admin/repair scripts that may want a
+ * targeted finalize without going through the dedup index scan.
  */
 export const finalizeStreamedCreate = internalMutation({
   args: {
@@ -143,25 +237,13 @@ export const finalizeStreamedCreate = internalMutation({
         message: `artifact ${args.artifactId} is not in create-streaming state.`,
       });
     }
-    const now = Date.now();
-    await ctx.db.patch(args.artifactId, {
+    await applyFinalizeStreamedCreate(ctx, {
+      artifactId: args.artifactId,
       title: args.title,
       language: args.language,
       content: args.content,
-      streamingContent: undefined,
-      streamingPatches: undefined,
-      liveStreamMode: undefined,
-      liveStreamStartedAt: undefined,
-      toolCallId: undefined,
-      updatedAt: now,
-    });
-    await ctx.db.insert('artifactRevisions', {
-      artifactId: args.artifactId,
-      revision: artifact.revision,
-      content: args.content,
       editedByMessageId: args.editedByMessageId,
-      editKind: 'create',
-      createdAt: now,
+      revision: artifact.revision,
     });
     return null;
   },
