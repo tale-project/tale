@@ -5,7 +5,7 @@
 // HMAC-signs each request body with SANDBOX_TOKEN (mirrors services/sandbox/
 // src/auth.ts). Spawner rejects unsigned or wrong-signed requests with 401.
 
-import { createHmac } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 
 import {
   sandboxErrorCodeLiterals,
@@ -16,6 +16,7 @@ import {
 } from '../../../sandbox/wire';
 
 const SIGNATURE_HEADER = 'x-tale-sandbox-signature';
+const TIMESTAMP_HEADER = 'x-tale-sandbox-timestamp';
 
 export interface SpawnerExecuteBody {
   executionId: string;
@@ -59,8 +60,22 @@ const SANDBOX_PHASE_SET: ReadonlySet<string> = new Set(
   sandboxPhaseEventLiterals,
 );
 
-function sign(body: string, token: string): string {
-  return createHmac('sha256', token).update(body).digest('hex');
+// Signature contract (mirrors services/sandbox/src/auth.ts):
+//   signedString = `${METHOD}\n${path}\n${timestamp}\n${sha256Hex(body)}`
+//   signature    = HMAC-SHA256(token, signedString)
+// Bundling method+path+ts into the signed string stops a captured
+// /v1/execute signature from being replayed against /v1/cancel/:id and
+// caps the replay window to the spawner's 60s clock-skew tolerance.
+function signRequest(
+  method: string,
+  path: string,
+  timestamp: string,
+  body: string,
+  token: string,
+): string {
+  const bodyHash = createHash('sha256').update(body).digest('hex');
+  const signedString = `${method.toUpperCase()}\n${path}\n${timestamp}\n${bodyHash}`;
+  return createHmac('sha256', token).update(signedString).digest('hex');
 }
 
 function getSpawnerUrl(): string {
@@ -101,16 +116,26 @@ export async function spawnerExecute(
   signal: AbortSignal,
   callbacks: SpawnerExecuteCallbacks = {},
 ): Promise<SpawnerExecuteResponse> {
-  const url = `${getSpawnerUrl()}/v1/execute`;
+  const baseUrl = getSpawnerUrl();
+  const url = `${baseUrl}/v1/execute`;
+  const path = new URL(url).pathname;
   const token = getSpawnerToken();
   const bodyJson = JSON.stringify(body);
+  const timestamp = String(Date.now());
 
   const headers: Record<string, string> = {
     'content-type': 'application/json',
     accept: 'text/event-stream',
   };
   if (token !== null) {
-    headers[SIGNATURE_HEADER] = sign(bodyJson, token);
+    headers[SIGNATURE_HEADER] = signRequest(
+      'POST',
+      path,
+      timestamp,
+      bodyJson,
+      token,
+    );
+    headers[TIMESTAMP_HEADER] = timestamp;
   }
 
   let res: Response;
@@ -285,13 +310,22 @@ function validateExecuteResponse(
 
 export async function spawnerCancel(executionId: string): Promise<void> {
   const url = `${getSpawnerUrl()}/v1/cancel/${encodeURIComponent(executionId)}`;
+  const path = new URL(url).pathname;
   const token = getSpawnerToken();
   const body = '';
+  const timestamp = String(Date.now());
   const headers: Record<string, string> = {
     'content-type': 'application/json',
   };
   if (token !== null) {
-    headers[SIGNATURE_HEADER] = sign(body, token);
+    headers[SIGNATURE_HEADER] = signRequest(
+      'POST',
+      path,
+      timestamp,
+      body,
+      token,
+    );
+    headers[TIMESTAMP_HEADER] = timestamp;
   }
   try {
     await fetch(url, { method: 'POST', headers, body });

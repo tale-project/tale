@@ -8,7 +8,7 @@
 //
 // Concurrency: in-process semaphore at SANDBOX_MAX_CONCURRENT. 429 over cap.
 
-import { verify, SIGNATURE_HEADER } from './auth.ts';
+import { verify, SIGNATURE_HEADER, TIMESTAMP_HEADER } from './auth.ts';
 import {
   bootSweep,
   installSignalHandlers,
@@ -94,8 +94,17 @@ function jsonResponse(
 
 function authorize(body: string, req: Request): Response | null {
   if (cfg.sandboxToken === null) return null; // dev opt-in mode
-  if (!verify(body, req.headers.get(SIGNATURE_HEADER), cfg.sandboxToken)) {
-    return jsonResponse({ error: 'unauthorized' }, 401);
+  const url = new URL(req.url);
+  const result = verify(
+    req.method,
+    url.pathname,
+    body,
+    req.headers.get(SIGNATURE_HEADER),
+    req.headers.get(TIMESTAMP_HEADER),
+    cfg.sandboxToken,
+  );
+  if (!result.ok) {
+    return jsonResponse({ error: 'unauthorized', reason: result.reason }, 401);
   }
   return null;
 }

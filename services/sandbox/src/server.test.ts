@@ -8,7 +8,13 @@
 
 import { describe, expect, test } from 'bun:test';
 
-import { SIGNATURE_HEADER, verify } from './auth.ts';
+import {
+  SIGNATURE_HEADER,
+  TIMESTAMP_HEADER,
+  TIMESTAMP_TOLERANCE_MS,
+  sign,
+  verify,
+} from './auth.ts';
 import { loadConfig } from './config.ts';
 import { ID_ALPHABET_RE } from './wire.ts';
 
@@ -82,47 +88,103 @@ describe('loadConfig fail-closed defaults', () => {
   });
 });
 
-describe('HMAC verify', () => {
+describe('HMAC verify (method+path+ts+body binding)', () => {
   const token = 'shared-secret';
   const body = JSON.stringify({ executionId: 'abc', code: 'print(1)' });
+  const method = 'POST';
+  const path = '/v1/execute';
+  const now = 1_700_000_000_000;
+  const ts = String(now);
 
-  // Re-derive the expected signature the same way auth.ts's private `sign`
-  // does, so the test doesn't depend on an exported helper.
-  async function signedHex(payload: string, secret: string): Promise<string> {
-    const { createHmac } = await import('node:crypto');
-    return createHmac('sha256', secret).update(payload).digest('hex');
-  }
-
-  test('accepts a correctly-signed body', async () => {
-    const sig = await signedHex(body, token);
-    expect(verify(body, sig, token)).toBe(true);
+  test('accepts a correctly-signed request', () => {
+    const sig = sign(method, path, ts, body, token);
+    expect(verify(method, path, body, sig, ts, token, now)).toEqual({
+      ok: true,
+    });
   });
 
-  test('rejects a wrong signature', async () => {
-    const sig = await signedHex(body, 'other-secret');
-    expect(verify(body, sig, token)).toBe(false);
+  test('rejects a wrong signature', () => {
+    const sig = sign(method, path, ts, body, 'other-secret');
+    expect(verify(method, path, body, sig, ts, token, now)).toEqual({
+      ok: false,
+      reason: 'bad_signature',
+    });
   });
 
-  test('rejects a tampered body', async () => {
-    const sig = await signedHex(body, token);
-    expect(verify(`${body} `, sig, token)).toBe(false);
+  test('rejects a tampered body', () => {
+    const sig = sign(method, path, ts, body, token);
+    expect(verify(method, path, `${body} `, sig, ts, token, now)).toEqual({
+      ok: false,
+      reason: 'bad_signature',
+    });
+  });
+
+  test('rejects a captured signature replayed against a different path', () => {
+    // The whole point of binding the path: a leaked /v1/execute signature
+    // must not authenticate /v1/cancel/<id>.
+    const sig = sign(method, '/v1/execute', ts, body, token);
+    expect(verify(method, '/v1/cancel/abc', body, sig, ts, token, now)).toEqual(
+      { ok: false, reason: 'bad_signature' },
+    );
+  });
+
+  test('rejects a captured signature replayed with a different method', () => {
+    const sig = sign('POST', path, ts, body, token);
+    expect(verify('GET', path, body, sig, ts, token, now)).toEqual({
+      ok: false,
+      reason: 'bad_signature',
+    });
   });
 
   test('rejects a missing signature header', () => {
-    expect(verify(body, null, token)).toBe(false);
+    expect(verify(method, path, body, null, ts, token, now)).toEqual({
+      ok: false,
+      reason: 'missing_signature',
+    });
   });
 
-  test('rejects a signature of the wrong length (timing-safe length check)', async () => {
-    const sig = await signedHex(body, token);
-    // timingSafeEqual throws on mismatched buffer lengths; the length pre-check
-    // in verify() must short-circuit to `false` instead of leaking via throw.
-    expect(verify(body, sig.slice(0, -1), token)).toBe(false);
-    expect(verify(body, `${sig}aa`, token)).toBe(false);
+  test('rejects a missing timestamp header', () => {
+    const sig = sign(method, path, ts, body, token);
+    expect(verify(method, path, body, sig, null, token, now)).toEqual({
+      ok: false,
+      reason: 'missing_timestamp',
+    });
   });
 
-  test('exports a stable header name (wire contract)', () => {
-    // Convex signs with this header; renaming on either side would silently
-    // break every /v1/execute call.
+  test('rejects timestamps outside the tolerance window', () => {
+    const sig = sign(method, path, ts, body, token);
+    const tooLate = now + TIMESTAMP_TOLERANCE_MS + 1;
+    expect(verify(method, path, body, sig, ts, token, tooLate)).toEqual({
+      ok: false,
+      reason: 'timestamp_skew',
+    });
+    const tooEarly = now - TIMESTAMP_TOLERANCE_MS - 1;
+    expect(verify(method, path, body, sig, ts, token, tooEarly)).toEqual({
+      ok: false,
+      reason: 'timestamp_skew',
+    });
+  });
+
+  test('rejects a non-numeric timestamp', () => {
+    const sig = sign(method, path, ts, body, token);
+    expect(verify(method, path, body, sig, 'not-a-number', token, now)).toEqual(
+      { ok: false, reason: 'bad_timestamp' },
+    );
+  });
+
+  test('rejects a signature of the wrong length (timing-safe length check)', () => {
+    const sig = sign(method, path, ts, body, token);
+    expect(
+      verify(method, path, body, sig.slice(0, -1), ts, token, now),
+    ).toEqual({ ok: false, reason: 'bad_signature' });
+    expect(verify(method, path, body, `${sig}aa`, ts, token, now)).toEqual({
+      ok: false,
+      reason: 'bad_signature',
+    });
+  });
+
+  test('exports stable header names (wire contract)', () => {
     expect(SIGNATURE_HEADER).toBe('x-tale-sandbox-signature');
+    expect(TIMESTAMP_HEADER).toBe('x-tale-sandbox-timestamp');
   });
 });
