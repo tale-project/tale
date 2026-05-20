@@ -33,6 +33,14 @@ export function npmCacheVolumeName(
   return `${cfg.cacheVolumePrefix.npm}-${orgSlug(organizationId)}`;
 }
 
+// Coalesce concurrent ensureCacheVolume calls for the same volume name.
+// Two parallel /v1/execute requests from the same org trigger this twice
+// in quick succession; without a mutex, both race past the `volume inspect`
+// gate, both run `volume create`, and the second wastes a chown + race.
+// Storing the in-flight promise here lets the second caller await the
+// first's settle instead of repeating the work.
+const ensureInFlight = new Map<string, Promise<void>>();
+
 /**
  * Lazy idempotent create. New volumes are root-owned by default and the
  * runtime container runs as nobody (65534), so on first creation we also
@@ -40,6 +48,16 @@ export function npmCacheVolumeName(
  * Subsequent calls are no-ops (we detect via `docker volume inspect`).
  */
 export async function ensureCacheVolume(name: string): Promise<void> {
+  const existing = ensureInFlight.get(name);
+  if (existing) return existing;
+  const work = ensureCacheVolumeUnlocked(name).finally(() => {
+    ensureInFlight.delete(name);
+  });
+  ensureInFlight.set(name, work);
+  return work;
+}
+
+async function ensureCacheVolumeUnlocked(name: string): Promise<void> {
   const inspect = await runDocker(['volume', 'inspect', name]);
   if (inspect.exitCode === 0) return; // already exists, already chowned
 
@@ -51,8 +69,15 @@ export async function ensureCacheVolume(name: string): Promise<void> {
     name,
   ]);
   if (create.exitCode !== 0) {
+    // `volume create` is racey across processes/restarts: if another caller
+    // (or a prior boot) created the volume between our inspect and our
+    // create, Docker returns "volume already exists" with non-zero exit.
+    // That is the success state we wanted; treat it as such and skip chown
+    // because the prior create already ran it.
+    const stderr = create.stderr.trim();
+    if (/already exists/i.test(stderr)) return;
     throw new Error(
-      `volume: failed to create cache volume ${name}: ${create.stderr.trim() || create.stdout.trim()}`,
+      `volume: failed to create cache volume ${name}: ${stderr || create.stdout.trim()}`,
     );
   }
 
