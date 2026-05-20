@@ -458,12 +458,19 @@ else
 
     # 256 KB + 1 body → 413. Tests the streaming body cap before HMAC
     # check; we don't bother signing because the byte cap fires first.
-    TOO_BIG=$(printf 'x%.0s' $(seq 1 262145))
+    #
+    # The body has to come from a file rather than be passed inline: the
+    # Linux kernel caps a single argv string at MAX_ARG_STRLEN (128 KiB),
+    # independent of ARG_MAX, so `--data-binary "${TOO_BIG}"` with 256 KiB
+    # of payload fails the execve before curl ever runs.
+    TOO_BIG_FILE="$(mktemp)"
+    head -c 262145 /dev/zero | tr '\0' 'x' > "${TOO_BIG_FILE}"
     NEG_HTTP=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 10 \
         -X POST \
         -H "content-type: application/json" \
-        --data-binary "${TOO_BIG}" \
+        --data-binary "@${TOO_BIG_FILE}" \
         "http://localhost:8003/v1/execute" 2>/dev/null || echo "000")
+    rm -f "${TOO_BIG_FILE}"
     if [ "${NEG_HTTP}" = "413" ]; then
         pass "Sandbox /v1/execute: 413 on oversized body"
     else
