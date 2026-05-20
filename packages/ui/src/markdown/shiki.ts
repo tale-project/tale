@@ -78,6 +78,10 @@ const LANG_ALIASES: Record<string, string> = {
   js: 'javascript',
   mjs: 'javascript',
   cjs: 'javascript',
+  // `node` is the source language for node_runnable artifacts; the LLM
+  // and the artifact_create tool both emit this token. Without an alias
+  // shiki falls back to plaintext.
+  node: 'javascript',
   ts: 'typescript',
   mts: 'typescript',
   cts: 'typescript',

@@ -14,6 +14,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { useQuery } from 'convex/react';
+import type { Infer } from 'convex/values';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -25,14 +26,14 @@ import {
   File as FileIcon,
   Image as ImageIcon,
 } from 'lucide-react';
-import { memo } from 'react';
 
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
-import type {
-  SandboxErrorCode,
-  SandboxRunProgressKind,
-  SandboxRunStatus,
+import {
+  sandboxOutputFileValidator,
+  sandboxRunProgressValidator,
+  type SandboxErrorCode,
+  type SandboxRunStatus,
 } from '@/convex/sandbox/wire';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -41,24 +42,12 @@ import { formatFileSize } from '@/lib/utils/format/file';
 import { useFileUrl } from '../../hooks/queries';
 import { CanvasCodeRenderer } from './canvas-code-renderer';
 
-interface RunOutputFile {
-  name: string;
-  fileMetadataId: Id<'fileMetadata'>;
-  // Optional because the shared `sandboxOutputFileValidator` makes
-  // storageId optional (the sandbox audit row doesn't carry it, only the
-  // artifact run-row does). Rows written through `finalizeArtifactRun`
-  // always populate it; the renderer gates the download link on the
-  // value being present.
-  storageId?: Id<'_storage'>;
-  size: number;
-  contentType: string;
-}
-
-interface RunProgress {
-  kind: SandboxRunProgressKind;
-  package?: string;
-  version?: string;
-}
+// Single source of truth: the same validators that gate the Convex
+// mutations also derive the client-side prop types, so a future field
+// addition on `sandboxOutputFileValidator` flows through without a
+// matching hand-edit here.
+type RunOutputFile = Infer<typeof sandboxOutputFileValidator>;
+type RunProgress = Infer<typeof sandboxRunProgressValidator>;
 
 interface CanvasRunnableCodeRendererProps {
   artifactId: Id<'artifacts'>;
@@ -291,6 +280,8 @@ function CanvasRunnableCodeRendererComponent({
   );
 }
 
-export const CanvasRunnableCodeRenderer = memo(
-  CanvasRunnableCodeRendererComponent,
-);
+// No memo wrapper: during a sandbox run the artifact row changes via
+// reactive useQuery on every progress event, so the parent re-renders
+// for every chunk and memo's shallow equality check never passes.
+// `memo()` here was pure overhead.
+export const CanvasRunnableCodeRenderer = CanvasRunnableCodeRendererComponent;

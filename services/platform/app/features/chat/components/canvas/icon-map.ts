@@ -4,10 +4,38 @@ import {
   GitBranch,
   Globe,
   Image as ImageIcon,
+  Terminal,
+  TerminalSquare,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
 
 import type { CanvasContentType } from './canvas-context';
+
+/**
+ * Type guard for the two runnable artifact types. Centralized here (over
+ * inline `t === 'python_runnable' || t === 'node_runnable'`) so the
+ * runnable set has one source of truth — adding `ruby_runnable` would
+ * touch this guard, the language switch below, and nothing else.
+ */
+export function isRunnableArtifactType(
+  type: CanvasContentType,
+): type is 'python_runnable' | 'node_runnable' {
+  return type === 'python_runnable' || type === 'node_runnable';
+}
+
+/**
+ * Returns the highlighter / extension language for a runnable type, or
+ * undefined for non-runnable types. Mirrors the agent-tool side helper
+ * in `convex/agent_tools/artifacts/shared.ts:runnableLanguage` so the
+ * client and the server agree on the python/node mapping.
+ */
+export function runnableLanguage(
+  type: CanvasContentType,
+): 'python' | 'javascript' | undefined {
+  if (type === 'python_runnable') return 'python';
+  if (type === 'node_runnable') return 'javascript';
+  return undefined;
+}
 
 /**
  * Canonical icon / label / extension / mime mappings for every
@@ -28,8 +56,11 @@ export const CANVAS_TYPE_ICONS: Record<
   mermaid: GitBranch,
   svg: ImageIcon,
   markdown: FileText,
-  python_runnable: Code,
-  node_runnable: Code,
+  // Runnable types get terminal-flavored icons so the chat list and the
+  // canvas tabs distinguish at-a-glance between static `code` snippets
+  // (Code icon) and an executable sandbox artifact (Terminal icons).
+  python_runnable: TerminalSquare,
+  node_runnable: Terminal,
 };
 
 export const CANVAS_TYPE_LABEL_KEYS: Record<CanvasContentType, string> = {
