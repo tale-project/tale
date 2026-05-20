@@ -77,6 +77,9 @@ jobs:
           - { name: convex }
           - { name: web }
           - { name: docs }
+          - { name: sandbox }
+          - { name: sandbox-egress }
+          - { name: sandbox-runtime }
         arch:
           - { name: amd64, runner: ubuntu-latest, platform: linux/amd64 }
           - { name: arm64, runner: ubuntu-24.04-arm, platform: linux/arm64 }
@@ -86,7 +89,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Reclaim disk space
-        if: matrix.service.name == 'platform' || matrix.service.name == 'rag' || matrix.service.name == 'crawler' || matrix.service.name == 'convex'
+        if: matrix.service.name == 'platform' || matrix.service.name == 'rag' || matrix.service.name == 'crawler' || matrix.service.name == 'convex' || matrix.service.name == 'sandbox-runtime'
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           sudo docker image prune -af
@@ -156,7 +159,7 @@ jobs:
         run: |
           VERSION="${{ needs.prepare.outputs.version_number }}"
           ARCH="amd64"
-          for svc in platform rag crawler db proxy convex web docs; do
+          for svc in platform rag crawler db proxy convex web docs sandbox sandbox-egress sandbox-runtime; do
             IMAGE="${{ env.REGISTRY }}/${{ github.repository }}/tale-${svc}:${VERSION}-${ARCH}"
             echo "Pulling ${IMAGE}..."
             docker pull "${IMAGE}"
@@ -207,7 +210,20 @@ jobs:
 
     strategy:
       matrix:
-        service: [platform, rag, crawler, db, proxy, convex, web, docs]
+        service:
+          [
+            platform,
+            rag,
+            crawler,
+            db,
+            proxy,
+            convex,
+            web,
+            docs,
+            sandbox,
+            sandbox-egress,
+            sandbox-runtime,
+          ]
 
     steps:
       - name: Login to GHCR
@@ -256,7 +272,7 @@ jobs:
         run: |
           VERSION="${{ needs.prepare.outputs.version_number }}"
           REGISTRY="${{ env.REGISTRY }}/${{ github.repository }}"
-          for svc in platform rag crawler db proxy convex web docs; do
+          for svc in platform rag crawler db proxy convex web docs sandbox sandbox-egress sandbox-runtime; do
             IMAGE="${REGISTRY}/tale-${svc}:${VERSION}"
             echo "Verifying manifest: ${IMAGE}"
             docker manifest inspect "${IMAGE}" > /dev/null 2>&1 || {
@@ -310,13 +326,13 @@ jobs:
         run: |
           echo "## Release ${{ needs.prepare.outputs.version }} Complete" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "All 8 service images have been built, tested, and pushed to GHCR (native amd64 + arm64)." >> "$GITHUB_STEP_SUMMARY"
+          echo "All 11 service images have been built, tested, and pushed to GHCR (native amd64 + arm64)." >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "### Images" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Service | Image |" >> "$GITHUB_STEP_SUMMARY"
           echo "|---------|-------|" >> "$GITHUB_STEP_SUMMARY"
-          for svc in platform rag crawler db proxy convex web docs; do
+          for svc in platform rag crawler db proxy convex web docs sandbox sandbox-egress sandbox-runtime; do
             echo "| ${svc} | \`${{ env.REGISTRY }}/${{ github.repository }}/tale-${svc}:${{ needs.prepare.outputs.version_number }}\` |" >> "$GITHUB_STEP_SUMMARY"
           done
           echo "" >> "$GITHUB_STEP_SUMMARY"
