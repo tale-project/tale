@@ -2403,7 +2403,48 @@
       "streamingPatch": "AI is editing…",
       "cancel": "Cancel edit",
       "streamingDuringEdit": "Agent is updating this artifact — your draft is saved. Cancel to discard.",
-      "runDone": "Done"
+      "runDone": "Done",
+      "runStarted": "Started",
+      "runFiles": "Files",
+      "runStdout": "stdout ({chars} chars)",
+      "runStderr": "stderr ({chars} chars)",
+      "runOpenFile": "Open file {name}",
+      "runStatus": {
+        "queued": "Queued",
+        "installing": "Installing dependencies",
+        "running": "Running",
+        "completed": "Completed",
+        "failed": "Failed",
+        "cancelled": "Cancelled"
+      },
+      "runErrorCode": {
+        "TIMEOUT": "Timed out",
+        "OOM": "Out of memory",
+        "EGRESS_DENIED": "Network blocked",
+        "INSTALL_FAILED": "Install failed",
+        "PACKAGE_NOT_FOUND": "Package not found",
+        "QUOTA_EXCEEDED": "Quota exceeded",
+        "RUNTIME_ERROR": "Runtime error",
+        "SPAWNER_UNAVAILABLE": "Sandbox unavailable",
+        "CANCELLED": "Cancelled",
+        "INPUT_REJECTED": "Input rejected"
+      },
+      "runProgress": {
+        "queued": "Queued",
+        "preparing": "Preparing sandbox",
+        "installingPackage": "Installing {package}{version, select, undefined {} other { {version}}}",
+        "installing": "Installing dependencies",
+        "running": "Running"
+      },
+      "typeLabel": {
+        "code": "Code",
+        "html": "HTML",
+        "mermaid": "Mermaid",
+        "svg": "SVG",
+        "markdown": "Markdown",
+        "python_runnable": "Python (sandbox)",
+        "node_runnable": "Node (sandbox)"
+      }
     },
     "artifacts": {
       "barLabel": "Artifacts in this thread",

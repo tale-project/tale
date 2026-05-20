@@ -1,6 +1,13 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
+import {
+  sandboxErrorCodeValidator,
+  sandboxOutputFileValidator,
+  sandboxRunProgressValidator,
+  sandboxRunStatusValidator,
+} from '../sandbox/wire';
+
 export const artifactTypeValidator = v.union(
   v.literal('html'),
   v.literal('svg'),
@@ -15,34 +22,12 @@ export const artifactTypeValidator = v.union(
   v.literal('node_runnable'),
 );
 
-export const artifactRunStatusValidator = v.union(
-  v.literal('queued'),
-  v.literal('installing'),
-  v.literal('running'),
-  v.literal('completed'),
-  v.literal('failed'),
-  v.literal('cancelled'),
-);
-
-export const artifactRunErrorCodeValidator = v.union(
-  v.literal('TIMEOUT'),
-  v.literal('OOM'),
-  v.literal('EGRESS_DENIED'),
-  v.literal('INSTALL_FAILED'),
-  v.literal('PACKAGE_NOT_FOUND'),
-  v.literal('QUOTA_EXCEEDED'),
-  v.literal('RUNTIME_ERROR'),
-  v.literal('SPAWNER_UNAVAILABLE'),
-  v.literal('CANCELLED'),
-);
-
-export const artifactRunOutputFileValidator = v.object({
-  name: v.string(),
-  fileMetadataId: v.id('fileMetadata'),
-  storageId: v.id('_storage'),
-  size: v.number(),
-  contentType: v.string(),
-});
+// Re-export the canonical sandbox validators under their legacy names so
+// existing imports keep working without churn. New code should import the
+// `sandbox*` names directly from `convex/sandbox/wire`.
+export const artifactRunStatusValidator = sandboxRunStatusValidator;
+export const artifactRunErrorCodeValidator = sandboxErrorCodeValidator;
+export const artifactRunOutputFileValidator = sandboxOutputFileValidator;
 
 export const artifactEditKindValidator = v.union(
   v.literal('create'),
@@ -129,9 +114,12 @@ export const artifactsTable = defineTable({
     }),
   ),
   runStatus: v.optional(artifactRunStatusValidator),
-  // Human-readable hint shown in the canvas while running (e.g.
-  // "Installing python-pptx==1.0.2"). Mirrors videoLinkJobs.progress.
-  runProgress: v.optional(v.string()),
+  // Structured progress payload patched by the Convex action as the
+  // spawner emits phase events. `kind` is rendered via the
+  // `chat.runnable.progress.*` i18n keys; the optional `package` /
+  // `version` fields fill ICU placeholders for `installingPackage`.
+  // Server never writes user-visible English text here.
+  runProgress: v.optional(sandboxRunProgressValidator),
   runStartedAt: v.optional(v.number()),
   runCompletedAt: v.optional(v.number()),
   runExitCode: v.optional(v.number()),

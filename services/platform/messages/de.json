@@ -2403,7 +2403,48 @@
       "streamingPatch": "KI bearbeitet…",
       "cancel": "Bearbeitung abbrechen",
       "streamingDuringEdit": "Der Agent aktualisiert dieses Artefakt — dein Entwurf bleibt gespeichert. Klicke auf Abbrechen, um ihn zu verwerfen.",
-      "runDone": "Fertig"
+      "runDone": "Fertig",
+      "runStarted": "Gestartet",
+      "runFiles": "Dateien",
+      "runStdout": "stdout ({chars} Zeichen)",
+      "runStderr": "stderr ({chars} Zeichen)",
+      "runOpenFile": "Datei {name} öffnen",
+      "runStatus": {
+        "queued": "In Warteschlange",
+        "installing": "Abhängigkeiten installieren",
+        "running": "Läuft",
+        "completed": "Abgeschlossen",
+        "failed": "Fehlgeschlagen",
+        "cancelled": "Abgebrochen"
+      },
+      "runErrorCode": {
+        "TIMEOUT": "Zeitüberschreitung",
+        "OOM": "Speicher voll",
+        "EGRESS_DENIED": "Netzwerk blockiert",
+        "INSTALL_FAILED": "Installation fehlgeschlagen",
+        "PACKAGE_NOT_FOUND": "Paket nicht gefunden",
+        "QUOTA_EXCEEDED": "Kontingent überschritten",
+        "RUNTIME_ERROR": "Laufzeitfehler",
+        "SPAWNER_UNAVAILABLE": "Sandbox nicht erreichbar",
+        "CANCELLED": "Abgebrochen",
+        "INPUT_REJECTED": "Eingabe abgelehnt"
+      },
+      "runProgress": {
+        "queued": "In Warteschlange",
+        "preparing": "Sandbox wird vorbereitet",
+        "installingPackage": "{package}{version, select, undefined {} other { {version}}} wird installiert",
+        "installing": "Abhängigkeiten installieren",
+        "running": "Läuft"
+      },
+      "typeLabel": {
+        "code": "Code",
+        "html": "HTML",
+        "mermaid": "Mermaid",
+        "svg": "SVG",
+        "markdown": "Markdown",
+        "python_runnable": "Python (Sandbox)",
+        "node_runnable": "Node (Sandbox)"
+      }
     },
     "artifacts": {
       "barLabel": "Artefakte in diesem Thread",

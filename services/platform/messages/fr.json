@@ -2403,7 +2403,48 @@
       "streamingPatch": "L'IA modifie…",
       "cancel": "Annuler la modification",
       "streamingDuringEdit": "L'agent met à jour cet artéfact — ton brouillon est conservé. Clique sur Annuler pour le rejeter.",
-      "runDone": "Terminé"
+      "runDone": "Terminé",
+      "runStarted": "Démarré",
+      "runFiles": "Fichiers",
+      "runStdout": "stdout ({chars} car.)",
+      "runStderr": "stderr ({chars} car.)",
+      "runOpenFile": "Ouvrir le fichier {name}",
+      "runStatus": {
+        "queued": "En file d'attente",
+        "installing": "Installation des dépendances",
+        "running": "En cours",
+        "completed": "Terminé",
+        "failed": "Échec",
+        "cancelled": "Annulé"
+      },
+      "runErrorCode": {
+        "TIMEOUT": "Délai dépassé",
+        "OOM": "Mémoire saturée",
+        "EGRESS_DENIED": "Réseau bloqué",
+        "INSTALL_FAILED": "Échec d'installation",
+        "PACKAGE_NOT_FOUND": "Paquet introuvable",
+        "QUOTA_EXCEEDED": "Quota dépassé",
+        "RUNTIME_ERROR": "Erreur d'exécution",
+        "SPAWNER_UNAVAILABLE": "Sandbox indisponible",
+        "CANCELLED": "Annulé",
+        "INPUT_REJECTED": "Entrée refusée"
+      },
+      "runProgress": {
+        "queued": "En file d'attente",
+        "preparing": "Préparation du sandbox",
+        "installingPackage": "Installation de {package}{version, select, undefined {} other { {version}}}",
+        "installing": "Installation des dépendances",
+        "running": "En cours"
+      },
+      "typeLabel": {
+        "code": "Code",
+        "html": "HTML",
+        "mermaid": "Mermaid",
+        "svg": "SVG",
+        "markdown": "Markdown",
+        "python_runnable": "Python (sandbox)",
+        "node_runnable": "Node (sandbox)"
+      }
     },
     "artifacts": {
       "barLabel": "Artéfacts dans ce fil",

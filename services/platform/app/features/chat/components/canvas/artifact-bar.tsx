@@ -3,34 +3,15 @@
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { useQuery } from 'convex/react';
-import {
-  Code,
-  FileText,
-  GitBranch,
-  Globe,
-  Image as ImageIcon,
-  Loader2,
-} from 'lucide-react';
-import { memo, useEffect, useRef, type ComponentType } from 'react';
+import { Loader2 } from 'lucide-react';
+import { memo, useEffect, useRef } from 'react';
 
 import { api } from '@/convex/_generated/api';
 import type { ArtifactListItem } from '@/convex/artifacts/queries';
 import { useT } from '@/lib/i18n/client';
 
-import { useCanvas, type CanvasContentType } from './canvas-context';
-
-const TYPE_ICONS: Record<
-  CanvasContentType,
-  ComponentType<{ className?: string }>
-> = {
-  code: Code,
-  html: Globe,
-  mermaid: GitBranch,
-  svg: ImageIcon,
-  markdown: FileText,
-  python_runnable: Code,
-  node_runnable: Code,
-};
+import { useCanvas } from './canvas-context';
+import { CANVAS_TYPE_ICONS } from './icon-map';
 
 interface ArtifactBarProps {
   organizationId: string;
@@ -76,7 +57,7 @@ function ArtifactBarComponent({ organizationId, threadId }: ArtifactBarProps) {
         {t('artifacts.barTitle')}
       </span>
       {artifacts.map((artifact) => {
-        const Icon = TYPE_ICONS[artifact.type];
+        const Icon = CANVAS_TYPE_ICONS[artifact.type];
         const isStreaming = artifact.liveStreamMode !== undefined;
         const isOpen = openArtifactId === artifact._id;
         return (

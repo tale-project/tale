@@ -6,28 +6,15 @@ import {
   SANDBOX_MAX_CONCURRENT_PER_ORG,
   SANDBOX_WATCHDOG_CUTOFF_MS,
 } from './schema';
+import {
+  sandboxErrorCodeValidator,
+  sandboxLanguageValidator,
+  sandboxOutputFileValidator,
+  sandboxTerminalStatuses,
+  sandboxTruncatedValidator,
+} from './wire';
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
-
-const languageValidator = v.union(v.literal('python'), v.literal('node'));
-
-const errorCodeValidator = v.union(
-  v.literal('TIMEOUT'),
-  v.literal('OOM'),
-  v.literal('EGRESS_DENIED'),
-  v.literal('INSTALL_FAILED'),
-  v.literal('PACKAGE_NOT_FOUND'),
-  v.literal('QUOTA_EXCEEDED'),
-  v.literal('RUNTIME_ERROR'),
-  v.literal('SPAWNER_UNAVAILABLE'),
-  v.literal('CANCELLED'),
-);
-
-const truncatedValidator = v.object({
-  stdout: v.boolean(),
-  stderr: v.boolean(),
-  files: v.number(),
-});
 
 /**
  * Atomic concurrency-cap + daily-CPU-budget reservation.
@@ -50,7 +37,7 @@ export const reserveSlotAndInsert = internalMutation({
     messageId: v.optional(v.string()),
     toolCallId: v.optional(v.string()),
     agentSlug: v.optional(v.string()),
-    language: languageValidator,
+    language: sandboxLanguageValidator,
     purpose: v.optional(v.string()),
     codePreview: v.string(),
     codeStorageId: v.optional(v.id('_storage')),
@@ -68,36 +55,26 @@ export const reserveSlotAndInsert = internalMutation({
     const now = Date.now();
 
     // Concurrent cap. Short-circuit at the cap; never materialise the full set.
+    // Both `queued` and `running` rows count: the cap is "in-flight", not
+    // "actively executing". This must agree with the watchdog (below) which
+    // also sweeps both states — otherwise a leaked queued row would shrink
+    // the effective cap until the next watchdog run.
     let inFlight = 0;
     let runningSecondsProjected = 0;
-    for await (const row of ctx.db
-      .query('sandboxExecutions')
-      .withIndex('by_organizationId_and_status', (q) =>
-        q.eq('organizationId', args.organizationId).eq('status', 'running'),
-      )) {
-      inFlight += 1;
-      runningSecondsProjected += row.estimatedSeconds;
-      if (inFlight >= SANDBOX_MAX_CONCURRENT_PER_ORG) {
-        throw new ConvexError({
-          code: 'QUOTA_EXCEEDED',
-          message: `At most ${SANDBOX_MAX_CONCURRENT_PER_ORG} sandboxes can run concurrently for this organization.`,
-        });
-      }
-    }
-    // Also include queued rows in the cap so a misbehaving caller can't
-    // burst-insert N queued rows before any flip to running.
-    for await (const row of ctx.db
-      .query('sandboxExecutions')
-      .withIndex('by_organizationId_and_status', (q) =>
-        q.eq('organizationId', args.organizationId).eq('status', 'queued'),
-      )) {
-      inFlight += 1;
-      runningSecondsProjected += row.estimatedSeconds;
-      if (inFlight >= SANDBOX_MAX_CONCURRENT_PER_ORG) {
-        throw new ConvexError({
-          code: 'QUOTA_EXCEEDED',
-          message: `At most ${SANDBOX_MAX_CONCURRENT_PER_ORG} sandboxes can run concurrently for this organization.`,
-        });
+    for (const status of ['running', 'queued', 'installing'] as const) {
+      for await (const row of ctx.db
+        .query('sandboxExecutions')
+        .withIndex('by_organizationId_and_status', (q) =>
+          q.eq('organizationId', args.organizationId).eq('status', status),
+        )) {
+        inFlight += 1;
+        runningSecondsProjected += row.estimatedSeconds;
+        if (inFlight >= SANDBOX_MAX_CONCURRENT_PER_ORG) {
+          throw new ConvexError({
+            code: 'QUOTA_EXCEEDED',
+            message: `At most ${SANDBOX_MAX_CONCURRENT_PER_ORG} sandboxes can run concurrently for this organization.`,
+          });
+        }
       }
     }
 
@@ -150,21 +127,33 @@ export const reserveSlotAndInsert = internalMutation({
       estimatedSeconds: args.estimatedSeconds,
       outputFiles: [],
       startedAt: now,
-      lifecycleStatus: 'active',
     });
   },
 });
 
 export const setRunning = internalMutation({
-  args: { executionId: v.id('sandboxExecutions') },
+  args: {
+    executionId: v.id('sandboxExecutions'),
+    // Allow the action to record the install phase as a distinct status
+    // (the spawner emits a separate `installing` SSE event before user code
+    // starts running). Defaults to `running` if omitted.
+    status: v.optional(v.union(v.literal('installing'), v.literal('running'))),
+  },
   returns: v.null(),
   handler: async (ctx, args) => {
     const row = await ctx.db.get(args.executionId);
     if (!row) return null;
-    if (row.status !== 'queued') return null;
+    // Monotonic: queued → installing → running. Don't roll back from a
+    // later state. Terminal states are also rejected (no resurrection).
+    const next = args.status ?? 'running';
+    const allowed =
+      (row.status === 'queued' && next === 'installing') ||
+      (row.status === 'queued' && next === 'running') ||
+      (row.status === 'installing' && next === 'running');
+    if (!allowed) return null;
     const now = Date.now();
     await ctx.db.patch(args.executionId, {
-      status: 'running',
+      status: next,
       statusChangedAt: now,
       heartbeatAt: now,
     });
@@ -178,12 +167,19 @@ export const heartbeat = internalMutation({
   handler: async (ctx, args) => {
     const row = await ctx.db.get(args.executionId);
     if (!row) return null;
-    if (row.status !== 'running') return null;
+    if (row.status !== 'running' && row.status !== 'installing') return null;
     await ctx.db.patch(args.executionId, { heartbeatAt: Date.now() });
     return null;
   },
 });
 
+/**
+ * Settles an audit row into a terminal state. Idempotent w.r.t. duplicate
+ * Convex retries AND races with the watchdog: if the row is already in a
+ * terminal state we leave it alone (no-op + warn). The watchdog reaping a
+ * stuck row claims authority; a late-arriving result from the action must
+ * not clobber the `SPAWNER_UNAVAILABLE` audit data the watchdog wrote.
+ */
 export const finalize = internalMutation({
   args: {
     executionId: v.id('sandboxExecutions'),
@@ -193,21 +189,14 @@ export const finalize = internalMutation({
       v.literal('cancelled'),
     ),
     exitCode: v.optional(v.number()),
-    errorCode: v.optional(errorCodeValidator),
+    errorCode: v.optional(sandboxErrorCodeValidator),
     errorMessage: v.optional(v.string()),
     stdoutPreview: v.optional(v.string()),
     stderrPreview: v.optional(v.string()),
     stdoutStorageId: v.optional(v.id('_storage')),
     stderrStorageId: v.optional(v.id('_storage')),
-    outputFiles: v.array(
-      v.object({
-        name: v.string(),
-        fileMetadataId: v.id('fileMetadata'),
-        size: v.number(),
-        contentType: v.string(),
-      }),
-    ),
-    truncated: v.optional(truncatedValidator),
+    outputFiles: v.array(sandboxOutputFileValidator),
+    truncated: v.optional(sandboxTruncatedValidator),
     durationMs: v.number(),
     actualSeconds: v.number(),
   },
@@ -215,6 +204,14 @@ export const finalize = internalMutation({
   handler: async (ctx, args) => {
     const row = await ctx.db.get(args.executionId);
     if (!row) return null;
+    if (sandboxTerminalStatuses.has(row.status)) {
+      // Late-arriving result vs. watchdog reap. Authority belongs to
+      // whoever wrote first — preserve their data, drop ours.
+      console.warn(
+        `[sandbox.finalize] no-op: row ${row._id} already terminal as ${row.status}; dropping incoming ${args.status}`,
+      );
+      return null;
+    }
     const now = Date.now();
     await ctx.db.patch(args.executionId, {
       status: args.status,
@@ -247,13 +244,17 @@ export const finalize = internalMutation({
 });
 
 /**
- * Watchdog cron — flips long-stuck running rows to failed/SPAWNER_UNAVAILABLE.
+ * Watchdog cron — flips long-stuck rows to failed/SPAWNER_UNAVAILABLE.
  *
  * Convex 30-min hard-kill skips action `try/finally`, so without this the
- * audit row stays `running` forever and the slot it holds permanently
- * shrinks the org's concurrent cap. Heartbeat from the action keeps
- * `heartbeatAt` fresh; we declare a row stuck when it's been 2×max_timeout
- * without an update.
+ * audit row stays in a non-terminal state forever and the slot it holds
+ * permanently shrinks the org's concurrent cap. Heartbeat from the action
+ * keeps `heartbeatAt` fresh; we declare a row stuck when it's been
+ * 2×max_timeout without an update.
+ *
+ * Sweeps `queued`, `installing`, AND `running` — a throw between
+ * `reserveSlotAndInsert` and `setRunning` leaves the row in `queued`
+ * indefinitely and would leak a quota slot otherwise.
  */
 export const recoverStuckSandboxes = internalMutation({
   args: {},
@@ -261,19 +262,22 @@ export const recoverStuckSandboxes = internalMutation({
   handler: async (ctx) => {
     const cutoff = Date.now() - SANDBOX_WATCHDOG_CUTOFF_MS;
     let recovered = 0;
-    for await (const row of ctx.db
-      .query('sandboxExecutions')
-      .withIndex('by_status', (q) => q.eq('status', 'running'))) {
-      if (row.heartbeatAt >= cutoff) continue;
-      await ctx.db.patch(row._id, {
-        status: 'failed',
-        statusChangedAt: Date.now(),
-        completedAt: Date.now(),
-        errorCode: 'SPAWNER_UNAVAILABLE',
-        errorMessage: 'Watchdog reaped a stuck running row',
-        actualSeconds: row.estimatedSeconds,
-      });
-      recovered += 1;
+    for (const status of ['running', 'installing', 'queued'] as const) {
+      for await (const row of ctx.db
+        .query('sandboxExecutions')
+        .withIndex('by_status', (q) => q.eq('status', status))) {
+        if (row.heartbeatAt >= cutoff) continue;
+        const now = Date.now();
+        await ctx.db.patch(row._id, {
+          status: 'failed',
+          statusChangedAt: now,
+          completedAt: now,
+          errorCode: 'SPAWNER_UNAVAILABLE',
+          errorMessage: `Watchdog reaped a stuck ${status} row`,
+          actualSeconds: row.estimatedSeconds,
+        });
+        recovered += 1;
+      }
     }
     return recovered;
   },

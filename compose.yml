@@ -548,29 +548,43 @@ services:
     image: ghcr.io/tale-project/tale/tale-sandbox-egress:${VERSION:-latest}
     pull_policy: ${PULL_POLICY:-build}
     build:
-      context: services/sandbox-egress
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/sandbox-egress/Dockerfile
     container_name: tale-sandbox-egress
     env_file:
       - .env
     restart: unless-stopped
+    # NET_ADMIN lets the entrypoint install iptables REJECT rules for
+    # IMDS (169.254.169.254) and RFC1918 ranges as defense-in-depth
+    # against DNS-rebind on an allowlisted hostname. Without this cap
+    # the entrypoint warns and skips the firewall. Mirrors the convex
+    # container — see services/convex/docker-entrypoint.sh.
+    cap_add:
+      - NET_ADMIN
     healthcheck:
-      test: ['CMD', 'nc', '-z', '127.0.0.1', '3128']
+      # CONNECT-probe an allowlisted host: a pure TCP `nc -z 3128` would
+      # stay green even if the allowlist was wiped or upstream broke.
+      # Healthy iff the proxy still tunnels to a known-good registry.
+      test:
+        - CMD-SHELL
+        - 'curl -sf -x http://127.0.0.1:3128 -o /dev/null --connect-timeout 3 https://pypi.org/simple/ || exit 1'
       interval: 10s
-      timeout: 3s
+      timeout: 5s
       retries: 2
-      start_period: 5s
+      start_period: 10s
     logging:
       driver: 'json-file'
       options:
         max-size: '10m'
         max-file: '3'
     networks:
-      # `sandbox` is internal-only — only sandbox-egress + the per-call
-      # runtime containers attach. Runtime containers reach pypi/npm by
-      # CONNECT to sandbox-egress:3128, which is on BOTH networks. The
-      # `internal` Tale network is a regular bridge with NAT so tinyproxy
-      # can resolve and reach the upstream registries.
+      # `sandbox` faces the runtime containers (their only outbound path,
+      # since tale-sandbox-net is `--internal`). `internal` provides
+      # outbound NAT to pypi/npmjs/etc — `--internal` networks can't reach
+      # the host bridge. Egress peers on `internal` are NOT a meaningful
+      # new attack surface (the hostname allowlist + RFC1918/IMDS iptables
+      # rules limit them to the same registries they could already reach
+      # directly via their own NAT).
       - sandbox
       - internal
 
@@ -593,16 +607,16 @@ services:
     image: ghcr.io/tale-project/tale/tale-sandbox:${VERSION:-latest}
     pull_policy: ${PULL_POLICY:-build}
     build:
-      context: services/sandbox
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/sandbox/Dockerfile
     container_name: tale-sandbox
-    # Port mapping: host:container (for development)
-    # `bun dev` runs the convex-local-backend on the host, so the executeCode
-    # Node action needs to reach the spawner via 127.0.0.1:8003. Same shape
-    # as rag (8001) and crawler (8002). The `tale deploy` CLI generator
-    # omits this in production.
+    # Loopback-only port mapping. The spawner mounts /var/run/docker.sock,
+    # so an unauthenticated request on this port = remote root via docker.
+    # Convex reaches the spawner through the `internal` Docker network
+    # (http://sandbox:8003) — the published port is only for `bun dev`
+    # running convex-local-backend on the host. NEVER publish on 0.0.0.0.
     ports:
-      - '8003:8003'
+      - '127.0.0.1:8003:8003'
     env_file:
       - .env
     environment:

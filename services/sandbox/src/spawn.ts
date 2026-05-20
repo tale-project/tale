@@ -26,8 +26,8 @@ import {
 } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { buildDockerRunArgs } from './docker_args.ts';
-import { runDocker, dockerKill, dockerRm } from './spawn_util.ts';
+import { buildDockerRunArgs } from './docker-args.ts';
+import { runDocker, dockerKill, dockerRm } from './spawn-util.ts';
 import type {
   ErrorCode,
   ExecuteRequest,
@@ -40,16 +40,25 @@ import {
   npmCacheVolumeName,
   pipCacheVolumeName,
 } from './volume.ts';
+import {
+  ID_ALPHABET_RE,
+  ORG_ID_ALPHABET_RE,
+  type SandboxPhaseEvent,
+} from './wire.ts';
 
 const PHASE_INSTALL = 'PHASE: installing';
 const PHASE_RUN = 'PHASE: running';
-const NAME_RE = /^[a-zA-Z0-9._-]+$/;
+// `NAME_RE` guards file names we drop on disk before docker mounts them in.
+// `.` and `..` are deliberately disallowed (no traversal); a `-` prefix is
+// also rejected so a filename can't be misread as a CLI flag downstream.
+const NAME_RE = /^[a-zA-Z0-9_][a-zA-Z0-9._-]*$/;
 const RUNTIME_UID = 65534;
 const RUNTIME_GID = 65534;
 
 interface InFlight {
   containerName: string;
   abort: AbortController;
+  startedAt: number;
 }
 
 const inFlight = new Map<string, InFlight>();
@@ -58,12 +67,76 @@ export function isInFlight(executionId: string): boolean {
   return inFlight.has(executionId);
 }
 
+export function inFlightSize(): number {
+  return inFlight.size;
+}
+
+export function inFlightIds(): string[] {
+  return Array.from(inFlight.keys());
+}
+
+/**
+ * Pre-registers an id when the HTTP handler accepts a request but before
+ * `executeRequest` has constructed the real InFlight entry. The placeholder
+ * is overwritten in executeRequest; `unregisterInFlight` is a no-op once the
+ * real entry has been removed by executeRequest's own finally block.
+ */
+export function registerInFlight(executionId: string): void {
+  if (inFlight.has(executionId)) return;
+  // Placeholder until executeRequest swaps in the real entry. The
+  // AbortController exists so an early cancelExecution call sees a real
+  // signal-bearing object.
+  inFlight.set(executionId, {
+    containerName: `tale-sbx-${executionId}`,
+    abort: new AbortController(),
+    startedAt: Date.now(),
+  });
+}
+
+export function unregisterInFlight(executionId: string): void {
+  inFlight.delete(executionId);
+}
+
 export async function cancelExecution(executionId: string): Promise<boolean> {
   const entry = inFlight.get(executionId);
   if (!entry) return false;
   entry.abort.abort('cancelled by client');
-  await dockerKill(entry.containerName);
+  // Hard ceiling on docker kill so a wedged daemon can't hang the cancel
+  // HTTP response. First try SIGTERM (graceful), fall back to SIGKILL.
+  try {
+    await withTimeout(dockerKill(entry.containerName), 5_000);
+  } catch (err) {
+    console.warn(
+      `[sandbox.cancel] dockerKill timed out / failed for ${executionId}:`,
+      err,
+    );
+    try {
+      await withTimeout(dockerKill(entry.containerName, 'KILL'), 5_000);
+    } catch (forceErr) {
+      console.error(
+        `[sandbox.cancel] forced dockerKill also failed for ${executionId}:`,
+        forceErr,
+      );
+    }
+  }
   return true;
+}
+
+async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      p,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`timeout after ${ms}ms`)),
+          ms,
+        );
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 }
 
 async function stageWorkspace(
@@ -132,7 +205,8 @@ async function harvestOutputDir(
     let entries;
     try {
       entries = await readdir(abs, { withFileTypes: true });
-    } catch {
+    } catch (err) {
+      console.warn(`[sandbox.harvest] failed to read output dir ${abs}:`, err);
       return;
     }
     for (const e of entries) {
@@ -189,9 +263,11 @@ function guessContentType(name: string): string {
  * Phase events emitted while the runtime container is running. The server's
  * SSE handler relays these to the convex action; the action then writes the
  * artifact row's `runStatus` + `runProgress` so the canvas shows live
- * progress instead of a frozen spinner (Refinement 2).
+ * progress instead of a frozen spinner.
+ *
+ * Shape mirrors `services/platform/convex/sandbox/wire.ts:sandboxPhaseEventLiterals`.
  */
-type PhaseEvent = { phase: 'installing' } | { phase: 'running' };
+type PhaseEvent = { phase: SandboxPhaseEvent };
 
 interface ExecuteRequestOptions {
   onPhase?: (event: PhaseEvent) => void;
@@ -202,10 +278,10 @@ export async function executeRequest(
   req: ExecuteRequest,
   opts: ExecuteRequestOptions = {},
 ): Promise<ExecuteResponse> {
-  if (!/^[a-zA-Z0-9_-]{1,64}$/.test(req.executionId)) {
+  if (!ID_ALPHABET_RE.test(req.executionId)) {
     return makeError('SPAWNER_UNAVAILABLE', 'invalid executionId', 0);
   }
-  if (!/^[a-zA-Z0-9_-]{1,128}$/.test(req.organizationId)) {
+  if (!ORG_ID_ALPHABET_RE.test(req.organizationId)) {
     return makeError('SPAWNER_UNAVAILABLE', 'invalid organizationId', 0);
   }
   if (req.language !== 'python' && req.language !== 'node') {
@@ -223,7 +299,13 @@ export async function executeRequest(
   const workspaceHostDir = join(cfg.hostSessionRoot, req.executionId);
 
   const abort = new AbortController();
-  inFlight.set(req.executionId, { containerName, abort });
+  // Replace any placeholder entry with the real one. cancelExecution sees
+  // this abort signal AND has the real container name to docker kill.
+  inFlight.set(req.executionId, {
+    containerName,
+    abort,
+    startedAt: startedAtMs,
+  });
 
   try {
     await ensureCacheVolume(pipVolume);
@@ -248,7 +330,12 @@ export async function executeRequest(
     //     CLI process too — covers the case where `docker kill` itself
     //     hangs (rare; would mean the daemon is in trouble).
     const killTimer = setTimeout(() => {
-      void dockerKill(containerName).catch(() => {});
+      void dockerKill(containerName).catch((err) => {
+        console.warn(
+          `[sandbox] timeout-triggered dockerKill failed for ${containerName}:`,
+          err,
+        );
+      });
     }, timeoutMs);
     let result: Awaited<ReturnType<typeof runDocker>>;
     try {
@@ -258,8 +345,20 @@ export async function executeRequest(
       // those markers and fire the onPhase callback. Other lines (user's
       // own prints) are ignored — the full stdout is still captured in
       // result.stdout for the final response.
+      //
+      // On stream EOF without a trailing newline, the residual `lineBuf` is
+      // drained once via `finalize` so the last marker still produces an
+      // event (audit finding R2-3 C3 partial). `stripPhaseMarkers` below
+      // also handles the unterminated case via `split('\n')`.
       let lineBuf = '';
       const decoder = new TextDecoder('utf-8', { fatal: false });
+      const scanLine = (line: string) => {
+        if (line === PHASE_INSTALL) {
+          opts.onPhase?.({ phase: 'installing' });
+        } else if (line === PHASE_RUN) {
+          opts.onPhase?.({ phase: 'running' });
+        }
+      };
       const onChunk = opts.onPhase
         ? (chunk: Uint8Array) => {
             lineBuf += decoder.decode(chunk, { stream: true });
@@ -267,11 +366,7 @@ export async function executeRequest(
             while ((nl = lineBuf.indexOf('\n')) !== -1) {
               const line = lineBuf.slice(0, nl);
               lineBuf = lineBuf.slice(nl + 1);
-              if (line === PHASE_INSTALL) {
-                opts.onPhase?.({ phase: 'installing' });
-              } else if (line === PHASE_RUN) {
-                opts.onPhase?.({ phase: 'running' });
-              }
+              scanLine(line);
             }
           }
         : undefined;
@@ -281,12 +376,17 @@ export async function executeRequest(
         killOnTimeoutContainer: containerName,
         ...(onChunk && { onStdoutChunk: onChunk }),
       });
+      // EOF drain — the loop above only fires on newlines; a final
+      // unterminated PHASE: line lives in lineBuf at this point.
+      if (opts.onPhase) {
+        lineBuf += decoder.decode();
+        if (lineBuf.length > 0) scanLine(lineBuf);
+      }
     } finally {
       clearTimeout(killTimer);
     }
 
     const durationMs = Date.now() - startedAtMs;
-    const phases = classifyPhases(result.stdout);
     const exitCode = result.exitCode;
 
     const stdoutWithoutPhases = stripPhaseMarkers(result.stdout);
@@ -308,8 +408,8 @@ export async function executeRequest(
         stdoutBase64: Buffer.from(stdoutCapped).toString('base64'),
         stderrBase64: Buffer.from(stderrCapped).toString('base64'),
         durationMs,
-        installMs: phases.installMs,
-        runMs: phases.runMs,
+        installMs: null,
+        runMs: null,
         truncated: { stdout: stdoutTrunc, stderr: stderrTrunc, files: 0 },
         outputFiles: [],
       };
@@ -326,8 +426,8 @@ export async function executeRequest(
         stdoutBase64: Buffer.from(stdoutCapped).toString('base64'),
         stderrBase64: Buffer.from(stderrCapped).toString('base64'),
         durationMs,
-        installMs: phases.installMs,
-        runMs: phases.runMs,
+        installMs: null,
+        runMs: null,
         truncated: {
           stdout: stdoutTrunc,
           stderr: stderrTrunc,
@@ -346,8 +446,8 @@ export async function executeRequest(
       stdoutBase64: Buffer.from(stdoutCapped).toString('base64'),
       stderrBase64: Buffer.from(stderrCapped).toString('base64'),
       durationMs,
-      installMs: phases.installMs,
-      runMs: phases.runMs,
+      installMs: null,
+      runMs: null,
       truncated: { stdout: stdoutTrunc, stderr: stderrTrunc, files: 0 },
       outputFiles: [],
     };
@@ -360,10 +460,23 @@ export async function executeRequest(
     );
   } finally {
     inFlight.delete(req.executionId);
-    await dockerRm(containerName).catch(() => {});
-    await rm(workspaceHostDir, { recursive: true, force: true }).catch(
-      () => {},
-    );
+    try {
+      await dockerRm(containerName);
+    } catch (err) {
+      console.warn(
+        `[sandbox.cleanup] dockerRm failed for ${containerName}:`,
+        err,
+      );
+    }
+    try {
+      await rm(workspaceHostDir, { recursive: true, force: true });
+    } catch (err) {
+      // Loud: silent rm failures = host disk leak. Audit finding.
+      console.warn(
+        `[sandbox.cleanup] failed to rm host workspace ${workspaceHostDir}:`,
+        err,
+      );
+    }
   }
 }
 
@@ -392,16 +505,6 @@ function stripPhaseMarkers(stdout: string): string {
     .split('\n')
     .filter((line) => line !== PHASE_INSTALL && line !== PHASE_RUN)
     .join('\n');
-}
-
-interface Phases {
-  installMs: number | null;
-  runMs: number | null;
-}
-
-function classifyPhases(_stdout: string): Phases {
-  // Phase timing is approximate. v2 can pipe wall-clock hints in the marker.
-  return { installMs: null, runMs: null };
 }
 
 function capText(

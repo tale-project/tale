@@ -33,7 +33,7 @@ const HOST_DIR_RE = /^\/[a-zA-Z0-9_./-]{1,256}$/;
 function assertSafe(name: string, value: string, re: RegExp): void {
   if (!re.test(value)) {
     throw new Error(
-      `docker_args: ${name} value rejected by safety regex: ${JSON.stringify(value)}`,
+      `docker-args: ${name} value rejected by safety regex: ${JSON.stringify(value)}`,
     );
   }
 }
@@ -51,7 +51,7 @@ export function buildDockerRunArgs(
   assertSafe('npmCacheVolume', inp.npmCacheVolume, VOL_RE);
   assertSafe('workspaceHostDir', inp.workspaceHostDir, HOST_DIR_RE);
   if (inp.language !== 'python' && inp.language !== 'node') {
-    throw new Error(`docker_args: bad language: ${inp.language as string}`);
+    throw new Error(`docker-args: bad language: ${inp.language as string}`);
   }
 
   const containerName = `tale-sbx-${inp.executionId}`;

@@ -139,7 +139,7 @@ USE THIS TOOL after \`artifact_create\` (to actually run a newly authored script
 | \`QUOTA_EXCEEDED\` | Org daily CPU cap | Don't retry — tell the user to wait |
 | \`SPAWNER_UNAVAILABLE\` | Transient infra | One \`artifact_run\` retry is fine; if it fails again, surface to user |
 
-**HARD RULE — NEVER tell the user "文件已生成" / "file generated" / similar unless \`success === true\` AND \`files.length > 0\`.** That is the most reported bug for this flow.
+**HARD RULE — NEVER tell the user the file is ready / generated / done unless \`success === true\` AND \`files.length > 0\`.** That is the most reported bug for this flow.
 
 **RESPONSE:** returns \`runStatus\`, \`runExitCode\`, optional \`runErrorCode\` / \`runErrorMessage\`, \`runStdoutPreview\`, \`runStderrPreview\`, \`files[]\` (the deliverable output files, each with \`name\` / \`storageId\` / \`size\` / \`contentType\`), \`durationMs\`, and \`executionId\` (audit-row link).`,
     inputSchema: artifactRunArgs,
@@ -163,25 +163,28 @@ USE THIS TOOL after \`artifact_create\` (to actually run a newly authored script
         };
       }
 
-      let artifactId;
+      // `toId` is a pure cast; it never throws. The Convex `v.id('artifacts')`
+      // validator inside `runQuery(getById)` is the real throw site for a
+      // malformed id, so wrap THAT call, not toId. Mirrors the pattern in
+      // artifact_edit_tool.ts.
+      const artifactId = toId<'artifacts'>(args.artifactId);
+      let artifact;
       try {
-        artifactId = toId<'artifacts'>(args.artifactId);
+        artifact = await ctx.runQuery(
+          internal.artifacts.internal_queries.getById,
+          {
+            artifactId,
+            expectedOrganizationId: organizationId,
+            expectedThreadId: threadId,
+          },
+        );
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         return {
           success: false,
-          message: `Artifact id "${args.artifactId}" is malformed: ${message}`,
+          message: `Artifact id "${args.artifactId}" is malformed or inaccessible: ${message}`,
         };
       }
-
-      const artifact = await ctx.runQuery(
-        internal.artifacts.internal_queries.getById,
-        {
-          artifactId,
-          expectedOrganizationId: organizationId,
-          expectedThreadId: threadId,
-        },
-      );
       if (!artifact) {
         return {
           success: false,
@@ -205,26 +208,12 @@ USE THIS TOOL after \`artifact_create\` (to actually run a newly authored script
       // Refresh the run-state row in case the user already saw a previous
       // run's status — initArtifactRun resets runStatus to 'queued', clears
       // runProgress / runErrorCode / etc. so the canvas right pane updates
-      // cleanly during this new run.
+      // cleanly during this new run. The artifact row's persistent
+      // runPackages / runOptions are NOT overwritten here; per-call args
+      // are applied transiently to the spawner request below.
       await ctx.runMutation(
         internal.artifacts.internal_mutations.initArtifactRun,
-        {
-          artifactId,
-          runPackages: args.packages ?? artifact.runPackages ?? [],
-          ...((args.allowSdist !== undefined ||
-            args.allowInstallScripts !== undefined ||
-            artifact.runOptions !== undefined) && {
-            runOptions: {
-              ...artifact.runOptions,
-              ...(args.allowSdist !== undefined && {
-                allowSdist: args.allowSdist,
-              }),
-              ...(args.allowInstallScripts !== undefined && {
-                allowInstallScripts: args.allowInstallScripts,
-              }),
-            },
-          }),
-        },
+        { artifactId },
       );
 
       const effectivePackages = args.packages ?? artifact.runPackages ?? [];

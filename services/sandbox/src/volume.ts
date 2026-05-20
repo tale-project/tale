@@ -5,7 +5,7 @@
 // container itself uses a `--tmpfs /workspace` for the workspace, so there is
 // no per-call workspace volume to manage.
 
-import { runDocker } from './spawn_util.ts';
+import { runDocker } from './spawn-util.ts';
 import type { SpawnerConfig } from './types.ts';
 
 const ORG_SLUG_RE = /^[a-zA-Z0-9_-]{1,128}$/;

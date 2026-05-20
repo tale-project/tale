@@ -16,7 +16,10 @@
 # Conventions:
 #   - User code at /workspace/code/main.{py,js}
 #   - Output files in /workspace/output/
-#   - install-report.json at /workspace/install-report.json (audit)
+#   - install-stderr.log at /workspace/install-stderr.log — captured stderr
+#     from the package install step, tailed to container stderr on failure
+#     (exit 64) so the spawner can surface it. Nothing reads stdout: install
+#     stdout flows directly to the container stdout for live streaming.
 #   - PHASE markers on stdout so the spawner can split install vs run timing.
 #
 # Exit codes:
@@ -66,11 +69,13 @@ run_python() {
     PIP_ARGS="$PIP_ARGS --only-binary=:all:"
   fi
   if [ -n "$PACKAGES_ARGV" ]; then
+    # Install stdout flows through to the container stdout so the spawner can
+    # surface progress live; stderr is captured to a file and tailed back on
+    # failure (exit 64). Do NOT redirect stderr to /dev/null — that would
+    # hide the only diagnostic on a broken install.
     eval "uv pip install $PIP_ARGS $PACKAGES_ARGV" \
-      > /workspace/install-stdout.log 2> /workspace/install-stderr.log \
+      2> /workspace/install-stderr.log \
       || { tail -c 64000 /workspace/install-stderr.log >&2; exit 64; }
-    uv pip list --format=json --python /workspace/.deps/python 2>/dev/null \
-      > /workspace/install-report.json || true
   fi
   export PYTHONPATH=/workspace/.deps/python
   echo "PHASE: running"
@@ -85,12 +90,16 @@ run_node() {
   fi
   if [ -n "$PACKAGES_ARGV" ]; then
     mkdir -p /workspace/.deps/node
-    (cd /workspace/.deps/node && npm init -y > /dev/null 2>&1) || true
-    eval "npm install $NPM_ARGS $PACKAGES_ARGV" \
-      > /workspace/install-stdout.log 2> /workspace/install-stderr.log \
+    # `npm init -y`'s only side effect is the package.json scaffold; its
+    # output is noise but its stderr is the only signal if (e.g.) the dir
+    # isn't writable. Capture stderr so a real failure is recoverable.
+    (cd /workspace/.deps/node && npm init -y > /dev/null 2> /workspace/install-stderr.log) \
       || { tail -c 64000 /workspace/install-stderr.log >&2; exit 64; }
-    npm ls --prefix /workspace/.deps/node --json --depth=0 2>/dev/null \
-      > /workspace/install-report.json || true
+    # Same pattern as run_python: stdout streams through, stderr is captured
+    # for failure-path harvest.
+    eval "npm install $NPM_ARGS $PACKAGES_ARGV" \
+      2> /workspace/install-stderr.log \
+      || { tail -c 64000 /workspace/install-stderr.log >&2; exit 64; }
   fi
   export NODE_PATH=/workspace/.deps/node/node_modules
   echo "PHASE: running"

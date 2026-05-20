@@ -140,7 +140,7 @@ function statusIcon(s: Check['status']): string {
 export function createDoctorCommand(): Command {
   return new Command('doctor')
     .description(
-      'Preflight checks for sandbox / code_run host requirements (docker, runsc, userns-remap, secrets).',
+      'Preflight checks for sandbox / artifact_run host requirements (docker, runsc, userns-remap, secrets).',
     )
     .action(async () => {
       const env = process.env;

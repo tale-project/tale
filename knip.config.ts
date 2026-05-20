@@ -50,10 +50,11 @@ export default {
       project: ['**/*.{ts,tsx}'],
     },
     'services/sandbox': {
-      // Standalone Bun HTTP service. Not in root workspaces (own bun.lock);
-      // declare here so knip can resolve its entry points and ignore them
-      // from the "unused" sweep.
-      entry: ['src/**/*.test.ts'],
+      // Standalone Bun HTTP service. `src/server.ts` is the runtime entry
+      // (invoked from the Dockerfile CMD, not from package.json scripts that
+      // knip auto-detects); tests anchor the dead-code sweep for unit-only
+      // helpers.
+      entry: ['src/server.ts', 'src/**/*.test.ts'],
       project: ['src/**/*.ts'],
     },
     'services/docs': {

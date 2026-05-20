@@ -18,6 +18,7 @@ vi.mock('../_generated/server', async (importOriginal) => {
 import {
   reserveSlotAndInsert,
   recoverStuckSandboxes,
+  finalize,
 } from './internal_mutations';
 import { SANDBOX_MAX_CONCURRENT_PER_ORG } from './schema';
 
@@ -45,12 +46,14 @@ interface FakeRow {
 interface MockCtxOptions {
   runningRows?: FakeRow[];
   queuedRows?: FakeRow[];
+  installingRows?: FakeRow[];
   completedTodayRows?: FakeRow[];
 }
 
 function createMockCtx(opts: MockCtxOptions = {}) {
   const runningRows = opts.runningRows ?? [];
   const queuedRows = opts.queuedRows ?? [];
+  const installingRows = opts.installingRows ?? [];
   const completedRows = opts.completedTodayRows ?? [];
   const insertedRows: Record<string, unknown>[] = [];
 
@@ -77,10 +80,15 @@ function createMockCtx(opts: MockCtxOptions = {}) {
         return asyncIter(runningRows)[Symbol.asyncIterator]();
       if (status === 'queued')
         return asyncIter(queuedRows)[Symbol.asyncIterator]();
+      if (status === 'installing')
+        return asyncIter(installingRows)[Symbol.asyncIterator]();
       // No status filter → completedToday daily-budget scan
-      return asyncIter([...completedRows, ...runningRows])[
-        Symbol.asyncIterator
-      ]();
+      return asyncIter([
+        ...completedRows,
+        ...runningRows,
+        ...queuedRows,
+        ...installingRows,
+      ])[Symbol.asyncIterator]();
     };
     return builder;
   }
@@ -125,8 +133,10 @@ describe('reserveSlotAndInsert', () => {
       organizationId: 'org_alpha',
       status: 'queued',
       estimatedSeconds: 30,
-      lifecycleStatus: 'active',
     });
+    // lifecycleStatus is no longer persisted — confirm it isn't smuggled
+    // back in by a future regression.
+    expect(insertedRows[0]).not.toHaveProperty('lifecycleStatus');
   });
 
   it(`rejects when running count is already at the cap (${SANDBOX_MAX_CONCURRENT_PER_ORG})`, async () => {
@@ -141,6 +151,27 @@ describe('reserveSlotAndInsert', () => {
       }),
     );
     const { ctx } = createMockCtx({ runningRows: running });
+    const mut = reserveSlotAndInsert as unknown as MutHandler<
+      typeof baseArgs,
+      string
+    >;
+    await expect(mut.handler(ctx, baseArgs)).rejects.toBeInstanceOf(
+      ConvexError,
+    );
+  });
+
+  it('rejects when queued rows alone fill the cap (leaked-slot defence)', async () => {
+    const queued: FakeRow[] = Array.from(
+      { length: SANDBOX_MAX_CONCURRENT_PER_ORG },
+      (_v, i) => ({
+        _id: `q${i}`,
+        _creationTime: Date.now() - 500,
+        status: 'queued',
+        estimatedSeconds: 30,
+        heartbeatAt: Date.now(),
+      }),
+    );
+    const { ctx } = createMockCtx({ queuedRows: queued });
     const mut = reserveSlotAndInsert as unknown as MutHandler<
       typeof baseArgs,
       string
@@ -202,5 +233,75 @@ describe('recoverStuckSandboxes', () => {
       }),
     );
     expect(ctx.db.patch).not.toHaveBeenCalledWith('live1', expect.anything());
+  });
+
+  it('also flips queued rows whose heartbeat is older than 2× max-timeout', async () => {
+    // Captures the "throw between reserveSlotAndInsert and setRunning" leak.
+    const stale: FakeRow = {
+      _id: 'queuedStuck',
+      _creationTime: Date.now() - 3_600_000,
+      status: 'queued',
+      estimatedSeconds: 60,
+      heartbeatAt: Date.now() - 11 * 60_000,
+    };
+    const { ctx } = createMockCtx({ queuedRows: [stale] });
+    const mut = recoverStuckSandboxes as unknown as MutHandler<
+      Record<string, unknown>,
+      number
+    >;
+    const count = await mut.handler(ctx, {});
+    expect(count).toBe(1);
+    expect(ctx.db.patch).toHaveBeenCalledWith(
+      'queuedStuck',
+      expect.objectContaining({
+        status: 'failed',
+        errorCode: 'SPAWNER_UNAVAILABLE',
+      }),
+    );
+  });
+});
+
+describe('finalize', () => {
+  const baseArgs = {
+    executionId: 'exec_1' as never,
+    status: 'completed' as const,
+    outputFiles: [],
+    durationMs: 1000,
+    actualSeconds: 1,
+  };
+
+  it('refuses to overwrite a terminal row (watchdog-vs-action race)', async () => {
+    const mut = finalize as unknown as MutHandler<typeof baseArgs, null>;
+    const ctx = {
+      db: {
+        get: vi.fn(async () => ({
+          _id: 'exec_1',
+          status: 'failed',
+          errorCode: 'SPAWNER_UNAVAILABLE',
+        })),
+        patch: vi.fn(),
+      },
+    };
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const result = await mut.handler(ctx, baseArgs);
+    expect(result).toBeNull();
+    expect(ctx.db.patch).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it('patches when the row is still in-flight', async () => {
+    const mut = finalize as unknown as MutHandler<typeof baseArgs, null>;
+    const ctx = {
+      db: {
+        get: vi.fn(async () => ({ _id: 'exec_1', status: 'running' })),
+        patch: vi.fn(),
+      },
+    };
+    await mut.handler(ctx, baseArgs);
+    expect(ctx.db.patch).toHaveBeenCalledWith(
+      'exec_1',
+      expect.objectContaining({ status: 'completed' }),
+    );
   });
 });
