@@ -261,7 +261,31 @@ export function useChatVideoLinks(args: {
 
   const cancelJob = useCallback(
     async (jobId: Id<'videoLinkJobs'>) => {
-      await cancelMutation({ jobId });
+      // Hide the chip first so the click feels instant — and so terminal
+      // states (failed/completed) actually dismiss. The server treats
+      // cancel as a no-op for terminal jobs (mutations.ts:331-335), so
+      // without the local hide the chip would sit there until reload.
+      setHideJobIds((prev) => {
+        if (prev.has(jobId)) return prev;
+        const next = new Set(prev);
+        next.add(jobId);
+        return next;
+      });
+      try {
+        await cancelMutation({ jobId });
+      } catch (err) {
+        setHideJobIds((prev) => {
+          if (!prev.has(jobId)) return prev;
+          const next = new Set(prev);
+          next.delete(jobId);
+          return next;
+        });
+        console.error(
+          '[useChatVideoLinks] cancel failed:',
+          err instanceof Error ? err.message : err,
+        );
+        throw err;
+      }
     },
     [cancelMutation],
   );
