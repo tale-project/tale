@@ -20,6 +20,11 @@ ARG VERSION=dev
 ARG BUN_VERSION=1.3.12
 ARG DOCKER_CLI_VERSION=27
 
+# docker CLI stage — aliased so the runner stage can `COPY --from=docker-cli`
+# without variable expansion in `--from=` (BuildKit forbids that and fails the
+# build; the workaround is a global-ARG-referencing FROM with a named stage).
+FROM docker:${DOCKER_CLI_VERSION}-cli AS docker-cli
+
 # =============================================================================
 # Stage 1: BUILDER — install full deps (incl. devDeps) for typecheck/tests
 # =============================================================================
@@ -46,7 +51,7 @@ WORKDIR /app
 # docker CLI for spawning sibling containers via the mounted socket. The
 # Debian-shipped `docker.io` package is too old (API 1.41; current daemons
 # require >=1.44); pull the official static CLI binary instead.
-COPY --from=docker:${DOCKER_CLI_VERSION}-cli /usr/local/bin/docker /usr/local/bin/docker
+COPY --from=docker-cli /usr/local/bin/docker /usr/local/bin/docker
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates \
