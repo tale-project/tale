@@ -93,6 +93,9 @@ jobs:
           exit-code: '0'
           scanners: 'vuln,secret,misconfig'
           ignore-unfixed: true
+          # Per-path misconfig suppressions live in .trivyignore.yaml; the
+          # plain .trivyignore is auto-detected but cannot scope by path.
+          trivyignores: '.trivyignore.yaml'
           # Skip handlebars Dockerfile templates: handlebars syntax confuses
           # the misconfig scanner. The generated Dockerfiles are scanned
           # downstream when each service runs its own build.

@@ -1,0 +1,37 @@
+# =============================================================================
+# Trivy Ignore File (YAML)
+# =============================================================================
+# Per-path suppressions for vulnerabilities, misconfigurations, secrets, and
+# licenses. Plain CVE-only entries can also live in `.trivyignore` next to
+# this file; YAML is needed when scoping by `paths`.
+#
+# Docs: https://aquasecurity.github.io/trivy/latest/docs/configuration/filtering/
+# Loaded by CI via `trivyignores:` on the trivy-action invocations in
+# .github/workflows/security.yml and .github/workflows/build.yml.
+# =============================================================================
+
+misconfigurations:
+  # AVD-DS-0002: "Image user should not be 'root'"
+  - id: AVD-DS-0002
+    paths:
+      - 'services/sandbox/Dockerfile'
+    statement: |
+      Sandbox spawner needs root inside the container to talk to the mounted
+      /var/run/docker.sock. The docker socket is the security boundary, not
+      the in-container UID. Documented in services/sandbox/Dockerfile.
+  - id: AVD-DS-0002
+    paths:
+      - 'services/sandbox-egress/Dockerfile'
+    statement: |
+      Egress proxy entrypoint runs as root only long enough to chown the log
+      file; tinyproxy itself drops privileges to `nobody` at bind time via
+      tinyproxy.conf. Documented in services/sandbox-egress/Dockerfile.
+
+  # AVD-DS-0026: "No HEALTHCHECK defined"
+  - id: AVD-DS-0026
+    paths:
+      - 'services/sandbox-runtime/Dockerfile'
+    statement: |
+      Sandbox runtime is an ephemeral one-shot image: the spawner runs it per
+      code_run call, entrypoint.sh executes the user code, and the container
+      exits. There is no long-running process to health-check.
