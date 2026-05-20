@@ -269,6 +269,19 @@ async function handleExecute(req: Request): Promise<Response> {
           console.warn('[sandbox] SSE enqueue after close:', err);
         }
       };
+      // Bun.serve enforces a per-connection idleTimeout (we raise it to the
+      // 255 s max below, but install + run can still outlast that). An SSE
+      // comment line (`: ...\n\n`) is ignored by the platform-side parser
+      // and resets the idle clock, so a periodic tick keeps the stream live
+      // during silent stretches like `pip install` / `npm install`.
+      const sendKeepalive = () => {
+        try {
+          controller.enqueue(enc.encode(`: keepalive\n\n`));
+        } catch (err) {
+          console.warn('[sandbox] SSE keepalive enqueue after close:', err);
+        }
+      };
+      const keepalive = setInterval(sendKeepalive, 20_000);
       try {
         const result = await executeRequest(cfg, parsed, {
           onPhase: (e) => send('phase', e),
@@ -279,6 +292,7 @@ async function handleExecute(req: Request): Promise<Response> {
           message: err instanceof Error ? err.message : String(err),
         });
       } finally {
+        clearInterval(keepalive);
         unregisterInFlight(parsed.executionId);
         req.signal.removeEventListener('abort', abortHandler);
         try {
@@ -365,6 +379,11 @@ async function main(): Promise<void> {
 
   const server = Bun.serve({
     port: cfg.port,
+    // Bun's default idleTimeout is 10 s, which kills long SSE streams during
+    // silent install phases. 255 is Bun's max — combined with the in-stream
+    // keepalive in /v1/execute, this gives a generous backstop without
+    // disabling the timeout entirely.
+    idleTimeout: 255,
     fetch: (req) =>
       router(req).catch((err) => {
         console.error('[sandbox] handler error:', err);

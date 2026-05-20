@@ -54,6 +54,19 @@ else
   iptables -I OUTPUT -d 172.16.0.0/12 -j REJECT --reject-with icmp-net-prohibited 2>/dev/null || true
   iptables -I OUTPUT -d 192.168.0.0/16 -j REJECT --reject-with icmp-net-prohibited 2>/dev/null || true
 
+  # Stateful ACCEPT for response traffic. Without this, the REJECT rules
+  # above also drop the SYN-ACK and data segments tinyproxy sends back to
+  # peer runtime containers — their IPs sit in 172.30.0.0/24 ⊂ 172.16/12,
+  # so the kernel rejects egress's reply with icmp-net-prohibited and the
+  # runtime's connect() times out. The header comment above optimistically
+  # assumed bridge-to-bridge traffic skips OUTPUT; on modern kernels with
+  # bridge-nf-call-iptables=1 it does NOT, so we explicitly let return
+  # traffic through. NEW outbound to RFC1918 is still rejected because
+  # this rule only matches ESTABLISHED/RELATED conntrack states.
+  iptables -I OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || \
+    iptables -I OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || \
+    echo "[sandbox-egress] WARN: failed to install stateful ACCEPT — runtime callers will time out connecting to the proxy"
+
   # IPv6 mirror: if a future tale-sandbox-net is created with IPv6 enabled
   # (or the host kernel exposes a v6 default route into one of the
   # sensitive private ranges), the v4-only rules above would leave a hole.
@@ -72,6 +85,10 @@ else
     # private v6 fabric.
     ip6tables -I OUTPUT -d fe80::/10 -j REJECT 2>/dev/null || true
     ip6tables -I OUTPUT -d fc00::/7 -j REJECT 2>/dev/null || true
+    # Mirror the v4 stateful ACCEPT (see explanation above) so any IPv6
+    # peer runtime can also receive return packets.
+    ip6tables -I OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || \
+      ip6tables -I OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || true
   else
     echo "[sandbox-egress] WARN: ip6tables unavailable; IPv6 SSRF defense not installed (harmless on IPv4-only hosts)"
   fi
