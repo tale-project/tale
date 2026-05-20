@@ -36,17 +36,26 @@ export function createSandboxEgressService(
     env_file: ['.env'],
     restart: 'unless-stopped',
     cap_add: ['NET_ADMIN'],
+    // tinyproxy + tail = trivial footprint; the cap is here to bound a
+    // misbehaving allowlist-regex DoS that pegs CPU or floods the log.
+    mem_limit: '512m',
+    pids_limit: 512,
+    ulimits: {
+      nofile: { soft: 4096, hard: 8192 },
+    },
     healthcheck: {
-      // CONNECT-probe an allowlisted host: a pure TCP `nc -z 3128` would
-      // stay green even if the allowlist was wiped or upstream broke.
-      // Healthy iff the proxy still tunnels to a known-good registry.
-      test: [
-        'CMD-SHELL',
-        'curl -sf -x http://127.0.0.1:3128 -o /dev/null --connect-timeout 3 https://pypi.org/simple/ || exit 1',
-      ],
-      interval: '10s',
-      timeout: '5s',
-      retries: 2,
+      // Local readiness probe: a TCP `nc -z 3128` confirms tinyproxy is
+      // bound and accepting connections. We deliberately do NOT probe an
+      // external host (pypi) on every interval: 10s × 24h = 8,640
+      // pypi.org/simple/ hits per day per host, which is wasteful and
+      // makes the proxy's healthiness depend on a third party's uptime
+      // (a pypi blip would flap the container and trigger restarts).
+      // Allow-list regressions are caught by the smoke test, not by the
+      // health probe.
+      test: ['CMD-SHELL', 'nc -z 127.0.0.1 3128 || exit 1'],
+      interval: '30s',
+      timeout: '3s',
+      retries: 3,
       start_period: '10s',
     },
     logging: DEFAULT_LOGGING,

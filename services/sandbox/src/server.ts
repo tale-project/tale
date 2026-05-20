@@ -109,7 +109,25 @@ function authorize(body: string, req: Request): Response | null {
   return null;
 }
 
-async function handleHealth(): Promise<Response> {
+// Cache the docker version probe so the compose healthcheck (every 10s)
+// doesn't fork a subprocess on every hit. 60s is well under the watchdog
+// cutoff and short enough that a daemon recycle surfaces within one
+// healthcheck cycle of the user noticing.
+const DOCKER_PROBE_TTL_MS = 60_000;
+let dockerProbeCache:
+  | { ok: true; version: string; expiresAt: number }
+  | { ok: false; error: string; expiresAt: number }
+  | null = null;
+
+async function probeDocker(): Promise<
+  { ok: true; version: string } | { ok: false; error: string }
+> {
+  const now = Date.now();
+  if (dockerProbeCache !== null && dockerProbeCache.expiresAt > now) {
+    return dockerProbeCache.ok
+      ? { ok: true, version: dockerProbeCache.version }
+      : { ok: false, error: dockerProbeCache.error };
+  }
   // Probe docker daemon reachability. Use `docker version --format` over the
   // older `docker info --format` because some Debian-packaged CLIs (e.g.
   // docker.io 20.10 in our base image) panic when templating a newer-API
@@ -117,16 +135,30 @@ async function handleHealth(): Promise<Response> {
   // been compatible across the 20.10 ↔ 29.x gap.
   const info = await runDocker(['version', '--format', '{{.Server.Version}}']);
   if (info.exitCode !== 0) {
-    return jsonResponse(
-      {
-        status: 'unhealthy',
-        error: info.stderr.trim() || info.stdout.trim(),
-      },
-      503,
-    );
+    const error = info.stderr.trim() || info.stdout.trim();
+    dockerProbeCache = {
+      ok: false,
+      error,
+      expiresAt: now + DOCKER_PROBE_TTL_MS,
+    };
+    return { ok: false, error };
+  }
+  const version = info.stdout.trim();
+  dockerProbeCache = {
+    ok: true,
+    version,
+    expiresAt: now + DOCKER_PROBE_TTL_MS,
+  };
+  return { ok: true, version };
+}
+
+async function handleHealth(): Promise<Response> {
+  const docker = await probeDocker();
+  if (!docker.ok) {
+    return jsonResponse({ status: 'unhealthy', error: docker.error }, 503);
   }
   return jsonResponse(
-    { status: 'ok', dockerServerVersion: info.stdout.trim() },
+    { status: 'ok', dockerServerVersion: docker.version },
     200,
   );
 }
