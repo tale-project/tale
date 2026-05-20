@@ -31,10 +31,20 @@ async function maybeRunSandboxAuditCleanup(
   ctx: MutationCtx,
   organizationId: string,
 ): Promise<void> {
-  const result = await rateLimiter.limit(ctx, 'cleanup:sandbox', {
-    key: organizationId,
-    throws: false,
-  });
+  // Best-effort gate. If the rate limiter component is unreachable (e.g.
+  // the unit-test ctx mock that doesn't ship `runMutation`), skip the
+  // sweep rather than crash the parent reservation — cleanup is
+  // opportunistic and a missed window costs nothing.
+  let result: { ok: boolean };
+  try {
+    result = await rateLimiter.limit(ctx, 'cleanup:sandbox', {
+      key: organizationId,
+      throws: false,
+    });
+  } catch (err) {
+    console.warn('[sandbox.cleanup] rate-limiter gate failed:', err);
+    return;
+  }
   if (!result.ok) return;
   const cutoff = Date.now() - AUDIT_RETENTION_MS;
   let deleted = 0;
