@@ -33,6 +33,17 @@ export function createSandboxService(config: ServiceConfig): ComposeService {
     // `internal` Docker network (http://sandbox:8003), not this published
     // port. The loopback bind is for `bun dev` running convex on the host.
     ports: ['127.0.0.1:8003:8003'],
+    // Per-container resource caps. The spawner is a thin Bun HTTP server
+    // that issues `docker` subprocess calls; 512 MB is generous for the
+    // server itself but excludes the runtime containers it spawns (those
+    // get their own caps via `--memory=1g` in docker-args.ts). pids_limit
+    // bounds the docker-CLI fanout under a fork-bomb regression; the
+    // nofile bump leaves room for many in-flight SSE streams.
+    mem_limit: '512m',
+    pids_limit: 512,
+    ulimits: {
+      nofile: { soft: 4096, hard: 8192 },
+    },
     env_file: ['.env'],
     environment: {
       SANDBOX_RUNTIME: '${SANDBOX_RUNTIME:-runc}',

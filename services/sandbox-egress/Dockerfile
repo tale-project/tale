@@ -36,11 +36,11 @@ RUN chmod +x /entrypoint.sh
 
 EXPOSE 3128
 
-# Healthcheck verifies the proxy still tunnels an allowlisted host. A pure
-# TCP `nc -z 3128` would stay green even if the allowlist was wiped or the
-# upstream broke; this CONNECT probe fails iff the proxy can no longer
-# serve a known-good destination.
-HEALTHCHECK --interval=10s --timeout=5s --retries=2 \
-  CMD curl -sf -x http://127.0.0.1:3128 -o /dev/null --connect-timeout 3 https://pypi.org/simple/ || exit 1
+# Local readiness probe only — confirms tinyproxy is bound and accepting
+# TCP. We deliberately do NOT call out to pypi every 10s on every host
+# (allow-list regressions are caught by the smoke test). `nc` is part of
+# busybox in alpine; no extra apk install is needed.
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+  CMD nc -z 127.0.0.1 3128 || exit 1
 
 ENTRYPOINT ["/entrypoint.sh"]
