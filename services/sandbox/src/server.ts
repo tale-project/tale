@@ -173,6 +173,21 @@ async function handleExecute(req: Request): Promise<Response> {
     );
   }
 
+  // Reject duplicates explicitly: the in-flight registry is keyed by
+  // executionId, and overwriting the entry would silently detach the
+  // original AbortController from cancelExecution. The Convex action
+  // never retries the same executionId in practice, so a duplicate
+  // POST is almost always a misconfigured caller or a malicious replay.
+  if (isInFlight(parsed.executionId)) {
+    return jsonResponse(
+      {
+        error: 'duplicate',
+        message: `executionId ${parsed.executionId} is already in flight`,
+      },
+      409,
+    );
+  }
+
   // Concurrency check AFTER validation so a malformed request can't
   // consume a slot.
   if (inFlightSize() >= cfg.maxConcurrent) {

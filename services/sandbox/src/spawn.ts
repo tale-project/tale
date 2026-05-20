@@ -298,9 +298,14 @@ export async function executeRequest(
   const npmVolume = npmCacheVolumeName(cfg, req.organizationId);
   const workspaceHostDir = join(cfg.hostSessionRoot, req.executionId);
 
-  const abort = new AbortController();
-  // Replace any placeholder entry with the real one. cancelExecution sees
-  // this abort signal AND has the real container name to docker kill.
+  // Reuse the placeholder AbortController if the server pre-registered one
+  // when the request landed. A `cancelExecution` call between registerInFlight
+  // and this line targets the placeholder's signal — discarding it here and
+  // building a fresh controller would leak that early abort, leaving the
+  // child docker process running until the watchdog timeout. Reusing the
+  // entry preserves the (already-aborted, if cancelled) signal.
+  const placeholder = inFlight.get(req.executionId);
+  const abort = placeholder?.abort ?? new AbortController();
   inFlight.set(req.executionId, {
     containerName,
     abort,
@@ -324,13 +329,16 @@ export async function executeRequest(
     });
 
     // Two-tier timeout:
-    //   - Inner: at `timeoutMs`, docker kill the container so user code
-    //     cannot exceed the cap.
+    //   - Inner: at `timeoutMs`, SIGKILL the container so user code cannot
+    //     exceed the cap. The runtime is untrusted; there's no graceful
+    //     shutdown contract to honor with SIGTERM, and SIGTERM-then-wait
+    //     would just let a misbehaving process burn additional wall-clock
+    //     before we force the kill anyway.
     //   - Outer (in runDocker): at `timeoutMs + 30_000`, kill the docker
     //     CLI process too — covers the case where `docker kill` itself
     //     hangs (rare; would mean the daemon is in trouble).
     const killTimer = setTimeout(() => {
-      void dockerKill(containerName).catch((err) => {
+      void dockerKill(containerName, 'KILL').catch((err) => {
         console.warn(
           `[sandbox] timeout-triggered dockerKill failed for ${containerName}:`,
           err,
