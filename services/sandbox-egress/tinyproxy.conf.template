@@ -41,18 +41,18 @@ Allow 172.16.0.0/12
 
 # Strip outbound headers that would either leak client provenance or
 # advertise the presence of a proxy. DisableViaHeader replaces the default
-# `No` (which emitted `Via: 1.1 tale-sandbox-egress`); AnonymousHeader is
-# an allowlist — only headers listed here pass through to upstream.
+# `No` (which emitted `Via: 1.1 tale-sandbox-egress`); Anonymous is an
+# allowlist — only headers listed here pass through to upstream.
 DisableViaHeader Yes
-AnonymousHeader "Host"
-AnonymousHeader "Authorization"
-AnonymousHeader "Content-Type"
-AnonymousHeader "Content-Length"
-AnonymousHeader "User-Agent"
-AnonymousHeader "Accept"
-AnonymousHeader "Accept-Encoding"
-AnonymousHeader "Accept-Language"
-AnonymousHeader "Connection"
-AnonymousHeader "Proxy-Connection"
+Anonymous "Host"
+Anonymous "Authorization"
+Anonymous "Content-Type"
+Anonymous "Content-Length"
+Anonymous "User-Agent"
+Anonymous "Accept"
+Anonymous "Accept-Encoding"
+Anonymous "Accept-Language"
+Anonymous "Connection"
+Anonymous "Proxy-Connection"
 # Explicitly excluded by virtue of not being listed above:
 #   X-Forwarded-For, Forwarded, Via, From, X-Real-IP
