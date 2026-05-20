@@ -565,9 +565,12 @@ services:
       # CONNECT-probe an allowlisted host: a pure TCP `nc -z 3128` would
       # stay green even if the allowlist was wiped or upstream broke.
       # Healthy iff the proxy still tunnels to a known-good registry.
+      # HEAD (`-I`) + `--max-time` keeps the probe small: `pypi.org/simple/`
+      # serves a ~40MB index body that easily blows the 5s timeout, so we
+      # only fetch headers and cap the total request.
       test:
         - CMD-SHELL
-        - 'curl -sf -x http://127.0.0.1:3128 -o /dev/null --connect-timeout 3 https://pypi.org/simple/ || exit 1'
+        - 'curl -sfI -x http://127.0.0.1:3128 -o /dev/null --connect-timeout 3 --max-time 4 https://pypi.org/simple/pip/ || exit 1'
       interval: 10s
       timeout: 5s
       retries: 2
