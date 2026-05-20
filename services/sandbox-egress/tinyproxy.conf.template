@@ -31,28 +31,22 @@ Filter "/etc/tinyproxy/allowlist"
 
 # Client allow-list (network-layer): only loopback (healthcheck) and the
 # Docker user-network CIDRs that the sandbox runtime containers attach to.
-# 172.16.0.0/12 covers the default Docker bridge-driver range; if the
-# operator configures a tighter sandbox subnet they can override the
-# allowlist via SANDBOX_EGRESS_CLIENT_CIDR. ::1 covers IPv6 loopback for
-# the healthcheck on dual-stack hosts.
+# 172.16.0.0/12 covers the default Docker bridge-driver range. This list is
+# defense-in-depth ONLY — it's a client ACL, NOT the primary network
+# boundary. The primary boundary is the `--internal` flag on tale-sandbox-net
+# (runtime containers can't reach the host bridge) plus the iptables OUTPUT
+# rules installed by entrypoint.sh (REJECT IMDS + RFC1918). The allowlist
+# entry would only matter if a future topology change exposed the egress
+# proxy to additional networks; until then it's a belt-and-braces guard.
+# ::1 covers IPv6 loopback for the healthcheck on dual-stack hosts.
 Allow 127.0.0.1
 Allow ::1
 Allow 172.16.0.0/12
 
-# Strip outbound headers that would either leak client provenance or
-# advertise the presence of a proxy. DisableViaHeader replaces the default
-# `No` (which emitted `Via: 1.1 tale-sandbox-egress`); Anonymous is an
-# allowlist — only headers listed here pass through to upstream.
+# DisableViaHeader replaces the default `No` (which emitted
+# `Via: 1.1 tale-sandbox-egress`). Note: tinyproxy's Anonymous block does
+# NOT apply to CONNECT / HTTPS traffic — the tunnel is end-to-end
+# encrypted between the runtime container and the upstream, so tinyproxy
+# cannot see or rewrite request headers. Header stripping would only
+# matter for plaintext HTTP, which CONNECT-only mode rejects anyway.
 DisableViaHeader Yes
-Anonymous "Host"
-Anonymous "Authorization"
-Anonymous "Content-Type"
-Anonymous "Content-Length"
-Anonymous "User-Agent"
-Anonymous "Accept"
-Anonymous "Accept-Encoding"
-Anonymous "Accept-Language"
-Anonymous "Connection"
-Anonymous "Proxy-Connection"
-# Explicitly excluded by virtue of not being listed above:
-#   X-Forwarded-For, Forwarded, Via, From, X-Real-IP
