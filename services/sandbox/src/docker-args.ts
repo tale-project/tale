@@ -2,8 +2,10 @@
 //
 // Pure function so the unit test (R1.22 #1 regression gate) can snapshot the
 // argv without invoking docker. CRITICAL: user code is NEVER passed via argv
-// (it's piped to the container's stdin as a tar). Only typed identifiers
-// (UUID, orgId after validation, language, image) reach argv positions.
+// — it's staged via a host bind-mount that maps /var/lib/tale-sandbox/
+// sessions/<id>/ into /workspace inside the container (see
+// spawn.ts:stageWorkspace). Only typed identifiers (UUID, orgId after
+// validation, language, image) reach argv positions.
 
 import type { Language, SpawnerConfig } from './types.ts';
 

@@ -93,13 +93,6 @@ export const sandboxPhaseEventLiterals = [
 
 export type SandboxPhaseEvent = (typeof sandboxPhaseEventLiterals)[number];
 
-export const sandboxPhaseEventValidator = v.union(
-  v.literal('preparing'),
-  v.literal('installing'),
-  v.literal('running'),
-  v.literal('completed'),
-);
-
 /**
  * Structured progress payload persisted on the artifact row alongside the
  * phase. Replaces the legacy `runProgress` string field — keys come from

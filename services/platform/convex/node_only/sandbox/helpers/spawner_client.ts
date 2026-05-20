@@ -18,7 +18,7 @@ import {
 const SIGNATURE_HEADER = 'x-tale-sandbox-signature';
 const TIMESTAMP_HEADER = 'x-tale-sandbox-timestamp';
 
-export interface SpawnerExecuteBody {
+interface SpawnerExecuteBody {
   executionId: string;
   organizationId: string;
   language: SandboxLanguage;
@@ -28,16 +28,10 @@ export interface SpawnerExecuteBody {
   options?: { allowSdist?: boolean; allowInstallScripts?: boolean };
 }
 
-// Re-exported for callers that already imported these via this module.
-// `SandboxErrorCode` is the canonical name; `SpawnerErrorCode` kept as a
-// transitional alias.
-export type SpawnerErrorCode = SandboxErrorCode;
-export type SpawnerPhase = SandboxPhaseEvent;
-
-export interface SpawnerExecuteResponse {
+interface SpawnerExecuteResponse {
   status: 'completed' | 'failed' | 'cancelled';
   exitCode: number | null;
-  errorCode?: SpawnerErrorCode;
+  errorCode?: SandboxErrorCode;
   errorMessage?: string;
   stdoutBase64: string;
   stderrBase64: string;
@@ -96,9 +90,9 @@ function getSpawnerToken(): string | null {
   return token && token.length > 0 ? token : null;
 }
 
-export interface SpawnerExecuteCallbacks {
+interface SpawnerExecuteCallbacks {
   /** Fired as soon as the runtime entrypoint emits a PHASE marker. */
-  onPhase?: (phase: SpawnerPhase) => Promise<void> | void;
+  onPhase?: (phase: SandboxPhaseEvent) => Promise<void> | void;
 }
 
 /**
@@ -210,7 +204,7 @@ export async function spawnerExecute(
             // the lint rule still flags the assertion; suppress for the
             // wire-shape boundary.
             // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-            await callbacks.onPhase(rawPhase as SpawnerPhase);
+            await callbacks.onPhase(rawPhase as SandboxPhaseEvent);
           } catch (err) {
             // Log but don't abort the underlying execution — the artifact
             // patch is a UX nice-to-have; the audit + final result still

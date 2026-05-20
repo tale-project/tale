@@ -7,11 +7,6 @@
 # Runs as uid 65534 under --read-only with all caps dropped; spawner forces
 # these via `docker run` flags but the image baseline matches.
 #
-# TODO: pin all FROM lines to @sha256 once a Renovate/Dependabot rule is in
-# place. Plan calls for digest pinning; we ship tag pins to unblock bootstrap.
-
-ARG VERSION=dev
-
 FROM python:3.12-slim-bookworm
 
 # Runtime additions only — fontconfig + DejaVu so Pillow/matplotlib render
