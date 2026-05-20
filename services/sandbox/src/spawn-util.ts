@@ -2,12 +2,9 @@
 //
 // Centralised so docker-args.ts stays a pure argv builder (unit-testable) and
 // every actual docker call goes through one shape with consistent stdout/stderr
-// handling, stdin piping, and timeouts.
+// handling and timeouts.
 
 interface RunDockerOptions {
-  stdin?: string | Uint8Array;
-  // Set true when we expect a binary blob (tar stream) on stdout.
-  captureBinaryStdout?: boolean;
   timeoutMs?: number;
   signal?: AbortSignal;
   // When set, on host-side timeout the CLI process is killed AND
@@ -27,7 +24,6 @@ interface RunDockerResult {
   exitCode: number;
   stdout: string;
   stderr: string;
-  stdoutBytes?: Uint8Array;
 }
 
 const DOCKER_BIN = process.env.DOCKER_BIN ?? 'docker';
@@ -37,16 +33,11 @@ export async function runDocker(
   opts: RunDockerOptions = {},
 ): Promise<RunDockerResult> {
   const proc = Bun.spawn([DOCKER_BIN, ...args], {
-    stdin: opts.stdin !== undefined ? 'pipe' : 'ignore',
+    stdin: 'ignore',
     stdout: 'pipe',
     stderr: 'pipe',
     signal: opts.signal,
   });
-
-  if (opts.stdin !== undefined && proc.stdin) {
-    void proc.stdin.write(opts.stdin);
-    await proc.stdin.end();
-  }
 
   // Concurrent reads to avoid pipe-back-pressure deadlock. When the caller
   // wants chunk callbacks (for live phase parsing), we read stdout via a
@@ -120,13 +111,8 @@ export async function runDocker(
 
   return {
     exitCode,
-    stdout: opts.captureBinaryStdout
-      ? ''
-      : new TextDecoder('utf-8', { fatal: false }).decode(stdoutBytes),
+    stdout: new TextDecoder('utf-8', { fatal: false }).decode(stdoutBytes),
     stderr: new TextDecoder('utf-8', { fatal: false }).decode(stderrBytes),
-    stdoutBytes: opts.captureBinaryStdout
-      ? new Uint8Array(stdoutBytes)
-      : undefined,
   };
 }
 
