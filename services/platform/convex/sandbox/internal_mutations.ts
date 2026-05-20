@@ -1,7 +1,8 @@
 import { ConvexError, v } from 'convex/values';
 
-import { internalMutation } from '../_generated/server';
+import { internalMutation, type MutationCtx } from '../_generated/server';
 import { applyFinalizeArtifactRun } from '../artifacts/internal_mutations';
+import { rateLimiter } from '../lib/rate_limiter';
 import {
   SANDBOX_DAILY_CPU_BUDGET_SECONDS,
   SANDBOX_MAX_CONCURRENT_PER_ORG,
@@ -16,6 +17,40 @@ import {
 } from './wire';
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+const AUDIT_RETENTION_MS = 90 * ONE_DAY_MS;
+const AUDIT_GC_PER_SWEEP = 100;
+
+/**
+ * Opportunistic per-org GC for sandboxExecutions audit rows. Rate-limited
+ * to at most once per hour per org so a busy org doesn't pay the scan
+ * cost on every insert. Caps the per-sweep delete count to keep the
+ * mutation runtime bounded — leftover rows are reclaimed by the next
+ * sweep an hour later.
+ */
+async function maybeRunSandboxAuditCleanup(
+  ctx: MutationCtx,
+  organizationId: string,
+): Promise<void> {
+  const result = await rateLimiter.limit(ctx, 'cleanup:sandbox', {
+    key: organizationId,
+    throws: false,
+  });
+  if (!result.ok) return;
+  const cutoff = Date.now() - AUDIT_RETENTION_MS;
+  let deleted = 0;
+  for await (const row of ctx.db
+    .query('sandboxExecutions')
+    .withIndex('by_organizationId', (q) =>
+      q.eq('organizationId', organizationId),
+    )
+    .order('asc')) {
+    if (row._creationTime >= cutoff) break;
+    if (!sandboxTerminalStatuses.has(row.status)) continue;
+    await ctx.db.delete(row._id);
+    deleted += 1;
+    if (deleted >= AUDIT_GC_PER_SWEEP) break;
+  }
+}
 
 /**
  * Atomic concurrency-cap + daily-CPU-budget reservation.
@@ -92,7 +127,17 @@ export const reserveSlotAndInsert = internalMutation({
       )
       .order('desc')) {
       if (row._creationTime < dayCutoff) break;
-      if (row.status === 'completed' || row.status === 'failed') {
+      // Cancelled rows count too: the spawner still spent CPU bringing the
+      // container up before the cancel landed, and treating cancels as
+      // "free" would let an abusive caller burst spawn/abort the same
+      // execution to bypass the budget. If we ever want to refund early
+      // cancels (e.g. cancelled in the queued state with no work done),
+      // do it explicitly on the cancel path, not implicitly here.
+      if (
+        row.status === 'completed' ||
+        row.status === 'failed' ||
+        row.status === 'cancelled'
+      ) {
         completedToday += row.actualSeconds ?? row.estimatedSeconds;
       }
     }
@@ -106,7 +151,7 @@ export const reserveSlotAndInsert = internalMutation({
       });
     }
 
-    return await ctx.db.insert('sandboxExecutions', {
+    const executionId = await ctx.db.insert('sandboxExecutions', {
       organizationId: args.organizationId,
       uploadedBy: args.uploadedBy,
       ...(args.threadId !== undefined && { threadId: args.threadId }),
@@ -114,6 +159,15 @@ export const reserveSlotAndInsert = internalMutation({
       ...(args.toolCallId !== undefined && { toolCallId: args.toolCallId }),
       ...(args.agentSlug !== undefined && { agentSlug: args.agentSlug }),
       ...(args.artifactId !== undefined && { artifactId: args.artifactId }),
+      // Normalize the audit field: always store an object with explicit
+      // booleans (default false) so a future read-side default-divergence
+      // can't quietly invert the meaning. The legacy conditional-spread
+      // stored either `undefined` or a partial object, depending on the
+      // caller's args shape.
+      installOptions: {
+        allowSdist: args.installOptions?.allowSdist ?? false,
+        allowInstallScripts: args.installOptions?.allowInstallScripts ?? false,
+      },
       language: args.language,
       ...(args.purpose !== undefined && { purpose: args.purpose }),
       codePreview: args.codePreview,
@@ -121,9 +175,6 @@ export const reserveSlotAndInsert = internalMutation({
         codeStorageId: args.codeStorageId,
       }),
       packages: args.packages,
-      ...(args.installOptions !== undefined && {
-        installOptions: args.installOptions,
-      }),
       status: 'queued',
       statusChangedAt: now,
       heartbeatAt: now,
@@ -131,29 +182,33 @@ export const reserveSlotAndInsert = internalMutation({
       outputFiles: [],
       startedAt: now,
     });
+    // Opportunistic per-org GC of audit rows older than 90 days. Gated by
+    // a 1/hour rate limiter so we don't scan on every insert. Done AFTER
+    // the insert (vs. before) so a quota-rejected insert doesn't waste
+    // the GC window.
+    await maybeRunSandboxAuditCleanup(ctx, args.organizationId);
+    return executionId;
   },
 });
 
 export const setRunning = internalMutation({
   args: {
     executionId: v.id('sandboxExecutions'),
-    // Allow the action to record the install phase as a distinct status
-    // (the spawner emits a separate `installing` SSE event before user code
-    // starts running). Defaults to `running` if omitted.
-    status: v.optional(v.union(v.literal('installing'), v.literal('running'))),
+    // Only `installing` is flipped here. The spawner emits a separate
+    // `running` SSE event later, but we don't patch the audit row for it —
+    // the lifecycle is queued → installing → terminal. The literal `running`
+    // existed in earlier drafts but no caller emits it; keep the validator
+    // tight so a future regression can't silently introduce it.
+    status: v.optional(v.literal('installing')),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
     const row = await ctx.db.get(args.executionId);
     if (!row) return null;
-    // Monotonic: queued → installing → running. Don't roll back from a
-    // later state. Terminal states are also rejected (no resurrection).
-    const next = args.status ?? 'running';
-    const allowed =
-      (row.status === 'queued' && next === 'installing') ||
-      (row.status === 'queued' && next === 'running') ||
-      (row.status === 'installing' && next === 'running');
-    if (!allowed) return null;
+    // Monotonic: queued → installing. Don't roll back; terminal states are
+    // also rejected (no resurrection).
+    const next = args.status ?? 'installing';
+    if (row.status !== 'queued') return null;
     const now = Date.now();
     await ctx.db.patch(args.executionId, {
       status: next,

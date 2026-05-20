@@ -646,6 +646,67 @@ export async function rlsRules(
       },
     },
 
+    // Artifacts - organization-scoped. Artifact content + run state is
+    // produced by chat tools (which run via internal mutations that
+    // bypass RLS) but readable via the canvas/UI by any org member.
+    // No role gate: any user in the org can see and edit their own
+    // org's artifacts via the chat surface — finer-grained team gating
+    // is enforced by the thread the artifact belongs to.
+    artifacts: {
+      read: async (_, artifact) => {
+        if (!user) return false;
+        return userOrgIds.has(artifact.organizationId);
+      },
+      modify: async (_, artifact) => {
+        if (!user) return false;
+        return userOrgIds.has(artifact.organizationId);
+      },
+      insert: async ({ user: ruleUser }, artifact) => {
+        if (!ruleUser) return false;
+        return userOrgIds.has(artifact.organizationId);
+      },
+    },
+
+    // Artifact Revisions - linked to artifacts via artifactId; the
+    // revision row itself doesn't carry organizationId, so we resolve
+    // membership through the parent artifact. Append-only in practice
+    // (writes go through internalMutation which bypasses RLS); the
+    // modify/insert gates are defense-in-depth.
+    artifactRevisions: {
+      read: async (_, revision) => {
+        if (!user) return false;
+        const parent = await ctx.db.get(revision.artifactId);
+        if (!parent) return false;
+        return userOrgIds.has(parent.organizationId);
+      },
+      modify: async (_, revision) => {
+        if (!user) return false;
+        const parent = await ctx.db.get(revision.artifactId);
+        if (!parent) return false;
+        return userOrgIds.has(parent.organizationId);
+      },
+      insert: async ({ user: ruleUser }, revision) => {
+        if (!ruleUser) return false;
+        const parent = await ctx.db.get(revision.artifactId);
+        if (!parent) return false;
+        return userOrgIds.has(parent.organizationId);
+      },
+    },
+
+    // Sandbox Executions - audit table. Read-only for org members so a
+    // user can inspect their own org's sandbox history; writes go
+    // exclusively through internal mutations (reserveSlotAndInsert /
+    // finalize / recoverStuckSandboxes) which bypass RLS, so the
+    // user-facing modify/insert are deny-all.
+    sandboxExecutions: {
+      read: async (_, exec) => {
+        if (!user) return false;
+        return userOrgIds.has(exec.organizationId);
+      },
+      modify: async () => false,
+      insert: async () => false,
+    },
+
     // Workflow Step Audit Logs - organization-scoped, allow inserts for org members
     wfStepAuditLogs: {
       read: async (_, log) => {
