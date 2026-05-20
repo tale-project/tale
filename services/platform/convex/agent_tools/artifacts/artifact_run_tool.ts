@@ -17,6 +17,7 @@
 import type { ToolCtx } from '@convex-dev/agent';
 import { createTool } from '@convex-dev/agent';
 import type { ToolExecutionOptions } from 'ai';
+import { ConvexError } from 'convex/values';
 import { z } from 'zod/v4';
 
 import { internal } from '../../_generated/api';
@@ -211,10 +212,30 @@ USE THIS TOOL after \`artifact_create\` (to actually run a newly authored script
       // cleanly during this new run. The artifact row's persistent
       // runPackages / runOptions are NOT overwritten here; per-call args
       // are applied transiently to the spawner request below.
-      await ctx.runMutation(
-        internal.artifacts.internal_mutations.initArtifactRun,
-        { artifactId },
-      );
+      //
+      // initArtifactRun throws RUN_IN_FLIGHT if another run is still active
+      // on this artifact — surface as a structured failure so the LLM waits
+      // instead of racing with itself.
+      try {
+        await ctx.runMutation(
+          internal.artifacts.internal_mutations.initArtifactRun,
+          { artifactId },
+        );
+      } catch (err) {
+        if (
+          err instanceof ConvexError &&
+          typeof err.data === 'object' &&
+          err.data !== null &&
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ConvexError data shape is loose
+          (err.data as { code?: string }).code === 'RUN_IN_FLIGHT'
+        ) {
+          return {
+            success: false,
+            message: `Artifact ${args.artifactId} already has a run in flight. Wait for the current run to finish, then call artifact_run again. Do NOT call artifact_create or stack parallel runs.`,
+          };
+        }
+        throw err;
+      }
 
       const effectivePackages = args.packages ?? artifact.runPackages ?? [];
       const effectiveAllowSdist =
@@ -222,29 +243,87 @@ USE THIS TOOL after \`artifact_create\` (to actually run a newly authored script
       const effectiveAllowInstallScripts =
         args.allowInstallScripts ?? artifact.runOptions?.allowInstallScripts;
 
-      const raw: unknown = await ctx.runAction(
-        internal.node_only.sandbox.internal_actions.executeCode,
-        {
-          organizationId,
-          uploadedBy: userId,
-          threadId,
-          accessibleThreadIds: [threadId],
-          ...(messageId !== undefined && { messageId }),
-          ...(options.toolCallId && { toolCallId: options.toolCallId }),
-          language,
-          code: artifact.content,
-          ...(effectivePackages.length > 0 && { packages: effectivePackages }),
-          ...(args.timeoutMs !== undefined && { timeoutMs: args.timeoutMs }),
-          ...(effectiveAllowSdist !== undefined && {
-            allowSdist: effectiveAllowSdist,
-          }),
-          ...(effectiveAllowInstallScripts !== undefined && {
-            allowInstallScripts: effectiveAllowInstallScripts,
-          }),
-          purpose: `artifact_run: ${artifact.title}`,
-          artifactId,
-        },
-      );
+      let raw: unknown;
+      try {
+        raw = await ctx.runAction(
+          internal.node_only.sandbox.internal_actions.executeCode,
+          {
+            organizationId,
+            uploadedBy: userId,
+            threadId,
+            accessibleThreadIds: [threadId],
+            ...(messageId !== undefined && { messageId }),
+            ...(options.toolCallId && { toolCallId: options.toolCallId }),
+            language,
+            code: artifact.content,
+            ...(effectivePackages.length > 0 && {
+              packages: effectivePackages,
+            }),
+            ...(args.timeoutMs !== undefined && { timeoutMs: args.timeoutMs }),
+            ...(effectiveAllowSdist !== undefined && {
+              allowSdist: effectiveAllowSdist,
+            }),
+            ...(effectiveAllowInstallScripts !== undefined && {
+              allowInstallScripts: effectiveAllowInstallScripts,
+            }),
+            purpose: `artifact_run: ${artifact.title}`,
+            artifactId,
+          },
+        );
+      } catch (err) {
+        // The action's contract is: infra failures → finalize THEN throw,
+        // user-code failures → finalize THEN return. So if we land here,
+        // either (a) reserveSlotAndInsert rejected with QUOTA_EXCEEDED
+        // before the audit row existed, or (b) spawnerExecute failed and
+        // failExecution already wrote terminal state to BOTH rows. In
+        // case (a) the artifact is still 'queued' from initArtifactRun
+        // above, so we must finalize it ourselves; case (b) is idempotent
+        // because finalizeArtifactRun's terminal guard no-ops on the
+        // second write.
+        const isConvexError = err instanceof ConvexError;
+        const code =
+          isConvexError &&
+          typeof err.data === 'object' &&
+          err.data !== null &&
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ConvexError data shape is loose
+          typeof (err.data as { code?: string }).code === 'string'
+            ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ConvexError data shape is loose
+              (err.data as { code: string }).code
+            : undefined;
+        const errMessage = err instanceof Error ? err.message : String(err);
+        const runErrorCode =
+          code === 'QUOTA_EXCEEDED' ? 'QUOTA_EXCEEDED' : 'SPAWNER_UNAVAILABLE';
+        try {
+          // No runExecutionId here: when reserveSlotAndInsert throws (e.g.
+          // QUOTA_EXCEEDED pre-insert) no audit row exists; when
+          // spawnerExecute throws, the action's failExecution already wrote
+          // the executionId onto the artifact row, and the terminal guard
+          // makes this call a no-op.
+          await ctx.runMutation(
+            internal.artifacts.internal_mutations.finalizeArtifactRun,
+            {
+              artifactId,
+              runStatus: 'failed',
+              runErrorCode,
+              runErrorMessage: errMessage,
+              runOutputFiles: [],
+            },
+          );
+        } catch (finalizeErr) {
+          console.warn(
+            '[artifact_run_tool] finalizeArtifactRun after executeCode throw failed:',
+            finalizeErr,
+          );
+        }
+        const message =
+          runErrorCode === 'QUOTA_EXCEEDED'
+            ? `Run REFUSED: QUOTA_EXCEEDED — ${errMessage}. Don't retry; tell the user the org's daily sandbox budget is exhausted.`
+            : `Run FAILED before completion: ${errMessage}. One retry is fine if the underlying cause was transient; otherwise tell the user the sandbox is unavailable.`;
+        return {
+          success: false,
+          message,
+        };
+      }
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- executeCode is typed `any` via the stale agent-SDK codegen path; the runtime shape is ExecuteCodeResult (asserted at the action return site).
       const run = raw as ExecuteCodeResult;
 
