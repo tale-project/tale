@@ -106,6 +106,12 @@ jobs:
               - 'services/platform/**'
               - 'packages/ui/**'
               - 'packages/webui/**'
+            sandbox:
+              - 'services/sandbox/**'
+            sandbox-egress:
+              - 'services/sandbox-egress/**'
+            sandbox-runtime:
+              - 'services/sandbox-runtime/**'
             ci_tests:
               - 'tests/container-*'
               - 'compose.test.yml'
@@ -118,6 +124,9 @@ jobs:
               - 'services/rag/**'
               - 'services/platform/**'
               - 'services/proxy/**'
+              - 'services/sandbox/**'
+              - 'services/sandbox-egress/**'
+              - 'services/sandbox-runtime/**'
 
       - name: Compute service matrix
         id: services
@@ -127,10 +136,11 @@ jobs:
           echo "list=${SERVICES}" >> "$GITHUB_OUTPUT"
           echo "Services to build: ${SERVICES}"
 
-          # Vulnerability scan only covers the six compose-stack services that
-          # `build` actually pushes to GHCR. Web and docs use their own compose
-          # stacks and are reachable via security.yml's filesystem scan.
-          SCANNABLE=$(echo "${SERVICES}" | jq -c '[.[] | select(. == "db" or . == "convex" or . == "crawler" or . == "rag" or . == "platform" or . == "proxy")]')
+          # Vulnerability scan covers the compose-stack services + sandbox
+          # trio that `build` actually pushes to GHCR. Web and docs use their
+          # own compose stacks and are reachable via security.yml's
+          # filesystem scan.
+          SCANNABLE=$(echo "${SERVICES}" | jq -c '[.[] | select(. == "db" or . == "convex" or . == "crawler" or . == "rag" or . == "platform" or . == "proxy" or . == "sandbox" or . == "sandbox-egress" or . == "sandbox-runtime")]')
           echo "scannable=${SCANNABLE}" >> "$GITHUB_OUTPUT"
           echo "Services to scan: ${SCANNABLE}"
 
@@ -630,6 +640,7 @@ jobs:
           format: 'sarif'
           output: '${{ matrix.service }}-trivy.sarif'
           severity: 'HIGH,CRITICAL'
+          trivyignores: '.trivyignore.yaml'
 
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@e46ed2cbd01164d986452f91f178727624ae40d7 # v4.35.3
