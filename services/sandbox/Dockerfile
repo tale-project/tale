@@ -3,7 +3,12 @@
 # Thin stateless HTTP service. Mounts /var/run/docker.sock (host root —
 # see plan "Security model" for the explicit threat acceptance), accepts
 # HMAC-signed /v1/execute calls, builds one ephemeral container per call.
+#
+# Runs as root by design: needs to talk to /var/run/docker.sock to spawn
+# sibling runtime containers. The docker socket is the security boundary,
+# not the in-container UID.
 
+# trivy:ignore:AVD-DS-0002 -- runs as root by design; needs /var/run/docker.sock
 FROM oven/bun:1.1-debian
 
 WORKDIR /app

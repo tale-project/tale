@@ -4,7 +4,7 @@
 // every actual docker call goes through one shape with consistent stdout/stderr
 // handling, stdin piping, and timeouts.
 
-export interface RunDockerOptions {
+interface RunDockerOptions {
   stdin?: string | Uint8Array;
   // Set true when we expect a binary blob (tar stream) on stdout.
   captureBinaryStdout?: boolean;
@@ -23,7 +23,7 @@ export interface RunDockerOptions {
   onStdoutChunk?: (chunk: Uint8Array) => void;
 }
 
-export interface RunDockerResult {
+interface RunDockerResult {
   exitCode: number;
   stdout: string;
   stderr: string;

@@ -6,7 +6,12 @@
 #
 # See plan §2. Verified by R2.1: pip / npm / uv all honor HTTPS_PROXY and
 # fail loud when the proxy denies a host or is unreachable.
+#
+# The Dockerfile-level user stays root so the entrypoint can chown the log
+# file before exec — tinyproxy itself drops privileges to `nobody` after
+# bind (configured in tinyproxy.conf.template).
 
+# trivy:ignore:AVD-DS-0002 -- entrypoint needs root to chown log; tinyproxy drops privs at bind time
 FROM alpine:3.20
 
 RUN apk add --no-cache tinyproxy gettext ca-certificates && \

@@ -61,10 +61,6 @@ export interface ExecuteResponse {
   outputFiles: OutputFile[];
 }
 
-export interface CancelResponse {
-  killed: boolean;
-}
-
 export interface SpawnerConfig {
   port: number;
   // Optional. When null, spawner accepts unsigned requests (rag/crawler-
