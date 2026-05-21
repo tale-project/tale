@@ -48,6 +48,14 @@ import { spawnerCancel, spawnerExecute } from './helpers/spawner_client';
 
 const HEARTBEAT_INTERVAL_MS = 60_000;
 
+// Aggregate-size cap for pre-staging the artifact's previous run outputs
+// into the next container's `/workspace/output/`. Above this we skip the
+// pre-stage entirely and surface a single stderr line so the user sees
+// why — masking would be worse than failing fast on huge artifacts.
+// 10 MiB matches the order-of-magnitude of a typical pptx / pdf so the
+// flow covers the common case without unbounded storage I/O per run.
+const MAX_PRIOR_OUTPUT_BYTES = 10 * 1024 * 1024;
+
 // Explicit handler return type. Required to break a self-referential type
 // cycle: without it, the inferred type of `executeCode` depends on its own
 // handler's return type (which reaches `internal.sandbox.*` through
@@ -544,6 +552,60 @@ export const executeCode = internalAction({
         }
       : undefined;
 
+    // ---- pre-stage prior run outputs ----
+    // If this is an artifact-bound run AND the artifact has output files
+    // from a previous run, copy them into the next container's
+    // /workspace/output/ so a follow-up `artifact_run` (e.g. validate
+    // after generate, in separate calls) doesn't dead-end on
+    // FileNotFoundError. `steps: [...]` is still the canonical idiom; this
+    // is the backstop when the LLM forgets.
+    let priorOutputFiles: Array<{ name: string; contentBase64: string }> = [];
+    let priorOutputSkippedNote: string | undefined;
+    if (args.artifactId !== undefined) {
+      try {
+        const artifact = await ctx.runQuery(
+          internal.artifacts.internal_queries.getById,
+          {
+            artifactId: args.artifactId,
+            expectedOrganizationId: args.organizationId,
+          },
+        );
+        const candidates = (artifact?.runOutputFiles ?? []).filter(
+          (f): f is typeof f & { storageId: Id<'_storage'> } =>
+            f.storageId !== undefined,
+        );
+        const totalBytes = candidates.reduce((sum, f) => sum + f.size, 0);
+        if (totalBytes > MAX_PRIOR_OUTPUT_BYTES) {
+          priorOutputSkippedNote = `[tale-sandbox] prior outputs ${totalBytes} bytes exceed ${MAX_PRIOR_OUTPUT_BYTES} cap; not pre-staging\n`;
+        } else {
+          for (const file of candidates) {
+            const blob = await ctx.storage.get(file.storageId);
+            if (blob === null) continue;
+            const buf = Buffer.from(await blob.arrayBuffer());
+            priorOutputFiles.push({
+              name: file.name,
+              contentBase64: buf.toString('base64'),
+            });
+          }
+        }
+      } catch (err) {
+        // Pre-staging is best-effort — never block the run on a load
+        // failure. Surface a one-liner so users notice the regression in
+        // CI but the script still gets its chance.
+        console.warn(
+          '[sandbox.executeCode] prior-output pre-stage failed:',
+          err,
+        );
+        priorOutputFiles = [];
+        priorOutputSkippedNote = `[tale-sandbox] prior-output pre-stage failed: ${err instanceof Error ? err.message : String(err)}\n`;
+      }
+    }
+    if (priorOutputSkippedNote !== undefined && onStderrTail !== undefined) {
+      // Route the note through the live-tail channel so it lands in the
+      // canvas stderr panel alongside the script's own output.
+      onStderrTail(priorOutputSkippedNote);
+    }
+
     try {
       const spawnerResult = await spawnerExecute(
         {
@@ -561,6 +623,7 @@ export const executeCode = internalAction({
             args.files.length > 0 && { files: args.files }),
           ...(args.entryPath !== undefined && { entryPath: args.entryPath }),
           ...(args.packages !== undefined && { packages: args.packages }),
+          ...(priorOutputFiles.length > 0 && { priorOutputFiles }),
           timeoutMs,
           // Hardcoded sandbox-safety: pip --only-binary=:all: + npm
           // --ignore-scripts are ALWAYS in force. The LLM cannot disable

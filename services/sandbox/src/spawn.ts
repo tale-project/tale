@@ -319,7 +319,43 @@ process.exit(0);
 `;
 }
 
-async function stageWorkspace(
+/**
+ * Pre-stage the artifact's previous run outputs into `/workspace/output/`.
+ * Lets a follow-up `artifact_run` on the same artifact (e.g. validate
+ * after generate) read what a previous run produced, even though the runs
+ * land in separate containers. The Convex caller is responsible for the
+ * aggregate-size cap and storage I/O; we only need to enforce path safety
+ * here. Bad names are skipped (logged), not fatal — pre-staging is a
+ * best-effort convenience layer, not a contract.
+ *
+ * Exported so the unit test can exercise the path-traversal guard without
+ * dragging in the chownRecursive / mkdir scaffolding of stageWorkspace.
+ */
+export async function stagePriorOutputFiles(
+  outputDir: string,
+  files: ReadonlyArray<{ name: string; contentBase64: string }>,
+): Promise<void> {
+  for (const file of files) {
+    const dest = resolve(outputDir, file.name);
+    // Defense in depth — refuse anything escaping outputDir.
+    if (dest !== outputDir && !dest.startsWith(outputDir + sep)) {
+      console.warn(
+        `[sandbox] skipping unsafe prior-output name: ${JSON.stringify(file.name)}`,
+      );
+      continue;
+    }
+    try {
+      await mkdir(dirname(dest), { recursive: true });
+      await writeFile(dest, Buffer.from(file.contentBase64, 'base64'));
+    } catch (err) {
+      console.warn(
+        `[sandbox] failed to pre-stage ${JSON.stringify(file.name)}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+}
+
+export async function stageWorkspace(
   hostDir: string,
   req: ExecuteRequest,
 ): Promise<void> {
@@ -327,6 +363,10 @@ async function stageWorkspace(
   const outputDir = join(hostDir, 'output');
   await mkdir(codeDir, { recursive: true });
   await mkdir(outputDir, { recursive: true });
+
+  if (req.priorOutputFiles !== undefined && req.priorOutputFiles.length > 0) {
+    await stagePriorOutputFiles(outputDir, req.priorOutputFiles);
+  }
 
   const mainName = req.language === 'python' ? 'main.py' : 'main.js';
 

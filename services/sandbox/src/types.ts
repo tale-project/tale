@@ -70,6 +70,21 @@ export interface ExecuteRequest {
    * reserved entrypoint filename (`main.py` / `main.js`).
    */
   steps?: string[];
+  /**
+   * Files pre-staged into `/workspace/output/` BEFORE the container starts.
+   * The platform uses this to surface the artifact's most recent run
+   * outputs into a follow-up `artifact_run`, so two separate calls
+   * (e.g. generate.py → validate.py) work even though they land in
+   * different containers. Each entry is base64-encoded, matching the
+   * `OutputFile` shape returned by harvest. Names are validated against
+   * the same POSIX-traversal rules `harvestOutputDir` uses (no `..`, no
+   * leading `/`, no NUL); rejects are skipped, not fatal. Aggregate size
+   * capped by the caller before forwarding.
+   */
+  priorOutputFiles?: Array<{
+    name: string;
+    contentBase64: string;
+  }>;
   packages?: string[];
   timeoutMs?: number;
   options?: {

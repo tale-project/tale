@@ -178,8 +178,10 @@ export const artifactRunTool = {
 USE THIS TOOL after \`artifact_create\` (to run the entry script) or after \`artifact_edit\` (to re-run the patched revision). The previously-configured \`runPackages\` are reused unless you override.
 
 **WORKSPACE LIFECYCLE — READ FIRST.**
-- Every \`artifact_run\` invocation gets a **brand-new** \`/workspace/\` directory. Files you wrote to \`/workspace/output/\` in a previous run are **NOT** visible in the next run. (Output artifacts are persisted separately as \`runOutputFiles\` on the artifact row, but those are NOT re-staged into the sandbox.)
-- Anything your script wants to read from \`/workspace/output/\` must be **created in the same run**. Do NOT write code like \`Presentation("/workspace/output/foo.pptx")\` (python-pptx) expecting a prior run's file to be there — \`Presentation(path)\` *opens* an existing file. To create new, call \`Presentation()\` (no arg), populate, then \`.save(...)\`.
+- Every \`artifact_run\` invocation gets a **brand-new** \`/workspace/\` directory.
+- As a convenience, the artifact's **most recent run outputs** are pre-staged back into \`/workspace/output/\` before the script starts (up to ~10 MiB total). A follow-up \`artifact_run\` on the same artifact can therefore read what an earlier run produced — e.g. \`validate.py\` opens the \`.pptx\` that \`generate.py\` wrote on the previous call. If aggregate prior outputs exceed the cap, the pre-stage is skipped and a note appears in stderr; do not rely on this backstop for large workflows.
+- For tightly-coupled chains (build → test, generate → validate) **prefer \`steps: [...]\`** — same container, atomic outcome, fail-fast across steps, one round trip. Pre-staging is the safety net when separate calls are unavoidable, not a replacement for \`steps\`.
+- Creation patterns are unaffected: \`Presentation(path)\` *opens* an existing file. To create a new artifact output, call \`Presentation()\` (no arg), populate, then \`.save(...)\`.
 
 **MULTI-STEP WORKFLOWS — preferred over splitting into multiple \`artifact_run\` calls.**
 
