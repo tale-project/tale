@@ -62,20 +62,16 @@ const artifactCreateArgs = z.object({
     .max(20)
     .optional()
     .describe(
-      'Runnable types only. Pip or npm specs to install before executing. Examples: ["python-pptx==1.0.2", "pillow"]. Pinned versions strongly preferred. By default `pip --only-binary=:all:` and `npm --ignore-scripts` (use `allowSdist` / `allowInstallScripts` to override).',
+      'Runnable types only. Pip or npm specs to install before executing. Examples: ["python-pptx==1.0.2", "pillow"]. Pinned versions strongly preferred. Installs always run with `pip --only-binary=:all:` and `npm --ignore-scripts` — sdist installs and lifecycle scripts are blocked because they execute arbitrary upstream code. If you hit a package that has no wheel, mention it in your response and the operator can grant a per-org override.',
     ),
-  allowSdist: z
-    .boolean()
-    .optional()
-    .describe(
-      'python_runnable only. Defaults false — sdist installs are blocked because they run arbitrary setup.py code. Set true only when a needed package has no wheel.',
-    ),
-  allowInstallScripts: z
-    .boolean()
-    .optional()
-    .describe(
-      'node_runnable only. Defaults false — preinstall/postinstall scripts are skipped. Set true if a package needs them (e.g. canvas).',
-    ),
+  // NOTE: `allowSdist` / `allowInstallScripts` were previously LLM-callable
+  // flags here. They were removed (round-2 R2-B4) because a prompt-injected
+  // agent could silently disable the sdist + install-script guards, then
+  // ship an evil-pkg with a postinstall hook to the runtime container. The
+  // hardcoded `false` is enforced server-side in
+  // `node_only/sandbox/internal_actions.ts`; surfacing a knob to the LLM
+  // again should be gated by an org-level policy doc.
+  //
   // (No timeoutMs field at create time — `artifact_run` accepts a per-call
   // `timeoutMs` instead. The artifacts schema has no `runTimeoutMs` column,
   // so a create-time value would be silently dropped.)
@@ -154,7 +150,7 @@ Therefore: features that require **runtime intelligence** — translating user i
 
 **RUNNABLE TYPES** (\`python_runnable\` / \`node_runnable\`):
 
-The \`content\` you emit is the script source. This tool **only writes the source** — it does **NOT** automatically execute. You must follow up with the \`artifact_run\` tool to actually run the script and produce output files. The \`packages\`, \`allowSdist\`, and \`allowInstallScripts\` you pass here are persisted on the artifact row so subsequent \`artifact_run\` calls reuse them automatically; the per-call \`timeoutMs\` is supplied at \`artifact_run\` time, not here. Write deliverable files (\`.pptx\`, \`.pdf\`, \`.xlsx\`, images, etc.) to \`/workspace/output/\` — only that directory's contents are returned.
+The \`content\` you emit is the script source. This tool **only writes the source** — it does **NOT** automatically execute. You must follow up with the \`artifact_run\` tool to actually run the script and produce output files. The \`packages\` list you pass here is persisted on the artifact row so subsequent \`artifact_run\` calls reuse it automatically; the per-call \`timeoutMs\` is supplied at \`artifact_run\` time, not here. Installs are always sandboxed: pip uses \`--only-binary=:all:\` and npm uses \`--ignore-scripts\`. Write deliverable files (\`.pptx\`, \`.pdf\`, \`.xlsx\`, images, etc.) to \`/workspace/output/\` — only that directory's contents are returned.
 
 Typical sequence for a runnable artifact:
 1. \`artifact_create\` (this tool) — writes the source. Returns \`artifactId\`.
@@ -336,17 +332,6 @@ Do NOT call \`artifact_create\` again to "try a different approach" — that cre
               // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- value came from createArtifact / state above
               artifactId: artifactId as unknown as never,
               runPackages: args.packages ?? [],
-              ...((args.allowSdist !== undefined ||
-                args.allowInstallScripts !== undefined) && {
-                runOptions: {
-                  ...(args.allowSdist !== undefined && {
-                    allowSdist: args.allowSdist,
-                  }),
-                  ...(args.allowInstallScripts !== undefined && {
-                    allowInstallScripts: args.allowInstallScripts,
-                  }),
-                },
-              }),
             },
           );
           return {

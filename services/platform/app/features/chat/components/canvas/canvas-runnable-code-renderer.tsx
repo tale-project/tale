@@ -178,20 +178,37 @@ function CanvasRunnableCodeRendererComponent({
 }: CanvasRunnableCodeRendererProps) {
   const { t } = useT('chat');
   const artifact = useQuery(api.artifacts.queries.getById, { artifactId });
-  const runStatus: SandboxRunStatus | undefined = artifact?.runStatus;
-  const runProgress: RunProgress | undefined = artifact?.runProgress;
-  const runErrorCode: SandboxErrorCode | undefined = artifact?.runErrorCode;
-  const runErrorMessage = artifact?.runErrorMessage;
-  const stdoutPreview = artifact?.runStdoutPreview;
-  const stderrPreview = artifact?.runStderrPreview;
-  const outputFiles: RunOutputFile[] = artifact?.runOutputFiles ?? [];
+  // Stale-run guard: if the source was edited after the last run, the
+  // displayed `run*` fields no longer reflect what the user sees. Treat
+  // them as absent so the renderer prompts a re-run rather than showing
+  // stale output (round-2 R2-B10). When `runRevision` is undefined the
+  // artifact hasn't been run yet — same effect.
+  const runIsFresh =
+    artifact !== undefined &&
+    artifact !== null &&
+    artifact.runRevision !== undefined &&
+    artifact.runRevision === artifact.revision;
+  const runStatus: SandboxRunStatus | undefined = runIsFresh
+    ? artifact?.runStatus
+    : undefined;
+  const runProgress: RunProgress | undefined = runIsFresh
+    ? artifact?.runProgress
+    : undefined;
+  const runErrorCode: SandboxErrorCode | undefined = runIsFresh
+    ? artifact?.runErrorCode
+    : undefined;
+  const runErrorMessage = runIsFresh ? artifact?.runErrorMessage : undefined;
+  const stdoutPreview = runIsFresh ? artifact?.runStdoutPreview : undefined;
+  const stderrPreview = runIsFresh ? artifact?.runStderrPreview : undefined;
+  const outputFiles: RunOutputFile[] = runIsFresh
+    ? (artifact?.runOutputFiles ?? [])
+    : [];
 
   // Hide the execution panel entirely while there's nothing to show — i.e.
-  // during source streaming (artifact_create still authoring) and after
-  // artifact_create settles but before artifact_run has been invoked. The
-  // bare "Run" header with no body felt empty / confusing in user testing.
-  // Once artifact_run kicks off (runStatus !== undefined) or any prior-run
-  // artefact (files / stderr / errorCode) is present, the panel re-appears.
+  // during source streaming (artifact_create still authoring), after
+  // artifact_create settles but before artifact_run has been invoked, OR
+  // when an edit made the prior run stale. The bare "Run" header with no
+  // body felt empty / confusing in user testing.
   const showExecutionPanel =
     runStatus !== undefined ||
     runErrorCode !== undefined ||

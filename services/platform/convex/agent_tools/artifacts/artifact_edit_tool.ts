@@ -57,6 +57,14 @@ const patchModeArgs = z.object({
       'Convex artifact ID returned by `artifact_create` (or referenced from the <artifacts> system context).',
     ),
   mode: z.literal('patch'),
+  expectedRevision: z
+    .number()
+    .int()
+    .nonnegative()
+    .optional()
+    .describe(
+      'OPTIONAL but strongly recommended: the `revision="N"` attribute from the `<artifact>` block the patches were authored against. Pass this back verbatim so the edit fails fast (with `stale: true`) when another writer landed between the turn you read the artifact and this call (round-2 R2-B10). Omit only if you genuinely have no baseline (rare).',
+    ),
   patches: z
     .array(patchEntry)
     .min(1)
@@ -69,6 +77,14 @@ const patchModeArgs = z.object({
 const rewriteModeArgs = z.object({
   artifactId: z.string().min(1),
   mode: z.literal('rewrite'),
+  expectedRevision: z
+    .number()
+    .int()
+    .nonnegative()
+    .optional()
+    .describe(
+      'OPTIONAL but strongly recommended: the `revision="N"` attribute from the `<artifact>` block the rewrite was authored against. See the same field on `mode: "patch"`.',
+    ),
   content: z
     .string()
     .min(1)
@@ -310,6 +326,12 @@ This tool patches the source but does **NOT** automatically re-execute. After a 
           };
         }
 
+        // Prefer the revision the LLM declared it was looking at when it
+        // wrote the patches. A turn-old `<artifact revision="3">` block in
+        // the system prompt is the baseline; a freshly-read `artifact.revision`
+        // would silently overwrite a concurrent landed edit (round-2 R2-B10).
+        const baselineRevision = args.expectedRevision ?? artifact.revision;
+
         if (args.mode === 'patch') {
           const result = await ctx.runMutation(
             internal.artifacts.internal_mutations.applyToolPatches,
@@ -317,7 +339,7 @@ This tool patches the source but does **NOT** automatically re-execute. After a 
               artifactId,
               patches: args.patches,
               editedByMessageId,
-              expectedRevision: artifact.revision,
+              expectedRevision: baselineRevision,
             },
           );
           if (!result.success) {
@@ -356,7 +378,7 @@ This tool patches the source but does **NOT** automatically re-execute. After a 
             artifactId,
             content: args.content,
             editedByMessageId,
-            expectedRevision: artifact.revision,
+            expectedRevision: baselineRevision,
           },
         );
         if (!result.success) {
