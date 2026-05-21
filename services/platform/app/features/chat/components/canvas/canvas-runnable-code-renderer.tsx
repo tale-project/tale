@@ -109,6 +109,15 @@ function FileChip({ file }: { file: RunOutputFile }) {
   );
 }
 
+// Stable icon component reference — passing an inline arrow `(props) => <Loader2 ... />`
+// makes Badge re-mount the icon on every render, and during a streaming
+// install that drips `runProgress` patches every few ms, the CSS spin
+// animation visibly stutters because it resets on each remount. Hoisting
+// to a module-scope component preserves identity (round-2 R2-B12).
+function SpinningLoader(props: { className?: string }) {
+  return <Loader2 {...props} className={cn(props.className, 'animate-spin')} />;
+}
+
 function StatusBadge({
   runStatus,
   runProgress,
@@ -145,22 +154,21 @@ function StatusBadge({
     );
   }
   // queued / installing / running — live progress with spinner.
+  // Always pass `package` and `version` keys (even when undefined): ICU's
+  // `{version, select, undefined {} other { {version}}}` template throws
+  // "context variable not provided" when the key is structurally absent
+  // (round-2 R2-B12; verified empirically against intl-messageformat).
+  // Passing `undefined` triggers the `undefined` branch as intended.
   const progressText = runProgress
     ? t(`canvas.runProgress.${runProgress.kind}`, {
-        ...(runProgress.package !== undefined && {
-          package: runProgress.package,
-        }),
-        ...(runProgress.version !== undefined && {
-          version: runProgress.version,
-        }),
+        package: runProgress.package,
+        version: runProgress.version,
       })
     : t(`canvas.runStatus.${runStatus}`);
   return (
     <Badge
       variant="outline"
-      icon={(props) => (
-        <Loader2 {...props} className={cn(props.className, 'animate-spin')} />
-      )}
+      icon={SpinningLoader}
       className="border-border"
       role="status"
       aria-live="polite"
