@@ -1,10 +1,16 @@
-// Regression gate for the artifact_create double-insert bug
-// (https://github.com/anthropics/[...]). The tool's onInputDelta and
-// execute hooks each call createArtifact in its own Convex transaction;
-// the mutation must dedup on `toolCallId` so a race between the two
-// produces exactly one row.
+// Regression gates for the two artifact-write paths that need them:
+//
+//   1. `createArtifact` — title-idempotent insert (commit 511e6b361
+//      changed the dedup key from `toolCallId` to a normalized title).
+//      Returns either {success: true, isNew} or {success: false,
+//      conflict: 'type_mismatch'}.
+//
+//   2. `discardActiveStreamsForThread` — the user-Stop cascade added in
+//      this PR. Deletes `revision === 0` placeholders (artifact_create
+//      mid-stream when the user clicked Stop) and clears streaming flags
+//      on settled rows where artifact_edit/rewrite was mid-stream.
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('../_generated/server', async (importOriginal) => {
   const mod = await importOriginal<Record<string, unknown>>();
@@ -14,7 +20,10 @@ vi.mock('../_generated/server', async (importOriginal) => {
   };
 });
 
-import { createArtifact } from './internal_mutations';
+import {
+  createArtifact,
+  discardActiveStreamsForThread,
+} from './internal_mutations';
 
 interface FakeArtifactRow {
   _id: string;
@@ -23,21 +32,18 @@ interface FakeArtifactRow {
   type: string;
   title: string;
   language?: string;
-  content: string;
+  content?: string;
+  files?: Array<{ path: string; content: string }>;
+  entryFile?: string;
   revision: number;
   liveStreamMode?: 'create' | 'rewrite' | 'patch';
   toolCallId?: string;
   createdByMessageId?: string;
   lastEditedByMessageId?: string;
   streamingContent?: string;
-  streamingPatches?: unknown;
   liveStreamStartedAt?: number;
-  updatedAt?: number;
   createdAt?: number;
-}
-
-interface MockCtxOptions {
-  artifactRows?: FakeArtifactRow[];
+  updatedAt?: number;
 }
 
 interface MutHandler<TArgs, TReturn> {
@@ -52,18 +58,36 @@ function asyncIter<T>(rows: T[]): AsyncIterable<T> {
   };
 }
 
-function createMockCtx(opts: MockCtxOptions = {}) {
-  const artifactRows: FakeArtifactRow[] = [...(opts.artifactRows ?? [])];
-  const insertedRows: Array<{
+function createMockCtx(initial: FakeArtifactRow[] = []) {
+  const rows: FakeArtifactRow[] = [...initial];
+  const inserted: Array<{
     table: string;
     payload: Record<string, unknown>;
     insertedId: string;
   }> = [];
-  const patchedRows: Array<{ id: string; patch: Record<string, unknown> }> = [];
-  let nextInsertId = 1;
+  const patched: Array<{ id: string; patch: Record<string, unknown> }> = [];
+  const deleted: string[] = [];
+  let next = 1;
 
   function makeBuilder() {
     const eqs: Record<string, unknown> = {};
+    // The builder is used in two styles:
+    //   - `for await (const r of ctx.db.query(...).withIndex(...))` (createArtifact)
+    //   - `await ctx.db.query(...).withIndex(...).collect()`         (discardActiveStreamsForThread)
+    // so we expose BOTH `[Symbol.asyncIterator]` and `.collect()`.
+    const filtered = (): FakeArtifactRow[] =>
+      rows.filter((r) => {
+        if (
+          eqs.organizationId !== undefined &&
+          r.organizationId !== eqs.organizationId
+        ) {
+          return false;
+        }
+        if (eqs.threadId !== undefined && r.threadId !== eqs.threadId) {
+          return false;
+        }
+        return true;
+      });
     const builder: Record<string | symbol, unknown> = {};
     builder.withIndex = vi.fn((_name: string, cb: (q: unknown) => unknown) => {
       const q = {
@@ -75,14 +99,9 @@ function createMockCtx(opts: MockCtxOptions = {}) {
       cb(q);
       return builder;
     });
-    builder[Symbol.asyncIterator] = function () {
-      const orgId = eqs.organizationId;
-      const threadId = eqs.threadId;
-      const filtered = artifactRows.filter(
-        (r) => r.organizationId === orgId && r.threadId === threadId,
-      );
-      return asyncIter(filtered)[Symbol.asyncIterator]();
-    };
+    builder.collect = vi.fn(async () => filtered());
+    builder[Symbol.asyncIterator] = () =>
+      asyncIter(filtered())[Symbol.asyncIterator]();
     return builder;
   }
 
@@ -93,271 +112,284 @@ function createMockCtx(opts: MockCtxOptions = {}) {
         insert: vi.fn(
           async (table: string, payload: Record<string, unknown>) => {
             const insertedId =
-              table === 'artifacts'
-                ? `art_${nextInsertId++}`
-                : `rev_${nextInsertId++}`;
-            insertedRows.push({ table, payload, insertedId });
+              table === 'artifacts' ? `art_${next++}` : `rev_${next++}`;
+            inserted.push({ table, payload, insertedId });
             if (table === 'artifacts') {
-              artifactRows.push({
+              rows.push({
                 _id: insertedId,
                 organizationId: payload.organizationId as string,
                 threadId: payload.threadId as string,
                 type: payload.type as string,
                 title: payload.title as string,
-                content: payload.content as string,
-                revision: payload.revision as number,
-                liveStreamMode: payload.liveStreamMode as
-                  | 'create'
-                  | 'rewrite'
-                  | 'patch'
+                language: payload.language as string | undefined,
+                content: payload.content as string | undefined,
+                files: payload.files as
+                  | Array<{ path: string; content: string }>
                   | undefined,
-                toolCallId: payload.toolCallId as string | undefined,
+                entryFile: payload.entryFile as string | undefined,
+                revision: payload.revision as number,
               });
             }
             return insertedId;
           },
         ),
         patch: vi.fn(async (id: string, patch: Record<string, unknown>) => {
-          patchedRows.push({ id, patch });
-          const row = artifactRows.find((r) => r._id === id);
+          patched.push({ id, patch });
+          const row = rows.find((r) => r._id === id);
           if (row !== undefined) Object.assign(row, patch);
         }),
-        get: vi.fn(),
+        delete: vi.fn(async (id: string) => {
+          deleted.push(id);
+          const idx = rows.findIndex((r) => r._id === id);
+          if (idx >= 0) rows.splice(idx, 1);
+        }),
       },
     },
-    insertedRows,
-    patchedRows,
-    artifactRows,
+    inserted,
+    patched,
+    deleted,
+    rows,
   };
 }
 
 type CreateArtifactArgs = {
   organizationId: string;
   threadId: string;
-  type:
-    | 'html'
-    | 'svg'
-    | 'markdown'
-    | 'mermaid'
-    | 'code'
-    | 'python_runnable'
-    | 'node_runnable';
+  type: 'code' | 'markdown' | 'html' | 'svg' | 'mermaid';
   title: string;
   language?: string;
-  content: string;
+  content?: string;
+  entryFile?: string;
   createdByMessageId: string;
-  liveStreamMode?: 'create' | 'rewrite' | 'patch';
-  toolCallId?: string;
 };
 
-const baseArgs: CreateArtifactArgs = {
-  organizationId: 'org_alpha',
-  threadId: 'thr_main',
+type CreateArtifactResult =
+  | {
+      success: true;
+      isNew: boolean;
+      artifactId: string;
+      revision: number;
+      entryFile: string;
+      filePaths: string[];
+    }
+  | {
+      success: false;
+      conflict: 'type_mismatch';
+      existingArtifactId: string;
+      existingType: string;
+      message: string;
+    };
+
+const create = createArtifact as unknown as MutHandler<
+  CreateArtifactArgs,
+  CreateArtifactResult
+>;
+
+const base: CreateArtifactArgs = {
+  organizationId: 'org_a',
+  threadId: 'thr_a',
   type: 'code',
   title: 'hello',
-  content: 'console.log("hi")',
+  language: 'javascript',
+  content: 'console.log("hi");\n',
   createdByMessageId: 'msg_1',
 };
 
-const mut = createArtifact as unknown as MutHandler<
-  CreateArtifactArgs,
-  { artifactId: string; revision: number }
+describe('createArtifact (title-idempotent insert)', () => {
+  it('inserts a new artifact + revision when no row exists', async () => {
+    const { ctx, inserted } = createMockCtx();
+    const r = await create.handler(ctx, base);
+    expect(r.success).toBe(true);
+    if (!r.success) return;
+    expect(r.isNew).toBe(true);
+    expect(r.revision).toBe(1);
+    expect(r.filePaths).toContain(r.entryFile);
+    expect(inserted.filter((i) => i.table === 'artifacts')).toHaveLength(1);
+    expect(
+      inserted.filter((i) => i.table === 'artifactRevisions'),
+    ).toHaveLength(1);
+  });
+
+  it('returns the existing artifact (isNew=false) when title+type collide', async () => {
+    const existing: FakeArtifactRow = {
+      _id: 'art_existing',
+      organizationId: 'org_a',
+      threadId: 'thr_a',
+      type: 'code',
+      title: 'hello',
+      content: 'old content',
+      files: [{ path: 'main.js', content: 'old content' }],
+      entryFile: 'main.js',
+      revision: 3,
+    };
+    const { ctx, inserted } = createMockCtx([existing]);
+    const r = await create.handler(ctx, {
+      ...base,
+      content: 'NEW content that should be IGNORED',
+    });
+    expect(r.success).toBe(true);
+    if (!r.success) return;
+    expect(r.isNew).toBe(false);
+    expect(r.artifactId).toBe('art_existing');
+    expect(r.revision).toBe(3);
+    // No new rows inserted — caller's content is dropped on collision.
+    expect(inserted).toHaveLength(0);
+  });
+
+  it('rejects with type_mismatch when title matches but type differs', async () => {
+    const existing: FakeArtifactRow = {
+      _id: 'art_existing',
+      organizationId: 'org_a',
+      threadId: 'thr_a',
+      type: 'markdown',
+      title: 'hello',
+      revision: 1,
+    };
+    const { ctx, inserted } = createMockCtx([existing]);
+    const r = await create.handler(ctx, { ...base, type: 'code' });
+    expect(r.success).toBe(false);
+    if (r.success) return;
+    expect(r.conflict).toBe('type_mismatch');
+    expect(r.existingArtifactId).toBe('art_existing');
+    expect(r.existingType).toBe('markdown');
+    expect(inserted).toHaveLength(0);
+  });
+
+  it('dedup is scoped to (organizationId, threadId)', async () => {
+    const otherThread: FakeArtifactRow = {
+      _id: 'art_other',
+      organizationId: 'org_a',
+      threadId: 'thr_b',
+      type: 'code',
+      title: 'hello',
+      revision: 1,
+    };
+    const { ctx, inserted } = createMockCtx([otherThread]);
+    const r = await create.handler(ctx, base);
+    expect(r.success).toBe(true);
+    if (!r.success) return;
+    expect(r.isNew).toBe(true);
+    expect(inserted.filter((i) => i.table === 'artifacts')).toHaveLength(1);
+  });
+
+  it('normalizes the comparison key (trims + collapses whitespace + case-fold)', async () => {
+    const existing: FakeArtifactRow = {
+      _id: 'art_existing',
+      organizationId: 'org_a',
+      threadId: 'thr_a',
+      type: 'code',
+      title: 'Hello World',
+      revision: 1,
+    };
+    const { ctx, inserted } = createMockCtx([existing]);
+    const r = await create.handler(ctx, {
+      ...base,
+      title: '   hello   world   ',
+    });
+    expect(r.success).toBe(true);
+    if (!r.success) return;
+    expect(r.isNew).toBe(false);
+    expect(r.artifactId).toBe('art_existing');
+    expect(inserted).toHaveLength(0);
+  });
+});
+
+type DiscardArgs = { organizationId: string; threadId: string };
+type DiscardResult = { cleared: number };
+
+const discard = discardActiveStreamsForThread as unknown as MutHandler<
+  DiscardArgs,
+  DiscardResult
 >;
 
-describe('createArtifact', () => {
-  it('inserts a settled row + revision when no toolCallId is provided', async () => {
-    const { ctx, insertedRows } = createMockCtx();
-    const result = await mut.handler(ctx, baseArgs);
-    expect(result).toEqual({ artifactId: 'art_1', revision: 1 });
-    const artifactInserts = insertedRows.filter((r) => r.table === 'artifacts');
-    const revInserts = insertedRows.filter(
-      (r) => r.table === 'artifactRevisions',
-    );
-    expect(artifactInserts).toHaveLength(1);
-    expect(revInserts).toHaveLength(1);
-    expect(artifactInserts[0]?.payload).toMatchObject({
-      content: 'console.log("hi")',
-      revision: 1,
-      title: 'hello',
-    });
-    expect(artifactInserts[0]?.payload).not.toHaveProperty(
-      'liveStreamMode',
-      'create',
-    );
-  });
-
-  it('streaming insert (placeholder) writes empty content and no revision row', async () => {
-    const { ctx, insertedRows } = createMockCtx();
-    const result = await mut.handler(ctx, {
-      ...baseArgs,
-      liveStreamMode: 'create',
-      toolCallId: 'tc_a',
-    });
-    expect(result).toEqual({ artifactId: 'art_1', revision: 1 });
-    const artifactInserts = insertedRows.filter((r) => r.table === 'artifacts');
-    const revInserts = insertedRows.filter(
-      (r) => r.table === 'artifactRevisions',
-    );
-    expect(artifactInserts).toHaveLength(1);
-    expect(revInserts).toHaveLength(0);
-    expect(artifactInserts[0]?.payload).toMatchObject({
-      content: '',
-      liveStreamMode: 'create',
-      streamingContent: 'console.log("hi")',
-      toolCallId: 'tc_a',
-    });
-  });
-
-  it('streaming caller returns existing row when toolCallId already present (duplicate onInputDelta)', async () => {
-    const existing: FakeArtifactRow = {
-      _id: 'art_existing',
-      organizationId: 'org_alpha',
-      threadId: 'thr_main',
+describe('discardActiveStreamsForThread (user-Stop cascade)', () => {
+  it('deletes revision-0 placeholder rows with active streaming', async () => {
+    const placeholder: FakeArtifactRow = {
+      _id: 'art_ph',
+      organizationId: 'org_a',
+      threadId: 'thr_a',
       type: 'code',
-      title: 'hello',
-      content: '',
-      revision: 1,
+      title: 'WIP',
+      revision: 0,
       liveStreamMode: 'create',
-      toolCallId: 'tc_dup',
+      streamingContent: 'partial...',
+      liveStreamStartedAt: Date.now(),
     };
-    const { ctx, insertedRows, patchedRows } = createMockCtx({
-      artifactRows: [existing],
+    const { ctx, deleted, patched } = createMockCtx([placeholder]);
+    const r = await discard.handler(ctx, {
+      organizationId: 'org_a',
+      threadId: 'thr_a',
     });
-    const result = await mut.handler(ctx, {
-      ...baseArgs,
-      liveStreamMode: 'create',
-      toolCallId: 'tc_dup',
-    });
-    expect(result).toEqual({ artifactId: 'art_existing', revision: 1 });
-    expect(insertedRows).toHaveLength(0);
-    expect(patchedRows).toHaveLength(0);
+    expect(r.cleared).toBe(1);
+    expect(deleted).toEqual(['art_ph']);
+    expect(patched).toHaveLength(0);
   });
 
-  it('settle caller finalizes existing placeholder in place (no second insert)', async () => {
-    const existing: FakeArtifactRow = {
-      _id: 'art_existing',
-      organizationId: 'org_alpha',
-      threadId: 'thr_main',
-      type: 'code',
-      title: 'hello',
-      content: '',
-      revision: 1,
-      liveStreamMode: 'create',
-      toolCallId: 'tc_race',
-    };
-    const { ctx, insertedRows, patchedRows } = createMockCtx({
-      artifactRows: [existing],
-    });
-    const result = await mut.handler(ctx, {
-      ...baseArgs,
-      content: 'final content',
-      toolCallId: 'tc_race',
-    });
-    expect(result).toEqual({ artifactId: 'art_existing', revision: 1 });
-    // No new artifact row inserted; one revision row appended.
-    const artifactInserts = insertedRows.filter((r) => r.table === 'artifacts');
-    const revInserts = insertedRows.filter(
-      (r) => r.table === 'artifactRevisions',
-    );
-    expect(artifactInserts).toHaveLength(0);
-    expect(revInserts).toHaveLength(1);
-    expect(revInserts[0]?.payload).toMatchObject({
-      artifactId: 'art_existing',
-      revision: 1,
-      content: 'final content',
-      editKind: 'create',
-    });
-    // Placeholder patched with canonical content + cleared streaming flags.
-    expect(patchedRows).toHaveLength(1);
-    expect(patchedRows[0]).toMatchObject({
-      id: 'art_existing',
-      patch: {
-        content: 'final content',
-        title: 'hello',
-        liveStreamMode: undefined,
-        liveStreamStartedAt: undefined,
-        streamingContent: undefined,
-        toolCallId: undefined,
-      },
-    });
-  });
-
-  it('settle caller is idempotent against an already-settled row with same toolCallId', async () => {
-    const existing: FakeArtifactRow = {
+  it('clears streaming flags on settled (revision >= 1) rows', async () => {
+    const settled: FakeArtifactRow = {
       _id: 'art_settled',
-      organizationId: 'org_alpha',
-      threadId: 'thr_main',
+      organizationId: 'org_a',
+      threadId: 'thr_a',
       type: 'code',
-      title: 'hello',
-      content: 'final content',
-      revision: 1,
-      toolCallId: 'tc_retry',
+      title: 'edited',
+      revision: 4,
+      liveStreamMode: 'rewrite',
+      streamingContent: 'new content...',
+      liveStreamStartedAt: Date.now(),
     };
-    const { ctx, insertedRows, patchedRows } = createMockCtx({
-      artifactRows: [existing],
+    const { ctx, deleted, patched } = createMockCtx([settled]);
+    const r = await discard.handler(ctx, {
+      organizationId: 'org_a',
+      threadId: 'thr_a',
     });
-    const result = await mut.handler(ctx, {
-      ...baseArgs,
-      content: 'final content',
-      toolCallId: 'tc_retry',
-    });
-    expect(result).toEqual({ artifactId: 'art_settled', revision: 1 });
-    expect(insertedRows).toHaveLength(0);
-    expect(patchedRows).toHaveLength(0);
-  });
-
-  it('settle caller inserts fresh row + revision when no placeholder exists for the toolCallId', async () => {
-    const unrelated: FakeArtifactRow = {
-      _id: 'art_other',
-      organizationId: 'org_alpha',
-      threadId: 'thr_main',
-      type: 'code',
-      title: 'unrelated',
-      content: 'x',
-      revision: 1,
-      toolCallId: 'tc_other',
-    };
-    const { ctx, insertedRows } = createMockCtx({ artifactRows: [unrelated] });
-    const result = await mut.handler(ctx, {
-      ...baseArgs,
-      content: 'fresh content',
-      toolCallId: 'tc_fresh',
-    });
-    expect(result).toEqual({ artifactId: 'art_1', revision: 1 });
-    const artifactInserts = insertedRows.filter((r) => r.table === 'artifacts');
-    const revInserts = insertedRows.filter(
-      (r) => r.table === 'artifactRevisions',
-    );
-    expect(artifactInserts).toHaveLength(1);
-    expect(revInserts).toHaveLength(1);
-    expect(artifactInserts[0]?.payload).toMatchObject({
-      content: 'fresh content',
-      toolCallId: 'tc_fresh',
+    expect(r.cleared).toBe(1);
+    expect(deleted).toHaveLength(0);
+    expect(patched).toHaveLength(1);
+    expect(patched[0]?.id).toBe('art_settled');
+    // clearStreamingFlags() sets streaming-state fields to undefined.
+    expect(patched[0]?.patch).toMatchObject({
+      liveStreamMode: undefined,
+      streamingContent: undefined,
     });
   });
 
-  it('dedup is scoped to (org, thread) — same toolCallId in a different thread does not collide', async () => {
+  it('ignores rows without an active stream', async () => {
+    const idle: FakeArtifactRow = {
+      _id: 'art_idle',
+      organizationId: 'org_a',
+      threadId: 'thr_a',
+      type: 'code',
+      title: 'idle',
+      revision: 2,
+    };
+    const { ctx, deleted, patched } = createMockCtx([idle]);
+    const r = await discard.handler(ctx, {
+      organizationId: 'org_a',
+      threadId: 'thr_a',
+    });
+    expect(r.cleared).toBe(0);
+    expect(deleted).toHaveLength(0);
+    expect(patched).toHaveLength(0);
+  });
+
+  it('scoped to (organizationId, threadId) — does not touch other threads', async () => {
     const otherThread: FakeArtifactRow = {
-      _id: 'art_other_thread',
-      organizationId: 'org_alpha',
-      threadId: 'thr_other',
+      _id: 'art_other',
+      organizationId: 'org_a',
+      threadId: 'thr_b',
       type: 'code',
-      title: 'hello',
-      content: '',
-      revision: 1,
+      title: 'WIP',
+      revision: 0,
       liveStreamMode: 'create',
-      toolCallId: 'tc_shared',
+      streamingContent: 'partial',
     };
-    const { ctx, insertedRows } = createMockCtx({
-      artifactRows: [otherThread],
+    const { ctx, deleted, patched } = createMockCtx([otherThread]);
+    const r = await discard.handler(ctx, {
+      organizationId: 'org_a',
+      threadId: 'thr_a',
     });
-    const result = await mut.handler(ctx, {
-      ...baseArgs,
-      content: 'fresh content',
-      toolCallId: 'tc_shared',
-    });
-    expect(result).toEqual({ artifactId: 'art_1', revision: 1 });
-    const artifactInserts = insertedRows.filter((r) => r.table === 'artifacts');
-    expect(artifactInserts).toHaveLength(1);
+    expect(r.cleared).toBe(0);
+    expect(deleted).toHaveLength(0);
+    expect(patched).toHaveLength(0);
   });
 });

@@ -153,12 +153,21 @@ export const createBranchThread = internalMutation({
       // message is in scope (or 'user' edits, which carry no messageId but
       // by revision-order monotonicity must have happened between the
       // surrounding assistant edits). Stop at the first out-of-scope edit.
+      // While walking, keep the most recent in-scope file/content snapshot
+      // so we can branch at the revision the user actually forked at, not
+      // the source row's current state (which may include later edits made
+      // on the parent after the fork point).
       let snapshotRev:
         | {
             revision: number;
             editedByMessageId?: string;
           }
         | undefined;
+      let snapshotFiles:
+        | ReadonlyArray<{ path: string; content: string }>
+        | undefined;
+      let snapshotEntryFile: string | undefined;
+      let snapshotContent: string | undefined;
       for await (const rev of ctx.db
         .query('artifactRevisions')
         .withIndex('by_artifact', (q) => q.eq('artifactId', source._id))
@@ -171,6 +180,23 @@ export const createBranchThread = internalMutation({
           revision: rev.revision,
           editedByMessageId: rev.editedByMessageId,
         };
+        // Capture file/content state at this revision. `set_entry` rows
+        // omit `files` AND `content` (only entryFile changes) — for those
+        // we keep the previously-captured file state but update the entry
+        // pointer. `files` and legacy `content` are mutually exclusive in
+        // current writes (post-Phase A); legacy rows have only `content`.
+        if (rev.files !== undefined) {
+          snapshotFiles = rev.files;
+          if (rev.entryFile !== undefined) snapshotEntryFile = rev.entryFile;
+          // Don't carry a stale legacy `content` past a `files` revision.
+          snapshotContent = undefined;
+        } else if (rev.content !== undefined) {
+          snapshotContent = rev.content;
+          if (rev.entryFile !== undefined) snapshotEntryFile = rev.entryFile;
+        } else if (rev.entryFile !== undefined) {
+          // set_entry: only the entry pointer changed.
+          snapshotEntryFile = rev.entryFile;
+        }
       }
 
       const finalRevision = snapshotRev?.revision ?? source.revision;
@@ -178,18 +204,21 @@ export const createBranchThread = internalMutation({
         ? messageIdMap.get(snapshotRev.editedByMessageId)
         : undefined;
 
-      // Use the source row's CURRENT resolved files/entryFile. Walking
-      // back to reconstruct a per-revision file map would require
-      // accumulating snapshot/delta rows; the source row already holds
-      // the latest state which is what users expect when forking
-      // "from here". `snapshotArtifactForBranch` uses `resolveArtifactFiles`
-      // internally so legacy `content`-only rows still synthesize cleanly.
       await snapshotArtifactForBranch(ctx, {
         source,
         snapshotRevision: finalRevision,
         targetThreadId: branchThreadId,
         mappedCreatedByMessageId,
-        mappedLastEditedByMessageId,
+        ...(mappedLastEditedByMessageId !== undefined && {
+          mappedLastEditedByMessageId,
+        }),
+        ...(snapshotFiles !== undefined && { revisionFiles: snapshotFiles }),
+        ...(snapshotEntryFile !== undefined && {
+          revisionEntryFile: snapshotEntryFile,
+        }),
+        ...(snapshotContent !== undefined && {
+          revisionContent: snapshotContent,
+        }),
       });
     }
 

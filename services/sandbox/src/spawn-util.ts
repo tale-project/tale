@@ -18,6 +18,11 @@ interface RunDockerOptions {
   // than waiting for the container to exit (Refinement 2). The callback
   // is plain bytes; the caller is responsible for line-buffering.
   onStdoutChunk?: (chunk: Uint8Array) => void;
+  // Per-chunk stderr callback. Mirrors `onStdoutChunk` so spawn.ts can
+  // emit incremental SSE `event: stderr` deltas to the platform (C5 — live
+  // stdout/stderr tail in the canvas instead of waiting for the terminal
+  // `result` event). Plain bytes; the caller decodes.
+  onStderrChunk?: (chunk: Uint8Array) => void;
   // Hard cap on stdout bytes buffered into the spawner heap. Once exceeded,
   // we keep draining the pipe (so the writer doesn't block) but discard
   // further bytes. Without this a runaway runtime container can OOM the
@@ -135,7 +140,11 @@ export async function runDocker(
       opts.stdoutMaxBytes,
       opts.onStdoutChunk,
     ),
-    drainAndCap(proc.stderr as ReadableStream<Uint8Array>, opts.stderrMaxBytes),
+    drainAndCap(
+      proc.stderr as ReadableStream<Uint8Array>,
+      opts.stderrMaxBytes,
+      opts.onStderrChunk,
+    ),
   ]);
 
   // Race the COLLECTOR (not just `proc.exited`) against the optional timeout.

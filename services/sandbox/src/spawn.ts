@@ -578,6 +578,25 @@ type PhaseEvent = { phase: SandboxPhaseEvent };
 
 interface ExecuteRequestOptions {
   onPhase?: (event: PhaseEvent) => void;
+  /**
+   * Fires for each non-PHASE-marker line on stdout while the container is
+   * alive, after the line has been decoded. The trailing newline IS
+   * included so consumers can append directly to a tail buffer without
+   * re-inserting separators. On stream EOF a final residual non-empty line
+   * (no newline) is also delivered. PHASE markers are stripped from this
+   * stream — they only fire `onPhase`. Used by server.ts to emit incremental
+   * `event: stdout` SSE deltas; the final `result` event still carries the
+   * canonical base64'd buffer.
+   */
+  onStdoutDelta?: (text: string) => void;
+  /**
+   * Fires for each decoded stderr chunk while the container is alive. Unlike
+   * stdout, stderr is emitted CHUNK-by-chunk (no line buffering) because
+   * (a) it carries no PHASE protocol, and (b) Python/Node tend to emit
+   * stderr without trailing newlines (progress bars, tracebacks). The
+   * platform-side coalescer rate-limits the mutations these deltas trigger.
+   */
+  onStderrDelta?: (text: string) => void;
 }
 
 export async function executeRequest(
@@ -667,22 +686,36 @@ export async function executeRequest(
       // also handles the unterminated case via `split('\n')`.
       let lineBuf = '';
       const decoder = new TextDecoder('utf-8', { fatal: false });
-      const scanLine = (line: string) => {
+      const stderrDecoder = new TextDecoder('utf-8', { fatal: false });
+      // PHASE-marker lines are stripped from the live tail (`onStdoutDelta`)
+      // so the user doesn't briefly see `PHASE: installing` in the canvas.
+      // Non-marker lines are forwarded WITH their trailing newline so the
+      // platform-side append produces a faithful tail.
+      const handleStdoutLine = (line: string) => {
         if (line === PHASE_INSTALL) {
           opts.onPhase?.({ phase: 'installing' });
         } else if (line === PHASE_RUN) {
           opts.onPhase?.({ phase: 'running' });
+        } else if (opts.onStdoutDelta) {
+          opts.onStdoutDelta(`${line}\n`);
         }
       };
-      const onChunk = opts.onPhase
+      const wantStdoutScan = Boolean(opts.onPhase || opts.onStdoutDelta);
+      const onStdoutChunk = wantStdoutScan
         ? (chunk: Uint8Array) => {
             lineBuf += decoder.decode(chunk, { stream: true });
             let nl: number;
             while ((nl = lineBuf.indexOf('\n')) !== -1) {
               const line = lineBuf.slice(0, nl);
               lineBuf = lineBuf.slice(nl + 1);
-              scanLine(line);
+              handleStdoutLine(line);
             }
+          }
+        : undefined;
+      const onStderrChunk = opts.onStderrDelta
+        ? (chunk: Uint8Array) => {
+            const text = stderrDecoder.decode(chunk, { stream: true });
+            if (text.length > 0) opts.onStderrDelta?.(text);
           }
         : undefined;
       result = await runDocker(argv, {
@@ -694,13 +727,27 @@ export async function executeRequest(
         // discards bytes past the cap (audit finding R2-B2).
         stdoutMaxBytes: cfg.stdoutMaxBytes,
         stderrMaxBytes: cfg.stderrMaxBytes,
-        ...(onChunk && { onStdoutChunk: onChunk }),
+        ...(onStdoutChunk && { onStdoutChunk }),
+        ...(onStderrChunk && { onStderrChunk }),
       });
-      // EOF drain — the loop above only fires on newlines; a final
-      // unterminated PHASE: line lives in lineBuf at this point.
-      if (opts.onPhase) {
+      // EOF drain — the line loop above only fires on newlines; a final
+      // unterminated line (PHASE marker OR user output) lives in lineBuf.
+      if (wantStdoutScan) {
         lineBuf += decoder.decode();
-        if (lineBuf.length > 0) scanLine(lineBuf);
+        if (lineBuf.length > 0) {
+          if (lineBuf === PHASE_INSTALL) {
+            opts.onPhase?.({ phase: 'installing' });
+          } else if (lineBuf === PHASE_RUN) {
+            opts.onPhase?.({ phase: 'running' });
+          } else {
+            // Trailing chunk WITHOUT newline — forward verbatim.
+            opts.onStdoutDelta?.(lineBuf);
+          }
+        }
+      }
+      if (opts.onStderrDelta) {
+        const tail = stderrDecoder.decode();
+        if (tail.length > 0) opts.onStderrDelta(tail);
       }
     } finally {
       clearTimeout(killTimer);

@@ -1,7 +1,11 @@
 import { ConvexError, v } from 'convex/values';
 
 import type { Id } from '../_generated/dataModel';
-import { internalMutation, type MutationCtx } from '../_generated/server';
+import {
+  internalMutation,
+  internalQuery,
+  type MutationCtx,
+} from '../_generated/server';
 import { applyFinalizeArtifactRun } from '../artifacts/internal_mutations';
 import { rateLimiter } from '../lib/rate_limiter';
 import {
@@ -424,5 +428,92 @@ export const recoverStuckSandboxes = internalMutation({
       }
     }
     return recovered;
+  },
+});
+
+/**
+ * Locates every non-terminal `sandboxExecutions` row tied to a thread.
+ * Used by the user-Stop cascade: when `cancel_generation` fires, the new
+ * `cancelExecutionsForThread` action calls this to find what to kill, then
+ * issues `spawnerCancel` + `cancelExecutionRecord` for each. Returns a
+ * trimmed projection (id + artifactId) because the caller doesn't need
+ * the full doc — keeps the query cheap.
+ */
+export const listNonTerminalByThread = internalQuery({
+  // `threadId` is stored as `v.string()` on `sandboxExecutions` (the
+  // upstream `threads` table is provided by `@convex-dev/agent`, so the
+  // platform schema never sees its branded `Id<'threads'>` directly);
+  // accept the same `v.string()` here to match.
+  args: { threadId: v.string() },
+  returns: v.array(
+    v.object({
+      _id: v.id('sandboxExecutions'),
+      artifactId: v.optional(v.id('artifacts')),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query('sandboxExecutions')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
+      .collect();
+    const out: Array<{
+      _id: Id<'sandboxExecutions'>;
+      artifactId?: Id<'artifacts'>;
+    }> = [];
+    for (const row of rows) {
+      if (sandboxTerminalStatuses.has(row.status)) continue;
+      const entry: {
+        _id: Id<'sandboxExecutions'>;
+        artifactId?: Id<'artifacts'>;
+      } = { _id: row._id };
+      if (row.artifactId !== undefined) entry.artifactId = row.artifactId;
+      out.push(entry);
+    }
+    return out;
+  },
+});
+
+/**
+ * Terminal-state transition driven by user-Stop. Distinct from `finalize`
+ * because there's no spawner result to merge — we just mark the row
+ * `cancelled` with the canonical error code, and cascade to the artifact
+ * so the canvas spinner clears in the same Convex tick. Idempotent: a
+ * row already in a terminal state is left alone (watchdog/spawner result
+ * may have raced ahead).
+ */
+export const cancelExecutionRecord = internalMutation({
+  args: {
+    executionId: v.id('sandboxExecutions'),
+    reason: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.executionId);
+    if (!row) return null;
+    if (sandboxTerminalStatuses.has(row.status)) return null;
+    const now = Date.now();
+    const message = args.reason ?? 'Execution cancelled by user';
+    await ctx.db.patch(args.executionId, {
+      status: 'cancelled',
+      statusChangedAt: now,
+      completedAt: now,
+      errorCode: 'CANCELLED',
+      errorMessage: message,
+      actualSeconds: Math.max(
+        (now - row.startedAt) / 1000,
+        row.estimatedSeconds,
+      ),
+    });
+    if (row.artifactId) {
+      await applyFinalizeArtifactRun(ctx, {
+        artifactId: row.artifactId,
+        runStatus: 'cancelled',
+        runErrorCode: 'CANCELLED',
+        runErrorMessage: message,
+        runOutputFiles: [],
+        runExecutionId: row._id,
+      });
+    }
+    return null;
   },
 });

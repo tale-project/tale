@@ -53,9 +53,8 @@ const rewriteModeArgs = z.object({
     .number()
     .int()
     .nonnegative()
-    .optional()
     .describe(
-      'OPTIONAL but strongly recommended: the `revision="N"` attribute from the `<artifact>` block this edit was authored against. Pass back to detect concurrent edits.',
+      'REQUIRED: the `revision="N"` attribute from the `<artifact>` block this edit was authored against. If your snapshot is stale the mutation rejects with `code: "stale"` and `currentRevision` so you can re-read and retry.',
     ),
 });
 
@@ -82,7 +81,13 @@ const patchModeArgs = z.object({
     .describe(
       'Default false (exactly-once match). Set true to replace ALL occurrences of `search` in the file.',
     ),
-  expectedRevision: z.number().int().nonnegative().optional(),
+  expectedRevision: z
+    .number()
+    .int()
+    .nonnegative()
+    .describe(
+      'REQUIRED: revision the patch was authored against (from `<artifact revision="N">`).',
+    ),
 });
 
 const deleteModeArgs = z.object({
@@ -95,7 +100,13 @@ const deleteModeArgs = z.object({
     .describe(
       'File path inside the artifact to delete. Refused on the entry file (call `mode="set_entry"` or `mode="rename"` first) and on the last file in the artifact.',
     ),
-  expectedRevision: z.number().int().nonnegative().optional(),
+  expectedRevision: z
+    .number()
+    .int()
+    .nonnegative()
+    .describe(
+      'REQUIRED: revision the delete was authored against (from `<artifact revision="N">`).',
+    ),
 });
 
 const renameModeArgs = z.object({
@@ -109,7 +120,13 @@ const renameModeArgs = z.object({
     .describe(
       'New file path. Must not already exist (use `mode="delete"` first if you intend to replace).',
     ),
-  expectedRevision: z.number().int().nonnegative().optional(),
+  expectedRevision: z
+    .number()
+    .int()
+    .nonnegative()
+    .describe(
+      'REQUIRED: revision the rename was authored against (from `<artifact revision="N">`).',
+    ),
 });
 
 const setEntryModeArgs = z.object({
@@ -122,7 +139,13 @@ const setEntryModeArgs = z.object({
     .describe(
       'Path to the existing file that should become the new entry point. Must already exist in the artifact.',
     ),
-  expectedRevision: z.number().int().nonnegative().optional(),
+  expectedRevision: z
+    .number()
+    .int()
+    .nonnegative()
+    .describe(
+      'REQUIRED: revision the entry change was authored against (from `<artifact revision="N">`).',
+    ),
 });
 
 const artifactEditArgs = z.discriminatedUnion('mode', [
@@ -330,7 +353,7 @@ export const artifactEditTool = {
           };
         }
 
-        const baselineRevision = args.expectedRevision ?? artifact.revision;
+        const baselineRevision = args.expectedRevision;
         const isRunnable = isRunnableArtifactType(artifact.type);
         const runHint = isRunnable
           ? ` Call \`artifact_run({artifactId: "${args.artifactId}"})\` to execute the updated project.`

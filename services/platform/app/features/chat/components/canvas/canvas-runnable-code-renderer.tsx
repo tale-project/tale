@@ -26,6 +26,7 @@ import {
   File as FileIcon,
   Image as ImageIcon,
 } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
@@ -185,6 +186,65 @@ function StatusBadge({
   );
 }
 
+/**
+ * stdout / stderr live tail. While `liveTail` is true (run in flight) the
+ * `<details>` is force-open via an imperative ref-set so the user sees
+ * output as it streams; once the flag drops, the prop is left undefined so
+ * the user can collapse manually without React re-asserting the open state.
+ *
+ * Auto-scrolls the `<pre>` to the bottom on each content change, unless the
+ * user has scrolled away from the bottom — a 32 px slack covers off-by-one
+ * rounding from the browser's scrollHeight/scrollTop math.
+ */
+function LiveTailDetails({
+  text,
+  label,
+  liveTail,
+  preClassName,
+}: {
+  text: string;
+  label: string;
+  liveTail: boolean;
+  preClassName: string;
+}) {
+  const detailsRef = useRef<HTMLDetailsElement | null>(null);
+  const preRef = useRef<HTMLPreElement | null>(null);
+  const stickToBottomRef = useRef(true);
+
+  useEffect(() => {
+    if (liveTail && detailsRef.current && !detailsRef.current.open) {
+      detailsRef.current.open = true;
+    }
+  }, [liveTail]);
+
+  useEffect(() => {
+    const el = preRef.current;
+    if (!el) return;
+    if (!stickToBottomRef.current) return;
+    el.scrollTop = el.scrollHeight;
+  }, [text]);
+
+  return (
+    <details ref={detailsRef} className="text-xs">
+      <summary className="text-muted-foreground cursor-pointer font-medium">
+        {label}
+      </summary>
+      <pre
+        ref={preRef}
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          const distanceFromBottom =
+            el.scrollHeight - el.clientHeight - el.scrollTop;
+          stickToBottomRef.current = distanceFromBottom < 32;
+        }}
+        className={preClassName}
+      >
+        {text}
+      </pre>
+    </details>
+  );
+}
+
 function CanvasRunnableCodeRendererComponent({
   artifactId,
   activePath,
@@ -300,25 +360,25 @@ function CanvasRunnableCodeRendererComponent({
           )}
 
           {stdoutPreview && stdoutPreview.length > 0 && (
-            <details className="text-xs">
-              <summary className="text-muted-foreground cursor-pointer font-medium">
-                {t('canvas.runStdout', { chars: stdoutPreview.length })}
-              </summary>
-              <pre className="bg-muted/40 mt-1 max-h-40 overflow-auto rounded p-2 font-mono whitespace-pre-wrap">
-                {stdoutPreview}
-              </pre>
-            </details>
+            <LiveTailDetails
+              text={stdoutPreview}
+              label={t('canvas.runStdout', { chars: stdoutPreview.length })}
+              liveTail={runStatus === 'installing' || runStatus === 'running'}
+              preClassName="bg-muted/40 mt-1 max-h-40 overflow-auto rounded p-2 font-mono whitespace-pre-wrap"
+            />
           )}
 
           {stderrPreview && stderrPreview.length > 0 && (
-            <details className="text-xs" open={runStatus === 'failed'}>
-              <summary className="text-muted-foreground cursor-pointer font-medium">
-                {t('canvas.runStderr', { chars: stderrPreview.length })}
-              </summary>
-              <pre className="bg-muted/40 text-destructive mt-1 max-h-40 overflow-auto rounded p-2 font-mono whitespace-pre-wrap">
-                {stderrPreview}
-              </pre>
-            </details>
+            <LiveTailDetails
+              text={stderrPreview}
+              label={t('canvas.runStderr', { chars: stderrPreview.length })}
+              liveTail={
+                runStatus === 'installing' ||
+                runStatus === 'running' ||
+                runStatus === 'failed'
+              }
+              preClassName="bg-muted/40 text-destructive mt-1 max-h-40 overflow-auto rounded p-2 font-mono whitespace-pre-wrap"
+            />
           )}
         </div>
       )}

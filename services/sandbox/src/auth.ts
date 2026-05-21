@@ -33,7 +33,7 @@ export const TIMESTAMP_TOLERANCE_MS = 30_000;
 // of the skew window. After TTL the entry expires and the signature
 // could in principle be accepted again, but by then `timestamp_skew`
 // rejects it first.
-export const NONCE_TTL_MS = TIMESTAMP_TOLERANCE_MS + 5_000;
+const NONCE_TTL_MS = TIMESTAMP_TOLERANCE_MS + 5_000;
 
 // Periodic sweep cadence — every Nth verify call we drop expired entries
 // so the cache size stays bounded under high request volume. The cap is

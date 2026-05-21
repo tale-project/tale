@@ -9,6 +9,7 @@ import type {
   sandboxErrorCodeLiterals as SpawnerErrorCodes,
   sandboxLanguageLiterals as SpawnerLanguages,
   sandboxPhaseEventLiterals as SpawnerPhases,
+  sandboxSseEventLiterals as SpawnerSseEvents,
   sandboxStepStatusLiterals as SpawnerStepStatuses,
 } from '../../../sandbox/src/wire';
 
@@ -29,9 +30,12 @@ export const sandboxRunStatusLiterals = [
   // Set while pip / npm install is fetching deps. The audit row stays in
   // `queued` until the spawner reports a phase event; the artifact row
   // mirrors `installing` so the canvas can distinguish "waiting for slot"
-  // from "downloading torch". A live execution moves queued → installing →
-  // running → terminal in that order; the watchdog reaps both queued and
-  // running stragglers.
+  // from "downloading torch". The audit-row lifecycle is
+  // queued → installing → terminal — `running` is never persisted there;
+  // see the comment on `setRunning` in `internal_mutations.ts`. The literal
+  // below is retained for read-validation of legacy rows and for the
+  // artifact-side `runStatus` field (which DOES use `running` to drive the
+  // canvas spinner). Watchdog reaps queued, installing, and running.
   'installing',
   'running',
   'completed',
@@ -44,6 +48,8 @@ export type SandboxRunStatus = (typeof sandboxRunStatusLiterals)[number];
 export const sandboxRunStatusValidator = v.union(
   v.literal('queued'),
   v.literal('installing'),
+  // 'running' retained for legacy audit rows pre-refactor and for the
+  // artifact `runStatus` field; new audit-row writes emit 'installing' only.
   v.literal('running'),
   v.literal('completed'),
   v.literal('failed'),
@@ -96,6 +102,24 @@ export const sandboxErrorCodeValidator = v.union(
  * `completed` to terminal (success or failure — the result body carries
  * the outcome).
  */
+/**
+ * SSE event-type vocabulary emitted by the spawner's `POST /v1/execute`.
+ * Mirror of `services/sandbox/src/wire.ts:sandboxSseEventLiterals`. The
+ * compile-time `Equal<>` parity check below catches drift in either
+ * direction. Adding a new event type requires updating both wire files
+ * AND the `spawner_client.ts` SSE-parser switch (the parser is the actual
+ * consumer; this constant is the documentation contract).
+ */
+export const sandboxSseEventLiterals = [
+  'phase',
+  'stdout',
+  'stderr',
+  'result',
+  'error',
+] as const;
+
+export type SandboxSseEvent = (typeof sandboxSseEventLiterals)[number];
+
 export const sandboxPhaseEventLiterals = [
   'preparing',
   'installing',
@@ -257,4 +281,10 @@ const _languageParity: Equal<
 const _stepStatusParity: Equal<
   (typeof sandboxStepStatusLiterals)[number],
   (typeof SpawnerStepStatuses)[number]
+> = true;
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _sseEventParity: Equal<
+  (typeof sandboxSseEventLiterals)[number],
+  (typeof SpawnerSseEvents)[number]
 > = true;

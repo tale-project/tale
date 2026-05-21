@@ -76,11 +76,16 @@ export async function acquireSpawnerLock(cfg: SpawnerConfig): Promise<void> {
       `[sandbox.lock] reclaiming stale lock at ${lockPath} (age=${age}ms)`,
     );
   } catch (err) {
-    if (
-      !(err instanceof Error) ||
-      !('code' in err) ||
-      (err as NodeJS.ErrnoException).code !== 'ENOENT'
-    ) {
+    // `code` is a non-standard property only present on NodeJS fs errors; the
+    // `instanceof Error` + `'code' in err` guards above prove it exists at
+    // runtime, but TS can't narrow to the typed shape, so we read it through a
+    // minimal interface.
+    const code =
+      err instanceof Error && 'code' in err
+        ? // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+          (err as { code?: string }).code
+        : undefined;
+    if (code !== 'ENOENT') {
       // Either the lock-fresh refusal above (rethrow) OR an unexpected error.
       if (err instanceof Error && err.message.startsWith('Another spawner')) {
         throw err;
@@ -100,7 +105,7 @@ export async function acquireSpawnerLock(cfg: SpawnerConfig): Promise<void> {
  * Drop the lock on graceful shutdown so a fast restart doesn't need to wait
  * out the freshness window.
  */
-export async function releaseSpawnerLock(cfg: SpawnerConfig): Promise<void> {
+async function releaseSpawnerLock(cfg: SpawnerConfig): Promise<void> {
   const lockPath = join(cfg.hostSessionRoot, SPAWNER_LOCK_FILE);
   try {
     await rm(lockPath, { force: true });

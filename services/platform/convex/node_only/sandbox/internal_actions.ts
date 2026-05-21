@@ -450,6 +450,100 @@ export const executeCode = internalAction({
 
     const abort = new AbortController();
 
+    // ---- live stdout/stderr tail coalescer ----
+    // The spawner emits `event: stdout` / `event: stderr` per-line (stdout)
+    // and per-chunk (stderr). We buffer them and flush via one mutation per
+    // ~250 ms or once the buffer exceeds the threshold, whichever first —
+    // so a chatty `pip install` doesn't fire one Convex mutation per line.
+    // Drift between the live tail and the canonical preview written at
+    // `finalizeArtifactRun` is bounded by the same 16-KB cap on each side.
+    const OUTPUT_FLUSH_DEBOUNCE_MS = 250;
+    const OUTPUT_FLUSH_THRESHOLD_BYTES = 2048;
+    let pendingStdout = '';
+    let pendingStderr = '';
+    let outputFlushTimer: ReturnType<typeof setTimeout> | null = null;
+    let outputFlushInFlight = false;
+    let outputBufferingStopped = false;
+    const flushOutputBuffer = async (): Promise<void> => {
+      if (outputFlushInFlight) return;
+      if (!pendingStdout && !pendingStderr) return;
+      if (!args.artifactId) {
+        pendingStdout = '';
+        pendingStderr = '';
+        return;
+      }
+      const stdoutDelta = pendingStdout;
+      const stderrDelta = pendingStderr;
+      pendingStdout = '';
+      pendingStderr = '';
+      outputFlushInFlight = true;
+      try {
+        await ctx.runMutation(
+          internal.artifacts.internal_mutations.appendArtifactRunOutput,
+          {
+            artifactId: args.artifactId,
+            executionId,
+            ...(stdoutDelta && { stdoutDelta }),
+            ...(stderrDelta && { stderrDelta }),
+          },
+        );
+      } catch (err) {
+        // Tail is UX-only; never block the run on a failed append.
+        console.warn(
+          '[sandbox.executeCode] appendArtifactRunOutput failed:',
+          err,
+        );
+      } finally {
+        outputFlushInFlight = false;
+        if (
+          !outputBufferingStopped &&
+          (pendingStdout || pendingStderr) &&
+          !outputFlushTimer
+        ) {
+          outputFlushTimer = setTimeout(() => {
+            outputFlushTimer = null;
+            void flushOutputBuffer();
+          }, OUTPUT_FLUSH_DEBOUNCE_MS);
+        }
+      }
+    };
+    const scheduleOutputFlush = (): void => {
+      if (outputBufferingStopped) return;
+      if (outputFlushTimer || outputFlushInFlight) return;
+      outputFlushTimer = setTimeout(() => {
+        outputFlushTimer = null;
+        void flushOutputBuffer();
+      }, OUTPUT_FLUSH_DEBOUNCE_MS);
+    };
+    const maybeFlushIfLarge = (): void => {
+      if (
+        pendingStdout.length + pendingStderr.length >=
+        OUTPUT_FLUSH_THRESHOLD_BYTES
+      ) {
+        if (outputFlushTimer) {
+          clearTimeout(outputFlushTimer);
+          outputFlushTimer = null;
+        }
+        void flushOutputBuffer();
+      }
+    };
+    const onStdoutTail = args.artifactId
+      ? (text: string) => {
+          if (outputBufferingStopped) return;
+          pendingStdout += text;
+          maybeFlushIfLarge();
+          scheduleOutputFlush();
+        }
+      : undefined;
+    const onStderrTail = args.artifactId
+      ? (text: string) => {
+          if (outputBufferingStopped) return;
+          pendingStderr += text;
+          maybeFlushIfLarge();
+          scheduleOutputFlush();
+        }
+      : undefined;
+
     try {
       const spawnerResult = await spawnerExecute(
         {
@@ -475,6 +569,8 @@ export const executeCode = internalAction({
         },
         abort.signal,
         {
+          ...(onStdoutTail && { onStdout: onStdoutTail }),
+          ...(onStderrTail && { onStderr: onStderrTail }),
           onPhase: args.artifactId
             ? async (phase) => {
                 // Structured progress — UI renders the localized text via
@@ -514,6 +610,17 @@ export const executeCode = internalAction({
             : undefined,
         },
       );
+
+      // Stop accepting more live-tail deltas. Any in-flight or pending
+      // flush completes; subsequent SSE-callback invocations no-op. The
+      // canonical preview is about to be written by `finalize` /
+      // `finalizeArtifactRun`, so further appends would only race that
+      // write to no benefit.
+      outputBufferingStopped = true;
+      if (outputFlushTimer) {
+        clearTimeout(outputFlushTimer);
+        outputFlushTimer = null;
+      }
 
       // ---- file upload (all-or-nothing) ----
       // Each ctx.storage.store can take seconds for multi-MB blobs; an
@@ -710,10 +817,85 @@ export const executeCode = internalAction({
       throw new Error(`Sandbox spawner failed: ${message}`, { cause: err });
     } finally {
       clearInterval(heartbeat);
+      // Stop accepting/scheduling live-tail flushes — finalize has already
+      // written (or is about to write) the canonical preview, and a pending
+      // setTimeout here would keep the action alive past its useful work.
+      outputBufferingStopped = true;
+      if (outputFlushTimer) {
+        clearTimeout(outputFlushTimer);
+        outputFlushTimer = null;
+      }
       // Abort any in-flight fetch from spawnerExecute so the spawner-side
       // request can tear down promptly when the action exits (success,
       // structured failure, OR thrown infra error).
       abort.abort('action-exit');
     }
+  },
+});
+
+/**
+ * User-Stop cascade — kills every in-flight sandbox execution on a thread.
+ *
+ * Without this, clicking the chat's "Stop" button aborts the SDK stream but
+ * leaves the spawner happily executing whatever the LLM started: container
+ * burns CPU for up to `SANDBOX_MAX_TIMEOUT_MS`, quota keeps draining, canvas
+ * spinner persists, and the eventually-arriving result silently overwrites
+ * what the user wanted to cancel.
+ *
+ * Wiring: `convex/threads/cancel_generation.ts` schedules this via
+ * `ctx.scheduler.runAfter(0, ...)` after abortStream'ing the SDK streams.
+ * Scheduler (not direct runAction) because the calling mutation can't await
+ * an action — and shouldn't, since the user is owed an immediate
+ * Stop-acknowledged response.
+ *
+ * For each non-terminal execution:
+ *  1. POST /v1/cancel/:id to the spawner — SIGKILLs the container and
+ *     (per the same-PR change in server.ts/spawn.ts) writes a final SSE
+ *     `event: result` with status:'cancelled' to the still-listening
+ *     `executeCode` action, which then routes through its normal finalize.
+ *  2. Also call `cancelExecutionRecord` directly — closes the window where
+ *     the spawner-side cancel fails (network blip, container already gone)
+ *     and the audit/artifact rows would otherwise stay non-terminal until
+ *     the 15-min watchdog reap. The mutation is terminal-state-guarded so
+ *     racing with `executeCode`'s own finalize is safe.
+ */
+export const cancelExecutionsForThread = internalAction({
+  // `threadId` carried as `v.string()` because the upstream `threads` table
+  // is provided by `@convex-dev/agent`; the platform schema stores its id
+  // as a string on every reference (see `sandboxExecutions.threadId`).
+  args: { threadId: v.string() },
+  returns: v.number(),
+  handler: async (ctx: ActionCtx, args) => {
+    const rows = await ctx.runQuery(
+      internal.sandbox.internal_mutations.listNonTerminalByThread,
+      { threadId: args.threadId },
+    );
+    let cancelled = 0;
+    for (const row of rows) {
+      try {
+        await spawnerCancel(String(row._id));
+      } catch (err) {
+        // Best-effort — if the spawner is unreachable or the container is
+        // already gone, we still mark the row cancelled below so the canvas
+        // clears. The 404-on-unknown-id case is the most common and harmless.
+        console.warn(
+          `[sandbox.cancelExecutionsForThread] spawnerCancel(${row._id}) failed (continuing):`,
+          err,
+        );
+      }
+      try {
+        await ctx.runMutation(
+          internal.sandbox.internal_mutations.cancelExecutionRecord,
+          { executionId: row._id, reason: 'Execution cancelled by user' },
+        );
+        cancelled += 1;
+      } catch (err) {
+        console.warn(
+          `[sandbox.cancelExecutionsForThread] cancelExecutionRecord(${row._id}) failed:`,
+          err,
+        );
+      }
+    }
+    return cancelled;
   },
 });

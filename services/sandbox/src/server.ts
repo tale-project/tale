@@ -277,6 +277,12 @@ async function handleExecute(req: Request): Promise<Response> {
       try {
         const result = await executeRequest(cfg, parsed, {
           onPhase: (e) => send('phase', e),
+          // Live stdout/stderr tail. Per-line for stdout (PHASE markers
+          // stripped); per-chunk for stderr. Coalescing is left to the
+          // platform-side action because that's where the cost of "too
+          // many mutations" actually lives — SSE event overhead is small.
+          onStdoutDelta: (text) => send('stdout', { text }),
+          onStderrDelta: (text) => send('stderr', { text }),
         });
         send('result', result);
       } catch (err) {

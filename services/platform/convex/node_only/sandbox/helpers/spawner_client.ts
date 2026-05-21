@@ -123,6 +123,16 @@ function getSpawnerToken(): string | null {
 interface SpawnerExecuteCallbacks {
   /** Fired as soon as the runtime entrypoint emits a PHASE marker. */
   onPhase?: (phase: SandboxPhaseEvent) => Promise<void> | void;
+  /**
+   * Live stdout tail. Fires per spawner-side line (PHASE markers stripped).
+   * The trailing newline is preserved. Used by the action to append to the
+   * canvas's `runStdoutPreview` so users see output stream during the run
+   * instead of only at terminal time. The action coalesces several
+   * invocations into a single mutation per ~250 ms (or threshold bytes).
+   */
+  onStdout?: (text: string) => void;
+  /** Live stderr tail. Fires per spawner-side chunk (not line-buffered). */
+  onStderr?: (text: string) => void;
 }
 
 /**
@@ -240,6 +250,28 @@ export async function spawnerExecute(
             // patch is a UX nice-to-have; the audit + final result still
             // proceed to completion.
             console.warn(`[spawnerExecute] onPhase callback failed:`, err);
+          }
+        }
+      } else if (parsed.event === 'stdout') {
+        const text = parsed.data.text;
+        if (typeof text === 'string' && text.length > 0 && callbacks.onStdout) {
+          try {
+            callbacks.onStdout(text);
+          } catch (err) {
+            // Same posture as `onPhase`: log but don't abort the run — live
+            // tail is a UX-enhancement, not a correctness contract. The
+            // final `result` event still carries the canonical base64'd
+            // stdout/stderr buffer.
+            console.warn(`[spawnerExecute] onStdout callback failed:`, err);
+          }
+        }
+      } else if (parsed.event === 'stderr') {
+        const text = parsed.data.text;
+        if (typeof text === 'string' && text.length > 0 && callbacks.onStderr) {
+          try {
+            callbacks.onStderr(text);
+          } catch (err) {
+            console.warn(`[spawnerExecute] onStderr callback failed:`, err);
           }
         }
       } else if (parsed.event === 'result') {

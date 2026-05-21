@@ -16,10 +16,7 @@ import type { ToolExecutionOptions } from 'ai';
 import { z } from 'zod/v4';
 
 import { internal } from '../../_generated/api';
-import {
-  mirrorLegacyContent,
-  resolveArtifactFiles,
-} from '../../artifacts/resolve_files';
+import { resolveArtifactFiles } from '../../artifacts/resolve_files';
 import { toId } from '../../lib/type_cast_helpers';
 import type { ToolDefinition } from '../types';
 
@@ -269,10 +266,6 @@ export const artifactReadTool = {
       files.sort(
         (a, b) => (orderMap.get(a.path) ?? 0) - (orderMap.get(b.path) ?? 0),
       );
-      // Use mirrorLegacyContent for a no-op consistency check (and to avoid
-      // bundlers tree-shaking out the import — we want the dual-write helper
-      // accessible to dependent modules through this barrel).
-      void mirrorLegacyContent;
       return {
         success: true,
         artifactId: args.artifactId,

@@ -58,17 +58,6 @@ export interface ArtifactStreamState {
   // than its configured interval.
   lastParsedLength: number;
   lastParsedAt: number;
-  // Coalesced fire-and-forget flush state. Streaming flushes (the
-  // `updateStreamingContent` mutation) are NOT awaited inside
-  // `onInputDelta` because a 30 KB+ payload roundtrip blocks the AI SDK's
-  // event loop, builds buffer pressure, and produces a "wait several
-  // seconds, then dump a big chunk" cadence on screen. Instead we keep
-  // at most one mutation in flight; subsequent flush requests overwrite
-  // `pendingFlush` with the latest payload, and the in-flight callback's
-  // `.finally` drains it. Final consistency is guaranteed by the canonical
-  // settle in `execute()`, which clears streaming flags atomically.
-  flushInFlight: boolean;
-  pendingFlush?: () => Promise<unknown>;
 }
 
 export interface StreamingPatchPair {
@@ -92,44 +81,9 @@ export function initState(
     lastParsedLength: 0,
     lastParsedAt: 0,
     rowInitialized: false,
-    flushInFlight: false,
   };
   STATE.set(toolCallId, next);
   return next;
-}
-
-/**
- * Hand a streaming-flush mutation off to the background. At most one flush
- * is in flight at a time; if another request arrives while one is running,
- * the previous queued payload is replaced (we always want the latest).
- * The in-flight callback's `.finally` drains any payload that was queued
- * during its run.
- *
- * `runMutation` is a closure provided by the caller — keeping the Convex
- * api reference out of this module so this file stays import-light.
- */
-export function scheduleStreamingFlush(
-  state: ArtifactStreamState,
-  runMutation: () => Promise<unknown>,
-): void {
-  state.pendingFlush = runMutation;
-  if (state.flushInFlight) return;
-  drainFlush(state);
-}
-
-function drainFlush(state: ArtifactStreamState): void {
-  if (state.flushInFlight || !state.pendingFlush) return;
-  const next = state.pendingFlush;
-  state.pendingFlush = undefined;
-  state.flushInFlight = true;
-  void next()
-    .catch((err) => {
-      console.error('[artifact streaming] flush failed:', err);
-    })
-    .finally(() => {
-      state.flushInFlight = false;
-      drainFlush(state);
-    });
 }
 
 export function getState(toolCallId: string): ArtifactStreamState | undefined {

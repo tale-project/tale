@@ -1,6 +1,6 @@
 import { abortStream, listMessages, listStreams } from '@convex-dev/agent';
 
-import { components } from '../_generated/api';
+import { components, internal } from '../_generated/api';
 import type { MutationCtx } from '../_generated/server';
 import { truncateAssistantContent } from './truncate_message_content';
 
@@ -109,5 +109,45 @@ export async function cancelGeneration(
       generationStatus: 'idle',
       streamId: undefined,
     });
+  }
+
+  // Discard any in-flight artifact streams on this thread. Without this,
+  // a stop during `artifact_create` mid-input-delta leaves a `revision:0`
+  // placeholder row in the canvas sidebar with a streaming badge until
+  // `cleanupStaleStreams` cron sweeps it (up to ~6 min). We do this inline
+  // because the mutation just deletes/patches the artifact row — no
+  // external services involved.
+  if (threadMeta?.organizationId) {
+    try {
+      await ctx.runMutation(
+        internal.artifacts.internal_mutations.discardActiveStreamsForThread,
+        { organizationId: threadMeta.organizationId, threadId },
+      );
+    } catch (err) {
+      // Best-effort — never fail the cancel because of cleanup hiccups.
+      // The 60 s + 5 min watchdog still sweeps anything we miss here.
+      console.warn(
+        '[cancelGeneration] discardActiveStreamsForThread failed:',
+        err,
+      );
+    }
+  }
+
+  // Cascade Stop to any running sandbox executions on this thread. Scheduled
+  // (not awaited) because the action calls the spawner over HTTP and we
+  // don't want to block the user's Stop-acknowledged response on a network
+  // round-trip. The mutation that finalizes each execution is terminal-state
+  // guarded so racing with `executeCode`'s own finalize is safe.
+  try {
+    await ctx.scheduler.runAfter(
+      0,
+      internal.node_only.sandbox.internal_actions.cancelExecutionsForThread,
+      { threadId },
+    );
+  } catch (err) {
+    console.warn(
+      '[cancelGeneration] scheduler.runAfter(cancelExecutionsForThread) failed:',
+      err,
+    );
   }
 }

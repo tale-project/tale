@@ -78,6 +78,10 @@ export const sandboxExecutionsTable = defineTable({
   codePreview: v.string(),
   codeStorageId: v.optional(v.id('_storage')),
   packages: v.array(v.string()),
+  // @deprecated post R2-B4: install options are no longer caller-controlled;
+  // the action hardcodes `{allowSdist: false, allowInstallScripts: false}`
+  // before invoking the spawner. Field retained for read-validation on legacy
+  // rows; new writes never set it to anything else.
   installOptions: v.optional(
     v.object({
       allowSdist: v.optional(v.boolean()),
@@ -127,7 +131,13 @@ export const sandboxExecutionsTable = defineTable({
   .index('by_organizationId_and_status', ['organizationId', 'status'])
   .index('by_organizationId', ['organizationId'])
   .index('by_status', ['status'])
-  .index('by_artifactId', ['artifactId']);
+  .index('by_artifactId', ['artifactId'])
+  // For the user-Stop cascade in `cancel_generation.ts` — locates every
+  // non-terminal execution on the cancelled thread so the action can call
+  // `spawnerCancel` on each before the SDK abort would leave them running
+  // until their own SANDBOX_MAX_TIMEOUT_MS. `threadId` is already on the
+  // row; this just lets the query be O(k) instead of org-wide scan.
+  .index('by_threadId', ['threadId']);
 
 export const SANDBOX_MAX_CONCURRENT_PER_ORG = 4;
 export const SANDBOX_DAILY_CPU_BUDGET_SECONDS = 1800;

@@ -38,7 +38,7 @@ const RESERVED_ENTRY_BY_LANGUAGE: Record<Language, string> = {
   node: 'main.js',
 };
 
-export type ValidateResult =
+type ValidateResult =
   | { ok: true; request: ExecuteRequest }
   | { ok: false; error: string };
 
@@ -68,6 +68,10 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
     return { ok: false, error: 'request body must be a JSON object' };
   }
+  // After the guard above `raw` is `object`; reading string-indexed properties
+  // through a typed Record is the canonical wire-shape narrowing pattern used
+  // throughout this file (see also validateFiles).
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const r = raw as Record<string, unknown>;
 
   if (!isString(r.executionId) || !ID_ALPHABET_RE.test(r.executionId)) {
@@ -126,6 +130,7 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
         error: `packages exceeds ${MAX_PACKAGES}-item limit`,
       };
     }
+    const validated: string[] = [];
     for (const p of r.packages) {
       if (!isString(p)) {
         return { ok: false, error: 'every package entry must be a string' };
@@ -136,8 +141,9 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
           error: `package spec exceeds ${MAX_PACKAGE_SPEC}-char limit`,
         };
       }
+      validated.push(p);
     }
-    packages = r.packages as string[];
+    packages = validated;
   }
 
   // timeoutMs: optional positive number, bounded.
@@ -168,6 +174,8 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
     ) {
       return { ok: false, error: 'options must be an object' };
     }
+    // Same wire-shape narrowing as `r` at the top of validateExecuteRequest.
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
     const opts = r.options as Record<string, unknown>;
     if (opts.allowSdist !== undefined && typeof opts.allowSdist !== 'boolean') {
       return { ok: false, error: 'options.allowSdist must be a boolean' };
@@ -183,10 +191,10 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
     }
     options = {
       ...(opts.allowSdist !== undefined && {
-        allowSdist: opts.allowSdist as boolean,
+        allowSdist: opts.allowSdist,
       }),
       ...(opts.allowInstallScripts !== undefined && {
-        allowInstallScripts: opts.allowInstallScripts as boolean,
+        allowInstallScripts: opts.allowInstallScripts,
       }),
     };
   }

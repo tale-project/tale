@@ -26,13 +26,13 @@ export function createSandboxService(config: ServiceConfig): ComposeService {
   return {
     image: `${config.registry}/tale-sandbox:${config.version}`,
     container_name: `${getProjectId()}-sandbox`,
-    // Bind to host loopback ONLY. The spawner mounts /var/run/docker.sock
-    // and (in dev opt-in unauth mode) is reachable without HMAC; exposing
-    // it on 0.0.0.0 would be remote root via docker.sock to any peer that
-    // can route to the host. Convex reaches the spawner through the
-    // `internal` Docker network (http://sandbox:8003), not this published
-    // port. The loopback bind is for `bun dev` running convex on the host.
-    ports: ['127.0.0.1:8003:8003'],
+    // NOTE: no published `ports` here. Convex (in-container, stateful
+    // compose) reaches the spawner via the `internal` Docker network at
+    // http://sandbox:8003 — publishing a host-side port is unnecessary
+    // attack surface in production (the spawner mounts /var/run/docker.sock,
+    // so any reachable peer is effectively host-root). The dev compose
+    // generator overlays `127.0.0.1:8003:8003` so that `bun dev` with Convex
+    // running on the host can reach the spawner.
     // Per-container resource caps. The spawner is a thin Bun HTTP server
     // that issues `docker` subprocess calls; 512 MB is generous for the
     // server itself but excludes the runtime containers it spawns (those

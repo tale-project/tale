@@ -12,6 +12,10 @@ import {
   validatePath,
 } from '../agent_tools/artifacts/shared';
 import {
+  SANDBOX_STDERR_PREVIEW_MAX,
+  SANDBOX_STDOUT_PREVIEW_MAX,
+} from '../sandbox/schema';
+import {
   sandboxRunProgressValidator,
   sandboxTerminalStatuses,
 } from '../sandbox/wire';
@@ -21,7 +25,6 @@ import {
   resolveArtifactFiles,
 } from './resolve_files';
 import {
-  artifactPatchValidator,
   artifactRunErrorCodeValidator,
   artifactRunOutputFileValidator,
   artifactRunStatusValidator,
@@ -33,7 +36,6 @@ type ArtifactRunErrorCode = Infer<typeof artifactRunErrorCodeValidator>;
 type ArtifactRunOutputFile = Infer<typeof artifactRunOutputFileValidator>;
 
 const STALE_STREAM_THRESHOLD_MS = 60_000;
-const HEARTBEAT_THROTTLE_MS = 5_000;
 
 /**
  * Hard cap on an artifact's TOTAL content (sum of all `files[].content` bytes).
@@ -887,53 +889,58 @@ export const beginEditStream = internalMutation({
   },
 });
 
-export const updateStreamingContent = internalMutation({
-  args: {
-    artifactId: v.id('artifacts'),
-    streamingContent: v.optional(v.string()),
-    streamingPath: v.optional(v.string()),
-    streamingPatches: v.optional(v.array(artifactPatchValidator)),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    if (args.streamingContent !== undefined) {
-      // streaming bytes alone — apply aggregate cap defensively.
-      const size = new TextEncoder().encode(args.streamingContent).byteLength;
-      if (size > MAX_ARTIFACT_BYTES) {
-        throw new ConvexError({
-          code: 'too_large',
-          message: `Streaming content is ${size} bytes; max ${MAX_ARTIFACT_BYTES}.`,
-        });
-      }
-    }
-    const patch: Record<string, unknown> = {};
-    if (args.streamingContent !== undefined) {
-      patch.streamingContent = args.streamingContent;
-    }
-    if (args.streamingPath !== undefined) {
-      patch.streamingPath = validatePath(args.streamingPath);
-    }
-    if (args.streamingPatches !== undefined) {
-      patch.streamingPatches = args.streamingPatches;
-    }
-    if (Object.keys(patch).length === 0) return null;
-    const existing = await ctx.db.get(args.artifactId);
-    const now = Date.now();
-    const lastBeat = existing?.liveStreamStartedAt ?? 0;
-    if (now - lastBeat >= HEARTBEAT_THROTTLE_MS) {
-      patch.liveStreamStartedAt = now;
-    }
-    await ctx.db.patch(args.artifactId, patch);
-    return null;
-  },
-});
-
 export const abortStream = internalMutation({
   args: { artifactId: v.id('artifacts') },
   returns: v.null(),
   handler: async (ctx, { artifactId }) => {
     await ctx.db.patch(artifactId, clearStreamingFlags());
     return null;
+  },
+});
+
+/**
+ * User-Stop cascade for artifact streams.
+ *
+ * When the user clicks Stop, the SDK abort fires before any `tool.execute()`
+ * runs, so `discardCreateStream` / `abortStream` never get called for the
+ * stream that was mid-author. Without this mutation the placeholder row
+ * (revision 0, `liveStreamMode='create'`) lingers in the canvas sidebar
+ * with a streaming badge until `cleanupStaleStreams` cron picks it up
+ * (60 s threshold × 5-min cron = up to ~6 min ghost tile).
+ *
+ * Mirror of `cleanupStaleStreams` logic but scoped to one thread and not
+ * gated on `liveStreamStartedAt` age: scan `by_organizationId_and_thread`,
+ * filter to `liveStreamMode !== undefined`, then either delete (revision 0
+ * placeholder) or clear the streaming flags (revision ≥ 1).
+ *
+ * Called inline from `convex/threads/cancel_generation.ts`.
+ */
+export const discardActiveStreamsForThread = internalMutation({
+  args: {
+    organizationId: v.string(),
+    threadId: v.string(),
+  },
+  returns: v.object({ cleared: v.number() }),
+  handler: async (ctx, args) => {
+    let cleared = 0;
+    const rows = await ctx.db
+      .query('artifacts')
+      .withIndex('by_organizationId_and_thread', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('threadId', args.threadId),
+      )
+      .collect();
+    for (const row of rows) {
+      if (row.liveStreamMode === undefined) continue;
+      if (row.revision === 0) {
+        await ctx.db.delete(row._id);
+      } else {
+        await ctx.db.patch(row._id, clearStreamingFlags());
+      }
+      cleared += 1;
+    }
+    return { cleared };
   },
 });
 
@@ -1272,6 +1279,73 @@ export const initArtifactRun = internalMutation({
       runOutputFiles: [],
       runExecutionId: undefined,
     });
+    return null;
+  },
+});
+
+/**
+ * Incremental tail of the running sandbox's stdout/stderr. Called by the
+ * platform-side action whenever the spawner forwards a `stdout` / `stderr`
+ * SSE event (with the action coalescing several deltas per flush to bound
+ * mutation count). The canvas runner UI subscribes to the artifact row and
+ * shows `runStdoutPreview` / `runStderrPreview` live as the run progresses.
+ *
+ * Caps + ordering:
+ *  - Each preview field caps at `SANDBOX_{STDOUT,STDERR}_PREVIEW_MAX = 16 KB`.
+ *    Bytes past the cap are silently dropped — the canonical preview written
+ *    at `finalizeArtifactRun` is the first 16 KB of the buffer, so matching
+ *    semantics here avoids a content-switch the user would notice at
+ *    terminal time.
+ *  - Mutation no-ops on terminal `runStatus` (a late-arriving delta from a
+ *    canceled run can't overwrite the finalize-time preview).
+ *  - Mutation no-ops when `args.executionId !== row.runExecutionId` (a stale
+ *    delta from a previous run can't pollute a freshly-started one).
+ */
+export const appendArtifactRunOutput = internalMutation({
+  args: {
+    artifactId: v.id('artifacts'),
+    executionId: v.id('sandboxExecutions'),
+    stdoutDelta: v.optional(v.string()),
+    stderrDelta: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.artifactId);
+    if (!row) return null;
+    if (row.type !== 'python_runnable' && row.type !== 'node_runnable') {
+      return null;
+    }
+    if (
+      row.runStatus !== undefined &&
+      sandboxTerminalStatuses.has(row.runStatus)
+    ) {
+      return null;
+    }
+    if (
+      row.runExecutionId !== undefined &&
+      row.runExecutionId !== args.executionId
+    ) {
+      return null;
+    }
+    const patch: Record<string, unknown> = {};
+    if (args.stdoutDelta && args.stdoutDelta.length > 0) {
+      const current = row.runStdoutPreview ?? '';
+      if (current.length < SANDBOX_STDOUT_PREVIEW_MAX) {
+        const headroom = SANDBOX_STDOUT_PREVIEW_MAX - current.length;
+        const slice = args.stdoutDelta.slice(0, headroom);
+        if (slice.length > 0) patch.runStdoutPreview = current + slice;
+      }
+    }
+    if (args.stderrDelta && args.stderrDelta.length > 0) {
+      const current = row.runStderrPreview ?? '';
+      if (current.length < SANDBOX_STDERR_PREVIEW_MAX) {
+        const headroom = SANDBOX_STDERR_PREVIEW_MAX - current.length;
+        const slice = args.stderrDelta.slice(0, headroom);
+        if (slice.length > 0) patch.runStderrPreview = current + slice;
+      }
+    }
+    if (Object.keys(patch).length === 0) return null;
+    await ctx.db.patch(args.artifactId, patch);
     return null;
   },
 });

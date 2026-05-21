@@ -38,6 +38,31 @@ export const sandboxPhaseEventLiterals = [
 
 export type SandboxPhaseEvent = (typeof sandboxPhaseEventLiterals)[number];
 
+/**
+ * SSE event types emitted by `POST /v1/execute`. The spawner emits:
+ *  - `phase` — zero or more transitions (preparing → installing → running)
+ *  - `stdout` / `stderr` — incremental output deltas while the container
+ *    is alive (added so the canvas can tail output instead of waiting for
+ *    the terminal `result` event with the whole base64'd buffer).
+ *  - `result` — exactly one terminal event with the canonical
+ *    ExecuteResponse shape.
+ *  - `error` — zero or one SSE-side transport error (e.g. spawn aborted
+ *    before a result was produced).
+ *
+ * The convex side has a compile-time parity guard
+ * (services/platform/convex/sandbox/wire.ts) that fails CI typecheck if
+ * either side drifts.
+ */
+export const sandboxSseEventLiterals = [
+  'phase',
+  'stdout',
+  'stderr',
+  'result',
+  'error',
+] as const;
+
+export type SandboxSseEvent = (typeof sandboxSseEventLiterals)[number];
+
 export const sandboxLanguageLiterals = ['python', 'node'] as const;
 export type SandboxLanguage = (typeof sandboxLanguageLiterals)[number];
 
