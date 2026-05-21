@@ -290,17 +290,24 @@ export const ingestVideoUrl = mutation({
 });
 
 /**
- * Cancel an in-flight or completed video link.
+ * Cancel / dismiss a video link.
  *
  * Semantics:
- *   - Non-terminal: flip to 'skipped'. Orchestrator's next phase-boundary
- *     check sees this and early-exits without persisting more.
+ *   - Any non-skipped status: flip to 'skipped'. For non-terminal rows the
+ *     orchestrator's next phase-boundary check sees this and early-exits
+ *     without persisting more; for terminal rows (completed/failed) the
+ *     flip is what makes the user's X dismissal survive a page refresh —
+ *     the composer filters `displayStatus==='skipped'` out, so without
+ *     the DB write the unbound query would re-emit the chip on next load.
  *   - 'transcribing_handoff': ALSO patch the linked fileMetadata's
  *     transcriptionStatus='skipped' so the existing transcribe_audio.ts
  *     early-exit at lines 317-337 fires; without this, Whisper completes
  *     in the background and writes a transcript/RAG entry the user
  *     thought they cancelled.
- *   - Schedules cleanup action (storage + RAG + maybe-fileMetadata).
+ *   - Schedules cleanup action (storage + RAG + maybe-fileMetadata). The
+ *     cleanup itself is guarded against message-bound rows, so dismissing
+ *     a terminal completed row from the composer (always unbound there)
+ *     is safe.
  *
  * Auth: uploader-only for v1. Org-admin override is a tracked follow-up
  * issue — see the PR description for the link.
@@ -328,9 +335,9 @@ export const cancelVideoLink = mutation({
       throw new Error('Only the uploader can cancel this video link');
     }
 
-    if (job.status === 'completed' || job.status === 'failed') {
-      // No-op — terminal states stay terminal. The chip will dismiss
-      // client-side via the hook's local state.
+    if (job.status === 'skipped') {
+      // Already dismissed — nothing to do. Avoids redundant patches /
+      // audit-log rows from double-clicks or retried mutations.
       return;
     }
 

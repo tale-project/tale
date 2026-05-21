@@ -261,10 +261,11 @@ export function useChatVideoLinks(args: {
 
   const cancelJob = useCallback(
     async (jobId: Id<'videoLinkJobs'>) => {
-      // Hide the chip first so the click feels instant — and so terminal
-      // states (failed/completed) actually dismiss. The server treats
-      // cancel as a no-op for terminal jobs (mutations.ts:331-335), so
-      // without the local hide the chip would sit there until reload.
+      // Hide the chip first so the click feels instant. The server
+      // mutation flips status='skipped' (including for terminal rows),
+      // but the subscription's re-emit lags the round-trip by 50-200ms
+      // — the local hide bridges that gap so the X feels immediate.
+      // Reverted on mutation failure (catch block below).
       setHideJobIds((prev) => {
         if (prev.has(jobId)) return prev;
         const next = new Set(prev);
