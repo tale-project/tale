@@ -18,101 +18,194 @@ interface RunDockerOptions {
   // than waiting for the container to exit (Refinement 2). The callback
   // is plain bytes; the caller is responsible for line-buffering.
   onStdoutChunk?: (chunk: Uint8Array) => void;
+  // Hard cap on stdout bytes buffered into the spawner heap. Once exceeded,
+  // we keep draining the pipe (so the writer doesn't block) but discard
+  // further bytes. Without this a runaway runtime container can OOM the
+  // spawner via gigabytes of stdout (audit finding R2-B2).
+  stdoutMaxBytes?: number;
+  // Same as `stdoutMaxBytes`, applied to stderr.
+  stderrMaxBytes?: number;
 }
 
 interface RunDockerResult {
   exitCode: number;
   stdout: string;
   stderr: string;
+  // True iff stdout/stderr capacity cap was hit. Spawn callers OR this with
+  // any further post-processing truncation to surface the truncated flag on
+  // the wire.
+  stdoutTruncated: boolean;
+  stderrTruncated: boolean;
 }
 
-const DOCKER_BIN = process.env.DOCKER_BIN ?? 'docker';
+// Read lazily so tests can override DOCKER_BIN (e.g. to /bin/bash) after
+// module load. Cheap: a single env-var read per docker invocation.
+function dockerBin(): string {
+  return process.env.DOCKER_BIN ?? 'docker';
+}
+
+/**
+ * Drain a Bun process pipe, buffering up to `maxBytes`. Continues to read
+ * past the cap (so the writer doesn't block on a full pipe — which would
+ * deadlock the docker CLI), but discards extra bytes. Returns the buffered
+ * portion plus a `truncated` flag.
+ *
+ * When `onChunk` is provided, every received chunk is forwarded — including
+ * chunks past the cap — so callers can do line-buffered scanning (e.g. the
+ * phase-marker parser in spawn.ts) without losing events to truncation.
+ */
+async function drainAndCap(
+  stream: ReadableStream<Uint8Array>,
+  maxBytes: number | undefined,
+  onChunk?: (chunk: Uint8Array) => void,
+): Promise<{ bytes: ArrayBuffer; truncated: boolean }> {
+  const reader = stream.getReader();
+  const collected: Uint8Array[] = [];
+  let total = 0;
+  let truncated = false;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value || value.byteLength === 0) continue;
+      if (onChunk) onChunk(value);
+      if (maxBytes === undefined) {
+        collected.push(value);
+        total += value.byteLength;
+        continue;
+      }
+      if (total >= maxBytes) {
+        truncated = true;
+        continue;
+      }
+      if (total + value.byteLength <= maxBytes) {
+        collected.push(value);
+        total += value.byteLength;
+      } else {
+        // Partial chunk fits; take the prefix and mark truncated.
+        const remaining = maxBytes - total;
+        if (remaining > 0) {
+          collected.push(value.subarray(0, remaining));
+          total += remaining;
+        }
+        truncated = true;
+      }
+    }
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch (err) {
+      console.warn('[sandbox] reader.releaseLock failed:', err);
+    }
+  }
+  const merged = new Uint8Array(total);
+  let off = 0;
+  for (const c of collected) {
+    merged.set(c, off);
+    off += c.byteLength;
+  }
+  return {
+    bytes: merged.buffer.slice(
+      merged.byteOffset,
+      merged.byteOffset + merged.byteLength,
+    ),
+    truncated,
+  };
+}
 
 export async function runDocker(
   args: string[],
   opts: RunDockerOptions = {},
 ): Promise<RunDockerResult> {
-  const proc = Bun.spawn([DOCKER_BIN, ...args], {
+  const proc = Bun.spawn([dockerBin(), ...args], {
     stdin: 'ignore',
     stdout: 'pipe',
     stderr: 'pipe',
     signal: opts.signal,
   });
 
-  // Concurrent reads to avoid pipe-back-pressure deadlock. When the caller
-  // wants chunk callbacks (for live phase parsing), we read stdout via a
-  // reader loop and fire the callback per chunk while still accumulating the
-  // full buffer for the final return value.
-  const collectStdout = async (): Promise<ArrayBuffer> => {
-    if (!opts.onStdoutChunk) {
-      return new Response(proc.stdout).arrayBuffer();
-    }
-    const reader = (proc.stdout as ReadableStream<Uint8Array>).getReader();
-    const collected: Uint8Array[] = [];
-    let total = 0;
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (value && value.byteLength > 0) {
-        opts.onStdoutChunk(value);
-        collected.push(value);
-        total += value.byteLength;
-      }
-    }
-    const merged = new Uint8Array(total);
-    let off = 0;
-    for (const c of collected) {
-      merged.set(c, off);
-      off += c.byteLength;
-    }
-    return merged.buffer.slice(
-      merged.byteOffset,
-      merged.byteOffset + merged.byteLength,
-    );
-  };
-  const [stdoutBytes, stderrBytes] = await Promise.all([
-    collectStdout(),
-    new Response(proc.stderr).arrayBuffer(),
+  // Drain both streams concurrently to avoid pipe-back-pressure deadlock,
+  // and cap each independently so a runaway docker invocation can't OOM
+  // the spawner heap (audit finding R2-B2). stderr was previously read via
+  // `new Response(proc.stderr).arrayBuffer()` which has no cap — same OOM
+  // surface in the rare case stderr dominates.
+  const collectIO = Promise.all([
+    drainAndCap(
+      proc.stdout as ReadableStream<Uint8Array>,
+      opts.stdoutMaxBytes,
+      opts.onStdoutChunk,
+    ),
+    drainAndCap(proc.stderr as ReadableStream<Uint8Array>, opts.stderrMaxBytes),
   ]);
 
-  // Race against optional timeout.
+  // Race the COLLECTOR (not just `proc.exited`) against the optional timeout.
+  // The previous shape — `await Promise.all([collectStdout(), stderr])` BEFORE
+  // arming `setTimeout` — meant a wedged daemon whose pipes never close would
+  // block indefinitely; the supposed backstop timer never armed (audit
+  // finding R2-B2 #3).
   let timedOut = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const exited = proc.exited;
-  if (opts.timeoutMs && Number.isFinite(opts.timeoutMs)) {
-    await Promise.race([
-      exited,
-      new Promise<void>((resolve) => {
-        timer = setTimeout(() => {
-          timedOut = true;
+  let stdoutResult = { bytes: new ArrayBuffer(0), truncated: false };
+  let stderrResult = { bytes: new ArrayBuffer(0), truncated: false };
+  if (opts.timeoutMs !== undefined && Number.isFinite(opts.timeoutMs)) {
+    const timeoutPromise = new Promise<'timeout'>((resolve) => {
+      timer = setTimeout(() => {
+        timedOut = true;
+        try {
           proc.kill('SIGKILL');
-          // Killing the docker CLI process doesn't stop the sibling
-          // container it spawned — issue an explicit `docker kill` so
-          // the runtime container actually terminates instead of
-          // running to completion in the background.
-          if (opts.killOnTimeoutContainer) {
-            const target = opts.killOnTimeoutContainer;
-            const killer = Bun.spawn(
-              [DOCKER_BIN, 'kill', '--signal=SIGKILL', target],
-              { stdout: 'ignore', stderr: 'ignore', stdin: 'ignore' },
+        } catch (err) {
+          console.warn('[sandbox] proc.kill on timeout failed:', err);
+        }
+        if (opts.killOnTimeoutContainer) {
+          const target = opts.killOnTimeoutContainer;
+          const killer = Bun.spawn(
+            [dockerBin(), 'kill', '--signal=SIGKILL', target],
+            { stdout: 'ignore', stderr: 'ignore', stdin: 'ignore' },
+          );
+          killer.exited.catch((err) => {
+            console.warn(
+              `[sandbox] docker kill ${target} on timeout failed:`,
+              err,
             );
-            void killer.exited;
-          }
-          resolve();
-        }, opts.timeoutMs);
-      }),
+          });
+        }
+        resolve('timeout');
+      }, opts.timeoutMs);
+    });
+    const winner = await Promise.race([
+      collectIO.then((v) => ['io', v] as const),
+      timeoutPromise.then((t) => [t, null] as const),
     ]);
+    if (winner[0] === 'io' && winner[1] !== null) {
+      [stdoutResult, stderrResult] = winner[1];
+    } else {
+      // Timer fired before collectors finished. Await collectIO once more so
+      // we still pick up whatever bytes were drained before the kill — the
+      // pipes should EOF promptly once the process is killed.
+      try {
+        [stdoutResult, stderrResult] = await collectIO;
+      } catch (err) {
+        console.warn(
+          '[sandbox] post-timeout drain failed; partial buffers:',
+          err,
+        );
+      }
+    }
   } else {
-    await exited;
+    [stdoutResult, stderrResult] = await collectIO;
   }
+  await proc.exited;
   if (timer) clearTimeout(timer);
 
   const exitCode = timedOut ? 124 : (proc.exitCode ?? -1);
 
+  const decoder = new TextDecoder('utf-8', { fatal: false });
   return {
     exitCode,
-    stdout: new TextDecoder('utf-8', { fatal: false }).decode(stdoutBytes),
-    stderr: new TextDecoder('utf-8', { fatal: false }).decode(stderrBytes),
+    stdout: decoder.decode(stdoutResult.bytes),
+    stderr: decoder.decode(stderrResult.bytes),
+    stdoutTruncated: stdoutResult.truncated,
+    stderrTruncated: stderrResult.truncated,
   };
 }
 

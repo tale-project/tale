@@ -10,6 +10,7 @@
 
 import { verify, SIGNATURE_HEADER, TIMESTAMP_HEADER } from './auth.ts';
 import {
+  acquireSpawnerLock,
   bootSweep,
   installSignalHandlers,
   startPeriodicSweep,
@@ -104,7 +105,11 @@ function authorize(body: string, req: Request): Response | null {
     cfg.sandboxToken,
   );
   if (!result.ok) {
-    return jsonResponse({ error: 'unauthorized', reason: result.reason }, 401);
+    // Log the discriminator server-side so operators can diagnose, but DON'T
+    // surface it in the response body — distinguishing "wrong signature" from
+    // "clock skew" lets an attacker calibrate (audit finding R2-B5).
+    console.warn(`[sandbox.auth] unauthorized (${result.reason})`);
+    return jsonResponse({ error: 'unauthorized' }, 401);
   }
   return null;
 }
@@ -367,6 +372,17 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  // Cross-process lock BEFORE bootSweep — refuses to start if another live
+  // spawner is using the same hostSessionRoot. Prevents bootSweep's
+  // host-dir sweep from deleting a peer's in-flight workspace (audit
+  // finding R2-B5). Stale locks (mtime older than ~60s) are reclaimed.
+  try {
+    await acquireSpawnerLock(cfg);
+  } catch (err) {
+    console.error('[sandbox] FATAL: spawner lock acquire failed:', err);
+    process.exit(1);
+  }
+
   await bootSweep(cfg);
   // Warm the runtime image so the first /v1/execute call doesn't pay a
   // cold registry round-trip. Non-fatal: if the daemon is unreachable at
@@ -397,7 +413,7 @@ async function main(): Promise<void> {
     } catch (err) {
       console.warn('[sandbox] server.stop() during shutdown failed:', err);
     }
-  });
+  }, cfg);
 
   console.log(
     `[sandbox] spawner listening on :${server.port}; runtime=${cfg.runtime}; image=${cfg.runtimeImage}; maxConcurrent=${cfg.maxConcurrent}; tokenAuth=${cfg.sandboxToken !== null ? 'on' : 'OFF (dev opt-in)'}`,

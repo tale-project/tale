@@ -13,7 +13,15 @@
 //   3. SIGTERM handler (in server.ts after refactor): stop accepting new
 //      requests, wait for in-flight count to drop, then exit.
 
-import { readdir, rm, stat } from 'node:fs/promises';
+import {
+  mkdir,
+  readFile,
+  readdir,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
+import { hostname } from 'node:os';
 import { join } from 'node:path';
 
 import { runDocker, dockerRm } from './spawn-util.ts';
@@ -21,6 +29,85 @@ import { cancelExecution, inFlightIds, isInFlight } from './spawn.ts';
 import type { SpawnerConfig } from './types.ts';
 
 const PERIODIC_INTERVAL_MS = 5 * 60_000;
+const SPAWNER_LOCK_FILE = '.spawner.lock';
+// If an existing lock file is fresher than this, treat the previous spawner
+// as still alive and refuse to start. Otherwise we assume the previous
+// process crashed without cleanup and take over the lock.
+const SPAWNER_LOCK_FRESH_MS = 60_000;
+
+interface SpawnerLockPayload {
+  pid: number;
+  hostname: string;
+  bootEpoch: number;
+}
+
+/**
+ * Best-effort cross-process lock for the host session root. Prevents two
+ * spawners pointed at the same `/var/lib/tale-sandbox/sessions/` from
+ * stomping on each other — specifically, prevents bootSweep's host-dir
+ * sweep from deleting another live spawner's in-flight workspace
+ * (audit finding R2-B5).
+ *
+ * Lock contract: if a fresh lock (mtime within SPAWNER_LOCK_FRESH_MS)
+ * exists, refuse to start. Otherwise overwrite. On graceful shutdown the
+ * server.ts caller deletes the lock; an ungraceful exit leaves the lock
+ * stale and the next start can reclaim it after the freshness window.
+ */
+export async function acquireSpawnerLock(cfg: SpawnerConfig): Promise<void> {
+  await mkdir(cfg.hostSessionRoot, { recursive: true });
+  const lockPath = join(cfg.hostSessionRoot, SPAWNER_LOCK_FILE);
+  try {
+    const st = await stat(lockPath);
+    const age = Date.now() - st.mtimeMs;
+    if (age < SPAWNER_LOCK_FRESH_MS) {
+      let existing = '<unreadable>';
+      try {
+        existing = await readFile(lockPath, 'utf8');
+      } catch (err) {
+        console.warn(`[sandbox.lock] reading existing lock failed:`, err);
+      }
+      throw new Error(
+        `Another spawner appears to be running at ${cfg.hostSessionRoot} ` +
+          `(lock fresh, age=${age}ms): ${existing.trim()}`,
+      );
+    }
+    // Stale lock; fall through to overwrite.
+    console.warn(
+      `[sandbox.lock] reclaiming stale lock at ${lockPath} (age=${age}ms)`,
+    );
+  } catch (err) {
+    if (
+      !(err instanceof Error) ||
+      !('code' in err) ||
+      (err as NodeJS.ErrnoException).code !== 'ENOENT'
+    ) {
+      // Either the lock-fresh refusal above (rethrow) OR an unexpected error.
+      if (err instanceof Error && err.message.startsWith('Another spawner')) {
+        throw err;
+      }
+      console.warn(`[sandbox.lock] stat ${lockPath} failed:`, err);
+    }
+  }
+  const payload: SpawnerLockPayload = {
+    pid: process.pid,
+    hostname: hostname(),
+    bootEpoch: Date.now(),
+  };
+  await writeFile(lockPath, JSON.stringify(payload));
+}
+
+/**
+ * Drop the lock on graceful shutdown so a fast restart doesn't need to wait
+ * out the freshness window.
+ */
+export async function releaseSpawnerLock(cfg: SpawnerConfig): Promise<void> {
+  const lockPath = join(cfg.hostSessionRoot, SPAWNER_LOCK_FILE);
+  try {
+    await rm(lockPath, { force: true });
+  } catch (err) {
+    console.warn(`[sandbox.lock] release ${lockPath} failed:`, err);
+  }
+}
 
 async function listLabeledContainers(label: string): Promise<string[]> {
   const result = await runDocker(['ps', '-aq', '-f', `label=${label}`]);
@@ -93,10 +180,19 @@ export async function bootSweep(cfg?: SpawnerConfig): Promise<void> {
   }
   let dirsRemoved = 0;
   if (cfg) {
-    // Any session dir on disk at boot belongs to a previous spawner
-    // process; nothing is in-flight yet, so we can clean them
-    // unconditionally (no mtime check).
-    dirsRemoved = await sweepHostSessionDirs(cfg, Date.now() + 1);
+    // Belt-and-braces: even with the acquireSpawnerLock guarantee above
+    // that no other live spawner shares this hostSessionRoot, use the
+    // same `2 × maxTimeoutMs` staleness cutoff as the periodic sweep.
+    // Dirs younger than that may belong to a recently-killed previous
+    // spawner whose in-flight workspace was reaped along with its
+    // container; nothing references them anymore so they're safe to
+    // delete, but the conservative cutoff matches the rest of the code
+    // path's contract and is robust under any future change where the
+    // lock acquire is loosened (audit finding R2-B5).
+    dirsRemoved = await sweepHostSessionDirs(
+      cfg,
+      Date.now() - 2 * cfg.maxTimeoutMs,
+    );
   }
   if (containers.length > 0 || dirsRemoved > 0) {
     console.log(
@@ -170,7 +266,10 @@ export function startPeriodicSweep(cfg: SpawnerConfig): () => void {
  *   3. Wait (with a 20s ceiling) for the in-flight Map to drain.
  *   4. exit().
  */
-export function installSignalHandlers(stopAccepting: () => void): void {
+export function installSignalHandlers(
+  stopAccepting: () => void,
+  cfg?: SpawnerConfig,
+): void {
   let shuttingDown = false;
   const onTerm = async (sig: string) => {
     if (shuttingDown) {
@@ -201,6 +300,9 @@ export function installSignalHandlers(stopAccepting: () => void): void {
       console.warn(
         `[sandbox] shutdown deadline; ${remaining.length} execution(s) still in-flight (${remaining.join(', ')})`,
       );
+    }
+    if (cfg) {
+      await releaseSpawnerLock(cfg);
     }
     process.exit(0);
   };

@@ -95,6 +95,16 @@ export function buildDockerRunArgs(
     '--memory=1500m',
     '--memory-swap=1500m',
     '--pids-limit=128',
+    // Cap the host daemon's json-file log so a runtime container that floods
+    // stdout/stderr can't fill the host disk (audit finding R2-B2: spawner's
+    // own log_driver only covered the spawner container, not the sibling
+    // runtime containers it docker-runs). 10 MB × 1 file ≈ matches the
+    // spawner-side stdout/stderr caps after compression.
+    '--log-driver=json-file',
+    '--log-opt',
+    'max-size=10m',
+    '--log-opt',
+    'max-file=1',
     '--ulimit',
     'nofile=1024:4096',
     '--ulimit',

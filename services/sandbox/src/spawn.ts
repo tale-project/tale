@@ -22,7 +22,7 @@ import {
   rm,
   stat,
   writeFile,
-  chown,
+  lchown,
 } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -48,10 +48,6 @@ import {
 
 const PHASE_INSTALL = 'PHASE: installing';
 const PHASE_RUN = 'PHASE: running';
-// `NAME_RE` guards file names we drop on disk before docker mounts them in.
-// `.` and `..` are deliberately disallowed (no traversal); a `-` prefix is
-// also rejected so a filename can't be misread as a CLI flag downstream.
-const NAME_RE = /^[a-zA-Z0-9_][a-zA-Z0-9._-]*$/;
 const RUNTIME_UID = 65534;
 const RUNTIME_GID = 65534;
 
@@ -144,10 +140,8 @@ async function stageWorkspace(
   req: ExecuteRequest,
 ): Promise<void> {
   const codeDir = join(hostDir, 'code');
-  const inputDir = join(hostDir, 'input');
   const outputDir = join(hostDir, 'output');
   await mkdir(codeDir, { recursive: true });
-  await mkdir(inputDir, { recursive: true });
   await mkdir(outputDir, { recursive: true });
 
   const mainName = req.language === 'python' ? 'main.py' : 'main.js';
@@ -161,16 +155,11 @@ async function stageWorkspace(
     JSON.stringify(req.options ?? {}),
   );
 
-  for (const f of req.inputFiles ?? []) {
-    if (!NAME_RE.test(f.name)) {
-      throw new Error(`unsafe input file name: ${JSON.stringify(f.name)}`);
-    }
-    const bytes = Buffer.from(f.contentBase64, 'base64');
-    await writeFile(join(inputDir, f.name), bytes);
-  }
-
   // Spawner runs as root; the runtime container runs as nobody (65534) and
-  // needs to read the staged files. Recursively chown.
+  // needs to read the staged files. Recursively `lchown` (not `chown`) so a
+  // symlink the runtime container planted into the bind-mounted workspace
+  // CANNOT redirect ownership of an arbitrary host file (audit finding
+  // R2-B4: latent footgun if session dirs ever get reused across runs).
   await chownRecursive(hostDir, RUNTIME_UID, RUNTIME_GID);
 }
 
@@ -179,14 +168,14 @@ async function chownRecursive(
   uid: number,
   gid: number,
 ): Promise<void> {
-  await chown(path, uid, gid);
+  await lchown(path, uid, gid);
   const entries = await readdir(path, { withFileTypes: true });
   for (const e of entries) {
     const p = join(path, e.name);
     if (e.isDirectory()) {
       await chownRecursive(p, uid, gid);
     } else {
-      await chown(p, uid, gid);
+      await lchown(p, uid, gid);
     }
   }
 }
@@ -382,6 +371,11 @@ export async function executeRequest(
         timeoutMs: timeoutMs + 30_000,
         signal: abort.signal,
         killOnTimeoutContainer: containerName,
+        // In-band byte caps prevent a runaway runtime container from OOM'ing
+        // the spawner heap; runDocker continues draining the pipe but
+        // discards bytes past the cap (audit finding R2-B2).
+        stdoutMaxBytes: cfg.stdoutMaxBytes,
+        stderrMaxBytes: cfg.stderrMaxBytes,
         ...(onChunk && { onStdoutChunk: onChunk }),
       });
       // EOF drain — the loop above only fires on newlines; a final
@@ -400,14 +394,19 @@ export async function executeRequest(
     const stdoutWithoutPhases = stripPhaseMarkers(result.stdout);
     const stdoutClean = stripControlChars(stdoutWithoutPhases);
     const stderrClean = stripControlChars(result.stderr);
-    const { text: stdoutCapped, truncated: stdoutTrunc } = capText(
+    // runDocker now caps reads in-band, but keep capText as a defensive
+    // safety net (no-op when within bounds) and OR truncation flags so
+    // either signal surfaces on the wire.
+    const { text: stdoutCapped, truncated: stdoutCapPostTrunc } = capText(
       stdoutClean,
       cfg.stdoutMaxBytes,
     );
-    const { text: stderrCapped, truncated: stderrTrunc } = capText(
+    const { text: stderrCapped, truncated: stderrCapPostTrunc } = capText(
       stderrClean,
       cfg.stderrMaxBytes,
     );
+    const stdoutTrunc = result.stdoutTruncated || stdoutCapPostTrunc;
+    const stderrTrunc = result.stderrTruncated || stderrCapPostTrunc;
 
     if (abort.signal.aborted) {
       return {
@@ -418,8 +417,6 @@ export async function executeRequest(
         stdoutBase64: Buffer.from(stdoutCapped).toString('base64'),
         stderrBase64: Buffer.from(stderrCapped).toString('base64'),
         durationMs,
-        installMs: null,
-        runMs: null,
         truncated: { stdout: stdoutTrunc, stderr: stderrTrunc, files: 0 },
         outputFiles: [],
       };
@@ -436,8 +433,6 @@ export async function executeRequest(
         stdoutBase64: Buffer.from(stdoutCapped).toString('base64'),
         stderrBase64: Buffer.from(stderrCapped).toString('base64'),
         durationMs,
-        installMs: null,
-        runMs: null,
         truncated: {
           stdout: stdoutTrunc,
           stderr: stderrTrunc,
@@ -456,8 +451,6 @@ export async function executeRequest(
       stdoutBase64: Buffer.from(stdoutCapped).toString('base64'),
       stderrBase64: Buffer.from(stderrCapped).toString('base64'),
       durationMs,
-      installMs: null,
-      runMs: null,
       truncated: { stdout: stdoutTrunc, stderr: stderrTrunc, files: 0 },
       outputFiles: [],
     };
@@ -503,8 +496,6 @@ function makeError(
     stdoutBase64: '',
     stderrBase64: '',
     durationMs,
-    installMs: null,
-    runMs: null,
     truncated: { stdout: false, stderr: false, files: 0 },
     outputFiles: [],
   };
