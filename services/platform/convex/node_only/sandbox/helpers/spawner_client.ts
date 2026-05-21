@@ -18,11 +18,25 @@ import {
 const SIGNATURE_HEADER = 'x-tale-sandbox-signature';
 const TIMESTAMP_HEADER = 'x-tale-sandbox-timestamp';
 
+interface SandboxFileBody {
+  path: string;
+  content: string;
+}
+
 interface SpawnerExecuteBody {
   executionId: string;
   organizationId: string;
   language: SandboxLanguage;
   code: string;
+  /**
+   * Optional sibling files staged at /workspace/code/<path>. Mirrors
+   * `services/sandbox/src/types.ts:ExecuteRequest.files`. The cross-service
+   * wire-shape stays in sync via this duplicated declaration — any drift
+   * surfaces as a typecheck mismatch in the platform `executeCode` action
+   * which constructs this body.
+   */
+  files?: SandboxFileBody[];
+  entryPath?: string;
   packages?: string[];
   timeoutMs?: number;
   options?: { allowSdist?: boolean; allowInstallScripts?: boolean };

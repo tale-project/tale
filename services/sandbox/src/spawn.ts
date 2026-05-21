@@ -24,7 +24,7 @@ import {
   writeFile,
   lchown,
 } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 
 import { buildDockerRunArgs } from './docker-args.ts';
 import { runDocker, dockerKill, dockerRm } from './spawn-util.ts';
@@ -145,6 +145,31 @@ async function stageWorkspace(
   await mkdir(outputDir, { recursive: true });
 
   const mainName = req.language === 'python' ? 'main.py' : 'main.js';
+
+  // Stage sibling files first (if any). Each file lands at its declared
+  // relative path under /workspace/code/, allowing Python `import helpers`
+  // / Node `require('./helpers')` between artifact files in the same run.
+  // Path safety already enforced by validate-request.ts; this resolve+prefix
+  // check is defense-in-depth — if the validator ever regresses, here we
+  // refuse to write outside codeDir.
+  if (req.files !== undefined) {
+    for (const file of req.files) {
+      const dest = resolve(codeDir, file.path);
+      if (dest !== codeDir && !dest.startsWith(codeDir + sep)) {
+        throw new Error(
+          `sandbox staging refused unsafe file path: ${JSON.stringify(file.path)}`,
+        );
+      }
+      await mkdir(dirname(dest), { recursive: true });
+      await writeFile(dest, file.content);
+    }
+  }
+
+  // Write the executed script to main.{py,js}. The runtime image's
+  // entrypoint shell exec()s this fixed filename regardless of which
+  // artifact-file the LLM picked, so we mirror the chosen content here.
+  // If `files` ALSO contains an entry at main.{py,js}, this overwrites it
+  // — intentional: the executed script wins.
   await writeFile(join(codeDir, mainName), req.code);
   await writeFile(
     join(codeDir, 'packages.json'),

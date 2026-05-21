@@ -209,6 +209,19 @@ export const executeCode = internalAction({
 
     language: sandboxLanguageValidator,
     code: v.string(),
+    /**
+     * Optional sibling files staged at /workspace/code/<path> alongside
+     * the executed script. Enables Python `import helpers` / Node
+     * `require('./helpers')` between artifact files in the same run.
+     * Forwarded verbatim to the spawner; the spawner re-validates path
+     * safety. `code` still carries the executed script's content for
+     * cross-deploy compat with old spawners.
+     */
+    files: v.optional(
+      v.array(v.object({ path: v.string(), content: v.string() })),
+    ),
+    /** Path of the file `code` was sourced from (must reference an entry in `files`). */
+    entryPath: v.optional(v.string()),
     packages: v.optional(v.array(v.string())),
     timeoutMs: v.optional(v.number()),
     // NOTE: `allowSdist` / `allowInstallScripts` are intentionally NOT
@@ -398,6 +411,9 @@ export const executeCode = internalAction({
           organizationId: args.organizationId,
           language: args.language,
           code: args.code,
+          ...(args.files !== undefined &&
+            args.files.length > 0 && { files: args.files }),
+          ...(args.entryPath !== undefined && { entryPath: args.entryPath }),
           ...(args.packages !== undefined && { packages: args.packages }),
           timeoutMs,
           // Hardcoded sandbox-safety: pip --only-binary=:all: + npm

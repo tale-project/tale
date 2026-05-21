@@ -14,9 +14,13 @@
 // field was forwarded into deeper logic (spawn.ts, docker-args.ts) where
 // a malformed input would crash with a less useful diagnostic.
 
-import type { ExecuteRequest, Language } from './types.ts';
+import type { ExecuteRequest, Language, SandboxFile } from './types.ts';
 import {
+  FILE_PATH_SEGMENT_RE,
   ID_ALPHABET_RE,
+  MAX_FILES_BYTES,
+  MAX_FILES_PER_REQUEST,
+  MAX_FILE_PATH_LENGTH,
   ORG_ID_ALPHABET_RE,
   sandboxLanguageLiterals,
 } from './wire.ts';
@@ -155,6 +159,33 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
     };
   }
 
+  // files / entryPath: optional sibling staging. Per-path safety mirrors
+  // the platform's `validatePath` rules; spawner-side check is
+  // defense-in-depth — never trust the upstream typecheck.
+  let files: SandboxFile[] | undefined;
+  let entryPath: string | undefined;
+  if (r.files !== undefined) {
+    const validated = validateFiles(r.files);
+    if (!validated.ok) return { ok: false, error: validated.error };
+    files = validated.files;
+  }
+  if (r.entryPath !== undefined) {
+    if (!isString(r.entryPath)) {
+      return { ok: false, error: 'entryPath must be a string' };
+    }
+    const safe = isSafeRelativePath(r.entryPath);
+    if (!safe.ok) {
+      return { ok: false, error: `entryPath: ${safe.error}` };
+    }
+    entryPath = r.entryPath;
+    if (files !== undefined && !files.some((f) => f.path === entryPath)) {
+      return {
+        ok: false,
+        error: `entryPath "${entryPath}" must reference a path in files`,
+      };
+    }
+  }
+
   // purpose: optional human-readable label, length-capped to defend the
   // audit-row preview from a megabyte-sized "purpose" string.
   // (purpose isn't in ExecuteRequest, but if a future caller ships it the
@@ -178,6 +209,119 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
       ...(packages !== undefined && { packages }),
       ...(timeoutMs !== undefined && { timeoutMs }),
       ...(options !== undefined && { options }),
+      ...(files !== undefined && { files }),
+      ...(entryPath !== undefined && { entryPath }),
     },
   };
+}
+
+/**
+ * Reject relative paths that could escape `/workspace/code/` or step on
+ * runtime conventions. Mirrors the subset of platform-side validatePath
+ * that matters at the spawner boundary; the platform's full 16-rule
+ * pipeline (NFC, BiDi, zero-width, Windows-reserved) runs server-side
+ * before any request reaches this code.
+ */
+function isSafeRelativePath(
+  p: string,
+): { ok: true } | { ok: false; error: string } {
+  if (p.length === 0) return { ok: false, error: 'path is empty' };
+  if (p.length > MAX_FILE_PATH_LENGTH) {
+    return { ok: false, error: `path exceeds ${MAX_FILE_PATH_LENGTH} chars` };
+  }
+  if (p.startsWith('/') || /^[A-Za-z]:[\\/]/.test(p)) {
+    return { ok: false, error: 'path must be relative' };
+  }
+  if (p.includes('\\')) {
+    return { ok: false, error: 'path must use forward slashes' };
+  }
+  if (p.startsWith('./')) {
+    return { ok: false, error: 'path must not start with "./"' };
+  }
+  if (p.endsWith('/')) {
+    return { ok: false, error: 'path must not end with "/"' };
+  }
+  if (p.includes('//')) {
+    return { ok: false, error: 'path must not contain "//"' };
+  }
+  // Reject control chars, NUL, and any non-printable byte (defense in
+  // depth — platform side already strips these).
+  for (let i = 0; i < p.length; i += 1) {
+    const c = p.charCodeAt(i);
+    if (c < 0x20 || c === 0x7f) {
+      return { ok: false, error: 'path contains control characters' };
+    }
+  }
+  const segments = p.split('/');
+  for (const seg of segments) {
+    if (seg === '' || seg === '.' || seg === '..') {
+      return { ok: false, error: `path has bad segment "${seg}"` };
+    }
+    if (seg.startsWith('.')) {
+      return { ok: false, error: `hidden dotfile segment "${seg}" rejected` };
+    }
+    if (!FILE_PATH_SEGMENT_RE.test(seg)) {
+      return {
+        ok: false,
+        error: `path segment "${seg}" has chars outside [A-Za-z0-9._-]`,
+      };
+    }
+  }
+  return { ok: true };
+}
+
+function validateFiles(
+  raw: unknown,
+): { ok: true; files: SandboxFile[] } | { ok: false; error: string } {
+  if (!Array.isArray(raw)) {
+    return { ok: false, error: 'files must be an array' };
+  }
+  if (raw.length > MAX_FILES_PER_REQUEST) {
+    return {
+      ok: false,
+      error: `files exceeds ${MAX_FILES_PER_REQUEST}-item limit`,
+    };
+  }
+  const seenLower = new Set<string>();
+  const out: SandboxFile[] = [];
+  let aggregateBytes = 0;
+  for (let i = 0; i < raw.length; i += 1) {
+    const entry: unknown = raw[i];
+    if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
+      return { ok: false, error: `files[${i}] must be an object` };
+    }
+    // After the guard above `entry` is `object`; reading string-indexed
+    // properties through a typed Record is the canonical wire-shape
+    // narrowing pattern used elsewhere in this validator (see `r` at the
+    // top of validateExecuteRequest).
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+    const e = entry as Record<string, unknown>;
+    if (!isString(e.path)) {
+      return { ok: false, error: `files[${i}].path must be a string` };
+    }
+    if (!isString(e.content)) {
+      return { ok: false, error: `files[${i}].content must be a string` };
+    }
+    const safe = isSafeRelativePath(e.path);
+    if (!safe.ok) {
+      return { ok: false, error: `files[${i}].path: ${safe.error}` };
+    }
+    const lower = e.path.toLowerCase();
+    if (seenLower.has(lower)) {
+      return {
+        ok: false,
+        error: `files[${i}].path "${e.path}" duplicates an earlier entry (case-insensitive)`,
+      };
+    }
+    seenLower.add(lower);
+    aggregateBytes += Buffer.byteLength(e.content, 'utf8');
+    if (aggregateBytes > MAX_FILES_BYTES) {
+      return {
+        ok: false,
+        error: `files aggregate content exceeds ${MAX_FILES_BYTES}-byte limit`,
+      };
+    }
+    out.push({ path: e.path, content: e.content });
+  }
+  return { ok: true, files: out };
 }
