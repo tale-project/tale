@@ -56,11 +56,6 @@ function emptyModel(): ModelEntry {
   return { id: '', displayName: '', tags: ['chat'] };
 }
 
-/** Derive a readable display name from a model ID (e.g. "gpt-4o" → "GPT-4o"). */
-function displayNameFromId(id: string): string {
-  return id;
-}
-
 export function ProviderAddPanel({
   open,
   onOpenChange,
@@ -179,7 +174,7 @@ export function ProviderAddPanel({
     },
   });
 
-  const { fields, append, remove, update } = useFieldArray({
+  const { append, remove, update } = useFieldArray({
     control,
     name: 'models',
   });
@@ -530,7 +525,7 @@ export function ProviderAddPanel({
   // fetchedCredentials cleanup effect above clears `hasFetched` if either
   // field changes, so a user fixing a typo will naturally re-trigger this.
   useEffect(() => {
-    if (!canFetch || hasFetched) return;
+    if (!canFetch || hasFetched) return undefined;
     const handle = setTimeout(() => {
       void handleFetchModels();
     }, 500);
@@ -715,7 +710,8 @@ export function ProviderAddPanel({
                       const isLast =
                         rowIdx === visibleRows.length - 1 &&
                         visibleRows.length === filteredRows.length;
-                      const isAdded = row.formIndex != null;
+                      const formIndex = row.formIndex;
+                      const isAdded = formIndex != null;
                       return (
                         <HStack
                           key={`${row.source}:${row.id}`}
@@ -771,27 +767,26 @@ export function ProviderAddPanel({
                                 )}
                               </HStack>
                             )}
-                            {isAdded && row.formIndex != null && (
+                            {isAdded && formIndex != null && (
                               <IconButton
                                 type="button"
                                 icon={Pencil}
                                 aria-label={t('providers.editModel')}
                                 variant="ghost"
                                 className="text-muted-foreground hover:text-foreground size-7"
-                                onClick={() => openEditDialog(row.formIndex!)}
+                                onClick={() => openEditDialog(formIndex)}
                               />
                             )}
-                            {row.source === 'manual' &&
-                              row.formIndex != null && (
-                                <IconButton
-                                  type="button"
-                                  icon={Trash2}
-                                  aria-label={t('providers.removeModel')}
-                                  variant="ghost"
-                                  className="text-muted-foreground hover:text-destructive size-7"
-                                  onClick={() => remove(row.formIndex!)}
-                                />
-                              )}
+                            {row.source === 'manual' && formIndex != null && (
+                              <IconButton
+                                type="button"
+                                icon={Trash2}
+                                aria-label={t('providers.removeModel')}
+                                variant="ghost"
+                                className="text-muted-foreground hover:text-destructive size-7"
+                                onClick={() => remove(formIndex)}
+                              />
+                            )}
                           </HStack>
                         </HStack>
                       );

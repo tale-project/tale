@@ -15,7 +15,14 @@ import {
   X,
   Zap,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
@@ -290,11 +297,13 @@ function SectionHeader({
   description,
   onEdit,
   editLabel,
+  children,
 }: {
   title: string;
   description?: string;
   onEdit: () => void;
   editLabel: string;
+  children?: ReactNode;
 }) {
   return (
     <HStack
@@ -312,6 +321,7 @@ function SectionHeader({
           </Text>
         )}
       </Stack>
+      {children}
       <button
         type="button"
         onClick={onEdit}
@@ -1188,9 +1198,7 @@ function ModelsSection({
                           aria-label={t('providers.editModel')}
                           variant="ghost"
                           className="text-muted-foreground hover:text-foreground size-7"
-                          onClick={() =>
-                            openEditDialog(row.configuredIndex as number)
-                          }
+                          onClick={() => openEditDialog(row.configuredIndex)}
                         />
                       )}
                       {isManual && row.configuredIndex != null && (
@@ -1199,9 +1207,7 @@ function ModelsSection({
                           aria-label={t('providers.removeModel')}
                           variant="ghost"
                           className="text-muted-foreground hover:text-destructive size-7"
-                          onClick={() =>
-                            setDeleteIndex(row.configuredIndex as number)
-                          }
+                          onClick={() => setDeleteIndex(row.configuredIndex)}
                         />
                       )}
                     </HStack>
