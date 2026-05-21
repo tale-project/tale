@@ -34,7 +34,9 @@ import {
   clearState,
   getState,
   initState,
+  markFlushed,
   markParsed,
+  shouldFlush,
   shouldParse,
 } from './stream_state';
 
@@ -173,9 +175,6 @@ Typical sequence: \`artifact_create\` → \`artifact_run({artifactId})\` → if 
     ) => {
       const state = getState(options.toolCallId);
       if (!state) return;
-      // Once we've already committed to an outcome we have nothing more to
-      // do during streaming — `execute` will settle / report.
-      if (state.rowInitialized) return;
       state.accumulator += options.inputTextDelta;
       if (!shouldParse(state, state.accumulator.length)) return;
       const parsed = await parsePartialJson(state.accumulator);
@@ -195,66 +194,109 @@ Typical sequence: \`artifact_create\` → \`artifact_run({artifactId})\` → if 
         return;
       }
       const obj = partial as Record<string, unknown>;
-      const typeRaw = typeof obj.type === 'string' ? obj.type : undefined;
-      const titleRaw = typeof obj.title === 'string' ? obj.title : undefined;
-      if (!typeRaw || !titleRaw || !isValidArtifactType(typeRaw)) return;
-      // Commit only when title is known to be complete: either the parser
-      // has consumed the whole JSON (`successful-parse`), or a later field
-      // (`content`, `language`, `entryFile`, `packages`) has started in the
-      // JSON — meaning the title string is already closed and won't grow.
-      const titleCommitted =
-        parsed.state === 'successful-parse' ||
-        obj.content !== undefined ||
-        obj.language !== undefined ||
-        obj.entryFile !== undefined ||
-        obj.packages !== undefined;
-      if (!titleCommitted) return;
 
-      const language =
-        typeof obj.language === 'string' ? obj.language : undefined;
-      const entryFile =
-        typeof obj.entryFile === 'string' ? obj.entryFile : undefined;
+      // Phase 1: one-shot placeholder init. After it commits the
+      // streaming row, every subsequent parse pass falls through to
+      // Phase 2 below to keep `streamingContent` fresh on the row.
+      if (!state.rowInitialized) {
+        const typeRaw = typeof obj.type === 'string' ? obj.type : undefined;
+        const titleRaw = typeof obj.title === 'string' ? obj.title : undefined;
+        if (!typeRaw || !titleRaw || !isValidArtifactType(typeRaw)) return;
+        // Commit only when title is known to be complete: either the parser
+        // has consumed the whole JSON (`successful-parse`), or a later field
+        // (`content`, `language`, `entryFile`, `packages`) has started in the
+        // JSON — meaning the title string is already closed and won't grow.
+        const titleCommitted =
+          parsed.state === 'successful-parse' ||
+          obj.content !== undefined ||
+          obj.language !== undefined ||
+          obj.entryFile !== undefined ||
+          obj.packages !== undefined;
+        if (!titleCommitted) return;
 
-      const { organizationId, threadId, messageId } = ctx;
-      if (!organizationId || !threadId) return;
-      try {
-        const outcome = await ctx.runMutation(
-          internal.artifacts.internal_mutations.beginCreateStream,
-          {
-            organizationId,
-            threadId,
-            type: typeRaw,
-            title: titleRaw,
-            language,
-            entryFile,
-            createdByMessageId: messageId ?? '',
-            toolCallId: options.toolCallId,
-          },
-        );
-        state.rowInitialized = true;
-        if (outcome.kind === 'created') {
-          state.createOutcome = 'placeholder';
-          state.artifactId = outcome.artifactId;
-        } else if (outcome.kind === 'collision') {
-          state.createOutcome = 'collision';
-          state.artifactId = outcome.artifactId;
-        } else {
-          state.createOutcome = 'type_mismatch';
-          state.typeMismatchInfo = {
-            existingArtifactId: outcome.existingArtifactId,
-            existingType: outcome.existingType,
-            message: outcome.message,
-          };
+        const language =
+          typeof obj.language === 'string' ? obj.language : undefined;
+        const entryFile =
+          typeof obj.entryFile === 'string' ? obj.entryFile : undefined;
+
+        const { organizationId, threadId, messageId } = ctx;
+        if (!organizationId || !threadId) return;
+        try {
+          const outcome = await ctx.runMutation(
+            internal.artifacts.internal_mutations.beginCreateStream,
+            {
+              organizationId,
+              threadId,
+              type: typeRaw,
+              title: titleRaw,
+              language,
+              entryFile,
+              createdByMessageId: messageId ?? '',
+              toolCallId: options.toolCallId,
+            },
+          );
+          state.rowInitialized = true;
+          if (outcome.kind === 'created') {
+            state.createOutcome = 'placeholder';
+            state.artifactId = outcome.artifactId;
+          } else if (outcome.kind === 'collision') {
+            state.createOutcome = 'collision';
+            state.artifactId = outcome.artifactId;
+          } else {
+            state.createOutcome = 'type_mismatch';
+            state.typeMismatchInfo = {
+              existingArtifactId: outcome.existingArtifactId,
+              existingType: outcome.existingType,
+              message: outcome.message,
+            };
+          }
+        } catch (err) {
+          // Defer the failure to execute() so it surfaces in the tool response
+          // alongside any validation context the LLM needs.
+          console.warn(
+            '[artifact_create] beginCreateStream rejected, deferring',
+            {
+              error: err instanceof Error ? err.message : String(err),
+            },
+          );
+          return;
         }
-      } catch (err) {
-        // Defer the failure to execute() so it surfaces in the tool response
-        // alongside any validation context the LLM needs.
-        console.warn(
-          '[artifact_create] beginCreateStream rejected, deferring',
+      }
+
+      // Phase 2: incremental persistence of streamed content. Only fires
+      // for our own placeholder (collisions / type-mismatches don't own a
+      // row to update). Throttled via `shouldFlush` so we don't issue a
+      // mutation per token; the canvas's `streamingContent ?? settled`
+      // fallback chain then has bytes to show when the client-side
+      // tool-input-delta hook resets on a `toolCallId` change.
+      if (
+        state.createOutcome !== 'placeholder' ||
+        state.artifactId === undefined
+      ) {
+        return;
+      }
+      const contentRaw =
+        typeof obj.content === 'string' ? obj.content : undefined;
+      if (contentRaw === undefined) return;
+      if (!shouldFlush(state, contentRaw.length)) return;
+      try {
+        await ctx.runMutation(
+          internal.artifacts.internal_mutations.updateCreateStreamingContent,
           {
-            error: err instanceof Error ? err.message : String(err),
+            artifactId: state.artifactId,
+            toolCallId: options.toolCallId,
+            content: contentRaw,
           },
         );
+        markFlushed(state, contentRaw.length);
+      } catch (err) {
+        // Transient flush failure — let the stream keep running.
+        // `finalizeCreateStream` at execute time still writes the final
+        // content into `files[]`, so the worst-case is the canvas falls
+        // back to the last successfully-flushed snapshot.
+        console.warn('[artifact_create] streamingContent flush failed', {
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     },
     execute: async (
@@ -482,18 +524,50 @@ Typical sequence: \`artifact_create\` → \`artifact_run({artifactId})\` → if 
           message: `Artifact "${args.title}" already exists at revision ${result.revision} with entry file "${result.entryFile}" (${result.filePaths.length} file(s)). Supplied content was NOT applied. Call \`artifact_read({artifactId: "${result.artifactId}"})\` to inspect, or \`artifact_edit({artifactId: "${result.artifactId}", mode: "rewrite", path: "${result.entryFile}", content})\` to overwrite if intended.`,
         };
       } catch (err) {
-        // Best-effort cleanup of a stranded placeholder.
+        // Best-effort cleanup of a stranded placeholder — but **keep**
+        // any placeholder that already has incrementally-flushed content
+        // ([feedback_lazy_cleanup_over_cron]: stale rows get swept by
+        // the `by_liveStreamMode` janitor). A later `artifact_create`
+        // with the same title takes the collision path and surfaces the
+        // partial content to the model rather than restarting from zero.
         if (
           state?.createOutcome === 'placeholder' &&
           state.artifactId !== undefined
         ) {
-          await ctx.runMutation(
-            internal.artifacts.internal_mutations.discardCreateStream,
-            {
-              artifactId: state.artifactId,
-              toolCallId: options.toolCallId,
-            },
-          );
+          let placeholderHasContent = false;
+          try {
+            const row = await ctx.runQuery(
+              internal.artifacts.internal_queries.getById,
+              {
+                artifactId: state.artifactId,
+                expectedOrganizationId: ctx.organizationId,
+                expectedThreadId: ctx.threadId,
+              },
+            );
+            placeholderHasContent =
+              row !== null &&
+              typeof row.streamingContent === 'string' &&
+              row.streamingContent.length > 0;
+          } catch (lookupErr) {
+            console.warn(
+              '[artifact_create] placeholder lookup failed before discard',
+              {
+                error:
+                  lookupErr instanceof Error
+                    ? lookupErr.message
+                    : String(lookupErr),
+              },
+            );
+          }
+          if (!placeholderHasContent) {
+            await ctx.runMutation(
+              internal.artifacts.internal_mutations.discardCreateStream,
+              {
+                artifactId: state.artifactId,
+                toolCallId: options.toolCallId,
+              },
+            );
+          }
         }
         const message = err instanceof Error ? err.message : String(err);
         return {

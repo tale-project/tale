@@ -25,7 +25,9 @@ import {
   clearState,
   getState,
   initState,
+  markFlushed,
   markParsed,
+  shouldFlush,
   shouldParse,
 } from './stream_state';
 
@@ -287,9 +289,9 @@ export const artifactEditTool = {
         }
       }
 
-      // Only mark the row as streaming for `rewrite` mode (where content
-      // arrives token-by-token). The other modes settle synchronously at
-      // execute time and don't need a streaming placeholder.
+      // Phase 1: one-shot streaming-state init. Only `rewrite` mode needs
+      // a live placeholder — other modes settle synchronously at execute
+      // time. Phase 2 below keeps `streamingContent` fresh on the row.
       if (
         state.artifactId !== undefined &&
         !state.rowInitialized &&
@@ -315,7 +317,47 @@ export const artifactEditTool = {
           console.warn('[artifact_edit] beginEditStream rejected, deferring', {
             error: err instanceof Error ? err.message : String(err),
           });
+          return;
         }
+      }
+
+      // Phase 2: incremental persistence of streamed content for rewrite
+      // mode. Throttled via `shouldFlush` so we don't issue a mutation per
+      // token; the canvas's `streamingContent ?? settled` fallback chain
+      // then has bytes to show when the client-side tool-input-delta hook
+      // resets on a `toolCallId` change. Patch / delete / rename /
+      // set_entry don't reach here — they settle at execute time.
+      if (
+        !state.rowInitialized ||
+        state.resolvedMode !== 'rewrite' ||
+        state.artifactId === undefined ||
+        path === undefined ||
+        path.length === 0
+      ) {
+        return;
+      }
+      const contentRaw =
+        typeof obj.content === 'string' ? obj.content : undefined;
+      if (contentRaw === undefined) return;
+      if (!shouldFlush(state, contentRaw.length)) return;
+      try {
+        await ctx.runMutation(
+          internal.artifacts.internal_mutations.updateRewriteStreamingContent,
+          {
+            artifactId: state.artifactId,
+            toolCallId: options.toolCallId,
+            streamingPath: path,
+            content: contentRaw,
+          },
+        );
+        markFlushed(state, contentRaw.length);
+      } catch (err) {
+        // Transient flush failure — let the stream keep running.
+        // `rewriteArtifact` at execute time still writes the final content,
+        // so worst-case the canvas falls back to the last successful flush.
+        console.warn('[artifact_edit] streamingContent flush failed', {
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     },
     execute: async (

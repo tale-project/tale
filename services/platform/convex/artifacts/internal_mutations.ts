@@ -899,6 +899,43 @@ export const abortStream = internalMutation({
 });
 
 /**
+ * Incremental persistence of streamed content during a `mode: 'rewrite'`
+ * edit. Throttled by `shouldFlush` in the tool's `onInputDelta`; this
+ * mutation just lands the latest parsed snapshot into `streamingContent`
+ * so the canvas's `streamingContent ?? settledContent` fallback chain has
+ * the partial bytes to show when the tool-input-delta hook resets on a
+ * new `toolCallId` (LLM retry / continuation).
+ *
+ * Bails (no-op) if the row no longer matches the streaming session
+ * (different `toolCallId`, mode changed, path changed) — protects against
+ * a stale delta from an aborted call overwriting a newer stream.
+ *
+ * Never touches `files[]`, `content`, or `revision`. Settled state stays
+ * exactly as it was until `rewriteArtifact` runs at execute-time.
+ */
+export const updateRewriteStreamingContent = internalMutation({
+  args: {
+    artifactId: v.id('artifacts'),
+    toolCallId: v.string(),
+    streamingPath: v.string(),
+    content: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.artifactId);
+    if (!row) return null;
+    if (row.liveStreamMode !== 'rewrite') return null;
+    if (row.toolCallId !== args.toolCallId) return null;
+    if (row.streamingPath !== args.streamingPath) return null;
+    await ctx.db.patch(args.artifactId, {
+      streamingContent: args.content,
+      updatedAt: Date.now(),
+    });
+    return null;
+  },
+});
+
+/**
  * User-Stop cascade for artifact streams.
  *
  * When the user clicks Stop, the SDK abort fires before any `tool.execute()`
@@ -1188,6 +1225,41 @@ export const finalizeCreateStream = internalMutation({
       entryFile,
       filePaths: files.map((f) => f.path),
     };
+  },
+});
+
+/**
+ * Incremental persistence of streamed content during `artifact_create`.
+ * Throttled by `shouldFlush` in the tool's `onInputDelta`; this mutation
+ * just lands the latest parsed snapshot into `streamingContent` so the
+ * canvas's `streamingContent ?? settledContent` fallback chain has the
+ * partial bytes to show when the tool-input-delta hook resets on a new
+ * `toolCallId` (LLM retry / continuation / "I'll create in segments").
+ *
+ * Bails (no-op) if the row is missing, isn't a `create` placeholder, or
+ * the toolCallId no longer matches — protects against a stale delta from
+ * an aborted call overwriting a newer stream.
+ *
+ * Never touches `files[]`, `content`, or `revision`. Settled state stays
+ * exactly as it was until `finalizeCreateStream` runs at execute-time.
+ */
+export const updateCreateStreamingContent = internalMutation({
+  args: {
+    artifactId: v.id('artifacts'),
+    toolCallId: v.string(),
+    content: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.artifactId);
+    if (!row) return null;
+    if (row.liveStreamMode !== 'create') return null;
+    if (row.toolCallId !== args.toolCallId) return null;
+    await ctx.db.patch(args.artifactId, {
+      streamingContent: args.content,
+      updatedAt: Date.now(),
+    });
+    return null;
   },
 });
 

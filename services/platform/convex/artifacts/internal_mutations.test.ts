@@ -23,6 +23,8 @@ vi.mock('../_generated/server', async (importOriginal) => {
 import {
   createArtifact,
   discardActiveStreamsForThread,
+  updateCreateStreamingContent,
+  updateRewriteStreamingContent,
 } from './internal_mutations';
 
 interface FakeArtifactRow {
@@ -41,6 +43,7 @@ interface FakeArtifactRow {
   createdByMessageId?: string;
   lastEditedByMessageId?: string;
   streamingContent?: string;
+  streamingPath?: string;
   liveStreamStartedAt?: number;
   createdAt?: number;
   updatedAt?: number;
@@ -109,6 +112,9 @@ function createMockCtx(initial: FakeArtifactRow[] = []) {
     ctx: {
       db: {
         query: vi.fn(() => makeBuilder()),
+        get: vi.fn(async (id: string) => {
+          return rows.find((r) => r._id === id) ?? null;
+        }),
         insert: vi.fn(
           async (table: string, payload: Record<string, unknown>) => {
             const insertedId =
@@ -390,6 +396,182 @@ describe('discardActiveStreamsForThread (user-Stop cascade)', () => {
     });
     expect(r.cleared).toBe(0);
     expect(deleted).toHaveLength(0);
+    expect(patched).toHaveLength(0);
+  });
+});
+
+type UpdateCreateStreamingContentArgs = {
+  artifactId: string;
+  toolCallId: string;
+  content: string;
+};
+
+const updateCreateStreaming =
+  updateCreateStreamingContent as unknown as MutHandler<
+    UpdateCreateStreamingContentArgs,
+    null
+  >;
+
+describe('updateCreateStreamingContent (incremental persistence)', () => {
+  it('patches only streamingContent + updatedAt on a matching placeholder', async () => {
+    const placeholder: FakeArtifactRow = {
+      _id: 'art_ph',
+      organizationId: 'org_a',
+      threadId: 'thr_a',
+      type: 'code',
+      title: 'WIP',
+      revision: 0,
+      liveStreamMode: 'create',
+      toolCallId: 'call_1',
+      streamingContent: '',
+    };
+    const { ctx, patched } = createMockCtx([placeholder]);
+    await updateCreateStreaming.handler(ctx, {
+      artifactId: 'art_ph',
+      toolCallId: 'call_1',
+      content: 'partial...',
+    });
+    expect(patched).toHaveLength(1);
+    expect(patched[0].id).toBe('art_ph');
+    const keys = Object.keys(patched[0].patch).sort();
+    expect(keys).toEqual(['streamingContent', 'updatedAt']);
+    expect(patched[0].patch.streamingContent).toBe('partial...');
+    expect(typeof patched[0].patch.updatedAt).toBe('number');
+  });
+
+  it('no-ops when the row is missing', async () => {
+    const { ctx, patched } = createMockCtx([]);
+    const r = await updateCreateStreaming.handler(ctx, {
+      artifactId: 'art_gone',
+      toolCallId: 'call_1',
+      content: 'partial',
+    });
+    expect(r).toBeNull();
+    expect(patched).toHaveLength(0);
+  });
+
+  it('no-ops on a toolCallId mismatch (stale flush from a prior tool call)', async () => {
+    const placeholder: FakeArtifactRow = {
+      _id: 'art_ph',
+      organizationId: 'org_a',
+      threadId: 'thr_a',
+      type: 'code',
+      title: 'WIP',
+      revision: 0,
+      liveStreamMode: 'create',
+      toolCallId: 'call_NEW',
+      streamingContent: 'fresh stream content',
+    };
+    const { ctx, patched } = createMockCtx([placeholder]);
+    await updateCreateStreaming.handler(ctx, {
+      artifactId: 'art_ph',
+      toolCallId: 'call_OLD',
+      content: 'stale partial — must not overwrite',
+    });
+    expect(patched).toHaveLength(0);
+  });
+
+  it('no-ops when the row is not in create-stream mode', async () => {
+    const settled: FakeArtifactRow = {
+      _id: 'art_settled',
+      organizationId: 'org_a',
+      threadId: 'thr_a',
+      type: 'code',
+      title: 'settled',
+      revision: 3,
+      liveStreamMode: undefined,
+      toolCallId: 'call_1',
+    };
+    const { ctx, patched } = createMockCtx([settled]);
+    await updateCreateStreaming.handler(ctx, {
+      artifactId: 'art_settled',
+      toolCallId: 'call_1',
+      content: 'should not land',
+    });
+    expect(patched).toHaveLength(0);
+  });
+});
+
+type UpdateRewriteStreamingContentArgs = {
+  artifactId: string;
+  toolCallId: string;
+  streamingPath: string;
+  content: string;
+};
+
+const updateRewriteStreaming =
+  updateRewriteStreamingContent as unknown as MutHandler<
+    UpdateRewriteStreamingContentArgs,
+    null
+  >;
+
+describe('updateRewriteStreamingContent (incremental persistence)', () => {
+  it('patches only streamingContent + updatedAt on a matching rewrite session', async () => {
+    const row: FakeArtifactRow = {
+      _id: 'art_rw',
+      organizationId: 'org_a',
+      threadId: 'thr_a',
+      type: 'code',
+      title: 'edit',
+      revision: 5,
+      liveStreamMode: 'rewrite',
+      toolCallId: 'call_2',
+      streamingPath: 'main.py',
+      streamingContent: '',
+    };
+    const { ctx, patched } = createMockCtx([row]);
+    await updateRewriteStreaming.handler(ctx, {
+      artifactId: 'art_rw',
+      toolCallId: 'call_2',
+      streamingPath: 'main.py',
+      content: 'rewritten so far...',
+    });
+    expect(patched).toHaveLength(1);
+    expect(patched[0].patch.streamingContent).toBe('rewritten so far...');
+    expect(typeof patched[0].patch.updatedAt).toBe('number');
+  });
+
+  it('no-ops on a streamingPath mismatch (defensive — different file in flight)', async () => {
+    const row: FakeArtifactRow = {
+      _id: 'art_rw',
+      organizationId: 'org_a',
+      threadId: 'thr_a',
+      type: 'code',
+      title: 'edit',
+      revision: 5,
+      liveStreamMode: 'rewrite',
+      toolCallId: 'call_2',
+      streamingPath: 'main.py',
+    };
+    const { ctx, patched } = createMockCtx([row]);
+    await updateRewriteStreaming.handler(ctx, {
+      artifactId: 'art_rw',
+      toolCallId: 'call_2',
+      streamingPath: 'other.py',
+      content: 'stray content',
+    });
+    expect(patched).toHaveLength(0);
+  });
+
+  it('no-ops when the row is in create mode rather than rewrite', async () => {
+    const placeholder: FakeArtifactRow = {
+      _id: 'art_ph',
+      organizationId: 'org_a',
+      threadId: 'thr_a',
+      type: 'code',
+      title: 'WIP',
+      revision: 0,
+      liveStreamMode: 'create',
+      toolCallId: 'call_2',
+      streamingPath: 'main.py',
+    };
+    const { ctx, patched } = createMockCtx([placeholder]);
+    await updateRewriteStreaming.handler(ctx, {
+      artifactId: 'art_ph',
+      toolCallId: 'call_2',
+      streamingPath: 'main.py',
+      content: 'should not land',
+    });
     expect(patched).toHaveLength(0);
   });
 });
