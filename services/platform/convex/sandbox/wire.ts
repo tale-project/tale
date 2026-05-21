@@ -1,13 +1,24 @@
 import { v } from 'convex/values';
 
+// Type-only imports from the spawner's wire module — purely structural,
+// nothing of this lands in the convex runtime bundle. We use these in the
+// compile-time parity assertions at the bottom of the file so a literal
+// drift on EITHER side fails CI typecheck. Audit finding R2-B3 caught
+// that the docstring claimed this guard existed when it didn't.
+import type {
+  sandboxErrorCodeLiterals as SpawnerErrorCodes,
+  sandboxLanguageLiterals as SpawnerLanguages,
+  sandboxPhaseEventLiterals as SpawnerPhases,
+} from '../../../sandbox/src/wire';
+
 /**
  * Single source of truth for the sandbox runtime's wire protocol on the
  * Convex side. Both the audit row (`sandboxExecutions`) and the artifact
  * runnable run-state (`artifacts.run*` fields) build their validators from
  * the literal arrays exported here — adding or removing a code never
  * requires touching multiple schema files. The spawner-side mirror lives
- * at `services/sandbox/src/wire.ts`; the satisfies-assertion below this
- * comment keeps them from drifting.
+ * at `services/sandbox/src/wire.ts`; the bidirectional `extends` checks
+ * at the bottom of this file keep them from drifting.
  *
  * Pattern mirrors `services/platform/convex/tts/error_codes.ts`.
  */
@@ -160,3 +171,45 @@ export const sandboxLanguageValidator = v.union(
   v.literal('python'),
   v.literal('node'),
 );
+
+// ---------------------------------------------------------------------------
+// Spawner ↔ Convex literal parity (audit finding R2-B3)
+// ---------------------------------------------------------------------------
+// Compile-time double-extension checks: each literal-set on this side
+// must be both a superset AND a subset of the spawner-side set (i.e.
+// equal). Adding a literal on only one side fails CI typecheck with a
+// clear error pointing at the assigning line, before the divergence
+// ever ships. Purely type-level — no runtime cost.
+//
+// `Equal<ConvexSide, SpawnerSide>` returns `true` iff the two unions
+// match. If the spawner has an extra literal, ConvexSide ⊊ SpawnerSide
+// breaks the second clause. If Convex has an extra, the first clause
+// breaks. The error object is a fake type whose key surfaces a
+// readable diagnostic next to the failing literal-array name.
+type Equal<A, B> = [A] extends [B]
+  ? [B] extends [A]
+    ? true
+    : {
+        __wireDrift: 'Spawner has literal(s) missing from Convex side — add them here too';
+      }
+  : {
+      __wireDrift: 'Convex has literal(s) missing from spawner side — add them in services/sandbox/src/wire.ts';
+    };
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _errorCodeParity: Equal<
+  (typeof sandboxErrorCodeLiterals)[number],
+  (typeof SpawnerErrorCodes)[number]
+> = true;
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _phaseEventParity: Equal<
+  (typeof sandboxPhaseEventLiterals)[number],
+  (typeof SpawnerPhases)[number]
+> = true;
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _languageParity: Equal<
+  (typeof sandboxLanguageLiterals)[number],
+  (typeof SpawnerLanguages)[number]
+> = true;
