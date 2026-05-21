@@ -472,12 +472,14 @@ function CanvasPaneComponent() {
   const effectiveStreamingPath = streamingPath ?? resolved.entryFile;
   const isStreamingActiveFile =
     isStreaming &&
-    (liveStreamMode === 'create' || liveStreamMode === 'rewrite') &&
+    (liveStreamMode === 'create' ||
+      liveStreamMode === 'rewrite' ||
+      liveStreamMode === 'append') &&
     effectiveStreamingPath === activePath;
-  // create/rewrite stream tokens come via the SDK's tool-input-delta
-  // rows; patch leaves the source static. Only the former should drive
-  // the trailing caret in the code renderer — a blinking caret on
-  // unchanging source is misleading.
+  // create / rewrite / append stream their content via the SDK's
+  // tool-input-delta rows; patch leaves the source static. Only the
+  // content-bearing modes should drive the trailing caret in the code
+  // renderer — a blinking caret on unchanging source is misleading.
   const isContentStreaming = isStreamingActiveFile;
   const { content: streamedContent, hasDeltas } = useStreamedArtifactContent(
     artifactId,
@@ -513,7 +515,9 @@ function CanvasPaneComponent() {
   // behavior and only show the diff when the user is on the entry file.
   const showStreamingSource =
     !isEditing &&
-    ((liveStreamMode === 'create' || liveStreamMode === 'rewrite'
+    ((liveStreamMode === 'create' ||
+    liveStreamMode === 'rewrite' ||
+    liveStreamMode === 'append'
       ? isStreamingActiveFile
       : liveStreamMode === 'patch'
         ? activePath === resolved.entryFile
