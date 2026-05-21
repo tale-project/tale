@@ -493,6 +493,46 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
             mw.context.returned = twoFactorReplacement;
           }
         }
+
+        // After an API key is created, persist the trailing plaintext
+        // chars on the row. The upstream plugin only stores `start`
+        // (prefix); we need the suffix too so the table can render
+        // `start … suffix`, matching the masking convention every major
+        // vendor uses (AWS, GitHub, Stripe, OpenRouter) and letting users
+        // disambiguate keys with the same `tale_` prefix.
+        if (mw.path === '/api-key/create') {
+          // The endpoint returns the created row plus the plaintext `key`
+          // (see node_modules/@better-auth/api-key/dist/index.mjs:852).
+          // `mw.context.returned` is that JSON object directly.
+          const returned = mw.context.returned;
+          const id = isRecord(returned) ? getString(returned, 'id') : null;
+          const plaintext = isRecord(returned)
+            ? getString(returned, 'key')
+            : null;
+          if (id && plaintext && plaintext.length > 4) {
+            try {
+              await runCtx.runMutation(
+                components.betterAuth.adapter.updateMany,
+                {
+                  input: {
+                    model: 'apikey',
+                    where: [{ field: '_id', value: id, operator: 'eq' }],
+                    update: { suffix: plaintext.slice(-4) },
+                  },
+                  paginationOpts: { cursor: null, numItems: 1 },
+                },
+              );
+            } catch (err) {
+              // Non-fatal: the key is already created and returned to the
+              // user. Worst case: this row renders without a suffix in the
+              // dashboard, matching pre-feature behaviour.
+              console.warn(
+                '[api-key/create] failed to persist suffix',
+                err instanceof Error ? err.message : err,
+              );
+            }
+          }
+        }
       }),
     },
     plugins: [

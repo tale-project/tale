@@ -6,7 +6,7 @@ import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
 import { useNavigate } from '@tanstack/react-router';
 import { Loader2, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { z } from 'zod/v4';
 
@@ -78,10 +78,14 @@ export function ProviderAddPanel({
 
   // Fetched model IDs from the provider endpoint
   const [fetchedModels, setFetchedModels] = useState<string[]>([]);
-  const [selectedModelIds, setSelectedModelIds] = useState(new Set<string>());
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [hasFetched, setHasFetched] = useState(false);
   const [modelSearch, setModelSearch] = useState('');
+  // Paginate the visible model rows. Default cap mirrors the design — show
+  // a handful of rows, then expose "Show more" so users can expand in chunks
+  // without scrolling through hundreds of fetched models.
+  const PAGE_SIZE = 10;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const formSchema = useMemo(
     () =>
@@ -181,6 +185,29 @@ export function ProviderAddPanel({
   });
 
   const watchedModels = watch('models');
+  const fetchCredsBaseUrl = watch('baseUrl');
+  const fetchCredsApiKey = watch('apiKey');
+
+  // Snapshot of the (baseUrl, apiKey) the last fetch ran against — when the
+  // current form values drift from this, the cached fetched list belongs to
+  // different credentials, so we clear it and re-expose the Fetch button.
+  const [fetchedCredentials, setFetchedCredentials] = useState<{
+    baseUrl: string;
+    apiKey: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!fetchedCredentials) return;
+    if (
+      fetchCredsBaseUrl !== fetchedCredentials.baseUrl ||
+      fetchCredsApiKey !== fetchedCredentials.apiKey
+    ) {
+      setFetchedModels([]);
+      setHasFetched(false);
+      setFetchError(null);
+      setFetchedCredentials(null);
+    }
+  }, [fetchCredsBaseUrl, fetchCredsApiKey, fetchedCredentials]);
 
   // ── Fetch models from provider ──────────────────────────────────────
 
@@ -193,90 +220,96 @@ export function ProviderAddPanel({
       const result = await fetchModels({ orgSlug, baseUrl, apiKey });
       const ids = result.map((m) => m.id);
       setFetchedModels(ids);
-      // Auto-select all fetched models, excluding any already added manually
-      const existingIds = new Set(watchedModels.map((m) => m.id));
-      setSelectedModelIds(new Set(ids.filter((id) => !existingIds.has(id))));
+      // Fetched models default to UNCHECKED. Selecting a row IS the add
+      // action, so we don't pre-append anything to the form here.
       setHasFetched(true);
+      setFetchedCredentials({ baseUrl, apiKey });
     } catch (error) {
       console.error('Failed to fetch models:', error);
       setFetchError(t('providers.fetchModelsError'));
       setHasFetched(false);
+      setFetchedCredentials(null);
     }
-  }, [fetchModels, getValues, orgSlug, watchedModels, t]);
+  }, [fetchModels, getValues, orgSlug, t]);
 
-  const handleToggleModel = useCallback((modelId: string, checked: boolean) => {
-    setSelectedModelIds((prev) => {
-      const next = new Set(prev);
-      if (checked) {
-        next.add(modelId);
-      } else {
-        next.delete(modelId);
-      }
-      return next;
-    });
-  }, []);
-
-  // Add selected fetched models to the form's models array
-  const handleAddSelectedModels = useCallback(() => {
-    const existingIds = new Set(watchedModels.map((m) => m.id));
-    for (const id of selectedModelIds) {
-      if (!existingIds.has(id)) {
-        append({ id, displayName: displayNameFromId(id), tags: ['chat'] });
-      }
-    }
-    // Clear fetch state after adding
-    setFetchedModels([]);
-    setSelectedModelIds(new Set());
-    setHasFetched(false);
-  }, [selectedModelIds, watchedModels, append]);
-
-  // Filter fetched models to only show ones not already added
-  const availableFetchedModels = useMemo(() => {
-    const existingIds = new Set(watchedModels.map((m) => m.id));
-    return fetchedModels.filter((id) => !existingIds.has(id));
-  }, [fetchedModels, watchedModels]);
-
-  // Further filter by search query
-  const filteredFetchedModels = useMemo(() => {
-    if (!modelSearch.trim()) return availableFetchedModels;
-    const query = modelSearch.toLowerCase().trim();
-    return availableFetchedModels.filter((id) =>
-      id.toLowerCase().includes(query),
-    );
-  }, [availableFetchedModels, modelSearch]);
-
-  // Tri-state checkbox: checked | unchecked | indeterminate
-  const allCheckboxState = useMemo((): boolean | 'indeterminate' => {
-    if (filteredFetchedModels.length === 0) return false;
-    const selectedCount = filteredFetchedModels.filter((id) =>
-      selectedModelIds.has(id),
-    ).length;
-    if (selectedCount === 0) return false;
-    if (selectedCount === filteredFetchedModels.length) return true;
-    return 'indeterminate';
-  }, [filteredFetchedModels, selectedModelIds]);
-
-  const handleToggleAllModels = useCallback(
-    (checked: boolean) => {
-      if (checked) {
-        setSelectedModelIds((prev) => {
-          const next = new Set(prev);
-          for (const id of filteredFetchedModels) {
-            next.add(id);
-          }
-          return next;
-        });
-      } else {
-        setSelectedModelIds((prev) => {
-          const next = new Set(prev);
-          for (const id of filteredFetchedModels) {
-            next.delete(id);
-          }
-          return next;
-        });
+  // A fetched model row's checkbox toggles its presence in the form.
+  const handleToggleFetchedModel = useCallback(
+    (modelId: string, checked: boolean) => {
+      const idx = watchedModels.findIndex((m) => m.id === modelId);
+      if (checked && idx === -1) {
+        append({ id: modelId, displayName: modelId, tags: ['chat'] });
+      } else if (!checked && idx !== -1) {
+        remove(idx);
       }
     },
-    [filteredFetchedModels],
+    [watchedModels, append, remove],
+  );
+
+  // Unified row list: fetched models (in provider order) followed by any
+  // manually-added models. Rows know which source they came from so the UI
+  // can render a checkbox (fetched) or trash (manual) accordingly.
+  type RowEntry = {
+    id: string;
+    source: 'fetched' | 'manual';
+    formIndex: number | null;
+  };
+  const rows = useMemo<RowEntry[]>(() => {
+    const addedById = new Map<string, number>();
+    watchedModels.forEach((m, i) => addedById.set(m.id, i));
+    const fetchedSet = new Set(fetchedModels);
+    const fetchedRows: RowEntry[] = fetchedModels.map((id) => ({
+      id,
+      source: 'fetched',
+      formIndex: addedById.get(id) ?? null,
+    }));
+    const manualRows: RowEntry[] = watchedModels
+      .map((m, i): RowEntry | null =>
+        fetchedSet.has(m.id)
+          ? null
+          : { id: m.id, source: 'manual', formIndex: i },
+      )
+      .filter((r): r is RowEntry => r !== null);
+    return [...fetchedRows, ...manualRows];
+  }, [fetchedModels, watchedModels]);
+
+  const filteredRows = useMemo(() => {
+    const base = !modelSearch.trim()
+      ? rows
+      : (() => {
+          const query = modelSearch.toLowerCase().trim();
+          return rows.filter((r) => {
+            const model =
+              r.formIndex != null ? watchedModels[r.formIndex] : null;
+            const haystack = [r.id, model?.displayName ?? '']
+              .join(' ')
+              .toLowerCase();
+            return haystack.includes(query);
+          });
+        })();
+    // Selected (added) rows float to the top so toggling a checkbox visibly
+    // promotes the row. Stable sort preserves the natural fetched/manual
+    // ordering within each group, so the list doesn't reshuffle arbitrarily.
+    return base
+      .map((row, idx) => ({ row, idx }))
+      .sort((a, b) => {
+        const aSelected = a.row.formIndex != null ? 0 : 1;
+        const bSelected = b.row.formIndex != null ? 0 : 1;
+        if (aSelected !== bSelected) return aSelected - bSelected;
+        return a.idx - b.idx;
+      })
+      .map((entry) => entry.row);
+  }, [rows, modelSearch, watchedModels]);
+
+  // Reset pagination whenever the filtered set changes shape — a new search
+  // query or a fresh fetch should land the user at the top of the list, not
+  // at whatever expanded cap they had on the previous result set.
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [modelSearch, fetchedModels]);
+
+  const visibleRows = useMemo(
+    () => filteredRows.slice(0, visibleCount),
+    [filteredRows, visibleCount],
   );
 
   // ── Manual add/edit dialog ──────────────────────────────────────────
@@ -375,10 +408,10 @@ export function ProviderAddPanel({
       if (!isOpen) {
         reset();
         setFetchedModels([]);
-        setSelectedModelIds(new Set());
         setFetchError(null);
         setHasFetched(false);
         setModelSearch('');
+        setVisibleCount(PAGE_SIZE);
       }
       onOpenChange(isOpen);
     },
@@ -491,6 +524,19 @@ export function ProviderAddPanel({
     watchedApiKey.length > 0 &&
     z.string().url().safeParse(watchedBaseUrl).success;
 
+  // Auto-fetch models once credentials look valid. Debounced so we don't
+  // hammer the endpoint while the user is still typing the key. Only fires
+  // when we haven't fetched yet for this credential pair — the
+  // fetchedCredentials cleanup effect above clears `hasFetched` if either
+  // field changes, so a user fixing a typo will naturally re-trigger this.
+  useEffect(() => {
+    if (!canFetch || hasFetched) return;
+    const handle = setTimeout(() => {
+      void handleFetchModels();
+    }, 500);
+    return () => clearTimeout(handle);
+  }, [canFetch, hasFetched, handleFetchModels]);
+
   return (
     <Sheet
       open={open}
@@ -522,7 +568,7 @@ export function ProviderAddPanel({
       >
         <div className="flex-1 overflow-y-auto p-4 sm:px-6 sm:py-5">
           <Stack gap={4}>
-            {!(hasFetched && availableFetchedModels.length > 0) && (
+            {!(hasFetched && rows.length > 0) && (
               <CollapsibleGuide
                 label={t('providers.byomGuidanceTitle')}
                 content={t('providers.byomGuidance')}
@@ -573,58 +619,33 @@ export function ProviderAddPanel({
                 <Text className="text-sm font-medium">
                   {t('providers.models')}
                 </Text>
-                {hasFetched && availableFetchedModels.length > 0 ? (
+                <HStack gap={2} align="center">
+                  {canFetch && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => void handleFetchModels()}
+                      disabled={isFetching}
+                    >
+                      {isFetching ? (
+                        <Loader2 className="mr-1 size-3.5 animate-spin" />
+                      ) : (
+                        <RefreshCw className="mr-1 size-3.5" />
+                      )}
+                      {t('providers.fetchModels')}
+                    </Button>
+                  )}
                   <Button
                     type="button"
                     variant="secondary"
                     size="sm"
-                    disabled={!canFetch}
-                    onClick={handleFetchModels}
+                    onClick={openAddDialog}
                   >
-                    {isFetching ? (
-                      <>
-                        <Loader2 className="mr-1 size-3.5 animate-spin" />
-                        {t('providers.fetchingModels')}
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw className="mr-1 size-3.5" />
-                        {t('providers.fetchModels')}
-                      </>
-                    )}
+                    <Plus className="mr-1 size-3.5" />
+                    {t('providers.addModel')}
                   </Button>
-                ) : (
-                  <HStack gap={2}>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      disabled={!canFetch}
-                      onClick={handleFetchModels}
-                    >
-                      {isFetching ? (
-                        <>
-                          <Loader2 className="mr-1 size-3.5 animate-spin" />
-                          {t('providers.fetchingModels')}
-                        </>
-                      ) : (
-                        <>
-                          <RefreshCw className="mr-1 size-3.5" />
-                          {t('providers.fetchModels')}
-                        </>
-                      )}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      onClick={openAddDialog}
-                    >
-                      <Plus className="mr-1 size-3.5" />
-                      {t('providers.addModel')}
-                    </Button>
-                  </HStack>
-                )}
+                </HStack>
               </HStack>
 
               {fetchError && (
@@ -647,110 +668,163 @@ export function ProviderAddPanel({
                 </Text>
               )}
 
-              {/* Fetched models checklist */}
-              {hasFetched && availableFetchedModels.length > 0 && (
-                <Stack gap={2}>
-                  <HStack gap={2} align="center">
-                    <Checkbox
-                      checked={allCheckboxState}
-                      onCheckedChange={(checked) =>
-                        handleToggleAllModels(checked === true)
-                      }
-                    />
-                    <div className="min-w-0 flex-1">
-                      <SearchInput
-                        value={modelSearch}
-                        onChange={(e) => setModelSearch(e.target.value)}
-                        placeholder={t('providers.searchModels')}
-                      />
-                    </div>
-                  </HStack>
-                  <div className="max-h-80 overflow-y-auto">
-                    <Stack gap={1}>
-                      {filteredFetchedModels.map((modelId) => (
-                        <label
-                          key={modelId}
-                          className="hover:bg-accent flex items-center gap-2 rounded px-1 py-0.5 text-sm"
-                        >
-                          <Checkbox
-                            checked={selectedModelIds.has(modelId)}
-                            onCheckedChange={(checked) =>
-                              handleToggleModel(modelId, checked === true)
-                            }
-                          />
-                          <span className="font-mono text-xs">{modelId}</span>
-                        </label>
-                      ))}
-                    </Stack>
-                  </div>
-                  {selectedModelIds.size > 0 && (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      onClick={handleAddSelectedModels}
-                      className="self-start"
-                    >
-                      <Plus className="mr-1 size-3.5" />
-                      {t('providers.modelsSelected', {
-                        count: selectedModelIds.size,
-                      })}
-                    </Button>
-                  )}
-                </Stack>
+              {isFetching && rows.length === 0 && (
+                <div
+                  className="border-border flex items-center justify-center gap-2 rounded-lg border px-4 py-8"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <Loader2 className="text-muted-foreground size-4 animate-spin" />
+                  <Text variant="caption" className="text-muted-foreground">
+                    {t('providers.fetchingModels')}
+                  </Text>
+                </div>
               )}
 
-              {hasFetched &&
-                availableFetchedModels.length === 0 &&
-                fetchedModels.length > 0 && (
-                  <Text variant="muted" className="text-sm">
-                    {t('providers.modelsSelected', {
-                      count: watchedModels.length,
-                    })}
-                  </Text>
-                )}
-
-              {/* Added models list */}
-              {fields.length > 0 && (
-                <Stack gap={2}>
-                  {fields.map((field, index) => (
-                    <div key={field.id} className="rounded-lg border p-3">
-                      <HStack justify="between" align="start">
-                        <Stack gap={1} className="min-w-0 flex-1">
-                          <Text className="text-muted-foreground font-mono text-xs">
-                            {watchedModels[index]?.id}
-                          </Text>
-                          <HStack gap={2} align="center" className="flex-wrap">
-                            <Text className="text-sm font-medium">
-                              {watchedModels[index]?.displayName}
+              {rows.length > 0 && (
+                <div className="overflow-hidden rounded-lg border">
+                  <div className="border-border border-b px-3 py-2">
+                    <SearchInput
+                      value={modelSearch}
+                      onChange={(e) => setModelSearch(e.target.value)}
+                      placeholder={t('providers.searchModels')}
+                      className="h-6 w-full bg-transparent ring-0! ring-transparent!"
+                    />
+                  </div>
+                  <Stack gap={0}>
+                    {filteredRows.length === 0 && (
+                      <div className="flex flex-col items-center justify-center gap-1 px-4 py-8">
+                        <Text className="text-sm font-medium">
+                          {t('providers.modelsEmpty.searchTitle')}
+                        </Text>
+                        <Text
+                          variant="caption"
+                          className="text-muted-foreground text-[12px]"
+                        >
+                          {t('providers.modelsEmpty.searchDescription')}
+                        </Text>
+                      </div>
+                    )}
+                    {visibleRows.map((row, rowIdx) => {
+                      const model =
+                        row.formIndex != null
+                          ? watchedModels[row.formIndex]
+                          : null;
+                      const [primaryTag, ...restTags] = model?.tags ?? [];
+                      const overflowCount = restTags.length;
+                      const isLast =
+                        rowIdx === visibleRows.length - 1 &&
+                        visibleRows.length === filteredRows.length;
+                      const isAdded = row.formIndex != null;
+                      return (
+                        <HStack
+                          key={`${row.source}:${row.id}`}
+                          justify="between"
+                          align="center"
+                          gap={4}
+                          className={
+                            isLast
+                              ? 'px-4 py-2.5'
+                              : 'border-border border-b px-4 py-2.5'
+                          }
+                        >
+                          <HStack gap={3} align="center" className="min-w-0">
+                            {row.source === 'fetched' && (
+                              <Checkbox
+                                checked={isAdded}
+                                onCheckedChange={(checked) =>
+                                  handleToggleFetchedModel(
+                                    row.id,
+                                    checked === true,
+                                  )
+                                }
+                                aria-label={
+                                  isAdded
+                                    ? t('providers.removeModel')
+                                    : t('providers.addModel')
+                                }
+                              />
+                            )}
+                            <Text className="truncate text-[13px] font-medium">
+                              {model?.displayName ?? row.id}
                             </Text>
-                            {watchedModels[index]?.tags.map((tag) => (
-                              <Badge key={tag} variant="outline">
-                                {modelTagLabel(tag, t)}
-                              </Badge>
-                            ))}
                           </HStack>
-                        </Stack>
-                        <HStack gap={1} className="shrink-0">
-                          <IconButton
-                            type="button"
-                            icon={Pencil}
-                            aria-label={t('providers.editModel')}
-                            className="text-muted-foreground size-7"
-                            onClick={() => openEditDialog(index)}
-                          />
-                          <IconButton
-                            type="button"
-                            icon={Trash2}
-                            aria-label={t('providers.removeModel')}
-                            className="text-muted-foreground hover:text-destructive size-7"
-                            onClick={() => remove(index)}
-                          />
+                          <HStack gap={3} align="center" className="shrink-0">
+                            {isAdded && primaryTag && (
+                              <HStack gap={1} align="center">
+                                <Badge
+                                  variant="outline"
+                                  className="bg-muted text-muted-foreground border-transparent px-1.5 py-0.5 text-[11px]"
+                                >
+                                  {modelTagLabel(primaryTag, t)}
+                                </Badge>
+                                {overflowCount > 0 && (
+                                  <Badge
+                                    variant="outline"
+                                    title={restTags
+                                      .map((tag) => modelTagLabel(tag, t))
+                                      .join(', ')}
+                                    className="bg-muted text-muted-foreground border-transparent px-1.5 py-0.5 text-[11px]"
+                                  >
+                                    +{overflowCount}
+                                  </Badge>
+                                )}
+                              </HStack>
+                            )}
+                            {isAdded && row.formIndex != null && (
+                              <IconButton
+                                type="button"
+                                icon={Pencil}
+                                aria-label={t('providers.editModel')}
+                                variant="ghost"
+                                className="text-muted-foreground hover:text-foreground size-7"
+                                onClick={() => openEditDialog(row.formIndex!)}
+                              />
+                            )}
+                            {row.source === 'manual' &&
+                              row.formIndex != null && (
+                                <IconButton
+                                  type="button"
+                                  icon={Trash2}
+                                  aria-label={t('providers.removeModel')}
+                                  variant="ghost"
+                                  className="text-muted-foreground hover:text-destructive size-7"
+                                  onClick={() => remove(row.formIndex!)}
+                                />
+                              )}
+                          </HStack>
                         </HStack>
-                      </HStack>
-                    </div>
-                  ))}
-                </Stack>
+                      );
+                    })}
+                  </Stack>
+                  {filteredRows.length > PAGE_SIZE && (
+                    <HStack
+                      justify="between"
+                      align="center"
+                      gap={2}
+                      className="border-border bg-muted/30 border-t px-4 py-2"
+                    >
+                      <Text
+                        variant="caption"
+                        className="text-muted-foreground text-[12px]"
+                      >
+                        {t('providers.showingModels', {
+                          filtered: visibleRows.length,
+                          total: filteredRows.length,
+                        })}
+                      </Text>
+                      {visibleRows.length < filteredRows.length && (
+                        <button
+                          type="button"
+                          onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+                          className="text-foreground hover:text-foreground/80 text-[12px] font-medium"
+                        >
+                          {t('providers.showMoreModels')}
+                        </button>
+                      )}
+                    </HStack>
+                  )}
+                </div>
               )}
             </Stack>
           </Stack>

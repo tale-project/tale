@@ -1019,6 +1019,7 @@
       "editModel": "Modell bearbeiten",
       "deleteModel": "Modell löschen",
       "deleteModelConfirm": "Möchtest du \"{model}\" wirklich löschen?",
+      "addModelConfirm": "\"{model}\" zu diesem Anbieter hinzufügen? Du kannst die Details danach bearbeiten.",
       "default": "Standard",
       "modelId": "Modell-ID",
       "displayName": "Anzeigename",
@@ -1113,13 +1114,16 @@
       "deleteConfirmNamed": "Möchtest du den Anbieter \"{name}\" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden. Alle Modellkonfigurationen dieses Anbieters werden entfernt.",
       "providerActions": "Anbieteraktionen",
       "saveChanges": "Änderungen speichern",
-      "addModelShort": "+ Modell hinzufügen",
+      "addModelShort": "Modell hinzufügen",
       "byomGuidanceTitle": "Erste Schritte",
       "byomGuidance": "Jeder OpenAI-kompatible Endpunkt funktioniert hier. Setze die Basis-URL auf deinen selbst gehosteten Inferenzserver (z. B. vLLM, Ollama, LocalAI) oder ein Gateway wie OpenRouter, um Modelle wie LLaMA, Mistral, Gemini und mehr zu nutzen.",
       "tagsRequired": "Mindestens ein Tag ist erforderlich",
       "modelsRequired": "Mindestens ein Modell ist erforderlich",
       "fetchModels": "Modelle abrufen",
+      "selectAllModels": "Alle Modelle auswählen",
       "searchModels": "Modelle suchen…",
+      "showingModels": "{filtered} von {total} Modellen",
+      "showMoreModels": "Mehr anzeigen",
       "modelsEmpty": {
         "noModelsTitle": "Noch keine Modelle",
         "noModelsDescription": "Füge ein Modell hinzu, um es für diesen Anbieter verfügbar zu machen.",
@@ -1148,7 +1152,10 @@
       "tagImageEdit": "Bildbearbeitung",
       "tagImageGeneration": "Bildgenerierung",
       "tagTextToSpeech": "Text-zu-Sprache",
-      "tagTranscription": "Transkription"
+      "tagTranscription": "Transkription",
+      "details": "Anbieterdetails",
+      "capabilities": "Fähigkeiten",
+      "apiKeyUpdated": "Ihr API-Schlüssel wurde erfolgreich gespeichert."
     },
     "form": {
       "name": "Name",

@@ -167,6 +167,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                   remaining?: null | number;
                   requestCount?: null | number;
                   start?: null | string;
+                  suffix?: null | string;
                   updatedAt: number;
                   userId?: string;
                 };
@@ -546,6 +547,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                     | "permissions"
                     | "metadata"
                     | "userId"
+                    | "suffix"
                     | "_id";
                   operator?:
                     | "lt"
@@ -971,6 +973,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                     | "permissions"
                     | "metadata"
                     | "userId"
+                    | "suffix"
                     | "_id";
                   operator?:
                     | "lt"
@@ -1573,6 +1576,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                   remaining?: null | number;
                   requestCount?: null | number;
                   start?: null | string;
+                  suffix?: null | string;
                   updatedAt?: number;
                   userId?: string;
                 };
@@ -1601,6 +1605,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                     | "permissions"
                     | "metadata"
                     | "userId"
+                    | "suffix"
                     | "_id";
                   operator?:
                     | "lt"
@@ -2113,6 +2118,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                   remaining?: null | number;
                   requestCount?: null | number;
                   start?: null | string;
+                  suffix?: null | string;
                   updatedAt?: number;
                   userId?: string;
                 };
@@ -2141,6 +2147,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                     | "permissions"
                     | "metadata"
                     | "userId"
+                    | "suffix"
                     | "_id";
                   operator?:
                     | "lt"

@@ -4,7 +4,6 @@ import { Button } from '@tale/ui/button';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { IconButton } from '@tale/ui/icon-button';
 import { useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
 import type { Row } from '@tanstack/react-table';
 import { Ellipsis, Pencil, Plus, Server, Trash2, Zap } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
@@ -25,6 +24,7 @@ import { useDeleteProvider } from '../hooks/mutations';
 import { useListProviders } from '../hooks/queries';
 import { useProvidersTableConfig } from '../hooks/use-providers-table-config';
 import { ProviderAddPanel } from './provider-add-panel';
+import { ProviderDetailDrawer } from './provider-detail-drawer';
 import { ProviderEditPanel } from './provider-edit-panel';
 import { TestConnectionSheet } from './test-connection-sheet';
 
@@ -38,13 +38,22 @@ export interface ProviderRow {
 
 interface ProvidersTableProps {
   organizationId: string;
+  /**
+   * When set, the drawer auto-opens for this provider on mount. Used by the
+   * deep-link route (`/providers/$providerName`) to render the list and open
+   * the detail drawer in a single render — preserves shareable URLs after the
+   * detail page was collapsed into a drawer.
+   */
+  initialDetailProvider?: string;
 }
 
-export function ProvidersTable({ organizationId }: ProvidersTableProps) {
+export function ProvidersTable({
+  organizationId,
+  initialDetailProvider,
+}: ProvidersTableProps) {
   const { t } = useT('settings');
   const { t: tEmpty } = useT('emptyStates');
   const { t: tCommon } = useT('common');
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: organization } = useOrganization(organizationId);
   const orgSlug = organization?.slug ?? '';
@@ -55,6 +64,9 @@ export function ProvidersTable({ organizationId }: ProvidersTableProps) {
   const [testProvider, setTestProvider] = useState<ProviderRow | null>(null);
   const [deleteProvider, setDeleteProvider] = useState<ProviderRow | null>(
     null,
+  );
+  const [detailProvider, setDetailProvider] = useState(
+    initialDetailProvider ?? null,
   );
   const deleteProviderMutation = useDeleteProvider();
 
@@ -89,15 +101,9 @@ export function ProvidersTable({ organizationId }: ProvidersTableProps) {
 
   const { columns, stickyLayout, pageSize } = useProvidersTableConfig();
 
-  const handleRowClick = useCallback(
-    (row: Row<ProviderRow>) => {
-      void navigate({
-        to: '/dashboard/$id/settings/providers/$providerName',
-        params: { id: organizationId, providerName: row.original.name },
-      });
-    },
-    [navigate, organizationId],
-  );
+  const handleRowClick = useCallback((row: Row<ProviderRow>) => {
+    setDetailProvider(row.original.name);
+  }, []);
 
   const handleDelete = useCallback(async () => {
     if (!deleteProvider || !orgSlug) return;
@@ -204,6 +210,17 @@ export function ProvidersTable({ organizationId }: ProvidersTableProps) {
         isLoading={deleteProviderMutation.isPending}
         onConfirm={() => void handleDelete()}
       />
+
+      {detailProvider && (
+        <ProviderDetailDrawer
+          open
+          onOpenChange={(open) => {
+            if (!open) setDetailProvider(null);
+          }}
+          organizationId={organizationId}
+          providerName={detailProvider}
+        />
+      )}
     </>
   );
 }

@@ -1,0 +1,1599 @@
+'use client';
+
+import { Badge } from '@tale/ui/badge';
+import { Button } from '@tale/ui/button';
+import { IconButton } from '@tale/ui/icon-button';
+import { Skeleton } from '@tale/ui/skeleton';
+import {
+  AlertTriangle,
+  Layers,
+  Loader2,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Trash2,
+  X,
+  Zap,
+} from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
+import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
+import { Alert } from '@/app/components/ui/feedback/alert';
+import { EmptyState } from '@/app/components/ui/feedback/empty-state';
+import { Checkbox } from '@/app/components/ui/forms/checkbox';
+import { Input } from '@/app/components/ui/forms/input';
+import { SearchInput } from '@/app/components/ui/forms/search-input';
+import { Select } from '@/app/components/ui/forms/select';
+import { Textarea } from '@/app/components/ui/forms/textarea';
+import { Card } from '@/app/components/ui/layout/card';
+import { HStack, Stack } from '@/app/components/ui/layout/layout';
+import { Sheet } from '@/app/components/ui/overlays/sheet';
+import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import { Text } from '@/app/components/ui/typography/text';
+import { useOrganization } from '@/app/features/organization/hooks/queries';
+import { toast } from '@/app/hooks/use-toast';
+import { useT } from '@/lib/i18n/client';
+import { modelTagLiterals } from '@/lib/shared/schemas/providers';
+import { cn } from '@/lib/utils/cn';
+
+import {
+  useFetchConfiguredProviderModels,
+  useSaveProviderSecret,
+} from '../hooks/mutations';
+import { useHasProviderSecret, useReadProvider } from '../hooks/queries';
+import {
+  ProviderConfigProvider,
+  useProviderConfig,
+} from '../hooks/use-provider-config-context';
+import {
+  dispatchForbiddenDeveloperSettings,
+  dispatchVersionConflict,
+  readConvexErrorData,
+} from '../utils/error-dispatch';
+import { modelTagLabel } from '../utils/model-tag-label';
+import { ProviderDefaultModelsPanel } from './provider-default-models-panel';
+import { ProviderEditPanel } from './provider-edit-panel';
+import {
+  ModelProviderOptionsField,
+  ProviderOptionsEditor,
+  providerOptionsToJsonString,
+} from './provider-options-editor';
+import { TestConnectionSheet } from './test-connection-sheet';
+
+interface ProviderDetailDrawerProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  organizationId: string;
+  providerName: string;
+}
+
+export function ProviderDetailDrawer({
+  open,
+  onOpenChange,
+  organizationId,
+  providerName,
+}: ProviderDetailDrawerProps) {
+  const { t } = useT('settings');
+  const { t: tCommon } = useT('common');
+  const { data: organization, isLoading: isOrgLoading } =
+    useOrganization(organizationId);
+  const orgSlug = organization?.slug ?? '';
+  const enabled = open && !!orgSlug;
+  const { data, isLoading } = useReadProvider(orgSlug, providerName, {
+    enabled,
+  });
+  const { data: maskedKey, error: secretError } = useHasProviderSecret(
+    orgSlug,
+    providerName,
+    { enabled },
+  );
+
+  const errorData = readConvexErrorData(secretError);
+  const encryptedNoKey = errorData?.code === 'PROVIDER_SECRET_ENCRYPTED_NO_KEY';
+  const encryptedNoKeyPath =
+    encryptedNoKey && typeof errorData?.path === 'string' ? errorData.path : '';
+
+  return (
+    <Sheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t('providers.details')}
+      size="md"
+      hideClose
+      className="flex flex-col gap-0 p-0"
+    >
+      <HStack
+        justify="between"
+        align="center"
+        className="border-border shrink-0 border-b p-4 sm:px-6 sm:py-4"
+      >
+        <Text variant="label" className="text-base font-semibold">
+          {t('providers.details')}
+        </Text>
+        <IconButton
+          icon={X}
+          aria-label={tCommon('aria.close')}
+          variant="ghost"
+          onClick={() => onOpenChange(false)}
+        />
+      </HStack>
+
+      <div className="flex-1 overflow-y-auto p-4 sm:px-6 sm:py-5">
+        {encryptedNoKey && (
+          <div className="pb-5">
+            <Alert
+              variant="destructive"
+              icon={AlertTriangle}
+              title={t('providers.encryptedNoKeyTitle')}
+              description={t('providers.encryptedNoKeyDescription', {
+                path: encryptedNoKeyPath,
+              })}
+            />
+          </div>
+        )}
+
+        {isOrgLoading || isLoading ? (
+          <ProviderDetailSkeleton />
+        ) : !data?.ok ? (
+          <Stack gap={4}>
+            <Text variant="muted">
+              {t('providers.providerNotFound', { name: providerName })}
+            </Text>
+          </Stack>
+        ) : (
+          <ProviderConfigProvider
+            orgSlug={orgSlug}
+            providerName={providerName}
+            initialConfig={data.config}
+            initialHash={data.hash}
+          >
+            <ProviderDetailBody
+              organizationId={organizationId}
+              orgSlug={orgSlug}
+              providerName={providerName}
+              maskedKey={maskedKey ?? null}
+              maskedModelKeys={data.maskedModelKeys ?? {}}
+            />
+          </ProviderConfigProvider>
+        )}
+      </div>
+    </Sheet>
+  );
+}
+
+function ProviderDetailSkeleton() {
+  return (
+    <Stack gap={6}>
+      <Card contentClassName="p-5">
+        <Stack gap={4}>
+          <HStack justify="between" className="border-b pb-4">
+            <Skeleton className="h-5 w-16" />
+            <Skeleton className="h-4 w-20" />
+          </HStack>
+          <Stack gap={3} className="divide-y">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <HStack key={i} gap={4} className="pt-3 first:pt-0">
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-4 w-48" />
+              </HStack>
+            ))}
+          </Stack>
+        </Stack>
+      </Card>
+      <Card contentClassName="p-5">
+        <HStack gap={4}>
+          <Skeleton className="h-5 w-16" />
+          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-4 w-28" />
+        </HStack>
+      </Card>
+      <Card contentClassName="p-5">
+        <Stack gap={4}>
+          <HStack justify="between" className="border-b pb-4">
+            <Skeleton className="h-5 w-28" />
+            <Skeleton className="h-4 w-20" />
+          </HStack>
+          <Stack gap={3} className="divide-y">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <HStack key={i} gap={4} className="pt-3 first:pt-0">
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-4 w-32" />
+              </HStack>
+            ))}
+          </Stack>
+        </Stack>
+      </Card>
+      <Stack gap={3}>
+        <HStack justify="between">
+          <Skeleton className="h-6 w-16" />
+          <Skeleton className="h-9 w-28" />
+        </HStack>
+        <Skeleton className="h-64 w-full rounded-lg" />
+      </Stack>
+    </Stack>
+  );
+}
+
+function ProviderDetailBody({
+  organizationId,
+  orgSlug,
+  providerName,
+  maskedKey,
+  maskedModelKeys,
+}: {
+  organizationId: string;
+  orgSlug: string;
+  providerName: string;
+  maskedKey: string | null;
+  maskedModelKeys: Record<string, string>;
+}) {
+  return (
+    <Stack gap={6}>
+      <GeneralSection
+        providerName={providerName}
+        organizationId={organizationId}
+      />
+      <ApiKeySection
+        orgSlug={orgSlug}
+        providerName={providerName}
+        maskedKey={maskedKey}
+      />
+      <DefaultModelsSection
+        organizationId={organizationId}
+        providerName={providerName}
+      />
+      <ProviderOptionsSection />
+      <ModelsSection
+        orgSlug={orgSlug}
+        providerName={providerName}
+        maskedModelKeys={maskedModelKeys}
+      />
+    </Stack>
+  );
+}
+
+function InfoRow({
+  label,
+  children,
+  muted,
+  isLast,
+}: {
+  label: string;
+  children: React.ReactNode;
+  muted?: boolean;
+  isLast?: boolean;
+}) {
+  return (
+    <HStack
+      gap={4}
+      align="center"
+      className={cn('px-5 py-3.5', !isLast && 'border-b')}
+    >
+      <Text variant="muted" className="w-36 shrink-0 text-sm font-normal">
+        {label}
+      </Text>
+      <div
+        className={cn(
+          'min-w-0 flex-1 text-sm',
+          muted ? 'text-muted-foreground' : 'font-medium',
+        )}
+      >
+        {children}
+      </div>
+    </HStack>
+  );
+}
+
+function SectionHeader({
+  title,
+  description,
+  onEdit,
+  editLabel,
+}: {
+  title: string;
+  description?: string;
+  onEdit: () => void;
+  editLabel: string;
+}) {
+  return (
+    <HStack
+      justify="between"
+      align={description ? 'start' : 'center'}
+      className="border-b px-5 py-4"
+    >
+      <Stack gap={1}>
+        <Text className="text-[15px] font-semibold tracking-[-0.01em]">
+          {title}
+        </Text>
+        {description && (
+          <Text className="text-muted-foreground text-[13px]">
+            {description}
+          </Text>
+        )}
+      </Stack>
+      <button
+        type="button"
+        onClick={onEdit}
+        className="text-muted-foreground hover:text-foreground focus-visible:outline-ring flex shrink-0 items-center gap-1.5 rounded-sm text-[13px] font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-none"
+      >
+        <Pencil className="size-3.5" />
+        {editLabel}
+      </button>
+    </HStack>
+  );
+}
+
+function GeneralSection({
+  providerName,
+  organizationId,
+}: {
+  providerName: string;
+  organizationId: string;
+}) {
+  const { t } = useT('settings');
+  const { config } = useProviderConfig();
+  const [panelOpen, setPanelOpen] = useState(false);
+
+  return (
+    <>
+      <Card contentClassName="p-0">
+        <SectionHeader
+          title={t('providers.general')}
+          onEdit={() => setPanelOpen(true)}
+          editLabel={t('providers.editGeneral')}
+        />
+        <InfoRow label={t('providers.displayName')}>
+          {config.displayName}
+        </InfoRow>
+        <InfoRow label={t('providers.description_field')} muted>
+          {config.description || '—'}
+        </InfoRow>
+        <InfoRow label={t('providers.baseUrl')} muted isLast>
+          {config.baseUrl}
+        </InfoRow>
+      </Card>
+
+      <ProviderEditPanel
+        open={panelOpen}
+        onOpenChange={setPanelOpen}
+        providerName={providerName}
+        organizationId={organizationId}
+      />
+    </>
+  );
+}
+
+function DefaultModelsSection({
+  organizationId,
+  providerName,
+}: {
+  organizationId: string;
+  providerName: string;
+}) {
+  const { t } = useT('settings');
+  const { config } = useProviderConfig();
+  const [panelOpen, setPanelOpen] = useState(false);
+
+  const modelDisplayName = useCallback(
+    (modelId: string | undefined) => {
+      if (!modelId) return '—';
+      return (
+        config.models.find((m) => m.id === modelId)?.displayName ?? modelId
+      );
+    },
+    [config.models],
+  );
+
+  return (
+    <>
+      <Card contentClassName="p-0">
+        <SectionHeader
+          title={t('providers.defaultModels')}
+          description={t('providers.defaultModelsDescription')}
+          onEdit={() => setPanelOpen(true)}
+          editLabel={t('providers.editDefaults')}
+        />
+        <InfoRow label={t('providers.tagChat')}>
+          {modelDisplayName(config.defaults?.chat)}
+        </InfoRow>
+        <InfoRow label={t('providers.tagVision')}>
+          {modelDisplayName(config.defaults?.vision)}
+        </InfoRow>
+        <InfoRow label={t('providers.tagEmbedding')}>
+          {modelDisplayName(config.defaults?.embedding)}
+        </InfoRow>
+        <InfoRow label={t('providers.tagImageGeneration')}>
+          {modelDisplayName(config.defaults?.['image-generation'])}
+        </InfoRow>
+        <InfoRow label={t('providers.tagTranscription')} isLast>
+          {modelDisplayName(config.defaults?.transcription)}
+        </InfoRow>
+      </Card>
+
+      <ProviderDefaultModelsPanel
+        open={panelOpen}
+        onOpenChange={setPanelOpen}
+        organizationId={organizationId}
+        providerName={providerName}
+      />
+    </>
+  );
+}
+
+function ProviderOptionsSection() {
+  const { t } = useT('settings');
+  const { t: tCommon } = useT('common');
+  const { config, isSaving, saveConfig } = useProviderConfig();
+
+  return (
+    <ProviderOptionsEditor
+      initialJson={providerOptionsToJsonString(config.providerOptions)}
+      isSaving={isSaving}
+      onSave={async (parsed) => {
+        await saveConfig({ providerOptions: parsed });
+      }}
+      copy={{
+        title: t('providers.providerOptions.providerLevelTitle'),
+        description: t('providers.providerOptions.providerLevelDescription'),
+        notConfigured: t('providers.providerOptions.notConfigured'),
+        editLabel: t('providers.editGeneral'),
+        saveLabel: t('providers.providerOptions.save'),
+        cancelLabel: tCommon('actions.cancel'),
+        saveSuccess: t('providers.providerOptions.saveSuccess'),
+        saveError: t('providers.providerOptions.saveError'),
+        exampleLabel: t('providers.providerOptions.exampleLabel'),
+        discardConfirmTitle: t('providers.providerOptions.discardConfirmTitle'),
+        discardConfirmDescription: t(
+          'providers.providerOptions.discardConfirmDescription',
+        ),
+        discardConfirmAction: t(
+          'providers.providerOptions.discardConfirmAction',
+        ),
+        discardConfirmKeep: t('providers.providerOptions.discardConfirmKeep'),
+        objectRequiredError: t('providers.providerOptions.objectRequiredError'),
+      }}
+    />
+  );
+}
+
+function ApiKeySection({
+  orgSlug,
+  providerName,
+  maskedKey,
+}: {
+  orgSlug: string;
+  providerName: string;
+  maskedKey: string | null;
+}) {
+  const { t } = useT('settings');
+  const hasSecret = maskedKey != null;
+  const saveSecret = useSaveProviderSecret();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [testDialogOpen, setTestDialogOpen] = useState(false);
+  const [apiKey, setApiKey] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [overwritePrompt, setOverwritePrompt] = useState<{
+    kind: 'encrypted_no_key' | 'undecryptable_existing';
+    path: string;
+    reason?: string;
+  } | null>(null);
+  const apiKeyInputRef = useRef<HTMLInputElement>(null);
+
+  const performSave = useCallback(
+    async (force: boolean) => {
+      if (!apiKey.trim() || !orgSlug) return;
+      setSaving(true);
+      try {
+        await saveSecret.mutateAsync({
+          orgSlug,
+          providerName,
+          apiKey: apiKey.trim(),
+          force: force || undefined,
+        });
+        setApiKey('');
+        setDialogOpen(false);
+        setOverwritePrompt(null);
+        toast({
+          title: t('providers.apiKeyUpdated'),
+          variant: 'success',
+        });
+      } catch (err) {
+        const data = readConvexErrorData(err);
+        if (
+          data?.code === 'PROVIDER_SECRET_REFUSED_OVERWRITE' &&
+          (data.kind === 'encrypted_no_key' ||
+            data.kind === 'undecryptable_existing')
+        ) {
+          setOverwritePrompt({
+            kind: data.kind,
+            path: typeof data.path === 'string' ? data.path : '',
+            reason: typeof data.reason === 'string' ? data.reason : undefined,
+          });
+        } else {
+          setOverwritePrompt(null);
+          if (!dispatchForbiddenDeveloperSettings(err, t)) {
+            toast({
+              title: t('providers.secretSaveFailed'),
+              variant: 'destructive',
+            });
+          }
+        }
+      } finally {
+        setSaving(false);
+      }
+    },
+    [apiKey, orgSlug, providerName, saveSecret, t],
+  );
+
+  const handleSaveKey = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      await performSave(false);
+    },
+    [performSave],
+  );
+
+  const handleConfirmOverwrite = useCallback(() => {
+    void performSave(true);
+  }, [performSave]);
+
+  return (
+    <>
+      <Card contentClassName="p-0">
+        <SectionHeader
+          title={t('providers.apiKey')}
+          onEdit={() => setDialogOpen(true)}
+          editLabel={hasSecret ? t('providers.editKey') : t('providers.addKey')}
+        >
+          <button
+            type="button"
+            onClick={() => setTestDialogOpen(true)}
+            className="text-muted-foreground hover:text-foreground focus-visible:outline-ring ml-auto flex items-center gap-1.5 rounded-sm text-[13px] font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-none"
+          >
+            <Zap className="size-3.5" />
+            {t('providers.testConnection')}
+          </button>
+        </SectionHeader>
+        {hasSecret ? (
+          <HStack gap={4} align="center" className="flex-wrap px-5 py-3.5">
+            <Badge variant="green" dot>
+              {t('providers.apiKeyConfigured')}
+            </Badge>
+            <Text className="text-muted-foreground font-mono text-sm">
+              {maskedKey}
+            </Text>
+          </HStack>
+        ) : (
+          <HStack gap={3} align="center" className="px-5 py-3.5">
+            <Badge variant="outline">
+              {t('providers.apiKeyNotConfigured')}
+            </Badge>
+          </HStack>
+        )}
+      </Card>
+
+      <FormDialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) setApiKey('');
+        }}
+        title={
+          hasSecret ? t('providers.replaceApiKey') : t('providers.addApiKey')
+        }
+        onSubmit={handleSaveKey}
+        isSubmitting={saving}
+        isValid={apiKey.trim().length > 0}
+        submitText={t('providers.saveKey')}
+        submittingText={t('providers.saving')}
+      >
+        {hasSecret && (
+          <Text className="text-muted-foreground text-sm">
+            {t('providers.replaceApiKeyDescription', {
+              maskedKey: maskedKey ?? '',
+            })}
+          </Text>
+        )}
+        <Input
+          ref={apiKeyInputRef}
+          autoFocus
+          type="password"
+          label={t('providers.apiKey')}
+          placeholder={t('providers.apiKeyEnter')}
+          value={apiKey}
+          onChange={(e) => setApiKey(e.target.value)}
+        />
+      </FormDialog>
+
+      <TestConnectionSheet
+        open={testDialogOpen}
+        onOpenChange={setTestDialogOpen}
+        orgSlug={orgSlug}
+        providerName={providerName}
+      />
+
+      <ConfirmDialog
+        open={overwritePrompt != null}
+        onOpenChange={(open) => {
+          if (!open) setOverwritePrompt(null);
+        }}
+        title={t('providers.overwriteUnreadableTitle')}
+        description={
+          overwritePrompt
+            ? overwritePrompt.kind === 'encrypted_no_key'
+              ? t('providers.overwriteEncryptedNoKeyDescription', {
+                  path: overwritePrompt.path,
+                })
+              : t('providers.overwriteUndecryptableDescription', {
+                  path: overwritePrompt.path,
+                  reason: overwritePrompt.reason ?? '',
+                })
+            : ''
+        }
+        confirmText={t('providers.overwriteAnywayConfirm')}
+        variant="destructive"
+        isLoading={saving}
+        onConfirm={handleConfirmOverwrite}
+      />
+    </>
+  );
+}
+
+interface ModelFormState {
+  id: string;
+  displayName: string;
+  description: string;
+  tags: string[];
+  dimensions: string;
+  inputCostPerMillion: string;
+  outputCostPerMillion: string;
+  imageCostPerImage: string;
+  imageGenerationMode: '' | 'images-api' | 'chat-multimodal';
+  baseUrl: string;
+  apiKey: string;
+  providerOptionsJson: string;
+}
+
+const EMPTY_MODEL_FORM: ModelFormState = {
+  id: '',
+  displayName: '',
+  description: '',
+  tags: ['chat'],
+  dimensions: '',
+  inputCostPerMillion: '',
+  outputCostPerMillion: '',
+  imageCostPerImage: '',
+  imageGenerationMode: '',
+  baseUrl: '',
+  apiKey: '',
+  providerOptionsJson: '',
+};
+
+function ModelsSection({
+  orgSlug,
+  providerName,
+  maskedModelKeys,
+}: {
+  orgSlug: string;
+  providerName: string;
+  maskedModelKeys: Record<string, string>;
+}) {
+  const { t } = useT('settings');
+  const { t: tCommon } = useT('common');
+  const { config, saveConfig, isSaving } = useProviderConfig();
+  const saveSecret = useSaveProviderSecret();
+  const {
+    mutateAsync: fetchProviderModels,
+    isPending: isFetchingFromProvider,
+  } = useFetchConfiguredProviderModels();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [form, setForm] = useState(EMPTY_MODEL_FORM);
+  const [initialForm, setInitialForm] = useState(EMPTY_MODEL_FORM);
+  const [deleteIndex, setDeleteIndex] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [savingSecret, setSavingSecret] = useState(false);
+  const [modelKeyAction, setModelKeyAction] = useState<
+    'none' | 'remove' | 'replace'
+  >('none');
+  const modelIdInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetched-but-not-yet-configured model IDs from the provider's /models
+  // endpoint. Configured models live in config.models — this list holds the
+  // delta the user can opt into via checkbox.
+  const [fetchedModelIds, setFetchedModelIds] = useState<string[]>([]);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [hasFetched, setHasFetched] = useState(false);
+  const [confirmAddModel, setConfirmAddModel] = useState<string | null>(null);
+  const PAGE_SIZE = 10;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  const handleFetchFromProvider = useCallback(async () => {
+    setFetchError(null);
+    try {
+      const result = await fetchProviderModels({ orgSlug, providerName });
+      setFetchedModelIds(result.map((m) => m.id));
+      setHasFetched(true);
+    } catch (err) {
+      console.error('Failed to fetch provider models:', err);
+      setFetchError(t('providers.fetchModelsError'));
+      // Mark as "attempted" even on failure so the trash gating doesn't keep
+      // pretending we have no information. With hasFetched=true + empty
+      // fetchedModelIds, every configured model reads as manual, which is
+      // the same fallback as before any fetch — but importantly, the loading
+      // spinner stops and the user can retry via the Fetch button.
+      setHasFetched(true);
+    }
+  }, [fetchProviderModels, orgSlug, providerName, t]);
+
+  // Quick-add a fetched model: same shape as openAddDialog → submit, but
+  // skipping the dialog. Defaults to a 'chat' tag matching the add-panel
+  // behavior; the user can edit metadata afterwards via the pencil button.
+  const quickAddFetchedModel = useCallback(
+    async (modelId: string) => {
+      const updatedModels = [
+        ...config.models,
+        {
+          id: modelId,
+          displayName: modelId,
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 'chat' is a valid modelTagLiterals member
+          tags: ['chat'] as Array<(typeof modelTagLiterals)[number]>,
+        },
+      ];
+      try {
+        await saveConfig({ models: updatedModels });
+      } catch (err) {
+        if (dispatchForbiddenDeveloperSettings(err, t)) return;
+        if (dispatchVersionConflict(err, t)) return;
+        toast({ title: t('providers.saveFailed'), variant: 'destructive' });
+      }
+    },
+    [config.models, saveConfig, t],
+  );
+
+  const openAddDialog = useCallback(() => {
+    setEditingIndex(null);
+    setForm(EMPTY_MODEL_FORM);
+    setInitialForm(EMPTY_MODEL_FORM);
+    setModelKeyAction('none');
+    setDialogOpen(true);
+  }, []);
+
+  const openEditDialog = useCallback(
+    (index: number) => {
+      const model = config.models[index];
+      if (!model) return;
+      setEditingIndex(index);
+      const formData: ModelFormState = {
+        id: model.id,
+        displayName: model.displayName,
+        description: model.description ?? '',
+        tags: [...model.tags],
+        dimensions: model.dimensions != null ? String(model.dimensions) : '',
+        inputCostPerMillion:
+          model.cost?.inputCentsPerMillion != null
+            ? String(model.cost.inputCentsPerMillion / 100)
+            : '',
+        outputCostPerMillion:
+          model.cost?.outputCentsPerMillion != null
+            ? String(model.cost.outputCentsPerMillion / 100)
+            : '',
+        imageCostPerImage:
+          model.cost?.imageCentsPerImage != null
+            ? String(model.cost.imageCentsPerImage / 100)
+            : '',
+        imageGenerationMode: model.imageGenerationMode ?? '',
+        baseUrl: model.baseUrl ?? '',
+        apiKey: '',
+        providerOptionsJson: providerOptionsToJsonString(model.providerOptions),
+      };
+      setForm(formData);
+      setInitialForm(formData);
+      setModelKeyAction('none');
+      setDialogOpen(true);
+    },
+    [config.models],
+  );
+
+  const handleSubmitModel = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      const hasTokenCost =
+        !!form.inputCostPerMillion || !!form.outputCostPerMillion;
+      const hasImageCost = !!form.imageCostPerImage;
+      const cost =
+        hasTokenCost || hasImageCost
+          ? {
+              ...(hasTokenCost
+                ? {
+                    inputCentsPerMillion: form.inputCostPerMillion
+                      ? Math.round(Number(form.inputCostPerMillion) * 100)
+                      : 0,
+                    outputCentsPerMillion: form.outputCostPerMillion
+                      ? Math.round(Number(form.outputCostPerMillion) * 100)
+                      : 0,
+                  }
+                : {}),
+              ...(hasImageCost
+                ? {
+                    imageCentsPerImage: Math.round(
+                      Number(form.imageCostPerImage) * 100,
+                    ),
+                  }
+                : {}),
+            }
+          : undefined;
+      const isImageGen = form.tags.includes('image-generation');
+      let providerOptions: Record<string, unknown> | undefined;
+      const trimmedProviderOptions = form.providerOptionsJson.trim();
+      if (trimmedProviderOptions) {
+        try {
+          const parsed: unknown = JSON.parse(trimmedProviderOptions);
+          if (
+            parsed != null &&
+            typeof parsed === 'object' &&
+            !Array.isArray(parsed)
+          ) {
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- runtime checks above narrow `parsed` to a non-null, non-array plain object; TS can't track the narrowing across JSON.parse
+            const obj = parsed as Record<string, unknown>;
+            if (Object.keys(obj).length > 0) {
+              providerOptions = obj;
+            }
+          }
+        } catch (parseErr) {
+          toast({
+            title: t('providers.providerOptions.invalidJson'),
+            description:
+              parseErr instanceof Error ? parseErr.message : String(parseErr),
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
+      const model = {
+        id: form.id,
+        displayName: form.displayName,
+        description: form.description || undefined,
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- tags are constrained to modelTagLiterals values
+        tags: form.tags as Array<(typeof modelTagLiterals)[number]>,
+        dimensions: form.dimensions ? Number(form.dimensions) : undefined,
+        imageGenerationMode:
+          isImageGen && form.imageGenerationMode
+            ? form.imageGenerationMode
+            : undefined,
+        baseUrl: form.baseUrl.trim() || undefined,
+        cost,
+        providerOptions,
+      };
+      const updatedModels =
+        editingIndex != null
+          ? config.models.map((m, i) => (i === editingIndex ? model : m))
+          : [...config.models, model];
+      try {
+        await saveConfig({ models: updatedModels });
+        if ((form.apiKey.trim() || modelKeyAction === 'remove') && orgSlug) {
+          setSavingSecret(true);
+          try {
+            await saveSecret.mutateAsync({
+              orgSlug,
+              providerName,
+              modelKeys: {
+                [form.id]:
+                  modelKeyAction === 'remove' ? '' : form.apiKey.trim(),
+              },
+            });
+          } finally {
+            setSavingSecret(false);
+          }
+        }
+        setDialogOpen(false);
+      } catch (err) {
+        if (dispatchForbiddenDeveloperSettings(err, t)) return;
+        if (dispatchVersionConflict(err, t)) return;
+        toast({ title: t('providers.saveFailed'), variant: 'destructive' });
+      }
+    },
+    [
+      form,
+      editingIndex,
+      config.models,
+      saveConfig,
+      saveSecret,
+      orgSlug,
+      providerName,
+      modelKeyAction,
+      t,
+    ],
+  );
+
+  const handleDeleteModel = useCallback(async () => {
+    if (deleteIndex == null) return;
+    const deletedModel = config.models[deleteIndex];
+    try {
+      const cleanedDefaults: Record<string, string> = {};
+      if (config.defaults) {
+        for (const [k, v] of Object.entries(config.defaults)) {
+          if (v !== undefined && v !== deletedModel?.id) {
+            cleanedDefaults[k] = v;
+          }
+        }
+      }
+      const cleanedDefaultsOrUndef =
+        Object.keys(cleanedDefaults).length > 0 ? cleanedDefaults : undefined;
+      await saveConfig({
+        models: config.models.filter((_, i) => i !== deleteIndex),
+        defaults: cleanedDefaultsOrUndef,
+      });
+      if (deletedModel && orgSlug) {
+        await saveSecret.mutateAsync({
+          orgSlug,
+          providerName,
+          modelKeys: { [deletedModel.id]: '' },
+        });
+      }
+      setDeleteIndex(null);
+    } catch (err) {
+      if (dispatchForbiddenDeveloperSettings(err, t)) return;
+      if (dispatchVersionConflict(err, t)) return;
+      toast({ title: t('providers.saveFailed'), variant: 'destructive' });
+    }
+  }, [
+    deleteIndex,
+    config.models,
+    config.defaults,
+    saveConfig,
+    saveSecret,
+    orgSlug,
+    providerName,
+    t,
+  ]);
+
+  // Unified row list mirroring the add-panel layout: every configured model
+  // sits alongside any fetched-but-not-yet-configured model IDs. Configured
+  // rows render the existing edit/delete actions; fetched-only rows expose
+  // a checkbox that triggers the confirm-and-add flow.
+  type ModelRow =
+    | {
+        source: 'configured';
+        id: string;
+        configuredIndex: number;
+      }
+    | {
+        source: 'fetched';
+        id: string;
+        configuredIndex: null;
+      };
+  const rows = useMemo<ModelRow[]>(() => {
+    const configuredIds = new Set(config.models.map((m) => m.id));
+    const configuredRows: ModelRow[] = config.models.map((m, i) => ({
+      source: 'configured',
+      id: m.id,
+      configuredIndex: i,
+    }));
+    const fetchedRows: ModelRow[] = fetchedModelIds
+      .filter((id) => !configuredIds.has(id))
+      .map((id) => ({ source: 'fetched', id, configuredIndex: null }));
+    return [...configuredRows, ...fetchedRows];
+  }, [config.models, fetchedModelIds]);
+
+  const filteredRows = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    const base = !query
+      ? rows
+      : rows.filter((row) => {
+          const model =
+            row.configuredIndex != null
+              ? config.models[row.configuredIndex]
+              : null;
+          const haystack = [
+            row.id,
+            model?.displayName ?? '',
+            model?.description ?? '',
+            ...(model?.tags.map((tag) => modelTagLabel(tag, t)) ?? []),
+            ...(model?.tags ?? []),
+          ]
+            .join(' ')
+            .toLowerCase();
+          return haystack.includes(query);
+        });
+    // Configured (selected) rows float to top, preserving original order
+    // within each group. Matches the add-panel toggle behavior.
+    return base
+      .map((row, idx) => ({ row, idx }))
+      .sort((a, b) => {
+        const aSel = a.row.source === 'configured' ? 0 : 1;
+        const bSel = b.row.source === 'configured' ? 0 : 1;
+        if (aSel !== bSel) return aSel - bSel;
+        return a.idx - b.idx;
+      })
+      .map((entry) => entry.row);
+  }, [rows, searchQuery, config.models, t]);
+
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [searchQuery, fetchedModelIds]);
+
+  const visibleRows = useMemo(
+    () => filteredRows.slice(0, visibleCount),
+    [filteredRows, visibleCount],
+  );
+
+  const fetchedModelIdSet = useMemo(
+    () => new Set(fetchedModelIds),
+    [fetchedModelIds],
+  );
+
+  return (
+    <>
+      <Stack gap={3}>
+        <HStack justify="between" align="center">
+          <Text className="text-[15px] font-semibold tracking-[-0.01em]">
+            {t('providers.models')}
+          </Text>
+          <HStack gap={2} align="center">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => void handleFetchFromProvider()}
+              disabled={isFetchingFromProvider}
+            >
+              {isFetchingFromProvider ? (
+                <Loader2 className="mr-1 size-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-1 size-3.5" />
+              )}
+              {t('providers.fetchModels')}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={openAddDialog}
+            >
+              <Plus className="mr-1 size-3.5" />
+              {t('providers.addModelShort')}
+            </Button>
+          </HStack>
+        </HStack>
+
+        {fetchError && (
+          <Text
+            variant="caption"
+            className="text-destructive text-sm"
+            role="alert"
+          >
+            {fetchError}
+          </Text>
+        )}
+
+        {config.models.length === 0 && fetchedModelIds.length === 0 ? (
+          <div className="overflow-hidden rounded-xl border">
+            <EmptyState
+              icon={Layers}
+              title={t('providers.modelsEmpty.noModelsTitle')}
+              description={t('providers.modelsEmpty.noModelsDescription')}
+              action={
+                <Button onClick={openAddDialog}>
+                  {t('providers.addModelShort')}
+                </Button>
+              }
+            />
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-xl border">
+            <div className="border-border border-b px-3 py-2">
+              <SearchInput
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={t('providers.searchModels')}
+                className="h-6 w-full bg-transparent ring-0! ring-transparent!"
+              />
+            </div>
+            <Stack gap={0}>
+              {filteredRows.length === 0 && (
+                <div className="flex flex-col items-center justify-center gap-1 px-4 py-8">
+                  <Text className="text-sm font-medium">
+                    {t('providers.modelsEmpty.searchTitle')}
+                  </Text>
+                  <Text
+                    variant="caption"
+                    className="text-muted-foreground text-[12px]"
+                  >
+                    {t('providers.modelsEmpty.searchDescription')}
+                  </Text>
+                </div>
+              )}
+              {visibleRows.map((row, rowIdx) => {
+                const model =
+                  row.configuredIndex != null
+                    ? config.models[row.configuredIndex]
+                    : null;
+                const [primaryTag, ...restTags] = model?.tags ?? [];
+                const overflowCount = restTags.length;
+                const isLast =
+                  rowIdx === visibleRows.length - 1 &&
+                  visibleRows.length === filteredRows.length;
+                const isConfigured = row.source === 'configured';
+                // A configured model is "manual" if a successful fetch didn't
+                // surface its ID. If the fetch hasn't succeeded yet, we can't
+                // tell — treat as manual so the trash stays available.
+                const isManual =
+                  isConfigured &&
+                  (!hasFetched || !fetchedModelIdSet.has(row.id));
+                return (
+                  <HStack
+                    key={`${row.source}:${row.id}`}
+                    justify="between"
+                    align="center"
+                    gap={4}
+                    className={cn(
+                      'px-4 py-2.5',
+                      !isLast && 'border-border border-b',
+                    )}
+                  >
+                    <HStack gap={3} align="center" className="min-w-0">
+                      <Checkbox
+                        checked={isConfigured}
+                        onCheckedChange={(checked) => {
+                          if (checked === true && !isConfigured) {
+                            setConfirmAddModel(row.id);
+                          } else if (
+                            checked === false &&
+                            isConfigured &&
+                            row.configuredIndex != null
+                          ) {
+                            setDeleteIndex(row.configuredIndex);
+                          }
+                        }}
+                        aria-label={
+                          isConfigured
+                            ? t('providers.removeModel')
+                            : t('providers.addModel')
+                        }
+                      />
+                      <Text className="truncate text-[13px] font-medium">
+                        {model?.displayName ?? row.id}
+                      </Text>
+                    </HStack>
+                    <HStack gap={3} align="center" className="shrink-0">
+                      {isConfigured && primaryTag && (
+                        <HStack gap={1} align="center">
+                          <Badge
+                            variant="outline"
+                            className="bg-muted text-muted-foreground border-transparent px-1.5 py-0.5 text-[11px]"
+                          >
+                            {modelTagLabel(primaryTag, t)}
+                          </Badge>
+                          {overflowCount > 0 && (
+                            <Tooltip
+                              content={restTags
+                                .map((tag) => modelTagLabel(tag, t))
+                                .join(', ')}
+                            >
+                              <Badge
+                                variant="outline"
+                                className="bg-muted text-muted-foreground border-transparent px-1.5 py-0.5 text-[11px]"
+                              >
+                                +{overflowCount}
+                              </Badge>
+                            </Tooltip>
+                          )}
+                        </HStack>
+                      )}
+                      {isConfigured && row.configuredIndex != null && (
+                        <IconButton
+                          icon={Pencil}
+                          aria-label={t('providers.editModel')}
+                          variant="ghost"
+                          className="text-muted-foreground hover:text-foreground size-7"
+                          onClick={() =>
+                            openEditDialog(row.configuredIndex as number)
+                          }
+                        />
+                      )}
+                      {isManual && row.configuredIndex != null && (
+                        <IconButton
+                          icon={Trash2}
+                          aria-label={t('providers.removeModel')}
+                          variant="ghost"
+                          className="text-muted-foreground hover:text-destructive size-7"
+                          onClick={() =>
+                            setDeleteIndex(row.configuredIndex as number)
+                          }
+                        />
+                      )}
+                    </HStack>
+                  </HStack>
+                );
+              })}
+            </Stack>
+            {filteredRows.length > PAGE_SIZE && (
+              <HStack
+                justify="between"
+                align="center"
+                gap={2}
+                className="border-border bg-muted/30 border-t px-4 py-2"
+              >
+                <Text
+                  variant="caption"
+                  className="text-muted-foreground text-[12px]"
+                >
+                  {t('providers.showingModels', {
+                    filtered: visibleRows.length,
+                    total: filteredRows.length,
+                  })}
+                </Text>
+                {visibleRows.length < filteredRows.length && (
+                  <button
+                    type="button"
+                    onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+                    className="text-foreground hover:text-foreground/80 text-[12px] font-medium"
+                  >
+                    {t('providers.showMoreModels')}
+                  </button>
+                )}
+              </HStack>
+            )}
+          </div>
+        )}
+      </Stack>
+
+      <Sheet
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) setForm(EMPTY_MODEL_FORM);
+        }}
+        title={
+          editingIndex != null
+            ? t('providers.editModel')
+            : t('providers.addModel')
+        }
+        size="md"
+        hideClose
+        className="flex flex-col gap-0 p-0"
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          requestAnimationFrame(() => modelIdInputRef.current?.focus());
+        }}
+      >
+        <HStack
+          justify="between"
+          align="center"
+          className="border-border shrink-0 border-b p-4 sm:px-6 sm:py-4"
+        >
+          <Text variant="label" className="text-base font-semibold">
+            {editingIndex != null
+              ? t('providers.editModel')
+              : t('providers.addModel')}
+          </Text>
+          <IconButton
+            icon={X}
+            aria-label={tCommon('aria.close')}
+            variant="ghost"
+            onClick={() => {
+              setDialogOpen(false);
+              setForm(EMPTY_MODEL_FORM);
+            }}
+          />
+        </HStack>
+
+        <form
+          onSubmit={handleSubmitModel}
+          className="flex min-h-0 flex-1 flex-col"
+        >
+          <div className="flex-1 overflow-y-auto p-4 sm:px-6 sm:py-5">
+            <Stack gap={4}>
+              <Input
+                ref={modelIdInputRef}
+                label={t('providers.modelId')}
+                value={form.id}
+                onChange={(e) => setForm((f) => ({ ...f, id: e.target.value }))}
+                placeholder={t('providers.modelIdPlaceholder')}
+              />
+              <Input
+                label={t('providers.displayName')}
+                value={form.displayName}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, displayName: e.target.value }))
+                }
+                placeholder={t('providers.modelDisplayNamePlaceholder')}
+              />
+              <Textarea
+                label={t('providers.description_field')}
+                value={form.description}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, description: e.target.value }))
+                }
+                placeholder={t('providers.modelDescriptionPlaceholder')}
+                rows={2}
+              />
+              <Stack gap={2}>
+                <Text className="text-sm font-medium">
+                  {t('providers.capabilities')}
+                </Text>
+                <HStack gap={4} align="center" className="flex-wrap">
+                  {modelTagLiterals.map((tag) => (
+                    <label
+                      key={tag}
+                      className="flex items-center gap-1.5 text-sm"
+                    >
+                      <Checkbox
+                        checked={form.tags.includes(tag)}
+                        onCheckedChange={(checked) => {
+                          setForm((f) => ({
+                            ...f,
+                            tags: checked
+                              ? [...f.tags, tag]
+                              : f.tags.filter((v) => v !== tag),
+                          }));
+                        }}
+                      />
+                      {modelTagLabel(tag, t)}
+                    </label>
+                  ))}
+                </HStack>
+              </Stack>
+              {form.tags.includes('embedding') && (
+                <Input
+                  label={t('providers.dimensions')}
+                  type="number"
+                  value={form.dimensions}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, dimensions: e.target.value }))
+                  }
+                  placeholder="e.g., 1536"
+                />
+              )}
+              {form.tags.includes('image-generation') && (
+                <Select
+                  label={t('providers.imageGenerationMode')}
+                  description={t('providers.imageGenerationModeHelp')}
+                  value={form.imageGenerationMode || 'default'}
+                  onValueChange={(value) =>
+                    setForm((f) => ({
+                      ...f,
+                      imageGenerationMode:
+                        value === 'images-api' || value === 'chat-multimodal'
+                          ? value
+                          : '',
+                    }))
+                  }
+                  options={[
+                    {
+                      value: 'default',
+                      label: `images-api (${t('providers.default')})`,
+                    },
+                    { value: 'images-api', label: 'images-api' },
+                    { value: 'chat-multimodal', label: 'chat-multimodal' },
+                  ]}
+                />
+              )}
+              <HStack gap={3}>
+                <Input
+                  label="Input cost (USD / 1M tokens)"
+                  type="number"
+                  value={form.inputCostPerMillion}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      inputCostPerMillion: e.target.value,
+                    }))
+                  }
+                  placeholder="e.g., 2.50"
+                  min={0}
+                  step={0.01}
+                />
+                <Input
+                  label="Output cost (USD / 1M tokens)"
+                  type="number"
+                  value={form.outputCostPerMillion}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      outputCostPerMillion: e.target.value,
+                    }))
+                  }
+                  placeholder="e.g., 10.00"
+                  min={0}
+                  step={0.01}
+                />
+              </HStack>
+              {form.tags.includes('image-generation') && (
+                <Input
+                  label="Cost per image (USD)"
+                  type="number"
+                  value={form.imageCostPerImage}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      imageCostPerImage: e.target.value,
+                    }))
+                  }
+                  placeholder="e.g., 0.06"
+                  min={0}
+                  step={0.01}
+                />
+              )}
+              <Text className="text-muted-foreground text-xs">
+                {t('providers.costHelp')}
+              </Text>
+              <Input
+                label={t('providers.modelBaseUrl')}
+                value={form.baseUrl}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, baseUrl: e.target.value }))
+                }
+                placeholder={t('providers.modelBaseUrlPlaceholder')}
+              />
+              <Text className="text-muted-foreground text-xs">
+                {t('providers.modelBaseUrlHelp')}
+              </Text>
+              {maskedModelKeys[form.id] && modelKeyAction === 'none' ? (
+                <HStack gap={2} align="center" className="flex-wrap">
+                  <Badge variant="green" dot>
+                    {t('providers.modelApiKeyConfigured')}
+                  </Badge>
+                  <Text className="text-muted-foreground font-mono text-sm">
+                    {maskedModelKeys[form.id]}
+                  </Text>
+                  <HStack gap={3}>
+                    <button
+                      type="button"
+                      onClick={() => setModelKeyAction('replace')}
+                      className="text-muted-foreground hover:text-foreground focus-visible:outline-ring rounded-sm text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-none"
+                    >
+                      {t('providers.editKey')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setModelKeyAction('remove')}
+                      className="text-muted-foreground hover:text-destructive text-xs font-medium"
+                    >
+                      {t('providers.deleteModelApiKey')}
+                    </button>
+                  </HStack>
+                </HStack>
+              ) : maskedModelKeys[form.id] && modelKeyAction === 'remove' ? (
+                <HStack gap={2} align="center">
+                  <Badge variant="outline">
+                    {t('providers.modelApiKeyNotConfigured')}
+                  </Badge>
+                  <button
+                    type="button"
+                    onClick={() => setModelKeyAction('none')}
+                    className="text-muted-foreground hover:text-foreground focus-visible:outline-ring rounded-sm text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-none"
+                  >
+                    {t('providers.undoRemoveKey')}
+                  </button>
+                </HStack>
+              ) : (
+                <>
+                  {modelKeyAction === 'replace' && (
+                    <HStack gap={2} align="center">
+                      <Badge variant="green" dot>
+                        {t('providers.modelApiKeyConfigured')}
+                      </Badge>
+                      <Text className="text-muted-foreground font-mono text-sm">
+                        {maskedModelKeys[form.id]}
+                      </Text>
+                    </HStack>
+                  )}
+                  <Input
+                    label={t('providers.modelApiKey')}
+                    type="password"
+                    value={form.apiKey}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, apiKey: e.target.value }))
+                    }
+                    placeholder={t('providers.modelApiKeyPlaceholder')}
+                  />
+                  <Text className="text-muted-foreground text-xs">
+                    {t('providers.modelApiKeyHelp')}
+                  </Text>
+                </>
+              )}
+              <ModelProviderOptionsField
+                value={form.providerOptionsJson}
+                onChange={(next) =>
+                  setForm((f) => ({ ...f, providerOptionsJson: next }))
+                }
+                copy={{
+                  title: t('providers.providerOptions.modelLevelTitle'),
+                  description: t(
+                    'providers.providerOptions.modelLevelDescription',
+                  ),
+                  helpText: t('providers.providerOptions.modelLevelHelp'),
+                }}
+              />
+            </Stack>
+          </div>
+
+          <div className="border-border shrink-0 border-t p-4 sm:px-6 sm:py-4">
+            <HStack justify="end" align="center" gap={2}>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setDialogOpen(false);
+                  setForm(EMPTY_MODEL_FORM);
+                }}
+                disabled={isSaving || savingSecret}
+              >
+                {tCommon('actions.cancel')}
+              </Button>
+              <Button
+                type="submit"
+                disabled={
+                  isSaving ||
+                  savingSecret ||
+                  !(
+                    form.id.trim().length > 0 &&
+                    form.displayName.trim().length > 0 &&
+                    (editingIndex == null ||
+                      modelKeyAction === 'remove' ||
+                      JSON.stringify(form) !== JSON.stringify(initialForm))
+                  )
+                }
+              >
+                {isSaving || savingSecret ? (
+                  <>
+                    <Loader2 className="mr-2 size-4 animate-spin" />
+                    {t('providers.saving')}
+                  </>
+                ) : editingIndex != null ? (
+                  t('providers.save')
+                ) : (
+                  t('providers.addModel')
+                )}
+              </Button>
+            </HStack>
+          </div>
+        </form>
+      </Sheet>
+
+      <ConfirmDialog
+        open={deleteIndex != null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteIndex(null);
+        }}
+        title={t('providers.deleteModel')}
+        description={
+          deleteIndex != null
+            ? t('providers.deleteModelConfirm', {
+                model: config.models[deleteIndex]?.displayName ?? '',
+              })
+            : undefined
+        }
+        variant="destructive"
+        confirmText={t('providers.deleteModel')}
+        isLoading={isSaving}
+        onConfirm={() => void handleDeleteModel()}
+      />
+
+      <ConfirmDialog
+        open={confirmAddModel != null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmAddModel(null);
+        }}
+        title={t('providers.addModel')}
+        description={
+          confirmAddModel != null
+            ? t('providers.addModelConfirm', { model: confirmAddModel })
+            : undefined
+        }
+        confirmText={t('providers.addModel')}
+        isLoading={isSaving}
+        onConfirm={() => {
+          if (confirmAddModel != null) {
+            const id = confirmAddModel;
+            setConfirmAddModel(null);
+            void quickAddFetchedModel(id);
+          }
+        }}
+      />
+    </>
+  );
+}

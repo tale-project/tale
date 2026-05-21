@@ -65,15 +65,18 @@ import {
 // ---------------------------------------------------------------------------
 
 /**
- * Mask an API key for "configured?" display in the dashboard. Shows only
- * the first 6 characters (low-entropy, mostly the well-known provider
- * prefix like `sk-proj-`) followed by bullets. Never includes the tail —
- * those are real ciphertext bytes and would help an attacker brute-force
- * a stolen partial.
+ * Mask an API key for "configured?" display in the dashboard. Shows the
+ * first 6 chars and the last 4 — enough to disambiguate two keys with
+ * the same vendor prefix (e.g. `sk-or-v1-…`) and to cross-check against
+ * the vendor's own dashboard, which is the source of truth users compare
+ * against. Revealing 4 trailing chars of a 200+ bit bearer token is
+ * ~16-20 bits of entropy loss; the remaining keyspace stays
+ * astronomically unsearchable. Matches AWS / GitHub / Stripe / OpenAI /
+ * OpenRouter masking conventions.
  */
 function maskApiKey(key: string): string {
-  if (key.length <= 6) return '••••••••••';
-  return key.slice(0, 6) + '••••••';
+  if (key.length <= 10) return '••••••••••';
+  return `${key.slice(0, 6)} … ${key.slice(-4)}`;
 }
 
 /**
@@ -1118,6 +1121,117 @@ export const fetchProviderModels = action({
       });
     }
 
+    return models
+      .filter(
+        (m): m is { id: string } =>
+          m != null &&
+          typeof m === 'object' &&
+          'id' in m &&
+          typeof (m as Record<string, unknown>).id === 'string',
+      )
+      .map((m) => ({ id: m.id }))
+      .sort((a, b) => a.id.localeCompare(b.id));
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Fetch models for an already-configured provider (uses stored secret)
+// ---------------------------------------------------------------------------
+
+export const fetchConfiguredProviderModels = action({
+  args: { orgSlug: v.string(), providerName: v.string() },
+  returns: v.array(v.object({ id: v.string() })),
+  handler: async (ctx, args): Promise<Array<{ id: string }>> => {
+    await requireDeveloperSettingsAccess(ctx, args.orgSlug);
+
+    if (!validateProviderName(args.providerName)) {
+      throw new Error(`Invalid provider name: ${args.providerName}`);
+    }
+
+    const configResult = await readProviderFile(
+      args.orgSlug,
+      args.providerName,
+    );
+    if (!configResult.ok) {
+      throw new ConvexError({
+        code: 'PROVIDER_FETCH_FAILED',
+        message: `Cannot read provider "${args.providerName}": ${configResult.message}`,
+      });
+    }
+    const config = configResult.config;
+
+    const secretsPath = resolveProviderSecretsPath(
+      args.orgSlug,
+      args.providerName,
+    );
+    const secrets = parseProviderSecrets(await decryptSecretsFile(secretsPath));
+    const apiKey = secrets.apiKey;
+    if (!apiKey) {
+      throw new ConvexError({
+        code: 'PROVIDER_FETCH_FAILED',
+        message: 'Provider has no API key configured',
+      });
+    }
+
+    let url = config.baseUrl.replace(/\/+$/, '');
+    if (!url.endsWith('/models')) {
+      url = url.endsWith('/v1') ? `${url}/models` : `${url}/v1/models`;
+    }
+    checkProviderHostPolicy(url);
+
+    let response;
+    try {
+      response = await safeFetch(url, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          Accept: 'application/json',
+        },
+        timeoutMs: 15_000,
+      });
+    } catch (err) {
+      if (err instanceof SafeFetchError) {
+        throw new ConvexError({
+          code: 'PROVIDER_FETCH_FAILED',
+          message: `Failed to fetch models: ${err.message}`,
+        });
+      }
+      throw err;
+    }
+
+    if (response.status < 200 || response.status >= 300) {
+      console.warn(
+        `[fetchConfiguredProviderModels] non-2xx ${response.status} from ${url}: ${sanitizeError(response.body, 500)}`,
+      );
+      throw new ConvexError({
+        code: 'PROVIDER_FETCH_FAILED',
+        message: `Failed to fetch models (${response.status} ${response.statusText})`,
+      });
+    }
+
+    let json: unknown;
+    try {
+      json = JSON.parse(response.body);
+    } catch {
+      throw new ConvexError({
+        code: 'PROVIDER_FETCH_FAILED',
+        message: 'Provider returned non-JSON response',
+      });
+    }
+    const models =
+      json != null &&
+      typeof json === 'object' &&
+      'data' in json &&
+      Array.isArray(json.data)
+        ? (json.data as Array<unknown>)
+        : null;
+    if (!models) {
+      throw new ConvexError({
+        code: 'PROVIDER_FETCH_FAILED',
+        message:
+          'Unexpected response format: expected { data: [...] } from /v1/models',
+      });
+    }
     return models
       .filter(
         (m): m is { id: string } =>
