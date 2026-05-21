@@ -4,9 +4,17 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { SiteContainer } from '@/app/components/layout/site-container';
 import { useT } from '@/lib/i18n/client';
 
-const easeOut = [0.22, 1, 0.36, 1] as const;
+const easeOut: readonly [number, number, number, number] = [0.22, 1, 0.36, 1];
 
-const FEATURES = [
+type FeatureKey = 'chat' | 'conversations' | 'agents' | 'automations';
+
+interface FeatureConfig {
+  key: FeatureKey;
+  light: string;
+  dark: string;
+}
+
+const FEATURES: readonly FeatureConfig[] = [
   {
     key: 'chat',
     light: '/marketing/feature-chat.png',
@@ -27,7 +35,7 @@ const FEATURES = [
     light: '/marketing/feature-automations.png',
     dark: '/marketing/feature-automations-dark.png',
   },
-] as const;
+];
 
 export function FeatureSecure() {
   return (
@@ -51,7 +59,7 @@ export function FeatureSecure() {
 }
 
 interface FeatureRowProps {
-  featureKey: (typeof FEATURES)[number]['key'];
+  featureKey: FeatureKey;
   light: string;
   dark: string;
   index: number;

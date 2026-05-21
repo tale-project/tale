@@ -58,7 +58,7 @@ const SEGMENT_STEP_PX = 26 + 3;
 function SegmentedThemeSwitcher({ className }: { className?: string }) {
   const { t } = useT('themeSwitcher');
   const { theme, setTheme } = useTheme();
-  const activeIndex = Math.max(0, SEGMENTED_ORDER.indexOf(theme as Theme));
+  const activeIndex = Math.max(0, SEGMENTED_ORDER.indexOf(theme));
   return (
     <div
       role="radiogroup"
@@ -70,7 +70,7 @@ function SegmentedThemeSwitcher({ className }: { className?: string }) {
     >
       <span
         aria-hidden
-        className="bg-bg-base pointer-events-none absolute top-[3px] left-[3px] size-[26px] rounded-full shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-transform duration-300 ease-out will-change-transform dark:bg-[#404045] dark:shadow-[0_1px_4px_rgba(0,0,0,0.25)]"
+        className="bg-bg-base pointer-events-none absolute top-[3px] left-[3px] size-[26px] rounded-full shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-transform duration-300 ease-out will-change-transform motion-reduce:transition-none dark:bg-[#404045] dark:shadow-[0_1px_4px_rgba(0,0,0,0.25)]"
         style={{ transform: `translateX(${activeIndex * SEGMENT_STEP_PX}px)` }}
       />
       {SEGMENTED_ORDER.map((option) => {
@@ -85,7 +85,7 @@ function SegmentedThemeSwitcher({ className }: { className?: string }) {
             aria-label={t(option)}
             onClick={() => setTheme(option)}
             className={cn(
-              'focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-muted relative inline-flex size-[26px] cursor-pointer items-center justify-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1',
+              'focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-muted relative inline-flex size-[26px] cursor-pointer items-center justify-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 motion-reduce:transition-none',
               isActive
                 ? 'text-fg-base'
                 : 'text-fg-muted hover:text-fg-base dark:text-[#6b7280] dark:hover:text-fg-base',
@@ -102,7 +102,7 @@ function SegmentedThemeSwitcher({ className }: { className?: string }) {
 function MenuThemeSwitcher({ className }: { className?: string }) {
   const { t } = useT('themeSwitcher');
   const { theme, setTheme } = useTheme();
-  const ActiveIcon = ICONS[theme as Theme] ?? Monitor;
+  const ActiveIcon = ICONS[theme] ?? Monitor;
 
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -140,7 +140,7 @@ function MenuThemeSwitcher({ className }: { className?: string }) {
       'button[role="menuitemradio"]',
     );
     if (!items || items.length === 0) return;
-    const activeIndex = ORDER.indexOf(theme as Theme);
+    const activeIndex = ORDER.indexOf(theme);
     const target = items[activeIndex >= 0 ? activeIndex : 0];
     target?.focus();
   }, [open, theme]);
@@ -222,7 +222,7 @@ function MenuThemeSwitcher({ className }: { className?: string }) {
                     aria-hidden
                     viewBox="0 0 12 12"
                     className={cn(
-                      'h-3 w-3 shrink-0 transition-opacity',
+                      'h-3 w-3 shrink-0 transition-opacity motion-reduce:transition-none',
                       isActive ? 'opacity-100' : 'opacity-0',
                     )}
                     fill="none"

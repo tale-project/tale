@@ -1,4 +1,5 @@
 import { Button } from '@tale/ui/button';
+import { Image } from '@tale/ui/image';
 import { motion, useReducedMotion } from 'framer-motion';
 
 import { ExternalLink } from '@/app/components/layout/external-link';
@@ -76,7 +77,7 @@ export function HeroHeadline() {
         }
         className="mt-10 w-full md:mt-24.75"
       >
-        <img
+        <Image
           src="/marketing/hero-light.png"
           alt=""
           aria-hidden
@@ -84,7 +85,7 @@ export function HeroHeadline() {
           loading="eager"
           draggable={false}
         />
-        <img
+        <Image
           src="/marketing/hero-dark.png"
           alt=""
           aria-hidden

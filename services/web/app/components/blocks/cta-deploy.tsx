@@ -34,7 +34,7 @@ export function CtaDeploy() {
           className="mx-auto flex max-w-125 flex-col items-center gap-8 text-center md:gap-10"
         >
           <h2
-            className="text-fg-base text-[32px] font-medium tracking-[-0.044em] whitespace-nowrap md:text-[56px] md:tracking-[-0.038em]"
+            className="text-fg-base text-[32px] font-medium tracking-[-0.044em] md:text-[56px] md:tracking-[-0.038em] md:whitespace-nowrap"
             style={{ lineHeight: 1.071 }}
           >
             {t('cta.title')}
