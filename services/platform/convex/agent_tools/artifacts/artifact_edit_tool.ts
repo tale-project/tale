@@ -292,6 +292,12 @@ export const artifactEditTool = {
       // Phase 1: one-shot streaming-state init. Only `rewrite` mode needs
       // a live placeholder — other modes settle synchronously at execute
       // time. Phase 2 below keeps `streamingContent` fresh on the row.
+      //
+      // Short-circuit if a prior parse pass already saw `beginEditStream`
+      // reject: without this gate every ~40 ms parse fires the same
+      // mutation again, flooding the Convex logs with identical errors
+      // and producing the appearance of UI freeze.
+      if (state.beginEditStreamFailed) return;
       if (
         state.artifactId !== undefined &&
         !state.rowInitialized &&
@@ -313,7 +319,10 @@ export const artifactEditTool = {
           state.rowInitialized = true;
         } catch (err) {
           // Most likely: streaming_in_progress because another edit is
-          // already live. Defer error reporting to execute.
+          // already live on this artifact. Stamp the state so subsequent
+          // parse passes skip the retry; execute() reads the flag and
+          // surfaces a structured failure to the LLM.
+          state.beginEditStreamFailed = true;
           console.warn('[artifact_edit] beginEditStream rejected, deferring', {
             error: err instanceof Error ? err.message : String(err),
           });
@@ -370,6 +379,17 @@ export const artifactEditTool = {
       const state = getState(options.toolCallId);
 
       try {
+        // If Phase 1 never settled because the target artifact was held
+        // by another live stream, surface a structured failure right away
+        // — falling through to the OCC / stale path would confuse the
+        // LLM with the wrong recovery hint.
+        if (state?.beginEditStreamFailed === true) {
+          return {
+            success: false,
+            code: 'streaming_in_progress',
+            message: `Cannot start a rewrite on artifact ${args.artifactId} — a prior stream (e.g. the create that produced it) had not settled. Retry shortly, or call \`artifact_read\` first to inspect the current state.`,
+          };
+        }
         const artifactId = toId<'artifacts'>(args.artifactId);
         let artifact;
         try {

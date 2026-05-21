@@ -58,6 +58,13 @@ export interface ArtifactStreamState {
   // than its configured interval.
   lastParsedLength: number;
   lastParsedAt: number;
+  // Set when `beginEditStream` rejected on this tool call (e.g.
+  // `streaming_in_progress` on the target artifact). Subsequent parse
+  // passes short-circuit Phase 1 init so we don't flood the logs with
+  // identical errors per ~40 ms parse gate, and so `execute` can surface
+  // a clean structured failure instead of falling through to the OCC
+  // path. Only `artifact_edit` sets / reads this today.
+  beginEditStreamFailed?: boolean;
 }
 
 export interface StreamingPatchPair {

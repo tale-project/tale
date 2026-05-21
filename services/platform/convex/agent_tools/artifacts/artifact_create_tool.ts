@@ -524,47 +524,33 @@ Typical sequence: \`artifact_create\` → \`artifact_run({artifactId})\` → if 
           message: `Artifact "${args.title}" already exists at revision ${result.revision} with entry file "${result.entryFile}" (${result.filePaths.length} file(s)). Supplied content was NOT applied. Call \`artifact_read({artifactId: "${result.artifactId}"})\` to inspect, or \`artifact_edit({artifactId: "${result.artifactId}", mode: "rewrite", path: "${result.entryFile}", content})\` to overwrite if intended.`,
         };
       } catch (err) {
-        // Best-effort cleanup of a stranded placeholder — but **keep**
-        // any placeholder that already has incrementally-flushed content
-        // ([feedback_lazy_cleanup_over_cron]: stale rows get swept by
-        // the `by_liveStreamMode` janitor). A later `artifact_create`
-        // with the same title takes the collision path and surfaces the
-        // partial content to the model rather than restarting from zero.
+        // Settle the stranded placeholder atomically server-side: if it
+        // has accumulated `streamingContent`, promote it to a revision-1
+        // artifact so the partial content survives AND the row leaves
+        // `liveStreamMode='create'` (otherwise a follow-up `artifact_edit`
+        // would hit `beginEditStream`'s streaming_in_progress refusal in
+        // a tight retry loop). Empty placeholders are deleted, matching
+        // the prior `discardCreateStream` behaviour.
         if (
           state?.createOutcome === 'placeholder' &&
           state.artifactId !== undefined
         ) {
-          let placeholderHasContent = false;
           try {
-            const row = await ctx.runQuery(
-              internal.artifacts.internal_queries.getById,
-              {
-                artifactId: state.artifactId,
-                expectedOrganizationId: ctx.organizationId,
-                expectedThreadId: ctx.threadId,
-              },
-            );
-            placeholderHasContent =
-              row !== null &&
-              typeof row.streamingContent === 'string' &&
-              row.streamingContent.length > 0;
-          } catch (lookupErr) {
-            console.warn(
-              '[artifact_create] placeholder lookup failed before discard',
-              {
-                error:
-                  lookupErr instanceof Error
-                    ? lookupErr.message
-                    : String(lookupErr),
-              },
-            );
-          }
-          if (!placeholderHasContent) {
             await ctx.runMutation(
-              internal.artifacts.internal_mutations.discardCreateStream,
+              internal.artifacts.internal_mutations.settleStrandedCreateStream,
               {
                 artifactId: state.artifactId,
                 toolCallId: options.toolCallId,
+              },
+            );
+          } catch (settleErr) {
+            console.warn(
+              '[artifact_create] settleStrandedCreateStream failed',
+              {
+                error:
+                  settleErr instanceof Error
+                    ? settleErr.message
+                    : String(settleErr),
               },
             );
           }

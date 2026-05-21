@@ -23,6 +23,7 @@ vi.mock('../_generated/server', async (importOriginal) => {
 import {
   createArtifact,
   discardActiveStreamsForThread,
+  settleStrandedCreateStream,
   updateCreateStreamingContent,
   updateRewriteStreamingContent,
 } from './internal_mutations';
@@ -572,6 +573,137 @@ describe('updateRewriteStreamingContent (incremental persistence)', () => {
       streamingPath: 'main.py',
       content: 'should not land',
     });
+    expect(patched).toHaveLength(0);
+  });
+});
+
+type SettleArgs = { artifactId: string; toolCallId: string };
+const settle = settleStrandedCreateStream as unknown as MutHandler<
+  SettleArgs,
+  null
+>;
+
+describe('settleStrandedCreateStream (execute-error recovery)', () => {
+  it('promotes a placeholder with non-empty streamingContent to revision 1', async () => {
+    const placeholder: FakeArtifactRow = {
+      _id: 'art_ph',
+      organizationId: 'org_a',
+      threadId: 'thr_a',
+      type: 'code',
+      title: 'WIP',
+      language: 'javascript',
+      revision: 0,
+      liveStreamMode: 'create',
+      toolCallId: 'call_1',
+      entryFile: 'main.js',
+      streamingContent: 'console.log("partial");\n',
+    };
+    const { ctx, inserted, patched, rows } = createMockCtx([placeholder]);
+    await settle.handler(ctx, {
+      artifactId: 'art_ph',
+      toolCallId: 'call_1',
+    });
+    expect(patched).toHaveLength(1);
+    const patch = patched[0].patch;
+    expect(patch.revision).toBe(1);
+    expect(patch.entryFile).toBe('main.js');
+    expect(
+      (patch.files as Array<{ path: string; content: string }>)[0],
+    ).toEqual({ path: 'main.js', content: 'console.log("partial");\n' });
+    // Streaming flags must be cleared so subsequent edits can begin.
+    expect(patch.liveStreamMode).toBeUndefined();
+    expect(patch.streamingContent).toBeUndefined();
+    expect(patch.toolCallId).toBeUndefined();
+    // One artifactRevisions row inserted with editKind='create'.
+    const revRows = inserted.filter((i) => i.table === 'artifactRevisions');
+    expect(revRows).toHaveLength(1);
+    expect(revRows[0].payload.editKind).toBe('create');
+    // The placeholder is now a settled revision-1 row, not deleted.
+    expect(rows.find((r) => r._id === 'art_ph')).toBeDefined();
+  });
+
+  it('deletes a placeholder with empty streamingContent (matches discardCreateStream)', async () => {
+    const placeholder: FakeArtifactRow = {
+      _id: 'art_ph',
+      organizationId: 'org_a',
+      threadId: 'thr_a',
+      type: 'code',
+      title: 'WIP',
+      revision: 0,
+      liveStreamMode: 'create',
+      toolCallId: 'call_1',
+      streamingContent: '',
+    };
+    const { ctx, deleted, inserted, patched } = createMockCtx([placeholder]);
+    await settle.handler(ctx, {
+      artifactId: 'art_ph',
+      toolCallId: 'call_1',
+    });
+    expect(deleted).toEqual(['art_ph']);
+    expect(patched).toHaveLength(0);
+    expect(inserted).toHaveLength(0);
+  });
+
+  it("no-ops on toolCallId mismatch (avoids settling another stream's row)", async () => {
+    const placeholder: FakeArtifactRow = {
+      _id: 'art_ph',
+      organizationId: 'org_a',
+      threadId: 'thr_a',
+      type: 'code',
+      title: 'WIP',
+      revision: 0,
+      liveStreamMode: 'create',
+      toolCallId: 'call_NEW',
+      streamingContent: 'fresh stream',
+    };
+    const { ctx, deleted, inserted, patched } = createMockCtx([placeholder]);
+    await settle.handler(ctx, {
+      artifactId: 'art_ph',
+      toolCallId: 'call_OLD',
+    });
+    expect(deleted).toHaveLength(0);
+    expect(patched).toHaveLength(0);
+    expect(inserted).toHaveLength(0);
+  });
+
+  it('clears streaming flags only when the row is already settled (revision >= 1)', async () => {
+    const settled: FakeArtifactRow = {
+      _id: 'art_settled',
+      organizationId: 'org_a',
+      threadId: 'thr_a',
+      type: 'code',
+      title: 'real',
+      revision: 4,
+      liveStreamMode: 'rewrite',
+      toolCallId: 'call_1',
+      streamingContent: 'wip',
+    };
+    const { ctx, deleted, inserted, patched } = createMockCtx([settled]);
+    await settle.handler(ctx, {
+      artifactId: 'art_settled',
+      toolCallId: 'call_1',
+    });
+    expect(deleted).toHaveLength(0);
+    expect(inserted).toHaveLength(0);
+    expect(patched).toHaveLength(1);
+    const patch = patched[0].patch;
+    // No content change, just flag clear.
+    expect(patch.liveStreamMode).toBeUndefined();
+    expect(patch.streamingContent).toBeUndefined();
+    expect(patch.toolCallId).toBeUndefined();
+    expect(patch.revision).toBeUndefined();
+    expect(patch.files).toBeUndefined();
+  });
+
+  it('is a safe no-op when the row is missing', async () => {
+    const { ctx, deleted, inserted, patched } = createMockCtx([]);
+    const r = await settle.handler(ctx, {
+      artifactId: 'art_gone',
+      toolCallId: 'call_1',
+    });
+    expect(r).toBeNull();
+    expect(deleted).toHaveLength(0);
+    expect(inserted).toHaveLength(0);
     expect(patched).toHaveLength(0);
   });
 });

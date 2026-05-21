@@ -1284,6 +1284,79 @@ export const discardCreateStream = internalMutation({
   },
 });
 
+/**
+ * Settle a stranded `artifact_create` placeholder rather than leaving it
+ * in `liveStreamMode='create'` forever (which would block subsequent
+ * `artifact_edit` via `beginEditStream`'s streaming-in-progress refusal).
+ *
+ * Called from `artifact_create`'s execute-error catch. Three branches:
+ *
+ *  1. Placeholder with non-empty `streamingContent` → promote to a
+ *     revision-1 artifact (`files: [{path: entryFile, content:
+ *     streamingContent}]`). The partial content the user already saw on
+ *     the canvas becomes the canonical artifact contents. Follow-up
+ *     edits then work like any settled row.
+ *  2. Placeholder with empty `streamingContent` → delete the row (mirror
+ *     of `discardCreateStream`'s revision-0 branch — nothing worth
+ *     keeping).
+ *  3. Row not in placeholder state (revision >= 1 or different mode) →
+ *     clear streaming flags only, matching `discardCreateStream`'s
+ *     fallback behaviour.
+ *
+ *  `toolCallId` mismatch in any branch → no-op so we never settle a row
+ *  another stream has since taken over.
+ */
+export const settleStrandedCreateStream = internalMutation({
+  args: {
+    artifactId: v.id('artifacts'),
+    toolCallId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.artifactId);
+    if (!row) return null;
+    if (row.toolCallId !== args.toolCallId) return null;
+    if (row.revision === 0 && row.liveStreamMode === 'create') {
+      const buffered =
+        typeof row.streamingContent === 'string' ? row.streamingContent : '';
+      if (buffered.length === 0) {
+        await ctx.db.delete(args.artifactId);
+        return null;
+      }
+      const entryFile =
+        row.entryFile ?? defaultEntryFileFor(row.type, row.language);
+      const files = validateFiles([{ path: entryFile, content: buffered }]);
+      const now = Date.now();
+      await ctx.db.patch(args.artifactId, {
+        files,
+        entryFile,
+        content: mirrorLegacyContent(files, entryFile),
+        revision: 1,
+        // No `lastEditedByMessageId` — the settle was server-driven on an
+        // execute error, not an explicit LLM/user edit. Future audits can
+        // distinguish stranded-settled rows from `finalizeCreateStream` by
+        // the missing field.
+        lastEditedByMessageId: undefined,
+        updatedAt: now,
+        ...clearStreamingFlags(),
+      });
+      await ctx.db.insert('artifactRevisions', {
+        artifactId: args.artifactId,
+        revision: 1,
+        content: mirrorLegacyContent(files, entryFile),
+        files,
+        entryFile,
+        filePath: entryFile,
+        editKind: 'create',
+        createdAt: now,
+      });
+      return null;
+    }
+    await ctx.db.patch(args.artifactId, clearStreamingFlags());
+    return null;
+  },
+});
+
 // =============================================================================
 // Runnable-artifact run-state mutations (unchanged from prior shape)
 // =============================================================================
