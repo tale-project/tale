@@ -529,6 +529,107 @@ export const rewriteArtifact = internalMutation({
 });
 
 // =============================================================================
+// appendToFile — concat content to the end of one file; creates if missing.
+//
+// Companion to `rewriteArtifact`. Shape is identical except the file's new
+// content is `existing.content + args.content` instead of `args.content`
+// outright. Lets the LLM deliver a long file across many small tool calls
+// (one slice per call), avoiding the single-huge-tool-input fragility that
+// pushed the streaming-create design into its recurring bug class.
+// =============================================================================
+
+export const appendToFile = internalMutation({
+  args: {
+    artifactId: v.id('artifacts'),
+    path: v.string(),
+    content: v.string(),
+    editedByMessageId: v.string(),
+    expectedRevision: v.number(),
+  },
+  returns: v.union(
+    v.object({
+      success: v.literal(true),
+      revision: v.number(),
+      path: v.string(),
+      created: v.boolean(),
+      byteLength: v.number(),
+    }),
+    v.object({
+      success: v.literal(false),
+      code: v.union(v.literal('not_found'), v.literal('stale')),
+      message: v.string(),
+      currentRevision: v.optional(v.number()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const artifact = await ctx.db.get(args.artifactId);
+    if (!artifact) {
+      return {
+        success: false as const,
+        code: 'not_found' as const,
+        message: `Artifact ${args.artifactId} not found.`,
+      };
+    }
+    if (artifact.revision !== args.expectedRevision) {
+      return {
+        success: false as const,
+        code: 'stale' as const,
+        message: `Artifact has been modified since you last read it (revision ${artifact.revision}, you sent ${args.expectedRevision}). Re-read with artifact_read and retry.`,
+        currentRevision: artifact.revision,
+      };
+    }
+    const path = validatePath(args.path);
+    const resolved = resolveArtifactFiles(artifact);
+    const existingIdx = resolved.files.findIndex((f) => f.path === path);
+    let nextFiles: { path: string; content: string }[];
+    let created = false;
+    let nextByteLength: number;
+    if (existingIdx >= 0) {
+      const concatenated = resolved.files[existingIdx].content + args.content;
+      nextByteLength = concatenated.length;
+      nextFiles = resolved.files.map((f) =>
+        f.path === path ? { path, content: concatenated } : f,
+      );
+    } else {
+      nextByteLength = args.content.length;
+      nextFiles = [...resolved.files, { path, content: args.content }];
+      created = true;
+    }
+    const validatedFiles = validateFiles(nextFiles);
+    const nextRevision = artifact.revision + 1;
+    const now = Date.now();
+    await ctx.db.patch(args.artifactId, {
+      files: validatedFiles,
+      entryFile: resolved.entryFile,
+      content: mirrorLegacyContent(validatedFiles, resolved.entryFile),
+      revision: nextRevision,
+      lastEditedByMessageId: args.editedByMessageId,
+      ...clearStreamingFlags(),
+      updatedAt: now,
+    });
+    await ctx.db.insert('artifactRevisions', {
+      artifactId: args.artifactId,
+      revision: nextRevision,
+      content: mirrorLegacyContent(validatedFiles, resolved.entryFile),
+      files: validatedFiles,
+      entryFile: resolved.entryFile,
+      filePath: path,
+      editedByMessageId: args.editedByMessageId,
+      editKind: 'append',
+      createdAt: now,
+    });
+    await trimRevisionHistory(ctx, args.artifactId);
+    return {
+      success: true as const,
+      revision: nextRevision,
+      path,
+      created,
+      byteLength: nextByteLength,
+    };
+  },
+});
+
+// =============================================================================
 // deleteFileFromArtifact — refuses on entryFile and on last-file
 // =============================================================================
 
@@ -753,97 +854,13 @@ export const renameFileInArtifact = internalMutation({
 });
 
 // =============================================================================
-// setArtifactEntry — repoint entryFile without touching file content
+// `setArtifactEntry` was retired alongside the `artifact_edit({mode:
+// 'set_entry'})` surface. The `'set_entry'` literal stays in the editKind
+// validator for existing rows; the common "repoint the entry pointer" case
+// is now covered by `renameFileInArtifact`'s `from === entryFile`
+// follow-along, and the rare "swap entries between two existing files"
+// corner is doable via a two-step rename.
 // =============================================================================
-
-export const setArtifactEntry = internalMutation({
-  args: {
-    artifactId: v.id('artifacts'),
-    entryFile: v.string(),
-    editedByMessageId: v.string(),
-    expectedRevision: v.number(),
-  },
-  returns: v.union(
-    v.object({
-      success: v.literal(true),
-      revision: v.number(),
-      entryFile: v.string(),
-    }),
-    v.object({
-      success: v.literal(false),
-      code: v.union(
-        v.literal('not_found'),
-        v.literal('stale'),
-        v.literal('file_missing'),
-        v.literal('noop'),
-      ),
-      message: v.string(),
-      currentRevision: v.optional(v.number()),
-    }),
-  ),
-  handler: async (ctx, args) => {
-    const artifact = await ctx.db.get(args.artifactId);
-    if (!artifact) {
-      return {
-        success: false as const,
-        code: 'not_found' as const,
-        message: `Artifact ${args.artifactId} not found.`,
-      };
-    }
-    if (artifact.revision !== args.expectedRevision) {
-      return {
-        success: false as const,
-        code: 'stale' as const,
-        message: `Artifact has been modified since you last read it (revision ${artifact.revision}, you sent ${args.expectedRevision}). Re-read with artifact_read and retry.`,
-        currentRevision: artifact.revision,
-      };
-    }
-    const newEntry = validatePath(args.entryFile);
-    const resolved = resolveArtifactFiles(artifact);
-    if (newEntry === resolved.entryFile) {
-      return {
-        success: false as const,
-        code: 'noop' as const,
-        message: `Entry file is already "${newEntry}".`,
-      };
-    }
-    if (!resolved.files.some((f) => f.path === newEntry)) {
-      return {
-        success: false as const,
-        code: 'file_missing' as const,
-        message: `File "${newEntry}" does not exist in this artifact. Create it via artifact_edit(mode='rewrite') first.`,
-      };
-    }
-    const nextRevision = artifact.revision + 1;
-    const now = Date.now();
-    await ctx.db.patch(args.artifactId, {
-      entryFile: newEntry,
-      files: resolved.synthesized
-        ? [...resolved.files]
-        : (artifact.files ?? [...resolved.files]),
-      content: mirrorLegacyContent(resolved.files, newEntry),
-      revision: nextRevision,
-      lastEditedByMessageId: args.editedByMessageId,
-      ...clearStreamingFlags(),
-      updatedAt: now,
-    });
-    // Compact metadata-only revision: no `files`/`content` snapshot.
-    await ctx.db.insert('artifactRevisions', {
-      artifactId: args.artifactId,
-      revision: nextRevision,
-      entryFile: newEntry,
-      editedByMessageId: args.editedByMessageId,
-      editKind: 'set_entry',
-      createdAt: now,
-    });
-    await trimRevisionHistory(ctx, args.artifactId);
-    return {
-      success: true as const,
-      revision: nextRevision,
-      entryFile: newEntry,
-    };
-  },
-});
 
 // =============================================================================
 // Streaming lifecycle
@@ -880,7 +897,14 @@ export const beginEditStream = internalMutation({
     await ctx.db.patch(args.artifactId, {
       liveStreamMode: args.liveStreamMode,
       liveStreamStartedAt: Date.now(),
-      streamingContent: args.liveStreamMode === 'rewrite' ? '' : undefined,
+      // `rewrite` and `append` both deliver content via tool-input deltas; we
+      // seed `streamingContent` to the empty string so the canvas's
+      // `streamingContent ?? settled` fallback chain has a stable handle
+      // through the stream. `patch` uses `streamingPatches` instead.
+      streamingContent:
+        args.liveStreamMode === 'rewrite' || args.liveStreamMode === 'append'
+          ? ''
+          : undefined,
       streamingPatches: args.liveStreamMode === 'patch' ? [] : undefined,
       streamingPath: validatedPath,
       toolCallId: args.toolCallId,
@@ -913,6 +937,16 @@ export const abortStream = internalMutation({
  * Never touches `files[]`, `content`, or `revision`. Settled state stays
  * exactly as it was until `rewriteArtifact` runs at execute-time.
  */
+/**
+ * Mid-stream incremental write of the live `streamingContent` field while a
+ * file-content edit is in flight. Shared by `artifact_edit({mode:'rewrite'})`
+ * and `artifact_edit({mode:'append'})` — both stream their `content` arg in
+ * via tool-input deltas, so the canvas's "show whatever bytes we've seen so
+ * far" path is identical. The mutation only validates that the row is in
+ * SOME live edit mode (`rewrite` or `append`) for the same toolCallId +
+ * streamingPath; the caller is responsible for passing the right
+ * `liveStreamMode` to `beginEditStream` earlier.
+ */
 export const updateRewriteStreamingContent = internalMutation({
   args: {
     artifactId: v.id('artifacts'),
@@ -924,7 +958,9 @@ export const updateRewriteStreamingContent = internalMutation({
   handler: async (ctx, args) => {
     const row = await ctx.db.get(args.artifactId);
     if (!row) return null;
-    if (row.liveStreamMode !== 'rewrite') return null;
+    if (row.liveStreamMode !== 'rewrite' && row.liveStreamMode !== 'append') {
+      return null;
+    }
     if (row.toolCallId !== args.toolCallId) return null;
     if (row.streamingPath !== args.streamingPath) return null;
     await ctx.db.patch(args.artifactId, {
@@ -1009,351 +1045,6 @@ export const cleanupStaleStreams = internalMutation({
       }
     }
     return { cleared };
-  },
-});
-
-// =============================================================================
-// beginCreateStream / finalizeCreateStream — placeholder-row streaming for
-// `artifact_create`. Inserts a row at revision 0 the instant the LLM emits
-// enough JSON for us to know the (type, title, entryFile); the canvas opens
-// against that row and consumes tool-input-delta to render content
-// token-by-token. `execute` settles via `finalizeCreateStream` which writes
-// the real content + artifactRevisions row and bumps revision to 1.
-// =============================================================================
-
-type BeginCreateStreamOutcome =
-  | {
-      kind: 'created';
-      artifactId: Id<'artifacts'>;
-      entryFile: string;
-    }
-  | {
-      kind: 'collision';
-      artifactId: Id<'artifacts'>;
-      entryFile: string;
-      revision: number;
-      filePaths: string[];
-    }
-  | {
-      kind: 'type_mismatch';
-      existingArtifactId: Id<'artifacts'>;
-      existingType: Doc<'artifacts'>['type'];
-      message: string;
-    };
-
-export const beginCreateStream = internalMutation({
-  args: {
-    organizationId: v.string(),
-    threadId: v.string(),
-    type: artifactTypeValidator,
-    title: v.string(),
-    language: v.optional(v.string()),
-    entryFile: v.optional(v.string()),
-    createdByMessageId: v.string(),
-    toolCallId: v.string(),
-  },
-  returns: v.union(
-    v.object({
-      kind: v.literal('created'),
-      artifactId: v.id('artifacts'),
-      entryFile: v.string(),
-    }),
-    v.object({
-      kind: v.literal('collision'),
-      artifactId: v.id('artifacts'),
-      entryFile: v.string(),
-      revision: v.number(),
-      filePaths: v.array(v.string()),
-    }),
-    v.object({
-      kind: v.literal('type_mismatch'),
-      existingArtifactId: v.id('artifacts'),
-      existingType: artifactTypeValidator,
-      message: v.string(),
-    }),
-  ),
-  handler: async (ctx, args): Promise<BeginCreateStreamOutcome> => {
-    const storedTitle = normalizeTitleForStorage(args.title);
-    if (storedTitle.length === 0) {
-      throw new ConvexError({
-        code: 'invalid_title',
-        message: 'Title must contain at least one non-whitespace character.',
-      });
-    }
-    const compareKey = normalizeTitleForCompare(args.title);
-
-    // Same dedup scan as createArtifact — keep the two in sync.
-    for await (const row of ctx.db
-      .query('artifacts')
-      .withIndex('by_organizationId_and_thread', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('threadId', args.threadId),
-      )) {
-      const rowKey = normalizeTitleForCompare(row.title);
-      if (rowKey !== compareKey) continue;
-      if (row.type !== args.type) {
-        return {
-          kind: 'type_mismatch',
-          existingArtifactId: row._id,
-          existingType: row.type,
-          message: `An artifact titled "${row.title}" already exists in this thread with type "${row.type}". Either pick a different title or use the existing artifactId ${row._id} via artifact_edit.`,
-        };
-      }
-      const resolved = resolveArtifactFiles(row);
-      return {
-        kind: 'collision',
-        artifactId: row._id,
-        entryFile: resolved.entryFile,
-        revision: row.revision,
-        filePaths: resolved.files.map((f) => f.path),
-      };
-    }
-
-    // No collision — insert a placeholder row at revision 0 with the
-    // streaming flags set. The entry file is seeded empty; finalize replaces
-    // it with the real content and bumps revision to 1.
-    const entryFile = validatePath(
-      args.entryFile ?? defaultEntryFileFor(args.type, args.language),
-    );
-    const now = Date.now();
-    const artifactId = await ctx.db.insert('artifacts', {
-      organizationId: args.organizationId,
-      threadId: args.threadId,
-      type: args.type,
-      title: storedTitle,
-      language: args.language,
-      files: [{ path: entryFile, content: '' }],
-      entryFile,
-      content: '',
-      revision: 0,
-      createdByMessageId: args.createdByMessageId,
-      lastEditedByMessageId: args.createdByMessageId,
-      createdAt: now,
-      updatedAt: now,
-      liveStreamMode: 'create',
-      liveStreamStartedAt: now,
-      streamingContent: '',
-      streamingPath: entryFile,
-      toolCallId: args.toolCallId,
-    });
-    return { kind: 'created', artifactId, entryFile };
-  },
-});
-
-export const finalizeCreateStream = internalMutation({
-  args: {
-    artifactId: v.id('artifacts'),
-    content: v.string(),
-    createdByMessageId: v.string(),
-    /**
-     * The toolCallId that started the placeholder. Refused if it doesn't
-     * match the row's current `toolCallId` — protects against a different
-     * tool call mistakenly settling someone else's placeholder.
-     */
-    toolCallId: v.string(),
-  },
-  returns: v.union(
-    v.object({
-      success: v.literal(true),
-      artifactId: v.id('artifacts'),
-      revision: v.number(),
-      entryFile: v.string(),
-      filePaths: v.array(v.string()),
-    }),
-    v.object({
-      success: v.literal(false),
-      code: v.union(
-        v.literal('not_found'),
-        v.literal('not_placeholder'),
-        v.literal('toolcall_mismatch'),
-      ),
-      message: v.string(),
-    }),
-  ),
-  handler: async (ctx, args) => {
-    const row = await ctx.db.get(args.artifactId);
-    if (!row) {
-      return {
-        success: false as const,
-        code: 'not_found' as const,
-        message: `Artifact ${args.artifactId} not found.`,
-      };
-    }
-    if (row.revision !== 0 || row.liveStreamMode !== 'create') {
-      return {
-        success: false as const,
-        code: 'not_placeholder' as const,
-        message: `Artifact ${args.artifactId} is not a streaming placeholder (revision: ${row.revision}, liveStreamMode: ${row.liveStreamMode ?? 'none'}).`,
-      };
-    }
-    if (row.toolCallId !== args.toolCallId) {
-      return {
-        success: false as const,
-        code: 'toolcall_mismatch' as const,
-        message: `Artifact ${args.artifactId} placeholder belongs to a different tool call.`,
-      };
-    }
-    const entryFile =
-      row.entryFile ?? defaultEntryFileFor(row.type, row.language);
-    const files = validateFiles([{ path: entryFile, content: args.content }]);
-    const now = Date.now();
-    await ctx.db.patch(args.artifactId, {
-      files,
-      entryFile,
-      content: mirrorLegacyContent(files, entryFile),
-      revision: 1,
-      lastEditedByMessageId: args.createdByMessageId,
-      updatedAt: now,
-      ...clearStreamingFlags(),
-    });
-    await ctx.db.insert('artifactRevisions', {
-      artifactId: args.artifactId,
-      revision: 1,
-      content: mirrorLegacyContent(files, entryFile),
-      files,
-      entryFile,
-      filePath: entryFile,
-      editedByMessageId: args.createdByMessageId,
-      editKind: 'create',
-      createdAt: now,
-    });
-    return {
-      success: true as const,
-      artifactId: args.artifactId,
-      revision: 1,
-      entryFile,
-      filePaths: files.map((f) => f.path),
-    };
-  },
-});
-
-/**
- * Incremental persistence of streamed content during `artifact_create`.
- * Throttled by `shouldFlush` in the tool's `onInputDelta`; this mutation
- * just lands the latest parsed snapshot into `streamingContent` so the
- * canvas's `streamingContent ?? settledContent` fallback chain has the
- * partial bytes to show when the tool-input-delta hook resets on a new
- * `toolCallId` (LLM retry / continuation / "I'll create in segments").
- *
- * Bails (no-op) if the row is missing, isn't a `create` placeholder, or
- * the toolCallId no longer matches — protects against a stale delta from
- * an aborted call overwriting a newer stream.
- *
- * Never touches `files[]`, `content`, or `revision`. Settled state stays
- * exactly as it was until `finalizeCreateStream` runs at execute-time.
- */
-export const updateCreateStreamingContent = internalMutation({
-  args: {
-    artifactId: v.id('artifacts'),
-    toolCallId: v.string(),
-    content: v.string(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const row = await ctx.db.get(args.artifactId);
-    if (!row) return null;
-    if (row.liveStreamMode !== 'create') return null;
-    if (row.toolCallId !== args.toolCallId) return null;
-    await ctx.db.patch(args.artifactId, {
-      streamingContent: args.content,
-      updatedAt: Date.now(),
-    });
-    return null;
-  },
-});
-
-export const discardCreateStream = internalMutation({
-  args: {
-    artifactId: v.id('artifacts'),
-    toolCallId: v.string(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const row = await ctx.db.get(args.artifactId);
-    if (!row) return null;
-    // Only discard our own placeholder. A settled row (revision >= 1) is
-    // never deleted from this path — fall back to abortStream's behavior.
-    if (row.toolCallId !== args.toolCallId) return null;
-    if (row.revision === 0 && row.liveStreamMode === 'create') {
-      await ctx.db.delete(args.artifactId);
-    } else {
-      await ctx.db.patch(args.artifactId, clearStreamingFlags());
-    }
-    return null;
-  },
-});
-
-/**
- * Settle a stranded `artifact_create` placeholder rather than leaving it
- * in `liveStreamMode='create'` forever (which would block subsequent
- * `artifact_edit` via `beginEditStream`'s streaming-in-progress refusal).
- *
- * Called from `artifact_create`'s execute-error catch. Three branches:
- *
- *  1. Placeholder with non-empty `streamingContent` → promote to a
- *     revision-1 artifact (`files: [{path: entryFile, content:
- *     streamingContent}]`). The partial content the user already saw on
- *     the canvas becomes the canonical artifact contents. Follow-up
- *     edits then work like any settled row.
- *  2. Placeholder with empty `streamingContent` → delete the row (mirror
- *     of `discardCreateStream`'s revision-0 branch — nothing worth
- *     keeping).
- *  3. Row not in placeholder state (revision >= 1 or different mode) →
- *     clear streaming flags only, matching `discardCreateStream`'s
- *     fallback behaviour.
- *
- *  `toolCallId` mismatch in any branch → no-op so we never settle a row
- *  another stream has since taken over.
- */
-export const settleStrandedCreateStream = internalMutation({
-  args: {
-    artifactId: v.id('artifacts'),
-    toolCallId: v.string(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const row = await ctx.db.get(args.artifactId);
-    if (!row) return null;
-    if (row.toolCallId !== args.toolCallId) return null;
-    if (row.revision === 0 && row.liveStreamMode === 'create') {
-      const buffered =
-        typeof row.streamingContent === 'string' ? row.streamingContent : '';
-      if (buffered.length === 0) {
-        await ctx.db.delete(args.artifactId);
-        return null;
-      }
-      const entryFile =
-        row.entryFile ?? defaultEntryFileFor(row.type, row.language);
-      const files = validateFiles([{ path: entryFile, content: buffered }]);
-      const now = Date.now();
-      await ctx.db.patch(args.artifactId, {
-        files,
-        entryFile,
-        content: mirrorLegacyContent(files, entryFile),
-        revision: 1,
-        // No `lastEditedByMessageId` — the settle was server-driven on an
-        // execute error, not an explicit LLM/user edit. Future audits can
-        // distinguish stranded-settled rows from `finalizeCreateStream` by
-        // the missing field.
-        lastEditedByMessageId: undefined,
-        updatedAt: now,
-        ...clearStreamingFlags(),
-      });
-      await ctx.db.insert('artifactRevisions', {
-        artifactId: args.artifactId,
-        revision: 1,
-        content: mirrorLegacyContent(files, entryFile),
-        files,
-        entryFile,
-        filePath: entryFile,
-        editKind: 'create',
-        createdAt: now,
-      });
-      return null;
-    }
-    await ctx.db.patch(args.artifactId, clearStreamingFlags());
-    return null;
   },
 });
 

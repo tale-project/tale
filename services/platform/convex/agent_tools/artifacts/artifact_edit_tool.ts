@@ -100,7 +100,7 @@ const deleteModeArgs = z.object({
     .min(1)
     .max(200)
     .describe(
-      'File path inside the artifact to delete. Refused on the entry file (call `mode="set_entry"` or `mode="rename"` first) and on the last file in the artifact.',
+      'File path inside the artifact to delete. Refused on the entry file (call `mode="rename"` first to re-point the entry to another file) and on the last file in the artifact.',
     ),
   expectedRevision: z
     .number()
@@ -131,31 +131,36 @@ const renameModeArgs = z.object({
     ),
 });
 
-const setEntryModeArgs = z.object({
+const appendModeArgs = z.object({
   artifactId: z.string().min(1),
-  mode: z.literal('set_entry'),
-  entryFile: z
+  mode: z.literal('append'),
+  path: z
     .string()
     .min(1)
     .max(200)
     .describe(
-      'Path to the existing file that should become the new entry point. Must already exist in the artifact.',
+      'File path inside the artifact. If the path does not yet exist, it is created with `content` as the initial body — same create-if-missing semantics as `rewrite`.',
+    ),
+  content: z
+    .string()
+    .describe(
+      'Chunk to append. Each call appends this verbatim to the end of the file; use multiple calls to deliver a long file one slice at a time. Empty string is allowed (no-op + revision bump).',
     ),
   expectedRevision: z
     .number()
     .int()
     .nonnegative()
     .describe(
-      'REQUIRED: revision the entry change was authored against (from `<artifact revision="N">`).',
+      'REQUIRED: revision the append was authored against (from `<artifact revision="N">`). OCC — rejects with `code: "stale"` and `currentRevision` if the artifact moved (e.g. a prior append already landed).',
     ),
 });
 
 const artifactEditArgs = z.discriminatedUnion('mode', [
   rewriteModeArgs,
   patchModeArgs,
+  appendModeArgs,
   deleteModeArgs,
   renameModeArgs,
-  setEntryModeArgs,
 ]);
 
 type ArtifactEditInput = z.infer<typeof artifactEditArgs>;
@@ -185,15 +190,34 @@ type ArtifactEditResult = ArtifactEditSuccess | ArtifactEditFailure;
 export const artifactEditTool = {
   name: 'artifact_edit' as const,
   tool: createTool({
-    description: `**artifact_edit** — modify an existing artifact project. Use this — never \`artifact_create\` — to revise an artifact you've already created.
+    description: `**artifact_edit** — modify an existing artifact project. Use this — never \`artifact_create\` — to revise (or first-populate) an artifact you've already created.
 
-**FIVE MODES:**
+**FIVE MODES** (3 content + 2 file-tree):
 
-- \`rewrite\` — write the whole content of one file. Creates the file if its \`path\` doesn't exist yet. Use this to add new files to a multi-file project, or to replace a file entirely.
+Content operations:
+- \`append\` — **preferred for delivering content over multiple turns / large files.** Concatenate \`content\` to the end of the file at \`path\`; creates the file if missing. Use one \`append\` per chunk; each call bumps \`revision\`. Prefer this over \`rewrite\` when the file is large (>~10 KB) or you anticipate emitting it across multiple tool calls. Empty \`content\` is allowed (no-op + revision bump).
+- \`rewrite\` — write the **whole** content of one file (replaces any existing content). Creates the file if its \`path\` doesn't exist yet. Use this only when you need to **replace** an existing file's content (bug-fix, regeneration), or when the full content fits comfortably in one tool call. For first-time population of a fresh artifact, \`append\` is usually the right tool.
 - \`patch\` — one search/replace on one file. **Single patch per call** (no batching). Default exactly-once match; pass \`replaceAll: true\` for multi-site replace.
+
+File-tree operations:
 - \`delete\` — remove one file from the project. Refused on the \`entryFile\` and on the last file in the artifact.
-- \`rename\` — rename one file. If \`from === entryFile\`, the entry pointer atomically moves to \`to\`.
-- \`set_entry\` — repoint the entry-file pointer without touching file content. The target path must already exist in the project.
+- \`rename\` — rename one file. If \`from === entryFile\`, the entry pointer atomically moves to \`to\`. (To re-point the entry to a different existing file: rename the current entry away, then rename the target file onto the entry path.)
+
+**APPEND-MODE RULES** (mode='append'):
+- Sequential calls: each bumps \`revision\` by 1; pass the new revision in the next call's \`expectedRevision\`.
+- OCC-protected against retries: if the same call lands twice (network hiccup), the second sees the bumped revision and returns \`code: "stale"\` — don't re-send the same chunk after that; re-read state and continue from there.
+- Aggregate file size is capped (artifact total ≤800 KB); an append that would exceed the cap is rejected.
+
+**EXAMPLE append (multi-chunk delivery):**
+\`\`\`
+{ mode: "append", artifactId: "...", path: "main.py", expectedRevision: 1,
+  content: "import pptx\\nfrom pptx.util import Inches\\n\\n" }
+// → revision 2
+
+{ mode: "append", artifactId: "...", path: "main.py", expectedRevision: 2,
+  content: "prs = pptx.Presentation()\\n…" }
+// → revision 3
+\`\`\`
 
 **PATCH-MODE RULES** (mode='patch'):
 - \`search\` must match the file's content **verbatim**. Whitespace and newlines are significant.
@@ -209,7 +233,7 @@ export const artifactEditTool = {
   replace: "def greet(name):\\n    print(f'Hi, {name}!')" }
 \`\`\`
 
-**EXAMPLE rewrite (add new file):**
+**EXAMPLE rewrite (small file or full replacement):**
 \`\`\`
 { mode: "rewrite", artifactId: "...", path: "helpers.py", expectedRevision: 3,
   content: "def format_name(n):\\n    return n.strip().title()\\n" }
@@ -220,13 +244,13 @@ export const artifactEditTool = {
 **HTML CONSTRAINTS:** when editing an \`html\` artifact's entry file or its sibling files, the iframe is still offline-only — no \`https://\` URLs, only bundled \`/canvas-libs/*\` resources. Sibling subresources (\`<link>\`, \`<script>\`, \`<img>\`) are inlined by the preview server; no dynamic \`fetch()\` between files.
 
 **RESPONSE:**
+- \`append\` → \`{revision, path, created, byteLength, message}\`
 - \`rewrite\` → \`{revision, path, created, message}\`
 - \`patch\` → \`{revision, path, matchCount, message}\`
 - \`delete\` → \`{revision, path, message}\`
 - \`rename\` → \`{revision, entryFile (may have moved), message}\`
-- \`set_entry\` → \`{revision, entryFile, message}\`
 
-**ERRORS** carry \`code\` (e.g. \`stale\`, \`file_missing\`, \`no_match\`, \`ambiguous_match\`, \`entry_pin\`, \`last_file\`, \`path_exists\`) plus a recovery message. On \`stale\` the response includes \`currentRevision\` — re-read the artifact and retry.`,
+**ERRORS** carry \`code\` (e.g. \`stale\`, \`file_missing\`, \`no_match\`, \`ambiguous_match\`, \`entry_pin\`, \`last_file\`, \`path_exists\`, \`streaming_in_progress\`) plus a recovery message. On \`stale\` the response includes \`currentRevision\` — re-read the artifact and retry.`,
     inputSchema: artifactEditArgs,
     onInputStart: async (_ctx: ToolCtx, options: ToolExecutionOptions) => {
       initState(options.toolCallId, 'artifact_edit');
@@ -289,29 +313,36 @@ export const artifactEditTool = {
         }
       }
 
-      // Phase 1: one-shot streaming-state init. Only `rewrite` mode needs
-      // a live placeholder — other modes settle synchronously at execute
-      // time. Phase 2 below keeps `streamingContent` fresh on the row.
+      // Phase 1: one-shot streaming-state init. Only content-bearing modes
+      // (`rewrite` and `append`) need a live placeholder — other modes
+      // settle synchronously at execute time. Phase 2 below keeps
+      // `streamingContent` fresh on the row for both.
       //
       // Short-circuit if a prior parse pass already saw `beginEditStream`
       // reject: without this gate every ~40 ms parse fires the same
       // mutation again, flooding the Convex logs with identical errors
       // and producing the appearance of UI freeze.
       if (state.beginEditStreamFailed) return;
+      const streamingMode: 'rewrite' | 'append' | undefined =
+        mode === 'rewrite'
+          ? 'rewrite'
+          : mode === 'append'
+            ? 'append'
+            : undefined;
       if (
         state.artifactId !== undefined &&
         !state.rowInitialized &&
-        mode === 'rewrite' &&
+        streamingMode !== undefined &&
         path !== undefined &&
         path.length > 0
       ) {
-        state.resolvedMode = 'rewrite';
+        state.resolvedMode = streamingMode;
         try {
           await ctx.runMutation(
             internal.artifacts.internal_mutations.beginEditStream,
             {
               artifactId: state.artifactId,
-              liveStreamMode: 'rewrite',
+              liveStreamMode: streamingMode,
               streamingPath: path,
               toolCallId: options.toolCallId,
             },
@@ -330,15 +361,16 @@ export const artifactEditTool = {
         }
       }
 
-      // Phase 2: incremental persistence of streamed content for rewrite
-      // mode. Throttled via `shouldFlush` so we don't issue a mutation per
-      // token; the canvas's `streamingContent ?? settled` fallback chain
-      // then has bytes to show when the client-side tool-input-delta hook
-      // resets on a `toolCallId` change. Patch / delete / rename /
-      // set_entry don't reach here — they settle at execute time.
+      // Phase 2: incremental persistence of streamed content for `rewrite`
+      // and `append` modes (both carry `content` in tool input). Throttled
+      // via `shouldFlush` so we don't issue a mutation per token; the
+      // canvas's `streamingContent ?? settled` fallback chain then has
+      // bytes to show when the client-side tool-input-delta hook resets on
+      // a `toolCallId` change. `patch` / `delete` / `rename` don't reach
+      // here — they settle at execute time.
       if (
         !state.rowInitialized ||
-        state.resolvedMode !== 'rewrite' ||
+        (state.resolvedMode !== 'rewrite' && state.resolvedMode !== 'append') ||
         state.artifactId === undefined ||
         path === undefined ||
         path.length === 0
@@ -545,17 +577,22 @@ export const artifactEditTool = {
               message: `Renamed "${result.from}" → "${result.to}" in "${artifact.title}". New revision: ${result.revision}.${entryNote}`,
             };
           }
-          case 'set_entry': {
+          case 'append': {
             const result = await ctx.runMutation(
-              internal.artifacts.internal_mutations.setArtifactEntry,
+              internal.artifacts.internal_mutations.appendToFile,
               {
                 artifactId,
-                entryFile: args.entryFile,
+                path: args.path,
+                content: args.content,
                 editedByMessageId,
                 expectedRevision: baselineRevision,
               },
             );
             if (!result.success) {
+              await ctx.runMutation(
+                internal.artifacts.internal_mutations.abortStream,
+                { artifactId },
+              );
               return {
                 success: false,
                 code: result.code,
@@ -567,8 +604,11 @@ export const artifactEditTool = {
               success: true,
               artifactId: args.artifactId,
               revision: result.revision,
-              entryFile: result.entryFile,
-              message: `Set entry file to "${result.entryFile}" in "${artifact.title}". New revision: ${result.revision}.${runHint}`,
+              path: result.path,
+              created: result.created,
+              message: result.created
+                ? `Created file "${result.path}" in "${artifact.title}" with ${result.byteLength} bytes (first append). New revision: ${result.revision}.${runHint}`
+                : `Appended ${args.content.length} bytes to "${result.path}" in "${artifact.title}" (now ${result.byteLength} bytes total). New revision: ${result.revision}.${runHint}`,
             };
           }
           default: {

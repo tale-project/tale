@@ -33,11 +33,20 @@ export const artifactEditKindValidator = v.union(
   v.literal('create'),
   v.literal('patch'),
   v.literal('rewrite'),
+  // Chunked content delivery introduced with the streaming-create retirement —
+  // each `artifact_edit({mode: 'append'})` call concatenates a slice to the
+  // file's existing content. Audit row distinguishes 'append' from 'rewrite'
+  // so future tooling can reconstruct a multi-call write history.
+  v.literal('append'),
   v.literal('user'),
   // File-level operations introduced with the multi-file refactor.
   v.literal('file_delete'),
   v.literal('file_rename'),
   // Project-level metadata: entry-point repoint without touching files.
+  // Retained for read-validator compatibility with existing rows; the
+  // `artifact_edit({mode: 'set_entry'})` surface has been retired (use
+  // `rename` instead — its `from === entryFile` follow-along covers the
+  // common case atomically).
   v.literal('set_entry'),
   // Snapshot taken when a chat branch was forked: the artifact is cloned
   // from the parent thread at its current state into the new branch's
@@ -64,6 +73,10 @@ export const artifactFileValidator = v.object({
 export const liveStreamModeValidator = v.union(
   v.literal('create'),
   v.literal('rewrite'),
+  // Chunked content delivery — same on-the-wire shape as rewrite (content
+  // streams in via tool input) but the mutation concatenates instead of
+  // replacing at execute time.
+  v.literal('append'),
   v.literal('patch'),
 );
 

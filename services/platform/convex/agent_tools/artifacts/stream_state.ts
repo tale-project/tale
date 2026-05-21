@@ -23,7 +23,7 @@ export interface ArtifactStreamState {
   lastFlushAt: number;
   // Set once the parser has seen enough JSON to know the streaming mode
   // (only relevant for artifact_edit which carries `mode` in its input).
-  resolvedMode?: 'create' | 'rewrite' | 'patch';
+  resolvedMode?: 'create' | 'rewrite' | 'append' | 'patch';
   // True once we have either inserted the placeholder (create) or marked
   // the existing row (edit). Avoids double-init on rapid deltas.
   rowInitialized: boolean;
