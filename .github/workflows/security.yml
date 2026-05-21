@@ -11,6 +11,15 @@ on:
       - 'services/rag/uv.lock'
       - 'services/rag/pyproject.toml'
       - 'packages/*/pyproject.toml'
+      # Dockerfile + dockerignore changes alter what trivy's misconfig
+      # scanner sees on the fs-scan path; .trivyignore.yaml changes can
+      # silently un-suppress findings. Round-2 R2-B11 found this branch
+      # added new Dockerfiles + a trivyignore without re-triggering the
+      # security scan — PRs went out blind.
+      - 'services/*/Dockerfile'
+      - 'services/*/Dockerfile.dockerignore'
+      - '.trivyignore.yaml'
+      - '.trivyignore'
       - '.github/workflows/security.yml'
   push:
     branches:
@@ -22,6 +31,10 @@ on:
       - 'services/rag/uv.lock'
       - 'services/rag/pyproject.toml'
       - 'packages/*/pyproject.toml'
+      - 'services/*/Dockerfile'
+      - 'services/*/Dockerfile.dockerignore'
+      - '.trivyignore.yaml'
+      - '.trivyignore'
       - '.github/workflows/security.yml'
   schedule:
     - cron: '0 3 * * 1' # Monday 03:00 UTC

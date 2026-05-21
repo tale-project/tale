@@ -133,3 +133,9 @@ services/db/
 !services/db/package.json
 services/proxy/
 !services/proxy/package.json
+services/sandbox/
+!services/sandbox/package.json
+services/sandbox-egress/
+services/sandbox-runtime/
+services/docs/
+!services/docs/package.json
