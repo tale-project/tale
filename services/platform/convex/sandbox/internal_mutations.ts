@@ -1,5 +1,6 @@
 import { ConvexError, v } from 'convex/values';
 
+import type { Id } from '../_generated/dataModel';
 import { internalMutation, type MutationCtx } from '../_generated/server';
 import { applyFinalizeArtifactRun } from '../artifacts/internal_mutations';
 import { rateLimiter } from '../lib/rate_limiter';
@@ -56,9 +57,48 @@ async function maybeRunSandboxAuditCleanup(
     .order('asc')) {
     if (row._creationTime >= cutoff) break;
     if (!sandboxTerminalStatuses.has(row.status)) continue;
+    // Cascade-delete the storage blobs owned by this audit row before
+    // dropping it. Without this, every GC cycle orphaned three `_storage`
+    // rows per audit row (code/stdout/stderr) and never released the
+    // bytes — audit finding R2-B7 #2.
+    //
+    // outputFiles[*].storageId is intentionally NOT deleted here: that
+    // ownership lives on the sibling `fileMetadata` rows; their own
+    // lifecycle (referenced by chat messages) governs blob lifetime.
+    await deleteSandboxRowStorage(ctx, row);
     await ctx.db.delete(row._id);
     deleted += 1;
     if (deleted >= AUDIT_GC_PER_SWEEP) break;
+  }
+}
+
+/**
+ * Best-effort `_storage` cleanup for an audit row about to be deleted (90-day
+ * retention sweep) or reaped (watchdog). Each delete is independently
+ * try/catch'd so a single missing blob doesn't abort the parent mutation.
+ *
+ * Output-file blobs are deliberately excluded — their ownership lives on
+ * `fileMetadata` rows whose own lifecycle handles cleanup.
+ */
+async function deleteSandboxRowStorage(
+  ctx: MutationCtx,
+  row: {
+    codeStorageId?: Id<'_storage'>;
+    stdoutStorageId?: Id<'_storage'>;
+    stderrStorageId?: Id<'_storage'>;
+  },
+): Promise<void> {
+  for (const id of [
+    row.codeStorageId,
+    row.stdoutStorageId,
+    row.stderrStorageId,
+  ]) {
+    if (id === undefined) continue;
+    try {
+      await ctx.storage.delete(id);
+    } catch (err) {
+      console.warn(`[sandbox.cleanup] storage.delete ${id} failed:`, err);
+    }
   }
 }
 
@@ -324,6 +364,12 @@ export const finalize = internalMutation({
  * `reserveSlotAndInsert` and `setRunning` leaves the row in `queued`
  * indefinitely and would leak a quota slot otherwise.
  */
+// Per-status cap on rows reaped in a single mutation. Convex mutations
+// have a doc-read/-write budget — an unbounded full-table scan can hit
+// it and abort mid-sweep, leaving the trailing rows stuck (audit finding
+// R2-B6 #1). Cron re-runs every 5 min so leftover rows get picked up.
+const WATCHDOG_REAP_PER_STATUS = 200;
+
 export const recoverStuckSandboxes = internalMutation({
   args: {},
   returns: v.number(),
@@ -331,9 +377,11 @@ export const recoverStuckSandboxes = internalMutation({
     const cutoff = Date.now() - SANDBOX_WATCHDOG_CUTOFF_MS;
     let recovered = 0;
     for (const status of ['running', 'installing', 'queued'] as const) {
-      for await (const row of ctx.db
+      const candidates = await ctx.db
         .query('sandboxExecutions')
-        .withIndex('by_status', (q) => q.eq('status', status))) {
+        .withIndex('by_status', (q) => q.eq('status', status))
+        .take(WATCHDOG_REAP_PER_STATUS);
+      for (const row of candidates) {
         if (row.heartbeatAt >= cutoff) continue;
         const now = Date.now();
         await ctx.db.patch(row._id, {
@@ -344,6 +392,10 @@ export const recoverStuckSandboxes = internalMutation({
           errorMessage: `Watchdog reaped a stuck ${status} row`,
           actualSeconds: row.estimatedSeconds,
         });
+        // Best-effort storage cleanup so a watchdog reap doesn't leave
+        // code/stdout/stderr blobs orphaned for the full 90-day audit
+        // retention window (audit finding R2-B7 #2 follow-up).
+        await deleteSandboxRowStorage(ctx, row);
         // Cascade to the artifact row if this execution was bound to one,
         // so the canvas spinner terminates as soon as the watchdog runs
         // (otherwise the runnable card spins until the audit row TTLs out).

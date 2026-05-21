@@ -118,7 +118,12 @@ export const SANDBOX_MAX_CONCURRENT_PER_ORG = 4;
 export const SANDBOX_DAILY_CPU_BUDGET_SECONDS = 1800;
 export const SANDBOX_MAX_TIMEOUT_MS = 300_000;
 export const SANDBOX_DEFAULT_TIMEOUT_MS = 30_000;
-export const SANDBOX_WATCHDOG_CUTOFF_MS = 2 * SANDBOX_MAX_TIMEOUT_MS;
+// Watchdog cutoff = execution wall-clock max + 10 minute tail for storage
+// uploads and finalize mutations. The previous `2 × max_timeout` formula
+// only covered execution time; multi-MB output blob uploads after the
+// spawner returned could push heartbeats past the cutoff and trigger a
+// false-positive watchdog reap (audit finding R2-B6 #3).
+export const SANDBOX_WATCHDOG_CUTOFF_MS = SANDBOX_MAX_TIMEOUT_MS + 600_000;
 
 export const SANDBOX_CODE_PREVIEW_MAX = 8 * 1024;
 export const SANDBOX_STDOUT_PREVIEW_MAX = 16 * 1024;
