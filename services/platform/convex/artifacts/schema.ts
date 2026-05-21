@@ -34,6 +34,11 @@ export const artifactEditKindValidator = v.union(
   v.literal('patch'),
   v.literal('rewrite'),
   v.literal('user'),
+  // File-level operations introduced with the multi-file refactor.
+  v.literal('file_delete'),
+  v.literal('file_rename'),
+  // Project-level metadata: entry-point repoint without touching files.
+  v.literal('set_entry'),
   // Snapshot taken when a chat branch was forked: the artifact is cloned
   // from the parent thread at its current state into the new branch's
   // namespace. The `revision` on this row preserves the parent's revision
@@ -44,6 +49,16 @@ export const artifactEditKindValidator = v.union(
 export const artifactPatchValidator = v.object({
   search: v.string(),
   replace: v.string(),
+});
+
+/**
+ * A single file inside an artifact's project tree. `path` is a POSIX-style
+ * relative path, NFC-normalized, validated against the path-safety rules
+ * in `agent_tools/artifacts/shared.ts:validatePath`.
+ */
+export const artifactFileValidator = v.object({
+  path: v.string(),
+  content: v.string(),
 });
 
 export const liveStreamModeValidator = v.union(
@@ -73,7 +88,25 @@ export const artifactsTable = defineTable({
   type: artifactTypeValidator,
   title: v.string(),
   language: v.optional(v.string()),
-  content: v.string(),
+  /**
+   * @deprecated — legacy single-file content. Phase A of the multi-file
+   * refactor: marked optional; `files[entryFile].content` is the canonical
+   * source. New mutations mirror entry-file content back here for rollback
+   * safety. Phase C will drop this column.
+   */
+  content: v.optional(v.string()),
+  /**
+   * Project-shaped file tree. Each entry's `path` is NFC-normalized and
+   * validated; total aggregate size capped at MAX_ARTIFACT_BYTES.
+   * Optional during Phase A migration; required in Phase C.
+   */
+  files: v.optional(v.array(artifactFileValidator)),
+  /**
+   * Which file in `files[]` is the entry-point — used by `artifact_run`
+   * (executed script), HTML preview (entry document), and renderers for
+   * static types (the file the canvas displays by default).
+   */
+  entryFile: v.optional(v.string()),
   revision: v.number(),
   createdByMessageId: v.string(),
   // Cleared when the user edits the artifact via the Canvas pane — there
@@ -93,6 +126,15 @@ export const artifactsTable = defineTable({
   // canvas falls back to `streamingContent` for those.
   toolCallId: v.optional(v.string()),
   streamingContent: v.optional(v.string()),
+  /**
+   * The file `path` the current `mode: 'rewrite'` stream is targeting.
+   * Advisory only — `files[]` is NOT mutated during streaming; the canvas
+   * computes its tree as `files.map(f => f.path) ∪ {streamingPath}` so a
+   * new-file rewrite shows a "ghost" tab during streaming and the entry
+   * is only added to `files[]` at settle. Cleared by every writer that
+   * clears the other streaming flags (via `clearStreamingFlags`).
+   */
+  streamingPath: v.optional(v.string()),
   // While `liveStreamMode === 'patch'`, the partial patches array parsed
   // from the LLM's tool input is mirrored here as {search, replace} pairs
   // (only entries with a complete `search`; `replace` may still be
@@ -159,7 +201,22 @@ export const artifactsTable = defineTable({
 export const artifactRevisionsTable = defineTable({
   artifactId: v.id('artifacts'),
   revision: v.number(),
-  content: v.string(),
+  /**
+   * @deprecated — legacy single-file content snapshot. Phase A: optional.
+   * New revisions write `files` (full snapshot for content edits) instead.
+   * For `editKind === 'set_entry'`, BOTH `files` and `content` are omitted
+   * (pure metadata revision); read-fold logic walks back to find the most
+   * recent revision carrying file state.
+   */
+  content: v.optional(v.string()),
+  /** Full files snapshot at this revision (for content-touching edits). */
+  files: v.optional(v.array(artifactFileValidator)),
+  /** Entry-file pointer at this revision. */
+  entryFile: v.optional(v.string()),
+  /** Which file the patch/rewrite/delete operated on. */
+  filePath: v.optional(v.string()),
+  /** Source path for `editKind === 'file_rename'`. */
+  fromPath: v.optional(v.string()),
   // Omitted when editKind === 'user' (Canvas pane textarea edit).
   editedByMessageId: v.optional(v.string()),
   editKind: artifactEditKindValidator,

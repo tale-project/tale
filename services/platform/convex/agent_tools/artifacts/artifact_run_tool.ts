@@ -21,6 +21,7 @@ import { ConvexError } from 'convex/values';
 import { z } from 'zod/v4';
 
 import { internal } from '../../_generated/api';
+import { resolveArtifactFiles } from '../../artifacts/resolve_files';
 import { toId } from '../../lib/type_cast_helpers';
 import type { ToolDefinition } from '../types';
 import { isRunnableArtifactType, runnableLanguage } from './shared';
@@ -199,6 +200,22 @@ USE THIS TOOL after \`artifact_create\` (to actually run a newly authored script
         };
       }
 
+      // Resolve the entry-file content. For multi-file projects, sibling
+      // files are written to the sandbox alongside the entry by future work;
+      // for now the entry file's content is what executes (helpers must be
+      // inlined into the entry, or accessed via a separate `python -m`
+      // invocation pattern in the entry source).
+      const resolved = resolveArtifactFiles(artifact);
+      const entryEntry = resolved.files.find(
+        (f) => f.path === resolved.entryFile,
+      );
+      if (!entryEntry || entryEntry.content.length === 0) {
+        return {
+          success: false,
+          message: `Artifact ${args.artifactId} entry file "${resolved.entryFile}" is empty. Call artifact_edit({mode: 'rewrite', path: "${resolved.entryFile}", content: ...}) first.`,
+        };
+      }
+
       // Refresh the run-state row in case the user already saw a previous
       // run's status — initArtifactRun resets runStatus to 'queued', clears
       // runProgress / runErrorCode / etc. so the canvas right pane updates
@@ -266,7 +283,7 @@ USE THIS TOOL after \`artifact_create\` (to actually run a newly authored script
             ...(options.toolCallId && { toolCallId: options.toolCallId }),
             ...(agentSlug !== undefined && { agentSlug }),
             language,
-            code: artifact.content,
+            code: entryEntry.content,
             ...(effectivePackages.length > 0 && {
               packages: effectivePackages,
             }),

@@ -6,6 +6,7 @@ import type { Doc } from '../_generated/dataModel';
 import { query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls';
 import { canAccessThread } from '../lib/rls/auth/can_access_thread';
+import { resolveArtifactFiles } from './resolve_files';
 
 const MAX_LIST_BY_THREAD = 50;
 
@@ -26,6 +27,12 @@ export interface ArtifactListItem {
   language?: string;
   revision: number;
   liveStreamMode?: Doc<'artifacts'>['liveStreamMode'];
+  /** Number of files in the project. Derived from `files` or 1 for legacy. */
+  fileCount: number;
+  /** Entry-file path. Synthesized for legacy rows via {@link resolveArtifactFiles}. */
+  entryFile: string;
+  /** Aggregate byte length of file contents (entry file's content for legacy rows). */
+  totalBytes: number;
   createdByMessageId: string;
   lastEditedByMessageId?: string;
   createdAt: number;
@@ -33,6 +40,11 @@ export interface ArtifactListItem {
 }
 
 function projectListItem(row: Doc<'artifacts'>): ArtifactListItem {
+  const resolved = resolveArtifactFiles(row);
+  const totalBytes = resolved.files.reduce(
+    (acc, f) => acc + f.content.length,
+    0,
+  );
   return {
     _id: row._id,
     _creationTime: row._creationTime,
@@ -41,6 +53,9 @@ function projectListItem(row: Doc<'artifacts'>): ArtifactListItem {
     language: row.language,
     revision: row.revision,
     liveStreamMode: row.liveStreamMode,
+    fileCount: resolved.files.length,
+    entryFile: resolved.entryFile,
+    totalBytes,
     createdByMessageId: row.createdByMessageId,
     lastEditedByMessageId: row.lastEditedByMessageId,
     createdAt: row.createdAt,

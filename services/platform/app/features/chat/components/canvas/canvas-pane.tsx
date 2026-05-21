@@ -289,7 +289,7 @@ function CanvasPaneComponent() {
       artifact.streamingPatches.length > 0
     ) {
       lastPatchSnapshotRef.current = {
-        code: artifact.content,
+        code: artifact.content ?? '',
         patches: artifact.streamingPatches,
       };
     }
