@@ -204,7 +204,7 @@ export const updateChatThread = mutation({
 export const cancelGeneration = mutation({
   args: {
     threadId: v.string(),
-    displayedContent: v.optional(v.union(v.string(), v.null())),
+    displayedLength: v.optional(v.union(v.number(), v.null())),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -217,7 +217,7 @@ export const cancelGeneration = mutation({
       ctx,
       String(authUser._id),
       args.threadId,
-      args.displayedContent,
+      args.displayedLength,
     );
     return null;
   },
