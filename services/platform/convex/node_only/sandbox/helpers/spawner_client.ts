@@ -36,8 +36,6 @@ interface SpawnerExecuteResponse {
   stdoutBase64: string;
   stderrBase64: string;
   durationMs: number;
-  installMs: number | null;
-  runMs: number | null;
   truncated: { stdout: boolean; stderr: boolean; files: number };
   outputFiles: {
     name: string;

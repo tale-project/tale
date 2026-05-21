@@ -10,11 +10,6 @@ import type { SandboxErrorCode, SandboxLanguage } from './wire.ts';
 export type Language = SandboxLanguage;
 export type ErrorCode = SandboxErrorCode;
 
-export interface InputFileBase64 {
-  name: string;
-  contentBase64: string;
-}
-
 export interface ExecuteRequest {
   // Stable id from the Convex action; used for container name + label and
   // for /v1/cancel/:id. Caller must supply this so cancellation has
@@ -24,7 +19,6 @@ export interface ExecuteRequest {
   language: Language;
   code: string;
   packages?: string[];
-  inputFiles?: InputFileBase64[];
   timeoutMs?: number;
   options?: {
     allowSdist?: boolean;
@@ -49,12 +43,6 @@ export interface ExecuteResponse {
   stdoutBase64: string;
   stderrBase64: string;
   durationMs: number;
-  // Per-phase timing kept for back-compat with existing platform-side type
-  // shape (`spawner_client.ts:SpawnerExecuteResponse`). Currently always
-  // null — the spawner's `classifyPhases` helper is a stub. Removed in a
-  // follow-up commit alongside spawner_client + spawn.ts cleanup.
-  installMs: number | null;
-  runMs: number | null;
   truncated: {
     stdout: boolean;
     stderr: boolean;
