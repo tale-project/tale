@@ -39,8 +39,10 @@ import {
 import {
   sandboxErrorCodeValidator,
   sandboxLanguageValidator,
+  sandboxStepResultValidator,
   type SandboxErrorCode,
   type SandboxRunProgressKind,
+  type SandboxStepResult,
 } from '../../sandbox/wire';
 import { spawnerCancel, spawnerExecute } from './helpers/spawner_client';
 
@@ -69,6 +71,7 @@ type ExecuteCodeResult = {
     size: number;
     contentType: string;
   }>;
+  steps?: SandboxStepResult[];
 };
 
 interface FailContext {
@@ -208,7 +211,13 @@ export const executeCode = internalAction({
     agentSlug: v.optional(v.string()),
 
     language: sandboxLanguageValidator,
-    code: v.string(),
+    /**
+     * Single-script mode: source of the entry script. The action requires
+     * exactly one of `code` or `steps`; this is enforced at the spawner
+     * boundary (validate-request.ts) and re-checked below before the
+     * reservation mutation.
+     */
+    code: v.optional(v.string()),
     /**
      * Optional sibling files staged at /workspace/code/<path> alongside
      * the executed script. Enables Python `import helpers` / Node
@@ -222,6 +231,12 @@ export const executeCode = internalAction({
     ),
     /** Path of the file `code` was sourced from (must reference an entry in `files`). */
     entryPath: v.optional(v.string()),
+    /**
+     * Multi-script mode: paths inside `files[]` to execute sequentially
+     * in the same container. See artifact_run_tool / spawner ExecuteRequest
+     * for the full contract. Mutually exclusive with `code`.
+     */
+    steps: v.optional(v.array(v.string())),
     packages: v.optional(v.array(v.string())),
     timeoutMs: v.optional(v.number()),
     // NOTE: `allowSdist` / `allowInstallScripts` are intentionally NOT
@@ -265,8 +280,29 @@ export const executeCode = internalAction({
         contentType: v.string(),
       }),
     ),
+    steps: v.optional(v.array(sandboxStepResultValidator)),
   }),
   handler: async (ctx, args): Promise<ExecuteCodeResult> => {
+    // Exactly one of `code` or `steps` must be set. The spawner enforces
+    // this at the wire boundary, but we re-check here so a misuse from
+    // another caller (e.g. a future free-form executor) fails fast with a
+    // useful diagnostic instead of confusing 400s from the spawner.
+    const codeProvided = args.code !== undefined;
+    const stepsProvided = args.steps !== undefined && args.steps.length > 0;
+    if (codeProvided === stepsProvided) {
+      throw new ConvexError({
+        code: 'INPUT_REJECTED',
+        message:
+          'executeCode requires exactly one of `code` (single-script) or `steps[]` (multi-script).',
+      });
+    }
+    if (stepsProvided && args.files === undefined) {
+      throw new ConvexError({
+        code: 'INPUT_REJECTED',
+        message: 'executeCode with `steps[]` also requires `files[]`.',
+      });
+    }
+
     const timeoutMs = Math.min(
       Math.max(args.timeoutMs ?? SANDBOX_DEFAULT_TIMEOUT_MS, 1_000),
       SANDBOX_MAX_TIMEOUT_MS,
@@ -274,13 +310,22 @@ export const executeCode = internalAction({
     const estimatedSeconds = Math.ceil(timeoutMs / 1000);
 
     // ---- codePreview / codeStorageId split ----
-    const codeBytes = Buffer.byteLength(args.code, 'utf8');
-    let codePreview = args.code;
+    // In multi-step mode the spawner generates the executed wrapper itself,
+    // so there is no caller-supplied `code`. Persist a stable synthesized
+    // preview keyed off the step list — the audit row still shows what was
+    // requested without falsely advertising any of the user's individual
+    // scripts as "the executed code".
+    const sourceForPreview =
+      args.code !== undefined
+        ? args.code
+        : `[multi-step] ${args.steps?.join(' → ') ?? ''}`;
+    const codeBytes = Buffer.byteLength(sourceForPreview, 'utf8');
+    let codePreview = sourceForPreview;
     let codeStorageId: Id<'_storage'> | undefined;
     if (codeBytes > SANDBOX_CODE_PREVIEW_MAX) {
-      const blob = new Blob([args.code], { type: 'text/plain' });
+      const blob = new Blob([sourceForPreview], { type: 'text/plain' });
       codeStorageId = await ctx.storage.store(blob);
-      codePreview = args.code.slice(0, SANDBOX_CODE_PREVIEW_MAX);
+      codePreview = sourceForPreview.slice(0, SANDBOX_CODE_PREVIEW_MAX);
     }
 
     // ---- atomic reservation (concurrent cap + daily CPU budget + insert) ----
@@ -411,7 +456,13 @@ export const executeCode = internalAction({
           executionId: String(executionId),
           organizationId: args.organizationId,
           language: args.language,
-          code: args.code,
+          // The mutual-exclusion gate at the top of the handler guarantees
+          // exactly one of these branches lands in the body. We forward
+          // both shapes; the spawner's own validator enforces the wire
+          // contract a second time.
+          ...(args.code !== undefined && { code: args.code }),
+          ...(args.steps !== undefined &&
+            args.steps.length > 0 && { steps: args.steps }),
           ...(args.files !== undefined &&
             args.files.length > 0 && { files: args.files }),
           ...(args.entryPath !== undefined && { entryPath: args.entryPath }),
@@ -573,6 +624,9 @@ export const executeCode = internalAction({
         truncated: spawnerResult.truncated,
         durationMs,
         actualSeconds,
+        ...(spawnerResult.steps !== undefined && {
+          steps: spawnerResult.steps,
+        }),
       });
 
       // When this run is tied to a runnable artifact, finalize the artifact
@@ -635,6 +689,9 @@ export const executeCode = internalAction({
         durationMs,
         truncated: spawnerResult.truncated,
         files: insertedFiles,
+        ...(spawnerResult.steps !== undefined && {
+          steps: spawnerResult.steps,
+        }),
       };
     } catch (err) {
       // Infra failure: best-effort spawner cancel (idempotent if container

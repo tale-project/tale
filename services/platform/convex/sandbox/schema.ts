@@ -6,6 +6,7 @@ import {
   sandboxLanguageValidator,
   sandboxOutputFileValidator,
   sandboxRunStatusValidator,
+  sandboxStepResultValidator,
   sandboxTruncatedValidator,
 } from './wire';
 
@@ -108,6 +109,14 @@ export const sandboxExecutionsTable = defineTable({
   // Spawner reports per-call caps were hit; the tool result mirrors these
   // so the LLM can react ("re-run with smaller scope").
   truncated: v.optional(sandboxTruncatedValidator),
+
+  // Populated only for multi-step runs (`artifact_run({steps:[...]})`),
+  // one entry per requested step in submission order. Single-step runs
+  // leave this undefined — the existing `path` / `exitCode` columns
+  // already carry the outcome. Optional per the
+  // [feedback_deprecate_dont_delete_schema_fields] rule so existing rows
+  // read cleanly through the validator after schema deploy.
+  steps: v.optional(v.array(sandboxStepResultValidator)),
 
   startedAt: v.number(),
   completedAt: v.optional(v.number()),

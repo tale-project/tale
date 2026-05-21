@@ -5,7 +5,11 @@
 // file imports them as type aliases so existing call sites in spawn.ts,
 // server.ts, docker-args.ts, etc. keep working unchanged.
 
-import type { SandboxErrorCode, SandboxLanguage } from './wire.ts';
+import type {
+  SandboxErrorCode,
+  SandboxLanguage,
+  SandboxStepResult,
+} from './wire.ts';
 
 export type Language = SandboxLanguage;
 export type ErrorCode = SandboxErrorCode;
@@ -29,14 +33,16 @@ export interface ExecuteRequest {
   organizationId: string;
   language: Language;
   /**
-   * The script content that the runtime entrypoint executes. The
-   * spawner writes this verbatim to /workspace/code/main.{py,js}
-   * regardless of whether `files` is set — that's the file the runtime
-   * image's entrypoint shell exec()s. When `files` AND `entryPath` are
-   * provided, the caller sets `code` to the chosen entry file's content
-   * so old runtime images keep working (cross-deploy compat).
+   * Single-script mode: the script content that the runtime entrypoint
+   * executes. The spawner writes this verbatim to
+   * /workspace/code/main.{py,js} — that's the file the runtime image's
+   * entrypoint shell exec()s. When `files` AND `entryPath` are provided,
+   * the caller sets `code` to the chosen entry file's content.
+   *
+   * Mutually exclusive with `steps`: requests must set exactly one of
+   * `code` or `steps`.
    */
-  code: string;
+  code?: string;
   /**
    * Optional sibling files to stage alongside the executed script. Each
    * entry is written to /workspace/code/<path>. Enables Python `import
@@ -53,6 +59,17 @@ export interface ExecuteRequest {
    * to support arbitrary entry paths.
    */
   entryPath?: string;
+  /**
+   * Multi-script mode: paths inside `files[]` to execute in sequence
+   * within the same container, sharing /workspace/. Spawner generates a
+   * thin wrapper script (written to main.{py,js}) that invokes each path
+   * via subprocess; fail-fast on first non-zero exit. Per-step results
+   * (exit code, duration, status) come back in `ExecuteResponse.steps[]`.
+   *
+   * Mutually exclusive with `code`. Step paths must not collide with the
+   * reserved entrypoint filename (`main.py` / `main.js`).
+   */
+  steps?: string[];
   packages?: string[];
   timeoutMs?: number;
   options?: {
@@ -84,6 +101,12 @@ export interface ExecuteResponse {
     files: number;
   };
   outputFiles: OutputFile[];
+  /**
+   * Populated only for multi-step (`ExecuteRequest.steps`) requests; one
+   * entry per requested step. Omitted entirely in single-script mode so
+   * existing callers don't have to thread the field through.
+   */
+  steps?: SandboxStepResult[];
 }
 
 export interface SpawnerConfig {

@@ -10,9 +10,11 @@ import { createHash, createHmac } from 'node:crypto';
 import {
   sandboxErrorCodeLiterals,
   sandboxPhaseEventLiterals,
+  sandboxStepStatusLiterals,
   type SandboxErrorCode,
   type SandboxLanguage,
   type SandboxPhaseEvent,
+  type SandboxStepResult,
 } from '../../../sandbox/wire';
 
 const SIGNATURE_HEADER = 'x-tale-sandbox-signature';
@@ -27,7 +29,11 @@ interface SpawnerExecuteBody {
   executionId: string;
   organizationId: string;
   language: SandboxLanguage;
-  code: string;
+  /**
+   * Single-script mode body field. Mutually exclusive with `steps`; the
+   * spawner rejects payloads where both (or neither) are present.
+   */
+  code?: string;
   /**
    * Optional sibling files staged at /workspace/code/<path>. Mirrors
    * `services/sandbox/src/types.ts:ExecuteRequest.files`. The cross-service
@@ -37,6 +43,13 @@ interface SpawnerExecuteBody {
    */
   files?: SandboxFileBody[];
   entryPath?: string;
+  /**
+   * Multi-script mode body field. Paths in `files[]` that the spawner-
+   * generated wrapper invokes sequentially in the same container. See
+   * `services/sandbox/src/types.ts:ExecuteRequest.steps` for the full
+   * contract.
+   */
+  steps?: string[];
   packages?: string[];
   timeoutMs?: number;
   options?: { allowSdist?: boolean; allowInstallScripts?: boolean };
@@ -57,6 +70,8 @@ interface SpawnerExecuteResponse {
     size: number;
     contentType: string;
   }[];
+  /** Per-step results populated only for multi-step requests. */
+  steps?: SandboxStepResult[];
 }
 
 const SANDBOX_ERROR_CODE_SET: ReadonlySet<string> = new Set(
@@ -64,6 +79,9 @@ const SANDBOX_ERROR_CODE_SET: ReadonlySet<string> = new Set(
 );
 const SANDBOX_PHASE_SET: ReadonlySet<string> = new Set(
   sandboxPhaseEventLiterals,
+);
+const SANDBOX_STEP_STATUS_SET: ReadonlySet<string> = new Set(
+  sandboxStepStatusLiterals,
 );
 
 // Signature contract (mirrors services/sandbox/src/auth.ts):
@@ -310,6 +328,26 @@ function validateExecuteResponse(
   }
   if (typeof raw.durationMs !== 'number') return null;
   if (!Array.isArray(raw.outputFiles)) return null;
+  // steps is optional, but if present must be a typed array of step
+  // results — refuse the payload otherwise so a wire-drift surfaces as
+  // a hard failure rather than a silently-typecast garbage object.
+  if (raw.steps !== undefined) {
+    if (!Array.isArray(raw.steps)) return null;
+    for (const s of raw.steps) {
+      if (s === null || typeof s !== 'object' || Array.isArray(s)) return null;
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shape-checked via guards above; standard wire-shape narrowing pattern used elsewhere in this file (see `parseSseEvent`).
+      const e = s as Record<string, unknown>;
+      if (typeof e.path !== 'string') return null;
+      if (
+        typeof e.status !== 'string' ||
+        !SANDBOX_STEP_STATUS_SET.has(e.status)
+      ) {
+        return null;
+      }
+      if (e.exitCode !== null && typeof e.exitCode !== 'number') return null;
+      if (typeof e.durationMs !== 'number') return null;
+    }
+  }
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shape-checked above; remaining nullable fields default at caller
   return raw as unknown as SpawnerExecuteResponse;
 }

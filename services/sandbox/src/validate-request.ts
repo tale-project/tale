@@ -21,9 +21,22 @@ import {
   MAX_FILES_BYTES,
   MAX_FILES_PER_REQUEST,
   MAX_FILE_PATH_LENGTH,
+  MAX_STEPS_PER_REQUEST,
   ORG_ID_ALPHABET_RE,
   sandboxLanguageLiterals,
 } from './wire.ts';
+
+/**
+ * Reserved entrypoint filenames the runtime image's entrypoint script
+ * exec()s — the spawner writes the user's `code` OR the generated
+ * multi-step wrapper to this path. A `steps[]` entry naming the same
+ * file would cause infinite recursion (the wrapper would invoke itself),
+ * so the validator rejects it upfront.
+ */
+const RESERVED_ENTRY_BY_LANGUAGE: Record<Language, string> = {
+  python: 'main.py',
+  node: 'main.js',
+};
 
 export type ValidateResult =
   | { ok: true; request: ExecuteRequest }
@@ -72,14 +85,33 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
       error: `language must be one of ${sandboxLanguageLiterals.join(', ')}`,
     };
   }
-  if (!isString(r.code)) {
-    return { ok: false, error: 'code must be a string' };
-  }
-  if (Buffer.byteLength(r.code, 'utf8') > MAX_CODE_BYTES) {
+
+  // `code` (single-script) and `steps` (multi-script) are mutually
+  // exclusive — exactly one must be present. Single-script mode mirrors
+  // `code` into main.{py,js}; multi-script mode generates a wrapper there
+  // that subprocess-invokes each step. Allowing both would let an attacker
+  // shadow the wrapper with arbitrary code that bypasses the per-step
+  // bookkeeping.
+  const codeProvided = r.code !== undefined;
+  const stepsProvided = r.steps !== undefined;
+  if (codeProvided === stepsProvided) {
     return {
       ok: false,
-      error: `code exceeds ${MAX_CODE_BYTES}-byte limit`,
+      error: 'request must set exactly one of `code` or `steps`',
     };
+  }
+  let validatedCode: string | undefined;
+  if (codeProvided) {
+    if (!isString(r.code)) {
+      return { ok: false, error: 'code must be a string' };
+    }
+    if (Buffer.byteLength(r.code, 'utf8') > MAX_CODE_BYTES) {
+      return {
+        ok: false,
+        error: `code exceeds ${MAX_CODE_BYTES}-byte limit`,
+      };
+    }
+    validatedCode = r.code;
   }
 
   // packages: optional string[] with length + per-element-length caps.
@@ -186,6 +218,59 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
     }
   }
 
+  // steps: optional multi-script execution list. When set, `code` is
+  // omitted and the spawner generates a wrapper main.{py,js}. Each step
+  // path must reference an entry in `files[]`, must be safe-relative, and
+  // cannot collide with the reserved entrypoint filename (the wrapper
+  // would invoke itself otherwise).
+  let steps: string[] | undefined;
+  if (stepsProvided) {
+    if (!Array.isArray(r.steps)) {
+      return { ok: false, error: 'steps must be an array of strings' };
+    }
+    if (r.steps.length === 0) {
+      return { ok: false, error: 'steps must contain at least one entry' };
+    }
+    if (r.steps.length > MAX_STEPS_PER_REQUEST) {
+      return {
+        ok: false,
+        error: `steps exceeds ${MAX_STEPS_PER_REQUEST}-item limit`,
+      };
+    }
+    if (files === undefined) {
+      return {
+        ok: false,
+        error: 'steps requires `files[]` to provide the script contents',
+      };
+    }
+    const reservedEntry = RESERVED_ENTRY_BY_LANGUAGE[r.language];
+    const validatedSteps: string[] = [];
+    for (let i = 0; i < r.steps.length; i += 1) {
+      const sp: unknown = r.steps[i];
+      if (!isString(sp)) {
+        return { ok: false, error: `steps[${i}] must be a string` };
+      }
+      const safe = isSafeRelativePath(sp);
+      if (!safe.ok) {
+        return { ok: false, error: `steps[${i}]: ${safe.error}` };
+      }
+      if (sp === reservedEntry) {
+        return {
+          ok: false,
+          error: `steps[${i}] "${sp}" collides with the reserved entrypoint filename — rename the script`,
+        };
+      }
+      if (!files.some((f) => f.path === sp)) {
+        return {
+          ok: false,
+          error: `steps[${i}] "${sp}" must reference a path in files`,
+        };
+      }
+      validatedSteps.push(sp);
+    }
+    steps = validatedSteps;
+  }
+
   // purpose: optional human-readable label, length-capped to defend the
   // audit-row preview from a megabyte-sized "purpose" string.
   // (purpose isn't in ExecuteRequest, but if a future caller ships it the
@@ -205,12 +290,13 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
       executionId: r.executionId,
       organizationId: r.organizationId,
       language: r.language,
-      code: r.code,
+      ...(validatedCode !== undefined && { code: validatedCode }),
       ...(packages !== undefined && { packages }),
       ...(timeoutMs !== undefined && { timeoutMs }),
       ...(options !== undefined && { options }),
       ...(files !== undefined && { files }),
       ...(entryPath !== undefined && { entryPath }),
+      ...(steps !== undefined && { steps }),
     },
   };
 }

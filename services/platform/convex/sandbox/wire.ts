@@ -9,6 +9,7 @@ import type {
   sandboxErrorCodeLiterals as SpawnerErrorCodes,
   sandboxLanguageLiterals as SpawnerLanguages,
   sandboxPhaseEventLiterals as SpawnerPhases,
+  sandboxStepStatusLiterals as SpawnerStepStatuses,
 } from '../../../sandbox/src/wire';
 
 /**
@@ -172,6 +173,44 @@ export const sandboxLanguageValidator = v.union(
   v.literal('node'),
 );
 
+/**
+ * Per-step outcome populated only for multi-step runs (where
+ * `artifact_run` was invoked with `steps: [{path}]`). One row per
+ * requested step, in the requested order. `status` is:
+ *   `completed` — exit 0
+ *   `failed`    — exit ≠ 0; the wrapper aborts subsequent steps
+ *   `skipped`   — a prior step failed or the wrapper never reached this one
+ *
+ * `exitCode` is `null` for `skipped` (no process was started).
+ */
+export const sandboxStepStatusLiterals = [
+  'completed',
+  'failed',
+  'skipped',
+] as const;
+
+export type SandboxStepStatus = (typeof sandboxStepStatusLiterals)[number];
+
+export const sandboxStepStatusValidator = v.union(
+  v.literal('completed'),
+  v.literal('failed'),
+  v.literal('skipped'),
+);
+
+export const sandboxStepResultValidator = v.object({
+  path: v.string(),
+  status: sandboxStepStatusValidator,
+  exitCode: v.union(v.number(), v.null()),
+  durationMs: v.number(),
+});
+
+export type SandboxStepResult = {
+  path: string;
+  status: SandboxStepStatus;
+  exitCode: number | null;
+  durationMs: number;
+};
+
 // ---------------------------------------------------------------------------
 // Spawner ↔ Convex literal parity (audit finding R2-B3)
 // ---------------------------------------------------------------------------
@@ -212,4 +251,10 @@ const _phaseEventParity: Equal<
 const _languageParity: Equal<
   (typeof sandboxLanguageLiterals)[number],
   (typeof SpawnerLanguages)[number]
+> = true;
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _stepStatusParity: Equal<
+  (typeof sandboxStepStatusLiterals)[number],
+  (typeof SpawnerStepStatuses)[number]
 > = true;
