@@ -123,4 +123,107 @@ describe('validateExecuteRequest', () => {
       expect(r.request).not.toHaveProperty('unknownField');
     }
   });
+
+  // ----- multi-step (`steps`) mode -----
+
+  test('rejects request with both code and steps (mutex)', () => {
+    const r = validateExecuteRequest({
+      ...good,
+      steps: ['gen.py'],
+      files: [{ path: 'gen.py', content: 'print("gen")' }],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/exactly one/);
+  });
+
+  test('rejects request with neither code nor steps', () => {
+    const r = validateExecuteRequest({
+      executionId: 'abc-123',
+      organizationId: 'org_42',
+      language: 'python',
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/exactly one/);
+  });
+
+  test('accepts a valid multi-step request', () => {
+    const r = validateExecuteRequest({
+      executionId: 'abc-123',
+      organizationId: 'org_42',
+      language: 'python',
+      steps: ['gen.py', 'validate.py'],
+      files: [
+        { path: 'gen.py', content: 'print("gen")' },
+        { path: 'validate.py', content: 'print("validate")' },
+      ],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.request.steps).toEqual(['gen.py', 'validate.py']);
+      expect(r.request.code).toBeUndefined();
+    }
+  });
+
+  test('rejects empty steps array', () => {
+    const r = validateExecuteRequest({
+      executionId: 'abc-123',
+      organizationId: 'org_42',
+      language: 'python',
+      steps: [],
+      files: [{ path: 'gen.py', content: 'x' }],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/at least one/);
+  });
+
+  test('rejects steps without files[]', () => {
+    const r = validateExecuteRequest({
+      executionId: 'abc-123',
+      organizationId: 'org_42',
+      language: 'python',
+      steps: ['gen.py'],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/requires `files\[\]`/);
+  });
+
+  test('rejects step path not present in files[]', () => {
+    const r = validateExecuteRequest({
+      executionId: 'abc-123',
+      organizationId: 'org_42',
+      language: 'python',
+      steps: ['missing.py'],
+      files: [{ path: 'gen.py', content: 'x' }],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/must reference a path in files/);
+  });
+
+  test('rejects step path that is the reserved entrypoint filename', () => {
+    const r = validateExecuteRequest({
+      executionId: 'abc-123',
+      organizationId: 'org_42',
+      language: 'python',
+      steps: ['main.py'],
+      files: [{ path: 'main.py', content: 'print(1)' }],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/reserved entrypoint/);
+  });
+
+  test('rejects steps with > MAX_STEPS_PER_REQUEST entries', () => {
+    const files = Array.from({ length: 11 }, (_, i) => ({
+      path: `s${i}.py`,
+      content: 'x',
+    }));
+    const r = validateExecuteRequest({
+      executionId: 'abc-123',
+      organizationId: 'org_42',
+      language: 'python',
+      steps: files.map((f) => f.path),
+      files,
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/exceeds .* limit/);
+  });
 });

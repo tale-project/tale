@@ -66,3 +66,32 @@ export const FILE_PATH_SEGMENT_RE = /^[A-Za-z0-9._-]+$/;
 export const MAX_FILES_PER_REQUEST = 50;
 export const MAX_FILE_PATH_LENGTH = 200;
 export const MAX_FILES_BYTES = 800_000;
+
+/**
+ * Maximum number of `steps[]` per multi-step `/v1/execute` request. Each
+ * step launches one subprocess inside the same container so the cap
+ * doubles as a guard against pathological `steps.length === 1000`
+ * payloads. The spawner-generated wrapper script's size scales with this.
+ */
+export const MAX_STEPS_PER_REQUEST = 10;
+
+/**
+ * Per-step outcome reported back inside `ExecuteResponse.steps[]` when
+ * the request used multi-step mode. `path` mirrors the requested step
+ * path; `status` is `'completed'` (exit 0), `'failed'` (exit ≠ 0), or
+ * `'skipped'` (a prior step failed and fail-fast aborted the rest).
+ */
+export const sandboxStepStatusLiterals = [
+  'completed',
+  'failed',
+  'skipped',
+] as const;
+
+export type SandboxStepStatus = (typeof sandboxStepStatusLiterals)[number];
+
+export interface SandboxStepResult {
+  path: string;
+  status: SandboxStepStatus;
+  exitCode: number | null;
+  durationMs: number;
+}

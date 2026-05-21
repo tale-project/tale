@@ -44,7 +44,16 @@ import {
   ID_ALPHABET_RE,
   ORG_ID_ALPHABET_RE,
   type SandboxPhaseEvent,
+  type SandboxStepResult,
+  type SandboxStepStatus,
 } from './wire.ts';
+
+// Hidden directory inside /workspace/output/ where the multi-step wrapper
+// writes its per-step bookkeeping. The harvest path filters anything under
+// this prefix so the bookkeeping never appears in the user-visible output
+// file chips.
+const STEPS_INTERNAL_DIR = '.tale-steps';
+const STEPS_RESULTS_FILENAME = 'results.json';
 
 const PHASE_INSTALL = 'PHASE: installing';
 const PHASE_RUN = 'PHASE: running';
@@ -135,6 +144,181 @@ async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   }
 }
 
+/**
+ * Generate the multi-step wrapper script that lands at /workspace/code/
+ * main.{py,js} in steps mode. Each step is invoked as a child process
+ * with the same cwd and inherited stdio so the user's stdout / stderr
+ * stream through unchanged; the wrapper itself prints a short banner
+ * around each step so a human reading the log can tell where boundaries
+ * fall. Per-step `{path, exitCode, durationMs, status}` records are
+ * written to /workspace/output/.tale-steps/results.json at the end (and
+ * also after every step in case the container is SIGKILLed mid-flight).
+ *
+ * Fail-fast: a non-zero exit aborts the remaining steps, which are
+ * recorded as `status: 'skipped'` so the caller can attribute the gap.
+ * The wrapper exits with the first non-zero exit code, surfacing the
+ * failure to docker's exit code → spawn.ts's classifyFailure().
+ *
+ * The step list is serialized as JSON inline (steps are validated paths,
+ * <= 200 chars, safe-alphabet, cap MAX_STEPS_PER_REQUEST) so the wrapper
+ * has zero external configuration.
+ */
+function buildMultiStepWrapper(
+  language: 'python' | 'node',
+  steps: readonly string[],
+): string {
+  const stepsJson = JSON.stringify(steps);
+  if (language === 'python') {
+    return `# Tale multi-step wrapper — generated, do not edit.
+import json
+import os
+import subprocess
+import sys
+import time
+
+STEPS = ${stepsJson}
+RESULTS_DIR = "/workspace/output/${STEPS_INTERNAL_DIR}"
+RESULTS_PATH = os.path.join(RESULTS_DIR, "${STEPS_RESULTS_FILENAME}")
+
+os.makedirs(RESULTS_DIR, exist_ok=True)
+results = []
+
+def flush_results():
+    try:
+        with open(RESULTS_PATH, "w") as fh:
+            json.dump(results, fh)
+    except Exception as exc:
+        sys.stderr.write(f"[tale-runner] failed to persist step results: {exc}\\n")
+
+failed_idx = None
+for i, path in enumerate(STEPS):
+    banner = f"====== STEP {i + 1}/{len(STEPS)}: {path} ======"
+    sys.stdout.write(banner + "\\n")
+    sys.stdout.flush()
+    started = time.time()
+    try:
+        completed = subprocess.run(
+            [sys.executable, path],
+            cwd="/workspace/code",
+        )
+        exit_code = completed.returncode
+    except FileNotFoundError as exc:
+        sys.stderr.write(f"[tale-runner] step {path} not found: {exc}\\n")
+        exit_code = 127
+    except Exception as exc:
+        sys.stderr.write(f"[tale-runner] step {path} crashed: {exc}\\n")
+        exit_code = 1
+    duration_ms = int((time.time() - started) * 1000)
+    status = "completed" if exit_code == 0 else "failed"
+    results.append(
+        {
+            "path": path,
+            "exitCode": exit_code,
+            "durationMs": duration_ms,
+            "status": status,
+        }
+    )
+    sys.stdout.write(
+        f"====== STEP {i + 1}/{len(STEPS)} END (exit {exit_code}, {duration_ms}ms) ======\\n"
+    )
+    sys.stdout.flush()
+    flush_results()
+    if exit_code != 0:
+        failed_idx = i
+        break
+
+if failed_idx is not None:
+    for j in range(failed_idx + 1, len(STEPS)):
+        results.append(
+            {
+                "path": STEPS[j],
+                "exitCode": None,
+                "durationMs": 0,
+                "status": "skipped",
+            }
+        )
+    flush_results()
+    sys.exit(results[failed_idx]["exitCode"] or 1)
+
+sys.exit(0)
+`;
+  }
+  // node
+  return `// Tale multi-step wrapper — generated, do not edit.
+const { spawnSync } = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const STEPS = ${stepsJson};
+const RESULTS_DIR = '/workspace/output/${STEPS_INTERNAL_DIR}';
+const RESULTS_PATH = path.join(RESULTS_DIR, '${STEPS_RESULTS_FILENAME}');
+
+fs.mkdirSync(RESULTS_DIR, { recursive: true });
+const results = [];
+
+function flushResults() {
+  try {
+    fs.writeFileSync(RESULTS_PATH, JSON.stringify(results));
+  } catch (err) {
+    process.stderr.write(\`[tale-runner] failed to persist step results: \${err}\\n\`);
+  }
+}
+
+let failedIdx = null;
+for (let i = 0; i < STEPS.length; i++) {
+  const step = STEPS[i];
+  process.stdout.write(\`====== STEP \${i + 1}/\${STEPS.length}: \${step} ======\\n\`);
+  const startedAt = Date.now();
+  let exitCode;
+  try {
+    const child = spawnSync(process.execPath, [step], {
+      cwd: '/workspace/code',
+      stdio: 'inherit',
+    });
+    if (child.error) {
+      process.stderr.write(\`[tale-runner] step \${step} crashed: \${child.error.message}\\n\`);
+      exitCode = 1;
+    } else if (child.status === null) {
+      // Killed by signal; surface SIGKILL-equivalent exit code so the host
+      // classifyFailure() still maps to RUNTIME_ERROR / OOM as appropriate.
+      exitCode = child.signal === 'SIGKILL' ? 137 : 1;
+    } else {
+      exitCode = child.status;
+    }
+  } catch (err) {
+    process.stderr.write(\`[tale-runner] step \${step} threw: \${err}\\n\`);
+    exitCode = 1;
+  }
+  const durationMs = Date.now() - startedAt;
+  const status = exitCode === 0 ? 'completed' : 'failed';
+  results.push({ path: step, exitCode, durationMs, status });
+  process.stdout.write(
+    \`====== STEP \${i + 1}/\${STEPS.length} END (exit \${exitCode}, \${durationMs}ms) ======\\n\`,
+  );
+  flushResults();
+  if (exitCode !== 0) {
+    failedIdx = i;
+    break;
+  }
+}
+
+if (failedIdx !== null) {
+  for (let j = failedIdx + 1; j < STEPS.length; j++) {
+    results.push({
+      path: STEPS[j],
+      exitCode: null,
+      durationMs: 0,
+      status: 'skipped',
+    });
+  }
+  flushResults();
+  process.exit(results[failedIdx].exitCode || 1);
+}
+
+process.exit(0);
+`;
+}
+
 async function stageWorkspace(
   hostDir: string,
   req: ExecuteRequest,
@@ -167,10 +351,20 @@ async function stageWorkspace(
 
   // Write the executed script to main.{py,js}. The runtime image's
   // entrypoint shell exec()s this fixed filename regardless of which
-  // artifact-file the LLM picked, so we mirror the chosen content here.
+  // artifact-file the LLM picked.
+  //
+  // Single-script mode: mirror `code` (the LLM-picked entry's content).
+  // Multi-script mode: emit a wrapper that subprocess-invokes each step
+  //                    path in order. validate-request guarantees the
+  //                    step paths don't collide with `mainName` so the
+  //                    wrapper cannot recurse into itself.
   // If `files` ALSO contains an entry at main.{py,js}, this overwrites it
   // — intentional: the executed script wins.
-  await writeFile(join(codeDir, mainName), req.code);
+  const mainContent =
+    req.steps !== undefined
+      ? buildMultiStepWrapper(req.language, req.steps)
+      : (req.code ?? '');
+  await writeFile(join(codeDir, mainName), mainContent);
   await writeFile(
     join(codeDir, 'packages.json'),
     JSON.stringify(req.packages ?? []),
@@ -226,6 +420,11 @@ async function harvestOutputDir(
     for (const e of entries) {
       const childRel = rel ? `${rel}/${e.name}` : e.name;
       const childAbs = join(outputDir, childRel);
+      // Skip the multi-step wrapper's internal bookkeeping. The runner
+      // writes per-step results to `/workspace/output/.tale-steps/` so the
+      // host side can read structured per-step state — those files must
+      // not appear in the user-visible outputFiles harvest.
+      if (rel === '' && e.name === STEPS_INTERNAL_DIR) continue;
       if (e.isDirectory()) {
         await walk(childRel);
         continue;
@@ -251,6 +450,100 @@ async function harvestOutputDir(
   }
   await walk('');
   return { files, truncatedCount };
+}
+
+/**
+ * Read per-step results written by the wrapper into
+ * `/workspace/output/.tale-steps/results.json`. Returns `null` if the
+ * file is missing or malformed — callers should fall back to a synthetic
+ * `[{status:'failed'}]` so the response shape is still valid. Validates
+ * each entry's shape so a wrapper bug can't smuggle arbitrary JSON into
+ * the response.
+ */
+async function readStepResults(
+  hostDir: string,
+  requestedSteps: readonly string[],
+): Promise<SandboxStepResult[] | null> {
+  const resultsPath = join(
+    hostDir,
+    'output',
+    STEPS_INTERNAL_DIR,
+    STEPS_RESULTS_FILENAME,
+  );
+  let raw: string;
+  try {
+    raw = (await readFile(resultsPath)).toString('utf8');
+  } catch (err) {
+    // ENOENT is the most common — happens when the container was killed
+    // before the wrapper could flush. Log only at debug-ish level.
+    if (
+      err !== null &&
+      typeof err === 'object' &&
+      'code' in err &&
+      err.code === 'ENOENT'
+    ) {
+      return null;
+    }
+    console.warn(`[sandbox.harvest] failed to read step results:`, err);
+    return null;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    console.warn(`[sandbox.harvest] step results JSON malformed:`, err);
+    return null;
+  }
+  if (!Array.isArray(parsed)) {
+    console.warn(`[sandbox.harvest] step results not an array`);
+    return null;
+  }
+  const out: SandboxStepResult[] = [];
+  // Use a `ReadonlySet<string>` here so the `.has(value)` call accepts the
+  // freshly-narrowed-but-still-`string` field without an extra cast. The
+  // type-guard below keeps `status` typed as `SandboxStepStatus` for the
+  // returned record.
+  const allowedStatuses: ReadonlySet<string> = new Set([
+    'completed',
+    'failed',
+    'skipped',
+  ] satisfies readonly SandboxStepStatus[]);
+  const isStepStatus = (v: string): v is SandboxStepStatus =>
+    allowedStatuses.has(v);
+  for (const entry of parsed) {
+    if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
+      continue;
+    }
+    // After the guard `entry` is `object`; this is the canonical wire-shape
+    // narrowing pattern in the repo (see spawn.ts header docs on validation).
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+    const e = entry as Record<string, unknown>;
+    if (typeof e.path !== 'string') continue;
+    if (typeof e.status !== 'string' || !isStepStatus(e.status)) {
+      continue;
+    }
+    const exitCode =
+      typeof e.exitCode === 'number'
+        ? e.exitCode
+        : e.exitCode === null
+          ? null
+          : 1;
+    const durationMs =
+      typeof e.durationMs === 'number' && Number.isFinite(e.durationMs)
+        ? e.durationMs
+        : 0;
+    out.push({
+      path: e.path,
+      status: e.status,
+      exitCode,
+      durationMs,
+    });
+  }
+  if (out.length === 0) return null;
+  // Defense: ensure paths reference real requested steps. A wrapper bug
+  // shouldn't surface an unrelated entry to the agent.
+  const requested = new Set(requestedSteps);
+  return out.filter((s) => requested.has(s.path));
 }
 
 function guessContentType(name: string): string {
@@ -433,6 +726,18 @@ export async function executeRequest(
     const stdoutTrunc = result.stdoutTruncated || stdoutCapPostTrunc;
     const stderrTrunc = result.stderrTruncated || stderrCapPostTrunc;
 
+    // Always attempt to load per-step results when the request was multi-
+    // step. The wrapper flushes after every step (and again on fail-fast),
+    // so even cancelled / failed runs usually have a partial results.json
+    // worth surfacing. `null` means the wrapper never got far enough — we
+    // synthesize a [{status:'failed'}] entry so the caller doesn't have to
+    // special-case the missing-file path.
+    const stepResults =
+      req.steps !== undefined
+        ? ((await readStepResults(workspaceHostDir, req.steps)) ??
+          synthesizeStepResults(req.steps))
+        : undefined;
+
     if (abort.signal.aborted) {
       return {
         status: 'cancelled',
@@ -444,6 +749,7 @@ export async function executeRequest(
         durationMs,
         truncated: { stdout: stdoutTrunc, stderr: stderrTrunc, files: 0 },
         outputFiles: [],
+        ...(stepResults !== undefined && { steps: stepResults }),
       };
     }
 
@@ -464,6 +770,7 @@ export async function executeRequest(
           files: harvested.truncatedCount,
         },
         outputFiles: harvested.files,
+        ...(stepResults !== undefined && { steps: stepResults }),
       };
     }
 
@@ -478,6 +785,7 @@ export async function executeRequest(
       durationMs,
       truncated: { stdout: stdoutTrunc, stderr: stderrTrunc, files: 0 },
       outputFiles: [],
+      ...(stepResults !== undefined && { steps: stepResults }),
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -506,6 +814,22 @@ export async function executeRequest(
       );
     }
   }
+}
+
+/**
+ * Synthesize a `steps[]` payload for the case where the wrapper never
+ * produced results.json (container killed during dependency install,
+ * spawner-side crash before docker run, etc). Every requested step is
+ * recorded as `skipped`. The caller can replace the first entry with a
+ * `failed` if the run carries a runtime error code.
+ */
+function synthesizeStepResults(steps: readonly string[]): SandboxStepResult[] {
+  return steps.map((path) => ({
+    path,
+    status: 'skipped',
+    exitCode: null,
+    durationMs: 0,
+  }));
 }
 
 function makeError(

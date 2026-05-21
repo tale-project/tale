@@ -13,6 +13,7 @@ import {
   sandboxErrorCodeValidator,
   sandboxLanguageValidator,
   sandboxOutputFileValidator,
+  sandboxStepResultValidator,
   sandboxTerminalStatuses,
   sandboxTruncatedValidator,
 } from './wire';
@@ -310,6 +311,12 @@ export const finalize = internalMutation({
     truncated: v.optional(sandboxTruncatedValidator),
     durationMs: v.number(),
     actualSeconds: v.number(),
+    /**
+     * Per-step results when the underlying run was multi-step. Single-step
+     * runs leave this undefined; the column is sparse and only patched
+     * when present.
+     */
+    steps: v.optional(v.array(sandboxStepResultValidator)),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -349,6 +356,7 @@ export const finalize = internalMutation({
       }),
       outputFiles: args.outputFiles,
       ...(args.truncated !== undefined && { truncated: args.truncated }),
+      ...(args.steps !== undefined && { steps: args.steps }),
     });
     return null;
   },
