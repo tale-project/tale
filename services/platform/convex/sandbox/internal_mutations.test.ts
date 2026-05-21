@@ -73,22 +73,26 @@ function createMockCtx(opts: MockCtxOptions = {}) {
       return builder;
     });
     builder.order = vi.fn(() => builder);
-    // The mutation iterates the builder directly with `for await`.
-    builder[Symbol.asyncIterator] = function () {
+    const resolveRows = (): FakeRow[] => {
       const status = calls.find((c) => c.field === 'status')?.value;
-      if (status === 'running')
-        return asyncIter(runningRows)[Symbol.asyncIterator]();
-      if (status === 'queued')
-        return asyncIter(queuedRows)[Symbol.asyncIterator]();
-      if (status === 'installing')
-        return asyncIter(installingRows)[Symbol.asyncIterator]();
+      if (status === 'running') return runningRows;
+      if (status === 'queued') return queuedRows;
+      if (status === 'installing') return installingRows;
       // No status filter → completedToday daily-budget scan
-      return asyncIter([
+      return [
         ...completedRows,
         ...runningRows,
         ...queuedRows,
         ...installingRows,
-      ])[Symbol.asyncIterator]();
+      ];
+    };
+    // Watchdog uses `.take(N)` to bound the per-status scan. Tests deal in
+    // tens of rows so we just return everything (cap=200 production value).
+    builder.take = vi.fn(async (_n: number) => resolveRows());
+    // The mutation iterates the builder directly with `for await` for the
+    // reserveSlotAndInsert quota scan path.
+    builder[Symbol.asyncIterator] = function () {
+      return asyncIter(resolveRows())[Symbol.asyncIterator]();
     };
     return builder;
   }
@@ -203,13 +207,17 @@ describe('reserveSlotAndInsert', () => {
 });
 
 describe('recoverStuckSandboxes', () => {
-  it('flips running rows whose heartbeat is older than 2× max-timeout', async () => {
+  // Cutoff = max_timeout (300s) + 10 min upload tail = 900s = 15 min. Tests
+  // use 20 min to comfortably clear the threshold.
+  const STALE_HEARTBEAT_AGE_MS = 20 * 60_000;
+
+  it('flips running rows whose heartbeat is older than the watchdog cutoff', async () => {
     const stale: FakeRow = {
       _id: 'stuck1',
       _creationTime: Date.now() - 3_600_000,
       status: 'running',
       estimatedSeconds: 120,
-      heartbeatAt: Date.now() - 11 * 60_000,
+      heartbeatAt: Date.now() - STALE_HEARTBEAT_AGE_MS,
     };
     const fresh: FakeRow = {
       _id: 'live1',
@@ -235,14 +243,14 @@ describe('recoverStuckSandboxes', () => {
     expect(ctx.db.patch).not.toHaveBeenCalledWith('live1', expect.anything());
   });
 
-  it('also flips queued rows whose heartbeat is older than 2× max-timeout', async () => {
+  it('also flips queued rows whose heartbeat is older than the watchdog cutoff', async () => {
     // Captures the "throw between reserveSlotAndInsert and setRunning" leak.
     const stale: FakeRow = {
       _id: 'queuedStuck',
       _creationTime: Date.now() - 3_600_000,
       status: 'queued',
       estimatedSeconds: 60,
-      heartbeatAt: Date.now() - 11 * 60_000,
+      heartbeatAt: Date.now() - STALE_HEARTBEAT_AGE_MS,
     };
     const { ctx } = createMockCtx({ queuedRows: [stale] });
     const mut = recoverStuckSandboxes as unknown as MutHandler<

@@ -266,6 +266,10 @@ export const executeCode = internalAction({
     }
 
     // ---- atomic reservation (concurrent cap + daily CPU budget + insert) ----
+    // If reservation throws (QUOTA_EXCEEDED, daily budget, etc.) the blob we
+    // just stored is orphaned — it never lands on an audit row to be owned.
+    // The wider `failExecution`-driven rollback set isn't yet constructed at
+    // this point, so we delete here in the catch (audit finding R2-B7 #1).
     let executionId: Id<'sandboxExecutions'>;
     try {
       executionId = await ctx.runMutation(
@@ -300,6 +304,19 @@ export const executeCode = internalAction({
         },
       );
     } catch (err) {
+      // Reservation failed — the codeStorageId blob is now orphaned. Delete
+      // it before propagating so a quota-bounce-loop doesn't accrete
+      // unowned `_storage` rows (audit finding R2-B7 #1).
+      if (codeStorageId !== undefined) {
+        try {
+          await ctx.storage.delete(codeStorageId);
+        } catch (deleteErr) {
+          console.warn(
+            '[sandbox.executeCode] codeStorageId rollback after reservation failure failed:',
+            deleteErr,
+          );
+        }
+      }
       // Quota errors are user-facing — surface as ConvexError. The tool's
       // wrapper translates this into structured agent-visible output.
       if (
@@ -352,10 +369,27 @@ export const executeCode = internalAction({
       );
     }
 
+    // Fire heartbeat from a separate function so we can also call it inline
+    // around long blocking work (storage uploads of multi-MB output files
+    // can otherwise hog the event loop long enough that the interval timer's
+    // fires get coalesced and `heartbeatAt` ages past the watchdog cutoff,
+    // causing the watchdog to wrongly mark this live run as stuck —
+    // audit finding R2-B6 #3).
+    const tickHeartbeat = async (): Promise<void> => {
+      try {
+        await ctx.runMutation(internal.sandbox.internal_mutations.heartbeat, {
+          executionId,
+        });
+      } catch (err) {
+        // Don't swallow silently — a stalled heartbeat path is exactly the
+        // failure mode the watchdog mis-classifies as "stuck execution"
+        // (R2-B6 #2). Logging it makes the regression visible in production
+        // before users notice the wrong-side ghost result.
+        console.warn('[sandbox.executeCode] heartbeat mutation failed:', err);
+      }
+    };
     const heartbeat = setInterval(() => {
-      void ctx.runMutation(internal.sandbox.internal_mutations.heartbeat, {
-        executionId,
-      });
+      void tickHeartbeat();
     }, HEARTBEAT_INTERVAL_MS);
 
     const abort = new AbortController();
@@ -424,6 +458,9 @@ export const executeCode = internalAction({
       );
 
       // ---- file upload (all-or-nothing) ----
+      // Each ctx.storage.store can take seconds for multi-MB blobs; an
+      // explicit heartbeat between uploads keeps `heartbeatAt` fresh so the
+      // watchdog doesn't reap this row mid-upload (audit finding R2-B6 #3).
       const stagedForInsert: Array<{
         name: string;
         storageId: Id<'_storage'>;
@@ -431,6 +468,7 @@ export const executeCode = internalAction({
         contentType: string;
       }> = [];
       for (const f of spawnerResult.outputFiles) {
+        await tickHeartbeat();
         try {
           const bytes = Buffer.from(f.contentBase64, 'base64');
           const blob = new Blob([bytes], { type: f.contentType });
@@ -488,11 +526,13 @@ export const executeCode = internalAction({
       let stdoutStorageId: Id<'_storage'> | undefined;
       let stderrStorageId: Id<'_storage'> | undefined;
       if (stdoutText.length > SANDBOX_STDOUT_PREVIEW_MAX) {
+        await tickHeartbeat();
         const blob = new Blob([stdoutText], { type: 'text/plain' });
         stdoutStorageId = await ctx.storage.store(blob);
         uploadedStorageIds.add(String(stdoutStorageId));
       }
       if (stderrText.length > SANDBOX_STDERR_PREVIEW_MAX) {
+        await tickHeartbeat();
         const blob = new Blob([stderrText], { type: 'text/plain' });
         stderrStorageId = await ctx.storage.store(blob);
         uploadedStorageIds.add(String(stderrStorageId));
