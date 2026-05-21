@@ -2415,6 +2415,9 @@
       "runStdout": "stdout ({chars} car.)",
       "runStderr": "stderr ({chars} car.)",
       "runOpenFile": "Ouvrir le fichier {name}",
+      "runResultEntryLabel": "Sortie",
+      "runResultSecondaryLabel": "Sortie pour {path}",
+      "runResultSecondaryCount": "{count, plural, one {# autre fichier} other {# autres fichiers}}",
       "runStatus": {
         "queued": "En file d'attente",
         "installing": "Installation des dépendances",

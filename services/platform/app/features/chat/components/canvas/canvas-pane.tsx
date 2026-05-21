@@ -41,6 +41,7 @@ import {
   runnableLanguage,
 } from './icon-map';
 import { printHtmlInHiddenIframe } from './print-via-iframe';
+import { RunResultPanel } from './run-result-panel';
 
 const CanvasCodeRenderer = lazyComponent(() =>
   import('./canvas-code-renderer').then((m) => ({
@@ -934,16 +935,27 @@ function CanvasPaneComponent() {
               onContentChange={onContentChange}
             />
           )}
-          {isRunnableArtifactType(canvasType) && (
-            <CanvasRunnableCodeRenderer
-              artifactId={artifactId}
-              activePath={activePath}
-              source={showStreamingSource ? sourceCode : displayedContent}
-              language={
-                runnableLanguage(canvasType) === 'python' ? 'python' : 'node'
-              }
-              isStreaming={isContentStreaming}
-            />
+          {isRunnableArtifactType(canvasType) && artifact && (
+            <div className="flex h-full min-h-0 flex-col">
+              <RunResultPanel
+                artifactId={artifactId}
+                artifactRevision={artifact.revision}
+                entryFile={resolved.entryFile}
+              />
+              <div className="min-h-0 flex-1">
+                <CanvasRunnableCodeRenderer
+                  artifactId={artifactId}
+                  activePath={activePath}
+                  source={showStreamingSource ? sourceCode : displayedContent}
+                  language={
+                    runnableLanguage(canvasType) === 'python'
+                      ? 'python'
+                      : 'node'
+                  }
+                  isStreaming={isContentStreaming}
+                />
+              </div>
+            </div>
           )}
         </div>
       </div>

@@ -167,26 +167,153 @@ export const syncArtifactStream = query({
 });
 
 /**
- * Most recent `sandboxExecutions` row for `(artifactId, path)`. Returns a
- * trimmed projection shaped like the legacy `artifact.run*` fields so the
- * canvas-runnable-code-renderer can read per-file run state without a
- * schema migration on the artifact row itself.
- *
- * Falls back to the artifact row's own `run*` fields when no per-file
- * execution row has been recorded yet (e.g. runs that pre-date the
- * `sandboxExecutions.path` column). This preserves the old behavior for
- * single-file artifacts on existing data.
+ * Shared shape of one per-file run projection — produced by both the
+ * normal `projectExecutionRow` and the legacy `projectArtifactRowFallback`,
+ * so callers (the `listRunsPerFile` query, its pure helper, the canvas
+ * `RunResultPanel`) can treat both branches uniformly.
  */
-export const getLatestRunPerFile = query({
-  args: {
-    artifactId: v.id('artifacts'),
-    path: v.string(),
-  },
-  handler: async (ctx, { artifactId, path }) => {
+export interface ArtifactRunFileProjection {
+  executionId: Doc<'sandboxExecutions'>['_id'] | null;
+  path: string;
+  runStatus: Doc<'sandboxExecutions'>['status'] | undefined;
+  runProgress: Doc<'artifacts'>['runProgress'] | undefined;
+  runErrorCode: Doc<'sandboxExecutions'>['errorCode'] | undefined;
+  runErrorMessage: Doc<'sandboxExecutions'>['errorMessage'] | undefined;
+  runStdoutPreview: Doc<'sandboxExecutions'>['stdoutPreview'] | undefined;
+  runStderrPreview: Doc<'sandboxExecutions'>['stderrPreview'] | undefined;
+  runOutputFiles: Doc<'sandboxExecutions'>['outputFiles'] | undefined;
+  runRevision: number | undefined;
+  runExitCode: number | undefined;
+}
+
+/**
+ * Project a `sandboxExecutions` row into the legacy `artifact.run*` shape
+ * the canvas renderer consumes. `runProgress` is mirrored from the artifact
+ * row ONLY when the execution is the currently-active one (the artifact
+ * row's `runExecutionId` matches), so a finished run keeps its final
+ * status without picking up a later run's progress chrome.
+ */
+function projectExecutionRow(
+  artifact: Doc<'artifacts'>,
+  row: Doc<'sandboxExecutions'>,
+  path: string,
+): ArtifactRunFileProjection {
+  const isCurrentLatest =
+    artifact.runExecutionId !== undefined &&
+    artifact.runExecutionId === row._id;
+  return {
+    executionId: row._id,
+    path,
+    runStatus: row.status,
+    runProgress: isCurrentLatest ? artifact.runProgress : undefined,
+    runErrorCode: row.errorCode,
+    runErrorMessage: row.errorMessage,
+    runStdoutPreview: row.stdoutPreview,
+    runStderrPreview: row.stderrPreview,
+    runOutputFiles: row.outputFiles,
+    runRevision: isCurrentLatest ? artifact.runRevision : undefined,
+    runExitCode: row.exitCode,
+  };
+}
+
+/**
+ * Legacy fallback projection for single-file artifacts whose runs predate
+ * the `sandboxExecutions.path` column — we read the run state off the
+ * artifact row directly. Only reachable when the caller is asking about
+ * the entry file (other paths can't be ambiguously inferred from the row).
+ */
+function projectArtifactRowFallback(
+  artifact: Doc<'artifacts'>,
+  path: string,
+): ArtifactRunFileProjection {
+  return {
+    executionId: artifact.runExecutionId ?? null,
+    path,
+    runStatus: artifact.runStatus,
+    runProgress: artifact.runProgress,
+    runErrorCode: artifact.runErrorCode,
+    runErrorMessage: artifact.runErrorMessage,
+    runStdoutPreview: artifact.runStdoutPreview,
+    runStderrPreview: artifact.runStderrPreview,
+    runOutputFiles: artifact.runOutputFiles ?? [],
+    runRevision: artifact.runRevision,
+    runExitCode: artifact.runExitCode,
+  };
+}
+
+/**
+ * Pure helper extracted from `listRunsPerFile` for unit testability —
+ * applies the latest-per-path collapse, ordering (entry file first,
+ * declared order after), and projection. The Convex wrapper handles auth,
+ * row fetching, and the index walk.
+ *
+ * `executionsNewestFirst` must already be sorted newest-first; rows are
+ * traversed in that order and the first occurrence of each `path` wins.
+ * Rows with a `path` not present in `declaredFiles` are dropped (the user
+ * deleted that file from the project).
+ */
+export function selectRunsPerFile(
+  artifact: Doc<'artifacts'>,
+  executionsNewestFirst: Doc<'sandboxExecutions'>[],
+  entryFile: string,
+  declaredFiles: ReadonlyArray<string>,
+): ArtifactRunFileProjection[] {
+  const filePaths = new Set(declaredFiles);
+  const latestByPath = new Map<string, Doc<'sandboxExecutions'>>();
+  for (const row of executionsNewestFirst) {
+    const rowPath = row.path;
+    if (rowPath === undefined) continue;
+    if (!filePaths.has(rowPath)) continue;
+    if (latestByPath.has(rowPath)) continue;
+    latestByPath.set(rowPath, row);
+  }
+
+  // Legacy fallback: no per-file rows at all but the artifact row carries
+  // run state (pre-`path` column data) — synthesize a single entry-file
+  // projection so the user still sees their last run.
+  if (
+    latestByPath.size === 0 &&
+    artifact.runStatus !== undefined &&
+    filePaths.has(entryFile)
+  ) {
+    return [projectArtifactRowFallback(artifact, entryFile)];
+  }
+
+  // Stable order: entry file first, then declared file order.
+  const ordered: string[] = [];
+  if (filePaths.has(entryFile)) ordered.push(entryFile);
+  for (const path of declaredFiles) {
+    if (path !== entryFile) ordered.push(path);
+  }
+  return ordered
+    .map((path) => ({ path, row: latestByPath.get(path) }))
+    .filter(
+      (pair): pair is { path: string; row: Doc<'sandboxExecutions'> } =>
+        pair.row !== undefined,
+    )
+    .map(({ path, row }) => projectExecutionRow(artifact, row, path));
+}
+
+/**
+ * Per-file run projections for every file in `artifact.files[]` that has a
+ * recorded execution row. Backs the canvas `RunResultPanel`, which displays
+ * the entry file's run as a primary fixture and other files' runs as
+ * collapsible secondaries — independent of the sidebar's active file.
+ *
+ * Ordering: entry file first if present, then the remaining files in
+ * `files[]` declaration order. Files without any recorded execution row
+ * are omitted (the panel stays quiet for files that have never run).
+ *
+ * For legacy single-file artifacts whose runs predate `sandboxExecutions.path`,
+ * we synthesize a single entry-file row from the artifact's `run*` fields.
+ */
+export const listRunsPerFile = query({
+  args: { artifactId: v.id('artifacts') },
+  handler: async (ctx, { artifactId }) => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) return null;
+    if (!authUser) return [];
     const artifact = await ctx.db.get(artifactId);
-    if (!artifact) return null;
+    if (!artifact) return [];
     const metadata = await canAccessThread(
       ctx,
       artifact.threadId,
@@ -194,74 +321,22 @@ export const getLatestRunPerFile = query({
       artifact.organizationId,
     );
     if (!metadata || metadata.organizationId !== artifact.organizationId) {
-      return null;
+      return [];
     }
 
-    // Walk newest-first; pick the first execution row that matches `path`.
-    // Index scan is bounded by the per-artifact execution history depth
-    // (typically a handful of runs), so this is O(runs-for-artifact).
-    let match: Doc<'sandboxExecutions'> | null = null;
+    const resolved = resolveArtifactFiles(artifact);
+    const executions: Doc<'sandboxExecutions'>[] = [];
     for await (const row of ctx.db
       .query('sandboxExecutions')
       .withIndex('by_artifactId', (q) => q.eq('artifactId', artifactId))
       .order('desc')) {
-      if (row.path === path) {
-        match = row;
-        break;
-      }
+      executions.push(row);
     }
-
-    // Resolve baseline source revision for staleness comparison. The artifact
-    // row's `runRevision` is the most-recent-run revision; for the per-file
-    // case we need the revision the matched execution row was created at.
-    // sandboxExecutions doesn't store the artifact revision directly, but
-    // `_creationTime` provides a coarse ordering against future edits — we
-    // surface the artifact-level `runRevision` if it matches this row's
-    // execution id, and otherwise leave it undefined (the renderer treats
-    // that as "stale" / "unknown freshness").
-    const isCurrentLatest =
-      artifact.runExecutionId !== undefined &&
-      match !== null &&
-      artifact.runExecutionId === match._id;
-
-    if (match === null) {
-      // No per-file row found. For single-file artifacts where the user is
-      // viewing the entry file, fall back to the artifact-row state so
-      // legacy runs (pre-`path` column) still render.
-      const resolved = resolveArtifactFiles(artifact);
-      if (path !== resolved.entryFile) return null;
-      return {
-        executionId: artifact.runExecutionId ?? null,
-        path,
-        runStatus: artifact.runStatus,
-        runProgress: artifact.runProgress,
-        runErrorCode: artifact.runErrorCode,
-        runErrorMessage: artifact.runErrorMessage,
-        runStdoutPreview: artifact.runStdoutPreview,
-        runStderrPreview: artifact.runStderrPreview,
-        runOutputFiles: artifact.runOutputFiles ?? [],
-        runRevision: artifact.runRevision,
-        runExitCode: artifact.runExitCode,
-      };
-    }
-
-    return {
-      executionId: match._id,
-      path,
-      runStatus: match.status,
-      // sandboxExecutions audit rows don't carry the live `runProgress`
-      // object — that's only patched onto the artifact row. Mirror the
-      // artifact's progress here ONLY when this execution is the active
-      // one so the user sees live install/run hints; otherwise leave it
-      // undefined (the renderer falls back to status text).
-      runProgress: isCurrentLatest ? artifact.runProgress : undefined,
-      runErrorCode: match.errorCode,
-      runErrorMessage: match.errorMessage,
-      runStdoutPreview: match.stdoutPreview,
-      runStderrPreview: match.stderrPreview,
-      runOutputFiles: match.outputFiles,
-      runRevision: isCurrentLatest ? artifact.runRevision : undefined,
-      runExitCode: match.exitCode,
-    };
+    return selectRunsPerFile(
+      artifact,
+      executions,
+      resolved.entryFile,
+      resolved.files.map((f) => f.path),
+    );
   },
 });
