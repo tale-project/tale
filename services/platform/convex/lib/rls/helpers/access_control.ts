@@ -25,7 +25,15 @@ type PlatformTable =
   | 'workflowProcessingRecords'
   | 'promptTemplates'
   | 'promptCategories'
-  | 'auditLogs';
+  | 'auditLogs'
+  // Sandbox / artifact tables — added round-2 R2-B8. Previously the
+  // `rls_rules.ts` entries for these tables gated on bare org membership
+  // and bypassed `authorizeRls`, which meant a `member` (read-only) user
+  // could still write to artifacts and trigger billable sandbox runs.
+  | 'artifacts'
+  | 'artifactRevisions'
+  | 'auditLogChainGenesis'
+  | 'sandboxExecutions';
 
 type PlatformAction = 'read' | 'write';
 
@@ -65,6 +73,12 @@ const platformPermissions: Record<
     promptTemplates: ALL,
     promptCategories: ALL,
     auditLogs: ALL,
+    artifacts: ALL,
+    artifactRevisions: ALL,
+    // Genesis row is an internal sentinel — no client-facing reads/writes.
+    auditLogChainGenesis: NONE,
+    // Audit table; user-facing access is read-only across all roles.
+    sandboxExecutions: READ_ONLY,
   },
   developer: {
     agentBindings: ALL,
@@ -87,6 +101,10 @@ const platformPermissions: Record<
     promptTemplates: ALL,
     promptCategories: ALL,
     auditLogs: ALL,
+    artifacts: ALL,
+    artifactRevisions: ALL,
+    auditLogChainGenesis: NONE,
+    sandboxExecutions: READ_ONLY,
   },
   editor: {
     agentBindings: ALL,
@@ -109,6 +127,10 @@ const platformPermissions: Record<
     promptTemplates: ALL,
     promptCategories: ALL,
     auditLogs: ALL,
+    artifacts: ALL,
+    artifactRevisions: ALL,
+    auditLogChainGenesis: NONE,
+    sandboxExecutions: READ_ONLY,
   },
   member: {
     agentBindings: READ_ONLY,
@@ -131,6 +153,14 @@ const platformPermissions: Record<
     promptTemplates: ALL,
     promptCategories: ALL,
     auditLogs: READ_ONLY,
+    // Members can READ artifacts (so the chat surface keeps working in
+    // shared threads) but NOT write — artifact_create / artifact_edit /
+    // artifact_run all trigger billable sandbox executions. Aligns with
+    // the `documents` table's own member-as-read-only contract.
+    artifacts: READ_ONLY,
+    artifactRevisions: READ_ONLY,
+    auditLogChainGenesis: NONE,
+    sandboxExecutions: READ_ONLY,
   },
   disabled: {
     agentBindings: NONE,
@@ -153,6 +183,10 @@ const platformPermissions: Record<
     promptTemplates: NONE,
     promptCategories: NONE,
     auditLogs: NONE,
+    artifacts: NONE,
+    artifactRevisions: NONE,
+    auditLogChainGenesis: NONE,
+    sandboxExecutions: NONE,
   },
 };
 

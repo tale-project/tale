@@ -79,7 +79,7 @@ export async function buildArtifactsContext(
   return [
     blocks.join('\n\n'),
     '',
-    'You may modify any of these via the `artifact_edit` tool — prefer `mode: "patch"` for small changes. Do NOT re-emit an artifact via `artifact_create`; that creates a duplicate. Snippets in <artifact> bodies appear verbatim and can be used as `search` blocks for patches.',
+    'You may modify any of these via the `artifact_edit` tool — prefer `mode: "patch"` for small changes. When you call `artifact_edit`, pass the artifact\'s `revision="N"` value back as `expectedRevision` so a concurrent edit by another turn is detected (the call will return `stale: true` instead of overwriting). Do NOT re-emit an artifact via `artifact_create`; that creates a duplicate. Snippets in <artifact> bodies appear verbatim and can be used as `search` blocks for patches. If you see `runStale="true"` on a runnable artifact, the source was edited after the last run — call `artifact_run` again to refresh outputs.',
   ].join('\n');
 }
 
@@ -101,9 +101,11 @@ function truncateArtifactBody(content: string): string {
  */
 interface ArtifactRowForContext {
   type: string;
+  revision: number;
   runStatus?: string;
   runErrorCode?: string;
   runOutputFiles?: { name: string }[];
+  runRevision?: number;
 }
 
 function buildRunAttrs(artifact: ArtifactRowForContext): string {
@@ -112,6 +114,18 @@ function buildRunAttrs(artifact: ArtifactRowForContext): string {
     artifact.type !== 'node_runnable'
   ) {
     return '';
+  }
+  // Stale-run guard: when `runRevision` doesn't match the current source
+  // `revision`, the prior run's outputs no longer reflect the script the
+  // LLM (or the user) can see. Surfacing them would confuse the model into
+  // believing a re-run isn't needed. Mark the artifact as stale instead so
+  // the model knows to call `artifact_run` again after the edit. (round-2
+  // R2-B10)
+  if (
+    artifact.runRevision !== undefined &&
+    artifact.runRevision !== artifact.revision
+  ) {
+    return ' runStale="true"';
   }
   const parts: string[] = [];
   if (artifact.runStatus) parts.push(`runStatus="${artifact.runStatus}"`);

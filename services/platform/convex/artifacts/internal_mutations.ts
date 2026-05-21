@@ -599,6 +599,11 @@ export const initArtifactRun = internalMutation({
       runStatus: 'queued',
       runProgress: { kind: 'queued' },
       runStartedAt: Date.now(),
+      // Pin the revision this run is executing against. After a later edit
+      // bumps `revision`, `buildRunAttrs` + canvas renderer compare against
+      // this to decide whether the displayed run state is still fresh
+      // (round-2 R2-B10).
+      runRevision: row.revision,
       // Clear any stale fields from a prior run of the same artifact (the
       // edit flow re-uses the row for subsequent executions).
       runCompletedAt: undefined,

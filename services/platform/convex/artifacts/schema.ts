@@ -134,6 +134,15 @@ export const artifactsTable = defineTable({
   // table is the source of truth for execution history; the artifact row
   // holds only the *latest* result for fast canvas reads.
   runExecutionId: v.optional(v.id('sandboxExecutions')),
+  // The `revision` the source content held when this run started. After a
+  // subsequent edit bumps `revision`, the inequality `runRevision !==
+  // revision` is the canonical "the displayed run is stale" signal — used
+  // by buildRunAttrs (to omit run state from the LLM context) and by the
+  // canvas renderer (to grey out the panel). Avoids the alternative of
+  // clearing every run-state field on edit, which would surprise users by
+  // wiping the prior output the moment they touch the script (round-2
+  // R2-B10).
+  runRevision: v.optional(v.number()),
 })
   .index('by_organizationId', ['organizationId'])
   .index('by_organizationId_and_thread', ['organizationId', 'threadId'])

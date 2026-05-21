@@ -211,8 +211,13 @@ export const executeCode = internalAction({
     code: v.string(),
     packages: v.optional(v.array(v.string())),
     timeoutMs: v.optional(v.number()),
-    allowSdist: v.optional(v.boolean()),
-    allowInstallScripts: v.optional(v.boolean()),
+    // NOTE: `allowSdist` / `allowInstallScripts` are intentionally NOT
+    // accepted as action args. The spawner-side install guards (`pip
+    // --only-binary=:all:` and `npm --ignore-scripts`) are hardcoded
+    // server-side here so a prompt-injected LLM cannot disable them
+    // (round-2 R2-B4). To grant a per-org carve-out, add an
+    // `orgs.sandboxPolicy` table and gate the override there instead of
+    // surfacing the knob to the LLM.
     purpose: v.string(),
     // When set, the action wires PHASE events from the spawner SSE to
     // patchArtifactRunProgress and finalizeArtifactRun — canvas shows
@@ -289,17 +294,9 @@ export const executeCode = internalAction({
           codePreview,
           ...(codeStorageId !== undefined && { codeStorageId }),
           packages: args.packages ?? [],
-          ...((args.allowSdist !== undefined ||
-            args.allowInstallScripts !== undefined) && {
-            installOptions: {
-              ...(args.allowSdist !== undefined && {
-                allowSdist: args.allowSdist,
-              }),
-              ...(args.allowInstallScripts !== undefined && {
-                allowInstallScripts: args.allowInstallScripts,
-              }),
-            },
-          }),
+          // installOptions is intentionally NOT forwarded: install-safety
+          // is hardcoded server-side (round-2 R2-B4). The schema field
+          // remains optional for backward compatibility with old rows.
           estimatedSeconds,
         },
       );
@@ -403,17 +400,10 @@ export const executeCode = internalAction({
           code: args.code,
           ...(args.packages !== undefined && { packages: args.packages }),
           timeoutMs,
-          ...((args.allowSdist !== undefined ||
-            args.allowInstallScripts !== undefined) && {
-            options: {
-              ...(args.allowSdist !== undefined && {
-                allowSdist: args.allowSdist,
-              }),
-              ...(args.allowInstallScripts !== undefined && {
-                allowInstallScripts: args.allowInstallScripts,
-              }),
-            },
-          }),
+          // Hardcoded sandbox-safety: pip --only-binary=:all: + npm
+          // --ignore-scripts are ALWAYS in force. The LLM cannot disable
+          // them via tool input (round-2 R2-B4).
+          options: { allowSdist: false, allowInstallScripts: false },
         },
         abort.signal,
         {

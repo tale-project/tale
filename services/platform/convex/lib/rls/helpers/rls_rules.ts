@@ -597,22 +597,15 @@ export async function rlsRules(
     },
 
     // Audit Log Chain Genesis - internal per-org serialization sentinel for
-    // the audit hash chain (see audit_logs/schema.ts). Carries no user data;
-    // any org member who can produce an audit-logged write must be able to
-    // upsert and patch this row, so gate purely on org membership.
+    // the audit hash chain (see audit_logs/schema.ts). Carries no user data.
+    // Writes happen exclusively through internalMutation (createAuditLog),
+    // which bypasses RLS, so the user-facing gate is deny-all. Surfacing
+    // this sentinel to clients would leak per-org write-rate metadata
+    // (round-2 R2-B8).
     auditLogChainGenesis: {
-      read: async (_, row) => {
-        if (!user) return false;
-        return userOrgIds.has(row.organizationId);
-      },
-      insert: async ({ user: ruleUser }, row) => {
-        if (!ruleUser) return false;
-        return userOrgIds.has(row.organizationId);
-      },
-      modify: async (_, row) => {
-        if (!user) return false;
-        return userOrgIds.has(row.organizationId);
-      },
+      read: async () => false,
+      insert: async () => false,
+      modify: async () => false,
     },
 
     // Audit Logs - organization-scoped, allow inserts for org members
@@ -646,24 +639,35 @@ export async function rlsRules(
       },
     },
 
-    // Artifacts - organization-scoped. Artifact content + run state is
-    // produced by chat tools (which run via internal mutations that
-    // bypass RLS) but readable via the canvas/UI by any org member.
-    // No role gate: any user in the org can see and edit their own
-    // org's artifacts via the chat surface — finer-grained team gating
-    // is enforced by the thread the artifact belongs to.
+    // Artifacts - organization-scoped + role-gated (round-2 R2-B8). A
+    // `member` (read-only role per access_control) can SEE shared
+    // artifacts but cannot create / edit / re-run them — those paths
+    // trigger billable sandbox executions, matching the contract the
+    // sibling `documents` table already enforces.
     artifacts: {
       read: async (_, artifact) => {
         if (!user) return false;
-        return userOrgIds.has(artifact.organizationId);
+        if (!userOrgIds.has(artifact.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === artifact.organizationId,
+        );
+        return authorizeRls(membership?.role, 'artifacts', 'read');
       },
       modify: async (_, artifact) => {
         if (!user) return false;
-        return userOrgIds.has(artifact.organizationId);
+        if (!userOrgIds.has(artifact.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === artifact.organizationId,
+        );
+        return authorizeRls(membership?.role, 'artifacts', 'write');
       },
       insert: async ({ user: ruleUser }, artifact) => {
         if (!ruleUser) return false;
-        return userOrgIds.has(artifact.organizationId);
+        if (!userOrgIds.has(artifact.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === artifact.organizationId,
+        );
+        return authorizeRls(membership?.role, 'artifacts', 'write');
       },
     },
 
@@ -671,37 +675,53 @@ export async function rlsRules(
     // revision row itself doesn't carry organizationId, so we resolve
     // membership through the parent artifact. Append-only in practice
     // (writes go through internalMutation which bypasses RLS); the
-    // modify/insert gates are defense-in-depth.
+    // role-gated modify/insert are defense-in-depth (round-2 R2-B8).
     artifactRevisions: {
       read: async (_, revision) => {
         if (!user) return false;
         const parent = await ctx.db.get(revision.artifactId);
         if (!parent) return false;
-        return userOrgIds.has(parent.organizationId);
+        if (!userOrgIds.has(parent.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === parent.organizationId,
+        );
+        return authorizeRls(membership?.role, 'artifactRevisions', 'read');
       },
       modify: async (_, revision) => {
         if (!user) return false;
         const parent = await ctx.db.get(revision.artifactId);
         if (!parent) return false;
-        return userOrgIds.has(parent.organizationId);
+        if (!userOrgIds.has(parent.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === parent.organizationId,
+        );
+        return authorizeRls(membership?.role, 'artifactRevisions', 'write');
       },
       insert: async ({ user: ruleUser }, revision) => {
         if (!ruleUser) return false;
         const parent = await ctx.db.get(revision.artifactId);
         if (!parent) return false;
-        return userOrgIds.has(parent.organizationId);
+        if (!userOrgIds.has(parent.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === parent.organizationId,
+        );
+        return authorizeRls(membership?.role, 'artifactRevisions', 'write');
       },
     },
 
-    // Sandbox Executions - audit table. Read-only for org members so a
-    // user can inspect their own org's sandbox history; writes go
-    // exclusively through internal mutations (reserveSlotAndInsert /
-    // finalize / recoverStuckSandboxes) which bypass RLS, so the
-    // user-facing modify/insert are deny-all.
+    // Sandbox Executions - audit table. Reads go through the role
+    // matrix (members can READ their org's history); writes happen
+    // exclusively through internalMutation (reserveSlotAndInsert /
+    // finalize / recoverStuckSandboxes) which bypasses RLS, so the
+    // user-facing modify/insert remain deny-all.
     sandboxExecutions: {
       read: async (_, exec) => {
         if (!user) return false;
-        return userOrgIds.has(exec.organizationId);
+        if (!userOrgIds.has(exec.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === exec.organizationId,
+        );
+        return authorizeRls(membership?.role, 'sandboxExecutions', 'read');
       },
       modify: async () => false,
       insert: async () => false,

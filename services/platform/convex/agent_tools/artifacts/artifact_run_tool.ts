@@ -47,18 +47,11 @@ const artifactRunArgs = z.object({
     .describe(
       'One-off package list override for this run only. Usually omitted — the artifact row already carries the `packages` you supplied at create time.',
     ),
-  allowSdist: z
-    .boolean()
-    .optional()
-    .describe(
-      "python_runnable one-off override. Defaults to the artifact row's setting (false unless explicitly enabled at create time).",
-    ),
-  allowInstallScripts: z
-    .boolean()
-    .optional()
-    .describe(
-      "node_runnable one-off override. Defaults to the artifact row's setting (false unless explicitly enabled at create time).",
-    ),
+  // NOTE: `allowSdist` / `allowInstallScripts` were previously LLM-callable
+  // here. They were removed (round-2 R2-B4) because a prompt-injected agent
+  // could disable the install-safety guards then ship an evil-pkg whose
+  // postinstall hook runs inside the runtime container. Installs are now
+  // hardcoded to use `pip --only-binary=:all:` + `npm --ignore-scripts`.
 });
 
 type ArtifactRunInput = z.infer<typeof artifactRunArgs>;
@@ -238,10 +231,9 @@ USE THIS TOOL after \`artifact_create\` (to actually run a newly authored script
       }
 
       const effectivePackages = args.packages ?? artifact.runPackages ?? [];
-      const effectiveAllowSdist =
-        args.allowSdist ?? artifact.runOptions?.allowSdist;
-      const effectiveAllowInstallScripts =
-        args.allowInstallScripts ?? artifact.runOptions?.allowInstallScripts;
+      // `allowSdist` / `allowInstallScripts` are no longer LLM-callable; the
+      // legacy persisted `artifact.runOptions` is intentionally ignored.
+      // Server-side, `executeCode` always sends `false` for both flags.
 
       // Resolve the agentSlug attribution from threadMetadata. The audit
       // row records this so per-agent usage / model-cost analytics
@@ -279,12 +271,8 @@ USE THIS TOOL after \`artifact_create\` (to actually run a newly authored script
               packages: effectivePackages,
             }),
             ...(args.timeoutMs !== undefined && { timeoutMs: args.timeoutMs }),
-            ...(effectiveAllowSdist !== undefined && {
-              allowSdist: effectiveAllowSdist,
-            }),
-            ...(effectiveAllowInstallScripts !== undefined && {
-              allowInstallScripts: effectiveAllowInstallScripts,
-            }),
+            // allowSdist / allowInstallScripts intentionally omitted — the
+            // action hardcodes both to false (round-2 R2-B4).
             purpose: `artifact_run: ${artifact.title}`,
             artifactId,
           },
