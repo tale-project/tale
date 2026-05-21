@@ -4,14 +4,9 @@ import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { useQuery } from 'convex/react';
 import {
-  Code,
   CopyIcon,
   CheckIcon,
-  FileText,
-  GitBranch,
   GitFork,
-  Globe,
-  Image as ImageIcon,
   Info,
   Pencil,
   Bookmark,
@@ -22,7 +17,6 @@ import {
 } from 'lucide-react';
 import {
   ComponentPropsWithoutRef,
-  type ComponentType,
   useRef,
   useState,
   useEffect,
@@ -55,7 +49,8 @@ import { injectCitationTags } from '../utils/inject-citation-tags';
 import { sanitizeChatError } from '../utils/sanitize-chat-error';
 import { AssistantMessageContent } from './assistant-message-content';
 import { BlockedNotice } from './blocked-notice';
-import { type CanvasContentType, useCanvas } from './canvas/canvas-context';
+import { useCanvas } from './canvas/canvas-context';
+import { CANVAS_TYPE_ICONS } from './canvas/icon-map';
 import {
   FileAttachmentDisplay,
   FilePartDisplay,
@@ -96,17 +91,6 @@ interface MessageBubbleProps extends ComponentPropsWithoutRef<'div'> {
   isFreshSinceMount?: boolean;
 }
 
-const ARTIFACT_PILL_ICONS: Record<
-  CanvasContentType,
-  ComponentType<{ className?: string }>
-> = {
-  code: Code,
-  html: Globe,
-  mermaid: GitBranch,
-  svg: ImageIcon,
-  markdown: FileText,
-};
-
 interface MessageArtifactPillsProps {
   organizationId: string;
   threadId: string;
@@ -146,7 +130,7 @@ function MessageArtifactPillsComponent({
   return (
     <div className="mt-2 flex flex-wrap gap-1.5">
       {matches.map((artifact) => {
-        const Icon = ARTIFACT_PILL_ICONS[artifact.type];
+        const Icon = CANVAS_TYPE_ICONS[artifact.type];
         return (
           <button
             key={artifact._id}

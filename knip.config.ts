@@ -49,6 +49,13 @@ export default {
       ],
       project: ['**/*.{ts,tsx}'],
     },
+    'services/sandbox': {
+      // Standalone Bun HTTP service. `src/server.ts` is the runtime entry,
+      // auto-detected from `dev`/`start` scripts; tests anchor the dead-code
+      // sweep for unit-only helpers.
+      entry: ['src/**/*.test.ts'],
+      project: ['src/**/*.ts'],
+    },
     'services/docs': {
       vite: { config: ['vite.config.ts'] },
       entry: [

@@ -66,6 +66,14 @@ cleanup() {
     fi
     header "Tearing down test containers"
     ${COMPOSE_CMD} down -v --remove-orphans 2>/dev/null || true
+    # The sandbox network is declared `external:` in compose.yml — `compose
+    # down` won't remove it. Drop it manually so the next run starts clean.
+    docker network rm tale-sandbox-net >/dev/null 2>&1 || true
+    # Only remove .env if we created it (CREATED_ENV=1). Otherwise we'd
+    # clobber a developer's real .env when the smoke test exits.
+    if [ "${CREATED_ENV:-0}" = "1" ]; then
+        rm -f "${PROJECT_ROOT}/.env"
+    fi
 }
 
 trap cleanup EXIT
@@ -76,10 +84,26 @@ trap cleanup EXIT
 cd "${PROJECT_ROOT}"
 ${COMPOSE_CMD} down -v --remove-orphans 2>/dev/null || true
 
-# Ensure dummy .env exists to satisfy compose.yml env_file declarations
+# Pre-create the sandbox bridge. It's declared `external:` in compose.yml
+# because the CLI (`tale start` / `tale deploy`) owns its lifecycle —
+# `--internal --ipv6=false` can't be expressed atomically in a compose
+# `networks:` block. Smoke tests don't go through the CLI, so we create it
+# here with the same shape ensureSandboxNetwork() uses.
+docker network rm tale-sandbox-net >/dev/null 2>&1 || true
+docker network create \
+    --internal \
+    --ipv6=false \
+    --driver=bridge \
+    tale-sandbox-net >/dev/null
+
+# Ensure dummy .env exists to satisfy compose.yml env_file declarations.
+# Track whether we created it so the cleanup trap doesn't delete a real
+# .env if one already existed on a developer's box.
+CREATED_ENV=0
 if [ ! -f "${PROJECT_ROOT}/.env" ]; then
     echo -e "  ${YELLOW}⚠ No .env file found — creating placeholder with defaults${NC}"
     cp "${PROJECT_ROOT}/.env.test" "${PROJECT_ROOT}/.env"
+    CREATED_ENV=1
 fi
 
 # =============================================================================
@@ -112,12 +136,14 @@ if [ "${SKIP_BUILD:-false}" != "true" ]; then
     printf "  ${BOLD}%-15s %-45s %10s${NC}\n" "SERVICE" "IMAGE" "SIZE"
     echo "  ─────────────────────────────────────────────────────────────────────"
     TOTAL_SIZE_MB=0
-    for svc in db convex crawler rag platform proxy; do
-        # Get the image name from compose config
-        img=$(cd "${PROJECT_ROOT}" && ${COMPOSE_CMD} config --images 2>/dev/null | grep "${svc}" | head -1)
+    for svc in db convex crawler rag platform proxy sandbox sandbox-egress; do
+        # Get the image name from compose config. Use anchored grep so we
+        # don't match service names that *contain* the target (e.g. "db"
+        # would otherwise match "tale-san**db**ox-egress").
+        img=$(cd "${PROJECT_ROOT}" && ${COMPOSE_CMD} config --images 2>/dev/null | grep "/tale-${svc}:" | head -1)
         if [ -z "$img" ]; then
             # Fallback: look for tale images in docker images list
-            img=$(docker images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | grep "tale-${svc}" | head -1)
+            img=$(docker images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | grep "tale-${svc}:" | head -1)
         fi
         if [ -n "$img" ]; then
             size=$(docker images --format '{{.Size}}' "$img" 2>/dev/null | head -1)
@@ -222,7 +248,7 @@ wait_for_healthy() {
     done
 }
 
-SERVICES=(db convex crawler rag platform proxy)
+SERVICES=(db convex crawler rag platform proxy sandbox sandbox-egress)
 HEALTH_FAILED=0
 
 for svc in "${SERVICES[@]}"; do
@@ -351,6 +377,104 @@ else
         pass "RAG → DB connectivity"
     else
         fail "RAG → DB connectivity"
+    fi
+fi
+
+# =============================================================================
+# 6. Sandbox /v1/execute end-to-end probe
+# =============================================================================
+# Submits a 1-line python program signed with the test SANDBOX_TOKEN and
+# asserts the SSE stream emits an `event: result` payload with status
+# "completed". The spawner pulls tale-sandbox-runtime at boot; we don't
+# probe the runtime image directly here — if the spawner is healthy and
+# the boot pull succeeded, /v1/execute will exercise it.
+header "Sandbox /v1/execute end-to-end"
+
+# Pull SANDBOX_TOKEN from .env.test rather than re-defining it, so any local
+# rotation only has to happen in one place.
+SANDBOX_TOKEN_VAL=$(grep -E '^SANDBOX_TOKEN=' "${PROJECT_ROOT}/.env.test" | head -1 | cut -d= -f2-)
+if [ -z "${SANDBOX_TOKEN_VAL}" ]; then
+    fail "Sandbox e2e: SANDBOX_TOKEN missing from .env.test"
+else
+    # Unique per-run executionId so re-running the test (or a stale entry
+    # left in the spawner's in-flight registry from a previous run) doesn't
+    # return 409 Duplicate.
+    SMOKE_EXEC_ID="smoke-$$-$(date +%s)$(date +%N | head -c 6)"
+    SANDBOX_BODY="{\"executionId\":\"${SMOKE_EXEC_ID}\",\"organizationId\":\"smoke\",\"language\":\"python\",\"code\":\"print(1)\",\"timeoutMs\":30000}"
+    SANDBOX_TS=$(($(date +%s%N) / 1000000))
+    SANDBOX_PATH="/v1/execute"
+    # New signing contract (auth.ts): METHOD\npath\ntimestamp\nsha256Hex(body)
+    SANDBOX_BODY_HASH=$(printf '%s' "${SANDBOX_BODY}" \
+        | openssl dgst -sha256 -r 2>/dev/null \
+        | awk '{print $1}')
+    SANDBOX_SIGNED_STRING=$(printf 'POST\n%s\n%s\n%s' "${SANDBOX_PATH}" "${SANDBOX_TS}" "${SANDBOX_BODY_HASH}")
+    SANDBOX_SIG=$(printf '%s' "${SANDBOX_SIGNED_STRING}" \
+        | openssl dgst -sha256 -hmac "${SANDBOX_TOKEN_VAL}" -r 2>/dev/null \
+        | awk '{print $1}')
+    if [ -z "${SANDBOX_SIG}" ]; then
+        fail "Sandbox e2e: failed to compute HMAC signature"
+    else
+        SANDBOX_OUT=$(mktemp)
+        # The endpoint streams SSE; --max-time bounds the probe. A 1-line
+        # python program completes in under 5s once the runtime image is
+        # warm, but allow 60s to absorb cold-image pulls on a fresh runner.
+        SANDBOX_HTTP=$(curl -sS \
+            -o "${SANDBOX_OUT}" \
+            -w "%{http_code}" \
+            --max-time 60 \
+            -X POST \
+            -H "content-type: application/json" \
+            -H "x-tale-sandbox-signature: ${SANDBOX_SIG}" \
+            -H "x-tale-sandbox-timestamp: ${SANDBOX_TS}" \
+            --data-binary "${SANDBOX_BODY}" \
+            "http://localhost:8003${SANDBOX_PATH}" 2>/dev/null || echo "000")
+
+        if [ "${SANDBOX_HTTP}" = "200" ] \
+           && grep -q '^event: result' "${SANDBOX_OUT}" \
+           && grep -q '"status":"completed"' "${SANDBOX_OUT}"; then
+            pass "Sandbox /v1/execute: completed result"
+        else
+            echo -e "  ${YELLOW}sandbox response (HTTP ${SANDBOX_HTTP}):${NC}"
+            head -c 4000 "${SANDBOX_OUT}" | sed 's/^/    /' || echo "    (empty body)"
+            echo ""
+            fail "Sandbox /v1/execute: expected HTTP 200 + completed result"
+        fi
+        rm -f "${SANDBOX_OUT}"
+    fi
+
+    # ---- Negative cases ----
+    # Missing signature header → 401. Defense-in-depth that the spawner
+    # actually enforces HMAC under .env.test (which DOES define a token).
+    NEG_HTTP=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 10 \
+        -X POST \
+        -H "content-type: application/json" \
+        --data-binary '{"executionId":"unauth","organizationId":"smoke","language":"python","code":"print(1)"}' \
+        "http://localhost:8003/v1/execute" 2>/dev/null || echo "000")
+    if [ "${NEG_HTTP}" = "401" ]; then
+        pass "Sandbox /v1/execute: 401 without signature"
+    else
+        fail "Sandbox /v1/execute: expected 401 without signature, got ${NEG_HTTP}"
+    fi
+
+    # 256 KB + 1 body → 413. Tests the streaming body cap before HMAC
+    # check; we don't bother signing because the byte cap fires first.
+    #
+    # The body has to come from a file rather than be passed inline: the
+    # Linux kernel caps a single argv string at MAX_ARG_STRLEN (128 KiB),
+    # independent of ARG_MAX, so `--data-binary "${TOO_BIG}"` with 256 KiB
+    # of payload fails the execve before curl ever runs.
+    TOO_BIG_FILE="$(mktemp)"
+    head -c 262145 /dev/zero | tr '\0' 'x' > "${TOO_BIG_FILE}"
+    NEG_HTTP=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 10 \
+        -X POST \
+        -H "content-type: application/json" \
+        --data-binary "@${TOO_BIG_FILE}" \
+        "http://localhost:8003/v1/execute" 2>/dev/null || echo "000")
+    rm -f "${TOO_BIG_FILE}"
+    if [ "${NEG_HTTP}" = "413" ]; then
+        pass "Sandbox /v1/execute: 413 on oversized body"
+    else
+        fail "Sandbox /v1/execute: expected 413 on oversized body, got ${NEG_HTTP}"
     fi
 fi
 

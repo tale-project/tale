@@ -16,9 +16,15 @@
  * intentionally redundant: the frontend gives instant UX feedback on a
  * mistyped URL; the server gates the actual spawn.
  *
- * Open: any https URL → yt-dlp. We do NOT allowlist hosts — yt-dlp's own
- * extractor list is canonical. `detectPlatform` returns a coarse string
- * for telemetry/chip-icon only, never gates processing.
+ * Closed allowlist: only hosts in `KNOWN_PLATFORMS` flow through
+ * `extractVideoUrls` and become chips. Any other https URL (GitHub,
+ * docs links, plain web pages) is ignored at extraction time — the
+ * paste handler does not `preventDefault`, so the URL stays in the
+ * textarea as plain text. Previously this layer admitted every https
+ * URL and leaned on yt-dlp's extractor table; that produced a red
+ * "This site isn't supported" chip for every non-video paste. The
+ * server's `ingestVideoUrl` mutation still accepts any https URL —
+ * the allowlist lives in the chat-input flow, not the ingest contract.
  */
 
 interface ExtractedVideoUrl {
@@ -258,6 +264,11 @@ export function extractVideoUrls(
     if (cleanedUrl.length === 0) continue;
     if (!isSafeVideoUrl(cleanedUrl)) continue;
     if (isPlaylistUrl(cleanedUrl)) continue;
+    const platform = detectPlatform(cleanedUrl);
+    // Closed allowlist: skip anything that isn't a recognized video host.
+    // Prevents the chat composer from spawning a yt-dlp job (and red
+    // "site isn't supported" chip) for ordinary links like GitHub URLs.
+    if (platform === 'generic') continue;
     const dedupKey = normalizeUrlForHash(cleanedUrl);
     if (seen.has(dedupKey)) continue;
     seen.add(dedupKey);
@@ -267,7 +278,7 @@ export function extractVideoUrls(
       // stripped trailing punctuation) so use-send-message.ts can do a
       // literal String.replace on the textarea content.
       pastedToken: original,
-      platform: detectPlatform(cleanedUrl),
+      platform,
     });
   }
 

@@ -87,8 +87,12 @@ export function PricingTiers({
 }: PricingTiersProps) {
   const { t } = useT('pricing');
 
+  // Pass `billing` through so the displayed per-month figure reflects
+  // the yearly discount that the `billingNote.yearly` footnote promises
+  // ("2 months free" → 10/12 of the monthly rate). Audit finding
+  // R2-B12: previously the toggle moved the footnote but not the price.
   const enterprisePrice = formatMoney(
-    enterpriseMonthlyTotal(region, users),
+    enterpriseMonthlyTotal(region, users, billing),
     region,
   );
   const perUserPrice = formatMoney(PER_USER_MONTHLY[region], region);

@@ -1,37 +1,55 @@
-import { ConvexError, v } from 'convex/values';
+import { type Infer, ConvexError, v } from 'convex/values';
 
-import { internalMutation } from '../_generated/server';
-import { applyPatches } from '../agent_tools/artifacts/apply_patches';
+import type { Doc, Id } from '../_generated/dataModel';
+import { internalMutation, type MutationCtx } from '../_generated/server';
+import { applySinglePatch } from '../agent_tools/artifacts/apply_patches';
+import {
+  MAX_FILES_PER_ARTIFACT,
+  defaultEntryFileFor,
+  findDuplicatePath,
+  normalizeTitleForCompare,
+  normalizeTitleForStorage,
+  validatePath,
+} from '../agent_tools/artifacts/shared';
+import {
+  sandboxRunProgressValidator,
+  sandboxTerminalStatuses,
+} from '../sandbox/wire';
+import {
+  aggregateFileBytes,
+  mirrorLegacyContent,
+  resolveArtifactFiles,
+} from './resolve_files';
 import {
   artifactPatchValidator,
+  artifactRunErrorCodeValidator,
+  artifactRunOutputFileValidator,
+  artifactRunStatusValidator,
   artifactTypeValidator,
   liveStreamModeValidator,
 } from './schema';
 
+type ArtifactRunErrorCode = Infer<typeof artifactRunErrorCodeValidator>;
+type ArtifactRunOutputFile = Infer<typeof artifactRunOutputFileValidator>;
+
 const STALE_STREAM_THRESHOLD_MS = 60_000;
-/**
- * Minimum interval between `liveStreamStartedAt` heartbeat refreshes inside
- * `updateStreamingContent`. The cron janitor (`cleanupStaleStreams`) reaps
- * any row whose heartbeat is older than `STALE_STREAM_THRESHOLD_MS`, so
- * refreshing the heartbeat well inside that window is sufficient. Skipping
- * the redundant patch on every chunk also keeps the doc-level `useQuery`
- * subscriptions (artifact-bar, MessageArtifactPills) from re-running on
- * every flush — content-stream flushes happen every ~100-250 ms, but the
- * subscribed queries only need to invalidate when their projected metadata
- * (title, revision, liveStreamMode) actually changed. Must stay <<
- * STALE_STREAM_THRESHOLD_MS.
- */
 const HEARTBEAT_THROTTLE_MS = 5_000;
 
 /**
- * Hard cap on a stored artifact's content (settled or streaming). Convex's
- * per-document limit is 1 MiB; we cap below that so a single mutation that
- * also writes a revision row (which stores the same content) stays under
- * the limit, and so an LLM rewrite that runs away yields a clean
- * `too_large` error instead of a generic 500.
+ * Hard cap on an artifact's TOTAL content (sum of all `files[].content` bytes).
+ * Convex's per-document limit is 1 MiB; we cap below that so a single mutation
+ * that also writes a revision row (full files snapshot) stays under the limit,
+ * and so an LLM rewrite that runs away yields a clean `too_large` error.
  */
 export const MAX_ARTIFACT_BYTES = 800_000;
 
+/** Lazy-GC retention: keep the N most recent revisions per artifact. */
+const REVISIONS_RETENTION = 20;
+
+/**
+ * @deprecated — single-file size check. Kept for backward-compat with
+ * existing callers; new code should use {@link assertAggregateSize}.
+ */
 export function assertContentSize(content: string): void {
   const size = new TextEncoder().encode(content).byteLength;
   if (size > MAX_ARTIFACT_BYTES) {
@@ -42,11 +60,111 @@ export function assertContentSize(content: string): void {
   }
 }
 
+export function assertAggregateSize(
+  files: readonly { readonly content: string }[],
+): void {
+  const size = aggregateFileBytes(files);
+  if (size > MAX_ARTIFACT_BYTES) {
+    throw new ConvexError({
+      code: 'too_large',
+      message: `Artifact total content is ${size} bytes across ${files.length} files; max ${MAX_ARTIFACT_BYTES}.`,
+    });
+  }
+}
+
 /**
- * Insert a new artifact (revision 1) and its initial revision row. Used by
- * the `artifact_create` tool both at the streaming-placeholder moment and
- * at the final settle. When `liveStreamMode` is provided, the row is
- * marked as actively-streaming.
+ * Central source of truth for the field set that "ends a stream." Every
+ * settle / abort / cleanup path patches these to `undefined` together so
+ * the canvas pane reliably transitions out of the live state.
+ */
+function clearStreamingFlags(): Partial<Doc<'artifacts'>> {
+  return {
+    streamingContent: undefined,
+    streamingPatches: undefined,
+    streamingPath: undefined,
+    liveStreamMode: undefined,
+    liveStreamStartedAt: undefined,
+    toolCallId: undefined,
+  };
+}
+
+/**
+ * Lazy GC of revision history. Called at the tail of every revision-emitting
+ * mutation. Keeps the {@link REVISIONS_RETENTION} most recent revisions and
+ * deletes older ones opportunistically. No cron — per memory
+ * feedback_lazy_cleanup_over_cron.
+ */
+async function trimRevisionHistory(
+  ctx: MutationCtx,
+  artifactId: Id<'artifacts'>,
+): Promise<void> {
+  const rows: { _id: Id<'artifactRevisions'>; revision: number }[] = [];
+  for await (const row of ctx.db
+    .query('artifactRevisions')
+    .withIndex('by_artifact', (q) => q.eq('artifactId', artifactId))
+    .order('desc')) {
+    rows.push({ _id: row._id, revision: row.revision });
+    if (rows.length > REVISIONS_RETENTION * 2) break; // safety bound
+  }
+  if (rows.length <= REVISIONS_RETENTION) return;
+  for (let i = REVISIONS_RETENTION; i < rows.length; i += 1) {
+    await ctx.db.delete(rows[i]._id);
+  }
+}
+
+/**
+ * Validate + canonicalize the file list before any write. Throws on path
+ * violations, oversize, duplicate paths, or empty files array. Returns the
+ * NFC-normalized file list.
+ */
+function validateFiles(
+  input: readonly { readonly path: string; readonly content: string }[],
+): { readonly path: string; readonly content: string }[] {
+  if (input.length === 0) {
+    throw new ConvexError({
+      code: 'empty_project',
+      message: 'Artifact must contain at least one file.',
+    });
+  }
+  if (input.length > MAX_FILES_PER_ARTIFACT) {
+    throw new ConvexError({
+      code: 'too_many_files',
+      message: `Artifact has ${input.length} files; max ${MAX_FILES_PER_ARTIFACT}.`,
+    });
+  }
+  const normalized = input.map((f) => ({
+    path: validatePath(f.path),
+    content: f.content,
+  }));
+  const dup = findDuplicatePath(normalized);
+  if (dup !== null) {
+    throw new ConvexError({
+      code: 'duplicate_path',
+      message: `Duplicate file path "${dup}" (paths are compared case-insensitively).`,
+    });
+  }
+  assertAggregateSize(normalized);
+  return normalized;
+}
+
+// =============================================================================
+// createArtifact — idempotent on (thread, type, normalized-title)
+// =============================================================================
+
+/**
+ * Create a new artifact OR return an existing one. Idempotency key is
+ * `(organizationId, threadId, type, normalizeTitleForCompare(title))`.
+ *
+ * - On `isNew: true` with content supplied: writes `files: [{path: entryFile, content}]`
+ *   at revision 1, mirrors `content`, writes a `create` revision row.
+ * - On `isNew: true` without content: writes an empty entry file at revision 1.
+ *   The LLM must follow up with `artifact_edit(rewrite)` to populate.
+ * - On collision: returns the existing artifact's full state. Content is NOT
+ *   overwritten — the LLM must call `artifact_edit(rewrite)` if intended.
+ * - On type mismatch (same title, different type): returns `conflict: 'type_mismatch'`.
+ *
+ * The dedup scan uses the existing `by_organizationId_and_thread` index — no
+ * new index needed at this scale.
  */
 export const createArtifact = internalMutation({
   args: {
@@ -55,128 +173,293 @@ export const createArtifact = internalMutation({
     type: artifactTypeValidator,
     title: v.string(),
     language: v.optional(v.string()),
-    content: v.string(),
+    /** Initial content for the entry file; required for runnable/mermaid/svg/html. */
+    content: v.optional(v.string()),
+    /** Optional entry-file override. Defaults from `defaultEntryFileFor(type, language)`. */
+    entryFile: v.optional(v.string()),
     createdByMessageId: v.string(),
-    liveStreamMode: v.optional(liveStreamModeValidator),
-    // Set by the artifact_create tool so the canvas can filter
-    // `tool-input-delta` rows in the agent SDK's streamDeltas down to this
-    // artifact's stream during the create flow.
-    toolCallId: v.optional(v.string()),
   },
-  returns: v.object({ artifactId: v.id('artifacts'), revision: v.number() }),
+  returns: v.union(
+    v.object({
+      success: v.literal(true),
+      isNew: v.boolean(),
+      artifactId: v.id('artifacts'),
+      revision: v.number(),
+      entryFile: v.string(),
+      filePaths: v.array(v.string()),
+    }),
+    v.object({
+      success: v.literal(false),
+      conflict: v.literal('type_mismatch'),
+      existingArtifactId: v.id('artifacts'),
+      existingType: artifactTypeValidator,
+      message: v.string(),
+    }),
+  ),
   handler: async (ctx, args) => {
-    assertContentSize(args.content);
+    const storedTitle = normalizeTitleForStorage(args.title);
+    if (storedTitle.length === 0) {
+      throw new ConvexError({
+        code: 'invalid_title',
+        message: 'Title must contain at least one non-whitespace character.',
+      });
+    }
+    const compareKey = normalizeTitleForCompare(args.title);
+
+    // Idempotency scan.
+    for await (const row of ctx.db
+      .query('artifacts')
+      .withIndex('by_organizationId_and_thread', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('threadId', args.threadId),
+      )) {
+      const rowKey = normalizeTitleForCompare(row.title);
+      if (rowKey !== compareKey) continue;
+      if (row.type !== args.type) {
+        return {
+          success: false as const,
+          conflict: 'type_mismatch' as const,
+          existingArtifactId: row._id,
+          existingType: row.type,
+          message: `An artifact titled "${row.title}" already exists in this thread with type "${row.type}". Either pick a different title or use the existing artifactId ${row._id} via artifact_edit.`,
+        };
+      }
+      // Title + type match → return existing. Do NOT overwrite content.
+      const resolved = resolveArtifactFiles(row);
+      return {
+        success: true as const,
+        isNew: false,
+        artifactId: row._id,
+        revision: row.revision,
+        entryFile: resolved.entryFile,
+        filePaths: resolved.files.map((f) => f.path),
+      };
+    }
+
+    // No collision — insert new artifact.
+    const entryFile = validatePath(
+      args.entryFile ?? defaultEntryFileFor(args.type, args.language),
+    );
+    const initialContent = args.content ?? '';
+    const files = validateFiles([{ path: entryFile, content: initialContent }]);
     const now = Date.now();
-    const isStreaming = args.liveStreamMode !== undefined;
     const artifactId = await ctx.db.insert('artifacts', {
       organizationId: args.organizationId,
       threadId: args.threadId,
       type: args.type,
-      title: args.title,
+      title: storedTitle,
       language: args.language,
-      content: isStreaming ? '' : args.content,
+      files,
+      entryFile,
+      content: mirrorLegacyContent(files, entryFile),
       revision: 1,
       createdByMessageId: args.createdByMessageId,
       lastEditedByMessageId: args.createdByMessageId,
       createdAt: now,
       updatedAt: now,
-      liveStreamMode: args.liveStreamMode,
-      liveStreamStartedAt: isStreaming ? now : undefined,
-      streamingContent: isStreaming ? args.content : undefined,
-      toolCallId: args.toolCallId,
-    });
-    if (!isStreaming) {
-      await ctx.db.insert('artifactRevisions', {
-        artifactId,
-        revision: 1,
-        content: args.content,
-        editedByMessageId: args.createdByMessageId,
-        editKind: 'create',
-        createdAt: now,
-      });
-    }
-    return { artifactId, revision: 1 };
-  },
-});
-
-/**
- * Settle the streaming-placeholder row inserted by `createArtifact`:
- * write the canonical title/language/content, drop streamingContent,
- * write the initial revision row, and clear streaming flags.
- */
-export const finalizeStreamedCreate = internalMutation({
-  args: {
-    artifactId: v.id('artifacts'),
-    title: v.string(),
-    language: v.optional(v.string()),
-    content: v.string(),
-    editedByMessageId: v.string(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    assertContentSize(args.content);
-    const artifact = await ctx.db.get(args.artifactId);
-    if (!artifact) {
-      throw new ConvexError({
-        code: 'not_found',
-        message: `artifact ${args.artifactId} not found during finalize.`,
-      });
-    }
-    if (artifact.liveStreamMode !== 'create') {
-      // Defensive: the placeholder row was tampered with (e.g. a userEdit
-      // landed on a streaming-create row, or another tool-call clobbered
-      // the flags). Hard-fail so the agent can recover, instead of writing
-      // a revision row that desynchronises with the artifact's content.
-      throw new ConvexError({
-        code: 'lifecycle',
-        message: `artifact ${args.artifactId} is not in create-streaming state.`,
-      });
-    }
-    const now = Date.now();
-    await ctx.db.patch(args.artifactId, {
-      title: args.title,
-      language: args.language,
-      content: args.content,
-      streamingContent: undefined,
-      streamingPatches: undefined,
-      liveStreamMode: undefined,
-      liveStreamStartedAt: undefined,
-      toolCallId: undefined,
-      updatedAt: now,
     });
     await ctx.db.insert('artifactRevisions', {
-      artifactId: args.artifactId,
-      revision: artifact.revision,
-      content: args.content,
-      editedByMessageId: args.editedByMessageId,
+      artifactId,
+      revision: 1,
+      content: mirrorLegacyContent(files, entryFile),
+      files,
+      entryFile,
+      filePath: entryFile,
+      editedByMessageId: args.createdByMessageId,
       editKind: 'create',
       createdAt: now,
     });
-    return null;
+    return {
+      success: true as const,
+      isNew: true,
+      artifactId,
+      revision: 1,
+      entryFile,
+      filePaths: files.map((f) => f.path),
+    };
   },
 });
 
-export const applyToolPatches = internalMutation({
+// =============================================================================
+// applyToolPatch — single search/replace on one file
+// =============================================================================
+
+export const applyToolPatch = internalMutation({
   args: {
     artifactId: v.id('artifacts'),
-    patches: v.array(artifactPatchValidator),
+    path: v.string(),
+    search: v.string(),
+    replace: v.string(),
+    replaceAll: v.optional(v.boolean()),
     editedByMessageId: v.string(),
-    // OCC guard — the revision the caller read when planning these patches.
-    // Mismatch means another writer landed between the read and this call,
-    // so the patch's `search` snippets may now match the wrong region.
+    /** OCC baseline. Mismatch → stale error so the LLM re-reads. */
     expectedRevision: v.number(),
   },
   returns: v.union(
     v.object({
       success: v.literal(true),
       revision: v.number(),
+      path: v.string(),
       content: v.string(),
+      matchCount: v.number(),
     }),
     v.object({
       success: v.literal(false),
-      error: v.string(),
-      failedIndex: v.number(),
-      stale: v.optional(v.boolean()),
+      code: v.union(
+        v.literal('not_found'),
+        v.literal('stale'),
+        v.literal('file_missing'),
+        v.literal('file_empty'),
+        v.literal('no_match'),
+        v.literal('ambiguous_match'),
+      ),
+      message: v.string(),
+      currentRevision: v.optional(v.number()),
+      matchCount: v.optional(v.number()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const artifact = await ctx.db.get(args.artifactId);
+    if (!artifact) {
+      return {
+        success: false as const,
+        code: 'not_found' as const,
+        message: `Artifact ${args.artifactId} not found.`,
+      };
+    }
+    if (artifact.revision !== args.expectedRevision) {
+      return {
+        success: false as const,
+        code: 'stale' as const,
+        message: `Artifact has been modified since you last read it (revision ${artifact.revision}, you sent ${args.expectedRevision}). Re-read with artifact_read and retry.`,
+        currentRevision: artifact.revision,
+      };
+    }
+    const path = validatePath(args.path);
+    const resolved = resolveArtifactFiles(artifact);
+    const target = resolved.files.find((f) => f.path === path);
+    if (!target) {
+      return {
+        success: false as const,
+        code: 'file_missing' as const,
+        message: `File "${path}" does not exist in this artifact. Existing paths: ${resolved.files
+          .map((f) => f.path)
+          .join(', ')}. To create it, call artifact_edit with mode='rewrite'.`,
+      };
+    }
+    if (target.content.length === 0) {
+      return {
+        success: false as const,
+        code: 'file_empty' as const,
+        message: `File "${path}" is empty. Use mode='rewrite' to write its initial content.`,
+      };
+    }
+
+    let nextContent: string;
+    let matchCount: number;
+    if (args.replaceAll === true) {
+      // Multi-site replace. Walk indexOf so an empty-search guard is still active.
+      if (args.search.length === 0) {
+        return {
+          success: false as const,
+          code: 'no_match' as const,
+          message:
+            'search block is empty — refusing to apply (would match anywhere).',
+        };
+      }
+      const split = target.content.split(args.search);
+      matchCount = split.length - 1;
+      if (matchCount === 0) {
+        return {
+          success: false as const,
+          code: 'no_match' as const,
+          message: `search block matched 0 times in "${path}". Re-read the file and emit a snippet that appears verbatim.`,
+          matchCount: 0,
+        };
+      }
+      nextContent = split.join(args.replace);
+    } else {
+      const result = applySinglePatch(target.content, {
+        search: args.search,
+        replace: args.replace,
+      });
+      if (!result.ok) {
+        const isAmbiguous = /matched more than once/.test(result.error);
+        return {
+          success: false as const,
+          code: isAmbiguous
+            ? ('ambiguous_match' as const)
+            : ('no_match' as const),
+          message: result.error,
+          matchCount: isAmbiguous ? 2 : 0,
+        };
+      }
+      nextContent = result.content;
+      matchCount = 1;
+    }
+
+    const nextFiles = resolved.files.map((f) =>
+      f.path === path ? { path, content: nextContent } : f,
+    );
+    const validatedFiles = validateFiles(nextFiles);
+    const nextRevision = artifact.revision + 1;
+    const now = Date.now();
+    await ctx.db.patch(args.artifactId, {
+      files: validatedFiles,
+      entryFile: resolved.entryFile,
+      content: mirrorLegacyContent(validatedFiles, resolved.entryFile),
+      revision: nextRevision,
+      lastEditedByMessageId: args.editedByMessageId,
+      ...clearStreamingFlags(),
+      updatedAt: now,
+    });
+    await ctx.db.insert('artifactRevisions', {
+      artifactId: args.artifactId,
+      revision: nextRevision,
+      content: mirrorLegacyContent(validatedFiles, resolved.entryFile),
+      files: validatedFiles,
+      entryFile: resolved.entryFile,
+      filePath: path,
+      editedByMessageId: args.editedByMessageId,
+      editKind: 'patch',
+      patches: [{ search: args.search, replace: args.replace }],
+      createdAt: now,
+    });
+    await trimRevisionHistory(ctx, args.artifactId);
+    return {
+      success: true as const,
+      revision: nextRevision,
+      path,
+      content: nextContent,
+      matchCount,
+    };
+  },
+});
+
+// =============================================================================
+// rewriteArtifact — write whole content of one file; creates if missing
+// =============================================================================
+
+export const rewriteArtifact = internalMutation({
+  args: {
+    artifactId: v.id('artifacts'),
+    path: v.string(),
+    content: v.string(),
+    editedByMessageId: v.string(),
+    expectedRevision: v.number(),
+  },
+  returns: v.union(
+    v.object({
+      success: v.literal(true),
+      revision: v.number(),
+      path: v.string(),
+      created: v.boolean(),
+    }),
+    v.object({
+      success: v.literal(false),
+      code: v.union(v.literal('not_found'), v.literal('stale')),
+      message: v.string(),
       currentRevision: v.optional(v.number()),
     }),
   ),
@@ -185,178 +468,455 @@ export const applyToolPatches = internalMutation({
     if (!artifact) {
       return {
         success: false as const,
-        error: `artifact ${args.artifactId} not found`,
-        failedIndex: 0,
+        code: 'not_found' as const,
+        message: `Artifact ${args.artifactId} not found.`,
       };
     }
     if (artifact.revision !== args.expectedRevision) {
       return {
         success: false as const,
-        error: `artifact has been modified since you last read it (revision ${artifact.revision}, you sent ${args.expectedRevision}). Re-read and retry.`,
-        failedIndex: 0,
-        stale: true,
+        code: 'stale' as const,
+        message: `Artifact has been modified since you last read it (revision ${artifact.revision}, you sent ${args.expectedRevision}). Re-read with artifact_read and retry.`,
         currentRevision: artifact.revision,
       };
     }
-    const result = applyPatches(artifact.content, args.patches);
-    if (!result.ok) {
-      return {
-        success: false as const,
-        error: result.error,
-        failedIndex: result.failedIndex,
-      };
+    const path = validatePath(args.path);
+    const resolved = resolveArtifactFiles(artifact);
+    const existingIdx = resolved.files.findIndex((f) => f.path === path);
+    let nextFiles: { path: string; content: string }[];
+    let created = false;
+    if (existingIdx >= 0) {
+      nextFiles = resolved.files.map((f) =>
+        f.path === path ? { path, content: args.content } : f,
+      );
+    } else {
+      nextFiles = [...resolved.files, { path, content: args.content }];
+      created = true;
     }
-    assertContentSize(result.content);
+    const validatedFiles = validateFiles(nextFiles);
     const nextRevision = artifact.revision + 1;
     const now = Date.now();
     await ctx.db.patch(args.artifactId, {
-      content: result.content,
+      files: validatedFiles,
+      entryFile: resolved.entryFile,
+      content: mirrorLegacyContent(validatedFiles, resolved.entryFile),
       revision: nextRevision,
       lastEditedByMessageId: args.editedByMessageId,
-      streamingContent: undefined,
-      streamingPatches: undefined,
-      liveStreamMode: undefined,
-      liveStreamStartedAt: undefined,
-      toolCallId: undefined,
+      ...clearStreamingFlags(),
       updatedAt: now,
     });
     await ctx.db.insert('artifactRevisions', {
       artifactId: args.artifactId,
       revision: nextRevision,
-      content: result.content,
-      editedByMessageId: args.editedByMessageId,
-      editKind: 'patch',
-      patches: [...args.patches],
-      createdAt: now,
-    });
-    return {
-      success: true as const,
-      revision: nextRevision,
-      content: result.content,
-    };
-  },
-});
-
-export const rewriteArtifact = internalMutation({
-  args: {
-    artifactId: v.id('artifacts'),
-    content: v.string(),
-    editedByMessageId: v.string(),
-    expectedRevision: v.number(),
-  },
-  returns: v.union(
-    v.object({ success: v.literal(true), revision: v.number() }),
-    v.object({
-      success: v.literal(false),
-      stale: v.literal(true),
-      currentRevision: v.number(),
-      error: v.string(),
-    }),
-  ),
-  handler: async (ctx, args) => {
-    assertContentSize(args.content);
-    const artifact = await ctx.db.get(args.artifactId);
-    if (!artifact) {
-      throw new Error(`artifact ${args.artifactId} not found`);
-    }
-    if (artifact.revision !== args.expectedRevision) {
-      return {
-        success: false as const,
-        stale: true as const,
-        currentRevision: artifact.revision,
-        error: `artifact has been modified since you last read it (revision ${artifact.revision}, you sent ${args.expectedRevision}). Re-read and retry.`,
-      };
-    }
-    const nextRevision = artifact.revision + 1;
-    const now = Date.now();
-    await ctx.db.patch(args.artifactId, {
-      content: args.content,
-      revision: nextRevision,
-      lastEditedByMessageId: args.editedByMessageId,
-      streamingContent: undefined,
-      streamingPatches: undefined,
-      liveStreamMode: undefined,
-      liveStreamStartedAt: undefined,
-      toolCallId: undefined,
-      updatedAt: now,
-    });
-    await ctx.db.insert('artifactRevisions', {
-      artifactId: args.artifactId,
-      revision: nextRevision,
-      content: args.content,
+      content: mirrorLegacyContent(validatedFiles, resolved.entryFile),
+      files: validatedFiles,
+      entryFile: resolved.entryFile,
+      filePath: path,
       editedByMessageId: args.editedByMessageId,
       editKind: 'rewrite',
       createdAt: now,
     });
-    return { success: true as const, revision: nextRevision };
+    await trimRevisionHistory(ctx, args.artifactId);
+    return {
+      success: true as const,
+      revision: nextRevision,
+      path,
+      created,
+    };
   },
 });
 
-/**
- * Mark an existing artifact as actively streaming. Used by `artifact_edit`
- * once the tool input has parsed enough JSON to identify the target.
- */
+// =============================================================================
+// deleteFileFromArtifact — refuses on entryFile and on last-file
+// =============================================================================
+
+export const deleteFileFromArtifact = internalMutation({
+  args: {
+    artifactId: v.id('artifacts'),
+    path: v.string(),
+    editedByMessageId: v.string(),
+    expectedRevision: v.number(),
+  },
+  returns: v.union(
+    v.object({
+      success: v.literal(true),
+      revision: v.number(),
+      path: v.string(),
+    }),
+    v.object({
+      success: v.literal(false),
+      code: v.union(
+        v.literal('not_found'),
+        v.literal('stale'),
+        v.literal('file_missing'),
+        v.literal('entry_pin'),
+        v.literal('last_file'),
+      ),
+      message: v.string(),
+      currentRevision: v.optional(v.number()),
+      entryFile: v.optional(v.string()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const artifact = await ctx.db.get(args.artifactId);
+    if (!artifact) {
+      return {
+        success: false as const,
+        code: 'not_found' as const,
+        message: `Artifact ${args.artifactId} not found.`,
+      };
+    }
+    if (artifact.revision !== args.expectedRevision) {
+      return {
+        success: false as const,
+        code: 'stale' as const,
+        message: `Artifact has been modified since you last read it (revision ${artifact.revision}, you sent ${args.expectedRevision}). Re-read with artifact_read and retry.`,
+        currentRevision: artifact.revision,
+      };
+    }
+    const path = validatePath(args.path);
+    const resolved = resolveArtifactFiles(artifact);
+    if (!resolved.files.some((f) => f.path === path)) {
+      return {
+        success: false as const,
+        code: 'file_missing' as const,
+        message: `File "${path}" does not exist in this artifact.`,
+      };
+    }
+    if (path === resolved.entryFile) {
+      return {
+        success: false as const,
+        code: 'entry_pin' as const,
+        message: `Cannot delete entry file "${path}". Call artifact_edit with mode='set_entry' to repoint first, or rename it.`,
+        entryFile: resolved.entryFile,
+      };
+    }
+    if (resolved.files.length <= 1) {
+      return {
+        success: false as const,
+        code: 'last_file' as const,
+        message: `Cannot delete the only file in an artifact. Delete the artifact instead.`,
+      };
+    }
+    const nextFiles = resolved.files.filter((f) => f.path !== path);
+    const validatedFiles = validateFiles(nextFiles);
+    const nextRevision = artifact.revision + 1;
+    const now = Date.now();
+    await ctx.db.patch(args.artifactId, {
+      files: validatedFiles,
+      entryFile: resolved.entryFile,
+      content: mirrorLegacyContent(validatedFiles, resolved.entryFile),
+      revision: nextRevision,
+      lastEditedByMessageId: args.editedByMessageId,
+      ...clearStreamingFlags(),
+      updatedAt: now,
+    });
+    await ctx.db.insert('artifactRevisions', {
+      artifactId: args.artifactId,
+      revision: nextRevision,
+      content: mirrorLegacyContent(validatedFiles, resolved.entryFile),
+      files: validatedFiles,
+      entryFile: resolved.entryFile,
+      filePath: path,
+      editedByMessageId: args.editedByMessageId,
+      editKind: 'file_delete',
+      createdAt: now,
+    });
+    await trimRevisionHistory(ctx, args.artifactId);
+    return {
+      success: true as const,
+      revision: nextRevision,
+      path,
+    };
+  },
+});
+
+// =============================================================================
+// renameFileInArtifact — atomic, repoints entryFile if from === entryFile
+// =============================================================================
+
+export const renameFileInArtifact = internalMutation({
+  args: {
+    artifactId: v.id('artifacts'),
+    from: v.string(),
+    to: v.string(),
+    editedByMessageId: v.string(),
+    expectedRevision: v.number(),
+  },
+  returns: v.union(
+    v.object({
+      success: v.literal(true),
+      revision: v.number(),
+      from: v.string(),
+      to: v.string(),
+      entryFile: v.string(),
+      entryUpdated: v.boolean(),
+    }),
+    v.object({
+      success: v.literal(false),
+      code: v.union(
+        v.literal('not_found'),
+        v.literal('stale'),
+        v.literal('file_missing'),
+        v.literal('path_exists'),
+      ),
+      message: v.string(),
+      currentRevision: v.optional(v.number()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const artifact = await ctx.db.get(args.artifactId);
+    if (!artifact) {
+      return {
+        success: false as const,
+        code: 'not_found' as const,
+        message: `Artifact ${args.artifactId} not found.`,
+      };
+    }
+    if (artifact.revision !== args.expectedRevision) {
+      return {
+        success: false as const,
+        code: 'stale' as const,
+        message: `Artifact has been modified since you last read it (revision ${artifact.revision}, you sent ${args.expectedRevision}). Re-read with artifact_read and retry.`,
+        currentRevision: artifact.revision,
+      };
+    }
+    const from = validatePath(args.from);
+    const to = validatePath(args.to);
+    const resolved = resolveArtifactFiles(artifact);
+    // Idempotent: from === to → no-op success.
+    if (from === to) {
+      return {
+        success: true as const,
+        revision: artifact.revision,
+        from,
+        to,
+        entryFile: resolved.entryFile,
+        entryUpdated: false,
+      };
+    }
+    if (!resolved.files.some((f) => f.path === from)) {
+      return {
+        success: false as const,
+        code: 'file_missing' as const,
+        message: `File "${from}" does not exist in this artifact.`,
+      };
+    }
+    if (resolved.files.some((f) => f.path === to)) {
+      return {
+        success: false as const,
+        code: 'path_exists' as const,
+        message: `Target path "${to}" already exists. Delete it first or pick a different name.`,
+      };
+    }
+    const nextFiles = resolved.files.map((f) =>
+      f.path === from ? { path: to, content: f.content } : f,
+    );
+    const validatedFiles = validateFiles(nextFiles);
+    const entryUpdated = from === resolved.entryFile;
+    const nextEntry = entryUpdated ? to : resolved.entryFile;
+    const nextRevision = artifact.revision + 1;
+    const now = Date.now();
+    await ctx.db.patch(args.artifactId, {
+      files: validatedFiles,
+      entryFile: nextEntry,
+      content: mirrorLegacyContent(validatedFiles, nextEntry),
+      revision: nextRevision,
+      lastEditedByMessageId: args.editedByMessageId,
+      ...clearStreamingFlags(),
+      updatedAt: now,
+    });
+    await ctx.db.insert('artifactRevisions', {
+      artifactId: args.artifactId,
+      revision: nextRevision,
+      content: mirrorLegacyContent(validatedFiles, nextEntry),
+      files: validatedFiles,
+      entryFile: nextEntry,
+      filePath: to,
+      fromPath: from,
+      editedByMessageId: args.editedByMessageId,
+      editKind: 'file_rename',
+      createdAt: now,
+    });
+    await trimRevisionHistory(ctx, args.artifactId);
+    return {
+      success: true as const,
+      revision: nextRevision,
+      from,
+      to,
+      entryFile: nextEntry,
+      entryUpdated,
+    };
+  },
+});
+
+// =============================================================================
+// setArtifactEntry — repoint entryFile without touching file content
+// =============================================================================
+
+export const setArtifactEntry = internalMutation({
+  args: {
+    artifactId: v.id('artifacts'),
+    entryFile: v.string(),
+    editedByMessageId: v.string(),
+    expectedRevision: v.number(),
+  },
+  returns: v.union(
+    v.object({
+      success: v.literal(true),
+      revision: v.number(),
+      entryFile: v.string(),
+    }),
+    v.object({
+      success: v.literal(false),
+      code: v.union(
+        v.literal('not_found'),
+        v.literal('stale'),
+        v.literal('file_missing'),
+        v.literal('noop'),
+      ),
+      message: v.string(),
+      currentRevision: v.optional(v.number()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const artifact = await ctx.db.get(args.artifactId);
+    if (!artifact) {
+      return {
+        success: false as const,
+        code: 'not_found' as const,
+        message: `Artifact ${args.artifactId} not found.`,
+      };
+    }
+    if (artifact.revision !== args.expectedRevision) {
+      return {
+        success: false as const,
+        code: 'stale' as const,
+        message: `Artifact has been modified since you last read it (revision ${artifact.revision}, you sent ${args.expectedRevision}). Re-read with artifact_read and retry.`,
+        currentRevision: artifact.revision,
+      };
+    }
+    const newEntry = validatePath(args.entryFile);
+    const resolved = resolveArtifactFiles(artifact);
+    if (newEntry === resolved.entryFile) {
+      return {
+        success: false as const,
+        code: 'noop' as const,
+        message: `Entry file is already "${newEntry}".`,
+      };
+    }
+    if (!resolved.files.some((f) => f.path === newEntry)) {
+      return {
+        success: false as const,
+        code: 'file_missing' as const,
+        message: `File "${newEntry}" does not exist in this artifact. Create it via artifact_edit(mode='rewrite') first.`,
+      };
+    }
+    const nextRevision = artifact.revision + 1;
+    const now = Date.now();
+    await ctx.db.patch(args.artifactId, {
+      entryFile: newEntry,
+      files: resolved.synthesized
+        ? [...resolved.files]
+        : (artifact.files ?? [...resolved.files]),
+      content: mirrorLegacyContent(resolved.files, newEntry),
+      revision: nextRevision,
+      lastEditedByMessageId: args.editedByMessageId,
+      ...clearStreamingFlags(),
+      updatedAt: now,
+    });
+    // Compact metadata-only revision: no `files`/`content` snapshot.
+    await ctx.db.insert('artifactRevisions', {
+      artifactId: args.artifactId,
+      revision: nextRevision,
+      entryFile: newEntry,
+      editedByMessageId: args.editedByMessageId,
+      editKind: 'set_entry',
+      createdAt: now,
+    });
+    await trimRevisionHistory(ctx, args.artifactId);
+    return {
+      success: true as const,
+      revision: nextRevision,
+      entryFile: newEntry,
+    };
+  },
+});
+
+// =============================================================================
+// Streaming lifecycle
+// =============================================================================
+
 export const beginEditStream = internalMutation({
   args: {
     artifactId: v.id('artifacts'),
     liveStreamMode: liveStreamModeValidator,
-    // Set by the artifact_edit tool so the canvas can filter
-    // `tool-input-delta` rows down to this edit's stream. Stored on the row
-    // so subscribers can pick up the right toolCallId without a separate
-    // round-trip; cleared at settle alongside the other streaming flags.
+    /** For mode='rewrite': the file path being streamed (advisory). */
+    streamingPath: v.optional(v.string()),
     toolCallId: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.artifactId);
+    if (!row) {
+      throw new ConvexError({
+        code: 'not_found',
+        message: `Artifact ${args.artifactId} not found.`,
+      });
+    }
+    // Refuse if another stream is already in flight on this row.
+    if (row.liveStreamMode !== undefined) {
+      throw new ConvexError({
+        code: 'streaming_in_progress',
+        message: `Another edit is already streaming to artifact ${args.artifactId} (mode: ${row.liveStreamMode}). Wait for it to settle.`,
+      });
+    }
+    const validatedPath =
+      args.streamingPath !== undefined
+        ? validatePath(args.streamingPath)
+        : undefined;
     await ctx.db.patch(args.artifactId, {
       liveStreamMode: args.liveStreamMode,
       liveStreamStartedAt: Date.now(),
       streamingContent: args.liveStreamMode === 'rewrite' ? '' : undefined,
       streamingPatches: args.liveStreamMode === 'patch' ? [] : undefined,
+      streamingPath: validatedPath,
       toolCallId: args.toolCallId,
     });
     return null;
   },
 });
 
-/**
- * Throttled-by-the-caller update of the partial content as the LLM streams
- * its tool-call argument. Writes to the shadow `streamingContent` field so
- * a mid-stream crash cannot corrupt the previously-settled `content`. The
- * title and language fields are also patched here as they grow during
- * streaming — titles are short enough that throttling them isn't worth it.
- *
- * For `mode: 'patch'` streams, `streamingPatches` is populated with the
- * partial list of `search` snippets so the Canvas pane can highlight which
- * regions are about to change.
- */
 export const updateStreamingContent = internalMutation({
   args: {
     artifactId: v.id('artifacts'),
     streamingContent: v.optional(v.string()),
-    title: v.optional(v.string()),
-    language: v.optional(v.string()),
+    streamingPath: v.optional(v.string()),
     streamingPatches: v.optional(v.array(artifactPatchValidator)),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
     if (args.streamingContent !== undefined) {
-      assertContentSize(args.streamingContent);
+      // streaming bytes alone — apply aggregate cap defensively.
+      const size = new TextEncoder().encode(args.streamingContent).byteLength;
+      if (size > MAX_ARTIFACT_BYTES) {
+        throw new ConvexError({
+          code: 'too_large',
+          message: `Streaming content is ${size} bytes; max ${MAX_ARTIFACT_BYTES}.`,
+        });
+      }
     }
     const patch: Record<string, unknown> = {};
     if (args.streamingContent !== undefined) {
       patch.streamingContent = args.streamingContent;
     }
-    if (args.title !== undefined) patch.title = args.title;
-    if (args.language !== undefined) patch.language = args.language;
+    if (args.streamingPath !== undefined) {
+      patch.streamingPath = validatePath(args.streamingPath);
+    }
     if (args.streamingPatches !== undefined) {
       patch.streamingPatches = args.streamingPatches;
     }
     if (Object.keys(patch).length === 0) return null;
-    // Refresh the liveness timestamp at most every HEARTBEAT_THROTTLE_MS.
-    // `liveStreamStartedAt` is the watchdog input for `cleanupStaleStreams`;
-    // refreshing inside the threshold window is enough to keep the row alive
-    // and avoids invalidating doc-level Convex subscriptions on every chunk.
     const existing = await ctx.db.get(args.artifactId);
     const now = Date.now();
     const lastBeat = existing?.liveStreamStartedAt ?? 0;
@@ -368,39 +928,21 @@ export const updateStreamingContent = internalMutation({
   },
 });
 
-/**
- * Defensive cleanup: clears all streaming flags without touching `content`.
- * Used by tools in their finally-block when execute fails before any of
- * the canonical settle mutations ran.
- */
 export const abortStream = internalMutation({
   args: { artifactId: v.id('artifacts') },
   returns: v.null(),
   handler: async (ctx, { artifactId }) => {
-    await ctx.db.patch(artifactId, {
-      streamingContent: undefined,
-      streamingPatches: undefined,
-      liveStreamMode: undefined,
-      liveStreamStartedAt: undefined,
-      toolCallId: undefined,
-    });
+    await ctx.db.patch(artifactId, clearStreamingFlags());
     return null;
   },
 });
 
-/**
- * Janitor — clears stream flags on rows where the writer has been silent
- * past the threshold. Covers crashed agent runs that never reached a
- * tool's finally-block. Idempotent and safe to run on a cron.
- */
 export const cleanupStaleStreams = internalMutation({
   args: {},
   returns: v.object({ cleared: v.number() }),
   handler: async (ctx) => {
     const cutoff = Date.now() - STALE_STREAM_THRESHOLD_MS;
     let cleared = 0;
-    // The `by_liveStreamMode` index is sparse: rows with `liveStreamMode`
-    // undefined are not in it. So this iterator only touches active streams.
     for await (const row of ctx.db
       .query('artifacts')
       .withIndex('by_liveStreamMode')) {
@@ -408,16 +950,448 @@ export const cleanupStaleStreams = internalMutation({
         row.liveStreamStartedAt !== undefined &&
         row.liveStreamStartedAt < cutoff
       ) {
-        await ctx.db.patch(row._id, {
-          streamingContent: undefined,
-          streamingPatches: undefined,
-          liveStreamMode: undefined,
-          liveStreamStartedAt: undefined,
-          toolCallId: undefined,
-        });
+        // Placeholder rows (revision === 0) belong to a crashed
+        // `beginCreateStream` and have no real artifactRevisions row backing
+        // them — clearing streaming flags would leak an empty artifact into
+        // the user's thread, so we delete the row outright. For settled
+        // rows (revision >= 1) we just clear the streaming flags and keep
+        // the prior content.
+        if (row.revision === 0) {
+          await ctx.db.delete(row._id);
+        } else {
+          await ctx.db.patch(row._id, clearStreamingFlags());
+        }
         cleared += 1;
       }
     }
     return { cleared };
+  },
+});
+
+// =============================================================================
+// beginCreateStream / finalizeCreateStream — placeholder-row streaming for
+// `artifact_create`. Inserts a row at revision 0 the instant the LLM emits
+// enough JSON for us to know the (type, title, entryFile); the canvas opens
+// against that row and consumes tool-input-delta to render content
+// token-by-token. `execute` settles via `finalizeCreateStream` which writes
+// the real content + artifactRevisions row and bumps revision to 1.
+// =============================================================================
+
+type BeginCreateStreamOutcome =
+  | {
+      kind: 'created';
+      artifactId: Id<'artifacts'>;
+      entryFile: string;
+    }
+  | {
+      kind: 'collision';
+      artifactId: Id<'artifacts'>;
+      entryFile: string;
+      revision: number;
+      filePaths: string[];
+    }
+  | {
+      kind: 'type_mismatch';
+      existingArtifactId: Id<'artifacts'>;
+      existingType: Doc<'artifacts'>['type'];
+      message: string;
+    };
+
+export const beginCreateStream = internalMutation({
+  args: {
+    organizationId: v.string(),
+    threadId: v.string(),
+    type: artifactTypeValidator,
+    title: v.string(),
+    language: v.optional(v.string()),
+    entryFile: v.optional(v.string()),
+    createdByMessageId: v.string(),
+    toolCallId: v.string(),
+  },
+  returns: v.union(
+    v.object({
+      kind: v.literal('created'),
+      artifactId: v.id('artifacts'),
+      entryFile: v.string(),
+    }),
+    v.object({
+      kind: v.literal('collision'),
+      artifactId: v.id('artifacts'),
+      entryFile: v.string(),
+      revision: v.number(),
+      filePaths: v.array(v.string()),
+    }),
+    v.object({
+      kind: v.literal('type_mismatch'),
+      existingArtifactId: v.id('artifacts'),
+      existingType: artifactTypeValidator,
+      message: v.string(),
+    }),
+  ),
+  handler: async (ctx, args): Promise<BeginCreateStreamOutcome> => {
+    const storedTitle = normalizeTitleForStorage(args.title);
+    if (storedTitle.length === 0) {
+      throw new ConvexError({
+        code: 'invalid_title',
+        message: 'Title must contain at least one non-whitespace character.',
+      });
+    }
+    const compareKey = normalizeTitleForCompare(args.title);
+
+    // Same dedup scan as createArtifact — keep the two in sync.
+    for await (const row of ctx.db
+      .query('artifacts')
+      .withIndex('by_organizationId_and_thread', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('threadId', args.threadId),
+      )) {
+      const rowKey = normalizeTitleForCompare(row.title);
+      if (rowKey !== compareKey) continue;
+      if (row.type !== args.type) {
+        return {
+          kind: 'type_mismatch',
+          existingArtifactId: row._id,
+          existingType: row.type,
+          message: `An artifact titled "${row.title}" already exists in this thread with type "${row.type}". Either pick a different title or use the existing artifactId ${row._id} via artifact_edit.`,
+        };
+      }
+      const resolved = resolveArtifactFiles(row);
+      return {
+        kind: 'collision',
+        artifactId: row._id,
+        entryFile: resolved.entryFile,
+        revision: row.revision,
+        filePaths: resolved.files.map((f) => f.path),
+      };
+    }
+
+    // No collision — insert a placeholder row at revision 0 with the
+    // streaming flags set. The entry file is seeded empty; finalize replaces
+    // it with the real content and bumps revision to 1.
+    const entryFile = validatePath(
+      args.entryFile ?? defaultEntryFileFor(args.type, args.language),
+    );
+    const now = Date.now();
+    const artifactId = await ctx.db.insert('artifacts', {
+      organizationId: args.organizationId,
+      threadId: args.threadId,
+      type: args.type,
+      title: storedTitle,
+      language: args.language,
+      files: [{ path: entryFile, content: '' }],
+      entryFile,
+      content: '',
+      revision: 0,
+      createdByMessageId: args.createdByMessageId,
+      lastEditedByMessageId: args.createdByMessageId,
+      createdAt: now,
+      updatedAt: now,
+      liveStreamMode: 'create',
+      liveStreamStartedAt: now,
+      streamingContent: '',
+      streamingPath: entryFile,
+      toolCallId: args.toolCallId,
+    });
+    return { kind: 'created', artifactId, entryFile };
+  },
+});
+
+export const finalizeCreateStream = internalMutation({
+  args: {
+    artifactId: v.id('artifacts'),
+    content: v.string(),
+    createdByMessageId: v.string(),
+    /**
+     * The toolCallId that started the placeholder. Refused if it doesn't
+     * match the row's current `toolCallId` — protects against a different
+     * tool call mistakenly settling someone else's placeholder.
+     */
+    toolCallId: v.string(),
+  },
+  returns: v.union(
+    v.object({
+      success: v.literal(true),
+      artifactId: v.id('artifacts'),
+      revision: v.number(),
+      entryFile: v.string(),
+      filePaths: v.array(v.string()),
+    }),
+    v.object({
+      success: v.literal(false),
+      code: v.union(
+        v.literal('not_found'),
+        v.literal('not_placeholder'),
+        v.literal('toolcall_mismatch'),
+      ),
+      message: v.string(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.artifactId);
+    if (!row) {
+      return {
+        success: false as const,
+        code: 'not_found' as const,
+        message: `Artifact ${args.artifactId} not found.`,
+      };
+    }
+    if (row.revision !== 0 || row.liveStreamMode !== 'create') {
+      return {
+        success: false as const,
+        code: 'not_placeholder' as const,
+        message: `Artifact ${args.artifactId} is not a streaming placeholder (revision: ${row.revision}, liveStreamMode: ${row.liveStreamMode ?? 'none'}).`,
+      };
+    }
+    if (row.toolCallId !== args.toolCallId) {
+      return {
+        success: false as const,
+        code: 'toolcall_mismatch' as const,
+        message: `Artifact ${args.artifactId} placeholder belongs to a different tool call.`,
+      };
+    }
+    const entryFile =
+      row.entryFile ?? defaultEntryFileFor(row.type, row.language);
+    const files = validateFiles([{ path: entryFile, content: args.content }]);
+    const now = Date.now();
+    await ctx.db.patch(args.artifactId, {
+      files,
+      entryFile,
+      content: mirrorLegacyContent(files, entryFile),
+      revision: 1,
+      lastEditedByMessageId: args.createdByMessageId,
+      updatedAt: now,
+      ...clearStreamingFlags(),
+    });
+    await ctx.db.insert('artifactRevisions', {
+      artifactId: args.artifactId,
+      revision: 1,
+      content: mirrorLegacyContent(files, entryFile),
+      files,
+      entryFile,
+      filePath: entryFile,
+      editedByMessageId: args.createdByMessageId,
+      editKind: 'create',
+      createdAt: now,
+    });
+    return {
+      success: true as const,
+      artifactId: args.artifactId,
+      revision: 1,
+      entryFile,
+      filePaths: files.map((f) => f.path),
+    };
+  },
+});
+
+export const discardCreateStream = internalMutation({
+  args: {
+    artifactId: v.id('artifacts'),
+    toolCallId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.artifactId);
+    if (!row) return null;
+    // Only discard our own placeholder. A settled row (revision >= 1) is
+    // never deleted from this path — fall back to abortStream's behavior.
+    if (row.toolCallId !== args.toolCallId) return null;
+    if (row.revision === 0 && row.liveStreamMode === 'create') {
+      await ctx.db.delete(args.artifactId);
+    } else {
+      await ctx.db.patch(args.artifactId, clearStreamingFlags());
+    }
+    return null;
+  },
+});
+
+// =============================================================================
+// Runnable-artifact run-state mutations (unchanged from prior shape)
+// =============================================================================
+
+export const setArtifactRunConfig = internalMutation({
+  args: {
+    artifactId: v.id('artifacts'),
+    runPackages: v.array(v.string()),
+    runOptions: v.optional(
+      v.object({
+        allowSdist: v.optional(v.boolean()),
+        allowInstallScripts: v.optional(v.boolean()),
+      }),
+    ),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.artifactId);
+    if (!row) return null;
+    if (row.type !== 'python_runnable' && row.type !== 'node_runnable') {
+      return null;
+    }
+    await ctx.db.patch(args.artifactId, {
+      runPackages: args.runPackages,
+      ...(args.runOptions !== undefined && { runOptions: args.runOptions }),
+    });
+    return null;
+  },
+});
+
+export const initArtifactRun = internalMutation({
+  args: {
+    artifactId: v.id('artifacts'),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.artifactId);
+    if (!row) return null;
+    if (row.type !== 'python_runnable' && row.type !== 'node_runnable') {
+      return null;
+    }
+    if (
+      row.runStatus === 'queued' ||
+      row.runStatus === 'installing' ||
+      row.runStatus === 'running'
+    ) {
+      throw new ConvexError({
+        code: 'RUN_IN_FLIGHT',
+        message: `artifact ${args.artifactId} already has a run in flight (status: ${row.runStatus}); wait for it to settle before starting another.`,
+      });
+    }
+    await ctx.db.patch(args.artifactId, {
+      runStatus: 'queued',
+      runProgress: { kind: 'queued' },
+      runStartedAt: Date.now(),
+      runRevision: row.revision,
+      runCompletedAt: undefined,
+      runExitCode: undefined,
+      runErrorCode: undefined,
+      runErrorMessage: undefined,
+      runStdoutPreview: undefined,
+      runStderrPreview: undefined,
+      runStdoutStorageId: undefined,
+      runStderrStorageId: undefined,
+      runOutputFiles: [],
+      runExecutionId: undefined,
+    });
+    return null;
+  },
+});
+
+export const patchArtifactRunProgress = internalMutation({
+  args: {
+    artifactId: v.id('artifacts'),
+    runStatus: v.optional(artifactRunStatusValidator),
+    runProgress: v.optional(sandboxRunProgressValidator),
+    runExecutionId: v.optional(v.id('sandboxExecutions')),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.artifactId);
+    if (!row) return null;
+    if (row.type !== 'python_runnable' && row.type !== 'node_runnable') {
+      return null;
+    }
+    if (
+      row.runStatus !== undefined &&
+      sandboxTerminalStatuses.has(row.runStatus)
+    ) {
+      console.warn(
+        `[patchArtifactRunProgress] no-op: artifact ${args.artifactId} already terminal as ${row.runStatus}`,
+      );
+      return null;
+    }
+    const patch: Record<string, unknown> = {};
+    if (args.runStatus !== undefined) patch.runStatus = args.runStatus;
+    if (args.runProgress !== undefined) patch.runProgress = args.runProgress;
+    if (args.runExecutionId !== undefined) {
+      patch.runExecutionId = args.runExecutionId;
+    }
+    if (Object.keys(patch).length === 0) return null;
+    await ctx.db.patch(args.artifactId, patch);
+    return null;
+  },
+});
+
+export async function applyFinalizeArtifactRun(
+  ctx: MutationCtx,
+  args: {
+    artifactId: Id<'artifacts'>;
+    runStatus: 'completed' | 'failed' | 'cancelled';
+    runExitCode?: number;
+    runErrorCode?: ArtifactRunErrorCode;
+    runErrorMessage?: string;
+    runStdoutPreview?: string;
+    runStderrPreview?: string;
+    runStdoutStorageId?: Id<'_storage'>;
+    runStderrStorageId?: Id<'_storage'>;
+    runOutputFiles: ArtifactRunOutputFile[];
+    runExecutionId?: Id<'sandboxExecutions'>;
+  },
+): Promise<void> {
+  const row = await ctx.db.get(args.artifactId);
+  if (!row) return;
+  if (row.type !== 'python_runnable' && row.type !== 'node_runnable') {
+    return;
+  }
+  if (
+    row.runStatus !== undefined &&
+    sandboxTerminalStatuses.has(row.runStatus)
+  ) {
+    console.warn(
+      `[finalizeArtifactRun] no-op: artifact ${args.artifactId} already terminal as ${row.runStatus}; dropping incoming ${args.runStatus}`,
+    );
+    return;
+  }
+  await ctx.db.patch(args.artifactId, {
+    runStatus: args.runStatus,
+    runProgress: undefined,
+    runCompletedAt: Date.now(),
+    ...(args.runExitCode !== undefined && { runExitCode: args.runExitCode }),
+    ...(args.runErrorCode !== undefined && {
+      runErrorCode: args.runErrorCode,
+    }),
+    ...(args.runErrorMessage !== undefined && {
+      runErrorMessage: args.runErrorMessage,
+    }),
+    ...(args.runStdoutPreview !== undefined && {
+      runStdoutPreview: args.runStdoutPreview,
+    }),
+    ...(args.runStderrPreview !== undefined && {
+      runStderrPreview: args.runStderrPreview,
+    }),
+    ...(args.runStdoutStorageId !== undefined && {
+      runStdoutStorageId: args.runStdoutStorageId,
+    }),
+    ...(args.runStderrStorageId !== undefined && {
+      runStderrStorageId: args.runStderrStorageId,
+    }),
+    runOutputFiles: args.runOutputFiles,
+    ...(args.runExecutionId !== undefined && {
+      runExecutionId: args.runExecutionId,
+    }),
+  });
+}
+
+export const finalizeArtifactRun = internalMutation({
+  args: {
+    artifactId: v.id('artifacts'),
+    runStatus: v.union(
+      v.literal('completed'),
+      v.literal('failed'),
+      v.literal('cancelled'),
+    ),
+    runExitCode: v.optional(v.number()),
+    runErrorCode: v.optional(artifactRunErrorCodeValidator),
+    runErrorMessage: v.optional(v.string()),
+    runStdoutPreview: v.optional(v.string()),
+    runStderrPreview: v.optional(v.string()),
+    runStdoutStorageId: v.optional(v.id('_storage')),
+    runStderrStorageId: v.optional(v.id('_storage')),
+    runOutputFiles: v.array(artifactRunOutputFileValidator),
+    runExecutionId: v.optional(v.id('sandboxExecutions')),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await applyFinalizeArtifactRun(ctx, args);
+    return null;
   },
 });

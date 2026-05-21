@@ -16,6 +16,9 @@ import type * as agent_tools_approval_shared from "../agent_tools/approval_share
 import type * as agent_tools_artifacts_apply_patches from "../agent_tools/artifacts/apply_patches.js";
 import type * as agent_tools_artifacts_artifact_create_tool from "../agent_tools/artifacts/artifact_create_tool.js";
 import type * as agent_tools_artifacts_artifact_edit_tool from "../agent_tools/artifacts/artifact_edit_tool.js";
+import type * as agent_tools_artifacts_artifact_list_tool from "../agent_tools/artifacts/artifact_list_tool.js";
+import type * as agent_tools_artifacts_artifact_read_tool from "../agent_tools/artifacts/artifact_read_tool.js";
+import type * as agent_tools_artifacts_artifact_run_tool from "../agent_tools/artifacts/artifact_run_tool.js";
 import type * as agent_tools_artifacts_shared from "../agent_tools/artifacts/shared.js";
 import type * as agent_tools_artifacts_stream_state from "../agent_tools/artifacts/stream_state.js";
 import type * as agent_tools_conversations_conversation_read_tool from "../agent_tools/conversations/conversation_read_tool.js";
@@ -164,6 +167,7 @@ import type * as artifacts_internal_mutations from "../artifacts/internal_mutati
 import type * as artifacts_internal_queries from "../artifacts/internal_queries.js";
 import type * as artifacts_mutations from "../artifacts/mutations.js";
 import type * as artifacts_queries from "../artifacts/queries.js";
+import type * as artifacts_resolve_files from "../artifacts/resolve_files.js";
 import type * as artifacts_snapshot_for_branch from "../artifacts/snapshot_for_branch.js";
 import type * as audit_logs_actions from "../audit_logs/actions.js";
 import type * as audit_logs_export_audit_logs from "../audit_logs/export_audit_logs.js";
@@ -542,6 +546,7 @@ import type * as message_metadata_internal_mutations from "../message_metadata/i
 import type * as message_metadata_queries from "../message_metadata/queries.js";
 import type * as migrations from "../migrations.js";
 import type * as migrations_backfill_apikey_reference_id from "../migrations/backfill_apikey_reference_id.js";
+import type * as migrations_backfill_artifact_files from "../migrations/backfill_artifact_files.js";
 import type * as migrations_backfill_file_metadata_document_id from "../migrations/backfill_file_metadata_document_id.js";
 import type * as migrations_backfill_folder_path from "../migrations/backfill_folder_path.js";
 import type * as migrations_backfill_folders from "../migrations/backfill_folders.js";
@@ -572,6 +577,8 @@ import type * as node_only_integration_sandbox_helpers_url_rewrite from "../node
 import type * as node_only_integration_sandbox_helpers_validate_host from "../node_only/integration_sandbox/helpers/validate_host.js";
 import type * as node_only_integration_sandbox_internal_actions from "../node_only/integration_sandbox/internal_actions.js";
 import type * as node_only_integration_sandbox_types from "../node_only/integration_sandbox/types.js";
+import type * as node_only_sandbox_helpers_spawner_client from "../node_only/sandbox/helpers/spawner_client.js";
+import type * as node_only_sandbox_internal_actions from "../node_only/sandbox/internal_actions.js";
 import type * as node_only_sql_helpers_execute_mssql_query from "../node_only/sql/helpers/execute_mssql_query.js";
 import type * as node_only_sql_helpers_execute_mysql_query from "../node_only/sql/helpers/execute_mysql_query.js";
 import type * as node_only_sql_helpers_execute_postgres_query from "../node_only/sql/helpers/execute_postgres_query.js";
@@ -675,6 +682,9 @@ import type * as providers_file_utils from "../providers/file_utils.js";
 import type * as providers_resolve_model from "../providers/resolve_model.js";
 import type * as providers_secret_io from "../providers/secret_io.js";
 import type * as providers_validators from "../providers/validators.js";
+import type * as sandbox_internal_mutations from "../sandbox/internal_mutations.js";
+import type * as sandbox_output_mutations from "../sandbox/output_mutations.js";
+import type * as sandbox_wire from "../sandbox/wire.js";
 import type * as sso_providers_actions from "../sso_providers/actions.js";
 import type * as sso_providers_create_user_session from "../sso_providers/create_user_session.js";
 import type * as sso_providers_entra_id_adapter from "../sso_providers/entra_id/adapter.js";
@@ -753,6 +763,7 @@ import type * as threads_queries from "../threads/queries.js";
 import type * as threads_rest_api from "../threads/rest_api.js";
 import type * as threads_restore_chat_thread from "../threads/restore_chat_thread.js";
 import type * as threads_share_thread from "../threads/share_thread.js";
+import type * as threads_truncate_message_content from "../threads/truncate_message_content.js";
 import type * as threads_types from "../threads/types.js";
 import type * as threads_update_chat_thread from "../threads/update_chat_thread.js";
 import type * as threads_validators from "../threads/validators.js";
@@ -1085,6 +1096,9 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/artifacts/apply_patches": typeof agent_tools_artifacts_apply_patches;
   "agent_tools/artifacts/artifact_create_tool": typeof agent_tools_artifacts_artifact_create_tool;
   "agent_tools/artifacts/artifact_edit_tool": typeof agent_tools_artifacts_artifact_edit_tool;
+  "agent_tools/artifacts/artifact_list_tool": typeof agent_tools_artifacts_artifact_list_tool;
+  "agent_tools/artifacts/artifact_read_tool": typeof agent_tools_artifacts_artifact_read_tool;
+  "agent_tools/artifacts/artifact_run_tool": typeof agent_tools_artifacts_artifact_run_tool;
   "agent_tools/artifacts/shared": typeof agent_tools_artifacts_shared;
   "agent_tools/artifacts/stream_state": typeof agent_tools_artifacts_stream_state;
   "agent_tools/conversations/conversation_read_tool": typeof agent_tools_conversations_conversation_read_tool;
@@ -1233,6 +1247,7 @@ declare const fullApi: ApiFromModules<{
   "artifacts/internal_queries": typeof artifacts_internal_queries;
   "artifacts/mutations": typeof artifacts_mutations;
   "artifacts/queries": typeof artifacts_queries;
+  "artifacts/resolve_files": typeof artifacts_resolve_files;
   "artifacts/snapshot_for_branch": typeof artifacts_snapshot_for_branch;
   "audit_logs/actions": typeof audit_logs_actions;
   "audit_logs/export_audit_logs": typeof audit_logs_export_audit_logs;
@@ -1611,6 +1626,7 @@ declare const fullApi: ApiFromModules<{
   "message_metadata/queries": typeof message_metadata_queries;
   migrations: typeof migrations;
   "migrations/backfill_apikey_reference_id": typeof migrations_backfill_apikey_reference_id;
+  "migrations/backfill_artifact_files": typeof migrations_backfill_artifact_files;
   "migrations/backfill_file_metadata_document_id": typeof migrations_backfill_file_metadata_document_id;
   "migrations/backfill_folder_path": typeof migrations_backfill_folder_path;
   "migrations/backfill_folders": typeof migrations_backfill_folders;
@@ -1641,6 +1657,8 @@ declare const fullApi: ApiFromModules<{
   "node_only/integration_sandbox/helpers/validate_host": typeof node_only_integration_sandbox_helpers_validate_host;
   "node_only/integration_sandbox/internal_actions": typeof node_only_integration_sandbox_internal_actions;
   "node_only/integration_sandbox/types": typeof node_only_integration_sandbox_types;
+  "node_only/sandbox/helpers/spawner_client": typeof node_only_sandbox_helpers_spawner_client;
+  "node_only/sandbox/internal_actions": typeof node_only_sandbox_internal_actions;
   "node_only/sql/helpers/execute_mssql_query": typeof node_only_sql_helpers_execute_mssql_query;
   "node_only/sql/helpers/execute_mysql_query": typeof node_only_sql_helpers_execute_mysql_query;
   "node_only/sql/helpers/execute_postgres_query": typeof node_only_sql_helpers_execute_postgres_query;
@@ -1744,6 +1762,9 @@ declare const fullApi: ApiFromModules<{
   "providers/resolve_model": typeof providers_resolve_model;
   "providers/secret_io": typeof providers_secret_io;
   "providers/validators": typeof providers_validators;
+  "sandbox/internal_mutations": typeof sandbox_internal_mutations;
+  "sandbox/output_mutations": typeof sandbox_output_mutations;
+  "sandbox/wire": typeof sandbox_wire;
   "sso_providers/actions": typeof sso_providers_actions;
   "sso_providers/create_user_session": typeof sso_providers_create_user_session;
   "sso_providers/entra_id/adapter": typeof sso_providers_entra_id_adapter;
@@ -1822,6 +1843,7 @@ declare const fullApi: ApiFromModules<{
   "threads/rest_api": typeof threads_rest_api;
   "threads/restore_chat_thread": typeof threads_restore_chat_thread;
   "threads/share_thread": typeof threads_share_thread;
+  "threads/truncate_message_content": typeof threads_truncate_message_content;
   "threads/types": typeof threads_types;
   "threads/update_chat_thread": typeof threads_update_chat_thread;
   "threads/validators": typeof threads_validators;

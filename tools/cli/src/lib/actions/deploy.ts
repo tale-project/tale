@@ -18,7 +18,7 @@ import {
   isStatefulService,
 } from '../compose/types';
 import { dockerCompose } from '../docker/docker-compose';
-import { ensureNetwork } from '../docker/ensure-network';
+import { ensureNetwork, ensureSandboxNetwork } from '../docker/ensure-network';
 import { ensureVolumes } from '../docker/ensure-volumes';
 import { exec } from '../docker/exec';
 import { getContainerVersion } from '../docker/get-container-version';
@@ -55,6 +55,11 @@ async function ensureInfrastructure(
   const networkCreated = await ensureNetwork('internal');
   if (!networkCreated) {
     throw new Error('Failed to create required network');
+  }
+  // Sandbox bridge: fixed name `tale-sandbox-net`, internal-only, IPv6 off.
+  const sandboxNetworkCreated = await ensureSandboxNetwork();
+  if (!sandboxNetworkCreated) {
+    throw new Error('Failed to create sandbox network');
   }
 }
 
@@ -255,9 +260,31 @@ export async function deploy(options: DeployOptions): Promise<void> {
         ),
       ];
 
+      // The spawner's runtime image (consumed by `docker run` of user code,
+      // not a compose service) must also be pulled and re-tagged to match the
+      // spawner's `SANDBOX_RUNTIME_IMAGE` default (`tale-sandbox-runtime:latest`).
+      // Without this, a fresh deploy host has no local runtime image and the
+      // first /v1/execute fails with image-not-found. Mirrors build.yml's
+      // re-tag step. Pulled whenever sandbox or sandbox-egress is being
+      // updated, since the runtime image versions in lockstep with the spawner.
+      const needsRuntimeImage =
+        statefulToUpdate.includes('sandbox') ||
+        statefulToUpdate.includes('sandbox-egress');
+      const runtimeImageRemote = needsRuntimeImage
+        ? `${env.GHCR_REGISTRY}/tale-sandbox-runtime:${version}`
+        : null;
+      if (runtimeImageRemote) {
+        imagesToPull.push(runtimeImageRemote);
+      }
+
       if (dryRun) {
         for (const image of imagesToPull) {
           logger.info(`${prefix}Would pull: ${image}`);
+        }
+        if (runtimeImageRemote) {
+          logger.info(
+            `${prefix}Would tag: ${runtimeImageRemote} -> tale-sandbox-runtime:latest`,
+          );
         }
       } else {
         const failedImages: string[] = [];
@@ -273,6 +300,18 @@ export async function deploy(options: DeployOptions): Promise<void> {
               'If this is a recent release, the container images may still be building and testing. ' +
               'Please wait a few minutes and try again.',
           );
+        }
+        if (runtimeImageRemote) {
+          const tagResult = await exec('docker', [
+            'tag',
+            runtimeImageRemote,
+            'tale-sandbox-runtime:latest',
+          ]);
+          if (!tagResult.success) {
+            throw new Error(
+              `Failed to re-tag sandbox runtime image: ${tagResult.stderr.trim()}`,
+            );
+          }
         }
       }
 

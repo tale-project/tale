@@ -2,6 +2,7 @@ import { abortStream, listMessages, listStreams } from '@convex-dev/agent';
 
 import { components } from '../_generated/api';
 import type { MutationCtx } from '../_generated/server';
+import { truncateAssistantContent } from './truncate_message_content';
 
 /**
  * Cancel an active AI generation for a thread.
@@ -9,14 +10,21 @@ import type { MutationCtx } from '../_generated/server';
  * 1. Validates thread ownership.
  * 2. Aborts all active (streaming) SDK streams.
  * 3. Sets cancelledAt on threadMetadata so the running action detects it.
- * 4. If displayedContent is provided, marks the latest assistant message as
- *    "success" with that content (ChatGPT-style clean stop).
+ * 4. Updates the latest assistant message:
+ *    - If `displayedLength > 0`: truncate the message content in-place to
+ *      that length, preserving every non-text part (reasoning, tool-call,
+ *      tool-result, file, source). Marks status=success — the user sees
+ *      exactly what the typewriter had revealed.
+ *    - If no displayed length but the message already has streamed text:
+ *      mark status=success without touching content (don't lose deltas).
+ *    - Otherwise (truly empty): mark status=failed → rendered as a clean
+ *      "aborted" bubble by the UI.
  */
 export async function cancelGeneration(
   ctx: MutationCtx,
   userId: string,
   threadId: string,
-  displayedContent?: string | null,
+  displayedLength?: number | null,
 ): Promise<void> {
   const thread = await ctx.runQuery(components.agent.threads.getThread, {
     threadId,
@@ -38,7 +46,7 @@ export async function cancelGeneration(
     });
   }
 
-  // Mark the latest assistant message based on displayed content
+  // Find the latest assistant message and decide how to finalise it.
   const messagesResult = await listMessages(ctx, components.agent, {
     threadId,
     paginationOpts: { numItems: 5, cursor: null },
@@ -50,17 +58,36 @@ export async function cancelGeneration(
   );
 
   if (latestAssistant && latestAssistant.status !== 'success') {
-    if (displayedContent?.trim()) {
-      // ChatGPT-style: preserve displayed content as a successful message
+    const message = latestAssistant.message;
+    const hasDisplayedLength =
+      typeof displayedLength === 'number' && displayedLength > 0;
+
+    if (hasDisplayedLength && message?.role === 'assistant') {
+      // ChatGPT-style: keep exactly what the user saw. Truncate text
+      // content to displayedLength while preserving structured parts.
+      const truncated = truncateAssistantContent(
+        message.content,
+        displayedLength,
+      );
       await ctx.runMutation(components.agent.messages.updateMessage, {
         messageId: latestAssistant._id,
         patch: {
           status: 'success',
-          message: { role: 'assistant', content: displayedContent },
+          message: { ...message, content: truncated },
         },
       });
+    } else if (latestAssistant.text?.trim()) {
+      // No displayed-length signal (snapshot raced / refs unregistered),
+      // but content was already streamed. Preserve what's persisted rather
+      // than discarding it — better to show "more than the user saw" than
+      // to vaporise their reply.
+      await ctx.runMutation(components.agent.messages.updateMessage, {
+        messageId: latestAssistant._id,
+        patch: { status: 'success' },
+      });
     } else {
-      // No content was displayed — mark as failed so frontend shows clean state
+      // Truly empty (cancel fired before any token was streamed).
+      // Mark failed so the UI renders the clean aborted bubble.
       await ctx.runMutation(components.agent.messages.updateMessage, {
         messageId: latestAssistant._id,
         patch: { status: 'failed' },

@@ -7,6 +7,9 @@
 
 import { artifactCreateTool } from './artifacts/artifact_create_tool';
 import { artifactEditTool } from './artifacts/artifact_edit_tool';
+import { artifactListTool } from './artifacts/artifact_list_tool';
+import { artifactReadTool } from './artifacts/artifact_read_tool';
+import { artifactRunTool } from './artifacts/artifact_run_tool';
 import { conversationReadTool } from './conversations/conversation_read_tool';
 import { customerReadTool } from './customers/customer_read_tool';
 import { databaseSchemaTool } from './database/database_schema_tool';
@@ -46,6 +49,9 @@ export { TOOL_NAMES, type ToolName } from './tool_names';
 export const TOOL_REGISTRY = [
   artifactCreateTool,
   artifactEditTool,
+  artifactReadTool,
+  artifactListTool,
+  artifactRunTool,
   customerReadTool,
   productReadTool,
   ragSearchTool,

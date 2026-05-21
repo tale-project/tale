@@ -102,6 +102,9 @@ export async function ensureEnv(
       'INSTANCE_SECRET',
       'DB_PASSWORD',
       'SOPS_AGE_KEY',
+      // Shared HMAC secret for Convex → sandbox spawner. Generated as
+      // 32 random bytes (hex); see services/sandbox/src/auth.ts.
+      'SANDBOX_TOKEN',
     ];
     const missing = requiredVars.filter((v) => !existing[v]);
 
@@ -212,6 +215,7 @@ async function runPartialEnvSetup(
     ENCRYPTION_SECRET_HEX: generateHexSecret,
     INSTANCE_SECRET: generateHexSecret,
     DB_PASSWORD: generatePassword,
+    SANDBOX_TOKEN: generateHexSecret,
   };
 
   let generatedCount = 0;
@@ -408,6 +412,7 @@ async function runEnvSetup(envPath: string): Promise<EnvSetupResult> {
     instanceSecret: generateHexSecret(),
     dbPassword,
     sopsAgeKey: ageKeypair.secretKey,
+    sandboxToken: generateHexSecret(),
   };
 
   const envContent = generateEnvContent({
@@ -441,6 +446,7 @@ interface EnvConfig {
   instanceSecret: string;
   dbPassword: string;
   sopsAgeKey: string;
+  sandboxToken: string;
 }
 
 function generateEnvContent(config: EnvConfig): string {
@@ -507,6 +513,24 @@ function generateEnvContent(config: EnvConfig): string {
     '#                              external tooling.',
     `SOPS_AGE_KEY=${config.sopsAgeKey}`,
     '# SOPS_AGE_KEY_FILE=',
+    '',
+    '# ============================================================================',
+    '# Sandbox (artifact_run) Configuration',
+    '# ============================================================================',
+    '# Shared HMAC secret. Convex signs every request to the sandbox spawner',
+    '# with this; the spawner rejects unsigned/wrong-signed requests. Rotate',
+    '# by setting a new value and restarting both `platform` and `sandbox`.',
+    `SANDBOX_TOKEN=${config.sandboxToken}`,
+    '# Container runtime for spawned sandbox containers. `runc` (default) is',
+    '# plain Docker; `runsc` is gVisor (requires `runsc` installed on the',
+    '# host and registered with dockerd — see `tale doctor`). gVisor provides',
+    '# a userspace kernel that mitigates runc-class escape CVEs at the cost',
+    '# of ~6x pip-install latency for native-extension packages.',
+    '# SANDBOX_RUNTIME=runc',
+    '# Pipe-separated regex allow-list of egress hostnames for the sandbox',
+    '# proxy. Default covers pypi/npm/github package endpoints; extend if',
+    '# your agents need other registries (e.g. private wheel mirrors).',
+    '# SANDBOX_EGRESS_ALLOWLIST=^pypi\\.org$|^files\\.pythonhosted\\.org$|^registry\\.npmjs\\.org$',
     '',
   );
 

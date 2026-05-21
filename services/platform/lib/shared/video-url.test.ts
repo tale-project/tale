@@ -289,6 +289,30 @@ describe('extractVideoUrls', () => {
     expect(out).toHaveLength(0);
   });
 
+  it('skips URLs from non-video hosts (closed allowlist)', () => {
+    // GitHub, docs sites, and any other ordinary page must not trigger
+    // the video-link pipeline — pasting them used to spawn a yt-dlp job
+    // that always failed with "site isn't supported".
+    expect(
+      extractVideoUrls(
+        'https://github.com/anthropics/skills/tree/main/skills/pptx',
+      ),
+    ).toHaveLength(0);
+    expect(extractVideoUrls('https://example.com/article')).toHaveLength(0);
+    expect(
+      extractVideoUrls('https://docs.python.org/3/library/os.html'),
+    ).toHaveLength(0);
+  });
+
+  it('keeps only the known-platform URL in mixed text', () => {
+    const out = extractVideoUrls(
+      'see the repo https://github.com/foo/bar and the demo https://youtu.be/abc',
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0].url).toBe('https://youtu.be/abc');
+    expect(out[0].platform).toBe('youtube');
+  });
+
   it('accepts watch?v=X&list=Y (video-in-playlist)', () => {
     const out = extractVideoUrls(
       'https://www.youtube.com/watch?v=abc&list=PL123',

@@ -21,6 +21,7 @@ import type {
   HardwareMode,
 } from '@/app/pages/hardware-pricing-page';
 import { useT } from '@/lib/i18n/client';
+import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
 
 /**
  * Pricing-card grid + toggles — the upper half of the hardware pricing
@@ -28,8 +29,16 @@ import { useT } from '@/lib/i18n/client';
  * on demand from `(buy, term)` so the rate-table lives in one place.
  */
 
-const HARDWARE_LOCALE = 'en-US';
+// Swiss-only product → currency is fixed at CHF, but the number-formatting
+// locale follows the page locale so a /de/ visitor sees `CHF 14'990` while
+// a /fr/ visitor sees `CHF 14 990` (audit finding R2-B12: previously
+// hardcoded to en-US which renders `CHF 14,990` for every locale).
 const HARDWARE_CURRENCY = 'CHF';
+const HARDWARE_NUMBER_LOCALE: Record<string, string> = {
+  en: 'en-CH',
+  de: 'de-CH',
+  fr: 'fr-CH',
+};
 
 const TIER_KEYS = ['quality', 'hybrid', 'speed'] as const;
 type TierKey = (typeof TIER_KEYS)[number];
@@ -82,6 +91,8 @@ export function HardwareTiers({
   onTermChange,
 }: HardwareTiersProps) {
   const { t } = useT('hardwarePricing');
+  const locale = useCurrentLocale();
+  const numberLocale = HARDWARE_NUMBER_LOCALE[locale] ?? 'en-CH';
 
   return (
     <MarketingSection
@@ -129,7 +140,7 @@ export function HardwareTiers({
             billing === 'leasing' ? leasingMonthly(buy, term) : buy,
             {
               currency: HARDWARE_CURRENCY,
-              locale: HARDWARE_LOCALE,
+              locale: numberLocale,
               approximate: true,
             },
           );

@@ -1,19 +1,44 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
+import {
+  sandboxErrorCodeValidator,
+  sandboxOutputFileValidator,
+  sandboxRunProgressValidator,
+  sandboxRunStatusValidator,
+} from '../sandbox/wire';
+
 export const artifactTypeValidator = v.union(
   v.literal('html'),
   v.literal('svg'),
   v.literal('markdown'),
   v.literal('mermaid'),
   v.literal('code'),
+  // Runnable types: source code that executes in the server sandbox. The
+  // artifact's `content` is the script; the `run*` fields below carry the
+  // execution state (status, stdout/stderr preview, output files, ...).
+  // Editing a runnable artifact via artifact_edit re-runs the script.
+  v.literal('python_runnable'),
+  v.literal('node_runnable'),
 );
+
+// Re-export the canonical sandbox validators under their legacy names so
+// existing imports keep working without churn. New code should import the
+// `sandbox*` names directly from `convex/sandbox/wire`.
+export const artifactRunStatusValidator = sandboxRunStatusValidator;
+export const artifactRunErrorCodeValidator = sandboxErrorCodeValidator;
+export const artifactRunOutputFileValidator = sandboxOutputFileValidator;
 
 export const artifactEditKindValidator = v.union(
   v.literal('create'),
   v.literal('patch'),
   v.literal('rewrite'),
   v.literal('user'),
+  // File-level operations introduced with the multi-file refactor.
+  v.literal('file_delete'),
+  v.literal('file_rename'),
+  // Project-level metadata: entry-point repoint without touching files.
+  v.literal('set_entry'),
   // Snapshot taken when a chat branch was forked: the artifact is cloned
   // from the parent thread at its current state into the new branch's
   // namespace. The `revision` on this row preserves the parent's revision
@@ -24,6 +49,16 @@ export const artifactEditKindValidator = v.union(
 export const artifactPatchValidator = v.object({
   search: v.string(),
   replace: v.string(),
+});
+
+/**
+ * A single file inside an artifact's project tree. `path` is a POSIX-style
+ * relative path, NFC-normalized, validated against the path-safety rules
+ * in `agent_tools/artifacts/shared.ts:validatePath`.
+ */
+export const artifactFileValidator = v.object({
+  path: v.string(),
+  content: v.string(),
 });
 
 export const liveStreamModeValidator = v.union(
@@ -53,7 +88,25 @@ export const artifactsTable = defineTable({
   type: artifactTypeValidator,
   title: v.string(),
   language: v.optional(v.string()),
-  content: v.string(),
+  /**
+   * @deprecated — legacy single-file content. Phase A of the multi-file
+   * refactor: marked optional; `files[entryFile].content` is the canonical
+   * source. New mutations mirror entry-file content back here for rollback
+   * safety. Phase C will drop this column.
+   */
+  content: v.optional(v.string()),
+  /**
+   * Project-shaped file tree. Each entry's `path` is NFC-normalized and
+   * validated; total aggregate size capped at MAX_ARTIFACT_BYTES.
+   * Optional during Phase A migration; required in Phase C.
+   */
+  files: v.optional(v.array(artifactFileValidator)),
+  /**
+   * Which file in `files[]` is the entry-point — used by `artifact_run`
+   * (executed script), HTML preview (entry document), and renderers for
+   * static types (the file the canvas displays by default).
+   */
+  entryFile: v.optional(v.string()),
   revision: v.number(),
   createdByMessageId: v.string(),
   // Cleared when the user edits the artifact via the Canvas pane — there
@@ -73,6 +126,15 @@ export const artifactsTable = defineTable({
   // canvas falls back to `streamingContent` for those.
   toolCallId: v.optional(v.string()),
   streamingContent: v.optional(v.string()),
+  /**
+   * The file `path` the current `mode: 'rewrite'` stream is targeting.
+   * Advisory only — `files[]` is NOT mutated during streaming; the canvas
+   * computes its tree as `files.map(f => f.path) ∪ {streamingPath}` so a
+   * new-file rewrite shows a "ghost" tab during streaming and the entry
+   * is only added to `files[]` at settle. Cleared by every writer that
+   * clears the other streaming flags (via `clearStreamingFlags`).
+   */
+  streamingPath: v.optional(v.string()),
   // While `liveStreamMode === 'patch'`, the partial patches array parsed
   // from the LLM's tool input is mirrored here as {search, replace} pairs
   // (only entries with a complete `search`; `replace` may still be
@@ -80,6 +142,49 @@ export const artifactsTable = defineTable({
   // preview over the (still settled) source — patch mode never writes
   // `streamingContent`, so this is the only mid-stream signal users have.
   streamingPatches: v.optional(v.array(artifactPatchValidator)),
+
+  // --- Runnable-artifact run state (populated only when type is
+  // `python_runnable` / `node_runnable`). All optional per the
+  // [feedback_deprecate_dont_delete_schema_fields] rule so existing rows
+  // pass the read validator unchanged. The canvas-runnable-code-renderer
+  // subscribes to these fields for live progress + final output display.
+  runPackages: v.optional(v.array(v.string())),
+  runOptions: v.optional(
+    v.object({
+      allowSdist: v.optional(v.boolean()),
+      allowInstallScripts: v.optional(v.boolean()),
+    }),
+  ),
+  runStatus: v.optional(artifactRunStatusValidator),
+  // Structured progress payload patched by the Convex action as the
+  // spawner emits phase events. `kind` is rendered via the
+  // `chat.runnable.progress.*` i18n keys; the optional `package` /
+  // `version` fields fill ICU placeholders for `installingPackage`.
+  // Server never writes user-visible English text here.
+  runProgress: v.optional(sandboxRunProgressValidator),
+  runStartedAt: v.optional(v.number()),
+  runCompletedAt: v.optional(v.number()),
+  runExitCode: v.optional(v.number()),
+  runErrorCode: v.optional(artifactRunErrorCodeValidator),
+  runErrorMessage: v.optional(v.string()),
+  runStdoutPreview: v.optional(v.string()),
+  runStderrPreview: v.optional(v.string()),
+  runStdoutStorageId: v.optional(v.id('_storage')),
+  runStderrStorageId: v.optional(v.id('_storage')),
+  runOutputFiles: v.optional(v.array(artifactRunOutputFileValidator)),
+  // Link to the latest per-execution audit row. The sandboxExecutions
+  // table is the source of truth for execution history; the artifact row
+  // holds only the *latest* result for fast canvas reads.
+  runExecutionId: v.optional(v.id('sandboxExecutions')),
+  // The `revision` the source content held when this run started. After a
+  // subsequent edit bumps `revision`, the inequality `runRevision !==
+  // revision` is the canonical "the displayed run is stale" signal — used
+  // by buildRunAttrs (to omit run state from the LLM context) and by the
+  // canvas renderer (to grey out the panel). Avoids the alternative of
+  // clearing every run-state field on edit, which would surprise users by
+  // wiping the prior output the moment they touch the script (round-2
+  // R2-B10).
+  runRevision: v.optional(v.number()),
 })
   .index('by_organizationId', ['organizationId'])
   .index('by_organizationId_and_thread', ['organizationId', 'threadId'])
@@ -96,7 +201,22 @@ export const artifactsTable = defineTable({
 export const artifactRevisionsTable = defineTable({
   artifactId: v.id('artifacts'),
   revision: v.number(),
-  content: v.string(),
+  /**
+   * @deprecated — legacy single-file content snapshot. Phase A: optional.
+   * New revisions write `files` (full snapshot for content edits) instead.
+   * For `editKind === 'set_entry'`, BOTH `files` and `content` are omitted
+   * (pure metadata revision); read-fold logic walks back to find the most
+   * recent revision carrying file state.
+   */
+  content: v.optional(v.string()),
+  /** Full files snapshot at this revision (for content-touching edits). */
+  files: v.optional(v.array(artifactFileValidator)),
+  /** Entry-file pointer at this revision. */
+  entryFile: v.optional(v.string()),
+  /** Which file the patch/rewrite/delete operated on. */
+  filePath: v.optional(v.string()),
+  /** Source path for `editKind === 'file_rename'`. */
+  fromPath: v.optional(v.string()),
   // Omitted when editKind === 'user' (Canvas pane textarea edit).
   editedByMessageId: v.optional(v.string()),
   editKind: artifactEditKindValidator,
