@@ -217,7 +217,7 @@ export function LegalPage({ slug }: LegalPageProps) {
   return (
     <article className="py-16">
       <SiteContainer>
-        <div className="mx-auto max-w-[760px]">
+        <div className="mx-auto max-w-280">
           <header className="border-border-base flex flex-col gap-4 border-b pb-6 sm:flex-row sm:items-end sm:justify-between">
             <div className="flex flex-col gap-2">
               <h1

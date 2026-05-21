@@ -163,26 +163,25 @@ export function SiteFooter() {
           </ExternalLink>
         </address>
       }
-      columns={columns}
-      copyrightLines={[
-        t('copyrightLine1', { year: new Date().getFullYear() }),
-        t('copyrightLine2'),
-      ]}
-      llmsTxtUrl="/llms.txt"
-      llmsTxtLabel={t('llmsTxtLabel')}
-      llmsFullTxtUrl="/llms-full.txt"
-      llmsFullTxtLabel={t('llmsFullTxtLabel')}
-      bottomTrailing={
+      brandTrailing={
         <a
           href={EXTERNAL_LINKS.github}
           target="_blank"
           rel="noopener noreferrer"
           aria-label={t('githubAriaLabel')}
-          className="text-fg-muted hover:text-fg-base focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-base sm:hover:bg-bg-muted inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none sm:h-10 sm:w-10 sm:rounded-md"
+          className="text-fg-muted hover:text-fg-base focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-base inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
         >
-          <GithubIcon className="h-6 w-6 sm:h-5 sm:w-5" />
+          <GithubIcon className="h-6 w-6" />
         </a>
       }
+      columns={columns}
+      copyrightLines={[t('copyright', { year: new Date().getFullYear() })]}
+      llmsTxtUrl="/llms.txt"
+      llmsTxtLabel={t('llmsTxtLabel')}
+      llmsFullTxtUrl="/llms-full.txt"
+      llmsFullTxtLabel={t('llmsFullTxtLabel')}
+      themeSwitcherVariant="segmented"
+      languageSwitcherShowFlag={false}
     />
   );
 }

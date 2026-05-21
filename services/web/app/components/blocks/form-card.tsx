@@ -1,7 +1,6 @@
 import { Button } from '@tale/ui/button';
 import { Checkbox } from '@tale/ui/checkbox';
 import { cn } from '@tale/ui/cn';
-import { Container } from '@tale/ui/container';
 import { Field } from '@tale/ui/field';
 import { Section } from '@tale/ui/section';
 import { motion, useReducedMotion } from 'framer-motion';
@@ -13,6 +12,7 @@ import {
   type UseFormReturn,
 } from 'react-hook-form';
 
+import { SiteContainer } from '@/app/components/layout/site-container';
 import { MIN_SUBMIT_DELAY_MS, type SubmitRequest } from '@/lib/forms/schemas';
 import { submitForm } from '@/lib/forms/submit-client';
 import { useT } from '@/lib/i18n/client';
@@ -89,7 +89,7 @@ export function FormCard<T extends BasePayload>({
 
   return (
     <Section spacing="md">
-      <Container size="lg">
+      <SiteContainer>
         <div className="grid gap-10 md:grid-cols-2 md:gap-20">
           <motion.div
             initial={reduceMotion ? false : { opacity: 0, y: 20 }}
@@ -222,7 +222,7 @@ export function FormCard<T extends BasePayload>({
             )}
           </motion.div>
         </div>
-      </Container>
+      </SiteContainer>
     </Section>
   );
 }

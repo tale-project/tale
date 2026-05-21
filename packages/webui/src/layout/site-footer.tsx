@@ -23,6 +23,9 @@ interface SiteFooterProps {
   /** Optional `<address>` or any structured contact info. Only shown
    *  when there are columns — the compact variant omits it. */
   address?: ReactNode;
+  /** Optional slot rendered in the brand column beneath the address.
+   *  Marketing uses it for the GitHub icon link; docs leaves it empty. */
+  brandTrailing?: ReactNode;
   /** Up to three columns of links shown to the right of the logo. When
    *  empty, the footer collapses to a single bottom bar. */
   columns?: FooterColumn[];
@@ -54,6 +57,13 @@ interface SiteFooterProps {
    * their wider content layout.
    */
   containerClassName?: string;
+  /** Visual variant for the embedded theme switcher. Marketing uses
+   *  `'segmented'` to render the inline pill control; docs keeps the
+   *  default dropdown menu. */
+  themeSwitcherVariant?: 'menu' | 'segmented';
+  /** Forwards to the embedded language switcher. Marketing passes
+   *  `false` to hide the trigger flag per design; docs leaves it on. */
+  languageSwitcherShowFlag?: boolean;
 }
 
 /**
@@ -66,6 +76,7 @@ interface SiteFooterProps {
 export function SiteFooter({
   logo,
   address,
+  brandTrailing,
   columns = [],
   copyrightLines,
   bottomTrailing,
@@ -74,6 +85,8 @@ export function SiteFooter({
   llmsFullTxtUrl,
   llmsFullTxtLabel = 'llms-full.txt',
   containerClassName,
+  themeSwitcherVariant,
+  languageSwitcherShowFlag,
 }: SiteFooterProps) {
   const columnCount = columns.length;
   const compact = columnCount === 0;
@@ -98,19 +111,19 @@ export function SiteFooter({
           {llmsFullTxtLabel}
         </a>
       ) : null}
-      <LanguageSwitcher />
-      <ThemeSwitcher />
+      <LanguageSwitcher showFlag={languageSwitcherShowFlag} />
+      <ThemeSwitcher variant={themeSwitcherVariant} />
       {bottomTrailing}
     </div>
   );
 
   return (
-    <footer className="border-border-base bg-bg-base border-t print:hidden">
-      <SiteContainer className={containerClassName}>
-        {compact ? (
-          // Bottom-bar-only variant. Renders just the copyright + the
-          // language/theme/llms switchers on a single line so the docs
-          // chrome stays minimal beneath every page.
+    <footer className="border-border-base bg-bg-base dark:bg-bg-elevated border-t print:hidden">
+      {compact ? (
+        <SiteContainer className={containerClassName}>
+          {/* Bottom-bar-only variant. Renders just the copyright + the
+              language/theme/llms switchers on a single line so the docs
+              chrome stays minimal beneath every page. */}
           <div className="flex flex-col gap-4 py-6 sm:flex-row sm:items-center sm:justify-between">
             <div
               className="text-fg-muted text-sm"
@@ -123,14 +136,17 @@ export function SiteFooter({
             </div>
             {switcherRow}
           </div>
-        ) : (
-          <>
+        </SiteContainer>
+      ) : (
+        <>
+          <SiteContainer className={containerClassName}>
             <div
               className={cn('grid gap-8 py-10 md:gap-12 md:py-16', gridCols)}
             >
               <div className="text-fg-muted flex flex-col gap-4 text-sm sm:col-span-2 md:col-span-1">
                 {logo}
                 {address}
+                {brandTrailing}
               </div>
 
               {columns.map((col) => (
@@ -154,22 +170,26 @@ export function SiteFooter({
                 </nav>
               ))}
             </div>
+          </SiteContainer>
 
-            <div className="border-border-base flex flex-col gap-4 border-t py-6 sm:flex-row sm:items-center sm:justify-between">
-              <div
-                className="text-fg-muted text-sm"
-                style={{ letterSpacing: '-0.084px', lineHeight: 1.4286 }}
-              >
-                {copyrightLines.map((line, i) => (
-                  // oxlint-disable-next-line react/no-array-index-key -- copyright line order is stable
-                  <p key={i}>{line}</p>
-                ))}
+          <div className="border-border-base border-t">
+            <SiteContainer className={containerClassName}>
+              <div className="flex flex-col gap-4 py-6 sm:flex-row sm:items-center sm:justify-between">
+                <div
+                  className="text-fg-muted text-sm"
+                  style={{ letterSpacing: '-0.084px', lineHeight: 1.4286 }}
+                >
+                  {copyrightLines.map((line, i) => (
+                    // oxlint-disable-next-line react/no-array-index-key -- copyright line order is stable
+                    <p key={i}>{line}</p>
+                  ))}
+                </div>
+                {switcherRow}
               </div>
-              {switcherRow}
-            </div>
-          </>
-        )}
-      </SiteContainer>
+            </SiteContainer>
+          </div>
+        </>
+      )}
     </footer>
   );
 }

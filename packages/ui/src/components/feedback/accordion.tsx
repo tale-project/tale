@@ -100,17 +100,17 @@ export function AccordionItem({
         aria-expanded={isOpen}
         aria-controls={`${itemId}-content`}
         className={cn(
-          'flex w-full items-center justify-between gap-4 text-left text-xl font-medium text-[color:var(--color-fg-base)] transition-colors hover:text-[color:var(--color-accent-base)]',
+          'flex w-full cursor-pointer items-center justify-between gap-4 text-left text-xl font-medium text-[color:var(--color-fg-base)] transition-colors hover:text-[color:var(--color-accent-base)]',
           triggerClassName,
         )}
-        style={{ letterSpacing: '-0.2px', lineHeight: 1.4 }}
+        style={{ lineHeight: 1.4 }}
       >
         <span>{question}</span>
         <ChevronDown
           aria-hidden
           strokeWidth={2}
           className={cn(
-            'h-6 w-6 shrink-0 text-[color:var(--color-fg-muted)] motion-safe:transition-transform motion-safe:duration-300 motion-reduce:transition-none',
+            'h-6 w-6 shrink-0 text-[color:var(--color-fg-muted)] motion-safe:transition-transform motion-safe:duration-400 motion-safe:ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none',
             isOpen ? 'rotate-180' : '',
           )}
         />
@@ -129,7 +129,10 @@ export function AccordionItem({
             transition={
               reduceMotion
                 ? { duration: 0 }
-                : { duration: 0.3, ease: [0.22, 1, 0.36, 1] }
+                : {
+                    height: { duration: 0.4, ease: [0.32, 0.72, 0, 1] },
+                    opacity: { duration: 0.25, ease: 'easeOut' },
+                  }
             }
             className="overflow-hidden"
           >

@@ -92,17 +92,11 @@ export function TierCard({
           ? { duration: 0 }
           : { duration: 0.5, delay: animationDelay, ease: easeOut }
       }
-      className={`border-border-base relative flex flex-col gap-6 border-t p-8 first:border-t-0 sm:p-10 lg:border-t-0 lg:border-l lg:first:border-l-0 ${
-        popular ? 'bg-bg-elevated' : 'bg-bg-base'
-      } ${disabled ? 'opacity-55' : ''}`}
-      style={
+      className={`border-border-base bg-bg-base relative flex flex-col gap-6 border-t p-8 first:border-t-0 sm:p-10 lg:border-t-0 lg:border-l lg:first:border-l-0 ${
         popular
-          ? {
-              backgroundImage:
-                'linear-gradient(135deg, rgba(155, 196, 255, 0.22), rgba(155, 196, 255, 0.06) 45%, transparent 75%)',
-            }
-          : undefined
-      }
+          ? 'bg-[linear-gradient(180deg,rgba(155,196,255,0.16),transparent_40%)] dark:bg-[linear-gradient(180deg,rgba(59,130,246,0.25),transparent_40%)]'
+          : ''
+      } ${disabled ? 'opacity-55' : ''}`}
     >
       <div className="flex items-center justify-between gap-3">
         <h2
