@@ -166,6 +166,106 @@ export const syncArtifactStream = query({
   },
 });
 
+/**
+ * Most recent `sandboxExecutions` row for `(artifactId, path)`. Returns a
+ * trimmed projection shaped like the legacy `artifact.run*` fields so the
+ * canvas-runnable-code-renderer can read per-file run state without a
+ * schema migration on the artifact row itself.
+ *
+ * Falls back to the artifact row's own `run*` fields when no per-file
+ * execution row has been recorded yet (e.g. runs that pre-date the
+ * `sandboxExecutions.path` column). This preserves the old behavior for
+ * single-file artifacts on existing data.
+ */
+export const getLatestRunPerFile = query({
+  args: {
+    artifactId: v.id('artifacts'),
+    path: v.string(),
+  },
+  handler: async (ctx, { artifactId, path }) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return null;
+    const artifact = await ctx.db.get(artifactId);
+    if (!artifact) return null;
+    const metadata = await canAccessThread(
+      ctx,
+      artifact.threadId,
+      authUser,
+      artifact.organizationId,
+    );
+    if (!metadata || metadata.organizationId !== artifact.organizationId) {
+      return null;
+    }
+
+    // Walk newest-first; pick the first execution row that matches `path`.
+    // Index scan is bounded by the per-artifact execution history depth
+    // (typically a handful of runs), so this is O(runs-for-artifact).
+    let match: Doc<'sandboxExecutions'> | null = null;
+    for await (const row of ctx.db
+      .query('sandboxExecutions')
+      .withIndex('by_artifactId', (q) => q.eq('artifactId', artifactId))
+      .order('desc')) {
+      if (row.path === path) {
+        match = row;
+        break;
+      }
+    }
+
+    // Resolve baseline source revision for staleness comparison. The artifact
+    // row's `runRevision` is the most-recent-run revision; for the per-file
+    // case we need the revision the matched execution row was created at.
+    // sandboxExecutions doesn't store the artifact revision directly, but
+    // `_creationTime` provides a coarse ordering against future edits — we
+    // surface the artifact-level `runRevision` if it matches this row's
+    // execution id, and otherwise leave it undefined (the renderer treats
+    // that as "stale" / "unknown freshness").
+    const isCurrentLatest =
+      artifact.runExecutionId !== undefined &&
+      match !== null &&
+      artifact.runExecutionId === match._id;
+
+    if (match === null) {
+      // No per-file row found. For single-file artifacts where the user is
+      // viewing the entry file, fall back to the artifact-row state so
+      // legacy runs (pre-`path` column) still render.
+      const resolved = resolveArtifactFiles(artifact);
+      if (path !== resolved.entryFile) return null;
+      return {
+        executionId: artifact.runExecutionId ?? null,
+        path,
+        runStatus: artifact.runStatus,
+        runProgress: artifact.runProgress,
+        runErrorCode: artifact.runErrorCode,
+        runErrorMessage: artifact.runErrorMessage,
+        runStdoutPreview: artifact.runStdoutPreview,
+        runStderrPreview: artifact.runStderrPreview,
+        runOutputFiles: artifact.runOutputFiles ?? [],
+        runRevision: artifact.runRevision,
+        runExitCode: artifact.runExitCode,
+      };
+    }
+
+    return {
+      executionId: match._id,
+      path,
+      runStatus: match.status,
+      // sandboxExecutions audit rows don't carry the live `runProgress`
+      // object — that's only patched onto the artifact row. Mirror the
+      // artifact's progress here ONLY when this execution is the active
+      // one so the user sees live install/run hints; otherwise leave it
+      // undefined (the renderer falls back to status text).
+      runProgress: isCurrentLatest ? artifact.runProgress : undefined,
+      runErrorCode: match.errorCode,
+      runErrorMessage: match.errorMessage,
+      runStdoutPreview: match.stdoutPreview,
+      runStderrPreview: match.stderrPreview,
+      runOutputFiles: match.outputFiles,
+      runRevision: isCurrentLatest ? artifact.runRevision : undefined,
+      runExitCode: match.exitCode,
+    };
+  },
+});
+
 export const listRevisions = query({
   args: { artifactId: v.id('artifacts') },
   handler: async (ctx, { artifactId }): Promise<Doc<'artifactRevisions'>[]> => {

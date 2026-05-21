@@ -62,6 +62,12 @@ export const sandboxExecutionsTable = defineTable({
   // failure to the artifact row when it reaps a stuck execution — otherwise
   // the canvas spinner stays spinning until the audit row is GC'd.
   artifactId: v.optional(v.id('artifacts')),
+  // For artifact-bound runs: which file path the LLM asked the sandbox to
+  // execute (`main.js`, `verify.py`, …). Lets the canvas render the
+  // latest-run-per-file panel so a verify run no longer clobbers the
+  // generator's output chip. Optional for back-compat with rows written
+  // before the column existed.
+  path: v.optional(v.string()),
 
   language: sandboxLanguageValidator,
   purpose: v.optional(v.string()),

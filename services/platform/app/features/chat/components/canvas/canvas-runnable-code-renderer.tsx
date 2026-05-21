@@ -51,6 +51,13 @@ type RunProgress = Infer<typeof sandboxRunProgressValidator>;
 
 interface CanvasRunnableCodeRendererProps {
   artifactId: Id<'artifacts'>;
+  /**
+   * Path of the file the user has selected in the sidebar. Drives the
+   * per-file run-state query so switching to a sibling script (e.g.
+   * `verify.js`) shows its own outputs without clobbering `main.js`'s
+   * download chip.
+   */
+  activePath: string;
   source: string;
   language: 'python' | 'node';
   isStreaming?: boolean;
@@ -180,12 +187,21 @@ function StatusBadge({
 
 function CanvasRunnableCodeRendererComponent({
   artifactId,
+  activePath,
   source,
   language,
   isStreaming,
 }: CanvasRunnableCodeRendererProps) {
   const { t } = useT('chat');
   const artifact = useQuery(api.artifacts.queries.getById, { artifactId });
+  // Per-file run-state query. Returns the most recent `sandboxExecutions`
+  // row matching `(artifactId, activePath)`, projected into the same
+  // shape as the legacy `artifact.run*` fields. Falls back to the artifact
+  // row on legacy data (pre-`path` column).
+  const fileRun = useQuery(api.artifacts.queries.getLatestRunPerFile, {
+    artifactId,
+    path: activePath,
+  });
   // Stale-run guard: if the source was edited after the last run, the
   // displayed `run*` fields no longer reflect what the user sees. Treat
   // them as absent so the renderer prompts a re-run rather than showing
@@ -194,23 +210,40 @@ function CanvasRunnableCodeRendererComponent({
   const runIsFresh =
     artifact !== undefined &&
     artifact !== null &&
-    artifact.runRevision !== undefined &&
-    artifact.runRevision === artifact.revision;
+    fileRun !== undefined &&
+    fileRun !== null &&
+    fileRun.runRevision !== undefined &&
+    fileRun.runRevision === artifact.revision;
   const runStatus: SandboxRunStatus | undefined = runIsFresh
-    ? artifact?.runStatus
+    ? fileRun?.runStatus
     : undefined;
   const runProgress: RunProgress | undefined = runIsFresh
-    ? artifact?.runProgress
+    ? fileRun?.runProgress
     : undefined;
   const runErrorCode: SandboxErrorCode | undefined = runIsFresh
-    ? artifact?.runErrorCode
+    ? fileRun?.runErrorCode
     : undefined;
-  const runErrorMessage = runIsFresh ? artifact?.runErrorMessage : undefined;
-  const stdoutPreview = runIsFresh ? artifact?.runStdoutPreview : undefined;
-  const stderrPreview = runIsFresh ? artifact?.runStderrPreview : undefined;
-  const outputFiles: RunOutputFile[] = runIsFresh
-    ? (artifact?.runOutputFiles ?? [])
-    : [];
+  const runErrorMessage = runIsFresh ? fileRun?.runErrorMessage : undefined;
+  const stdoutPreview = runIsFresh ? fileRun?.runStdoutPreview : undefined;
+  const stderrPreview = runIsFresh ? fileRun?.runStderrPreview : undefined;
+  // Output files: show ANY recorded run's outputs as long as they exist
+  // (don't gate on freshness here). The download chip should remain
+  // available for completed runs of *this file* even if a later run on
+  // another file (or an edit) made the source stale — that's the whole
+  // point of per-file run history. Stale freshness still hides progress /
+  // error chrome above, but a downloaded `.pptx` stays one click away.
+  const outputFiles: RunOutputFile[] = (fileRun?.runOutputFiles ?? []).map(
+    (f) => {
+      const next: RunOutputFile = {
+        name: f.name,
+        size: f.size,
+        contentType: f.contentType,
+        fileMetadataId: f.fileMetadataId,
+      };
+      if (f.storageId !== undefined) next.storageId = f.storageId;
+      return next;
+    },
+  );
 
   // Hide the execution panel entirely while there's nothing to show — i.e.
   // during source streaming (artifact_create still authoring), after

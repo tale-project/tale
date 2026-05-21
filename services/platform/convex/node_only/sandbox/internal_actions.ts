@@ -302,6 +302,7 @@ export const executeCode = internalAction({
           }),
           ...(args.agentSlug !== undefined && { agentSlug: args.agentSlug }),
           ...(args.artifactId !== undefined && { artifactId: args.artifactId }),
+          ...(args.entryPath !== undefined && { path: args.entryPath }),
           language: args.language,
           purpose: args.purpose,
           codePreview,

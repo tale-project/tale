@@ -16,11 +16,12 @@ import {
   Save,
   X,
 } from 'lucide-react';
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
+import { resolveArtifactFiles } from '@/convex/artifacts/resolve_files';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -28,6 +29,7 @@ import { lazyComponent } from '@/lib/utils/lazy-component';
 
 import { useStreamedArtifactContent } from '../../hooks/use-streamed-artifact-content';
 import { useCanvas, type CanvasContentType } from './canvas-context';
+import { CanvasFileSidebar } from './canvas-file-sidebar';
 import type { CanvasHtmlRendererHandle } from './canvas-html-renderer';
 import type { CanvasMarkdownRendererHandle } from './canvas-markdown-renderer';
 import {
@@ -165,7 +167,13 @@ function SpinnerIcon({ className }: { className?: string }) {
 function CanvasPaneComponent() {
   const { t } = useT('chat');
   const { toast } = useToast();
-  const { isCanvasOpen, artifactId, closeCanvas } = useCanvas();
+  const {
+    isCanvasOpen,
+    artifactId,
+    closeCanvas,
+    activeFilePath,
+    setActiveFilePath,
+  } = useCanvas();
   // Edit buffer lives in local state — only this component reads / writes it.
   // Keeping it in CanvasContext used to fan out a per-keystroke render to
   // every `useCanvas()` consumer (ArtifactBar, MessageArtifactPills,
@@ -211,15 +219,11 @@ function CanvasPaneComponent() {
   }, [isCanvasOpen]);
 
   // Reset edit-in-progress state when the user switches to a different
-  // artifact so previous typing doesn't leak across.
+  // artifact OR file so previous typing doesn't leak across.
   const prevEditArtifactRef = useRef(artifactId);
-  useEffect(() => {
-    if (prevEditArtifactRef.current !== artifactId) {
-      prevEditArtifactRef.current = artifactId;
-      setIsEditing(false);
-      setEditBuffer(undefined);
-    }
-  }, [artifactId]);
+  // `activePath` is resolved later in the render against the live artifact
+  // row; we just need a stable holder to detect *changes* across renders.
+  const prevEditPathRef = useRef<string | null>(null);
 
   // Pulse the content area when an AI stream finishes settling. Patch in
   // particular is an instant transition (content was unchanged during the
@@ -406,22 +410,74 @@ function CanvasPaneComponent() {
     };
   }, []);
 
+  // Resolve the artifact's project shape once per render. Synthesizes a
+  // single-file project from legacy `content` for rows that pre-date the
+  // multi-file schema — see resolve_files.ts. `streamingPath` is the file
+  // the LLM is currently writing into (advisory); when it points at a
+  // file not yet in `files[]`, we treat that as a "ghost" entry in the
+  // sidebar.
+  const resolved = useMemo(
+    () =>
+      artifact
+        ? resolveArtifactFiles(artifact)
+        : { files: [], entryFile: '', synthesized: true as const },
+    [artifact],
+  );
+  const streamingPath = artifact?.streamingPath;
+  // The "active" file is what the user selected in the sidebar; default
+  // to the entry file. If the streaming file isn't in `files[]` yet (mid
+  // create), we let the user click into it via the ghost entry; otherwise
+  // we leave selection untouched.
+  const activePath = activeFilePath ?? streamingPath ?? resolved.entryFile;
+  const activeFile =
+    resolved.files.find((f) => f.path === activePath) ??
+    // Streaming a brand-new file (not yet in files[]): synthesize an
+    // empty entry so the renderer has something to scaffold against.
+    (streamingPath === activePath
+      ? { path: activePath, content: '' }
+      : resolved.files[0]);
+
+  // Reset edit-in-progress state when the user switches to a different
+  // artifact OR file so previous typing doesn't leak across.
+  useEffect(() => {
+    if (
+      prevEditArtifactRef.current !== artifactId ||
+      prevEditPathRef.current !== activePath
+    ) {
+      prevEditArtifactRef.current = artifactId;
+      prevEditPathRef.current = activePath;
+      setIsEditing(false);
+      setEditBuffer(undefined);
+    }
+  }, [artifactId, activePath]);
+
   // Read content reactively. Streaming-aware: while the artifact is being
   // written by the LLM, prefer the live tool-input-delta stream from the
   // agent SDK (decoded client-side); fall back to the legacy
   // `streamingContent` field for any in-flight artifact created before
   // the toolCallId field rolled out; finally fall back to the settled
   // `content` once the stream completes.
-  const settledContent = artifact?.content ?? '';
+  const settledContent = activeFile?.content ?? '';
   const streamingContent = artifact?.streamingContent;
   const isStreaming = artifact?.liveStreamMode !== undefined;
   const liveStreamMode = artifact?.liveStreamMode;
+  // The streaming caret + 3-tier fallback only apply when the LLM is
+  // writing the *file the user is currently viewing*. Browsing another
+  // file in the same project while the LLM streams should look static.
+  // When `streamingPath` is undefined (legacy rows from before that field
+  // shipped), the create/rewrite stream targets the entry file by
+  // convention — fall back to that so existing tests + in-flight rows
+  // keep working.
+  const effectiveStreamingPath = streamingPath ?? resolved.entryFile;
+  const isStreamingActiveFile =
+    isStreaming &&
+    (liveStreamMode === 'create' || liveStreamMode === 'rewrite') &&
+    effectiveStreamingPath === activePath;
   // create/rewrite stream tokens come via the SDK's tool-input-delta
   // rows; patch leaves the source static. Only the former should drive
   // the trailing caret in the code renderer — a blinking caret on
   // unchanging source is misleading.
-  const isContentStreaming =
-    liveStreamMode === 'create' || liveStreamMode === 'rewrite';
+  const isContentStreaming = isStreamingActiveFile;
   const { content: streamedContent, hasDeltas } = useStreamedArtifactContent(
     artifactId,
     artifact?.toolCallId,
@@ -447,7 +503,21 @@ function CanvasPaneComponent() {
   // dwell window after the stream ends (`keepSourceLock`) so a fast patch
   // does not flick through the diff faster than a human can read it. The
   // settle pulse + delayed return to preview handle the closing transition.
-  const showStreamingSource = !isEditing && (isStreaming || keepSourceLock);
+  //
+  // For multi-file artifacts: only gate source-view mode on the *active*
+  // file. If the LLM is streaming main.js while the user is browsing
+  // verify.js, verify.js renders as its normal type-specific preview, not
+  // a streaming-source view. Patch mode is single-file (the legacy
+  // streamingPatches array is not path-scoped) so we keep its existing
+  // behavior and only show the diff when the user is on the entry file.
+  const showStreamingSource =
+    !isEditing &&
+    ((liveStreamMode === 'create' || liveStreamMode === 'rewrite'
+      ? isStreamingActiveFile
+      : liveStreamMode === 'patch'
+        ? activePath === resolved.entryFile
+        : false) ||
+      keepSourceLock);
   // After the server clears `streamingPatches` at execute time we still
   // want the diff visible for the dwell window. Fall back to the snapshot
   // taken just before settle (frozen pre-patch source + final patches).
@@ -479,9 +549,11 @@ function CanvasPaneComponent() {
   }, [displayedContent]);
 
   const handleDownload = useCallback(() => {
-    // For `code` artifacts, prefer the artifact's language as the extension
-    // (e.g. `.ts`, `.rs`) — `CANVAS_TYPE_EXTENSIONS.code` is just a fallback
-    // for when language is missing.
+    // Multi-file: name the download after the active file's path. For the
+    // single-file (entry-only) case this falls back to the artifact title +
+    // type extension to preserve the legacy naming.
+    const activeFileName =
+      activePath && activePath !== resolved.entryFile ? activePath : undefined;
     const ext =
       canvasType === 'code'
         ? (canvasLanguage ?? CANVAS_TYPE_EXTENSIONS.code)
@@ -492,10 +564,17 @@ function CanvasPaneComponent() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${canvasTitle || 'canvas'}.${ext}`;
+    a.download = activeFileName ?? `${canvasTitle || 'canvas'}.${ext}`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [displayedContent, canvasType, canvasTitle, canvasLanguage]);
+  }, [
+    displayedContent,
+    canvasType,
+    canvasTitle,
+    canvasLanguage,
+    activePath,
+    resolved.entryFile,
+  ]);
 
   // Trigger the browser's "Save as PDF" flow by calling window.print() inside
   // the artifact's own iframe — fidelity is identical to what's on screen
@@ -553,7 +632,11 @@ function CanvasPaneComponent() {
     if (!artifactId || editBuffer === undefined) return;
     setIsApplying(true);
     try {
-      await userEditMutation({ artifactId, content: editBuffer });
+      await userEditMutation({
+        artifactId,
+        path: activePath,
+        content: editBuffer,
+      });
       setEditBuffer(undefined);
       setIsEditing(false);
       toast({ title: t('canvas.applied'), variant: 'success' });
@@ -563,7 +646,15 @@ function CanvasPaneComponent() {
     } finally {
       setIsApplying(false);
     }
-  }, [artifactId, editBuffer, userEditMutation, setEditBuffer, t, toast]);
+  }, [
+    artifactId,
+    editBuffer,
+    userEditMutation,
+    setEditBuffer,
+    activePath,
+    t,
+    toast,
+  ]);
 
   if (!isCanvasOpen || !artifactId) return null;
 
@@ -768,68 +859,80 @@ function CanvasPaneComponent() {
 
       <div
         className={cn(
-          'min-h-0 flex-1 overflow-hidden transition-shadow duration-700',
+          'flex min-h-0 flex-1 overflow-hidden transition-shadow duration-700',
           justSettled && 'ring-success/40 ring-2 ring-inset',
         )}
       >
-        {showStreamingSource && !isRunnableArtifactType(canvasType) && (
-          <CanvasCodeRenderer
-            code={sourceCode}
-            language={streamingHighlightLang}
-            isEditing={false}
-            isStreaming={isContentStreaming}
-            highlightPatches={sourcePatches}
-            onContentChange={onContentChange}
+        {resolved.files.length > 1 && (
+          <CanvasFileSidebar
+            files={resolved.files}
+            entryFile={resolved.entryFile}
+            streamingPath={streamingPath ?? undefined}
+            activePath={activePath}
+            onSelect={setActiveFilePath}
           />
         )}
-        {!showStreamingSource && canvasType === 'code' && (
-          <CanvasCodeRenderer
-            code={displayedContent}
-            language={canvasLanguage}
-            isEditing={isEditing}
-            onContentChange={onContentChange}
-          />
-        )}
-        {!showStreamingSource && canvasType === 'html' && (
-          <CanvasHtmlRenderer
-            ref={htmlRendererRef}
-            html={displayedContent}
-            isEditing={isEditing}
-            onContentChange={onContentChange}
-          />
-        )}
-        {!showStreamingSource && canvasType === 'svg' && (
-          <CanvasHtmlRenderer
-            html={displayedContent}
-            isEditing={isEditing}
-            onContentChange={onContentChange}
-          />
-        )}
-        {!showStreamingSource && canvasType === 'mermaid' && (
-          <CanvasMermaidRenderer
-            code={displayedContent}
-            isEditing={isEditing}
-            onContentChange={onContentChange}
-          />
-        )}
-        {!showStreamingSource && canvasType === 'markdown' && (
-          <CanvasMarkdownRenderer
-            ref={markdownRendererRef}
-            content={displayedContent}
-            isEditing={isEditing}
-            onContentChange={onContentChange}
-          />
-        )}
-        {isRunnableArtifactType(canvasType) && (
-          <CanvasRunnableCodeRenderer
-            artifactId={artifactId}
-            source={showStreamingSource ? sourceCode : displayedContent}
-            language={
-              runnableLanguage(canvasType) === 'python' ? 'python' : 'node'
-            }
-            isStreaming={isContentStreaming}
-          />
-        )}
+        <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+          {showStreamingSource && !isRunnableArtifactType(canvasType) && (
+            <CanvasCodeRenderer
+              code={sourceCode}
+              language={streamingHighlightLang}
+              isEditing={false}
+              isStreaming={isContentStreaming}
+              highlightPatches={sourcePatches}
+              onContentChange={onContentChange}
+            />
+          )}
+          {!showStreamingSource && canvasType === 'code' && (
+            <CanvasCodeRenderer
+              code={displayedContent}
+              language={canvasLanguage}
+              isEditing={isEditing}
+              onContentChange={onContentChange}
+            />
+          )}
+          {!showStreamingSource && canvasType === 'html' && (
+            <CanvasHtmlRenderer
+              ref={htmlRendererRef}
+              html={displayedContent}
+              isEditing={isEditing}
+              onContentChange={onContentChange}
+            />
+          )}
+          {!showStreamingSource && canvasType === 'svg' && (
+            <CanvasHtmlRenderer
+              html={displayedContent}
+              isEditing={isEditing}
+              onContentChange={onContentChange}
+            />
+          )}
+          {!showStreamingSource && canvasType === 'mermaid' && (
+            <CanvasMermaidRenderer
+              code={displayedContent}
+              isEditing={isEditing}
+              onContentChange={onContentChange}
+            />
+          )}
+          {!showStreamingSource && canvasType === 'markdown' && (
+            <CanvasMarkdownRenderer
+              ref={markdownRendererRef}
+              content={displayedContent}
+              isEditing={isEditing}
+              onContentChange={onContentChange}
+            />
+          )}
+          {isRunnableArtifactType(canvasType) && (
+            <CanvasRunnableCodeRenderer
+              artifactId={artifactId}
+              activePath={activePath}
+              source={showStreamingSource ? sourceCode : displayedContent}
+              language={
+                runnableLanguage(canvasType) === 'python' ? 'python' : 'node'
+              }
+              isStreaming={isContentStreaming}
+            />
+          )}
+        </div>
       </div>
     </div>
   );
