@@ -656,6 +656,18 @@ function CanvasPaneComponent() {
     toast,
   ]);
 
+  // Create a new file in the artifact (empty content). Reuses `userEdit` —
+  // its handler creates the file when `path` is not yet present. The
+  // sidebar auto-selects the new path on resolution; we don't need to
+  // touch `setActiveFilePath` here.
+  const handleAddFile = useCallback(
+    async (path: string) => {
+      if (!artifactId) return;
+      await userEditMutation({ artifactId, path, content: '' });
+    },
+    [artifactId, userEditMutation],
+  );
+
   if (!isCanvasOpen || !artifactId) return null;
 
   const TypeIcon = CANVAS_TYPE_ICONS[canvasType];
@@ -863,13 +875,14 @@ function CanvasPaneComponent() {
           justSettled && 'ring-success/40 ring-2 ring-inset',
         )}
       >
-        {resolved.files.length > 1 && (
+        {resolved.files.length >= 1 && (
           <CanvasFileSidebar
             files={resolved.files}
             entryFile={resolved.entryFile}
             streamingPath={streamingPath ?? undefined}
             activePath={activePath}
             onSelect={setActiveFilePath}
+            onAddFile={handleAddFile}
           />
         )}
         <div className="min-h-0 min-w-0 flex-1 overflow-hidden">

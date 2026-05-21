@@ -265,30 +265,3 @@ export const getLatestRunPerFile = query({
     };
   },
 });
-
-export const listRevisions = query({
-  args: { artifactId: v.id('artifacts') },
-  handler: async (ctx, { artifactId }): Promise<Doc<'artifactRevisions'>[]> => {
-    const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) return [];
-    const artifact = await ctx.db.get(artifactId);
-    if (!artifact) return [];
-    const metadata = await canAccessThread(
-      ctx,
-      artifact.threadId,
-      authUser,
-      artifact.organizationId,
-    );
-    if (!metadata || metadata.organizationId !== artifact.organizationId) {
-      return [];
-    }
-    const rows: Doc<'artifactRevisions'>[] = [];
-    for await (const row of ctx.db
-      .query('artifactRevisions')
-      .withIndex('by_artifact', (q) => q.eq('artifactId', artifactId))
-      .order('asc')) {
-      rows.push(row);
-    }
-    return rows;
-  },
-});

@@ -139,14 +139,15 @@ function MessageArtifactPillsComponent({
             className="hover:bg-muted/60 border-border inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors"
             aria-label={t('artifacts.touchedByMessage', {
               title: artifact.title,
-              revision: artifact.revision,
             })}
           >
             <Icon className="text-muted-foreground size-3.5" aria-hidden />
             <span className="max-w-[16rem] truncate">{artifact.title}</span>
-            <Badge variant="outline" className="h-4 px-1 text-[10px]">
-              v{artifact.revision}
-            </Badge>
+            {artifact.fileCount > 1 && (
+              <Badge variant="outline" className="h-4 px-1 text-[10px]">
+                {t('artifacts.fileCount', { count: artifact.fileCount })}
+              </Badge>
+            )}
           </button>
         );
       })}

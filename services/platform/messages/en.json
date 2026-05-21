@@ -2457,14 +2457,22 @@
         "expand": "Show files",
         "collapse": "Hide files",
         "entryBadge": "entry",
-        "streamingDot": "Writing this file…"
+        "streamingDot": "Writing this file…",
+        "addFile": "Add file",
+        "addFilePlaceholder": "path/to/file.ext",
+        "addFileConfirm": "Add",
+        "addFileCancel": "Cancel",
+        "errorPathRequired": "Path is required.",
+        "errorPathExists": "A file with this path already exists.",
+        "errorAddFailed": "Could not add the file."
       }
     },
     "artifacts": {
       "barLabel": "Artifacts in this thread",
       "barTitle": "Artifacts",
       "openCard": "Open artifact: {title}",
-      "touchedByMessage": "{title} (revision {revision})"
+      "touchedByMessage": "{title}",
+      "fileCount": "{count, plural, one {# file} other {# files}}"
     },
     "branchNavigator": {
       "previous": "Previous branch",

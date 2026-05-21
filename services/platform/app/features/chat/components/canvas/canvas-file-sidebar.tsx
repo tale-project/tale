@@ -1,8 +1,14 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { ChevronLeft, ChevronRight, FileCode, FileText } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  FileCode,
+  FilePlus,
+  FileText,
+} from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -24,6 +30,13 @@ interface CanvasFileSidebarProps {
   streamingPath?: string;
   activePath: string;
   onSelect: (path: string) => void;
+  /**
+   * Create a new file at `path` (empty content). When omitted, the "+"
+   * affordance is hidden — read-only mode (e.g. revision viewer).
+   * Implementations should resolve once the row has persisted; the sidebar
+   * auto-selects the new path after.
+   */
+  onAddFile?: (path: string) => Promise<void>;
 }
 
 const COLLAPSED_STORAGE_KEY = 'canvas-sidebar-collapsed';
@@ -47,6 +60,7 @@ export function CanvasFileSidebar({
   streamingPath,
   activePath,
   onSelect,
+  onAddFile,
 }: CanvasFileSidebarProps) {
   const { t } = useT('chat');
 
@@ -59,6 +73,16 @@ export function CanvasFileSidebar({
     }
   });
 
+  // Add-file inline form state. Open mode swaps the file-count chip header
+  // for an <input>; submitting calls `onAddFile`, then auto-selects the
+  // new path. Submit is gated against duplicate / empty paths so the
+  // mutation only fires for actionable input.
+  const [adding, setAdding] = useState(false);
+  const [draftPath, setDraftPath] = useState('');
+  const [addError, setAddError] = useState<string | undefined>(undefined);
+  const [adding_inflight, setAddingInflight] = useState(false);
+  const draftInputRef = useRef<HTMLInputElement | null>(null);
+
   useEffect(() => {
     try {
       window.localStorage.setItem(COLLAPSED_STORAGE_KEY, collapsed ? '1' : '0');
@@ -66,6 +90,46 @@ export function CanvasFileSidebar({
       // localStorage may be disabled (Safari private). Ignore.
     }
   }, [collapsed]);
+
+  useEffect(() => {
+    if (adding) draftInputRef.current?.focus();
+  }, [adding]);
+
+  const handleAddSubmit = async () => {
+    if (!onAddFile) return;
+    const trimmed = draftPath.trim();
+    if (trimmed === '') {
+      setAddError(t('canvas.fileSidebar.errorPathRequired'));
+      return;
+    }
+    if (files.some((f) => f.path === trimmed)) {
+      setAddError(t('canvas.fileSidebar.errorPathExists'));
+      return;
+    }
+    setAddError(undefined);
+    setAddingInflight(true);
+    try {
+      await onAddFile(trimmed);
+      onSelect(trimmed);
+      setAdding(false);
+      setDraftPath('');
+    } catch (err) {
+      console.error('[canvas-file-sidebar] add file failed', err);
+      setAddError(
+        err instanceof Error
+          ? err.message
+          : t('canvas.fileSidebar.errorAddFailed'),
+      );
+    } finally {
+      setAddingInflight(false);
+    }
+  };
+
+  const cancelAdd = () => {
+    setAdding(false);
+    setDraftPath('');
+    setAddError(undefined);
+  };
 
   // Synthesize a ghost entry for a `streamingPath` that hasn't landed in
   // `files[]` yet — the canvas should show *something* under the cursor
@@ -103,16 +167,76 @@ export function CanvasFileSidebar({
         <span className="text-muted-foreground text-xs font-medium uppercase">
           {t('canvas.fileSidebar.title')}
         </span>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-6"
-          onClick={() => setCollapsed(true)}
-          aria-label={t('canvas.fileSidebar.collapse')}
-        >
-          <ChevronLeft className="size-3.5" aria-hidden />
-        </Button>
+        <div className="flex items-center gap-0.5">
+          {onAddFile && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-6"
+              onClick={() => setAdding(true)}
+              disabled={adding}
+              aria-label={t('canvas.fileSidebar.addFile')}
+            >
+              <FilePlus className="size-3.5" aria-hidden />
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-6"
+            onClick={() => setCollapsed(true)}
+            aria-label={t('canvas.fileSidebar.collapse')}
+          >
+            <ChevronLeft className="size-3.5" aria-hidden />
+          </Button>
+        </div>
       </div>
+      {adding && (
+        <div className="border-border flex flex-col gap-1 border-b px-2 py-1.5">
+          <input
+            ref={draftInputRef}
+            type="text"
+            value={draftPath}
+            onChange={(e) => setDraftPath(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                void handleAddSubmit();
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                cancelAdd();
+              }
+            }}
+            placeholder={t('canvas.fileSidebar.addFilePlaceholder')}
+            aria-label={t('canvas.fileSidebar.addFile')}
+            disabled={adding_inflight}
+            className="bg-background border-border focus:border-ring rounded border px-1.5 py-1 font-mono text-xs outline-none"
+          />
+          {addError !== undefined && (
+            <span className="text-destructive text-[10px]">{addError}</span>
+          )}
+          <div className="flex justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-[10px]"
+              onClick={cancelAdd}
+              disabled={adding_inflight}
+            >
+              {t('canvas.fileSidebar.addFileCancel')}
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              className="h-6 px-2 text-[10px]"
+              onClick={() => void handleAddSubmit()}
+              disabled={adding_inflight || draftPath.trim() === ''}
+            >
+              {t('canvas.fileSidebar.addFileConfirm')}
+            </Button>
+          </div>
+        </div>
+      )}
       <ul className="flex flex-1 flex-col gap-0.5 overflow-auto p-1">
         {tree.map(({ path, ghost }) => {
           const Icon = iconForPath(path);

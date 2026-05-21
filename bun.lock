@@ -71,6 +71,9 @@
     "packages/seo": {
       "name": "@tale/seo",
       "version": "0.2.0",
+      "bin": {
+        "tale-seo-compile": "./bin/compile.ts",
+      },
       "dependencies": {
         "@tale/i18n": "workspace:*",
         "jsdom": "29.0.2",
@@ -387,6 +390,7 @@
   ],
   "patchedDependencies": {
     "convex-helpers@0.1.114": "patches/convex-helpers@0.1.114.patch",
+    "@convex-dev/agent@0.6.1": "patches/@convex-dev%2Fagent@0.6.1.patch",
   },
   "overrides": {
     "@xmldom/xmldom": "0.8.13",

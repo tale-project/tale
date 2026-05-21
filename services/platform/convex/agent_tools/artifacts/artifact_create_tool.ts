@@ -104,9 +104,11 @@ interface ArtifactCreateSuccess {
 
 interface ArtifactCreateFailure {
   success: false;
-  conflict?: 'type_mismatch';
+  conflict?: 'type_mismatch' | 'already_created_in_message';
   existingArtifactId?: string;
   existingType?: string;
+  existingTitle?: string;
+  existingFiles?: string[];
   message: string;
 }
 
@@ -115,7 +117,9 @@ type ArtifactCreateResult = ArtifactCreateSuccess | ArtifactCreateFailure;
 export const artifactCreateTool = {
   name: 'artifact_create' as const,
   tool: createTool({
-    description: `**artifact_create** — create a new artifact project (a versioned file tree the user can see in the Canvas pane). **Create-or-noop, never overwrite.**
+    description: `**artifact_create** — create a new artifact project (a file tree the user can see in the Canvas pane). **Create-or-noop, never overwrite.**
+
+**DEFAULT TO ONE ARTIFACT PER REPLY.** If the user asks for code + verification scripts, a document + helper tools, or any composite deliverable, those belong as sibling files of the same artifact (via subsequent \`artifact_edit({mode: 'rewrite', path: '...'})\` calls). Calling \`artifact_create\` a second time in the same assistant message returns \`{success: false, conflict: 'already_created_in_message', existingArtifactId, existingTitle, existingFiles}\` with the existing project state — switch to \`artifact_edit\` against \`existingArtifactId\` to add files there. **Only** call \`artifact_create\` a second time in the same reply if the user explicitly asked for two unrelated projects (e.g. "make an SVG AND a separate Python script for a different purpose").
 
 USE THIS TOOL when the user asks for a runnable HTML page, an SVG illustration, a Mermaid diagram, a markdown document, a code snippet they may want to revise, or a Python / Node script you'll execute.
 
@@ -158,7 +162,7 @@ The iframe is fully static and offline. \`fetch()\`, \`XMLHttpRequest\`, \`WebSo
 
 Typical sequence: \`artifact_create\` → \`artifact_run({artifactId})\` → if fail, \`artifact_edit({mode: 'patch', path: entryFile, ...})\` → \`artifact_run\` again.
 
-**RESPONSE:** on success returns \`{isNew, artifactId, revision, entryFile, filePaths, message}\`. On title collision \`isNew: false\` — full project state included so you can call \`artifact_read\`/\`artifact_edit\` against the existing artifact. On title-but-type-mismatch: \`{conflict: 'type_mismatch', existingArtifactId, existingType}\`.`,
+**RESPONSE:** on success returns \`{isNew, artifactId, revision, entryFile, filePaths, message}\`. On title collision \`isNew: false\` — full project state included so you can call \`artifact_read\`/\`artifact_edit\` against the existing artifact. On title-but-type-mismatch: \`{conflict: 'type_mismatch', existingArtifactId, existingType}\`. On same-reply duplicate-create: \`{conflict: 'already_created_in_message', existingArtifactId, existingType, existingTitle, existingFiles}\` — switch to \`artifact_edit\` against the existing project.`,
     inputSchema: artifactCreateArgs,
     onInputStart: async (_ctx: ToolCtx, options: ToolExecutionOptions) => {
       initState(options.toolCallId, 'artifact_create');
@@ -282,6 +286,70 @@ Typical sequence: \`artifact_create\` → \`artifact_run({artifactId})\` → if 
             existingType: state.typeMismatchInfo.existingType,
             message: state.typeMismatchInfo.message,
           };
+        }
+
+        // Same-message guard: an assistant reply that already produced an
+        // artifact should add files to it via `artifact_edit`, not spawn a
+        // duplicate project. We gate on a non-empty `createdByMessageId`
+        // because multi-step / sub-agent edge cases can fall back to "" and
+        // would otherwise cross-match every empty-string row in the thread.
+        // The guard runs after the type-mismatch check so the more specific
+        // failure mode still wins.
+        if (createdByMessageId !== '') {
+          const sibling = await ctx.runQuery(
+            internal.artifacts.internal_queries.findArtifactByCreatedMessage,
+            { organizationId, threadId, createdByMessageId },
+          );
+          // If a sibling exists AND it is not the placeholder this tool call
+          // just committed in `onInputDelta`, treat as a soft conflict.
+          if (
+            sibling !== null &&
+            (state?.artifactId === undefined ||
+              sibling._id !== state.artifactId)
+          ) {
+            // The placeholder this call may have started is now stranded —
+            // drop it so the canvas isn't littered with empty rows.
+            if (
+              state?.createOutcome === 'placeholder' &&
+              state.artifactId !== undefined
+            ) {
+              try {
+                await ctx.runMutation(
+                  internal.artifacts.internal_mutations.discardCreateStream,
+                  {
+                    artifactId: state.artifactId,
+                    toolCallId: options.toolCallId,
+                  },
+                );
+              } catch (cleanupErr) {
+                console.warn(
+                  '[artifact_create] same-message guard cleanup failed',
+                  {
+                    error:
+                      cleanupErr instanceof Error
+                        ? cleanupErr.message
+                        : String(cleanupErr),
+                  },
+                );
+              }
+              clearState(options.toolCallId);
+            }
+            const existingFiles =
+              sibling.files !== undefined
+                ? sibling.files.map((f) => f.path)
+                : sibling.entryFile !== undefined
+                  ? [sibling.entryFile]
+                  : [];
+            return {
+              success: false,
+              conflict: 'already_created_in_message',
+              existingArtifactId: sibling._id,
+              existingType: sibling.type,
+              existingTitle: sibling.title,
+              existingFiles,
+              message: `An artifact "${sibling.title}" (${sibling.type}) was already created in this reply (artifactId: ${sibling._id}, files: ${existingFiles.join(', ') || '<none>'}). To add files or revise content, call \`artifact_edit({artifactId: "${sibling._id}", mode: "rewrite", path: "<new-or-existing-file>", content: "..."})\`. Only call \`artifact_create\` again in this reply if the user explicitly asked for a second, unrelated project.`,
+            };
+          }
         }
 
         // Placeholder path: settle the streaming row in place. We finalize

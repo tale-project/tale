@@ -2457,14 +2457,22 @@
         "expand": "Dateien anzeigen",
         "collapse": "Dateien ausblenden",
         "entryBadge": "Einstieg",
-        "streamingDot": "Diese Datei wird geschrieben…"
+        "streamingDot": "Diese Datei wird geschrieben…",
+        "addFile": "Datei hinzufügen",
+        "addFilePlaceholder": "pfad/zur/datei.ext",
+        "addFileConfirm": "Hinzufügen",
+        "addFileCancel": "Abbrechen",
+        "errorPathRequired": "Pfad ist erforderlich.",
+        "errorPathExists": "Eine Datei mit diesem Pfad existiert bereits.",
+        "errorAddFailed": "Datei konnte nicht hinzugefügt werden."
       }
     },
     "artifacts": {
       "barLabel": "Artefakte in diesem Thread",
       "barTitle": "Artefakte",
       "openCard": "Artefakt öffnen: {title}",
-      "touchedByMessage": "{title} (Revision {revision})"
+      "touchedByMessage": "{title}",
+      "fileCount": "{count, plural, one {# Datei} other {# Dateien}}"
     },
     "branchNavigator": {
       "previous": "Vorheriger Zweig",

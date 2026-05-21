@@ -48,3 +48,32 @@ export const listByThread = internalQuery({
     return rows;
   },
 });
+
+/**
+ * Returns the first artifact in this thread whose `createdByMessageId` matches
+ * the supplied id, or null. Backs the `artifact_create` same-message guard:
+ * the tool short-circuits to a soft-conflict response so the model uses
+ * `artifact_edit` instead of spawning a duplicate project on the same reply.
+ *
+ * Caller must pass a non-empty `createdByMessageId` — empty-string artifacts
+ * from multi-step / sub-agent edge cases would otherwise cross-match.
+ */
+export const findArtifactByCreatedMessage = internalQuery({
+  args: {
+    organizationId: v.string(),
+    threadId: v.string(),
+    createdByMessageId: v.string(),
+  },
+  handler: async (ctx, { organizationId, threadId, createdByMessageId }) => {
+    if (createdByMessageId === '') return null;
+    return await ctx.db
+      .query('artifacts')
+      .withIndex('by_organizationId_thread_createdByMessageId', (q) =>
+        q
+          .eq('organizationId', organizationId)
+          .eq('threadId', threadId)
+          .eq('createdByMessageId', createdByMessageId),
+      )
+      .first();
+  },
+});

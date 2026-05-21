@@ -190,7 +190,17 @@ export const artifactsTable = defineTable({
   .index('by_organizationId_and_thread', ['organizationId', 'threadId'])
   // Sparse-by-construction: rows where `liveStreamMode` is undefined are
   // excluded from this index, so the cleanup cron only walks live streams.
-  .index('by_liveStreamMode', ['liveStreamMode']);
+  .index('by_liveStreamMode', ['liveStreamMode'])
+  // Backs the `artifact_create` same-message guard: when a tool call lands
+  // in a thread that already produced an artifact within the same assistant
+  // message (`createdByMessageId`), short-circuit to a soft-conflict
+  // response steering the model toward `artifact_edit` instead of spawning
+  // a duplicate project.
+  .index('by_organizationId_thread_createdByMessageId', [
+    'organizationId',
+    'threadId',
+    'createdByMessageId',
+  ]);
 
 /**
  * Append-only revision history for `artifacts`. One row per write — including
