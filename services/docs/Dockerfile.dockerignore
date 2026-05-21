@@ -1,7 +1,145 @@
-node_modules
-dist
-dist-ssr
-.turbo
-.cache
+# =============================================================================
+# Tale Docs (Vite + Vocs static site) — Dockerfile.dockerignore
+# =============================================================================
+# BuildKit picks this file (adjacent to the Dockerfile) over the root
+# .dockerignore. It does NOT merge — so this file must list everything we want
+# excluded from the docs image's build context. The previous 7-line stub
+# shipped the entire repo as context on every docs build (audit R2-B11).
+#
+# Build (from repo root):
+#   docker build -f services/docs/Dockerfile .
+
+# =============================================================================
+# Local environment files
+# =============================================================================
+**/.env
+**/.env.*
+
+# =============================================================================
+# Git
+# =============================================================================
+.git
+.gitignore
+.gitattributes
+
+# =============================================================================
+# CI / tooling
+# =============================================================================
+.github/
+.husky/
+.claude/
+.agents/
+.vscode/
+.idea/
+.ruff_cache/
+.turbo/
+.trivyignore
+.oxlintrc.json
+.oxfmtrc.json
+
+# =============================================================================
+# IDE / OS
+# =============================================================================
+*.swp
+*.swo
+*~
+.DS_Store
+
+# =============================================================================
+# Node
+# =============================================================================
+node_modules/
+**/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# =============================================================================
+# Build artifacts
+# =============================================================================
+*.tsbuildinfo
+**/dist/
+**/build/
+**/.output/
+**/.vinxi/
+storybook-static/
+
+# =============================================================================
+# Testing
+# =============================================================================
+tests/
+**/coverage/
+.nyc_output/
+*.test.ts
+*.test.js
+*.spec.ts
+*.spec.js
+
+# =============================================================================
+# Storybook
+# =============================================================================
+.storybook/
+**/.storybook/
+**/*.stories.tsx
+**/*.stories.ts
+**/*.stories.jsx
+**/*.stories.js
+
+# =============================================================================
+# Logs / temp / cache / misc
+# =============================================================================
 *.log
-storybook-static
+*.tmp
+*.temp
+.cache/
+.playwright-mcp/
+knip-results.json
+designs/
+
+# =============================================================================
+# Docker files
+# =============================================================================
+docker-compose.yml
+docker-compose.*.yml
+compose.yml
+compose.*.yml
+.dockerignore
+**/Dockerfile.dockerignore
+
+# =============================================================================
+# Docs-specific: image needs only services/docs + packages/ui workspace.
+# All other service trees stay out of the build context — `bun install`
+# only needs each workspace's package.json (re-included below).
+# =============================================================================
+services/platform/
+services/web/
+services/convex/
+services/crawler/
+services/rag/
+services/db/
+services/proxy/
+services/sandbox/
+services/sandbox-egress/
+services/sandbox-runtime/
+packages/tale_knowledge/
+packages/tale_shared/
+packages/tale_telemetry/
+tools/
+examples/
+
+# `bun install` needs every workspace package.json present at its declared
+# path so the workspace graph resolves. Re-include just the manifests —
+# source trees stay excluded by the rules above.
+!services/platform/package.json
+!services/web/package.json
+!services/crawler/package.json
+!services/rag/package.json
+!services/db/package.json
+!services/proxy/package.json
+!services/sandbox/package.json
+!packages/tale_knowledge/package.json
+!packages/tale_shared/package.json
+!packages/tale_telemetry/package.json
+!tools/cli/package.json
+!tools/plop/package.json

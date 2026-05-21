@@ -562,15 +562,15 @@ services:
     cap_add:
       - NET_ADMIN
     healthcheck:
-      # CONNECT-probe an allowlisted host: a pure TCP `nc -z 3128` would
-      # stay green even if the allowlist was wiped or upstream broke.
-      # Healthy iff the proxy still tunnels to a known-good registry.
-      # HEAD (`-I`) + `--max-time` keeps the probe small: `pypi.org/simple/`
-      # serves a ~40MB index body that easily blows the 5s timeout, so we
-      # only fetch headers and cap the total request.
-      test:
-        - CMD-SHELL
-        - 'curl -sfI -x http://127.0.0.1:3128 -o /dev/null --connect-timeout 3 --max-time 4 https://pypi.org/simple/pip/ || exit 1'
+      # Plain TCP-listen check: if tinyproxy is up the port answers. We
+      # intentionally do NOT CONNECT-probe an external host (pypi/npm)
+      # — flapping that probe against a transient upstream outage flips
+      # the spawner's `depends_on: service_healthy` gate to false and
+      # blocks all new sandbox launches even though the proxy itself is
+      # fine. Round-2 R2-B11: aligned with the CLI generator (TCP-only)
+      # so `docker compose up` and `tale start` produce identical health
+      # semantics.
+      test: ['CMD-SHELL', 'nc -z 127.0.0.1 3128 || exit 1']
       interval: 10s
       timeout: 5s
       retries: 2
@@ -592,7 +592,7 @@ services:
       - internal
 
   # ============================================================================
-  # Tale Sandbox Spawner — thin stateless docker-run service for `code_run`
+  # Tale Sandbox Spawner — thin stateless docker-run service for artifact_run
   # ----------------------------------------------------------------------------
   # Mounts /var/run/docker.sock to spawn ephemeral sibling containers per call.
   # Reachable only on the `internal` bridge by the platform/convex service;
@@ -601,7 +601,7 @@ services:
   #
   # SECURITY: docker.sock = host root. Explicit threat acceptance per plan
   # "Security model". Spawner accepts only HMAC-signed typed JSON over HTTP;
-  # `services/sandbox/src/docker_args.ts` validates every argv field with
+  # `services/sandbox/src/docker-args.ts` validates every argv field with
   # regexes so a malformed input never reaches `docker run`. Future hardening:
   # SANDBOX_RUNTIME=runsc opt-in (gVisor), `opa-docker-authz` daemon plugin
   # for HostConfig body filtering, dockerd userns-remap.
@@ -637,6 +637,18 @@ services:
       # so the spawner and the daemon must agree on the path).
       - /var/lib/tale-sandbox:/var/lib/tale-sandbox
     restart: unless-stopped
+    # Resource caps mirror the CLI compose generator
+    # (`tools/cli/src/lib/compose/services/create-sandbox-service.ts`). The
+    # `tale start` and raw `docker compose up` paths must produce the SAME
+    # operational posture; previously this file shipped without caps, so
+    # operators running `docker compose up` directly got an uncapped
+    # spawner — audit finding R2-B11.
+    mem_limit: 512m
+    pids_limit: 512
+    ulimits:
+      nofile:
+        soft: 4096
+        hard: 8192
     healthcheck:
       test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:8003/health']
       interval: 10s
@@ -709,7 +721,7 @@ networks:
   internal:
     driver: bridge
 
-  # Sandbox network — internal-only bridge for code_run runtime containers + the
+  # Sandbox network — internal-only bridge for artifact_run runtime containers + the
   # tinyproxy egress sidecar. The CLI (start.ts / deploy.ts via
   # ensureSandboxNetwork) pre-creates the network with `--internal --ipv6=false`
   # so it can carry both `tale-sandbox-net` and the bridge-driver flags that
