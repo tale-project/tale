@@ -19,6 +19,7 @@
 import type { ToolCtx } from '@convex-dev/agent';
 import { createTool } from '@convex-dev/agent';
 import type { ToolExecutionOptions } from 'ai';
+import { parsePartialJson } from 'ai';
 import { z } from 'zod/v4';
 
 import { internal } from '../../_generated/api';
@@ -27,7 +28,15 @@ import {
   artifactTypeEnum,
   isContentRequiredAtCreate,
   isRunnableArtifactType,
+  isValidArtifactType,
 } from './shared';
+import {
+  clearState,
+  getState,
+  initState,
+  markParsed,
+  shouldParse,
+} from './stream_state';
 
 const artifactCreateArgs = z
   .object({
@@ -151,10 +160,103 @@ Typical sequence: \`artifact_create\` → \`artifact_run({artifactId})\` → if 
 
 **RESPONSE:** on success returns \`{isNew, artifactId, revision, entryFile, filePaths, message}\`. On title collision \`isNew: false\` — full project state included so you can call \`artifact_read\`/\`artifact_edit\` against the existing artifact. On title-but-type-mismatch: \`{conflict: 'type_mismatch', existingArtifactId, existingType}\`.`,
     inputSchema: artifactCreateArgs,
+    onInputStart: async (_ctx: ToolCtx, options: ToolExecutionOptions) => {
+      initState(options.toolCallId, 'artifact_create');
+    },
+    onInputDelta: async (
+      ctx: ToolCtx,
+      options: { inputTextDelta: string } & ToolExecutionOptions,
+    ) => {
+      const state = getState(options.toolCallId);
+      if (!state) return;
+      // Once we've already committed to an outcome we have nothing more to
+      // do during streaming — `execute` will settle / report.
+      if (state.rowInitialized) return;
+      state.accumulator += options.inputTextDelta;
+      if (!shouldParse(state, state.accumulator.length)) return;
+      const parsed = await parsePartialJson(state.accumulator);
+      markParsed(state, state.accumulator.length);
+      if (
+        parsed.state !== 'successful-parse' &&
+        parsed.state !== 'repaired-parse'
+      ) {
+        return;
+      }
+      const partial = parsed.value;
+      if (
+        typeof partial !== 'object' ||
+        partial === null ||
+        Array.isArray(partial)
+      ) {
+        return;
+      }
+      const obj = partial as Record<string, unknown>;
+      const typeRaw = typeof obj.type === 'string' ? obj.type : undefined;
+      const titleRaw = typeof obj.title === 'string' ? obj.title : undefined;
+      if (!typeRaw || !titleRaw || !isValidArtifactType(typeRaw)) return;
+      // Commit only when title is known to be complete: either the parser
+      // has consumed the whole JSON (`successful-parse`), or a later field
+      // (`content`, `language`, `entryFile`, `packages`) has started in the
+      // JSON — meaning the title string is already closed and won't grow.
+      const titleCommitted =
+        parsed.state === 'successful-parse' ||
+        obj.content !== undefined ||
+        obj.language !== undefined ||
+        obj.entryFile !== undefined ||
+        obj.packages !== undefined;
+      if (!titleCommitted) return;
+
+      const language =
+        typeof obj.language === 'string' ? obj.language : undefined;
+      const entryFile =
+        typeof obj.entryFile === 'string' ? obj.entryFile : undefined;
+
+      const { organizationId, threadId, messageId } = ctx;
+      if (!organizationId || !threadId) return;
+      try {
+        const outcome = await ctx.runMutation(
+          internal.artifacts.internal_mutations.beginCreateStream,
+          {
+            organizationId,
+            threadId,
+            type: typeRaw,
+            title: titleRaw,
+            language,
+            entryFile,
+            createdByMessageId: messageId ?? '',
+            toolCallId: options.toolCallId,
+          },
+        );
+        state.rowInitialized = true;
+        if (outcome.kind === 'created') {
+          state.createOutcome = 'placeholder';
+          state.artifactId = outcome.artifactId;
+        } else if (outcome.kind === 'collision') {
+          state.createOutcome = 'collision';
+          state.artifactId = outcome.artifactId;
+        } else {
+          state.createOutcome = 'type_mismatch';
+          state.typeMismatchInfo = {
+            existingArtifactId: outcome.existingArtifactId,
+            existingType: outcome.existingType,
+            message: outcome.message,
+          };
+        }
+      } catch (err) {
+        // Defer the failure to execute() so it surfaces in the tool response
+        // alongside any validation context the LLM needs.
+        console.warn(
+          '[artifact_create] beginCreateStream rejected, deferring',
+          {
+            error: err instanceof Error ? err.message : String(err),
+          },
+        );
+      }
+    },
     execute: async (
       ctx: ToolCtx,
       args: ArtifactCreateInput,
-      _options: ToolExecutionOptions,
+      options: ToolExecutionOptions,
     ): Promise<ArtifactCreateResult> => {
       const { organizationId, threadId, messageId } = ctx;
       if (!organizationId || !threadId) {
@@ -165,74 +267,174 @@ Typical sequence: \`artifact_create\` → \`artifact_run({artifactId})\` → if 
         };
       }
       const createdByMessageId = messageId ?? '';
-      const result = await ctx.runMutation(
-        internal.artifacts.internal_mutations.createArtifact,
-        {
-          organizationId,
-          threadId,
-          type: args.type,
-          title: args.title,
-          language: args.language,
-          content: args.content,
-          entryFile: args.entryFile,
-          createdByMessageId,
-        },
-      );
+      const state = getState(options.toolCallId);
 
-      if (!result.success) {
-        // Currently only `type_mismatch` is surfaced from the mutation.
-        return {
-          success: false,
-          conflict: result.conflict,
-          existingArtifactId: result.existingArtifactId,
-          existingType: result.existingType,
-          message: result.message,
-        };
-      }
+      try {
+        // Type-mismatch was decided during streaming — short-circuit.
+        if (
+          state?.createOutcome === 'type_mismatch' &&
+          state.typeMismatchInfo
+        ) {
+          return {
+            success: false,
+            conflict: 'type_mismatch',
+            existingArtifactId: state.typeMismatchInfo.existingArtifactId,
+            existingType: state.typeMismatchInfo.existingType,
+            message: state.typeMismatchInfo.message,
+          };
+        }
 
-      // Persist run config for runnable types so subsequent `artifact_run`
-      // calls reuse it without the LLM having to re-supply packages.
-      if (
-        isRunnableArtifactType(args.type) &&
-        args.packages !== undefined &&
-        args.packages.length > 0 &&
-        result.isNew
-      ) {
-        await ctx.runMutation(
-          internal.artifacts.internal_mutations.setArtifactRunConfig,
+        // Placeholder path: settle the streaming row in place. We finalize
+        // even when content was optional and not supplied (markdown/code) —
+        // the placeholder row carries an empty entry file then.
+        if (
+          state?.createOutcome === 'placeholder' &&
+          state.artifactId !== undefined
+        ) {
+          const settled = await ctx.runMutation(
+            internal.artifacts.internal_mutations.finalizeCreateStream,
+            {
+              artifactId: state.artifactId,
+              content: args.content ?? '',
+              createdByMessageId,
+              toolCallId: options.toolCallId,
+            },
+          );
+          if (!settled.success) {
+            // Placeholder no longer matches (race / janitor). Fall back to a
+            // fresh createArtifact so the LLM still gets a coherent response.
+            console.warn(
+              '[artifact_create] finalizeCreateStream failed, falling back',
+              { code: settled.code, message: settled.message },
+            );
+          } else {
+            if (
+              isRunnableArtifactType(args.type) &&
+              args.packages !== undefined &&
+              args.packages.length > 0
+            ) {
+              await ctx.runMutation(
+                internal.artifacts.internal_mutations.setArtifactRunConfig,
+                {
+                  artifactId: settled.artifactId,
+                  runPackages: args.packages,
+                },
+              );
+            }
+            const runHint = isRunnableArtifactType(args.type)
+              ? ` Call \`artifact_run({artifactId: "${settled.artifactId}"})\` to execute.`
+              : '';
+            return {
+              success: true,
+              isNew: true,
+              artifactId: settled.artifactId,
+              revision: settled.revision,
+              entryFile: settled.entryFile,
+              filePaths: [...settled.filePaths],
+              message: `Created artifact "${args.title}" (${args.type}, ${settled.filePaths.length} file(s)).${runHint}`,
+            };
+          }
+        }
+
+        // Collision path: artifact already exists. Use the existing
+        // idempotent mutation so the response builds from current row state
+        // (in case the row was edited mid-stream by another tool call).
+        if (
+          state?.createOutcome === 'collision' &&
+          state.artifactId !== undefined
+        ) {
+          // Discard any leftover streaming flags on this row from another
+          // path. The collided row was not touched by beginCreateStream, but
+          // be defensive.
+          // No-op: createArtifact below will not mutate the existing row.
+        }
+
+        // Fallback / no streaming committed: run the canonical create path.
+        const result = await ctx.runMutation(
+          internal.artifacts.internal_mutations.createArtifact,
           {
-            artifactId: result.artifactId,
-            runPackages: args.packages,
+            organizationId,
+            threadId,
+            type: args.type,
+            title: args.title,
+            language: args.language,
+            content: args.content,
+            entryFile: args.entryFile,
+            createdByMessageId,
           },
         );
-      }
 
-      if (result.isNew) {
-        const runHint = isRunnableArtifactType(args.type)
-          ? ` Call \`artifact_run({artifactId: "${result.artifactId}"})\` to execute.`
-          : '';
+        if (!result.success) {
+          return {
+            success: false,
+            conflict: result.conflict,
+            existingArtifactId: result.existingArtifactId,
+            existingType: result.existingType,
+            message: result.message,
+          };
+        }
+
+        if (
+          isRunnableArtifactType(args.type) &&
+          args.packages !== undefined &&
+          args.packages.length > 0 &&
+          result.isNew
+        ) {
+          await ctx.runMutation(
+            internal.artifacts.internal_mutations.setArtifactRunConfig,
+            {
+              artifactId: result.artifactId,
+              runPackages: args.packages,
+            },
+          );
+        }
+
+        if (result.isNew) {
+          const runHint = isRunnableArtifactType(args.type)
+            ? ` Call \`artifact_run({artifactId: "${result.artifactId}"})\` to execute.`
+            : '';
+          return {
+            success: true,
+            isNew: true,
+            artifactId: result.artifactId,
+            revision: result.revision,
+            entryFile: result.entryFile,
+            filePaths: [...result.filePaths],
+            message: `Created artifact "${args.title}" (${args.type}, ${result.filePaths.length} file(s)).${runHint}`,
+          };
+        }
+
         return {
           success: true,
-          isNew: true,
+          isNew: false,
           artifactId: result.artifactId,
           revision: result.revision,
           entryFile: result.entryFile,
           filePaths: [...result.filePaths],
-          message: `Created artifact "${args.title}" (${args.type}, ${result.filePaths.length} file(s)).${runHint}`,
+          message: `Artifact "${args.title}" already exists at revision ${result.revision} with entry file "${result.entryFile}" (${result.filePaths.length} file(s)). Supplied content was NOT applied. Call \`artifact_read({artifactId: "${result.artifactId}"})\` to inspect, or \`artifact_edit({artifactId: "${result.artifactId}", mode: "rewrite", path: "${result.entryFile}", content})\` to overwrite if intended.`,
         };
+      } catch (err) {
+        // Best-effort cleanup of a stranded placeholder.
+        if (
+          state?.createOutcome === 'placeholder' &&
+          state.artifactId !== undefined
+        ) {
+          await ctx.runMutation(
+            internal.artifacts.internal_mutations.discardCreateStream,
+            {
+              artifactId: state.artifactId,
+              toolCallId: options.toolCallId,
+            },
+          );
+        }
+        const message = err instanceof Error ? err.message : String(err);
+        return {
+          success: false,
+          message: `artifact_create failed: ${message}`,
+        };
+      } finally {
+        clearState(options.toolCallId);
       }
-
-      // Collision branch — full state in the response so the LLM can verify
-      // its mental model without a follow-up read.
-      return {
-        success: true,
-        isNew: false,
-        artifactId: result.artifactId,
-        revision: result.revision,
-        entryFile: result.entryFile,
-        filePaths: [...result.filePaths],
-        message: `Artifact "${args.title}" already exists at revision ${result.revision} with entry file "${result.entryFile}" (${result.filePaths.length} file(s)). Supplied content was NOT applied. Call \`artifact_read({artifactId: "${result.artifactId}"})\` to inspect, or \`artifact_edit({artifactId: "${result.artifactId}", mode: "rewrite", path: "${result.entryFile}", content})\` to overwrite if intended.`,
-      };
     },
   }),
 } as const satisfies ToolDefinition;

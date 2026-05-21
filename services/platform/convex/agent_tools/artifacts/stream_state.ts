@@ -27,6 +27,16 @@ export interface ArtifactStreamState {
   // True once we have either inserted the placeholder (create) or marked
   // the existing row (edit). Avoids double-init on rapid deltas.
   rowInitialized: boolean;
+  // For artifact_create only — captures the outcome of `beginCreateStream`
+  // so `execute()` knows whether to finalize the placeholder, hand off to
+  // the existing `createArtifact` mutation (collision), or return a
+  // type-mismatch error without further DB writes.
+  createOutcome?: 'placeholder' | 'collision' | 'type_mismatch';
+  typeMismatchInfo?: {
+    existingArtifactId: Id<'artifacts'>;
+    existingType: string;
+    message: string;
+  };
   // Last title / language values written to the row so we don't issue a
   // mutation on every delta when nothing changed.
   lastFlushedTitle?: string;

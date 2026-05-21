@@ -950,11 +950,258 @@ export const cleanupStaleStreams = internalMutation({
         row.liveStreamStartedAt !== undefined &&
         row.liveStreamStartedAt < cutoff
       ) {
-        await ctx.db.patch(row._id, clearStreamingFlags());
+        // Placeholder rows (revision === 0) belong to a crashed
+        // `beginCreateStream` and have no real artifactRevisions row backing
+        // them — clearing streaming flags would leak an empty artifact into
+        // the user's thread, so we delete the row outright. For settled
+        // rows (revision >= 1) we just clear the streaming flags and keep
+        // the prior content.
+        if (row.revision === 0) {
+          await ctx.db.delete(row._id);
+        } else {
+          await ctx.db.patch(row._id, clearStreamingFlags());
+        }
         cleared += 1;
       }
     }
     return { cleared };
+  },
+});
+
+// =============================================================================
+// beginCreateStream / finalizeCreateStream — placeholder-row streaming for
+// `artifact_create`. Inserts a row at revision 0 the instant the LLM emits
+// enough JSON for us to know the (type, title, entryFile); the canvas opens
+// against that row and consumes tool-input-delta to render content
+// token-by-token. `execute` settles via `finalizeCreateStream` which writes
+// the real content + artifactRevisions row and bumps revision to 1.
+// =============================================================================
+
+type BeginCreateStreamOutcome =
+  | {
+      kind: 'created';
+      artifactId: Id<'artifacts'>;
+      entryFile: string;
+    }
+  | {
+      kind: 'collision';
+      artifactId: Id<'artifacts'>;
+      entryFile: string;
+      revision: number;
+      filePaths: string[];
+    }
+  | {
+      kind: 'type_mismatch';
+      existingArtifactId: Id<'artifacts'>;
+      existingType: Doc<'artifacts'>['type'];
+      message: string;
+    };
+
+export const beginCreateStream = internalMutation({
+  args: {
+    organizationId: v.string(),
+    threadId: v.string(),
+    type: artifactTypeValidator,
+    title: v.string(),
+    language: v.optional(v.string()),
+    entryFile: v.optional(v.string()),
+    createdByMessageId: v.string(),
+    toolCallId: v.string(),
+  },
+  returns: v.union(
+    v.object({
+      kind: v.literal('created'),
+      artifactId: v.id('artifacts'),
+      entryFile: v.string(),
+    }),
+    v.object({
+      kind: v.literal('collision'),
+      artifactId: v.id('artifacts'),
+      entryFile: v.string(),
+      revision: v.number(),
+      filePaths: v.array(v.string()),
+    }),
+    v.object({
+      kind: v.literal('type_mismatch'),
+      existingArtifactId: v.id('artifacts'),
+      existingType: artifactTypeValidator,
+      message: v.string(),
+    }),
+  ),
+  handler: async (ctx, args): Promise<BeginCreateStreamOutcome> => {
+    const storedTitle = normalizeTitleForStorage(args.title);
+    if (storedTitle.length === 0) {
+      throw new ConvexError({
+        code: 'invalid_title',
+        message: 'Title must contain at least one non-whitespace character.',
+      });
+    }
+    const compareKey = normalizeTitleForCompare(args.title);
+
+    // Same dedup scan as createArtifact — keep the two in sync.
+    for await (const row of ctx.db
+      .query('artifacts')
+      .withIndex('by_organizationId_and_thread', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('threadId', args.threadId),
+      )) {
+      const rowKey = normalizeTitleForCompare(row.title);
+      if (rowKey !== compareKey) continue;
+      if (row.type !== args.type) {
+        return {
+          kind: 'type_mismatch',
+          existingArtifactId: row._id,
+          existingType: row.type,
+          message: `An artifact titled "${row.title}" already exists in this thread with type "${row.type}". Either pick a different title or use the existing artifactId ${row._id} via artifact_edit.`,
+        };
+      }
+      const resolved = resolveArtifactFiles(row);
+      return {
+        kind: 'collision',
+        artifactId: row._id,
+        entryFile: resolved.entryFile,
+        revision: row.revision,
+        filePaths: resolved.files.map((f) => f.path),
+      };
+    }
+
+    // No collision — insert a placeholder row at revision 0 with the
+    // streaming flags set. The entry file is seeded empty; finalize replaces
+    // it with the real content and bumps revision to 1.
+    const entryFile = validatePath(
+      args.entryFile ?? defaultEntryFileFor(args.type, args.language),
+    );
+    const now = Date.now();
+    const artifactId = await ctx.db.insert('artifacts', {
+      organizationId: args.organizationId,
+      threadId: args.threadId,
+      type: args.type,
+      title: storedTitle,
+      language: args.language,
+      files: [{ path: entryFile, content: '' }],
+      entryFile,
+      content: '',
+      revision: 0,
+      createdByMessageId: args.createdByMessageId,
+      lastEditedByMessageId: args.createdByMessageId,
+      createdAt: now,
+      updatedAt: now,
+      liveStreamMode: 'create',
+      liveStreamStartedAt: now,
+      streamingContent: '',
+      streamingPath: entryFile,
+      toolCallId: args.toolCallId,
+    });
+    return { kind: 'created', artifactId, entryFile };
+  },
+});
+
+export const finalizeCreateStream = internalMutation({
+  args: {
+    artifactId: v.id('artifacts'),
+    content: v.string(),
+    createdByMessageId: v.string(),
+    /**
+     * The toolCallId that started the placeholder. Refused if it doesn't
+     * match the row's current `toolCallId` — protects against a different
+     * tool call mistakenly settling someone else's placeholder.
+     */
+    toolCallId: v.string(),
+  },
+  returns: v.union(
+    v.object({
+      success: v.literal(true),
+      artifactId: v.id('artifacts'),
+      revision: v.number(),
+      entryFile: v.string(),
+      filePaths: v.array(v.string()),
+    }),
+    v.object({
+      success: v.literal(false),
+      code: v.union(
+        v.literal('not_found'),
+        v.literal('not_placeholder'),
+        v.literal('toolcall_mismatch'),
+      ),
+      message: v.string(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.artifactId);
+    if (!row) {
+      return {
+        success: false as const,
+        code: 'not_found' as const,
+        message: `Artifact ${args.artifactId} not found.`,
+      };
+    }
+    if (row.revision !== 0 || row.liveStreamMode !== 'create') {
+      return {
+        success: false as const,
+        code: 'not_placeholder' as const,
+        message: `Artifact ${args.artifactId} is not a streaming placeholder (revision: ${row.revision}, liveStreamMode: ${row.liveStreamMode ?? 'none'}).`,
+      };
+    }
+    if (row.toolCallId !== args.toolCallId) {
+      return {
+        success: false as const,
+        code: 'toolcall_mismatch' as const,
+        message: `Artifact ${args.artifactId} placeholder belongs to a different tool call.`,
+      };
+    }
+    const entryFile =
+      row.entryFile ?? defaultEntryFileFor(row.type, row.language);
+    const files = validateFiles([{ path: entryFile, content: args.content }]);
+    const now = Date.now();
+    await ctx.db.patch(args.artifactId, {
+      files,
+      entryFile,
+      content: mirrorLegacyContent(files, entryFile),
+      revision: 1,
+      lastEditedByMessageId: args.createdByMessageId,
+      updatedAt: now,
+      ...clearStreamingFlags(),
+    });
+    await ctx.db.insert('artifactRevisions', {
+      artifactId: args.artifactId,
+      revision: 1,
+      content: mirrorLegacyContent(files, entryFile),
+      files,
+      entryFile,
+      filePath: entryFile,
+      editedByMessageId: args.createdByMessageId,
+      editKind: 'create',
+      createdAt: now,
+    });
+    return {
+      success: true as const,
+      artifactId: args.artifactId,
+      revision: 1,
+      entryFile,
+      filePaths: files.map((f) => f.path),
+    };
+  },
+});
+
+export const discardCreateStream = internalMutation({
+  args: {
+    artifactId: v.id('artifacts'),
+    toolCallId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.artifactId);
+    if (!row) return null;
+    // Only discard our own placeholder. A settled row (revision >= 1) is
+    // never deleted from this path — fall back to abortStream's behavior.
+    if (row.toolCallId !== args.toolCallId) return null;
+    if (row.revision === 0 && row.liveStreamMode === 'create') {
+      await ctx.db.delete(args.artifactId);
+    } else {
+      await ctx.db.patch(args.artifactId, clearStreamingFlags());
+    }
+    return null;
   },
 });
 

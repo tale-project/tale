@@ -2444,6 +2444,14 @@
         "markdown": "Markdown",
         "python_runnable": "Python (sandbox)",
         "node_runnable": "Node (sandbox)"
+      },
+      "fileSidebar": {
+        "label": "Project files",
+        "title": "Files",
+        "expand": "Show files",
+        "collapse": "Hide files",
+        "entryBadge": "entry",
+        "streamingDot": "Writing this file…"
       }
     },
     "artifacts": {
