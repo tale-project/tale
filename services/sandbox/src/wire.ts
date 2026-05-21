@@ -47,3 +47,22 @@ export type SandboxLanguage = (typeof sandboxLanguageLiterals)[number];
 // e9211127d widened spawn.ts + docker-args.ts but missed the cancel route).
 export const ID_ALPHABET_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 export const ORG_ID_ALPHABET_RE = /^[a-zA-Z0-9_-]{1,128}$/;
+
+/**
+ * Per-segment allowlist for sandbox-staged file paths. Mirrors the strict
+ * ASCII allowlist enforced by the platform's `validatePath` (see
+ * `services/platform/convex/agent_tools/artifacts/shared.ts`). The platform
+ * runs the full 16-rule NFC + traversal + BiDi pipeline; this spawner-side
+ * regex is defense-in-depth — even if the platform side regresses, the
+ * spawner refuses to stage anything outside the safe alphabet.
+ */
+export const FILE_PATH_SEGMENT_RE = /^[A-Za-z0-9._-]+$/;
+
+/**
+ * Per-file caps for sandbox-staged `files[]`. Aggregate cap is enforced
+ * separately from the existing `code` cap because each file's content is
+ * accounted for independently.
+ */
+export const MAX_FILES_PER_REQUEST = 50;
+export const MAX_FILE_PATH_LENGTH = 200;
+export const MAX_FILES_BYTES = 800_000;
