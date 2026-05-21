@@ -1,29 +1,25 @@
 import { internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
+import { resolveArtifactFiles } from '../../artifacts/resolve_files';
 
 /**
- * Hard upper bound on the total characters injected as artifact context.
- * When the thread holds more than fits, the *oldest* artifacts collapse
- * into omitted stubs so the most recent state stays visible — the model
- * needs the latest revisions to patch correctly.
+ * Hard upper bound on total bytes of file content injected as artifact
+ * context across the whole block. The metadata header (artifact id/type/
+ * title/revision/entryFile/fileCount per row) is always emitted; only file
+ * bodies are subject to truncation.
  */
-const MAX_TOTAL_BYTES = 80_000;
+const MAX_TOTAL_BODY_BYTES = 80_000;
 
-/**
- * Per-artifact body cap. Artifacts longer than this are truncated with
- * a sentinel; the model can still see the head of the document and call
- * `artifact_edit` against snippets it remembers from a prior turn.
- */
-const MAX_PER_ARTIFACT_BYTES = 30_000;
+/** Per-file body cap before truncation sentinel. */
+const MAX_PER_FILE_BYTES = 30_000;
 
 /**
  * Build the LLM-facing artifacts block for the current thread.
  *
- * The block is XML-shaped (not collapsible HTML) so the model can parse
- * IDs/types/revisions reliably. Returns `undefined` when the thread has
- * no artifacts so the caller can skip injecting an empty section, and
- * also when the underlying query fails — artifact context is enrichment,
- * not load-bearing, so a transient failure should not abort the turn.
+ * Each artifact becomes a `<artifact>` element listing its files as nested
+ * `<file>` blocks. Multi-file projects emit one `<file>` per path; legacy
+ * single-file artifacts (with only `content` on the row) emit one
+ * synthesized `<file path="defaultEntry">` via `resolveArtifactFiles`.
  */
 export async function buildArtifactsContext(
   ctx: ActionCtx,
@@ -47,31 +43,39 @@ export async function buildArtifactsContext(
 
   if (artifacts.length === 0) return undefined;
 
-  // Walk newest first so the latest artifacts always claim budget; emit
-  // omitted stubs for the *oldest* once full. We reverse the resulting
-  // blocks at the end so the prompt stays in chronological order.
+  // Walk newest first so the latest artifacts claim file-body budget first.
+  // Metadata is always emitted (it's cheap and important for the LLM to know
+  // what exists). We reverse blocks at the end to keep chronological order.
   const ordered = artifacts.toReversed();
-  let totalBytes = 0;
+  let totalBodyBytes = 0;
   const blocks: string[] = [];
   for (const artifact of ordered) {
-    const body = sanitizeArtifactBody(truncateArtifactBody(artifact.content));
-    const bytes = body.length;
-    if (totalBytes + bytes > MAX_TOTAL_BYTES) {
-      blocks.push(
-        `<artifact id="${artifact._id}" type="${artifact.type}" title=${JSON.stringify(artifact.title)} revision="${artifact.revision}" omitted="true" />`,
-      );
-      continue;
-    }
-    totalBytes += bytes;
+    const resolved = resolveArtifactFiles(artifact);
     const langAttr = artifact.language
       ? ` language=${JSON.stringify(artifact.language)}`
       : '';
-    // For runnable artifacts, surface the last-run state so the LLM can
-    // pick the right next action (patch to fix a failure, leave alone if
-    // completed, etc.) without needing to call a separate tool to peek.
     const runAttr = buildRunAttrs(artifact);
+    const headerAttrs = `id="${artifact._id}" type="${artifact.type}"${langAttr}${runAttr} title=${JSON.stringify(
+      artifact.title,
+    )} revision="${artifact.revision}" entryFile=${JSON.stringify(resolved.entryFile)} fileCount="${resolved.files.length}"`;
+
+    const fileBlocks: string[] = [];
+    for (const file of resolved.files) {
+      const truncated = truncateFileBody(file.content);
+      if (totalBodyBytes + truncated.length > MAX_TOTAL_BODY_BYTES) {
+        fileBlocks.push(
+          `<file path=${JSON.stringify(file.path)} size="${file.content.length}" omitted="true" />`,
+        );
+        continue;
+      }
+      totalBodyBytes += truncated.length;
+      const body = sanitizeFileBody(truncated);
+      fileBlocks.push(
+        `<file path=${JSON.stringify(file.path)} size="${file.content.length}">\n${body}\n</file>`,
+      );
+    }
     blocks.push(
-      `<artifact id="${artifact._id}" type="${artifact.type}"${langAttr}${runAttr} title=${JSON.stringify(artifact.title)} revision="${artifact.revision}">\n${body}\n</artifact>`,
+      `<artifact ${headerAttrs}>\n${fileBlocks.join('\n')}\n</artifact>`,
     );
   }
   blocks.reverse();
@@ -79,26 +83,18 @@ export async function buildArtifactsContext(
   return [
     blocks.join('\n\n'),
     '',
-    'You may modify any of these via the `artifact_edit` tool — prefer `mode: "patch"` for small changes. When you call `artifact_edit`, pass the artifact\'s `revision="N"` value back as `expectedRevision` so a concurrent edit by another turn is detected (the call will return `stale: true` instead of overwriting). Do NOT re-emit an artifact via `artifact_create`; that creates a duplicate. Snippets in <artifact> bodies appear verbatim and can be used as `search` blocks for patches. If you see `runStale="true"` on a runnable artifact, the source was edited after the last run — call `artifact_run` again to refresh outputs.',
+    'You may modify any of these via the `artifact_edit` tool. Modes: `rewrite` (whole file, creates if missing), `patch` (one search/replace, optional `replaceAll`), `delete` (remove a file), `rename` (rename a file; auto-repoints entryFile if matched), `set_entry` (repoint entry pointer). Pass the artifact\'s `revision="N"` back as `expectedRevision` so a concurrent edit by another turn is detected (the call will return `code: "stale"` instead of overwriting). Snippets inside `<file>` bodies appear verbatim and can be used as `search` blocks for patches. If you see `runStale="true"` on a runnable artifact, the source was edited after the last run — call `artifact_run` again to refresh outputs. To create a NEW artifact use `artifact_create`; calling create with an existing title returns the existing artifactId and does NOT overwrite.',
   ].join('\n');
 }
 
-function truncateArtifactBody(content: string): string {
-  if (content.length <= MAX_PER_ARTIFACT_BYTES) return content;
+function truncateFileBody(content: string): string {
+  if (content.length <= MAX_PER_FILE_BYTES) return content;
   return (
-    content.slice(0, MAX_PER_ARTIFACT_BYTES) +
-    `\n\n[...truncated; ${content.length - MAX_PER_ARTIFACT_BYTES} more characters elided. Re-read the artifact via search snippets you remember from earlier turns.]`
+    content.slice(0, MAX_PER_FILE_BYTES) +
+    `\n\n[...truncated; ${content.length - MAX_PER_FILE_BYTES} more characters elided. Call artifact_read({artifactId, path}) to fetch the rest.]`
   );
 }
 
-/**
- * Defuse delimiter-injection: a user/agent-authored artifact body could
- * contain `</artifact>` or `</details>` and prematurely close the wrapper
- * (the outer `<details>` block is added by `formatArtifactsContext`). The
- * model would then read whatever follows as if it were a top-level
- * instruction. Replacing the closing-tag form with a backslash-escaped
- * variant keeps the bytes the model sees readable but breaks the parse.
- */
 interface ArtifactRowForContext {
   type: string;
   revision: number;
@@ -115,12 +111,6 @@ function buildRunAttrs(artifact: ArtifactRowForContext): string {
   ) {
     return '';
   }
-  // Stale-run guard: when `runRevision` doesn't match the current source
-  // `revision`, the prior run's outputs no longer reflect the script the
-  // LLM (or the user) can see. Surfacing them would confuse the model into
-  // believing a re-run isn't needed. Mark the artifact as stale instead so
-  // the model knows to call `artifact_run` again after the edit. (round-2
-  // R2-B10)
   if (
     artifact.runRevision !== undefined &&
     artifact.runRevision !== artifact.revision
@@ -142,8 +132,9 @@ function buildRunAttrs(artifact: ArtifactRowForContext): string {
   return parts.length ? ' ' + parts.join(' ') : '';
 }
 
-function sanitizeArtifactBody(body: string): string {
+function sanitizeFileBody(body: string): string {
   return body
+    .replace(/<\/file>/gi, '<\\/file>')
     .replace(/<\/artifact>/gi, '<\\/artifact>')
     .replace(/<\/details>/gi, '<\\/details>');
 }

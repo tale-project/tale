@@ -16,6 +16,8 @@ import type * as agent_tools_approval_shared from "../agent_tools/approval_share
 import type * as agent_tools_artifacts_apply_patches from "../agent_tools/artifacts/apply_patches.js";
 import type * as agent_tools_artifacts_artifact_create_tool from "../agent_tools/artifacts/artifact_create_tool.js";
 import type * as agent_tools_artifacts_artifact_edit_tool from "../agent_tools/artifacts/artifact_edit_tool.js";
+import type * as agent_tools_artifacts_artifact_list_tool from "../agent_tools/artifacts/artifact_list_tool.js";
+import type * as agent_tools_artifacts_artifact_read_tool from "../agent_tools/artifacts/artifact_read_tool.js";
 import type * as agent_tools_artifacts_artifact_run_tool from "../agent_tools/artifacts/artifact_run_tool.js";
 import type * as agent_tools_artifacts_shared from "../agent_tools/artifacts/shared.js";
 import type * as agent_tools_artifacts_stream_state from "../agent_tools/artifacts/stream_state.js";
@@ -165,6 +167,7 @@ import type * as artifacts_internal_mutations from "../artifacts/internal_mutati
 import type * as artifacts_internal_queries from "../artifacts/internal_queries.js";
 import type * as artifacts_mutations from "../artifacts/mutations.js";
 import type * as artifacts_queries from "../artifacts/queries.js";
+import type * as artifacts_resolve_files from "../artifacts/resolve_files.js";
 import type * as artifacts_snapshot_for_branch from "../artifacts/snapshot_for_branch.js";
 import type * as audit_logs_actions from "../audit_logs/actions.js";
 import type * as audit_logs_export_audit_logs from "../audit_logs/export_audit_logs.js";
@@ -543,6 +546,7 @@ import type * as message_metadata_internal_mutations from "../message_metadata/i
 import type * as message_metadata_queries from "../message_metadata/queries.js";
 import type * as migrations from "../migrations.js";
 import type * as migrations_backfill_apikey_reference_id from "../migrations/backfill_apikey_reference_id.js";
+import type * as migrations_backfill_artifact_files from "../migrations/backfill_artifact_files.js";
 import type * as migrations_backfill_file_metadata_document_id from "../migrations/backfill_file_metadata_document_id.js";
 import type * as migrations_backfill_folder_path from "../migrations/backfill_folder_path.js";
 import type * as migrations_backfill_folders from "../migrations/backfill_folders.js";
@@ -1091,6 +1095,8 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/artifacts/apply_patches": typeof agent_tools_artifacts_apply_patches;
   "agent_tools/artifacts/artifact_create_tool": typeof agent_tools_artifacts_artifact_create_tool;
   "agent_tools/artifacts/artifact_edit_tool": typeof agent_tools_artifacts_artifact_edit_tool;
+  "agent_tools/artifacts/artifact_list_tool": typeof agent_tools_artifacts_artifact_list_tool;
+  "agent_tools/artifacts/artifact_read_tool": typeof agent_tools_artifacts_artifact_read_tool;
   "agent_tools/artifacts/artifact_run_tool": typeof agent_tools_artifacts_artifact_run_tool;
   "agent_tools/artifacts/shared": typeof agent_tools_artifacts_shared;
   "agent_tools/artifacts/stream_state": typeof agent_tools_artifacts_stream_state;
@@ -1240,6 +1246,7 @@ declare const fullApi: ApiFromModules<{
   "artifacts/internal_queries": typeof artifacts_internal_queries;
   "artifacts/mutations": typeof artifacts_mutations;
   "artifacts/queries": typeof artifacts_queries;
+  "artifacts/resolve_files": typeof artifacts_resolve_files;
   "artifacts/snapshot_for_branch": typeof artifacts_snapshot_for_branch;
   "audit_logs/actions": typeof audit_logs_actions;
   "audit_logs/export_audit_logs": typeof audit_logs_export_audit_logs;
@@ -1618,6 +1625,7 @@ declare const fullApi: ApiFromModules<{
   "message_metadata/queries": typeof message_metadata_queries;
   migrations: typeof migrations;
   "migrations/backfill_apikey_reference_id": typeof migrations_backfill_apikey_reference_id;
+  "migrations/backfill_artifact_files": typeof migrations_backfill_artifact_files;
   "migrations/backfill_file_metadata_document_id": typeof migrations_backfill_file_metadata_document_id;
   "migrations/backfill_folder_path": typeof migrations_backfill_folder_path;
   "migrations/backfill_folders": typeof migrations_backfill_folders;

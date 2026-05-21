@@ -156,7 +156,6 @@ export const createBranchThread = internalMutation({
       let snapshotRev:
         | {
             revision: number;
-            content: string;
             editedByMessageId?: string;
           }
         | undefined;
@@ -170,22 +169,23 @@ export const createBranchThread = internalMutation({
         if (!inScope) break;
         snapshotRev = {
           revision: rev.revision,
-          content: rev.content,
           editedByMessageId: rev.editedByMessageId,
         };
       }
 
-      // Fall back to the source row when no revision rows exist (e.g.
-      // legacy data). Should not normally happen.
-      const finalContent = snapshotRev?.content ?? source.content;
       const finalRevision = snapshotRev?.revision ?? source.revision;
       const mappedLastEditedByMessageId = snapshotRev?.editedByMessageId
         ? messageIdMap.get(snapshotRev.editedByMessageId)
         : undefined;
 
+      // Use the source row's CURRENT resolved files/entryFile. Walking
+      // back to reconstruct a per-revision file map would require
+      // accumulating snapshot/delta rows; the source row already holds
+      // the latest state which is what users expect when forking
+      // "from here". `snapshotArtifactForBranch` uses `resolveArtifactFiles`
+      // internally so legacy `content`-only rows still synthesize cleanly.
       await snapshotArtifactForBranch(ctx, {
         source,
-        snapshotContent: finalContent,
         snapshotRevision: finalRevision,
         targetThreadId: branchThreadId,
         mappedCreatedByMessageId,
