@@ -228,6 +228,11 @@ export function clearDisplayPositionCache() {
 
 let globalFrozen = false;
 let frozenDisplayText: string | null = null;
+// Snapshotted displayed length at freeze time (in chars of the active
+// typewriter's text). Read by the stop-generating flow so the backend can
+// truncate the persisted message content WITHOUT having to flatten its
+// structured parts. Cleared by `consumeFrozenDisplayLength()`.
+let frozenDisplayLength: number | null = null;
 
 // The active streaming hook instance registers its refs here so
 // freezeActiveStream() can snapshot the displayed text and cancel animation.
@@ -266,6 +271,7 @@ export function freezeActiveStream() {
       0,
       activeDisplayedLengthRef.current,
     );
+    frozenDisplayLength = activeDisplayedLengthRef.current;
   }
 }
 
@@ -283,6 +289,7 @@ export function isStreamFrozen() {
 export function resetGlobalFreeze() {
   globalFrozen = false;
   frozenDisplayText = null;
+  frozenDisplayLength = null;
   if (activeFrozenRef) {
     activeFrozenRef.current = false;
   }
@@ -299,6 +306,19 @@ export function consumeFrozenDisplayText(): string | null {
   const text = frozenDisplayText;
   frozenDisplayText = null;
   return text;
+}
+
+/**
+ * Returns the displayed length (char count of the active typewriter's text)
+ * captured at the moment of freeze, then clears it. Returns null if no freeze
+ * has occurred. Used by the cancel-generation flow to ask the backend to
+ * truncate the persisted message by position instead of by content string —
+ * the backend can then preserve structured parts (file, reasoning, tool-call).
+ */
+export function consumeFrozenDisplayLength(): number | null {
+  const length = frozenDisplayLength;
+  frozenDisplayLength = null;
+  return length;
 }
 
 // ============================================================================
