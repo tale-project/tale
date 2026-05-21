@@ -25,8 +25,7 @@ import {
   registerInFlight,
   unregisterInFlight,
 } from './spawn.ts';
-import type { ExecuteRequest } from './types.ts';
-import { ID_ALPHABET_RE } from './wire.ts';
+import { validateExecuteRequest } from './validate-request.ts';
 
 const cfg = loadConfig();
 
@@ -194,30 +193,18 @@ async function handleExecute(req: Request): Promise<Response> {
   } catch (err) {
     return jsonResponse({ error: 'bad_request', message: String(err) }, 400);
   }
-  if (parsedUnknown === null || typeof parsedUnknown !== 'object') {
+  // Full runtime validation of every field — defends downstream spawn /
+  // docker-args code from malformed types that would otherwise crash mid
+  // pipeline. The previous spot-check of executionId was the only gate
+  // (audit finding R2-B3).
+  const validated = validateExecuteRequest(parsedUnknown);
+  if (!validated.ok) {
     return jsonResponse(
-      { error: 'bad_request', message: 'request body must be a JSON object' },
+      { error: 'bad_request', message: validated.error },
       400,
     );
   }
-  // Field-level validation below narrows from the unknown record into the
-  // ExecuteRequest shape the spawn pipeline expects. Each field used as a
-  // registry key or argv input is gated explicitly; everything else is
-  // forwarded as the spawn-side argv builder re-validates it.
-  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- wire-shape narrowing; spawn-side argv builder re-validates each field
-  const parsed = parsedUnknown as ExecuteRequest;
-  // Validate the only field we use as a registry key before touching state.
-  // Defends against an unauthenticated dev-mode caller polluting the
-  // in-flight set with garbage ids that would block legitimate cancels.
-  if (
-    typeof parsed.executionId !== 'string' ||
-    !ID_ALPHABET_RE.test(parsed.executionId)
-  ) {
-    return jsonResponse(
-      { error: 'bad_request', message: 'executionId is missing or malformed' },
-      400,
-    );
-  }
+  const parsed = validated.request;
 
   // Reject duplicates explicitly: the in-flight registry is keyed by
   // executionId, and overwriting the entry would silently detach the
