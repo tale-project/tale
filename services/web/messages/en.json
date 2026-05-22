@@ -62,13 +62,12 @@
       "country": "Switzerland",
       "vatId": "CHE-186.532.610"
     },
-    "copyrightLine1": "© {year} Tale by Ruler GmbH — ISO 27001 & SOC 2 certified.",
-    "copyrightLine2": "Tale is MIT licensed — free to use, modify, and distribute."
+    "copyright": "© {year} Tale by Ruler GmbH — ISO 27001 & SOC 2 certified. MIT licensed."
   },
   "home": {
     "hero": {
-      "title": "The Sovereign AI Platform",
-      "subtitle": "Local AI models, agents, skills, and automations — on your own infrastructure, connected to your data",
+      "title": "All the Power of AI. None of the Risk.",
+      "subtitle": "Tale is the open source AI platform for chat, agents, and automations — running on your servers, trained on your data, built in Switzerland.",
       "ctaPrimary": "Request demo",
       "ctaSecondary": "Read docs",
       "footNote": "We integrate with {logos} and more — our expertise covers the rest.",
@@ -76,68 +75,52 @@
       "integrationsSuffix": "and more — our expertise covers the rest.",
       "integrations": ["Microsoft", "Google", "Atlassian"]
     },
-    "logoWall": {
-      "prefix": "We integrate with",
-      "suffix": "and more — our expertise covers the rest."
+    "tagline": {
+      "title": "Your Infrastructure. Your Data. Your Rules.",
+      "subtitle": "Run AI with complete control — from where it's hosted to how your data is governed.",
+      "pillars": {
+        "selfHosted": {
+          "title": "Self-hosted by default",
+          "description": "Runs on your infrastructure with zero cloud dependency. Your data never leaves your environment, and you're never locked into a vendor."
+        },
+        "security": {
+          "title": "Enterprise-grade security",
+          "description": "Single sign-on, sensitive data detection, content safety guardrails, full activity logging, and budget controls — all built in, not bolted on."
+        },
+        "openSource": {
+          "title": "Fully open source",
+          "description": "Review the entire codebase. Customize anything. No black boxes, no hidden costs, no permission needed."
+        }
+      }
     },
     "featureSecure": {
-      "title": "The Secure Platform for All Your Operations",
-      "description": "Chat with AI, automate workflows, manage conversations across channels, and keep humans in the loop — in one place.",
       "chat": {
-        "label": "Chat with AI",
-        "description": "An AI chat interface trained on your company's data, history, and documents — ask questions, search across systems, and get instant, accurate answers."
+        "eyebrow": "Chat",
+        "title": "Ask your data\nanything",
+        "description": "Upload documents, crawl websites, and connect your product and customer data to build a knowledge base. Then just ask.\n\nPick a specialist, attach files, and get answers grounded in what your company actually knows — not generic internet data."
       },
       "conversations": {
-        "label": "Conversations",
-        "description": "Reply to email, chat, and voice from a single inbox. Tale keeps every channel on your infrastructure with full conversation history and routing."
+        "eyebrow": "Conversations",
+        "title": "Every conversation,\none place",
+        "description": "Email, chat, and every customer channel flow into one inbox. AI drafts replies using your knowledge base, customer history, and product data.\n\nConversations route to the right person automatically. AI handles the first draft; your team has the final word."
+      },
+      "agents": {
+        "eyebrow": "Agents",
+        "title": "AI specialists\nfor every team",
+        "description": "Give an agent a role, connect it to your data, and choose its AI model — it's ready in minutes. No coding required.\n\nFrom customer support to compliance reviews, create specialists that use your knowledge base and improve with every conversation."
       },
       "automations": {
-        "label": "Automations",
-        "description": "Compose multi-step automations that connect tools, models, and humans. Trigger from any event and resume them on demand."
-      },
-      "approvals": {
-        "label": "Approvals",
-        "description": "Keep humans in the loop with explicit approval steps. Tale routes the right context to the right reviewers and audits every decision."
+        "eyebrow": "Automations",
+        "title": "Automation without the\nengineering",
+        "description": "Build workflows that trigger on events, make decisions with AI, and loop until the job is done. Changes go live the moment you save.\n\nFrom customer onboarding to escalation chains, automate the repetitive work that slows your team down."
       }
     },
-    "featureSectors": {
-      "title": "Built for Real Operational Work",
-      "description": "Backed by a team that takes responsibility for your success — across industries and use cases.",
-      "cta": "Request demo",
-      "hospitality": {
-        "label": "Hospitality",
-        "description": "Guide customers. Automate logistics. Support post-purchase tasks. Tale adapts to changing demand while maintaining brand trust"
-      },
-      "legal": {
-        "label": "Legal",
-        "description": "Draft, review, and route legal work with full audit trails. Tale keeps sensitive matter on your infrastructure while reducing turnaround time."
-      },
-      "finance": {
-        "label": "Finance",
-        "description": "Reconcile, analyse, and report with strict controls. Tale connects to your data without sending it anywhere it shouldn't go."
-      }
-    },
-    "featureGrid": {
-      "title": "Security, Privacy & Reliability",
-      "description": "Core principles that help you run private AI on your terms.",
-      "independent": {
-        "title": "Independent by Design",
-        "description": "Self-operated, open source, on-prem or in cloud — so you stay independent from third-party SaaS, vendors, and lock-in."
-      },
-      "stack": {
-        "title": "All from A to Z",
-        "description": "From hardware and software to support, consulting, and professional services — everything you need to run AI in production."
-      },
-      "proven": {
-        "title": "Proven, Secure, Reliable",
-        "description": "A secure, reliable, and scalable platform with proven accuracy, built for mission-critical workflows."
-      },
-      "needs": {
-        "title": "Built for Your Needs",
-        "description": "Use workflows that integrate with your existing infrastructure, so it fits the way you already operate."
-      }
+    "integrations": {
+      "title": "Works with the tools you already use",
+      "subtitle": "Connects to leading AI providers and integrates with your existing business tools."
     },
     "compliance": {
+      "eyebrow": "SECURITY",
       "title": "Enterprise-Grade Trust & Compliance",
       "independent": {
         "title": "Independent & Transparent",
@@ -151,6 +134,8 @@
     "faq": {
       "eyebrow": "FAQ",
       "title": "Frequently Asked Questions",
+      "stillQuestions": "Still have questions?",
+      "contactTeam": "Contact our team",
       "sovereignty": {
         "q": "How does Enterprise pricing work?",
         "a": "Enterprise is billed per user/month, with two months free when paying yearly. Storage beyond the included quota is billed per TB/month. The Community edition stays free for self-hosted use."
@@ -181,10 +166,10 @@
       }
     },
     "cta": {
-      "title": "Deploy Private AI on Your Terms",
+      "title": "Get Started with Tale",
       "description": "Run a sovereign AI stack on your own infrastructure — get in touch.",
       "primary": "Request demo",
-      "secondary": "Talk to us"
+      "secondary": "See how it works"
     }
   },
   "complianceTrust": {

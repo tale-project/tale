@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 540" preserveAspectRatio="xMidYMid meet" width="100%" height="100%">
+  <rect width="600" height="540" fill="#FAFAFA"/>
+  <g transform="translate(0, 22)">
+    <rect x="8" y="24" width="584" height="448" rx="14"
+      fill="#FFFFFF" stroke="rgba(0,0,0,0.08)" stroke-width="1"/>
+    <line x1="8" y1="68" x2="592" y2="68" stroke="rgba(0,0,0,0.08)" stroke-width="1"/>
+    <g transform="translate(32, 50)">
+      <circle cx="0" cy="0" r="5.5" fill="rgba(14,13,11,0.12)"/>
+      <circle cx="16" cy="0" r="5.5" fill="rgba(14,13,11,0.12)"/>
+      <circle cx="32" cy="0" r="5.5" fill="rgba(14,13,11,0.12)"/>
+      <text x="536" y="4" text-anchor="end" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" fill="rgba(14,13,11,0.38)" letter-spacing="0.6">redacted.log</text>
+    </g>
+
+    <text x="32" y="130" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15"
+        fill="#0E0D0B" letter-spacing="0.01em" xml:space="preserve">Customer </text>
+      <text x="118.39999999999999" y="130" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" fill="#0E0D0B"
+        letter-spacing="0.01em">John Smith
+        <animate attributeName="opacity"
+          values="1;1;0;0;1" keyTimes="0;0.42;0.52;0.92;1"
+          dur="3.6s" begin="0s" repeatCount="indefinite"/>
+      </text>
+      <text x="118.39999999999999" y="130" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" fill="#2A5F8F"
+        font-weight="600" letter-spacing="0.01em">**********
+        <animate attributeName="opacity"
+          values="0;0;1;1;0" keyTimes="0;0.42;0.52;0.92;1"
+          dur="3.6s" begin="0s" repeatCount="indefinite"/>
+      </text>
+    <text x="214.39999999999998" y="130" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15"
+        fill="#0E0D0B" letter-spacing="0.01em" xml:space="preserve"> writes:</text><text x="32" y="162" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15"
+        fill="rgba(14,13,11,0.55)" letter-spacing="0.01em" xml:space="preserve">&quot;I forgot my password.</text><text x="32" y="194" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15"
+        fill="rgba(14,13,11,0.55)" letter-spacing="0.01em" xml:space="preserve"> My SSN is </text>
+      <text x="137.6" y="194" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" fill="rgba(14,13,11,0.55)"
+        letter-spacing="0.01em">412-88-3014
+        <animate attributeName="opacity"
+          values="1;1;0;0;1" keyTimes="0;0.42;0.52;0.92;1"
+          dur="3.6s" begin="0.6s" repeatCount="indefinite"/>
+      </text>
+      <text x="137.6" y="194" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" fill="#2A5F8F"
+        font-weight="600" letter-spacing="0.01em">***********
+        <animate attributeName="opacity"
+          values="0;0;1;1;0" keyTimes="0;0.42;0.52;0.92;1"
+          dur="3.6s" begin="0.6s" repeatCount="indefinite"/>
+      </text>
+    <text x="243.2" y="194" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15"
+        fill="rgba(14,13,11,0.55)" letter-spacing="0.01em" xml:space="preserve">,</text><text x="32" y="226" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15"
+        fill="rgba(14,13,11,0.55)" letter-spacing="0.01em" xml:space="preserve"> email </text>
+      <text x="99.2" y="226" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" fill="rgba(14,13,11,0.55)"
+        letter-spacing="0.01em">john@acme.com
+        <animate attributeName="opacity"
+          values="1;1;0;0;1" keyTimes="0;0.42;0.52;0.92;1"
+          dur="3.6s" begin="1.2s" repeatCount="indefinite"/>
+      </text>
+      <text x="99.2" y="226" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" fill="#2A5F8F"
+        font-weight="600" letter-spacing="0.01em">*************
+        <animate attributeName="opacity"
+          values="0;0;1;1;0" keyTimes="0;0.42;0.52;0.92;1"
+          dur="3.6s" begin="1.2s" repeatCount="indefinite"/>
+      </text>
+    <text x="224" y="226" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15"
+        fill="rgba(14,13,11,0.55)" letter-spacing="0.01em" xml:space="preserve">.</text><text x="32" y="258" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15"
+        fill="rgba(14,13,11,0.55)" letter-spacing="0.01em" xml:space="preserve"> Please help reset.&quot;</text>
+
+    
+      <rect x="32" y="286" width="493.12" height="22" rx="3"
+        fill="#0E0D0B" opacity="0.05"><animate attributeName="opacity" values="0.05;0.07500000000000001;0.05"
+          dur="2.6s" begin="0.00s" repeatCount="indefinite"/></rect>
+    
+      <rect x="32" y="324" width="353.76" height="22" rx="3"
+        fill="#0E0D0B" opacity="0.04"><animate attributeName="opacity" values="0.04;0.065;0.04"
+          dur="2.6s" begin="0.35s" repeatCount="indefinite"/></rect>
+    
+      <rect x="32" y="362" width="450.24" height="22" rx="3"
+        fill="#0E0D0B" opacity="0.045"><animate attributeName="opacity" values="0.045;0.07;0.045"
+          dur="2.6s" begin="0.70s" repeatCount="indefinite"/></rect>
+    
+      <rect x="32" y="400" width="257.28" height="22" rx="3"
+        fill="#0E0D0B" opacity="0.035"><animate attributeName="opacity" values="0.035;0.060000000000000005;0.035"
+          dur="2.6s" begin="1.05s" repeatCount="indefinite"/></rect>
+    
+  </g>
+</svg>

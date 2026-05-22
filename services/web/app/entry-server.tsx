@@ -36,7 +36,7 @@ export async function render(url: string): Promise<RenderResult> {
 
   const html = renderToString(
     <StrictMode>
-      <AppShell i18n={i18n}>
+      <AppShell i18n={i18n} theme>
         <RouterProvider router={router} />
       </AppShell>
     </StrictMode>,

@@ -1,1 +1,28 @@
 @import '@tale/webui/globals.css';
+
+/* Marketing site dark palette overrides — keep borders closer to the page
+   bg (#27272a vs the platform default #404040) so dividers read as subtle
+   separators in the .pen designs. The bg-base lifts to #0f0f0f so the
+   sticky navbar, root wrapper, and content sections share a single dark
+   surface instead of the bluer #030712 default. */
+.dark {
+  --color-bg-base: #0f0f0f;
+  --color-border-base: #27272a;
+}
+
+/* Marquee track. The track contains the logos rendered twice; translating
+   -50% wraps the second set into the first's slot for a seamless loop. */
+@keyframes marquee {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track {
+    animation: none !important;
+  }
+}

@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 540" preserveAspectRatio="xMidYMid meet" width="100%" height="100%">
+  <rect width="600" height="540" fill="#151515"/>
+  <g transform="translate(0, 22)">
+    <rect x="8" y="24" width="584" height="448" rx="14"
+      fill="#0F0F0F" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+    <line x1="8" y1="68" x2="592" y2="68" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+    <g transform="translate(32, 50)">
+      <circle cx="0" cy="0" r="5.5" fill="rgba(244,241,234,0.12)"/>
+      <circle cx="16" cy="0" r="5.5" fill="rgba(244,241,234,0.12)"/>
+      <circle cx="32" cy="0" r="5.5" fill="rgba(244,241,234,0.12)"/>
+      <text x="536" y="4" text-anchor="end" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" fill="rgba(244,241,234,0.32)" letter-spacing="0.6">tale@localhost</text>
+    </g>
+
+    <g transform="translate(32, 124)" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15">
+      <text x="0" y="0" fill="#F4F1EA">$ tale start</text><text x="0" y="36" fill="rgba(244,241,234,0.52)">↳ platform   running</text><text x="0" y="60" fill="rgba(244,241,234,0.52)">↳ rag        running</text><text x="0" y="84" fill="rgba(244,241,234,0.52)">↳ convex     running</text>
+    </g>
+
+    <g transform="translate(24, 264)">
+      <rect x="0" y="0" width="552" height="38" rx="9"
+        fill="rgba(42,95,143,0.07)" stroke="#2A5F8F" stroke-width="1">
+        <animate attributeName="stroke-opacity" values="0.6;1;0.6" dur="3.6s" repeatCount="indefinite"/>
+      </rect>
+      <rect x="0" y="0" width="552" height="38" rx="9"
+        fill="#2A5F8F" fill-opacity="0.04" stroke="none">
+        <animate attributeName="fill-opacity" values="0.04;0.10;0.04" dur="3.6s" repeatCount="indefinite"/>
+      </rect>
+      <text x="18" y="25" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" fill="#2A5F8F">✓ ready at https://localhost</text>
+    </g>
+
+    <g transform="translate(32, 340)" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15">
+      <text x="0" y="0" fill="#F4F1EA">$</text>
+      <rect x="14" y="-13" width="9" height="16" fill="#F4F1EA"><animate attributeName="opacity" values="1;0;1" dur="1.1s" repeatCount="indefinite"/></rect>
+    </g>
+
+    <g transform="translate(32, 404)">
+      <line x1="0" y1="0" x2="536" y2="0" stroke="rgba(255,255,255,0.07)"/>
+      <text x="0" y="22" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="rgba(244,241,234,0.32)" letter-spacing="0.8">HOST · 0.0.0.0  ·  EGRESS · 0  ·  VENDOR · NONE</text>
+    </g>
+  </g>
+</svg>

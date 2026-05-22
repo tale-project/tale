@@ -62,13 +62,12 @@
       "country": "Suisse",
       "vatId": "CHE-186.532.610"
     },
-    "copyrightLine1": "© {year} Tale par Ruler GmbH — certifié ISO 27001 et SOC 2.",
-    "copyrightLine2": "Tale est sous licence MIT — libre d'utilisation, de modification et de distribution."
+    "copyright": "© {year} Tale par Ruler GmbH — certifié ISO 27001 et SOC 2. Sous licence MIT."
   },
   "home": {
     "hero": {
-      "title": "La plateforme d'IA souveraine",
-      "subtitle": "Des modèles d'IA, agents, compétences et automatisations locaux — sur ta propre infrastructure, connectés à tes données",
+      "title": "Toute la puissance de l'IA. Sans le risque.",
+      "subtitle": "Tale est la plateforme d'IA open source pour le chat, les agents et les automatisations — tourne sur tes serveurs, entraînée sur tes données, conçue en Suisse.",
       "ctaPrimary": "Demander une démo",
       "ctaSecondary": "Lire la doc",
       "footNote": "Nous nous intégrons avec {logos} et plus encore — notre expertise couvre le reste.",
@@ -76,68 +75,52 @@
       "integrationsSuffix": "et plus encore — notre expertise couvre le reste.",
       "integrations": ["Microsoft", "Google", "Atlassian"]
     },
-    "logoWall": {
-      "prefix": "Nous nous intégrons à",
-      "suffix": "et plus — notre expertise couvre le reste."
+    "tagline": {
+      "title": "Ton infrastructure. Tes données. Tes règles.",
+      "subtitle": "Fais tourner l'IA avec un contrôle total — de l'hébergement à la gouvernance des données.",
+      "pillars": {
+        "selfHosted": {
+          "title": "Auto-hébergé par défaut",
+          "description": "Tourne sur ton infrastructure, sans aucune dépendance au cloud. Tes données ne quittent jamais ton environnement, et tu n'es jamais lié à un fournisseur."
+        },
+        "security": {
+          "title": "Sécurité de niveau entreprise",
+          "description": "Single sign-on, détection de données sensibles, garde-fous de sûreté de contenu, journalisation complète et contrôles de budget — tout est intégré, rien n'est greffé."
+        },
+        "openSource": {
+          "title": "Entièrement open source",
+          "description": "Inspecte tout le code. Personnalise tout. Pas de boîte noire, pas de coûts cachés, aucune permission requise."
+        }
+      }
     },
     "featureSecure": {
-      "title": "La plateforme sécurisée pour toutes tes opérations",
-      "description": "Discute avec l'IA, automatise les workflows, gère les conversations sur tous les canaux et garde l'humain dans la boucle — au même endroit.",
       "chat": {
-        "label": "Discuter avec l'IA",
-        "description": "Une interface de chat IA entraînée sur les données, l'historique et les documents de ton entreprise — pose des questions, recherche dans tous les systèmes et obtiens des réponses précises et instantanées."
+        "eyebrow": "Chat",
+        "title": "Demande tout\nà tes données",
+        "description": "Charge des documents, crawle des sites web et connecte tes données produits et clients pour bâtir une base de connaissances. Puis demande, simplement.\n\nChoisis un spécialiste, joins des fichiers et obtiens des réponses fondées sur ce que ton entreprise sait vraiment — pas sur des données internet génériques."
       },
       "conversations": {
-        "label": "Conversations",
-        "description": "Réponds aux emails, chats et appels depuis une seule boîte de réception. Tale garde chaque canal sur ton infrastructure, avec historique et routage complets."
+        "eyebrow": "Conversations",
+        "title": "Chaque conversation,\nau même endroit",
+        "description": "Email, chat et chaque canal client convergent vers une seule boîte de réception. L'IA rédige les réponses à partir de ta base de connaissances, de l'historique client et des données produit.\n\nLes conversations sont acheminées automatiquement à la bonne personne. L'IA propose le premier brouillon ; ton équipe a le dernier mot."
+      },
+      "agents": {
+        "eyebrow": "Agents",
+        "title": "Des spécialistes IA\npour chaque équipe",
+        "description": "Donne un rôle à un agent, connecte-le à tes données et choisis son modèle IA — il est prêt en quelques minutes. Sans coder.\n\nDu support client aux revues de conformité, crée des spécialistes qui exploitent ta base de connaissances et s'améliorent à chaque conversation."
       },
       "automations": {
-        "label": "Automatisations",
-        "description": "Compose des automatisations multi-étapes reliant outils, modèles et humains. Déclenche-les depuis n'importe quel événement et reprends-les à la demande."
-      },
-      "approvals": {
-        "label": "Approbations",
-        "description": "Garde l'humain dans la boucle avec des étapes d'approbation explicites. Tale achemine le bon contexte aux bons relecteurs et audite chaque décision."
+        "eyebrow": "Automatisations",
+        "title": "L'automatisation\nsans l'ingénierie",
+        "description": "Construis des workflows déclenchés par des événements, qui prennent des décisions avec l'IA et bouclent jusqu'à ce que le travail soit fait. Les changements sont en ligne dès que tu sauvegardes.\n\nDe l'onboarding client aux chaînes d'escalade, automatise le travail répétitif qui ralentit ton équipe."
       }
     },
-    "featureSectors": {
-      "title": "Conçu pour le travail opérationnel réel",
-      "description": "Soutenu par une équipe qui prend la responsabilité de ton succès — quels que soient le secteur et l'usage.",
-      "cta": "Demander une démo",
-      "hospitality": {
-        "label": "Hôtellerie",
-        "description": "Guide tes clients. Automatise la logistique. Soutiens les tâches après-vente. Tale s'adapte à la demande tout en préservant la confiance dans ta marque."
-      },
-      "legal": {
-        "label": "Juridique",
-        "description": "Rédige, examine et achemine le travail juridique avec une traçabilité complète. Tale conserve les données sensibles sur ton infrastructure tout en réduisant les délais."
-      },
-      "finance": {
-        "label": "Finance",
-        "description": "Réconcilie, analyse et reporte avec des contrôles stricts. Tale se connecte à tes données sans jamais les envoyer ailleurs qu'elles ne devraient aller."
-      }
-    },
-    "featureGrid": {
-      "title": "Sécurité, confidentialité et fiabilité",
-      "description": "Des principes fondamentaux qui te permettent d'exécuter une IA privée à tes conditions.",
-      "independent": {
-        "title": "Indépendant par conception",
-        "description": "Auto-exploité, open source, on-premises ou dans le cloud — pour rester indépendant des SaaS tiers, des fournisseurs et du verrouillage."
-      },
-      "stack": {
-        "title": "Tout de A à Z",
-        "description": "Du matériel et logiciel au support, conseil et services professionnels — tout ce qu'il te faut pour exécuter l'IA en production."
-      },
-      "proven": {
-        "title": "Éprouvé, sécurisé, fiable",
-        "description": "Une plateforme sécurisée, fiable et évolutive avec une précision éprouvée, conçue pour les workflows critiques."
-      },
-      "needs": {
-        "title": "Adapté à tes besoins",
-        "description": "Utilise des workflows qui s'intègrent à ton infrastructure existante, pour qu'ils s'adaptent à ta façon de travailler."
-      }
+    "integrations": {
+      "title": "Compatible avec les outils que tu utilises déjà",
+      "subtitle": "Se connecte aux principaux fournisseurs d'IA et s'intègre à tes outils professionnels existants."
     },
     "compliance": {
+      "eyebrow": "SÉCURITÉ",
       "title": "Confiance et conformité de niveau entreprise",
       "independent": {
         "title": "Indépendant et transparent",
@@ -151,6 +134,8 @@
     "faq": {
       "eyebrow": "FAQ",
       "title": "Questions fréquentes",
+      "stillQuestions": "Encore des questions ?",
+      "contactTeam": "Contacte notre équipe",
       "sovereignty": {
         "q": "Comment fonctionne la tarification Enterprise ?",
         "a": "Enterprise est facturé par utilisateur et par mois, avec deux mois offerts en paiement annuel. Le stockage au-delà du quota inclus est facturé par To/mois. L'édition Community reste gratuite pour un usage auto-hébergé."
@@ -181,10 +166,10 @@
       }
     },
     "cta": {
-      "title": "Déploie une IA privée à tes conditions",
+      "title": "Démarre avec Tale",
       "description": "Fais tourner une stack d'IA souveraine sur ta propre infrastructure — contacte-nous.",
       "primary": "Demander une démo",
-      "secondary": "Nous parler"
+      "secondary": "Voir comment ça marche"
     }
   },
   "complianceTrust": {

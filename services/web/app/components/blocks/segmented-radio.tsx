@@ -22,7 +22,7 @@ export function SegmentedRadio<T extends string | number>({
     <div
       role="radiogroup"
       aria-label={ariaLabel}
-      className="bg-bg-elevated flex w-fit items-center gap-1 rounded-md p-0.5"
+      className="bg-bg-muted flex w-fit items-center gap-1 rounded-md p-0.5"
     >
       {options.map((option) => {
         const isActive = value === option;
@@ -35,7 +35,7 @@ export function SegmentedRadio<T extends string | number>({
             onClick={() => onChange(option)}
             className={`rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors ${
               isActive
-                ? 'bg-bg-base text-fg-base shadow-sm'
+                ? 'bg-bg-base text-fg-base shadow-sm dark:bg-[#404045]'
                 : 'text-fg-muted hover:text-fg-base cursor-pointer'
             }`}
           >

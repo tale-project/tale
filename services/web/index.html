@@ -10,7 +10,24 @@
     />
     <link rel="canonical" href="https://tale.dev/" />
     <meta name="theme-color" content="#fcfcfc" />
-    <meta name="color-scheme" content="light" />
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('tale-theme');
+          var prefersDark = window.matchMedia(
+            '(prefers-color-scheme: dark)',
+          ).matches;
+          var resolved =
+            stored === 'dark' || (stored !== 'light' && prefersDark)
+              ? 'dark'
+              : 'light';
+          if (resolved === 'dark') {
+            document.documentElement.classList.add('dark');
+          }
+          document.documentElement.style.colorScheme = resolved;
+        } catch (_) {}
+      })();
+    </script>
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link
       rel="icon"

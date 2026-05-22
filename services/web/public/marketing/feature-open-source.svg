@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 540" preserveAspectRatio="xMidYMid meet" width="100%" height="100%">
+  <rect width="600" height="540" fill="#FAFAFA"/>
+  <g transform="translate(0, 22)">
+    <rect x="8" y="24" width="584" height="448" rx="14"
+      fill="#FFFFFF" stroke="rgba(0,0,0,0.08)" stroke-width="1"/>
+    <line x1="8" y1="78" x2="592" y2="78" stroke="rgba(0,0,0,0.08)"/>
+    <text x="32" y="58" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="rgba(14,13,11,0.38)" letter-spacing="0.7">tale / agents / researcher.ts</text>
+    <text x="568" y="58" text-anchor="end" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="rgba(14,13,11,0.38)" letter-spacing="0.7">MIT  ·  main</text>
+
+    <!-- highlight rect, animates between lines 7, 8, 9 -->
+    <rect x="24" y="272" width="552" height="34" rx="8"
+      fill="rgba(42,95,143,0.06)" stroke="#2A5F8F" stroke-width="1">
+      <animate attributeName="stroke-opacity" values="0.55;1;0.55" dur="3.4s" repeatCount="indefinite"/>
+      <animate attributeName="y" values="272;272;300;300;328;328;272" keyTimes="0;0.20;0.30;0.50;0.60;0.85;1" dur="5s" repeatCount="indefinite"/>
+    </rect>
+
+    
+      <text x="32" y="126" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="rgba(14,13,11,0.38)" letter-spacing="0.4"> 1</text>
+      <text x="72" y="126" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" letter-spacing="0.01em"><tspan fill="rgba(14,13,11,0.38)">// agents/researcher.ts</tspan></text>
+    
+      <text x="32" y="154" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="rgba(14,13,11,0.38)" letter-spacing="0.4"> 2</text>
+      <text x="72" y="154" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" letter-spacing="0.01em"><tspan fill="#0E0D0B"></tspan></text>
+    
+      <text x="32" y="182" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="rgba(14,13,11,0.38)" letter-spacing="0.4"> 3</text>
+      <text x="72" y="182" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" letter-spacing="0.01em"><tspan fill="#0E0D0B">import</tspan><tspan fill="#0E0D0B"> { agent } </tspan><tspan fill="#0E0D0B">from</tspan><tspan fill="#0E0D0B"> </tspan><tspan fill="rgba(14,13,11,0.55)">&quot;@tale/core&quot;</tspan><tspan fill="#0E0D0B">;</tspan></text>
+    
+      <text x="32" y="210" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="rgba(14,13,11,0.38)" letter-spacing="0.4"> 4</text>
+      <text x="72" y="210" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" letter-spacing="0.01em"><tspan fill="#0E0D0B">import</tspan><tspan fill="#0E0D0B"> { search } </tspan><tspan fill="#0E0D0B">from</tspan><tspan fill="#0E0D0B"> </tspan><tspan fill="rgba(14,13,11,0.55)">&quot;../tools&quot;</tspan><tspan fill="#0E0D0B">;</tspan></text>
+    
+      <text x="32" y="238" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="rgba(14,13,11,0.38)" letter-spacing="0.4"> 5</text>
+      <text x="72" y="238" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" letter-spacing="0.01em"><tspan fill="#0E0D0B">import</tspan><tspan fill="#0E0D0B"> { customRag } </tspan><tspan fill="#0E0D0B">from</tspan><tspan fill="#0E0D0B"> </tspan><tspan fill="rgba(14,13,11,0.55)">&quot;./rag&quot;</tspan><tspan fill="#0E0D0B">;</tspan></text>
+    
+      <text x="32" y="266" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="rgba(14,13,11,0.38)" letter-spacing="0.4"> 6</text>
+      <text x="72" y="266" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" letter-spacing="0.01em"><tspan fill="#0E0D0B"></tspan></text>
+    
+      <text x="32" y="294" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="rgba(14,13,11,0.38)" letter-spacing="0.4"> 7</text>
+      <text x="72" y="294" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" letter-spacing="0.01em"><tspan fill="#0E0D0B">export const</tspan><tspan fill="#0E0D0B"> researcher </tspan><tspan fill="#0E0D0B">=</tspan><tspan fill="#0E0D0B"> </tspan><tspan fill="#0E0D0B">agent</tspan><tspan fill="#0E0D0B">({</tspan></text>
+    
+      <text x="32" y="322" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="rgba(14,13,11,0.38)" letter-spacing="0.4"> 8</text>
+      <text x="72" y="322" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" letter-spacing="0.01em"><tspan fill="#0E0D0B">  name: </tspan><tspan fill="rgba(14,13,11,0.55)">&quot;researcher&quot;</tspan><tspan fill="#0E0D0B">,</tspan></text>
+    
+      <text x="32" y="350" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="rgba(14,13,11,0.38)" letter-spacing="0.4"> 9</text>
+      <text x="72" y="350" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" letter-spacing="0.01em"><tspan fill="#0E0D0B">  retrieve: customRag,</tspan></text>
+    
+      <text x="32" y="378" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="rgba(14,13,11,0.38)" letter-spacing="0.4">10</text>
+      <text x="72" y="378" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" letter-spacing="0.01em"><tspan fill="#0E0D0B">  model: </tspan><tspan fill="rgba(14,13,11,0.55)">&quot;gpt-5&quot;</tspan><tspan fill="#0E0D0B">,</tspan></text>
+    
+      <text x="32" y="406" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="rgba(14,13,11,0.38)" letter-spacing="0.4">11</text>
+      <text x="72" y="406" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" letter-spacing="0.01em"><tspan fill="#0E0D0B">  tools: [search],</tspan></text>
+    
+      <text x="32" y="434" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="rgba(14,13,11,0.38)" letter-spacing="0.4">12</text>
+      <text x="72" y="434" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" letter-spacing="0.01em"><tspan fill="#0E0D0B">});</tspan></text>
+    
+
+    <!-- inline note next to the highlighted line — fades in only on line 9 -->
+    <text x="311.2" y="350" font-family="Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#2A5F8F" letter-spacing="0.5"
+      opacity="0">// your fork<animate attributeName="opacity" values="0;0;0;0;1;1;0" keyTimes="0;0.20;0.30;0.50;0.60;0.85;1" dur="5s" repeatCount="indefinite"/></text>
+  </g>
+</svg>
