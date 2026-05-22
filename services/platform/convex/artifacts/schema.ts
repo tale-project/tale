@@ -86,14 +86,12 @@ export const liveStreamModeValidator = v.union(
  * message stream so a single artifact can be mutated across many turns
  * without re-emitting its full content.
  *
- * `liveStreamMode` is set while a tool call is actively writing into this
- * row. For `create` and `rewrite` modes, `streamingContent` carries the
- * partial content the LLM has emitted so far — kept off `content` so a
- * crashed write cannot corrupt the previously-settled revision. For
- * `patch` mode, `streamingContent` stays empty (the row's content does
- * not change until execute settles atomically) and the partial patches
- * are mirrored to `streamingPatches` so the UI can render an inline diff
- * preview of the regions about to change.
+ * **In-flight refactor (see plan llm-majestic-hamming.md)**: many fields
+ * on this row are being migrated to dedicated tables (`artifactFiles`,
+ * `artifactRuns`, `artifactRunFiles`). They remain here as `@deprecated`
+ * per [feedback_deprecate_dont_delete_schema_fields] so existing rows
+ * keep parsing — new code reads/writes the new tables, with a fallback
+ * to these fields during the migration window.
  */
 export const artifactsTable = defineTable({
   organizationId: v.string(),
@@ -109,9 +107,10 @@ export const artifactsTable = defineTable({
    */
   content: v.optional(v.string()),
   /**
-   * Project-shaped file tree. Each entry's `path` is NFC-normalized and
-   * validated; total aggregate size capped at MAX_ARTIFACT_BYTES.
-   * Optional during Phase A migration; required in Phase C.
+   * @deprecated — migrating to `artifactFiles` table (one row per file
+   * keyed by `(artifactId, path)`). Reads still fall back here during the
+   * migration window; new writes go to `artifactFiles`. Do NOT remove —
+   * historical rows still carry this array.
    */
   files: v.optional(v.array(artifactFileValidator)),
   /**
@@ -127,33 +126,37 @@ export const artifactsTable = defineTable({
   lastEditedByMessageId: v.optional(v.string()),
   createdAt: v.number(),
   updatedAt: v.number(),
+  /**
+   * @deprecated — transient streaming state. Migrating to the per-file
+   * `artifactFiles.streamingWriteToolCallId` pointer + the agent
+   * component's `streamDeltas` table. Kept on the row so historical data
+   * passes the read validator; new code does not write this.
+   */
   liveStreamMode: v.optional(liveStreamModeValidator),
+  /** @deprecated — see {@link liveStreamMode}. */
   liveStreamStartedAt: v.optional(v.number()),
-  // The AI-SDK toolCallId of the create/edit invocation that produced this
-  // row (or whose latest edit produced it). The Canvas pane uses it to
-  // filter `tool-input-delta` parts in the agent SDK's streamDeltas table
-  // down to this artifact's stream and decode the partial `content` JSON
-  // field client-side — that's how chat-style smooth streaming is
-  // delivered without an extra deltas table on our side. Optional because
-  // pre-existing rows from before this field shipped don't have it; the
-  // canvas falls back to `streamingContent` for those.
+  /**
+   * @deprecated — the canvas now finds the active write toolCallId on the
+   * per-file `artifactFiles.streamingWriteToolCallId` pointer. Kept for
+   * historical rows; new code does not write this.
+   */
   toolCallId: v.optional(v.string()),
+  /**
+   * @deprecated — streamed content now lives in the agent component's
+   * `streamDeltas` table (looked up by toolCallId). Kept for historical
+   * rows that still carry partial bytes here.
+   */
   streamingContent: v.optional(v.string()),
   /**
-   * The file `path` the current `mode: 'rewrite'` stream is targeting.
-   * Advisory only — `files[]` is NOT mutated during streaming; the canvas
-   * computes its tree as `files.map(f => f.path) ∪ {streamingPath}` so a
-   * new-file rewrite shows a "ghost" tab during streaming and the entry
-   * is only added to `files[]` at settle. Cleared by every writer that
-   * clears the other streaming flags (via `clearStreamingFlags`).
+   * @deprecated — path is now non-streaming (declared on `artifact_edit_open`
+   * and re-passed on `artifact_edit_write`), so this advisory field is no
+   * longer needed. Historical rows may still carry it.
    */
   streamingPath: v.optional(v.string()),
-  // While `liveStreamMode === 'patch'`, the partial patches array parsed
-  // from the LLM's tool input is mirrored here as {search, replace} pairs
-  // (only entries with a complete `search`; `replace` may still be
-  // streaming in). The Canvas pane uses these to render an inline diff
-  // preview over the (still settled) source — patch mode never writes
-  // `streamingContent`, so this is the only mid-stream signal users have.
+  /**
+   * @deprecated — patch-mode preview rendering is being moved client-side
+   * over streamDeltas. Kept for historical rows.
+   */
   streamingPatches: v.optional(v.array(artifactPatchValidator)),
 
   // --- Runnable-artifact run state (populated only when type is
@@ -184,6 +187,11 @@ export const artifactsTable = defineTable({
   runStderrPreview: v.optional(v.string()),
   runStdoutStorageId: v.optional(v.id('_storage')),
   runStderrStorageId: v.optional(v.id('_storage')),
+  /**
+   * @deprecated — migrating to `artifactRunFiles` table (append-only, one
+   * row per produced file per run). Reads fall back here during migration
+   * window; new writes go to `artifactRunFiles` via an `artifactRuns` row.
+   */
   runOutputFiles: v.optional(v.array(artifactRunOutputFileValidator)),
   // Link to the latest per-execution audit row. The sandboxExecutions
   // table is the source of truth for execution history; the artifact row
@@ -246,3 +254,86 @@ export const artifactRevisionsTable = defineTable({
   patches: v.optional(v.array(artifactPatchValidator)),
   createdAt: v.number(),
 }).index('by_artifact', ['artifactId', 'revision']);
+
+// =============================================================================
+// Refactor target tables (plan: llm-majestic-hamming.md)
+//
+// Replace the embedded `files[]` / `runOutputFiles[]` / streaming-state
+// fields on `artifactsTable` with dedicated tables. The old fields remain
+// `@deprecated` on the parent row so historical data continues to parse;
+// new write paths target the tables below.
+// =============================================================================
+
+/**
+ * One row per source file in an artifact's project tree.
+ *
+ * Replaces the embedded `artifacts.files[]` array. Keyed by
+ * `(artifactId, path)`. `streamingWriteToolCallId` is the only transient
+ * state — set by `artifact_edit_write` onStart, cleared on commit; the
+ * canvas uses it to find the corresponding `streamDeltas` entries for
+ * live content rendering.
+ */
+export const artifactFilesTable = defineTable({
+  artifactId: v.id('artifacts'),
+  path: v.string(),
+  content: v.string(),
+  /**
+   * AI-SDK toolCallId of the active `artifact_edit_write` (or equivalent)
+   * tool call currently streaming bytes into this file. Cleared on
+   * commit. When set, the canvas reads agent-component `streamDeltas`
+   * filtered by this toolCallId for live content display.
+   */
+  streamingWriteToolCallId: v.optional(v.string()),
+  createdAt: v.number(),
+  updatedAt: v.number(),
+})
+  .index('by_artifact_path', ['artifactId', 'path'])
+  .index('by_artifact', ['artifactId']);
+
+/**
+ * One row per artifact execution attempt. Append-only — failed and
+ * cancelled runs leave their row in place so the user (and the LLM via
+ * `artifact_list_runs`) can see history. The next-run pre-stage resolves
+ * an `inputsFromRun` reference (defaulting to "latest succeeded") to
+ * decide which run's outputs to seed into `/workspace/output/`.
+ */
+export const artifactRunsTable = defineTable({
+  artifactId: v.id('artifacts'),
+  status: artifactRunStatusValidator,
+  exitCode: v.optional(v.number()),
+  errorCode: v.optional(artifactRunErrorCodeValidator),
+  errorMessage: v.optional(v.string()),
+  startedAt: v.number(),
+  endedAt: v.optional(v.number()),
+  /** Artifact `revision` at the moment this run started. */
+  revision: v.number(),
+  /** Audit row in `sandboxExecutions` table. */
+  executionId: v.optional(v.id('sandboxExecutions')),
+  /**
+   * The prior run whose `/workspace/output/` files were pre-staged into
+   * this run's container. `undefined` means "latest succeeded was used"
+   * (the default) or "nothing was pre-staged".
+   */
+  inputsFromRun: v.optional(v.id('artifactRuns')),
+})
+  .index('by_artifact', ['artifactId'])
+  .index('by_artifact_status', ['artifactId', 'status']);
+
+/**
+ * One row per file produced by a run (harvested from `/workspace/output/`
+ * at run end). Append-only — never overwritten. A failed run that
+ * produced partial files still gets rows here (per [D5]); the parent
+ * `artifactRuns.status` distinguishes the source.
+ */
+export const artifactRunFilesTable = defineTable({
+  runId: v.id('artifactRuns'),
+  /** Denormalized from `artifactRuns.artifactId` for direct queries. */
+  artifactId: v.id('artifacts'),
+  name: v.string(),
+  storageId: v.id('_storage'),
+  size: v.number(),
+  contentType: v.optional(v.string()),
+  createdAt: v.number(),
+})
+  .index('by_run', ['runId'])
+  .index('by_artifact', ['artifactId']);

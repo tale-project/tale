@@ -10,7 +10,13 @@ import {
   agentWebhookUserThreadsTable,
 } from './agents/webhooks/schema';
 import { approvalsTable } from './approvals/schema';
-import { artifactRevisionsTable, artifactsTable } from './artifacts/schema';
+import {
+  artifactFilesTable,
+  artifactRevisionsTable,
+  artifactRunFilesTable,
+  artifactRunsTable,
+  artifactsTable,
+} from './artifacts/schema';
 import { auditLogChainGenesisTable, auditLogsTable } from './audit_logs/schema';
 import {
   brandingBindingsTable,
@@ -90,7 +96,10 @@ import {
 
 export default defineSchema({
   approvals: approvalsTable,
+  artifactFiles: artifactFilesTable,
   artifactRevisions: artifactRevisionsTable,
+  artifactRunFiles: artifactRunFilesTable,
+  artifactRuns: artifactRunsTable,
   artifacts: artifactsTable,
   auditLogs: auditLogsTable,
   auditLogChainGenesis: auditLogChainGenesisTable,
