@@ -174,7 +174,12 @@ export function HardwareCompare({ mode }: HardwareCompareProps) {
   const modelRow: CompareRow<TierKey> = {
     kind: 'data',
     rowKey: 'model',
-    label: t('compare.categories.model'),
+    label: (
+      <LabelWithInfo
+        label={t('compare.categories.model')}
+        info={t('compare.categories.modelInfo')}
+      />
+    ),
     cells: {
       quality: <SpecValue value={t('models.quality')} />,
       hybrid: <SpecValue value={t('models.hybrid')} />,

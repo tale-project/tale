@@ -67,11 +67,15 @@ const NODES: Record<NodeKey, Node> = {
   },
 };
 
-/** Number of each node type composing a cluster. */
+/**
+ * Number of each node type composing a cluster. Every cluster ships with
+ * two application nodes (`hybrid`) — one drives the workload, the other
+ * stands by for redundancy and rolling upgrades.
+ */
 const CLUSTER_COMPOSITION: Record<ClusterKey, Record<NodeKey, number>> = {
-  quality: { quality: 6, hybrid: 1, speed: 0 },
-  hybrid: { quality: 3, hybrid: 1, speed: 1 },
-  speed: { quality: 0, hybrid: 1, speed: 2 },
+  quality: { quality: 6, hybrid: 2, speed: 0 },
+  hybrid: { quality: 3, hybrid: 2, speed: 1 },
+  speed: { quality: 0, hybrid: 2, speed: 2 },
 };
 
 const TIER_KEYS: readonly TierKey[] = ['quality', 'hybrid', 'speed'];

@@ -10,7 +10,7 @@ noindex: true
 
 Diese Nutzungsbedingungen ("Bedingungen") regeln deinen Zugriff auf und deine Nutzung der Website [https://tale.dev](https://tale.dev) ("Website"), die von der Ruler GmbH ("wir", "uns", "unsere") betrieben wird. Mit dem Zugriff auf oder der Nutzung unserer Website erklärst du dich an diese Bedingungen gebunden. Wenn du mit einem Teil dieser Bedingungen nicht einverstanden bist, nutze die Website bitte nicht.
 
-Diese Bedingungen gelten ausschließlich für die Nutzung der Website. Die Nutzung von Tale-Produkten und -Diensten wird separat durch unseren [Service Agreement](https://talecorp-my.sharepoint.com/:b:/g/personal/ym_tale_dev/IQDMsO0J9N-4RJtStv-1_IurAV_aXuHPQB5hfWnda5wSluA?e=cfXpDs) und den [Hardware Agreement](https://talecorp-my.sharepoint.com/:b:/g/personal/ym_tale_dev/IQDoJBWnXoqqQLlapn6eOPEcAUkySXRa3AUSrKFwYMl0VCU?e=JWmiZc) geregelt, jeweils wo anwendbar.
+Diese Bedingungen gelten ausschließlich für die Nutzung der Website. Die Nutzung von Tale-Produkten und -Diensten wird separat durch unseren [Service Agreement](/files/Service_Agreement_Template.pdf) und den [Hardware Agreement](/files/Hardware_Agreement_Template.pdf) geregelt, jeweils wo anwendbar.
 
 ## 2. Betreiber
 

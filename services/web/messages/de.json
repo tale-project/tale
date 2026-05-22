@@ -14,7 +14,7 @@
     },
     "requestDemo": {
       "title": "Demo anfragen",
-      "description": "Wir helfen datensensiblen Organisationen, Workflows mit privater, zuverlässiger KI zu automatisieren. Sprich mit unseren Fachexperten."
+      "description": "Wir helfen datensensiblen Organisationen, Workflows mit souveräner, zuverlässiger KI zu automatisieren. Sprich mit unseren Fachexperten."
     },
     "hardwarePricing": {
       "title": "Hardware-Preise",
@@ -116,8 +116,8 @@
       }
     },
     "integrations": {
-      "title": "Funktioniert mit deinen vorhandenen Tools",
-      "subtitle": "Verbindet sich mit führenden KI-Anbietern und integriert sich in deine bestehenden Business-Tools."
+      "title": "Wir haben Integrationen für die Tools, die du bereits nutzt",
+      "subtitle": "Verbindet sich mit führenden KI-Anbietern und ergänzt deine bestehenden Business-Tools."
     },
     "compliance": {
       "eyebrow": "SICHERHEIT",
@@ -218,7 +218,7 @@
       "priceSuffix": "/Monat + MwSt.",
       "storageAddOn": "1 TB + {price}/TB/Monat zusätzlicher Speicher",
       "userBreakdown": "{count} Nutzer × {perUser}/Nutzer/Monat",
-      "tagline": "Vollständig verwaltet, skalierbar und produktionsbereit — gebaut für geschäftskritische private KI.",
+      "tagline": "Vollständig verwaltet, skalierbar und produktionsbereit — gebaut für geschäftskritische souveräne KI.",
       "cta": "Kontakt aufnehmen",
       "feature1": "Selbst gehostet oder Cloud",
       "feature2": "Professionell gewartet (ISO 27001 & SOC 2 zertifiziert)",
@@ -354,14 +354,15 @@
       "subtitle": "Übersicht über jede Konfiguration",
       "categories": {
         "model": "Empfohlenes KI-Modell",
+        "modelInfo": "Vorschlag für ein Cluster-Setup. Einzelne Nodes können kleinere Varianten ausführen — das tatsächliche Modell wählt dein Team bei der Inbetriebnahme.",
         "size": "Größe",
         "sizeInfo": "Richtwerte — die tatsächliche Größe kann leicht abweichen.",
         "gpu": "Chip (GPU)",
         "cpu": "Chip (CPU)",
         "ram": "KI-RAM",
-        "ramInfo": "Schneller Speicher für KI-Berechnungen, z. B. Videospeicher (VRAM) oder Unified Memory (UMA).",
+        "ramInfo": "Schneller Speicher für KI-Berechnungen, z. B. GDDR7-Videospeicher oder Unified Memory (UMA).",
         "umaInfo": "Unified Memory Architecture — RAM, der sich CPU und GPU auf demselben Chip teilen (Apple Silicon).",
-        "vramInfo": "Video-RAM — dedizierter Speicher auf der GPU-Karte.",
+        "gddr7Info": "Graphics DDR der 7. Generation — Videospeicher mit hoher Bandbreite auf der GPU-Karte, optimiert für KI-Inferenz.",
         "ddr5Info": "DDR-SDRAM der fünften Generation (schneller und effizienter als DDR4).",
         "ddr5eccInfo": "DDR5 mit Fehlerkorrekturcode — Server-Speicher, der Einzelbit-Fehler erkennt und korrigiert.",
         "zen5Info": "AMDs x86-CPU-Mikroarchitektur der 5. Generation (2024).",
@@ -414,7 +415,7 @@
   "requestDemo": {
     "eyebrow": "Demo",
     "title": "Was treibt dein Unternehmen an?",
-    "paragraph1": "Wir helfen datensensiblen Organisationen, Workflows mit privater, zuverlässiger KI zu automatisieren.",
+    "paragraph1": "Wir helfen datensensiblen Organisationen, Workflows mit souveräner, zuverlässiger KI zu automatisieren.",
     "paragraph2": "Sprich mit einer unserer Fachpersonen, um KI-Lösungen zu erkunden und deine Ziele und Herausforderungen zu besprechen — wir finden gemeinsam die beste Lösung für dich.",
     "fieldName": "Name",
     "fieldPhone": "Telefon",
