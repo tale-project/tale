@@ -33,41 +33,32 @@ export interface ExecuteRequest {
   organizationId: string;
   language: Language;
   /**
-   * Single-script mode: the script content that the runtime entrypoint
-   * executes. The spawner writes this verbatim to
-   * /workspace/code/main.{py,js} — that's the file the runtime image's
-   * entrypoint shell exec()s. When `files` AND `entryPath` are provided,
-   * the caller sets `code` to the chosen entry file's content.
-   *
-   * Mutually exclusive with `steps`: requests must set exactly one of
-   * `code` or `steps`.
-   */
-  code?: string;
-  /**
-   * Optional sibling files to stage alongside the executed script. Each
-   * entry is written to /workspace/code/<path>. Enables Python `import
-   * helpers` / Node `require('./helpers')` between artifact files in the
-   * same run. Aggregate size capped at MAX_FILES_BYTES; per-file path
-   * validated against MAX_PATH_LENGTH + POSIX-traversal rules.
+   * Files to stage under /workspace/code/<path>. Required: in single-script
+   * mode the entry file lives here; in multi-script mode all steps + their
+   * siblings live here. Aggregate size capped at MAX_FILES_BYTES; per-file
+   * path validated against MAX_PATH_LENGTH + POSIX-traversal rules. Path
+   * segments starting with `.` are rejected, so user files can never land
+   * inside `/workspace/.tale/` where the multi-step wrapper goes.
    */
   files?: SandboxFile[];
   /**
-   * Path of the file in `files` that the caller intends as the entry. The
-   * spawner uses this to know which file's content was mirrored into
-   * `code`; it does NOT change which file the runtime exec()s (that's
-   * always main.{py,js}). Future runtime-image versions may consult this
-   * to support arbitrary entry paths.
+   * Single-script mode: relative path inside `files[]` to exec. The
+   * runtime image's entrypoint receives this as a positional arg and
+   * exec()s `/workspace/code/<entryPath>` directly — no synthetic mirror,
+   * so user filenames (including `main.py`) flow through unchanged and
+   * appear verbatim in tracebacks. Must reference an existing entry in
+   * `files[]` with non-empty content. Mutually exclusive with `steps`:
+   * requests must set exactly one of `entryPath` or `steps`.
    */
   entryPath?: string;
   /**
    * Multi-script mode: paths inside `files[]` to execute in sequence
-   * within the same container, sharing /workspace/. Spawner generates a
-   * thin wrapper script (written to main.{py,js}) that invokes each path
-   * via subprocess; fail-fast on first non-zero exit. Per-step results
-   * (exit code, duration, status) come back in `ExecuteResponse.steps[]`.
-   *
-   * Mutually exclusive with `code`. Step paths must not collide with the
-   * reserved entrypoint filename (`main.py` / `main.js`).
+   * within the same container, sharing /workspace/. Spawner writes a
+   * generated wrapper to `/workspace/.tale/runner.{py,js}` (a dir
+   * unreachable from user paths) and the entrypoint exec()s that wrapper,
+   * which subprocess-invokes each step path. Fail-fast on first non-zero
+   * exit. Per-step results (exit code, duration, status) come back in
+   * `ExecuteResponse.steps[]`. Mutually exclusive with `entryPath`.
    */
   steps?: string[];
   /**

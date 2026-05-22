@@ -10,7 +10,8 @@ const good = {
   executionId: 'abc-123',
   organizationId: 'org_42',
   language: 'python',
-  code: 'print("hi")',
+  files: [{ path: 'main.py', content: 'print("hi")' }],
+  entryPath: 'main.py',
 };
 
 describe('validateExecuteRequest', () => {
@@ -20,6 +21,10 @@ describe('validateExecuteRequest', () => {
     if (r.ok) {
       expect(r.request.executionId).toBe('abc-123');
       expect(r.request.language).toBe('python');
+      expect(r.request.entryPath).toBe('main.py');
+      expect(r.request.files).toEqual([
+        { path: 'main.py', content: 'print("hi")' },
+      ]);
     }
   });
 
@@ -45,20 +50,6 @@ describe('validateExecuteRequest', () => {
     const r = validateExecuteRequest({ ...good, language: 'ruby' });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/language/);
-  });
-
-  test('rejects non-string code', () => {
-    const r = validateExecuteRequest({ ...good, code: 42 });
-    expect(r.ok).toBe(false);
-  });
-
-  test('rejects oversized code', () => {
-    const r = validateExecuteRequest({
-      ...good,
-      code: 'x'.repeat(300_000),
-    });
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error).toMatch(/code/);
   });
 
   test('rejects non-array packages', () => {
@@ -124,27 +115,74 @@ describe('validateExecuteRequest', () => {
     }
   });
 
-  // ----- multi-step (`steps`) mode -----
+  // ----- mutex (entryPath xor steps) -----
 
-  test('rejects request with both code and steps (mutex)', () => {
+  test('rejects request with both entryPath and steps (mutex)', () => {
     const r = validateExecuteRequest({
       ...good,
-      steps: ['gen.py'],
-      files: [{ path: 'gen.py', content: 'print("gen")' }],
+      steps: ['main.py'],
     });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/exactly one/);
   });
 
-  test('rejects request with neither code nor steps', () => {
+  test('rejects request with neither entryPath nor steps', () => {
     const r = validateExecuteRequest({
       executionId: 'abc-123',
       organizationId: 'org_42',
       language: 'python',
+      files: [{ path: 'main.py', content: 'x' }],
     });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/exactly one/);
   });
+
+  // ----- single-script (`entryPath`) mode -----
+
+  test('rejects single-script mode without files[]', () => {
+    const r = validateExecuteRequest({
+      executionId: 'abc-123',
+      organizationId: 'org_42',
+      language: 'python',
+      entryPath: 'main.py',
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/files\[\]/);
+  });
+
+  test('rejects entryPath that has no matching files[] entry', () => {
+    const r = validateExecuteRequest({
+      executionId: 'abc-123',
+      organizationId: 'org_42',
+      language: 'python',
+      entryPath: 'missing.py',
+      files: [{ path: 'main.py', content: 'print(1)' }],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/must reference a path in files/);
+  });
+
+  test('rejects entryPath whose file is empty', () => {
+    const r = validateExecuteRequest({
+      executionId: 'abc-123',
+      organizationId: 'org_42',
+      language: 'python',
+      entryPath: 'main.py',
+      files: [{ path: 'main.py', content: '' }],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/empty/);
+  });
+
+  test('rejects non-string entryPath', () => {
+    const r = validateExecuteRequest({
+      ...good,
+      entryPath: 42,
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  // ----- multi-step (`steps`) mode -----
 
   test('accepts a valid multi-step request', () => {
     const r = validateExecuteRequest({
@@ -160,7 +198,7 @@ describe('validateExecuteRequest', () => {
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.request.steps).toEqual(['gen.py', 'validate.py']);
-      expect(r.request.code).toBeUndefined();
+      expect(r.request.entryPath).toBeUndefined();
     }
   });
 
@@ -184,7 +222,7 @@ describe('validateExecuteRequest', () => {
       steps: ['gen.py'],
     });
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error).toMatch(/requires `files\[\]`/);
+    if (!r.ok) expect(r.error).toMatch(/files\[\]/);
   });
 
   test('rejects step path not present in files[]', () => {
@@ -199,16 +237,35 @@ describe('validateExecuteRequest', () => {
     if (!r.ok) expect(r.error).toMatch(/must reference a path in files/);
   });
 
-  test('rejects step path that is the reserved entrypoint filename', () => {
+  test('accepts steps including main.py — the leaky-abstraction regression gate', () => {
+    // The user's literal trigger workflow: generator named main.py, validator
+    // named test.py, both run in sequence. Before the reservation removal this
+    // case errored out at the validator with "reserved entrypoint filename".
     const r = validateExecuteRequest({
       executionId: 'abc-123',
       organizationId: 'org_42',
       language: 'python',
-      steps: ['main.py'],
-      files: [{ path: 'main.py', content: 'print(1)' }],
+      steps: ['main.py', 'test.py'],
+      files: [
+        { path: 'main.py', content: 'print("gen")' },
+        { path: 'test.py', content: 'print("validate")' },
+      ],
     });
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error).toMatch(/reserved entrypoint/);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.request.steps).toEqual(['main.py', 'test.py']);
+    }
+  });
+
+  test('accepts a node multi-step request with main.js', () => {
+    const r = validateExecuteRequest({
+      executionId: 'abc-123',
+      organizationId: 'org_42',
+      language: 'node',
+      steps: ['main.js'],
+      files: [{ path: 'main.js', content: 'console.log(1)' }],
+    });
+    expect(r.ok).toBe(true);
   });
 
   test('rejects steps with > MAX_STEPS_PER_REQUEST entries', () => {

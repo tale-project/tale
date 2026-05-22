@@ -26,18 +26,6 @@ import {
   sandboxLanguageLiterals,
 } from './wire.ts';
 
-/**
- * Reserved entrypoint filenames the runtime image's entrypoint script
- * exec()s — the spawner writes the user's `code` OR the generated
- * multi-step wrapper to this path. A `steps[]` entry naming the same
- * file would cause infinite recursion (the wrapper would invoke itself),
- * so the validator rejects it upfront.
- */
-const RESERVED_ENTRY_BY_LANGUAGE: Record<Language, string> = {
-  python: 'main.py',
-  node: 'main.js',
-};
-
 type ValidateResult =
   | { ok: true; request: ExecuteRequest }
   | { ok: false; error: string };
@@ -51,7 +39,6 @@ const MAX_PACKAGES = 20;
 const MAX_PACKAGE_SPEC = 200;
 const MAX_PURPOSE = 200;
 const MAX_TIMEOUT_MS = 600_000; // 10 minutes — well above the runtime watchdog
-const MAX_CODE_BYTES = 200_000; // 200 KB source; aligns with platform MAX_ARTIFACT_BYTES
 
 function isString(v: unknown): v is string {
   return typeof v === 'string';
@@ -90,32 +77,19 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
     };
   }
 
-  // `code` (single-script) and `steps` (multi-script) are mutually
-  // exclusive — exactly one must be present. Single-script mode mirrors
-  // `code` into main.{py,js}; multi-script mode generates a wrapper there
-  // that subprocess-invokes each step. Allowing both would let an attacker
-  // shadow the wrapper with arbitrary code that bypasses the per-step
-  // bookkeeping.
-  const codeProvided = r.code !== undefined;
+  // `entryPath` (single-script) and `steps` (multi-script) are mutually
+  // exclusive — exactly one must be present. Single-script mode exec()s
+  // the file at `entryPath` directly; multi-script mode generates a
+  // wrapper at /workspace/.tale/runner.{py,js} that subprocess-invokes
+  // each step. Allowing both would let a caller shadow the wrapper's
+  // entry semantics; rejecting neither prevents a no-op container spawn.
+  const entryProvided = r.entryPath !== undefined;
   const stepsProvided = r.steps !== undefined;
-  if (codeProvided === stepsProvided) {
+  if (entryProvided === stepsProvided) {
     return {
       ok: false,
-      error: 'request must set exactly one of `code` or `steps`',
+      error: 'request must set exactly one of `entryPath` or `steps`',
     };
-  }
-  let validatedCode: string | undefined;
-  if (codeProvided) {
-    if (!isString(r.code)) {
-      return { ok: false, error: 'code must be a string' };
-    }
-    if (Buffer.byteLength(r.code, 'utf8') > MAX_CODE_BYTES) {
-      return {
-        ok: false,
-        error: `code exceeds ${MAX_CODE_BYTES}-byte limit`,
-      };
-    }
-    validatedCode = r.code;
   }
 
   // packages: optional string[] with length + per-element-length caps.
@@ -199,17 +173,27 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
     };
   }
 
-  // files / entryPath: optional sibling staging. Per-path safety mirrors
-  // the platform's `validatePath` rules; spawner-side check is
-  // defense-in-depth — never trust the upstream typecheck.
+  // files: required for both single-script and multi-script modes —
+  // single-script needs the entry file, multi-script needs every step's
+  // file. Per-path safety mirrors the platform's `validatePath` rules;
+  // spawner-side check is defense-in-depth — never trust the upstream
+  // typecheck.
   let files: SandboxFile[] | undefined;
-  let entryPath: string | undefined;
   if (r.files !== undefined) {
     const validated = validateFiles(r.files);
     if (!validated.ok) return { ok: false, error: validated.error };
     files = validated.files;
   }
-  if (r.entryPath !== undefined) {
+  if (files === undefined) {
+    return {
+      ok: false,
+      error: 'request must include `files[]` carrying the script contents',
+    };
+  }
+
+  // entryPath: single-script mode. Must name a non-empty file in `files[]`.
+  let entryPath: string | undefined;
+  if (entryProvided) {
     if (!isString(r.entryPath)) {
       return { ok: false, error: 'entryPath must be a string' };
     }
@@ -217,20 +201,26 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
     if (!safe.ok) {
       return { ok: false, error: `entryPath: ${safe.error}` };
     }
-    entryPath = r.entryPath;
-    if (files !== undefined && !files.some((f) => f.path === entryPath)) {
+    const match = files.find((f) => f.path === r.entryPath);
+    if (match === undefined) {
       return {
         ok: false,
-        error: `entryPath "${entryPath}" must reference a path in files`,
+        error: `entryPath "${r.entryPath}" must reference a path in files`,
       };
     }
+    if (match.content.length === 0) {
+      return {
+        ok: false,
+        error: `entryPath "${r.entryPath}" references an empty file`,
+      };
+    }
+    entryPath = r.entryPath;
   }
 
-  // steps: optional multi-script execution list. When set, `code` is
-  // omitted and the spawner generates a wrapper main.{py,js}. Each step
-  // path must reference an entry in `files[]`, must be safe-relative, and
-  // cannot collide with the reserved entrypoint filename (the wrapper
-  // would invoke itself otherwise).
+  // steps: multi-script execution list. Each step path must reference an
+  // entry in `files[]` and be safe-relative. The wrapper lives at
+  // /workspace/.tale/runner.{py,js} (a dir unreachable from user paths),
+  // so step names like "main.py" do not collide with anything.
   let steps: string[] | undefined;
   if (stepsProvided) {
     if (!Array.isArray(r.steps)) {
@@ -245,13 +235,6 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
         error: `steps exceeds ${MAX_STEPS_PER_REQUEST}-item limit`,
       };
     }
-    if (files === undefined) {
-      return {
-        ok: false,
-        error: 'steps requires `files[]` to provide the script contents',
-      };
-    }
-    const reservedEntry = RESERVED_ENTRY_BY_LANGUAGE[r.language];
     const validatedSteps: string[] = [];
     for (let i = 0; i < r.steps.length; i += 1) {
       const sp: unknown = r.steps[i];
@@ -261,12 +244,6 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
       const safe = isSafeRelativePath(sp);
       if (!safe.ok) {
         return { ok: false, error: `steps[${i}]: ${safe.error}` };
-      }
-      if (sp === reservedEntry) {
-        return {
-          ok: false,
-          error: `steps[${i}] "${sp}" collides with the reserved entrypoint filename — rename the script`,
-        };
       }
       if (!files.some((f) => f.path === sp)) {
         return {
@@ -298,11 +275,10 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
       executionId: r.executionId,
       organizationId: r.organizationId,
       language: r.language,
-      ...(validatedCode !== undefined && { code: validatedCode }),
       ...(packages !== undefined && { packages }),
       ...(timeoutMs !== undefined && { timeoutMs }),
       ...(options !== undefined && { options }),
-      ...(files !== undefined && { files }),
+      files,
       ...(entryPath !== undefined && { entryPath }),
       ...(steps !== undefined && { steps }),
     },

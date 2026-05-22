@@ -220,29 +220,24 @@ export const executeCode = internalAction({
 
     language: sandboxLanguageValidator,
     /**
-     * Single-script mode: source of the entry script. The action requires
-     * exactly one of `code` or `steps`; this is enforced at the spawner
-     * boundary (validate-request.ts) and re-checked below before the
-     * reservation mutation.
+     * Files to stage under /workspace/code/<path>. Required for both
+     * modes — single-script needs the entry file, multi-script needs every
+     * step's file. Forwarded verbatim to the spawner; the spawner
+     * re-validates path safety.
      */
-    code: v.optional(v.string()),
+    files: v.array(v.object({ path: v.string(), content: v.string() })),
     /**
-     * Optional sibling files staged at /workspace/code/<path> alongside
-     * the executed script. Enables Python `import helpers` / Node
-     * `require('./helpers')` between artifact files in the same run.
-     * Forwarded verbatim to the spawner; the spawner re-validates path
-     * safety. `code` still carries the executed script's content for
-     * cross-deploy compat with old spawners.
+     * Single-script mode: relative path inside `files[]` to exec. The
+     * runtime entrypoint receives this and exec()s `/workspace/code/<entryPath>`
+     * directly — no synthetic mirror. Mutually exclusive with `steps`;
+     * the mutex is enforced below before the reservation mutation, and
+     * re-enforced at the spawner boundary.
      */
-    files: v.optional(
-      v.array(v.object({ path: v.string(), content: v.string() })),
-    ),
-    /** Path of the file `code` was sourced from (must reference an entry in `files`). */
     entryPath: v.optional(v.string()),
     /**
      * Multi-script mode: paths inside `files[]` to execute sequentially
      * in the same container. See artifact_run_tool / spawner ExecuteRequest
-     * for the full contract. Mutually exclusive with `code`.
+     * for the full contract. Mutually exclusive with `entryPath`.
      */
     steps: v.optional(v.array(v.string())),
     packages: v.optional(v.array(v.string())),
@@ -301,23 +296,24 @@ export const executeCode = internalAction({
     steps: v.optional(v.array(sandboxStepResultValidator)),
   }),
   handler: async (ctx, args): Promise<ExecuteCodeResult> => {
-    // Exactly one of `code` or `steps` must be set. The spawner enforces
-    // this at the wire boundary, but we re-check here so a misuse from
-    // another caller (e.g. a future free-form executor) fails fast with a
-    // useful diagnostic instead of confusing 400s from the spawner.
-    const codeProvided = args.code !== undefined;
+    // Exactly one of `entryPath` or `steps` must be set. The spawner
+    // enforces this at the wire boundary, but we re-check here so a
+    // misuse from another caller (e.g. a future free-form executor)
+    // fails fast with a useful diagnostic instead of confusing 400s
+    // from the spawner.
+    const entryProvided = args.entryPath !== undefined;
     const stepsProvided = args.steps !== undefined && args.steps.length > 0;
-    if (codeProvided === stepsProvided) {
+    if (entryProvided === stepsProvided) {
       throw new ConvexError({
         code: 'INPUT_REJECTED',
         message:
-          'executeCode requires exactly one of `code` (single-script) or `steps[]` (multi-script).',
+          'executeCode requires exactly one of `entryPath` (single-script) or `steps[]` (multi-script).',
       });
     }
-    if (stepsProvided && args.files === undefined) {
+    if (args.files.length === 0) {
       throw new ConvexError({
         code: 'INPUT_REJECTED',
-        message: 'executeCode with `steps[]` also requires `files[]`.',
+        message: 'executeCode requires `files[]` carrying the script contents.',
       });
     }
 
@@ -328,15 +324,15 @@ export const executeCode = internalAction({
     const estimatedSeconds = Math.ceil(timeoutMs / 1000);
 
     // ---- codePreview / codeStorageId split ----
-    // In multi-step mode the spawner generates the executed wrapper itself,
-    // so there is no caller-supplied `code`. Persist a stable synthesized
-    // preview keyed off the step list — the audit row still shows what was
-    // requested without falsely advertising any of the user's individual
-    // scripts as "the executed code".
-    const sourceForPreview =
-      args.code !== undefined
-        ? args.code
-        : `[multi-step] ${args.steps?.join(' → ') ?? ''}`;
+    // Single-script mode: persist the entry file's content as the executed
+    // source. Multi-step mode: the spawner generates the executed wrapper
+    // itself, so persist a stable synthesized preview keyed off the step
+    // list — the audit row still shows what was requested without
+    // falsely advertising any of the user's individual scripts as "the
+    // executed code".
+    const sourceForPreview = entryProvided
+      ? (args.files.find((f) => f.path === args.entryPath)?.content ?? '')
+      : `[multi-step] ${args.steps?.join(' → ') ?? ''}`;
     const codeBytes = Buffer.byteLength(sourceForPreview, 'utf8');
     let codePreview = sourceForPreview;
     let codeStorageId: Id<'_storage'> | undefined;
@@ -365,7 +361,10 @@ export const executeCode = internalAction({
           }),
           ...(args.agentSlug !== undefined && { agentSlug: args.agentSlug }),
           ...(args.artifactId !== undefined && { artifactId: args.artifactId }),
-          ...(args.entryPath !== undefined && { path: args.entryPath }),
+          // Audit-row attribution: single-script → the executed file;
+          // multi-step → the first step (still a meaningful pointer into
+          // the artifact tree for forensic grep).
+          path: args.entryPath ?? args.steps?.[0] ?? '<unknown>',
           language: args.language,
           purpose: args.purpose,
           codePreview,
@@ -627,15 +626,13 @@ export const executeCode = internalAction({
           organizationId: args.organizationId,
           language: args.language,
           // The mutual-exclusion gate at the top of the handler guarantees
-          // exactly one of these branches lands in the body. We forward
-          // both shapes; the spawner's own validator enforces the wire
-          // contract a second time.
-          ...(args.code !== undefined && { code: args.code }),
+          // exactly one of `entryPath` / `steps` lands in the body. We
+          // forward both possibilities; the spawner's own validator
+          // enforces the wire contract a second time.
+          files: args.files,
+          ...(args.entryPath !== undefined && { entryPath: args.entryPath }),
           ...(args.steps !== undefined &&
             args.steps.length > 0 && { steps: args.steps }),
-          ...(args.files !== undefined &&
-            args.files.length > 0 && { files: args.files }),
-          ...(args.entryPath !== undefined && { entryPath: args.entryPath }),
           ...(args.packages !== undefined && { packages: args.packages }),
           ...(priorOutputFiles.length > 0 && { priorOutputFiles }),
           timeoutMs,

@@ -22,6 +22,14 @@ interface DockerRunInput {
   // after the container exits.
   workspaceHostDir: string;
   startedAtMs: number;
+  /**
+   * Path the runtime entrypoint will exec(). Either a relative POSIX path
+   * resolved under /workspace/code/ (single-script mode, points at the
+   * user's file), or an absolute path under /workspace/.tale/ (multi-step
+   * mode, points at the spawner-generated wrapper). The entrypoint
+   * rejects anything outside those two roots.
+   */
+  entryPath: string;
 }
 
 // executionId is either a UUID (hex + hyphens) from a direct caller or a
@@ -31,6 +39,12 @@ const UUID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 const ORG_RE = /^[a-zA-Z0-9_-]{1,128}$/;
 const VOL_RE = /^[a-zA-Z0-9_.-]{1,128}$/;
 const HOST_DIR_RE = /^\/[a-zA-Z0-9_./-]{1,256}$/;
+// Relative POSIX-safe path (under /workspace/code/) OR an absolute path
+// under one of the two roots the runtime entrypoint accepts. The negative
+// lookahead bans `..` segments — defense-in-depth, the spawner-side
+// validator already strips these.
+const ENTRY_PATH_RE =
+  /^(?:\/workspace\/(?:code|\.tale)\/(?!.*\.\.)[A-Za-z0-9_./-]{1,256}|(?!.*\.\.)[A-Za-z0-9_-][A-Za-z0-9_./-]{0,255})$/;
 
 function assertSafe(name: string, value: string, re: RegExp): void {
   if (!re.test(value)) {
@@ -52,6 +66,7 @@ export function buildDockerRunArgs(
   assertSafe('pipCacheVolume', inp.pipCacheVolume, VOL_RE);
   assertSafe('npmCacheVolume', inp.npmCacheVolume, VOL_RE);
   assertSafe('workspaceHostDir', inp.workspaceHostDir, HOST_DIR_RE);
+  assertSafe('entryPath', inp.entryPath, ENTRY_PATH_RE);
   if (inp.language !== 'python' && inp.language !== 'node') {
     throw new Error(`docker-args: bad language: ${inp.language as string}`);
   }
@@ -140,10 +155,12 @@ export function buildDockerRunArgs(
     '--mount',
     `type=volume,src=${inp.npmCacheVolume},dst=/cache/npm`,
     // The runtime image's ENTRYPOINT is already `/entrypoint.sh`, so we only
-    // pass the entrypoint's positional args here.
+    // pass the entrypoint's positional args here. The 4th positional is the
+    // path the entrypoint will exec — see services/sandbox-runtime/entrypoint.sh.
     cfg.runtimeImage,
     inp.language,
     '/workspace/code/packages.json',
     '/workspace/code/options.json',
+    inp.entryPath,
   ];
 }

@@ -30,18 +30,18 @@ interface SpawnerExecuteBody {
   organizationId: string;
   language: SandboxLanguage;
   /**
-   * Single-script mode body field. Mutually exclusive with `steps`; the
-   * spawner rejects payloads where both (or neither) are present.
+   * Files staged at /workspace/code/<path>. Required for both single-script
+   * and multi-script modes. Mirrors `services/sandbox/src/types.ts:ExecuteRequest.files`.
+   * The cross-service wire-shape stays in sync via this duplicated
+   * declaration — any drift surfaces as a typecheck mismatch in the
+   * platform `executeCode` action which constructs this body.
    */
-  code?: string;
+  files: SandboxFileBody[];
   /**
-   * Optional sibling files staged at /workspace/code/<path>. Mirrors
-   * `services/sandbox/src/types.ts:ExecuteRequest.files`. The cross-service
-   * wire-shape stays in sync via this duplicated declaration — any drift
-   * surfaces as a typecheck mismatch in the platform `executeCode` action
-   * which constructs this body.
+   * Single-script mode: relative path inside `files[]` to exec. Mutually
+   * exclusive with `steps`; the spawner rejects payloads where both (or
+   * neither) are present.
    */
-  files?: SandboxFileBody[];
   entryPath?: string;
   /**
    * Multi-script mode body field. Paths in `files[]` that the spawner-

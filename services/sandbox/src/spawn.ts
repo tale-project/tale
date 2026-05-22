@@ -368,11 +368,11 @@ export async function stageWorkspace(
     await stagePriorOutputFiles(outputDir, req.priorOutputFiles);
   }
 
-  const mainName = req.language === 'python' ? 'main.py' : 'main.js';
-
-  // Stage sibling files first (if any). Each file lands at its declared
-  // relative path under /workspace/code/, allowing Python `import helpers`
-  // / Node `require('./helpers')` between artifact files in the same run.
+  // Stage user files at their declared paths under /workspace/code/.
+  // In single-script mode the entry file lives here; in multi-step mode
+  // every step + its siblings live here. No synthetic mirror — the runtime
+  // entrypoint exec()s the file at its declared path, so tracebacks and
+  // `__file__` carry the user's real filename.
   // Path safety already enforced by validate-request.ts; this resolve+prefix
   // check is defense-in-depth — if the validator ever regresses, here we
   // refuse to write outside codeDir.
@@ -389,22 +389,21 @@ export async function stageWorkspace(
     }
   }
 
-  // Write the executed script to main.{py,js}. The runtime image's
-  // entrypoint shell exec()s this fixed filename regardless of which
-  // artifact-file the LLM picked.
-  //
-  // Single-script mode: mirror `code` (the LLM-picked entry's content).
-  // Multi-script mode: emit a wrapper that subprocess-invokes each step
-  //                    path in order. validate-request guarantees the
-  //                    step paths don't collide with `mainName` so the
-  //                    wrapper cannot recurse into itself.
-  // If `files` ALSO contains an entry at main.{py,js}, this overwrites it
-  // — intentional: the executed script wins.
-  const mainContent =
-    req.steps !== undefined
-      ? buildMultiStepWrapper(req.language, req.steps)
-      : (req.code ?? '');
-  await writeFile(join(codeDir, mainName), mainContent);
+  // Multi-step mode: write the spawner-generated wrapper to a hidden dir
+  // outside /workspace/code/. The validator already rejects user paths
+  // with dotfile segments, so /workspace/.tale/ is guaranteed disjoint
+  // from anything in req.files[] — user step names like `main.py` cannot
+  // collide with the wrapper.
+  if (req.steps !== undefined) {
+    const taleDir = join(hostDir, '.tale');
+    await mkdir(taleDir, { recursive: true });
+    const wrapperName = req.language === 'python' ? 'runner.py' : 'runner.js';
+    await writeFile(
+      join(taleDir, wrapperName),
+      buildMultiStepWrapper(req.language, req.steps),
+    );
+  }
+
   await writeFile(
     join(codeDir, 'packages.json'),
     JSON.stringify(req.packages ?? []),
@@ -683,6 +682,17 @@ export async function executeRequest(
     await ensureCacheVolume(npmVolume);
     await stageWorkspace(workspaceHostDir, req);
 
+    // Resolve the path the runtime entrypoint will exec().
+    //   - steps[] → the spawner-generated wrapper under /workspace/.tale/
+    //   - single-script → the user file at its declared relative path
+    // The validator guarantees `entryPath` is defined whenever `steps` is
+    // not. The entrypoint reattaches /workspace/code/ for relative paths.
+    const entryPath =
+      req.steps !== undefined
+        ? `/workspace/.tale/${req.language === 'python' ? 'runner.py' : 'runner.js'}`
+        : // oxlint-disable-next-line typescript/no-non-null-assertion -- validator enforces mutex (entryPath xor steps)
+          req.entryPath!;
+
     const argv = buildDockerRunArgs(cfg, {
       executionId: req.executionId,
       organizationId: req.organizationId,
@@ -692,6 +702,7 @@ export async function executeRequest(
       npmCacheVolume: npmVolume,
       workspaceHostDir,
       startedAtMs,
+      entryPath,
     });
 
     // Two-tier timeout:

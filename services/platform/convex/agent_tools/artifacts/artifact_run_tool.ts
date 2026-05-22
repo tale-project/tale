@@ -39,18 +39,6 @@ import {
  */
 const ARTIFACT_RUN_MAX_STEPS = 10;
 
-/**
- * Filenames the spawner reserves for the runtime entrypoint script (the
- * runtime image's docker entrypoint exec()s these fixed paths). A step
- * path matching the reserved filename would cause the wrapper script
- * the spawner generates to invoke itself. Surface this as a friendly
- * tool-side error before it round-trips to the spawner.
- */
-const RESERVED_STEP_FILENAME_BY_LANGUAGE: Record<'python' | 'node', string> = {
-  python: 'main.py',
-  node: 'main.js',
-};
-
 const artifactRunArgs = z
   .object({
     artifactId: z
@@ -218,7 +206,7 @@ artifact_run({
 - Fail-fast: a non-zero exit from any step aborts the remaining steps. Each step's exit code + duration come back in \`steps[]\` with \`status: "completed" | "failed" | "skipped"\`.
 - All files in the artifact are staged under \`/workspace/code/<path>\`, so step scripts can also \`import\` / \`require\` siblings the normal way.
 - Up to ${ARTIFACT_RUN_MAX_STEPS} steps per call. The overall \`timeoutMs\` is shared across all steps.
-- Step paths must reference existing files in the artifact and **cannot be \`main.py\` / \`main.js\`** — those names are reserved for the runtime entrypoint. Rename your script (e.g. \`build.py\`).
+- Step paths must reference existing non-empty files in the artifact. Any filename works — \`main.py\`, \`gen.py\`, \`test.py\`, whatever you used when you created the file.
 
 **Single-script mode** (use when there's nothing to chain): omit both \`steps\` and \`path\` to run the artifact's \`entryFile\`, or pass \`path\` to run a specific sibling file. \`subprocess.run(['python', 'validate.py'])\` from within the entry script also works if you want orchestration logic in-script.
 
@@ -317,14 +305,14 @@ artifact_run({
 
       // Resolve which files to execute. Two modes:
       //   - Multi-step (`args.steps`): each step path must reference an
-      //     existing artifact file, must NOT be the reserved entrypoint
-      //     filename (the spawner generates a wrapper at that path), and
-      //     must be non-empty. All sibling files are still staged on disk
-      //     so steps can `import` / `require` each other.
-      //   - Single-script: existing behaviour. `args.path` or entryFile
-      //     names the executed file; its content is sent as `code`.
+      //     existing artifact file with non-empty content. All sibling
+      //     files are still staged on disk so steps can `import` /
+      //     `require` each other. There is no user-facing reserved name:
+      //     the spawner's wrapper lives at /workspace/.tale/runner.{py,js},
+      //     a dotfile-segment dir unreachable from artifact paths.
+      //   - Single-script: `args.path` or entryFile names the executed
+      //     file; the runtime entrypoint exec()s it at its declared path.
       const resolved = resolveArtifactFiles(artifact);
-      const reservedEntry = RESERVED_STEP_FILENAME_BY_LANGUAGE[language];
 
       type DispatchSingle = {
         kind: 'single';
@@ -353,12 +341,6 @@ artifact_run({
               };
             }
             throw err;
-          }
-          if (validated === reservedEntry) {
-            return {
-              success: false,
-              message: `steps[${i}].path "${validated}" collides with the reserved entrypoint filename. Rename the script (e.g. "${validated.replace(/main\./, 'step.')}") and retry.`,
-            };
           }
           if (seen.has(validated)) {
             return {
@@ -477,15 +459,6 @@ artifact_run({
         });
       const agentSlug = threadMeta?.agentSlug;
 
-      // Audit-row attribution: the spawner records `path` for forensic
-      // grep. For single-script that's the executed file; for multi-step
-      // pick the first step so the column still points at a meaningful
-      // file in the artifact tree.
-      const auditEntryPath =
-        dispatch.kind === 'single'
-          ? dispatch.targetPath
-          : dispatch.stepPaths[0];
-
       let raw: unknown;
       try {
         raw = await ctx.runAction(
@@ -498,11 +471,14 @@ artifact_run({
             ...(options.toolCallId && { toolCallId: options.toolCallId }),
             ...(agentSlug !== undefined && { agentSlug }),
             language,
-            // Single-script mode sends `code` (mirrored into main.{py,js}
-            // by the spawner). Multi-step mode sends `steps[]` and lets the
-            // spawner generate the wrapper itself. Mutual exclusion is
-            // enforced by the spawner's own validator.
-            ...(dispatch.kind === 'single' && { code: dispatch.targetContent }),
+            // Single-script mode sends `entryPath` (the file the runtime
+            // entrypoint exec()s). Multi-step mode sends `steps[]` and
+            // lets the spawner generate the wrapper under /workspace/.tale/.
+            // Mutual exclusion is enforced by the action AND the spawner
+            // validator — pass exactly one branch.
+            ...(dispatch.kind === 'single' && {
+              entryPath: dispatch.targetPath,
+            }),
             ...(dispatch.kind === 'steps' && { steps: dispatch.stepPaths }),
             // Stage every file in the project so siblings are importable.
             // The spawner writes each to /workspace/code/<path>.
@@ -510,7 +486,6 @@ artifact_run({
               path: f.path,
               content: f.content,
             })),
-            ...(auditEntryPath !== undefined && { entryPath: auditEntryPath }),
             ...(effectivePackages.length > 0 && {
               packages: effectivePackages,
             }),

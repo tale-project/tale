@@ -7,6 +7,10 @@
 #   $1 = language ('python' | 'node')
 #   $2 = path to packages.json (JSON array of pip/npm specs)
 #   $3 = path to options.json   ({ allowSdist?: bool, allowInstallScripts?: bool })
+#   $4 = entry path: either a relative POSIX path resolved under
+#        /workspace/code/, or an absolute path under /workspace/code/ or
+#        /workspace/.tale/ (the latter is the spawner-generated multi-step
+#        wrapper). Anything else exits 65.
 #
 # Env (set by spawner via --env):
 #   HTTPS_PROXY / HTTP_PROXY  -> http://sandbox-egress:3128
@@ -14,7 +18,11 @@
 #   NPM_CONFIG_CACHE          -> /cache/npm
 #
 # Conventions:
-#   - User code at /workspace/code/main.{py,js}
+#   - User code at /workspace/code/<path> — staged 1:1 from the spawner's
+#     `files[]`. The runtime exec()s the file at $4; no synthetic mirror.
+#   - Multi-step wrapper (when used) at /workspace/.tale/runner.{py,js} —
+#     dotfile segment is unreachable from user-supplied paths, so user files
+#     can be named anything (including main.py).
 #   - Output files in /workspace/output/
 #   - install-stderr.log at /workspace/install-stderr.log — captured stderr
 #     from the package install step, tailed to container stderr on failure
@@ -25,7 +33,7 @@
 # Exit codes:
 #   0   = user code completed successfully
 #   64  = install failed (spawner classifies as INSTALL_FAILED / PACKAGE_NOT_FOUND)
-#   65  = bad invocation (unknown language / missing args)
+#   65  = bad invocation (unknown language / missing args / bad entry path)
 #   >0  = user code exit code (RUNTIME_ERROR)
 
 set -e
@@ -33,6 +41,28 @@ set -e
 LANG_NAME="$1"
 PACKAGES_FILE="${2:-/workspace/code/packages.json}"
 OPTIONS_FILE="${3:-/workspace/code/options.json}"
+ENTRY_ARG="${4:?sandbox-runtime: missing entry path (positional arg 4)}"
+
+# Resolve entry path. Accept either an absolute path under one of the two
+# allowed roots, or a relative path interpreted under /workspace/code/.
+case "$ENTRY_ARG" in
+  /workspace/.tale/*|/workspace/code/*)
+    ENTRY_FILE="$ENTRY_ARG"
+    ;;
+  /*)
+    echo "sandbox-runtime: entry path outside /workspace: $ENTRY_ARG" >&2
+    exit 65
+    ;;
+  *)
+    ENTRY_FILE="/workspace/code/$ENTRY_ARG"
+    ;;
+esac
+case "$ENTRY_FILE" in
+  *..*)
+    echo "sandbox-runtime: traversal segment in entry path: $ENTRY_ARG" >&2
+    exit 65
+    ;;
+esac
 
 # Workspace is delivered via host bind-mount (spawner.ts:stageWorkspace
 # writes /var/lib/tale-sandbox/sessions/<id>/{code,input,output}/ on the
@@ -77,7 +107,7 @@ run_python() {
   fi
   export PYTHONPATH=/workspace/.deps/python
   echo "PHASE: running"
-  exec python3 /workspace/code/main.py
+  exec python3 "$ENTRY_FILE"
 }
 
 run_node() {
@@ -101,7 +131,7 @@ run_node() {
   fi
   export NODE_PATH=/workspace/.deps/node/node_modules
   echo "PHASE: running"
-  exec node /workspace/code/main.js
+  exec node "$ENTRY_FILE"
 }
 
 case "$LANG_NAME" in
