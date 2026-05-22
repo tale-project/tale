@@ -5,7 +5,7 @@ import {
   type SupportedLocale,
 } from '@tale/ui/i18n/locales';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Languages } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 
 import { useDropdownPlacement } from '../hooks/use-dropdown-placement';
@@ -176,6 +176,11 @@ export function LanguageSwitcher({
         onClick={() => setOpen((v) => !v)}
         className="border-border-base bg-bg-base text-fg-muted hover:text-fg-base hover:border-border-strong focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-base inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
       >
+        <Languages
+          aria-hidden
+          className="h-4 w-4 shrink-0"
+          strokeWidth={1.75}
+        />
         {showFlag ? (
           <LocaleFlag
             locale={currentLocale}
