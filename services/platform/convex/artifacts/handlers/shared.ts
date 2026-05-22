@@ -98,6 +98,61 @@ export async function trimRevisionHistory(
 }
 
 /**
+ * Reconcile the `artifactFiles` table with the artifact's authoritative
+ * `files[]` array after a settle. The artifact-row write is the source of
+ * truth for the in-flight refactor (plan llm-majestic-hamming.md →
+ * artifact-breezy-codd.md); this helper keeps the per-file table in sync so
+ * canvas reads from `artifactFiles` see the same view.
+ *
+ * Insert rows for new paths, patch content/updatedAt for changed paths,
+ * delete rows whose path is no longer in `files`. `streamingWriteToolCallId`
+ * is cleared on every settle — the stream that wrote this revision is done.
+ */
+export async function syncArtifactFiles(
+  ctx: MutationCtx,
+  artifactId: Id<'artifacts'>,
+  files: readonly { readonly path: string; readonly content: string }[],
+  now: number,
+): Promise<void> {
+  const existing: Doc<'artifactFiles'>[] = [];
+  for await (const row of ctx.db
+    .query('artifactFiles')
+    .withIndex('by_artifact', (q) => q.eq('artifactId', artifactId))) {
+    existing.push(row);
+  }
+  const targetPaths = new Set(files.map((f) => f.path));
+  const existingByPath = new Map<string, Doc<'artifactFiles'>>();
+  for (const row of existing) existingByPath.set(row.path, row);
+
+  for (const f of files) {
+    const prior = existingByPath.get(f.path);
+    if (prior === undefined) {
+      await ctx.db.insert('artifactFiles', {
+        artifactId,
+        path: f.path,
+        content: f.content,
+        createdAt: now,
+        updatedAt: now,
+      });
+    } else if (
+      prior.content !== f.content ||
+      prior.streamingWriteToolCallId !== undefined
+    ) {
+      await ctx.db.patch(prior._id, {
+        content: f.content,
+        streamingWriteToolCallId: undefined,
+        updatedAt: now,
+      });
+    }
+  }
+  for (const row of existing) {
+    if (!targetPaths.has(row.path)) {
+      await ctx.db.delete(row._id);
+    }
+  }
+}
+
+/**
  * Validate + canonicalize the file list before any write. Throws on path
  * violations, oversize, duplicate paths, or empty files array. Returns the
  * NFC-normalized file list.

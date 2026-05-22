@@ -1,14 +1,13 @@
 /**
  * Handler bodies + arg/return validators for content-bearing artifact
- * mutations: createArtifact, applyToolPatch, rewriteArtifact, appendToFile,
- * deleteFileFromArtifact, renameFileInArtifact. Registered by
+ * mutations: createArtifact, deleteFileFromArtifact, renameFileInArtifact,
+ * createFileInArtifact, updateFileInArtifact. Registered by
  * `internal_mutations.ts` as the public Convex internalMutation surface.
  */
 
 import { ConvexError, v } from 'convex/values';
 
 import type { MutationCtx } from '../../_generated/server';
-import { applySinglePatch } from '../../agent_tools/artifacts/apply_patches';
 import {
   defaultEntryFileFor,
   normalizeTitleForCompare,
@@ -19,6 +18,7 @@ import { mirrorLegacyContent, resolveArtifactFiles } from '../resolve_files';
 import { artifactTypeValidator } from '../schema';
 import {
   clearStreamingFlags,
+  syncArtifactFiles,
   trimRevisionHistory,
   validateFiles,
 } from './shared';
@@ -101,7 +101,7 @@ export async function createArtifactHandler(
         conflict: 'type_mismatch' as const,
         existingArtifactId: row._id,
         existingType: row.type,
-        message: `An artifact titled "${row.title}" already exists in this thread with type "${row.type}". Either pick a different title or use the existing artifactId ${row._id} via artifact_edit.`,
+        message: `An artifact titled "${row.title}" already exists in this thread with type "${row.type}". Either pick a different title or use the existing artifactId ${row._id} via file_create / file_update.`,
       };
     }
     // Title + type match → return existing. Do NOT overwrite content.
@@ -149,6 +149,7 @@ export async function createArtifactHandler(
     editKind: 'create',
     createdAt: now,
   });
+  await syncArtifactFiles(ctx, artifactId, files, now);
   return {
     success: true as const,
     isNew: true,
@@ -156,374 +157,6 @@ export async function createArtifactHandler(
     revision: 1,
     entryFile,
     filePaths: files.map((f) => f.path),
-  };
-}
-
-// =============================================================================
-// applyToolPatch — single search/replace on one file
-// =============================================================================
-
-export const applyToolPatchArgs = {
-  artifactId: v.id('artifacts'),
-  path: v.string(),
-  search: v.string(),
-  replace: v.string(),
-  replaceAll: v.optional(v.boolean()),
-  editedByMessageId: v.string(),
-  /** OCC baseline. Mismatch → stale error so the LLM re-reads. */
-  expectedRevision: v.number(),
-} as const;
-
-export const applyToolPatchReturns = v.union(
-  v.object({
-    success: v.literal(true),
-    revision: v.number(),
-    path: v.string(),
-    content: v.string(),
-    matchCount: v.number(),
-  }),
-  v.object({
-    success: v.literal(false),
-    code: v.union(
-      v.literal('not_found'),
-      v.literal('stale'),
-      v.literal('file_missing'),
-      v.literal('file_empty'),
-      v.literal('no_match'),
-      v.literal('ambiguous_match'),
-    ),
-    message: v.string(),
-    currentRevision: v.optional(v.number()),
-    matchCount: v.optional(v.number()),
-  }),
-);
-
-export async function applyToolPatchHandler(
-  ctx: MutationCtx,
-  args: {
-    artifactId: import('../../_generated/dataModel').Id<'artifacts'>;
-    path: string;
-    search: string;
-    replace: string;
-    replaceAll?: boolean;
-    editedByMessageId: string;
-    expectedRevision: number;
-  },
-) {
-  const artifact = await ctx.db.get(args.artifactId);
-  if (!artifact) {
-    return {
-      success: false as const,
-      code: 'not_found' as const,
-      message: `Artifact ${args.artifactId} not found.`,
-    };
-  }
-  if (artifact.revision !== args.expectedRevision) {
-    return {
-      success: false as const,
-      code: 'stale' as const,
-      message: `Artifact has been modified since you last read it (revision ${artifact.revision}, you sent ${args.expectedRevision}). Re-read with artifact_read and retry.`,
-      currentRevision: artifact.revision,
-    };
-  }
-  const path = validatePath(args.path);
-  const resolved = resolveArtifactFiles(artifact);
-  const target = resolved.files.find((f) => f.path === path);
-  if (!target) {
-    return {
-      success: false as const,
-      code: 'file_missing' as const,
-      message: `File "${path}" does not exist in this artifact. Existing paths: ${resolved.files
-        .map((f) => f.path)
-        .join(', ')}. To create it, call artifact_edit with mode='rewrite'.`,
-    };
-  }
-  if (target.content.length === 0) {
-    return {
-      success: false as const,
-      code: 'file_empty' as const,
-      message: `File "${path}" is empty. Use mode='rewrite' to write its initial content.`,
-    };
-  }
-
-  let nextContent: string;
-  let matchCount: number;
-  if (args.replaceAll === true) {
-    if (args.search.length === 0) {
-      return {
-        success: false as const,
-        code: 'no_match' as const,
-        message:
-          'search block is empty — refusing to apply (would match anywhere).',
-      };
-    }
-    const split = target.content.split(args.search);
-    matchCount = split.length - 1;
-    if (matchCount === 0) {
-      return {
-        success: false as const,
-        code: 'no_match' as const,
-        message: `search block matched 0 times in "${path}". Re-read the file and emit a snippet that appears verbatim.`,
-        matchCount: 0,
-      };
-    }
-    nextContent = split.join(args.replace);
-  } else {
-    const result = applySinglePatch(target.content, {
-      search: args.search,
-      replace: args.replace,
-    });
-    if (!result.ok) {
-      const isAmbiguous = /matched more than once/.test(result.error);
-      return {
-        success: false as const,
-        code: isAmbiguous
-          ? ('ambiguous_match' as const)
-          : ('no_match' as const),
-        message: result.error,
-        matchCount: isAmbiguous ? 2 : 0,
-      };
-    }
-    nextContent = result.content;
-    matchCount = 1;
-  }
-
-  const nextFiles = resolved.files.map((f) =>
-    f.path === path ? { path, content: nextContent } : f,
-  );
-  const validatedFiles = validateFiles(nextFiles);
-  const nextRevision = artifact.revision + 1;
-  const now = Date.now();
-  await ctx.db.patch(args.artifactId, {
-    files: validatedFiles,
-    entryFile: resolved.entryFile,
-    content: mirrorLegacyContent(validatedFiles, resolved.entryFile),
-    revision: nextRevision,
-    lastEditedByMessageId: args.editedByMessageId,
-    ...clearStreamingFlags(),
-    updatedAt: now,
-  });
-  await ctx.db.insert('artifactRevisions', {
-    artifactId: args.artifactId,
-    revision: nextRevision,
-    content: mirrorLegacyContent(validatedFiles, resolved.entryFile),
-    files: validatedFiles,
-    entryFile: resolved.entryFile,
-    filePath: path,
-    editedByMessageId: args.editedByMessageId,
-    editKind: 'patch',
-    patches: [{ search: args.search, replace: args.replace }],
-    createdAt: now,
-  });
-  await trimRevisionHistory(ctx, args.artifactId);
-  return {
-    success: true as const,
-    revision: nextRevision,
-    path,
-    content: nextContent,
-    matchCount,
-  };
-}
-
-// =============================================================================
-// rewriteArtifact — write whole content of one file; creates if missing
-// =============================================================================
-
-export const rewriteArtifactArgs = {
-  artifactId: v.id('artifacts'),
-  path: v.string(),
-  content: v.string(),
-  editedByMessageId: v.string(),
-  expectedRevision: v.number(),
-} as const;
-
-export const rewriteArtifactReturns = v.union(
-  v.object({
-    success: v.literal(true),
-    revision: v.number(),
-    path: v.string(),
-    created: v.boolean(),
-  }),
-  v.object({
-    success: v.literal(false),
-    code: v.union(v.literal('not_found'), v.literal('stale')),
-    message: v.string(),
-    currentRevision: v.optional(v.number()),
-  }),
-);
-
-export async function rewriteArtifactHandler(
-  ctx: MutationCtx,
-  args: {
-    artifactId: import('../../_generated/dataModel').Id<'artifacts'>;
-    path: string;
-    content: string;
-    editedByMessageId: string;
-    expectedRevision: number;
-  },
-) {
-  const artifact = await ctx.db.get(args.artifactId);
-  if (!artifact) {
-    return {
-      success: false as const,
-      code: 'not_found' as const,
-      message: `Artifact ${args.artifactId} not found.`,
-    };
-  }
-  if (artifact.revision !== args.expectedRevision) {
-    return {
-      success: false as const,
-      code: 'stale' as const,
-      message: `Artifact has been modified since you last read it (revision ${artifact.revision}, you sent ${args.expectedRevision}). Re-read with artifact_read and retry.`,
-      currentRevision: artifact.revision,
-    };
-  }
-  const path = validatePath(args.path);
-  const resolved = resolveArtifactFiles(artifact);
-  const existingIdx = resolved.files.findIndex((f) => f.path === path);
-  let nextFiles: { path: string; content: string }[];
-  let created = false;
-  if (existingIdx >= 0) {
-    nextFiles = resolved.files.map((f) =>
-      f.path === path ? { path, content: args.content } : f,
-    );
-  } else {
-    nextFiles = [...resolved.files, { path, content: args.content }];
-    created = true;
-  }
-  const validatedFiles = validateFiles(nextFiles);
-  const nextRevision = artifact.revision + 1;
-  const now = Date.now();
-  await ctx.db.patch(args.artifactId, {
-    files: validatedFiles,
-    entryFile: resolved.entryFile,
-    content: mirrorLegacyContent(validatedFiles, resolved.entryFile),
-    revision: nextRevision,
-    lastEditedByMessageId: args.editedByMessageId,
-    ...clearStreamingFlags(),
-    updatedAt: now,
-  });
-  await ctx.db.insert('artifactRevisions', {
-    artifactId: args.artifactId,
-    revision: nextRevision,
-    content: mirrorLegacyContent(validatedFiles, resolved.entryFile),
-    files: validatedFiles,
-    entryFile: resolved.entryFile,
-    filePath: path,
-    editedByMessageId: args.editedByMessageId,
-    editKind: 'rewrite',
-    createdAt: now,
-  });
-  await trimRevisionHistory(ctx, args.artifactId);
-  return {
-    success: true as const,
-    revision: nextRevision,
-    path,
-    created,
-  };
-}
-
-// =============================================================================
-// appendToFile — concat content to the end of one file; creates if missing
-// =============================================================================
-
-export const appendToFileArgs = {
-  artifactId: v.id('artifacts'),
-  path: v.string(),
-  content: v.string(),
-  editedByMessageId: v.string(),
-  expectedRevision: v.number(),
-} as const;
-
-export const appendToFileReturns = v.union(
-  v.object({
-    success: v.literal(true),
-    revision: v.number(),
-    path: v.string(),
-    created: v.boolean(),
-    byteLength: v.number(),
-  }),
-  v.object({
-    success: v.literal(false),
-    code: v.union(v.literal('not_found'), v.literal('stale')),
-    message: v.string(),
-    currentRevision: v.optional(v.number()),
-  }),
-);
-
-export async function appendToFileHandler(
-  ctx: MutationCtx,
-  args: {
-    artifactId: import('../../_generated/dataModel').Id<'artifacts'>;
-    path: string;
-    content: string;
-    editedByMessageId: string;
-    expectedRevision: number;
-  },
-) {
-  const artifact = await ctx.db.get(args.artifactId);
-  if (!artifact) {
-    return {
-      success: false as const,
-      code: 'not_found' as const,
-      message: `Artifact ${args.artifactId} not found.`,
-    };
-  }
-  if (artifact.revision !== args.expectedRevision) {
-    return {
-      success: false as const,
-      code: 'stale' as const,
-      message: `Artifact has been modified since you last read it (revision ${artifact.revision}, you sent ${args.expectedRevision}). Re-read with artifact_read and retry.`,
-      currentRevision: artifact.revision,
-    };
-  }
-  const path = validatePath(args.path);
-  const resolved = resolveArtifactFiles(artifact);
-  const existingIdx = resolved.files.findIndex((f) => f.path === path);
-  let nextFiles: { path: string; content: string }[];
-  let created = false;
-  let nextByteLength: number;
-  if (existingIdx >= 0) {
-    const concatenated = resolved.files[existingIdx].content + args.content;
-    nextByteLength = concatenated.length;
-    nextFiles = resolved.files.map((f) =>
-      f.path === path ? { path, content: concatenated } : f,
-    );
-  } else {
-    nextByteLength = args.content.length;
-    nextFiles = [...resolved.files, { path, content: args.content }];
-    created = true;
-  }
-  const validatedFiles = validateFiles(nextFiles);
-  const nextRevision = artifact.revision + 1;
-  const now = Date.now();
-  await ctx.db.patch(args.artifactId, {
-    files: validatedFiles,
-    entryFile: resolved.entryFile,
-    content: mirrorLegacyContent(validatedFiles, resolved.entryFile),
-    revision: nextRevision,
-    lastEditedByMessageId: args.editedByMessageId,
-    ...clearStreamingFlags(),
-    updatedAt: now,
-  });
-  await ctx.db.insert('artifactRevisions', {
-    artifactId: args.artifactId,
-    revision: nextRevision,
-    content: mirrorLegacyContent(validatedFiles, resolved.entryFile),
-    files: validatedFiles,
-    entryFile: resolved.entryFile,
-    filePath: path,
-    editedByMessageId: args.editedByMessageId,
-    editKind: 'append',
-    createdAt: now,
-  });
-  await trimRevisionHistory(ctx, args.artifactId);
-  return {
-    success: true as const,
-    revision: nextRevision,
-    path,
-    created,
-    byteLength: nextByteLength,
   };
 }
 
@@ -580,7 +213,7 @@ export async function deleteFileFromArtifactHandler(
     return {
       success: false as const,
       code: 'stale' as const,
-      message: `Artifact has been modified since you last read it (revision ${artifact.revision}, you sent ${args.expectedRevision}). Re-read with artifact_read and retry.`,
+      message: `Artifact has been modified since you last read it (revision ${artifact.revision}, you sent ${args.expectedRevision}). Re-read with file_list / file_read and retry.`,
       currentRevision: artifact.revision,
     };
   }
@@ -597,7 +230,7 @@ export async function deleteFileFromArtifactHandler(
     return {
       success: false as const,
       code: 'entry_pin' as const,
-      message: `Cannot delete entry file "${path}". Call artifact_edit with mode='set_entry' to repoint first, or rename it.`,
+      message: `Cannot delete entry file "${path}". Call file_rename to repoint the entry to another file first (renaming the entry file moves the entry pointer along with it).`,
       entryFile: resolved.entryFile,
     };
   }
@@ -632,6 +265,7 @@ export async function deleteFileFromArtifactHandler(
     editKind: 'file_delete',
     createdAt: now,
   });
+  await syncArtifactFiles(ctx, args.artifactId, validatedFiles, now);
   await trimRevisionHistory(ctx, args.artifactId);
   return {
     success: true as const,
@@ -696,7 +330,7 @@ export async function renameFileInArtifactHandler(
     return {
       success: false as const,
       code: 'stale' as const,
-      message: `Artifact has been modified since you last read it (revision ${artifact.revision}, you sent ${args.expectedRevision}). Re-read with artifact_read and retry.`,
+      message: `Artifact has been modified since you last read it (revision ${artifact.revision}, you sent ${args.expectedRevision}). Re-read with file_list / file_read and retry.`,
       currentRevision: artifact.revision,
     };
   }
@@ -757,6 +391,7 @@ export async function renameFileInArtifactHandler(
     editKind: 'file_rename',
     createdAt: now,
   });
+  await syncArtifactFiles(ctx, args.artifactId, validatedFiles, now);
   await trimRevisionHistory(ctx, args.artifactId);
   return {
     success: true as const,
@@ -765,5 +400,209 @@ export async function renameFileInArtifactHandler(
     to,
     entryFile: nextEntry,
     entryUpdated,
+  };
+}
+
+// =============================================================================
+// createFileInArtifact — strict CRUD: refuse if path already exists
+// =============================================================================
+
+export const createFileInArtifactArgs = {
+  artifactId: v.id('artifacts'),
+  path: v.string(),
+  content: v.string(),
+  editedByMessageId: v.string(),
+  expectedRevision: v.number(),
+} as const;
+
+export const createFileInArtifactReturns = v.union(
+  v.object({
+    success: v.literal(true),
+    revision: v.number(),
+    path: v.string(),
+    byteLength: v.number(),
+  }),
+  v.object({
+    success: v.literal(false),
+    code: v.union(
+      v.literal('not_found'),
+      v.literal('stale'),
+      v.literal('path_exists'),
+    ),
+    message: v.string(),
+    currentRevision: v.optional(v.number()),
+  }),
+);
+
+export async function createFileInArtifactHandler(
+  ctx: MutationCtx,
+  args: {
+    artifactId: import('../../_generated/dataModel').Id<'artifacts'>;
+    path: string;
+    content: string;
+    editedByMessageId: string;
+    expectedRevision: number;
+  },
+) {
+  const artifact = await ctx.db.get(args.artifactId);
+  if (!artifact) {
+    return {
+      success: false as const,
+      code: 'not_found' as const,
+      message: `Artifact ${args.artifactId} not found.`,
+    };
+  }
+  if (artifact.revision !== args.expectedRevision) {
+    return {
+      success: false as const,
+      code: 'stale' as const,
+      message: `Artifact has been modified since you last read it (revision ${artifact.revision}, you sent ${args.expectedRevision}). Re-read with file_list and retry.`,
+      currentRevision: artifact.revision,
+    };
+  }
+  const path = validatePath(args.path);
+  const resolved = resolveArtifactFiles(artifact);
+  if (resolved.files.some((f) => f.path === path)) {
+    return {
+      success: false as const,
+      code: 'path_exists' as const,
+      message: `File "${path}" already exists in this artifact. Use file_update to overwrite, or pick a different path.`,
+    };
+  }
+  const nextFiles = [...resolved.files, { path, content: args.content }];
+  const validatedFiles = validateFiles(nextFiles);
+  const nextRevision = artifact.revision + 1;
+  const now = Date.now();
+  await ctx.db.patch(args.artifactId, {
+    files: validatedFiles,
+    entryFile: resolved.entryFile,
+    content: mirrorLegacyContent(validatedFiles, resolved.entryFile),
+    revision: nextRevision,
+    lastEditedByMessageId: args.editedByMessageId,
+    ...clearStreamingFlags(),
+    updatedAt: now,
+  });
+  await ctx.db.insert('artifactRevisions', {
+    artifactId: args.artifactId,
+    revision: nextRevision,
+    content: mirrorLegacyContent(validatedFiles, resolved.entryFile),
+    files: validatedFiles,
+    entryFile: resolved.entryFile,
+    filePath: path,
+    editedByMessageId: args.editedByMessageId,
+    editKind: 'file_create',
+    createdAt: now,
+  });
+  await syncArtifactFiles(ctx, args.artifactId, validatedFiles, now);
+  await trimRevisionHistory(ctx, args.artifactId);
+  return {
+    success: true as const,
+    revision: nextRevision,
+    path,
+    byteLength: args.content.length,
+  };
+}
+
+// =============================================================================
+// updateFileInArtifact — strict CRUD: refuse if path does not exist (overwrite-only)
+// =============================================================================
+
+export const updateFileInArtifactArgs = {
+  artifactId: v.id('artifacts'),
+  path: v.string(),
+  content: v.string(),
+  editedByMessageId: v.string(),
+  expectedRevision: v.number(),
+} as const;
+
+export const updateFileInArtifactReturns = v.union(
+  v.object({
+    success: v.literal(true),
+    revision: v.number(),
+    path: v.string(),
+    byteLength: v.number(),
+  }),
+  v.object({
+    success: v.literal(false),
+    code: v.union(
+      v.literal('not_found'),
+      v.literal('stale'),
+      v.literal('file_missing'),
+    ),
+    message: v.string(),
+    currentRevision: v.optional(v.number()),
+  }),
+);
+
+export async function updateFileInArtifactHandler(
+  ctx: MutationCtx,
+  args: {
+    artifactId: import('../../_generated/dataModel').Id<'artifacts'>;
+    path: string;
+    content: string;
+    editedByMessageId: string;
+    expectedRevision: number;
+  },
+) {
+  const artifact = await ctx.db.get(args.artifactId);
+  if (!artifact) {
+    return {
+      success: false as const,
+      code: 'not_found' as const,
+      message: `Artifact ${args.artifactId} not found.`,
+    };
+  }
+  if (artifact.revision !== args.expectedRevision) {
+    return {
+      success: false as const,
+      code: 'stale' as const,
+      message: `Artifact has been modified since you last read it (revision ${artifact.revision}, you sent ${args.expectedRevision}). Re-read with file_list and retry.`,
+      currentRevision: artifact.revision,
+    };
+  }
+  const path = validatePath(args.path);
+  const resolved = resolveArtifactFiles(artifact);
+  if (!resolved.files.some((f) => f.path === path)) {
+    return {
+      success: false as const,
+      code: 'file_missing' as const,
+      message: `File "${path}" does not exist in this artifact. Existing paths: ${resolved.files
+        .map((f) => f.path)
+        .join(', ')}. Use file_create to add a new file.`,
+    };
+  }
+  const nextFiles = resolved.files.map((f) =>
+    f.path === path ? { path, content: args.content } : f,
+  );
+  const validatedFiles = validateFiles(nextFiles);
+  const nextRevision = artifact.revision + 1;
+  const now = Date.now();
+  await ctx.db.patch(args.artifactId, {
+    files: validatedFiles,
+    entryFile: resolved.entryFile,
+    content: mirrorLegacyContent(validatedFiles, resolved.entryFile),
+    revision: nextRevision,
+    lastEditedByMessageId: args.editedByMessageId,
+    ...clearStreamingFlags(),
+    updatedAt: now,
+  });
+  await ctx.db.insert('artifactRevisions', {
+    artifactId: args.artifactId,
+    revision: nextRevision,
+    content: mirrorLegacyContent(validatedFiles, resolved.entryFile),
+    files: validatedFiles,
+    entryFile: resolved.entryFile,
+    filePath: path,
+    editedByMessageId: args.editedByMessageId,
+    editKind: 'rewrite',
+    createdAt: now,
+  });
+  await syncArtifactFiles(ctx, args.artifactId, validatedFiles, now);
+  await trimRevisionHistory(ctx, args.artifactId);
+  return {
+    success: true as const,
+    revision: nextRevision,
+    path,
+    byteLength: args.content.length,
   };
 }

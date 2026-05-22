@@ -98,7 +98,7 @@ interface MessageArtifactPillsProps {
 }
 
 /**
- * Inline chips that surface artifact_create / artifact_edit tool calls inside
+ * Inline chips that surface artifact_create / file_* tool calls inside
  * the assistant bubble — without them, the only signal an artifact was just
  * touched is the ArtifactBar at the top of the chat, which is easy to miss
  * mid-conversation. We piggyback on the bar's `listByThread` subscription

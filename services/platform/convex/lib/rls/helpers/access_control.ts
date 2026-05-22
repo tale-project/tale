@@ -154,7 +154,7 @@ const platformPermissions: Record<
     promptCategories: ALL,
     auditLogs: READ_ONLY,
     // Members can READ artifacts (so the chat surface keeps working in
-    // shared threads) but NOT write — artifact_create / artifact_edit /
+    // shared threads) but NOT write — artifact_create / file_* /
     // artifact_run all trigger billable sandbox executions. Aligns with
     // the `documents` table's own member-as-read-only contract.
     artifacts: READ_ONLY,

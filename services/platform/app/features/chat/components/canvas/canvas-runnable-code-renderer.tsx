@@ -47,7 +47,7 @@ function CanvasRunnableCodeRendererComponent({
       isEditing={false}
       isStreaming={isStreaming ?? false}
       onContentChange={() => {
-        /* runnable canvas is read-only; LLM-driven via artifact_edit */
+        /* runnable canvas is read-only; LLM-driven via file_create / file_update */
       }}
     />
   );

@@ -8,7 +8,7 @@
 //   2. `discardActiveStreamsForThread` — the user-Stop cascade added in
 //      this PR. Deletes `revision === 0` placeholders (artifact_create
 //      mid-stream when the user clicked Stop) and clears streaming flags
-//      on settled rows where artifact_edit/rewrite was mid-stream.
+//      on settled rows where file_create / file_update was mid-stream.
 
 import { describe, expect, it, vi } from 'vitest';
 
@@ -21,9 +21,10 @@ vi.mock('../_generated/server', async (importOriginal) => {
 });
 
 import {
-  appendToFile,
   createArtifact,
+  createFileInArtifact,
   discardActiveStreamsForThread,
+  updateFileInArtifact,
   updateRewriteStreamingContent,
 } from './internal_mutations';
 
@@ -63,6 +64,12 @@ function asyncIter<T>(rows: T[]): AsyncIterable<T> {
 
 function createMockCtx(initial: FakeArtifactRow[] = []) {
   const rows: FakeArtifactRow[] = [...initial];
+  // Per-table side stores so the mock can serve queries for the auxiliary
+  // tables that `syncArtifactFiles` writes to (`artifactFiles`) and any
+  // future per-table reads without leaking artifact rows into a wrong-table
+  // query (which previously caused `syncArtifactFiles` to delete artifact
+  // rows it mistook for stale file rows).
+  const auxRows = new Map<string, Record<string, unknown>[]>();
   const inserted: Array<{
     table: string;
     payload: Record<string, unknown>;
@@ -72,25 +79,35 @@ function createMockCtx(initial: FakeArtifactRow[] = []) {
   const deleted: string[] = [];
   let next = 1;
 
-  function makeBuilder() {
+  function makeBuilder(table: string) {
     const eqs: Record<string, unknown> = {};
     // The builder is used in two styles:
     //   - `for await (const r of ctx.db.query(...).withIndex(...))` (createArtifact)
     //   - `await ctx.db.query(...).withIndex(...).collect()`         (discardActiveStreamsForThread)
     // so we expose BOTH `[Symbol.asyncIterator]` and `.collect()`.
-    const filtered = (): FakeArtifactRow[] =>
-      rows.filter((r) => {
-        if (
-          eqs.organizationId !== undefined &&
-          r.organizationId !== eqs.organizationId
-        ) {
-          return false;
-        }
-        if (eqs.threadId !== undefined && r.threadId !== eqs.threadId) {
-          return false;
+    const filtered = (): Record<string, unknown>[] => {
+      if (table === 'artifacts') {
+        return rows.filter((r) => {
+          if (
+            eqs.organizationId !== undefined &&
+            r.organizationId !== eqs.organizationId
+          ) {
+            return false;
+          }
+          if (eqs.threadId !== undefined && r.threadId !== eqs.threadId) {
+            return false;
+          }
+          return true;
+        }) as unknown as Record<string, unknown>[];
+      }
+      const tableRows = auxRows.get(table) ?? [];
+      return tableRows.filter((r) => {
+        for (const key of Object.keys(eqs)) {
+          if (r[key] !== eqs[key]) return false;
         }
         return true;
       });
+    };
     const builder: Record<string | symbol, unknown> = {};
     builder.withIndex = vi.fn((_name: string, cb: (q: unknown) => unknown) => {
       const q = {
@@ -112,14 +129,14 @@ function createMockCtx(initial: FakeArtifactRow[] = []) {
   return {
     ctx: {
       db: {
-        query: vi.fn(() => makeBuilder()),
+        query: vi.fn((table: string) => makeBuilder(table)),
         get: vi.fn(async (id: string) => {
           return rows.find((r) => r._id === id) ?? null;
         }),
         insert: vi.fn(
           async (table: string, payload: Record<string, unknown>) => {
             const insertedId =
-              table === 'artifacts' ? `art_${next++}` : `rev_${next++}`;
+              table === 'artifacts' ? `art_${next++}` : `${table}_${next++}`;
             inserted.push({ table, payload, insertedId });
             if (table === 'artifacts') {
               rows.push({
@@ -136,6 +153,10 @@ function createMockCtx(initial: FakeArtifactRow[] = []) {
                 entryFile: payload.entryFile as string | undefined,
                 revision: payload.revision as number,
               });
+            } else {
+              const tableRows = auxRows.get(table) ?? [];
+              tableRows.push({ ...payload, _id: insertedId });
+              auxRows.set(table, tableRows);
             }
             return insertedId;
           },
@@ -143,12 +164,32 @@ function createMockCtx(initial: FakeArtifactRow[] = []) {
         patch: vi.fn(async (id: string, patch: Record<string, unknown>) => {
           patched.push({ id, patch });
           const row = rows.find((r) => r._id === id);
-          if (row !== undefined) Object.assign(row, patch);
+          if (row !== undefined) {
+            Object.assign(row, patch);
+            return;
+          }
+          for (const tableRows of auxRows.values()) {
+            const aux = tableRows.find((r) => r._id === id);
+            if (aux !== undefined) {
+              Object.assign(aux, patch);
+              return;
+            }
+          }
         }),
         delete: vi.fn(async (id: string) => {
           deleted.push(id);
           const idx = rows.findIndex((r) => r._id === id);
-          if (idx >= 0) rows.splice(idx, 1);
+          if (idx >= 0) {
+            rows.splice(idx, 1);
+            return;
+          }
+          for (const [, tableRows] of auxRows) {
+            const auxIdx = tableRows.findIndex((r) => r._id === id);
+            if (auxIdx >= 0) {
+              tableRows.splice(auxIdx, 1);
+              return;
+            }
+          }
         }),
       },
     },
@@ -485,7 +526,7 @@ describe('updateRewriteStreamingContent (incremental persistence)', () => {
   });
 });
 
-type AppendToFileArgs = {
+type CreateFileArgs = {
   artifactId: string;
   path: string;
   content: string;
@@ -493,115 +534,103 @@ type AppendToFileArgs = {
   expectedRevision: number;
 };
 
-type AppendToFileResult =
+type CreateFileResult =
   | {
       success: true;
       revision: number;
       path: string;
-      created: boolean;
       byteLength: number;
     }
   | {
       success: false;
-      code: 'not_found' | 'stale';
+      code: 'not_found' | 'stale' | 'path_exists';
       message: string;
       currentRevision?: number;
     };
 
-const append = appendToFile as unknown as MutHandler<
-  AppendToFileArgs,
-  AppendToFileResult
+const createFile = createFileInArtifact as unknown as MutHandler<
+  CreateFileArgs,
+  CreateFileResult
 >;
 
-describe('appendToFile (chunked content delivery)', () => {
-  it('concatenates onto an existing file and bumps revision', async () => {
-    const existing: FakeArtifactRow = {
-      _id: 'art_1',
+describe('createFileInArtifact (strict-CRUD)', () => {
+  it('inserts a new file and bumps revision', async () => {
+    const initial: FakeArtifactRow = {
+      _id: 'art_cc',
       organizationId: 'org_a',
       threadId: 'thr_a',
       type: 'code',
-      title: 'Project',
+      title: 'Proj',
       revision: 3,
       entryFile: 'main.py',
-      files: [{ path: 'main.py', content: 'first chunk\n' }],
-      content: 'first chunk\n',
+      files: [{ path: 'main.py', content: 'print(1)\n' }],
+      content: 'print(1)\n',
     };
-    const { ctx, patched, inserted } = createMockCtx([existing]);
-    const r = await append.handler(ctx, {
-      artifactId: 'art_1',
-      path: 'main.py',
-      content: 'second chunk\n',
+    const { ctx, inserted } = createMockCtx([initial]);
+    const r = await createFile.handler(ctx, {
+      artifactId: 'art_cc',
+      path: 'helpers.py',
+      content: 'def x():\n  pass\n',
       editedByMessageId: 'msg_x',
       expectedRevision: 3,
     });
     expect(r.success).toBe(true);
     if (!r.success) return;
-    expect(r.created).toBe(false);
     expect(r.revision).toBe(4);
-    expect(r.byteLength).toBe('first chunk\nsecond chunk\n'.length);
-    expect(patched).toHaveLength(1);
-    const patchedFiles = patched[0].patch.files as Array<{
-      path: string;
-      content: string;
-    }>;
-    expect(patchedFiles[0]).toEqual({
-      path: 'main.py',
-      content: 'first chunk\nsecond chunk\n',
-    });
-    // artifactRevisions row uses editKind='append' for audit clarity.
-    const revRows = inserted.filter((i) => i.table === 'artifactRevisions');
-    expect(revRows).toHaveLength(1);
-    expect(revRows[0].payload.editKind).toBe('append');
+    expect(r.path).toBe('helpers.py');
+    expect(r.byteLength).toBe('def x():\n  pass\n'.length);
+    // artifactFiles row inserted for the new path AND the pre-existing entry file.
+    const fileRowInserts = inserted.filter((i) => i.table === 'artifactFiles');
+    expect(
+      fileRowInserts
+        .map((i) => i.payload.path)
+        .sort((a, b) => String(a).localeCompare(String(b))),
+    ).toEqual(['helpers.py', 'main.py']);
   });
 
-  it('creates the file (and reports created: true) when path is missing', async () => {
-    const existing: FakeArtifactRow = {
-      _id: 'art_2',
+  it('refuses with code: "path_exists" when the path already exists', async () => {
+    const initial: FakeArtifactRow = {
+      _id: 'art_pe',
       organizationId: 'org_a',
       threadId: 'thr_a',
-      type: 'python_runnable',
-      title: 'Project',
-      revision: 1,
+      type: 'code',
+      title: 'Proj',
+      revision: 2,
+      entryFile: 'main.py',
+      files: [{ path: 'main.py', content: 'print(1)\n' }],
+      content: 'print(1)\n',
+    };
+    const { ctx, patched } = createMockCtx([initial]);
+    const r = await createFile.handler(ctx, {
+      artifactId: 'art_pe',
+      path: 'main.py',
+      content: 'something else',
+      editedByMessageId: 'msg_x',
+      expectedRevision: 2,
+    });
+    expect(r.success).toBe(false);
+    if (r.success) return;
+    expect(r.code).toBe('path_exists');
+    expect(patched).toHaveLength(0);
+  });
+
+  it('refuses with code: "stale" on OCC mismatch', async () => {
+    const initial: FakeArtifactRow = {
+      _id: 'art_st',
+      organizationId: 'org_a',
+      threadId: 'thr_a',
+      type: 'code',
+      title: 'Proj',
+      revision: 5,
       entryFile: 'main.py',
       files: [{ path: 'main.py', content: '' }],
       content: '',
     };
-    const { ctx, patched } = createMockCtx([existing]);
-    const r = await append.handler(ctx, {
-      artifactId: 'art_2',
+    const { ctx, patched } = createMockCtx([initial]);
+    const r = await createFile.handler(ctx, {
+      artifactId: 'art_st',
       path: 'helpers.py',
-      content: 'def helper():\n    pass\n',
-      editedByMessageId: 'msg_x',
-      expectedRevision: 1,
-    });
-    expect(r.success).toBe(true);
-    if (!r.success) return;
-    expect(r.created).toBe(true);
-    expect(r.revision).toBe(2);
-    const patchedFiles = patched[0].patch.files as Array<{
-      path: string;
-      content: string;
-    }>;
-    expect(patchedFiles.map((f) => f.path)).toEqual(['main.py', 'helpers.py']);
-    expect(patchedFiles[1].content).toBe('def helper():\n    pass\n');
-  });
-
-  it('rejects with code: "stale" when expectedRevision is behind (retry-safety)', async () => {
-    const existing: FakeArtifactRow = {
-      _id: 'art_3',
-      organizationId: 'org_a',
-      threadId: 'thr_a',
-      type: 'code',
-      title: 'Project',
-      revision: 5,
-      entryFile: 'main.py',
-      files: [{ path: 'main.py', content: 'so far' }],
-    };
-    const { ctx, patched, inserted } = createMockCtx([existing]);
-    const r = await append.handler(ctx, {
-      artifactId: 'art_3',
-      path: 'main.py',
-      content: 'duplicate',
+      content: 'x',
       editedByMessageId: 'msg_x',
       expectedRevision: 4,
     });
@@ -609,53 +638,87 @@ describe('appendToFile (chunked content delivery)', () => {
     if (r.success) return;
     expect(r.code).toBe('stale');
     expect(r.currentRevision).toBe(5);
-    // No write should happen on a stale rejection.
-    expect(patched).toHaveLength(0);
-    expect(inserted).toHaveLength(0);
-  });
-
-  it('returns code: "not_found" when the artifact row is missing', async () => {
-    const { ctx, patched } = createMockCtx([]);
-    const r = await append.handler(ctx, {
-      artifactId: 'art_gone',
-      path: 'main.py',
-      content: 'anything',
-      editedByMessageId: 'msg_x',
-      expectedRevision: 0,
-    });
-    expect(r.success).toBe(false);
-    if (r.success) return;
-    expect(r.code).toBe('not_found');
     expect(patched).toHaveLength(0);
   });
+});
 
-  it('drives a multi-call append flow that yields concatenated content (sequential)', async () => {
+type UpdateFileArgs = CreateFileArgs;
+type UpdateFileResult =
+  | {
+      success: true;
+      revision: number;
+      path: string;
+      byteLength: number;
+    }
+  | {
+      success: false;
+      code: 'not_found' | 'stale' | 'file_missing';
+      message: string;
+      currentRevision?: number;
+    };
+
+const updateFile = updateFileInArtifact as unknown as MutHandler<
+  UpdateFileArgs,
+  UpdateFileResult
+>;
+
+describe('updateFileInArtifact (strict-CRUD overwrite-only)', () => {
+  it('overwrites an existing file and bumps revision', async () => {
     const initial: FakeArtifactRow = {
-      _id: 'art_flow',
+      _id: 'art_up',
       organizationId: 'org_a',
       threadId: 'thr_a',
       type: 'code',
-      title: 'Flow',
-      revision: 1,
+      title: 'Proj',
+      revision: 7,
       entryFile: 'main.py',
-      files: [{ path: 'main.py', content: '' }],
-      content: '',
+      files: [
+        { path: 'main.py', content: 'old' },
+        { path: 'helpers.py', content: 'helper' },
+      ],
+      content: 'old',
     };
-    const { ctx } = createMockCtx([initial]);
-    const chunks = ['# section 1\n', '# section 2\n', '# section 3\n'];
-    let currentRev = 1;
-    for (const chunk of chunks) {
-      const r = await append.handler(ctx, {
-        artifactId: 'art_flow',
-        path: 'main.py',
-        content: chunk,
-        editedByMessageId: 'msg_x',
-        expectedRevision: currentRev,
-      });
-      expect(r.success).toBe(true);
-      if (!r.success) return;
-      currentRev = r.revision;
-    }
-    expect(currentRev).toBe(4);
+    const { ctx, patched } = createMockCtx([initial]);
+    const r = await updateFile.handler(ctx, {
+      artifactId: 'art_up',
+      path: 'helpers.py',
+      content: 'def x(): pass',
+      editedByMessageId: 'msg_x',
+      expectedRevision: 7,
+    });
+    expect(r.success).toBe(true);
+    if (!r.success) return;
+    expect(r.revision).toBe(8);
+    expect(r.path).toBe('helpers.py');
+    expect(r.byteLength).toBe('def x(): pass'.length);
+    // The artifact row was patched to revision 8 with the new files content.
+    const artifactPatch = patched.find((p) => p.id === 'art_up');
+    expect(artifactPatch?.patch.revision).toBe(8);
+  });
+
+  it('refuses with code: "file_missing" when path does not exist', async () => {
+    const initial: FakeArtifactRow = {
+      _id: 'art_um',
+      organizationId: 'org_a',
+      threadId: 'thr_a',
+      type: 'code',
+      title: 'Proj',
+      revision: 2,
+      entryFile: 'main.py',
+      files: [{ path: 'main.py', content: 'print(1)\n' }],
+      content: 'print(1)\n',
+    };
+    const { ctx, patched } = createMockCtx([initial]);
+    const r = await updateFile.handler(ctx, {
+      artifactId: 'art_um',
+      path: 'doesnt_exist.py',
+      content: 'x',
+      editedByMessageId: 'msg_x',
+      expectedRevision: 2,
+    });
+    expect(r.success).toBe(false);
+    if (r.success) return;
+    expect(r.code).toBe('file_missing');
+    expect(patched).toHaveLength(0);
   });
 });

@@ -1,7 +1,7 @@
 /**
  * Per-tool-call streaming state for the artifact tools.
  *
- * Both `artifact_create` and `artifact_edit` use the AI SDK / @convex-dev
+ * The `file_create` and `file_update` tools use the AI SDK / @convex-dev
  * /agent createTool hooks (`onInputStart`, `onInputDelta`, `execute`).
  * These run sequentially within a single agent action invocation, in the
  * same Node process, so a module-level Map keyed by `toolCallId` is a
@@ -14,15 +14,15 @@ import type { Id } from '../../_generated/dataModel';
 
 export interface ArtifactStreamState {
   toolCallId: string;
-  toolName: 'artifact_create' | 'artifact_edit';
+  toolName: 'artifact_create' | 'file_create' | 'file_update';
   accumulator: string;
   artifactId?: Id<'artifacts'>;
   // Last byte length of the parsed `content` value flushed to the row.
   // Used to throttle DB writes during create / rewrite streaming.
   lastFlushedContentLength: number;
   lastFlushAt: number;
-  // Set once the parser has seen enough JSON to know the streaming mode
-  // (only relevant for artifact_edit which carries `mode` in its input).
+  // Resolved streaming mode for the current tool call. file_create /
+  // file_update both stream as 'rewrite'; older tools used other modes.
   resolvedMode?: 'create' | 'rewrite' | 'append' | 'patch';
   // True once we have either inserted the placeholder (create) or marked
   // the existing row (edit). Avoids double-init on rapid deltas.
@@ -46,9 +46,9 @@ export interface ArtifactStreamState {
   lastFlushedPatchesKey?: string;
   lastPatchesFlushAt: number;
   // Byte length of the existing artifact content at edit time. Set during
-  // artifact_edit preflight; used to slow down the patch-stream flush rate
-  // for large sources, where each tick forces the client to re-render a
-  // diff overlay that spans tens of KB. Unset for artifact_create.
+  // file_create / file_update preflight; used to scale the flush rate for
+  // large sources where each tick forces the client to re-render a content
+  // overlay that spans tens of KB.
   baseContentLength?: number;
   // Length of the accumulator at the last `parsePartialJson` call, plus
   // the wall-clock timestamp. Used by `shouldParse` to amortise the
@@ -58,13 +58,6 @@ export interface ArtifactStreamState {
   // than its configured interval.
   lastParsedLength: number;
   lastParsedAt: number;
-  // Set when `beginEditStream` rejected on this tool call (e.g.
-  // `streaming_in_progress` on the target artifact). Subsequent parse
-  // passes short-circuit Phase 1 init so we don't flood the logs with
-  // identical errors per ~40 ms parse gate, and so `execute` can surface
-  // a clean structured failure instead of falling through to the OCC
-  // path. Only `artifact_edit` sets / reads this today.
-  beginEditStreamFailed?: boolean;
 }
 
 export interface StreamingPatchPair {

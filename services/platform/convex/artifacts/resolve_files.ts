@@ -1,4 +1,5 @@
-import type { Doc } from '../_generated/dataModel';
+import type { Doc, Id } from '../_generated/dataModel';
+import type { MutationCtx, QueryCtx } from '../_generated/server';
 import {
   defaultEntryFileFor,
   isValidArtifactType,
@@ -62,6 +63,31 @@ export function mirrorLegacyContent(
 ): string {
   const entry = files.find((f) => f.path === entryFile);
   return entry?.content ?? '';
+}
+
+/**
+ * Load an artifact and overlay its `files` field with the canonical
+ * `artifactFiles` table rows (when present). Mutations dual-write both the
+ * embedded `artifacts.files[]` array and the per-file `artifactFiles` rows
+ * via `syncArtifactFiles`; this helper lets read paths consume the table as
+ * the authoritative source while staying compatible with rows that predate
+ * the refactor's backfill (legacy rows have no `artifactFiles` rows — fall
+ * back to whatever was on the doc).
+ */
+export async function loadArtifactWithFiles(
+  ctx: QueryCtx | MutationCtx,
+  artifactId: Id<'artifacts'>,
+): Promise<Doc<'artifacts'> | null> {
+  const doc = await ctx.db.get(artifactId);
+  if (!doc) return null;
+  const rows: { path: string; content: string }[] = [];
+  for await (const row of ctx.db
+    .query('artifactFiles')
+    .withIndex('by_artifact', (q) => q.eq('artifactId', artifactId))) {
+    rows.push({ path: row.path, content: row.content });
+  }
+  if (rows.length === 0) return doc;
+  return { ...doc, files: rows };
 }
 
 /**

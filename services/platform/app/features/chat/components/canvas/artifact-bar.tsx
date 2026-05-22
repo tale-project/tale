@@ -29,7 +29,7 @@ function ArtifactBarComponent({ organizationId, threadId }: ArtifactBarProps) {
   // Pull focus to each newly-created artifact exactly once. If the AI calls
   // artifact_create multiple times in a turn, we follow whichever one
   // appeared most recently — ChatGPT-Canvas behaviour. We key off
-  // `createdAt` (immutable) so an artifact_edit revision does not
+  // `createdAt` (immutable) so a subsequent file_update revision does not
   // re-trigger the switch; the existing `useQuery` subscription updates
   // the open canvas in place.
   const autoOpenedRef = useRef(new Set<string>());

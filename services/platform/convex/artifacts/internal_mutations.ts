@@ -6,8 +6,9 @@
  *
  *   - `handlers/shared.ts`        — helpers, size guards, validateFiles,
  *                                   clearStreamingFlags, trimRevisionHistory
- *   - `handlers/content_edits.ts` — create / patch / rewrite / append /
- *                                   delete / rename
+ *   - `handlers/content_edits.ts` — createArtifact + file-level CRUD
+ *                                   (file_create / file_update / file_delete
+ *                                   / file_rename)
  *   - `handlers/streaming.ts`     — beginEditStream / abortStream /
  *                                   updateRewriteStreamingContent /
  *                                   discardActiveStreamsForThread /
@@ -26,24 +27,21 @@
 
 import { internalMutation } from '../_generated/server';
 import {
-  appendToFileArgs,
-  appendToFileHandler,
-  appendToFileReturns,
-  applyToolPatchArgs,
-  applyToolPatchHandler,
-  applyToolPatchReturns,
   createArtifactArgs,
   createArtifactHandler,
   createArtifactReturns,
+  createFileInArtifactArgs,
+  createFileInArtifactHandler,
+  createFileInArtifactReturns,
   deleteFileFromArtifactArgs,
   deleteFileFromArtifactHandler,
   deleteFileFromArtifactReturns,
   renameFileInArtifactArgs,
   renameFileInArtifactHandler,
   renameFileInArtifactReturns,
-  rewriteArtifactArgs,
-  rewriteArtifactHandler,
-  rewriteArtifactReturns,
+  updateFileInArtifactArgs,
+  updateFileInArtifactHandler,
+  updateFileInArtifactReturns,
 } from './handlers/content_edits';
 import {
   addArtifactPackagesArgs,
@@ -101,24 +99,6 @@ export const createArtifact = internalMutation({
   handler: createArtifactHandler,
 });
 
-export const applyToolPatch = internalMutation({
-  args: applyToolPatchArgs,
-  returns: applyToolPatchReturns,
-  handler: applyToolPatchHandler,
-});
-
-export const rewriteArtifact = internalMutation({
-  args: rewriteArtifactArgs,
-  returns: rewriteArtifactReturns,
-  handler: rewriteArtifactHandler,
-});
-
-export const appendToFile = internalMutation({
-  args: appendToFileArgs,
-  returns: appendToFileReturns,
-  handler: appendToFileHandler,
-});
-
 export const deleteFileFromArtifact = internalMutation({
   args: deleteFileFromArtifactArgs,
   returns: deleteFileFromArtifactReturns,
@@ -129,6 +109,18 @@ export const renameFileInArtifact = internalMutation({
   args: renameFileInArtifactArgs,
   returns: renameFileInArtifactReturns,
   handler: renameFileInArtifactHandler,
+});
+
+export const createFileInArtifact = internalMutation({
+  args: createFileInArtifactArgs,
+  returns: createFileInArtifactReturns,
+  handler: createFileInArtifactHandler,
+});
+
+export const updateFileInArtifact = internalMutation({
+  args: updateFileInArtifactArgs,
+  returns: updateFileInArtifactReturns,
+  handler: updateFileInArtifactHandler,
 });
 
 // =============================================================================

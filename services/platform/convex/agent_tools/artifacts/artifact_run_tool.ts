@@ -2,12 +2,12 @@
  * Convex Tool: artifact_run
  *
  * Executes a `python_runnable` or `node_runnable` artifact in the sandbox.
- * `artifact_create` writes the source (and persists `runPackages` /
- * `runOptions` on the row); this tool is the explicit, LLM-driven trigger
- * to actually run it. Returns the full run outcome — including
- * `runStatus`, `runErrorCode`, `runStderrPreview`, generated files — so
- * the LLM can react to failures by calling `artifact_edit` then
- * `artifact_run` again.
+ * `artifact_create` creates the (empty) artifact and persists `runPackages`
+ * / `runOptions` on the row; `file_create` / `file_update` populate the
+ * source files. This tool is the explicit, LLM-driven trigger to actually
+ * run them. Returns the full run outcome — including `runStatus`,
+ * `runErrorCode`, `runStderrPreview`, generated files — so the LLM can
+ * react to failures by calling `file_update` then `artifact_run` again.
  *
  * Splitting execution out of `artifact_create` (Refinement 4) is what
  * prevents the model from "fixing" a failure by emitting another
@@ -56,7 +56,7 @@ const artifactRunArgs = z
     artifactId: z
       .string()
       .describe(
-        'The id of the python_runnable or node_runnable artifact to execute. Pass the artifactId returned by a prior `artifact_create` / `artifact_edit` call.',
+        'The id of the python_runnable or node_runnable artifact to execute. Pass the artifactId returned by a prior `artifact_create` / `file_create` / `file_update` call.',
       ),
     path: z
       .string()
@@ -196,7 +196,7 @@ export const artifactRunTool = {
   tool: createTool({
     description: `**artifact_run** — execute a runnable artifact (\`python_runnable\` or \`node_runnable\`) in the sandbox and return the run outcome.
 
-USE THIS TOOL after \`artifact_create\` (to run the entry script) or after \`artifact_edit\` (to re-run the patched revision). The previously-configured \`runPackages\` are reused unless you override.
+USE THIS TOOL after \`artifact_create\` + \`file_update\`/\`file_create\` (to run the entry script) or after a subsequent \`file_update\` (to re-run a patched revision). The previously-configured \`runPackages\` are reused unless you override; add new dependencies via \`artifact_packages_add\`.
 
 **WORKSPACE LIFECYCLE — READ FIRST.**
 - Every \`artifact_run\` invocation gets a **brand-new** \`/workspace/\` directory.
@@ -222,7 +222,7 @@ artifact_run({
 
 **Single-script mode** (use when there's nothing to chain): omit both \`steps\` and \`path\` to run the artifact's \`entryFile\`, or pass \`path\` to run a specific sibling file. \`subprocess.run(['python', 'validate.py'])\` from within the entry script also works if you want orchestration logic in-script.
 
-**ONE ARTIFACT, MANY RUNNABLE FILES.** Keep multi-script workflows in ONE artifact. Do NOT call \`artifact_create\` twice for "generator" and "validator" — add sibling files via \`artifact_edit({mode:'rewrite', path:'validate.py', content:...})\` and reference them via \`steps\`.
+**ONE ARTIFACT, MANY RUNNABLE FILES.** Keep multi-script workflows in ONE artifact. Do NOT call \`artifact_create\` twice for "generator" and "validator" — add sibling files via \`file_create({artifactId, path:'validate.py', content:...})\` and reference them via \`steps\`.
 
 **DO NOT use this tool for:**
 - Static artifact types (\`html\`, \`svg\`, \`mermaid\`, \`markdown\`, \`code\`) — those render in the browser, not the sandbox. The tool will refuse them with a clear error.
@@ -240,12 +240,12 @@ artifact_run({
 
 | \`runErrorCode\` | Meaning | Recovery |
 |---|---|---|
-| \`RUNTIME_ERROR\` | Code threw (most common) | Read stderr traceback, \`artifact_edit\` with \`mode: "patch"\` to fix the offending step, then \`artifact_run\` again |
-| \`TIMEOUT\` | Wall-clock exceeded | Raise \`timeoutMs\` on the next \`artifact_run\` call, or \`artifact_edit\` to split the work |
-| \`OOM\` | Memory cap hit (1 GB) | \`artifact_edit\` to stream / reduce data in memory, then \`artifact_run\` again |
-| \`EGRESS_DENIED\` | Tried to reach a non-registry host | \`artifact_edit\` to remove the external call — use the \`web\` tool instead |
-| \`INSTALL_FAILED\` | Package install errored | Read stderr, \`artifact_edit\` with a corrected \`packages\` list, then \`artifact_run\` again |
-| \`PACKAGE_NOT_FOUND\` | A spec doesn't resolve | \`artifact_edit\` with an alternate package name |
+| \`RUNTIME_ERROR\` | Code threw (most common) | Read stderr traceback, \`file_read\` then \`file_update\` to fix the offending step, then \`artifact_run\` again |
+| \`TIMEOUT\` | Wall-clock exceeded | Raise \`timeoutMs\` on the next \`artifact_run\` call, or \`file_update\` to split the work into multiple files / steps |
+| \`OOM\` | Memory cap hit (1 GB) | \`file_update\` to stream / reduce data in memory, then \`artifact_run\` again |
+| \`EGRESS_DENIED\` | Tried to reach a non-registry host | \`file_update\` to remove the external call — use the \`web\` tool instead |
+| \`INSTALL_FAILED\` | Package install errored | Read stderr, call \`artifact_packages_add\` with a corrected spec (or re-create the artifact with a fresh package list), then \`artifact_run\` again |
+| \`PACKAGE_NOT_FOUND\` | A spec doesn't resolve | \`artifact_packages_add\` with an alternate package name |
 | \`QUOTA_EXCEEDED\` | Org daily CPU cap | Don't retry — tell the user to wait |
 | \`SPAWNER_UNAVAILABLE\` | Transient infra | One \`artifact_run\` retry is fine; if it fails again, surface to user |
 
@@ -276,7 +276,7 @@ artifact_run({
       // `toId` is a pure cast; it never throws. The Convex `v.id('artifacts')`
       // validator inside `runQuery(getById)` is the real throw site for a
       // malformed id, so wrap THAT call, not toId. Mirrors the pattern in
-      // artifact_edit_tool.ts.
+      // the file_* tools.
       const artifactId = toId<'artifacts'>(args.artifactId);
       let artifact;
       try {
@@ -372,13 +372,13 @@ artifact_run({
             const known = resolved.files.map((f) => f.path).join(', ');
             return {
               success: false,
-              message: `steps[${i}].path "${validated}" is not in artifact ${args.artifactId}. Available paths: ${known}. Call artifact_edit to create the file first if you intended to add it.`,
+              message: `steps[${i}].path "${validated}" is not in artifact ${args.artifactId}. Available paths: ${known}. Call file_create to add the file first if you intended to.`,
             };
           }
           if (entry.content.length === 0) {
             return {
               success: false,
-              message: `steps[${i}].path "${validated}" is empty. Call artifact_edit({mode: 'rewrite', path: "${validated}", content: ...}) first.`,
+              message: `steps[${i}].path "${validated}" is empty. Call file_update({artifactId, path: "${validated}", content: ..., expectedRevision}) first.`,
             };
           }
           stepPaths.push(validated);
@@ -412,7 +412,7 @@ artifact_run({
         if (targetEntry.content.length === 0) {
           return {
             success: false,
-            message: `Artifact ${args.artifactId} file "${targetPath}" is empty. Call artifact_edit({mode: 'rewrite', path: "${targetPath}", content: ...}) first.`,
+            message: `Artifact ${args.artifactId} file "${targetPath}" is empty. Call file_update({artifactId, path: "${targetPath}", content: ..., expectedRevision}) first.`,
           };
         }
         dispatch = {
@@ -608,9 +608,9 @@ artifact_run({
           message = `Ran "${artifact.title}" successfully; produced ${run.files.length} output file(s) in ${run.durationMs}ms.`;
         }
       } else if (run.errorCode) {
-        message = `Run FAILED: ${run.errorCode}${run.errorMessage ? ` — ${run.errorMessage}` : ''}.${stepSuffix} Read runStderrPreview and call artifact_edit on the SAME artifactId to fix${failedStep ? ` "${failedStep.path}"` : ''}, then artifact_run again. Do NOT call artifact_create — that creates a duplicate. Do NOT say the file is ready.`;
+        message = `Run FAILED: ${run.errorCode}${run.errorMessage ? ` — ${run.errorMessage}` : ''}.${stepSuffix} Read runStderrPreview and call file_update on the SAME artifactId to fix${failedStep ? ` "${failedStep.path}"` : ''}, then artifact_run again. Do NOT call artifact_create — that creates a duplicate. Do NOT say the file is ready.`;
       } else {
-        message = `Run finished with status=${run.status} but produced no output files.${stepSuffix} Inspect runStdoutPreview / runStderrPreview and decide whether to artifact_edit + re-run.`;
+        message = `Run finished with status=${run.status} but produced no output files.${stepSuffix} Inspect runStdoutPreview / runStderrPreview and decide whether to file_update + re-run.`;
       }
 
       // Surface the artifactRuns row id created by `applyFinalizeArtifactRun`

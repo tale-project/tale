@@ -6,7 +6,7 @@ import type { Doc } from '../_generated/dataModel';
 import { query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls';
 import { canAccessThread } from '../lib/rls/auth/can_access_thread';
-import { resolveArtifactFiles } from './resolve_files';
+import { loadArtifactWithFiles, resolveArtifactFiles } from './resolve_files';
 
 const MAX_LIST_BY_THREAD = 50;
 
@@ -68,7 +68,7 @@ export const getById = query({
   handler: async (ctx, { artifactId }): Promise<Doc<'artifacts'> | null> => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) return null;
-    const artifact = await ctx.db.get(artifactId);
+    const artifact = await loadArtifactWithFiles(ctx, artifactId);
     if (!artifact) return null;
     const metadata = await canAccessThread(
       ctx,

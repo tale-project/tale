@@ -17,7 +17,17 @@ import { liveStreamModeValidator } from '../schema';
 import { STALE_STREAM_THRESHOLD_MS, clearStreamingFlags } from './shared';
 
 // =============================================================================
-// beginEditStream — single-writer guard + initial streaming state
+// beginEditStream — stamp initial streaming state on the row
+//
+// Row-level streaming fields (liveStreamMode / streamingPath / toolCallId /
+// streamingContent) are the canvas's "live preview" signal, NOT a concurrency
+// guard. Same-path collisions are handled by `expectedRevision` OCC at settle
+// time. Cross-path concurrent writes (two `file_create`s to different paths)
+// are semantically independent — last-writer-wins is fine for the canvas
+// signal; both writes commit independently on their own settle path.
+//
+// Stale flags from a crashed prior stream are cleaned by
+// `cleanupStaleStreams` / `discardActiveStreamsForThread`.
 // =============================================================================
 
 export const beginEditStreamArgs = {
@@ -44,13 +54,6 @@ export async function beginEditStreamHandler(
     throw new ConvexError({
       code: 'not_found',
       message: `Artifact ${args.artifactId} not found.`,
-    });
-  }
-  // Refuse if another stream is already in flight on this row.
-  if (row.liveStreamMode !== undefined) {
-    throw new ConvexError({
-      code: 'streaming_in_progress',
-      message: `Another edit is already streaming to artifact ${args.artifactId} (mode: ${row.liveStreamMode}). Wait for it to settle.`,
     });
   }
   const validatedPath =
@@ -103,13 +106,12 @@ export async function abortStreamHandler(
 // a stale delta from an aborted call overwriting a newer stream.
 //
 // Never touches `files[]`, `content`, or `revision`. Settled state stays
-// exactly as it was until `rewriteArtifact` / `appendToFile` runs at
-// execute-time.
+// exactly as it was until `createFileInArtifact` / `updateFileInArtifact`
+// runs at execute-time.
 //
-// Shared by `artifact_edit({mode:'rewrite'})` and
-// `artifact_edit({mode:'append'})` — both stream their `content` arg in via
-// tool-input deltas, so the canvas's "show whatever bytes we've seen so
-// far" path is identical.
+// Shared by `file_create` and `file_update` — both stream their `content`
+// arg in via tool-input deltas, so the canvas's "show whatever bytes we've
+// seen so far" path is identical.
 // =============================================================================
 
 export const updateRewriteStreamingContentArgs = {

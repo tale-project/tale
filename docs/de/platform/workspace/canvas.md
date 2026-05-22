@@ -9,7 +9,7 @@ Die Zielgruppe ist jeder im Chat. Es gibt kein Rollen-Gate; wer chatten kann, ka
 
 ## Wie der Artefakt-Lebenszyklus funktioniert
 
-Wenn die KI etwas Lauffähiges oder Überarbeitbares hervorbringen will, ruft sie das `artifact_create`-Tool auf. Das neue Artefakt erscheint als Karte in der **Artefakte**-Leiste über dem Chat, öffnet sich beim ersten Erzeugen automatisch im Canvas-Bereich und streamt seinen Inhalt live in den Bereich, während die KI tippt. Um das Artefakt zu überarbeiten, ruft die KI `artifact_edit` auf dieselbe Identität — kleine Änderungen nutzen `mode: 'patch'` (Suchen-und-Ersetzen-Blöcke); grosse Umschriften nutzen `mode: 'rewrite'`. In beiden Fällen rendert Canvas an Ort und Stelle neu, sodass du nie zurückscrollen musst, um die neueste Version zu finden.
+Wenn die KI etwas Lauffähiges oder Überarbeitbares hervorbringen will, ruft sie das `artifact_create`-Tool auf. Das neue Artefakt erscheint als Karte in der **Artefakte**-Leiste über dem Chat und öffnet sich beim ersten Erzeugen automatisch im Canvas-Bereich. Um es zu befüllen oder zu überarbeiten, ruft die KI Datei-CRUD-Tools auf dieselbe Identität auf: `file_update`, um eine bestehende Datei vollständig zu überschreiben, `file_create`, um eine neue Geschwisterdatei hinzuzufügen (ein Projekt kann mehrere Dateien enthalten), `file_delete` und `file_rename` zur Pflege. Canvas rendert an Ort und Stelle neu und streamt den Inhalt live, während die KI tippt, sodass du nie zurückscrollen musst, um die neueste Version zu finden.
 
 Während die KI schreibt oder patcht, zeigt die Karte einen Spinner und die Canvas-Kopfzeile liest **KI schreibt…** oder **KI bearbeitet…**.
 
