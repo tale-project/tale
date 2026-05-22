@@ -1,6 +1,8 @@
 import { Accordion, AccordionItem } from '@tale/ui/accordion';
 import { motion, useReducedMotion } from 'framer-motion';
+import { ArrowRight } from 'lucide-react';
 
+import { LocalizedLink } from '@/app/components/layout/localized-link';
 import { SiteContainer } from '@/app/components/layout/site-container';
 import { useT } from '@/lib/i18n/client';
 
@@ -21,7 +23,7 @@ export function FaqAccordion() {
   const reduceMotion = useReducedMotion();
 
   return (
-    <section className="border-border-base border-b py-12 lg:py-20">
+    <section className="border-border-base bg-bg-base border-b py-12 lg:py-20 dark:bg-[#0f0f0f]">
       <SiteContainer>
         <div className="mx-auto grid max-w-[1120px] grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,640px)] lg:gap-10">
           <motion.div
@@ -31,7 +33,6 @@ export function FaqAccordion() {
             transition={
               reduceMotion ? { duration: 0 } : { duration: 0.5, ease: easeOut }
             }
-            className="lg:pl-10"
           >
             <h2
               className="text-fg-base text-[28px] font-medium tracking-[-0.05em] md:text-[48px] md:tracking-[-0.0446em]"
@@ -58,13 +59,23 @@ export function FaqAccordion() {
                   id={key}
                   question={t(`faq.${key}.q`)}
                   className="px-0 py-8 lg:px-5 lg:py-5"
-                  triggerClassName="text-[18px] lg:text-[20px]"
+                  triggerClassName="text-[18px] tracking-[-1px] lg:text-[20px]"
                   contentClassName="text-[15px] lg:text-[16px]"
                 >
                   {t(`faq.${key}.a`)}
                 </AccordionItem>
               ))}
             </Accordion>
+            <p className="text-fg-subtle mt-6 flex flex-wrap items-center gap-1.5 text-sm">
+              <span>{t('faq.stillQuestions')}</span>
+              <LocalizedLink
+                to="/contact"
+                className="text-fg-base inline-flex items-center gap-1 font-medium hover:underline"
+              >
+                {t('faq.contactTeam')}
+                <ArrowRight aria-hidden className="size-3.5" />
+              </LocalizedLink>
+            </p>
           </motion.div>
         </div>
       </SiteContainer>

@@ -14,6 +14,7 @@ const THEME_MENU_HEIGHT = 144;
 type Theme = 'light' | 'dark' | 'system';
 
 const ORDER: readonly Theme[] = ['light', 'dark', 'system'];
+const SEGMENTED_ORDER: readonly Theme[] = ['system', 'light', 'dark'];
 
 const ICONS = {
   light: Sun,
@@ -23,21 +24,85 @@ const ICONS = {
 
 interface ThemeSwitcherProps {
   className?: string;
+  /** `'menu'` (default) renders an icon button + dropdown picker. `'segmented'`
+   *  renders the three options inline as a pill with the active option
+   *  highlighted — used by the marketing footer per design. */
+  variant?: 'menu' | 'segmented';
 }
 
 /**
- * Three-way theme switcher (light / dark / system). Renders an icon-only
- * trigger that mirrors the active theme; clicking opens a small menu so
- * the user can pick explicitly. Reads `useTheme` from `@tale/ui/theme`,
- * so the surrounding `<ThemeProvider>` owns persistence.
+ * Three-way theme switcher (light / dark / system). Two visual variants
+ * sharing the same `useTheme` wiring:
+ *  - `menu`: icon button that opens a dropdown of options.
+ *  - `segmented`: pill-style segmented control with all three icons
+ *    visible at once.
  *
  * Translatable labels live under the `themeSwitcher` namespace:
  *   { ariaLabel, light, dark, system }.
  */
-export function ThemeSwitcher({ className }: ThemeSwitcherProps) {
+export function ThemeSwitcher({
+  className,
+  variant = 'menu',
+}: ThemeSwitcherProps) {
+  return variant === 'segmented' ? (
+    <SegmentedThemeSwitcher className={className} />
+  ) : (
+    <MenuThemeSwitcher className={className} />
+  );
+}
+
+// Pill geometry: each option button is 26×26 with a 3px gap and 3px outer
+// padding. The sliding indicator translates by (button + gap) per step.
+const SEGMENT_STEP_PX = 26 + 3;
+
+function SegmentedThemeSwitcher({ className }: { className?: string }) {
   const { t } = useT('themeSwitcher');
   const { theme, setTheme } = useTheme();
-  const ActiveIcon = ICONS[theme as Theme] ?? Monitor;
+  const activeIndex = Math.max(0, SEGMENTED_ORDER.indexOf(theme));
+  return (
+    <div
+      role="radiogroup"
+      aria-label={t('ariaLabel')}
+      className={cn(
+        'bg-bg-muted relative inline-flex items-center gap-[3px] rounded-full p-[3px]',
+        className,
+      )}
+    >
+      <span
+        aria-hidden
+        className="bg-bg-base pointer-events-none absolute top-[3px] left-[3px] size-[26px] rounded-full shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-transform duration-300 ease-out will-change-transform motion-reduce:transition-none dark:bg-[#404045] dark:shadow-[0_1px_4px_rgba(0,0,0,0.25)]"
+        style={{ transform: `translateX(${activeIndex * SEGMENT_STEP_PX}px)` }}
+      />
+      {SEGMENTED_ORDER.map((option) => {
+        const Icon = ICONS[option];
+        const isActive = theme === option;
+        return (
+          <button
+            key={option}
+            type="button"
+            role="radio"
+            aria-checked={isActive}
+            aria-label={t(option)}
+            onClick={() => setTheme(option)}
+            className={cn(
+              'focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-muted relative inline-flex size-[26px] cursor-pointer items-center justify-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 motion-reduce:transition-none',
+              isActive
+                ? 'text-fg-base'
+                : 'text-fg-muted hover:text-fg-base dark:text-[#6b7280] dark:hover:text-fg-base',
+            )}
+          >
+            <Icon aria-hidden className="size-3.5" />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function MenuThemeSwitcher({ className }: { className?: string }) {
+  const { t } = useT('themeSwitcher');
+  const { theme, setTheme } = useTheme();
+  const ActiveIcon = ICONS[theme] ?? Monitor;
 
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -75,7 +140,7 @@ export function ThemeSwitcher({ className }: ThemeSwitcherProps) {
       'button[role="menuitemradio"]',
     );
     if (!items || items.length === 0) return;
-    const activeIndex = ORDER.indexOf(theme as Theme);
+    const activeIndex = ORDER.indexOf(theme);
     const target = items[activeIndex >= 0 ? activeIndex : 0];
     target?.focus();
   }, [open, theme]);
@@ -157,7 +222,7 @@ export function ThemeSwitcher({ className }: ThemeSwitcherProps) {
                     aria-hidden
                     viewBox="0 0 12 12"
                     className={cn(
-                      'h-3 w-3 shrink-0 transition-opacity',
+                      'h-3 w-3 shrink-0 transition-opacity motion-reduce:transition-none',
                       isActive ? 'opacity-100' : 'opacity-0',
                     )}
                     fill="none"

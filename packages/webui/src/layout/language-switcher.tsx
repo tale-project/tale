@@ -49,6 +49,9 @@ interface LanguageSwitcherProps {
   ) => string;
   /** Optional className passthrough for the trigger button. */
   className?: string;
+  /** When `false`, hides the flag icon in the trigger button (the menu
+   *  items still show flags for visual scanning). Defaults to `true`. */
+  showFlag?: boolean;
 }
 
 function defaultResolveLocaleUrl(
@@ -85,6 +88,7 @@ function readCurrentLocale(pathname: string): SupportedLocale {
 export function LanguageSwitcher({
   resolveLocaleUrl = defaultResolveLocaleUrl,
   className,
+  showFlag = true,
 }: LanguageSwitcherProps) {
   const { t } = useT('languageSwitcher');
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -172,10 +176,12 @@ export function LanguageSwitcher({
         onClick={() => setOpen((v) => !v)}
         className="border-border-base bg-bg-base text-fg-muted hover:text-fg-base hover:border-border-strong focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-base inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
       >
-        <LocaleFlag
-          locale={currentLocale}
-          className="block h-3.5 w-5 shrink-0 overflow-hidden rounded-[2px] shadow-[0_0_0_1px_rgba(0,0,0,0.05)]"
-        />
+        {showFlag ? (
+          <LocaleFlag
+            locale={currentLocale}
+            className="block h-3.5 w-5 shrink-0 overflow-hidden rounded-[2px] shadow-[0_0_0_1px_rgba(0,0,0,0.05)]"
+          />
+        ) : null}
         <span className="text-fg-base">{t(`locales.${currentLocale}`)}</span>
         <ChevronDown
           aria-hidden
