@@ -8,6 +8,8 @@ import {
   leasingMonthly,
   nodeBuyPrice,
   nodeMetrics,
+  rackBuyPrice,
+  rackMetrics,
   type LeasingTerm,
   type TierMetrics,
 } from '@/app/components/blocks/hardware-specs';
@@ -31,13 +33,15 @@ import { useT } from '@/lib/i18n/client';
 const HARDWARE_LOCALE = 'en-US';
 const HARDWARE_CURRENCY = 'CHF';
 
-const TIER_KEYS = ['quality', 'hybrid', 'speed'] as const;
-type TierKey = (typeof TIER_KEYS)[number];
+const STANDARD_TIER_KEYS = ['quality', 'hybrid', 'speed'] as const;
+type StandardTierKey = (typeof STANDARD_TIER_KEYS)[number];
+type TierKey = StandardTierKey | 'rack';
 
 const METRIC_AXES = ['quality', 'speed', 'storage'] as const;
 const HARDWARE_MODES = [
   'node',
   'cluster',
+  'rack',
 ] as const satisfies readonly HardwareMode[];
 const HARDWARE_BILLINGS = [
   'buying',
@@ -47,22 +51,32 @@ const HARDWARE_BILLINGS = [
 interface Tier {
   key: TierKey;
   popular: boolean;
-  buyPrice: Record<HardwareMode, number>;
-  metrics: Record<HardwareMode, TierMetrics>;
+  buyPrice: number;
+  metrics: TierMetrics;
 }
 
-const TIERS: Tier[] = TIER_KEYS.map((key) => ({
-  key,
-  popular: key === 'hybrid',
-  buyPrice: {
-    cluster: clusterBuyPrice(key),
-    node: nodeBuyPrice(key),
-  },
-  metrics: {
-    cluster: clusterMetrics(key),
-    node: nodeMetrics(key),
-  },
-}));
+const TIERS_BY_MODE: Record<HardwareMode, Tier[]> = {
+  node: STANDARD_TIER_KEYS.map((key) => ({
+    key,
+    popular: key === 'hybrid',
+    buyPrice: nodeBuyPrice(key),
+    metrics: nodeMetrics(key),
+  })),
+  cluster: STANDARD_TIER_KEYS.map((key) => ({
+    key,
+    popular: key === 'hybrid',
+    buyPrice: clusterBuyPrice(key),
+    metrics: clusterMetrics(key),
+  })),
+  rack: [
+    {
+      key: 'rack',
+      popular: true,
+      buyPrice: rackBuyPrice(),
+      metrics: rackMetrics(),
+    },
+  ],
+};
 
 interface HardwareTiersProps {
   mode: HardwareMode;
@@ -83,13 +97,16 @@ export function HardwareTiers({
 }: HardwareTiersProps) {
   const { t } = useT('hardwarePricing');
 
+  const tiers = TIERS_BY_MODE[mode];
+  const isRack = mode === 'rack';
+
   return (
     <MarketingSection
       title={t('title')}
       description={t('description')}
       descriptionMaxWidth={640}
       controls={
-        <>
+        <div className="flex w-full flex-col items-center gap-3 md:gap-4">
           <SegmentedRadio
             ariaLabel={t('modesAriaLabel')}
             options={HARDWARE_MODES}
@@ -97,34 +114,40 @@ export function HardwareTiers({
             onChange={onModeChange}
             renderLabel={(option) => t(`modes.${option}`)}
           />
-          <SegmentedRadio
-            ariaLabel={t('billing.ariaLabel')}
-            options={HARDWARE_BILLINGS}
-            value={billing}
-            onChange={onBillingChange}
-            renderLabel={(option) => t(`billing.${option}`)}
-          />
-          {billing === 'leasing' && (
-            <div className="flex items-center gap-2">
-              <span className="text-fg-muted text-sm">
-                {t('billing.termHeading')}
-              </span>
-              <SegmentedRadio
-                ariaLabel={t('billing.termAriaLabel')}
-                options={LEASING_TERMS}
-                value={term}
-                onChange={onTermChange}
-                renderLabel={(option) => String(option)}
-              />
-            </div>
-          )}
-        </>
+          <div className="flex flex-col items-center gap-3 md:flex-row md:flex-wrap md:justify-center md:gap-4">
+            <SegmentedRadio
+              ariaLabel={t('billing.ariaLabel')}
+              options={HARDWARE_BILLINGS}
+              value={billing}
+              onChange={onBillingChange}
+              renderLabel={(option) => t(`billing.${option}`)}
+            />
+            {billing === 'leasing' && (
+              <div className="flex items-center gap-2">
+                <span className="text-fg-muted text-sm">
+                  {t('billing.termHeading')}
+                </span>
+                <SegmentedRadio
+                  ariaLabel={t('billing.termAriaLabel')}
+                  options={LEASING_TERMS}
+                  value={term}
+                  onChange={onTermChange}
+                  renderLabel={(option) => String(option)}
+                />
+              </div>
+            )}
+          </div>
+        </div>
       }
       footer={t('deploymentNote')}
     >
-      <div className="border-border-base mx-auto mt-12 grid max-w-[1120px] grid-cols-1 overflow-hidden border lg:grid-cols-3">
-        {TIERS.map((tier, idx) => {
-          const buy = tier.buyPrice[mode];
+      <div
+        className={`border-border-base mx-auto mt-12 grid grid-cols-1 overflow-hidden border ${
+          isRack ? 'max-w-sm' : 'max-w-[1120px] lg:grid-cols-3'
+        }`}
+      >
+        {tiers.map((tier, idx) => {
+          const buy = tier.buyPrice;
           const price = formatCurrency(
             billing === 'leasing' ? leasingMonthly(buy, term) : buy,
             {
@@ -156,7 +179,7 @@ export function HardwareTiers({
             >
               <dl className="border-border-base flex flex-col gap-4 border-t pt-6">
                 {METRIC_AXES.map((axis) => {
-                  const value = tier.metrics[mode][axis];
+                  const value = tier.metrics[axis];
                   const label = t(`metrics.${axis}`);
                   return (
                     <div key={axis} className="flex flex-col gap-2">

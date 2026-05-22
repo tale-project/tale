@@ -7,14 +7,14 @@ import { DOCS_URL } from '@/lib/docs-url';
 import { useT } from '@/lib/i18n/client';
 
 interface NavItem {
-  key: 'features' | 'pricing';
-  to: '/' | '/pricing';
-  hash?: string;
+  key: 'platform' | 'pricing' | 'hardware';
+  to: '/' | '/pricing' | '/hardware-pricing';
 }
 
 const NAV_ITEMS: readonly NavItem[] = [
-  { key: 'features', to: '/', hash: 'features' },
+  { key: 'platform', to: '/' },
   { key: 'pricing', to: '/pricing' },
+  { key: 'hardware', to: '/hardware-pricing' },
 ] as const;
 
 export function SiteHeader() {
@@ -24,7 +24,6 @@ export function SiteHeader() {
     <LocalizedLink
       key={item.key}
       to={item.to}
-      hash={item.hash}
       className="text-fg-muted hover:text-fg-base text-sm transition-colors"
     >
       {t(item.key)}
@@ -55,7 +54,6 @@ export function SiteHeader() {
         <LocalizedLink
           key={item.key}
           to={item.to}
-          hash={item.hash}
           className="text-fg-base text-2xl font-semibold tracking-tight transition-colors"
         >
           {t(item.key)}

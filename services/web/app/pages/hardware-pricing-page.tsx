@@ -11,13 +11,13 @@ import { localizedPath } from '@/lib/i18n/locales';
 import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
 import { useDocumentMeta } from '@/lib/seo/use-document-meta';
 
-export type HardwareMode = 'node' | 'cluster';
+export type HardwareMode = 'node' | 'cluster' | 'rack';
 export type HardwareBilling = 'leasing' | 'buying';
 
 const DEFAULT_TERM: LeasingTerm = 36;
 
 function isHardwareMode(value: unknown): value is HardwareMode {
-  return value === 'node' || value === 'cluster';
+  return value === 'node' || value === 'cluster' || value === 'rack';
 }
 
 function isHardwareBilling(value: unknown): value is HardwareBilling {

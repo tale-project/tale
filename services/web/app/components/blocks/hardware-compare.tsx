@@ -12,6 +12,7 @@ import { SpecValue } from '@/app/components/blocks/hardware-spec-value';
 import {
   clusterSpec,
   nodeSpec,
+  rackSpec,
   type SpecLines,
 } from '@/app/components/blocks/hardware-specs';
 import { MarketingSection } from '@/app/components/blocks/marketing-section';
@@ -30,8 +31,15 @@ import { useT } from '@/lib/i18n/client';
  * section dividers) is composed inline.
  */
 
-const TIER_KEYS = ['quality', 'hybrid', 'speed'] as const;
-type TierKey = (typeof TIER_KEYS)[number];
+const STANDARD_TIER_KEYS = ['quality', 'hybrid', 'speed'] as const;
+type StandardTierKey = (typeof STANDARD_TIER_KEYS)[number];
+type TierKey = StandardTierKey | 'rack';
+
+const TIER_KEYS_BY_MODE: Record<HardwareMode, readonly TierKey[]> = {
+  node: STANDARD_TIER_KEYS,
+  cluster: STANDARD_TIER_KEYS,
+  rack: ['rack'],
+};
 
 /**
  * Compare-table specifications axes. Each axis maps a translation row
@@ -59,11 +67,19 @@ const VERSION_KEYS: Record<HardwareMode, Record<TierKey, string>> = {
     quality: 'nodeQuality',
     hybrid: 'nodeApplication',
     speed: 'nodeSpeed',
+    rack: '',
   },
   cluster: {
     quality: 'clusterQuality',
     hybrid: 'clusterHybrid',
     speed: 'clusterSpeed',
+    rack: '',
+  },
+  rack: {
+    quality: '',
+    hybrid: '',
+    speed: '',
+    rack: 'rack',
   },
 };
 
@@ -74,20 +90,28 @@ interface HardwareCompareProps {
 export function HardwareCompare({ mode }: HardwareCompareProps) {
   const { t } = useT('hardwarePricing');
 
-  const specs: Record<TierKey, SpecLines> = {
-    quality:
-      mode === 'node' ? nodeSpec(t, 'quality') : clusterSpec(t, 'quality'),
-    hybrid: mode === 'node' ? nodeSpec(t, 'hybrid') : clusterSpec(t, 'hybrid'),
-    speed: mode === 'node' ? nodeSpec(t, 'speed') : clusterSpec(t, 'speed'),
+  const activeTierKeys = TIER_KEYS_BY_MODE[mode];
+
+  const specFor = (key: TierKey): SpecLines => {
+    if (key === 'rack') return rackSpec(t);
+    return mode === 'node' ? nodeSpec(t, key) : clusterSpec(t, key);
   };
 
-  const tiers: CompareTier<TierKey>[] = TIER_KEYS.map((key) => ({
+  const specs = activeTierKeys.reduce<Partial<Record<TierKey, SpecLines>>>(
+    (acc, key) => {
+      acc[key] = specFor(key);
+      return acc;
+    },
+    {},
+  );
+
+  const tiers: CompareTier<TierKey>[] = activeTierKeys.map((key) => ({
     key,
     name: t(`tierNames.${mode}.${key}`),
     cta: (
       <Button
         asChild
-        variant={key === 'hybrid' ? 'primary' : 'secondary'}
+        variant={key === 'hybrid' || key === 'rack' ? 'primary' : 'secondary'}
         fullWidth
         className="hidden lg:inline-flex"
       >
@@ -121,28 +145,29 @@ export function HardwareCompare({ mode }: HardwareCompareProps) {
     kind: 'data',
     rowKey: 'version',
     label: t('compare.categories.version'),
-    cells: {
-      quality: (
-        <SpecValue value={t(`versions.${VERSION_KEYS[mode].quality}`)} />
-      ),
-      hybrid: <SpecValue value={t(`versions.${VERSION_KEYS[mode].hybrid}`)} />,
-      speed: <SpecValue value={t(`versions.${VERSION_KEYS[mode].speed}`)} />,
-    },
+    cells: Object.fromEntries(
+      activeTierKeys.map((key) => [
+        key,
+        <SpecValue
+          key={key}
+          value={t(`versions.${VERSION_KEYS[mode][key]}`)}
+        />,
+      ]),
+    ) as Partial<Record<TierKey, ReactNode>>,
   };
 
-  // Product numbers are only displayed in node mode — clusters are
-  // billed and shipped as composed systems with no top-level SKU.
+  // Product numbers ship for single-product configurations (single node
+  // and server rack). Clusters are billed and shipped as composed systems
+  // with no top-level SKU.
   const productNumberRow: CompareRow<TierKey> | null =
-    mode === 'node'
+    mode === 'node' || mode === 'rack'
       ? {
           kind: 'data',
           rowKey: 'productNumber',
           label: t('compare.categories.productNumber'),
-          cells: {
-            quality: t('productNumbers.quality'),
-            hybrid: t('productNumbers.hybrid'),
-            speed: t('productNumbers.speed'),
-          },
+          cells: Object.fromEntries(
+            activeTierKeys.map((key) => [key, t(`productNumbers.${key}`)]),
+          ) as Partial<Record<TierKey, ReactNode>>,
         }
       : null;
 
@@ -153,12 +178,11 @@ export function HardwareCompare({ mode }: HardwareCompareProps) {
     const mergeQualityChip = mode === 'node' && axis.row === 'gpu';
     const skipQualityChip = mode === 'node' && axis.row === 'cpu';
 
-    const cells: Partial<Record<TierKey, ReactNode>> = {
-      hybrid: <SpecValue value={specs.hybrid[axis.field]} />,
-      speed: <SpecValue value={specs.speed[axis.field]} />,
-    };
-    if (!skipQualityChip) {
-      cells.quality = <SpecValue value={specs.quality[axis.field]} />;
+    const cells: Partial<Record<TierKey, ReactNode>> = {};
+    for (const key of activeTierKeys) {
+      if (key === 'quality' && skipQualityChip) continue;
+      const spec = specs[key];
+      if (spec) cells[key] = <SpecValue value={spec[axis.field]} />;
     }
 
     const row: CompareRow<TierKey> = {
@@ -180,28 +204,36 @@ export function HardwareCompare({ mode }: HardwareCompareProps) {
         info={t('compare.categories.modelInfo')}
       />
     ),
-    cells: {
-      quality: <SpecValue value={t('models.quality')} />,
-      hybrid: <SpecValue value={t('models.hybrid')} />,
-      speed: <SpecValue value={t('models.speed')} />,
-    },
+    cells: Object.fromEntries(
+      activeTierKeys.map((key) => [
+        key,
+        <SpecValue key={key} value={t(`models.${key}`)} />,
+      ]),
+    ) as Partial<Record<TierKey, ReactNode>>,
   };
 
   const cablesRow: CompareRow<TierKey> = {
     kind: 'data',
     rowKey: 'cables',
     label: t('compare.categories.cables'),
-    cells: {
-      quality: checkIcon,
-      hybrid: checkIcon,
-      speed: checkIcon,
-    },
+    cells: Object.fromEntries(
+      activeTierKeys.map((key) => [key, checkIcon]),
+    ) as Partial<Record<TierKey, ReactNode>>,
   };
 
   const confidentialComputingRow: CompareRow<TierKey> = {
     kind: 'span',
     label: t('compare.categories.confidentialComputing'),
-    content: t('compare.cellLabels.onRequest'),
+    content:
+      mode === 'rack'
+        ? t('compare.cellLabels.yes')
+        : t('compare.cellLabels.onRequest'),
+  };
+
+  const warrantyRow: CompareRow<TierKey> = {
+    kind: 'span',
+    label: t('warranty.title'),
+    content: t('warranty.content'),
   };
 
   const softwareRow: CompareRow<TierKey> = {
@@ -249,6 +281,7 @@ export function HardwareCompare({ mode }: HardwareCompareProps) {
     modelRow,
     cablesRow,
     confidentialComputingRow,
+    warrantyRow,
     softwareRow,
     termsRow,
   ];

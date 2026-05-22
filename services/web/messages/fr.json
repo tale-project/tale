@@ -22,8 +22,9 @@
     }
   },
   "nav": {
-    "features": "Fonctionnalités",
+    "platform": "Plateforme",
     "pricing": "Tarifs",
+    "hardware": "Matériel",
     "readDocs": "Lire la doc",
     "requestDemo": "Demander une démo",
     "openMenu": "Ouvrir le menu",
@@ -347,6 +348,15 @@
         "cta": "Nous contacter",
         "highlightQuality": "Standard",
         "highlightSpeed": "Qualité"
+      },
+      "rack": {
+        "priceSuffix": "+ TVA/mois",
+        "buySuffix": "+ TVA",
+        "tagline": "Performance multi-nœud dans un châssis unique et sécurisé — avec confidential computing.",
+        "nodeTagline": "Performance multi-nœud dans un châssis unique et sécurisé — avec confidential computing.",
+        "cta": "Nous contacter",
+        "highlightQuality": "Élevée",
+        "highlightSpeed": "Élevée"
       }
     },
     "compare": {
@@ -354,7 +364,7 @@
       "subtitle": "Détail de chaque configuration",
       "categories": {
         "model": "Modèle d'IA recommandé",
-        "modelInfo": "Suggestion pour une configuration en cluster. Les configurations à un seul nœud peuvent exécuter des variantes plus petites — ton équipe choisit le modèle réel au déploiement.",
+        "modelInfo": "Suggestion pour une configuration multi-nœud. Les configurations à un seul nœud peuvent exécuter des variantes plus petites — ton équipe choisit le modèle réel au déploiement.",
         "size": "Taille",
         "sizeInfo": "Valeurs indicatives — les dimensions réelles peuvent varier légèrement.",
         "gpu": "Puce (GPU)",
@@ -365,15 +375,17 @@
         "gddr7Info": "Graphics DDR de 7e génération — mémoire vidéo à haute bande passante sur la carte GPU, optimisée pour l'inférence d'IA.",
         "ddr5Info": "DDR SDRAM de cinquième génération (plus rapide et efficace que DDR4).",
         "ddr5eccInfo": "DDR5 avec code correcteur d'erreurs — mémoire serveur capable de détecter et corriger les défauts d'un seul bit.",
+        "zen4Info": "Microarchitecture x86 d'AMD de 4e génération (2022).",
         "zen5Info": "Microarchitecture x86 d'AMD de 5e génération (2024).",
         "int4Info": "Quantification entière 4 bits — perte de précision minime, empreinte mémoire ~4× plus petite.",
         "m2nvmeInfo": "SSD m.2 NVMe dans un pool ZFS RAID — stockage rapide et redondant.",
         "nqInfo": "Node Quality",
         "naInfo": "Node Application",
         "nsInfo": "Node Speed",
-        "cqInfo": "Cluster Quality",
-        "chInfo": "Cluster Hybrid",
-        "csInfo": "Cluster Speed",
+        "mqInfo": "Multi-nœud Quality",
+        "mhInfo": "Multi-nœud Hybrid",
+        "msInfo": "Multi-nœud Speed",
+        "srInfo": "Server Rack",
         "systemRam": "RAM",
         "ssd": "SSD",
         "hdd": "HDD",
@@ -405,6 +417,10 @@
       "prefix": "Toutes les configurations sont soumises à notre",
       "linkLabel": "contrat matériel",
       "suffix": "."
+    },
+    "warranty": {
+      "title": "Garantie",
+      "content": "Garantie constructeur 24 mois (extensible à 36 mois sur demande)"
     },
     "metrics": {
       "quality": "Qualité de sortie",

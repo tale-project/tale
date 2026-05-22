@@ -12,9 +12,14 @@ import type { TFunction } from 'i18next';
 type TierKey = 'quality' | 'hybrid' | 'speed';
 type NodeKey = TierKey;
 type ClusterKey = TierKey;
+export type RackKey = 'rack';
 
 type RamId = 'uma' | 'vram' | 'ddr5' | 'ddr5_ecc';
-type ChipId = 'apple_silicon' | 'nvidia_rtx_pro_6000' | 'amd_epyc_4545p_zen5';
+type ChipId =
+  | 'apple_silicon'
+  | 'nvidia_rtx_pro_6000'
+  | 'amd_epyc_4545p_zen5'
+  | 'amd_epyc_9355p_zen4';
 
 interface Ram {
   id: RamId;
@@ -78,6 +83,20 @@ const CLUSTER_COMPOSITION: Record<ClusterKey, Record<NodeKey, number>> = {
   speed: { quality: 0, hybrid: 2, speed: 2 },
 };
 
+/**
+ * AI server rack — single-chassis offering that bundles the compute of a
+ * speed cluster into one rack unit, with confidential computing enabled
+ * by default. Only one configuration ships in this mode.
+ */
+const RACK: Node = {
+  aiRam: { id: 'vram', gb: 384 },
+  systemRam: { id: 'ddr5_ecc', gb: 256 },
+  gpu: { id: 'nvidia_rtx_pro_6000', count: 4 },
+  cpu: { id: 'amd_epyc_9355p_zen4', count: 1 },
+  ssdTB: 8,
+  buyPrice: 64_890,
+};
+
 const TIER_KEYS: readonly TierKey[] = ['quality', 'hybrid', 'speed'];
 const NA = '-';
 
@@ -113,6 +132,18 @@ export function nodeSpec(t: TFunction, key: NodeKey): SpecLines {
     ssd: ssdLine(t, n.ssdTB),
     hdd: NA,
     size: t(`specs.sizes.node.${key}`),
+  };
+}
+
+export function rackSpec(t: TFunction): SpecLines {
+  return {
+    aiRam: RACK.aiRam ? ramLine(t, RACK.aiRam) : NA,
+    systemRam: RACK.systemRam ? ramLine(t, RACK.systemRam) : NA,
+    gpu: RACK.gpu ? chipLine(t, RACK.gpu) : NA,
+    cpu: RACK.cpu ? chipLine(t, RACK.cpu) : NA,
+    ssd: ssdLine(t, RACK.ssdTB),
+    hdd: NA,
+    size: t('specs.sizes.rack'),
   };
 }
 
@@ -187,6 +218,10 @@ export function clusterBuyPrice(key: ClusterKey): number {
   return buy + CLUSTER_INFRA_SURCHARGE;
 }
 
+export function rackBuyPrice(): number {
+  return RACK.buyPrice;
+}
+
 export const LEASING_TERMS = [12, 24, 36, 48, 60] as const;
 export type LeasingTerm = (typeof LEASING_TERMS)[number];
 
@@ -235,6 +270,7 @@ const BANDWIDTH: Record<ChipId, number> = {
   apple_silicon: 1.0,
   nvidia_rtx_pro_6000: 4.0,
   amd_epyc_4545p_zen5: 0.125,
+  amd_epyc_9355p_zen4: 0.125,
 };
 
 export interface TierMetrics {
@@ -311,3 +347,26 @@ export const nodeMetrics = (key: NodeKey): TierMetrics =>
 
 export const clusterMetrics = (key: ClusterKey): TierMetrics =>
   normalize(clusterRaw(key), TIER_KEYS.map(clusterRaw));
+
+/**
+ * Rack metrics use the cluster set as the reference scale so the bars
+ * communicate where the rack sits relative to multi-node alternatives.
+ * Speed is taken as the per-GPU bandwidth (each GPU drives its own VRAM
+ * slice) — matching the RAM-weighted-average semantics used for clusters.
+ */
+function rackRaw(): RawMetrics {
+  const gpu = RACK.gpu;
+  const ramGB = RACK.aiRam?.gb ?? 0;
+  const bw = gpu ? BANDWIDTH[gpu.id] : 0;
+  return {
+    aiRamGB: ramGB,
+    speed: ramGB * bw,
+    ssdTB: RACK.ssdTB,
+    buy: RACK.buyPrice,
+  };
+}
+
+export const rackMetrics = (): TierMetrics => {
+  const me = rackRaw();
+  return normalize(me, [me, ...TIER_KEYS.map(clusterRaw)]);
+};

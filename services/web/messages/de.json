@@ -22,8 +22,9 @@
     }
   },
   "nav": {
-    "features": "Funktionen",
+    "platform": "Plattform",
     "pricing": "Preise",
+    "hardware": "Hardware",
     "readDocs": "Dokumentation lesen",
     "requestDemo": "Demo anfragen",
     "openMenu": "Menü öffnen",
@@ -347,6 +348,15 @@
         "cta": "Kontakt aufnehmen",
         "highlightQuality": "Standard",
         "highlightSpeed": "Qualität"
+      },
+      "rack": {
+        "priceSuffix": "+ MwSt./Monat",
+        "buySuffix": "+ MwSt.",
+        "tagline": "Multi-Node-Leistung in einem einzigen, sicheren Gehäuse — mit Confidential Computing.",
+        "nodeTagline": "Multi-Node-Leistung in einem einzigen, sicheren Gehäuse — mit Confidential Computing.",
+        "cta": "Kontakt aufnehmen",
+        "highlightQuality": "Hoch",
+        "highlightSpeed": "Hoch"
       }
     },
     "compare": {
@@ -354,7 +364,7 @@
       "subtitle": "Übersicht über jede Konfiguration",
       "categories": {
         "model": "Empfohlenes KI-Modell",
-        "modelInfo": "Vorschlag für ein Cluster-Setup. Einzelne Nodes können kleinere Varianten ausführen — das tatsächliche Modell wählt dein Team bei der Inbetriebnahme.",
+        "modelInfo": "Vorschlag für ein Multi-Node-Setup. Einzelne Nodes können kleinere Varianten ausführen — das tatsächliche Modell wählt dein Team bei der Inbetriebnahme.",
         "size": "Größe",
         "sizeInfo": "Richtwerte — die tatsächliche Größe kann leicht abweichen.",
         "gpu": "Chip (GPU)",
@@ -365,15 +375,17 @@
         "gddr7Info": "Graphics DDR der 7. Generation — Videospeicher mit hoher Bandbreite auf der GPU-Karte, optimiert für KI-Inferenz.",
         "ddr5Info": "DDR-SDRAM der fünften Generation (schneller und effizienter als DDR4).",
         "ddr5eccInfo": "DDR5 mit Fehlerkorrekturcode — Server-Speicher, der Einzelbit-Fehler erkennt und korrigiert.",
+        "zen4Info": "AMDs x86-CPU-Mikroarchitektur der 4. Generation (2022).",
         "zen5Info": "AMDs x86-CPU-Mikroarchitektur der 5. Generation (2024).",
         "int4Info": "4-Bit-Integer-Quantisierung — minimaler Präzisionsverlust, ~4× weniger Speicherbedarf.",
         "m2nvmeInfo": "m.2-NVMe-SSDs in einem ZFS-RAID-Pool — schneller, redundanter Speicher.",
         "nqInfo": "Node Quality",
         "naInfo": "Node Application",
         "nsInfo": "Node Speed",
-        "cqInfo": "Cluster Quality",
-        "chInfo": "Cluster Hybrid",
-        "csInfo": "Cluster Speed",
+        "mqInfo": "Multi-Node Quality",
+        "mhInfo": "Multi-Node Hybrid",
+        "msInfo": "Multi-Node Speed",
+        "srInfo": "Server Rack",
         "systemRam": "RAM",
         "ssd": "SSD",
         "hdd": "HDD",
@@ -405,6 +417,10 @@
       "prefix": "Alle Konfigurationen unterliegen unserem",
       "linkLabel": "Hardware-Vertrag",
       "suffix": "."
+    },
+    "warranty": {
+      "title": "Garantie",
+      "content": "24 Monate Hersteller-Garantie (auf Anfrage erweiterbar auf 36 Monate)"
     },
     "metrics": {
       "quality": "Ausgabequalität",
