@@ -332,11 +332,31 @@ export const listRunsPerFile = query({
       .order('desc')) {
       executions.push(row);
     }
-    return selectRunsPerFile(
+    const projections = selectRunsPerFile(
       artifact,
       executions,
       resolved.entryFile,
       resolved.files.map((f) => f.path),
+    );
+
+    // `sandboxExecutions.outputFiles` is the audit projection and intentionally
+    // omits `storageId` (see [sandbox/wire.ts] — "audit row, no denormalized
+    // storageId"). The canvas's <FileChip> needs `storageId` to render a
+    // download link, so look it up per file via the `fileMetadata` row. Keeps
+    // `selectRunsPerFile` pure (no ctx) so its unit tests stay synchronous.
+    return await Promise.all(
+      projections.map(async (p) => {
+        if (!p.runOutputFiles || p.runOutputFiles.length === 0) return p;
+        const enriched = await Promise.all(
+          p.runOutputFiles.map(async (f) => {
+            if (f.storageId !== undefined) return f;
+            const meta = await ctx.db.get(f.fileMetadataId);
+            if (meta === null) return f;
+            return { ...f, storageId: meta.storageId };
+          }),
+        );
+        return { ...p, runOutputFiles: enriched };
+      }),
     );
   },
 });
