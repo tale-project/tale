@@ -23,8 +23,9 @@
 */
 
 import { type ChildProcess, spawn } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
@@ -55,6 +56,41 @@ function parseDotEnv(filePath: string): Record<string, string> {
   return result;
 }
 
+// Personal, gitignored config dir for the local dev instance. The app
+// mutates this on every provider/agent/workflow edit, so we MUST keep it
+// outside the tracked tree — otherwise routine UI clicks bleed into
+// `git status` and ride along on unrelated PRs (see #1729 fallout).
+//
+// Seeded once from the in-repo `examples/` starter on first run; never
+// overwritten after that, so the user's edits persist across sessions
+// and `git pull` updates to `examples/` don't clobber local state.
+function seedDevConfigDir(): string {
+  const target = join(homedir(), '.tale', 'dev-config');
+  if (existsSync(target)) return target;
+
+  const source = join(repoRoot, 'examples');
+  if (!existsSync(source)) {
+    // No examples to seed from; just create an empty dir so the convex
+    // file_utils don't blow up on the first read.
+    mkdirSync(target, { recursive: true });
+    console.log(
+      `[dev] 📁 Created empty dev config dir (no examples/ to seed from): ${target}`,
+    );
+    return target;
+  }
+
+  mkdirSync(join(homedir(), '.tale'), { recursive: true });
+  cpSync(source, target, {
+    recursive: true,
+    // Skip macOS metadata — would pollute the seeded tree.
+    filter: (src) => !src.endsWith('/.DS_Store'),
+  });
+  console.log(
+    `[dev] 📁 Seeded dev config from ${source} → ${target} (one-time; your edits stay local)`,
+  );
+  return target;
+}
+
 function envNormalizeCommon() {
   process.env.NODE_ENV = 'development';
   if (!process.env.PORT) process.env.PORT = '3000';
@@ -71,9 +107,15 @@ function envNormalizeCommon() {
 
   // Root config directory only — Convex derives sub-dirs (agents/workflows/
   // integrations/providers) from TALE_CONFIG_DIR via `convex/*/file_utils.ts`.
+  //
+  // Default to a personal gitignored dir seeded from `examples/` so the
+  // tracked tree is never the runtime write target. Override by setting
+  // TALE_CONFIG_DIR in `.env.local` if you want a different location
+  // (e.g. a checked-out customer config).
   if (!process.env.TALE_CONFIG_DIR) {
-    process.env.TALE_CONFIG_DIR = join(repoRoot, 'examples');
+    process.env.TALE_CONFIG_DIR = seedDevConfigDir();
   }
+  console.log(`[dev] 📂 TALE_CONFIG_DIR=${process.env.TALE_CONFIG_DIR}`);
 }
 
 function ensureInstanceSecret() {
