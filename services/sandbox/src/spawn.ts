@@ -825,6 +825,25 @@ export async function executeRequest(
           synthesizeStepResults(req.steps))
         : undefined;
 
+    // Harvest `/workspace/output/` unconditionally — even on failure or
+    // cancellation, any partial files the user script managed to write
+    // before crashing are worth surfacing (resolves D5 in plan
+    // llm-majestic-hamming.md). `harvestOutputDir` is already graceful
+    // when the dir is missing; wrap in try/catch as belt-and-suspenders so
+    // a stat error never trumps the underlying failure signal.
+    let harvestedFiles: OutputFile[] = [];
+    let harvestTruncatedCount = 0;
+    try {
+      const harvested = await harvestOutputDir(workspaceHostDir, {
+        perFileMax: cfg.outputFileMaxBytes,
+        totalMax: cfg.outputTotalMaxBytes,
+      });
+      harvestedFiles = harvested.files;
+      harvestTruncatedCount = harvested.truncatedCount;
+    } catch (err) {
+      console.warn(`[sandbox.harvest] best-effort harvest failed:`, err);
+    }
+
     if (abort.signal.aborted) {
       return {
         status: 'cancelled',
@@ -834,17 +853,17 @@ export async function executeRequest(
         stdoutBase64: Buffer.from(stdoutCapped).toString('base64'),
         stderrBase64: Buffer.from(stderrCapped).toString('base64'),
         durationMs,
-        truncated: { stdout: stdoutTrunc, stderr: stderrTrunc, files: 0 },
-        outputFiles: [],
+        truncated: {
+          stdout: stdoutTrunc,
+          stderr: stderrTrunc,
+          files: harvestTruncatedCount,
+        },
+        outputFiles: harvestedFiles,
         ...(stepResults !== undefined && { steps: stepResults }),
       };
     }
 
     if (exitCode === 0) {
-      const harvested = await harvestOutputDir(workspaceHostDir, {
-        perFileMax: cfg.outputFileMaxBytes,
-        totalMax: cfg.outputTotalMaxBytes,
-      });
       return {
         status: 'completed',
         exitCode: 0,
@@ -854,9 +873,9 @@ export async function executeRequest(
         truncated: {
           stdout: stdoutTrunc,
           stderr: stderrTrunc,
-          files: harvested.truncatedCount,
+          files: harvestTruncatedCount,
         },
-        outputFiles: harvested.files,
+        outputFiles: harvestedFiles,
         ...(stepResults !== undefined && { steps: stepResults }),
       };
     }
@@ -870,8 +889,12 @@ export async function executeRequest(
       stdoutBase64: Buffer.from(stdoutCapped).toString('base64'),
       stderrBase64: Buffer.from(stderrCapped).toString('base64'),
       durationMs,
-      truncated: { stdout: stdoutTrunc, stderr: stderrTrunc, files: 0 },
-      outputFiles: [],
+      truncated: {
+        stdout: stdoutTrunc,
+        stderr: stderrTrunc,
+        files: harvestTruncatedCount,
+      },
+      outputFiles: harvestedFiles,
       ...(stepResults !== undefined && { steps: stepResults }),
     };
   } catch (err) {

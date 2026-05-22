@@ -563,17 +563,18 @@ export const executeCode = internalAction({
     let priorOutputSkippedNote: string | undefined;
     if (args.artifactId !== undefined) {
       try {
-        const artifact = await ctx.runQuery(
-          internal.artifacts.internal_queries.getById,
+        // Reads from the new `artifactRuns` / `artifactRunFiles` tables
+        // first; falls back to the deprecated `artifacts.runOutputFiles`
+        // field for artifacts not yet covered by the backfill (per the
+        // migration plan in llm-majestic-hamming.md).
+        const latest = await ctx.runQuery(
+          internal.artifacts.internal_queries.getLatestRunOutputs,
           {
             artifactId: args.artifactId,
             expectedOrganizationId: args.organizationId,
           },
         );
-        const candidates = (artifact?.runOutputFiles ?? []).filter(
-          (f): f is typeof f & { storageId: Id<'_storage'> } =>
-            f.storageId !== undefined,
-        );
+        const candidates = latest.files;
         const totalBytes = candidates.reduce((sum, f) => sum + f.size, 0);
         if (totalBytes > MAX_PRIOR_OUTPUT_BYTES) {
           priorOutputSkippedNote = `[tale-sandbox] prior outputs ${totalBytes} bytes exceed ${MAX_PRIOR_OUTPUT_BYTES} cap; not pre-staging\n`;

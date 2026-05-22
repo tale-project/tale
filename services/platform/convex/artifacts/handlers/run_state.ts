@@ -273,10 +273,11 @@ export async function applyFinalizeArtifactRun(
     );
     return;
   }
+  const completedAt = Date.now();
   await ctx.db.patch(args.artifactId, {
     runStatus: args.runStatus,
     runProgress: undefined,
-    runCompletedAt: Date.now(),
+    runCompletedAt: completedAt,
     ...(args.runExitCode !== undefined && { runExitCode: args.runExitCode }),
     ...(args.runErrorCode !== undefined && {
       runErrorCode: args.runErrorCode,
@@ -303,6 +304,41 @@ export async function applyFinalizeArtifactRun(
       runExecutionId: args.runExecutionId,
     }),
   });
+
+  // Dual-write to the new artifactRuns / artifactRunFiles tables. The
+  // legacy artifacts.runOutputFiles write above remains as a fallback
+  // source per [feedback_deprecate_dont_delete_schema_fields]; later
+  // phases will switch readers and stop writing the old field. Append-
+  // only — every finalize creates a new artifactRuns row (including
+  // failed/cancelled runs, so the LLM can introspect history).
+  const startedAt = row.runStartedAt ?? completedAt;
+  const runId = await ctx.db.insert('artifactRuns', {
+    artifactId: args.artifactId,
+    status: args.runStatus,
+    ...(args.runExitCode !== undefined && { exitCode: args.runExitCode }),
+    ...(args.runErrorCode !== undefined && { errorCode: args.runErrorCode }),
+    ...(args.runErrorMessage !== undefined && {
+      errorMessage: args.runErrorMessage,
+    }),
+    startedAt,
+    endedAt: completedAt,
+    revision: row.runRevision ?? row.revision,
+    ...(args.runExecutionId !== undefined && {
+      executionId: args.runExecutionId,
+    }),
+  });
+  for (const f of args.runOutputFiles) {
+    if (f.storageId === undefined) continue;
+    await ctx.db.insert('artifactRunFiles', {
+      runId,
+      artifactId: args.artifactId,
+      name: f.name,
+      storageId: f.storageId,
+      size: f.size,
+      ...(f.contentType !== undefined && { contentType: f.contentType }),
+      createdAt: completedAt,
+    });
+  }
 }
 
 export const finalizeArtifactRunArgs = {
