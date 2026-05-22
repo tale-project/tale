@@ -65,7 +65,6 @@
     "@radix-ui/react-tooltip": "1.2.8",
     "@tailwindcss/postcss": "4.2.2",
     "@tanstack/react-router": "1.168.10",
-    "class-variance-authority": "0.7.1",
     "framer-motion": "12.38.0",
     "i18next": "26.0.4",
     "lucide-react": "1.8.0",

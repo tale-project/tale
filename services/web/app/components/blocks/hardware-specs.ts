@@ -12,7 +12,6 @@ import type { TFunction } from 'i18next';
 type TierKey = 'quality' | 'hybrid' | 'speed';
 type NodeKey = TierKey;
 type ClusterKey = TierKey;
-export type RackKey = 'rack';
 
 type RamId = 'uma' | 'vram' | 'ddr5' | 'ddr5_ecc';
 type ChipId =
