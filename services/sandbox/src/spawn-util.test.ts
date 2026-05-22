@@ -26,13 +26,13 @@ afterAll(() => {
 
 describe('runDocker — byte caps', () => {
   test('caps stdout at stdoutMaxBytes and marks truncated', async () => {
-    // Produce ~5 MiB of stdout from a 1-line script.
+    // ~256 KiB of stdout — exceeds the 64 KiB cap by 4× (so truncation
+    // definitely fires) but is small enough to finish well inside bun's
+    // 5 s per-test budget on shared CI runners. `head -c … /dev/zero | tr`
+    // is byte-efficient in C; previously a 5 MiB bash brace-expansion
+    // loop intermittently timed out under CI load.
     const result = await runDocker(
-      [
-        '-c',
-        // 5_000 lines × ~1 KB each ≈ 5 MB
-        'for i in $(seq 1 5000); do printf "%.0s_" {1..1024}; echo; done',
-      ],
+      ['-c', `head -c ${256 * 1024} /dev/zero | tr '\\0' '_'`],
       { stdoutMaxBytes: 64 * 1024 },
     );
     expect(result.exitCode).toBe(0);
@@ -44,10 +44,7 @@ describe('runDocker — byte caps', () => {
 
   test('caps stderr at stderrMaxBytes', async () => {
     const result = await runDocker(
-      [
-        '-c',
-        'for i in $(seq 1 5000); do printf "%.0s_" {1..1024} >&2; echo >&2; done',
-      ],
+      ['-c', `head -c ${128 * 1024} /dev/zero | tr '\\0' '_' >&2`],
       { stderrMaxBytes: 32 * 1024 },
     );
     expect(result.exitCode).toBe(0);

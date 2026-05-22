@@ -61,8 +61,6 @@ export const sandboxSseEventLiterals = [
   'error',
 ] as const;
 
-export type SandboxSseEvent = (typeof sandboxSseEventLiterals)[number];
-
 export const sandboxLanguageLiterals = ['python', 'node'] as const;
 export type SandboxLanguage = (typeof sandboxLanguageLiterals)[number];
 
