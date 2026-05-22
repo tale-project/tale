@@ -2411,6 +2411,7 @@
       "streamingDuringEdit": "Agent is updating this artifact — your draft is saved. Cancel to discard.",
       "runDone": "Done",
       "runStarted": "Started",
+      "runStale": "Source edited",
       "runFiles": "Files",
       "runStdout": "stdout ({chars} chars)",
       "runStderr": "stderr ({chars} chars)",

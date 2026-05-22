@@ -22,7 +22,7 @@ import {
   RunResultDetails,
   StatusBadge,
   hasAnythingToShow,
-  isRunFresh,
+  isStale,
   type RunFileProjection,
 } from './run-result-helpers';
 
@@ -49,16 +49,18 @@ export function RunResultPanel({
   const entryRun = runs.find((r) => r.path === entryFile);
   const secondaryRuns = runs.filter((r) => r.path !== entryFile);
 
-  // "Anything to show" gate per file, applied with the appropriate
-  // freshness flag. Output files survive the freshness gate inside
-  // hasAnythingToShow, matching the legacy renderer.
-  const entryFresh = isRunFresh(entryRun, artifactRevision);
-  const entryHasContent = hasAnythingToShow(entryRun, entryFresh);
+  // "Anything to show" gate per file. Stale runs still render — the badge
+  // picks up a "Source edited" chip but the content stays visible, so the
+  // user can review what their previous run produced even after editing
+  // the source.
+  const entryStale = isStale(entryRun, artifactRevision);
+  const entryHasContent = hasAnythingToShow(entryRun);
   const visibleSecondaries = secondaryRuns
-    .map((run) => {
-      const fresh = isRunFresh(run, artifactRevision);
-      return { run, fresh, hasContent: hasAnythingToShow(run, fresh) };
-    })
+    .map((run) => ({
+      run,
+      stale: isStale(run, artifactRevision),
+      hasContent: hasAnythingToShow(run),
+    }))
     .filter((s) => s.hasContent);
 
   if (!entryHasContent && visibleSecondaries.length === 0) return null;
@@ -68,7 +70,7 @@ export function RunResultPanel({
       {entryHasContent && entryRun && (
         <RunResultDetails
           fileRun={entryRun}
-          fresh={entryFresh}
+          stale={entryStale}
           headerLabel={t('canvas.runResultEntryLabel')}
         />
       )}
@@ -81,35 +83,32 @@ export function RunResultPanel({
               count: visibleSecondaries.length,
             })}
           </span>
-          {visibleSecondaries.map(({ run, fresh }) => {
-            const runStatus = fresh ? run.runStatus : undefined;
-            const runProgress = fresh ? run.runProgress : undefined;
-            return (
-              <CollapsibleDetails
-                key={String(run.executionId)}
-                variant="compact"
-                summary={
-                  <span className="flex min-w-0 flex-1 items-center gap-2">
-                    <span className="truncate font-mono">
-                      {t('canvas.runResultSecondaryLabel', { path: run.path })}
-                    </span>
-                    <StatusBadge
-                      runStatus={runStatus}
-                      runProgress={runProgress}
-                    />
+          {visibleSecondaries.map(({ run, stale }) => (
+            <CollapsibleDetails
+              key={String(run.executionId)}
+              variant="compact"
+              summary={
+                <span className="flex min-w-0 flex-1 items-center gap-2">
+                  <span className="truncate font-mono">
+                    {t('canvas.runResultSecondaryLabel', { path: run.path })}
                   </span>
-                }
-              >
-                <div className="mt-2 ml-5">
-                  <RunResultDetails
-                    fileRun={run}
-                    fresh={fresh}
-                    showHeader={false}
+                  <StatusBadge
+                    runStatus={run.runStatus}
+                    runProgress={run.runProgress}
+                    stale={stale}
                   />
-                </div>
-              </CollapsibleDetails>
-            );
-          })}
+                </span>
+              }
+            >
+              <div className="mt-2 ml-5">
+                <RunResultDetails
+                  fileRun={run}
+                  stale={stale}
+                  showHeader={false}
+                />
+              </div>
+            </CollapsibleDetails>
+          ))}
         </div>
       )}
     </div>

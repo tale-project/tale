@@ -18,7 +18,7 @@ import {
   File as FileIcon,
   Image as ImageIcon,
 } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { type ReactNode, useEffect, useRef } from 'react';
 
 import {
   sandboxOutputFileValidator,
@@ -104,14 +104,24 @@ function SpinningLoader(props: { className?: string }) {
 export function StatusBadge({
   runStatus,
   runProgress,
+  stale = false,
 }: {
   runStatus?: SandboxRunStatus;
   runProgress?: RunProgress;
+  /**
+   * When true and the run is in a terminal state, render a secondary
+   * "Source edited" chip next to the status badge to signal that the
+   * source has moved past the snapshot this run captured. In-flight runs
+   * (queued/installing/running) intentionally suppress the chip — the
+   * spinner reflects work that is still progressing, not stale output.
+   */
+  stale?: boolean;
 }) {
   const { t } = useT('chat');
   if (!runStatus) return null;
+  let primary: ReactNode;
   if (runStatus === 'completed') {
-    return (
+    primary = (
       <Badge
         variant="outline"
         icon={CheckCircle2}
@@ -122,9 +132,8 @@ export function StatusBadge({
         {t('canvas.runDone')}
       </Badge>
     );
-  }
-  if (runStatus === 'failed' || runStatus === 'cancelled') {
-    return (
+  } else if (runStatus === 'failed' || runStatus === 'cancelled') {
+    primary = (
       <Badge
         variant="outline"
         icon={AlertTriangle}
@@ -135,29 +144,46 @@ export function StatusBadge({
         {t(`canvas.runStatus.${runStatus}`)}
       </Badge>
     );
+  } else {
+    // queued / installing / running — live progress with spinner.
+    // Always pass `package` and `version` keys (even when undefined): ICU's
+    // `{version, select, undefined {} other { {version}}}` template throws
+    // "context variable not provided" when the key is structurally absent
+    // (round-2 R2-B12; verified empirically against intl-messageformat).
+    // Passing `undefined` triggers the `undefined` branch as intended.
+    const progressText = runProgress
+      ? t(`canvas.runProgress.${runProgress.kind}`, {
+          package: runProgress.package,
+          version: runProgress.version,
+        })
+      : t(`canvas.runStatus.${runStatus}`);
+    primary = (
+      <Badge
+        variant="outline"
+        icon={SpinningLoader}
+        className="border-border"
+        role="status"
+        aria-live="polite"
+      >
+        {progressText}
+      </Badge>
+    );
   }
-  // queued / installing / running — live progress with spinner.
-  // Always pass `package` and `version` keys (even when undefined): ICU's
-  // `{version, select, undefined {} other { {version}}}` template throws
-  // "context variable not provided" when the key is structurally absent
-  // (round-2 R2-B12; verified empirically against intl-messageformat).
-  // Passing `undefined` triggers the `undefined` branch as intended.
-  const progressText = runProgress
-    ? t(`canvas.runProgress.${runProgress.kind}`, {
-        package: runProgress.package,
-        version: runProgress.version,
-      })
-    : t(`canvas.runStatus.${runStatus}`);
+  const isTerminal =
+    runStatus === 'completed' ||
+    runStatus === 'failed' ||
+    runStatus === 'cancelled';
+  if (!stale || !isTerminal) return primary;
   return (
-    <Badge
-      variant="outline"
-      icon={SpinningLoader}
-      className="border-border"
-      role="status"
-      aria-live="polite"
-    >
-      {progressText}
-    </Badge>
+    <span className="flex items-center gap-2">
+      {primary}
+      <Badge
+        variant="outline"
+        className="text-muted-foreground border-muted-foreground/30"
+      >
+        {t('canvas.runStale')}
+      </Badge>
+    </span>
   );
 }
 
@@ -241,19 +267,26 @@ export interface RunFileProjection {
 }
 
 /**
- * Stale-run guard: if the source was edited after the row's run, the
- * `runStatus` / progress chrome no longer reflects what the user sees in
- * the canvas, so we hide it. Output files survive the guard — they're a
- * concrete artifact of a past run, not a status claim.
+ * True when this run captured a source revision (`runRevision` is defined)
+ * that no longer matches the artifact's current revision. The panel keeps
+ * showing the run's status / stdout / stderr / files but annotates the
+ * status badge with a "Source edited" chip so the user knows the output
+ * predates their latest edits.
+ *
+ * Returns false when `runRevision` is undefined — that happens for runs
+ * the projection couldn't tag with a snapshot (e.g. a non-current
+ * execution for the artifact). Those rows render normally without the
+ * chip; we can't claim the source has moved if we don't know what
+ * revision the run captured.
  */
-export function isRunFresh(
+export function isStale(
   fileRun: RunFileProjection | undefined,
   artifactRevision: number,
 ): boolean {
   return (
     fileRun !== undefined &&
     fileRun.runRevision !== undefined &&
-    fileRun.runRevision === artifactRevision
+    fileRun.runRevision !== artifactRevision
   );
 }
 
@@ -264,20 +297,17 @@ export function isRunFresh(
  */
 export function hasAnythingToShow(
   fileRun: RunFileProjection | undefined,
-  fresh: boolean,
 ): boolean {
   if (!fileRun) return false;
-  const runStatus = fresh ? fileRun.runStatus : undefined;
-  const runErrorCode = fresh ? fileRun.runErrorCode : undefined;
-  const stderr = fresh ? fileRun.runStderrPreview : undefined;
-  const stdout = fresh ? fileRun.runStdoutPreview : undefined;
   const outputs = fileRun.runOutputFiles ?? [];
   return (
-    runStatus !== undefined ||
-    runErrorCode !== undefined ||
+    fileRun.runStatus !== undefined ||
+    fileRun.runErrorCode !== undefined ||
     outputs.length > 0 ||
-    (stderr !== undefined && stderr.length > 0) ||
-    (stdout !== undefined && stdout.length > 0)
+    (fileRun.runStderrPreview !== undefined &&
+      fileRun.runStderrPreview.length > 0) ||
+    (fileRun.runStdoutPreview !== undefined &&
+      fileRun.runStdoutPreview.length > 0)
   );
 }
 
@@ -289,25 +319,30 @@ export function hasAnythingToShow(
  */
 export function RunResultDetails({
   fileRun,
-  fresh,
+  stale,
   showHeader = true,
   headerLabel,
 }: {
   fileRun: RunFileProjection;
-  fresh: boolean;
+  /**
+   * Source has been edited after this run's snapshot. Status/progress and
+   * stdout/stderr still render — only the status badge picks up a stale
+   * chip so the user knows the content reflects an earlier revision.
+   */
+  stale: boolean;
   showHeader?: boolean;
   /** Header text (defaults to `canvas.runStarted`). */
   headerLabel?: string;
 }) {
   const { t } = useT('chat');
-  const runStatus = fresh ? fileRun.runStatus : undefined;
-  const runProgress = fresh ? fileRun.runProgress : undefined;
-  const runErrorCode = fresh ? fileRun.runErrorCode : undefined;
-  const runErrorMessage = fresh ? fileRun.runErrorMessage : undefined;
-  const stdout = fresh ? fileRun.runStdoutPreview : undefined;
-  const stderr = fresh ? fileRun.runStderrPreview : undefined;
-  // Output files survive the freshness gate (download chip should remain
-  // available even if a later edit made the source stale).
+  const {
+    runStatus,
+    runProgress,
+    runErrorCode,
+    runErrorMessage,
+    runStdoutPreview: stdout,
+    runStderrPreview: stderr,
+  } = fileRun;
   const outputFiles: RunOutputFile[] = (fileRun.runOutputFiles ?? []).map(
     (f) => {
       const next: RunOutputFile = {
@@ -328,7 +363,11 @@ export function RunResultDetails({
           <span className="text-muted-foreground text-xs font-medium uppercase">
             {headerLabel ?? t('canvas.runStarted')}
           </span>
-          <StatusBadge runStatus={runStatus} runProgress={runProgress} />
+          <StatusBadge
+            runStatus={runStatus}
+            runProgress={runProgress}
+            stale={stale}
+          />
         </div>
       )}
 

@@ -2411,6 +2411,7 @@
       "streamingDuringEdit": "L'agent met à jour cet artéfact — ton brouillon est conservé. Clique sur Annuler pour le rejeter.",
       "runDone": "Terminé",
       "runStarted": "Démarré",
+      "runStale": "Code modifié",
       "runFiles": "Fichiers",
       "runStdout": "stdout ({chars} car.)",
       "runStderr": "stderr ({chars} car.)",
