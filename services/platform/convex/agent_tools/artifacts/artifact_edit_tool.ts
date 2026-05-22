@@ -31,6 +31,34 @@ import {
   shouldParse,
 } from './stream_state';
 
+/**
+ * Checks whether the `path` field's string literal has fully closed in the
+ * raw JSON accumulator. `parsePartialJson` will happily auto-close an
+ * in-flight string (e.g. `"path":"c` gets repaired to `"path":"c"`), but
+ * that means every intermediate state of the LLM typing the filename
+ * ("c" → "cr" → "create_…") would otherwise be committed as `streamingPath`
+ * — producing the visible filename flicker in the Canvas FILES panel.
+ *
+ * We require the value's closing `"` to physically exist in the accumulator
+ * before treating the path as stable. Once stable it cannot regress in this
+ * stream (JSON values are written linearly), so this is a one-way gate.
+ */
+function isPathFieldClosed(accumulator: string): boolean {
+  const keyMatch = /"path"\s*:\s*"/.exec(accumulator);
+  if (!keyMatch) return false;
+  let i = keyMatch.index + keyMatch[0].length;
+  while (i < accumulator.length) {
+    const ch = accumulator[i];
+    if (ch === '\\') {
+      i += 2; // skip escape sequence — value continues
+      continue;
+    }
+    if (ch === '"') return true;
+    i += 1;
+  }
+  return false;
+}
+
 const rewriteModeArgs = z.object({
   artifactId: z
     .string()
@@ -334,7 +362,8 @@ File-tree operations:
         !state.rowInitialized &&
         streamingMode !== undefined &&
         path !== undefined &&
-        path.length > 0
+        path.length > 0 &&
+        isPathFieldClosed(state.accumulator)
       ) {
         state.resolvedMode = streamingMode;
         try {
