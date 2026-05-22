@@ -23,10 +23,17 @@
 */
 
 import { type ChildProcess, spawn } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+} from 'node:fs';
 import { createConnection } from 'node:net';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import process from 'node:process';
 
 import kill from 'tree-kill';
@@ -65,7 +72,8 @@ function parseDotEnv(filePath: string): Record<string, string> {
 // overwritten after that, so the user's edits persist across sessions
 // and `git pull` updates to `examples/` don't clobber local state.
 function seedDevConfigDir(): string {
-  const target = join(homedir(), '.tale', 'dev-config');
+  const taleDir = join(homedir(), '.tale');
+  const target = join(taleDir, 'dev-config');
   if (existsSync(target)) return target;
 
   const source = join(repoRoot, 'examples');
@@ -79,12 +87,32 @@ function seedDevConfigDir(): string {
     return target;
   }
 
-  mkdirSync(join(homedir(), '.tale'), { recursive: true });
-  cpSync(source, target, {
-    recursive: true,
-    // Skip macOS metadata — would pollute the seeded tree.
-    filter: (src) => !src.endsWith('/.DS_Store'),
-  });
+  // Copy into a sibling temp dir first, then atomically rename to the
+  // final target. Prevents a crashed/interrupted seed from leaving a
+  // half-populated `dev-config/` that the `existsSync` short-circuit
+  // would then treat as "already seeded" on the next run.
+  mkdirSync(taleDir, { recursive: true });
+  const tempTarget = join(
+    taleDir,
+    `dev-config.tmp.${process.pid}.${Date.now()}`,
+  );
+  try {
+    cpSync(source, tempTarget, {
+      recursive: true,
+      // Skip macOS metadata; use basename so it works on Windows paths
+      // (which use backslashes) as well as POSIX.
+      filter: (src) => basename(src) !== '.DS_Store',
+    });
+    renameSync(tempTarget, target);
+  } catch (err) {
+    // Best-effort cleanup; if rmSync also throws, surface the original.
+    try {
+      rmSync(tempTarget, { recursive: true, force: true });
+    } catch {
+      // ignore
+    }
+    throw err;
+  }
   console.log(
     `[dev] 📁 Seeded dev config from ${source} → ${target} (one-time; your edits stay local)`,
   );
