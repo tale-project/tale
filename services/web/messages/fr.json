@@ -14,7 +14,7 @@
     },
     "requestDemo": {
       "title": "Demander une démo",
-      "description": "Nous aidons les organisations sensibles aux données à automatiser leurs workflows avec une IA privée et fiable. Échange avec un expert de notre équipe."
+      "description": "Nous aidons les organisations sensibles aux données à automatiser leurs workflows avec une IA souveraine et fiable. Échange avec un expert de notre équipe."
     },
     "hardwarePricing": {
       "title": "Tarifs matériel",
@@ -116,8 +116,8 @@
       }
     },
     "integrations": {
-      "title": "Compatible avec les outils que tu utilises déjà",
-      "subtitle": "Se connecte aux principaux fournisseurs d'IA et s'intègre à tes outils professionnels existants."
+      "title": "Nous avons des intégrations pour les outils que tu utilises déjà",
+      "subtitle": "Se connecte aux principaux fournisseurs d'IA et accompagne tes outils professionnels existants."
     },
     "compliance": {
       "eyebrow": "SÉCURITÉ",
@@ -218,7 +218,7 @@
       "priceSuffix": "/mois + TVA",
       "storageAddOn": "1 To + {price}/To/mois de stockage supplémentaire",
       "userBreakdown": "{count} utilisateurs × {perUser}/utilisateur/mois",
-      "tagline": "Entièrement géré, évolutif et prêt pour la production — conçu pour une IA privée critique.",
+      "tagline": "Entièrement géré, évolutif et prêt pour la production — conçu pour une IA souveraine critique.",
       "cta": "Nous contacter",
       "feature1": "Auto-hébergé ou cloud",
       "feature2": "Maintenu professionnellement (certifié ISO 27001 & SOC 2)",
@@ -354,14 +354,15 @@
       "subtitle": "Détail de chaque configuration",
       "categories": {
         "model": "Modèle d'IA recommandé",
+        "modelInfo": "Suggestion pour une configuration en cluster. Les configurations à un seul nœud peuvent exécuter des variantes plus petites — ton équipe choisit le modèle réel au déploiement.",
         "size": "Taille",
         "sizeInfo": "Valeurs indicatives — les dimensions réelles peuvent varier légèrement.",
         "gpu": "Puce (GPU)",
         "cpu": "Puce (CPU)",
         "ram": "RAM IA",
-        "ramInfo": "Mémoire rapide utilisée pour les calculs d'IA, p. ex. de la mémoire vidéo (VRAM) ou de la mémoire unifiée (UMA).",
+        "ramInfo": "Mémoire rapide utilisée pour les calculs d'IA, p. ex. mémoire vidéo GDDR7 ou mémoire unifiée (UMA).",
         "umaInfo": "Unified Memory Architecture — mémoire partagée entre le CPU et le GPU sur la même puce (Apple Silicon).",
-        "vramInfo": "Video RAM — mémoire dédiée sur la carte GPU.",
+        "gddr7Info": "Graphics DDR de 7e génération — mémoire vidéo à haute bande passante sur la carte GPU, optimisée pour l'inférence d'IA.",
         "ddr5Info": "DDR SDRAM de cinquième génération (plus rapide et efficace que DDR4).",
         "ddr5eccInfo": "DDR5 avec code correcteur d'erreurs — mémoire serveur capable de détecter et corriger les défauts d'un seul bit.",
         "zen5Info": "Microarchitecture x86 d'AMD de 5e génération (2024).",
@@ -414,7 +415,7 @@
   "requestDemo": {
     "eyebrow": "Démo",
     "title": "Qu'est-ce qui anime ton entreprise ?",
-    "paragraph1": "Nous aidons les organisations qui manipulent des données sensibles à automatiser leurs workflows avec une IA privée et fiable.",
+    "paragraph1": "Nous aidons les organisations qui manipulent des données sensibles à automatiser leurs workflows avec une IA souveraine et fiable.",
     "paragraph2": "Échange avec un de nos experts pour explorer des solutions IA et discuter de tes objectifs et défis — nous trouverons la meilleure solution pour toi.",
     "fieldName": "Nom",
     "fieldPhone": "Téléphone",

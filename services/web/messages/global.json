@@ -5,6 +5,11 @@
       "enterprise": "Enterprise"
     }
   },
+  "companies": {
+    "microsoft": "Microsoft Corporation",
+    "google": "Google LLC",
+    "atlassian": "Atlassian Corporation"
+  },
   "hardwarePricing": {
     "models": {
       "quality": "Kimi K2.6 (INT4)",
@@ -43,7 +48,7 @@
     "specs": {
       "types": {
         "uma": "UMA",
-        "vram": "VRAM",
+        "vram": "GDDR7",
         "ddr5": "DDR5",
         "ddr5_ecc": "DDR5 ECC",
         "m2_nvme": "m.2 NVMe",
@@ -58,7 +63,7 @@
       },
       "sizes": {
         "node": {
-          "quality": "192mm × 366mm × 270mm",
+          "quality": "197mm × 197mm × 95mm",
           "hybrid": "192mm × 366mm × 270mm",
           "speed": "192mm × 366mm × 270mm"
         },

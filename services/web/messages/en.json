@@ -14,7 +14,7 @@
     },
     "requestDemo": {
       "title": "Request a demo",
-      "description": "We help data-sensitive organizations automate workflows with private, reliable AI. Connect with a domain expert to explore solutions for your business."
+      "description": "We help data-sensitive organizations automate workflows with sovereign, reliable AI. Connect with a domain expert to explore solutions for your business."
     },
     "hardwarePricing": {
       "title": "Hardware Pricing",
@@ -116,8 +116,8 @@
       }
     },
     "integrations": {
-      "title": "Works with the tools you already use",
-      "subtitle": "Connects to leading AI providers and integrates with your existing business tools."
+      "title": "We have integrations for the tools you already use",
+      "subtitle": "Connects to leading AI providers and works alongside your existing business tools."
     },
     "compliance": {
       "eyebrow": "SECURITY",
@@ -218,7 +218,7 @@
       "priceSuffix": "/month + VAT",
       "storageAddOn": "1 TB + {price}/TB/month additional storage",
       "userBreakdown": "{count} users × {perUser}/user/month",
-      "tagline": "Fully managed, scalable, and production-ready — built for mission-critical private AI.",
+      "tagline": "Fully managed, scalable, and production-ready — built for mission-critical sovereign AI.",
       "cta": "Contact us",
       "feature1": "Self-hosted or cloud",
       "feature2": "Professionally maintained (ISO 27001 & SOC 2 certified)",
@@ -354,14 +354,15 @@
       "subtitle": "Breakdown of each configuration",
       "categories": {
         "model": "Recommended AI model",
+        "modelInfo": "Suggested model for a cluster setup. Single-node configurations can run smaller variants — your team picks the actual model at deploy time.",
         "size": "Size",
         "sizeInfo": "Approximate dimensions — actual size may vary slightly.",
         "gpu": "Chip (GPU)",
         "cpu": "Chip (CPU)",
         "ram": "AI RAM",
-        "ramInfo": "Fast memory used for AI workloads, e.g. Video Memory (VRAM) or Unified Memory (UMA).",
+        "ramInfo": "Fast memory used for AI workloads, e.g. GDDR7 video memory or Unified Memory (UMA).",
         "umaInfo": "Unified Memory Architecture — RAM shared between CPU and GPU on a single chip (Apple Silicon).",
-        "vramInfo": "Video RAM — dedicated memory on the GPU board.",
+        "gddr7Info": "7th-generation graphics DDR — high-bandwidth video memory on the GPU board, optimised for AI inference workloads.",
         "ddr5Info": "Fifth-generation DDR SDRAM (faster, more efficient than DDR4).",
         "ddr5eccInfo": "DDR5 with error-correcting code — server-grade memory that detects and corrects single-bit faults.",
         "zen5Info": "AMD's 5th-generation x86 CPU microarchitecture (2024).",
@@ -414,7 +415,7 @@
   "requestDemo": {
     "eyebrow": "Demo",
     "title": "What drives your business?",
-    "paragraph1": "We help data-sensitive organizations automate workflows with private, reliable AI.",
+    "paragraph1": "We help data-sensitive organizations automate workflows with sovereign, reliable AI.",
     "paragraph2": "Connect with one of our domain experts to explore AI solutions and discuss your goals and challenges, so we can find the best solution for you.",
     "fieldName": "Name",
     "fieldPhone": "Phone",

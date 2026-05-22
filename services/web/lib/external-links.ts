@@ -5,11 +5,10 @@
  */
 
 export const EXTERNAL_LINKS = {
-  softwareTerms:
-    'https://talecorp-my.sharepoint.com/:b:/g/personal/ym_tale_dev/IQDMsO0J9N-4RJtStv-1_IurAV_aXuHPQB5hfWnda5wSluA?e=cfXpDs',
-  hardwareTerms:
-    'https://talecorp-my.sharepoint.com/:b:/g/personal/ym_tale_dev/IQDoJBWnXoqqQLlapn6eOPEcAUkySXRa3AUSrKFwYMl0VCU?e=JWmiZc',
-  aiTraining: 'https://www.edoobox.com/de/Ruler/AI%20Training.html',
+  softwareTerms: '/files/Service_Agreement_Template.pdf',
+  hardwareTerms: '/files/Hardware_Agreement_Template.pdf',
+  aiTraining:
+    'https://app1.edoobox.com/en/Alltron/Network%20and%20server/K%C3%BCnstliche%20Intelligenz',
   vatCheck: 'https://www.uid.admin.ch/Detail.aspx?uid_id=CHE186532610',
   github: 'https://github.com/tale-project/tale',
 } as const;
