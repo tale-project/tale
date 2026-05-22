@@ -165,7 +165,6 @@ export function ProviderDetailDrawer({
 function ProviderDetailSkeleton() {
   return (
     <Stack gap={6}>
-      {/* GeneralSection: header outside, Card with 3 InfoRows */}
       <Stack gap={2}>
         <HStack justify="between" align="center">
           <Skeleton className="h-5 w-16" />
@@ -186,7 +185,6 @@ function ProviderDetailSkeleton() {
         </Card>
       </Stack>
 
-      {/* ApiKeySection: header (title + 2 ghost buttons) outside, Card with badge row */}
       <Stack gap={2}>
         <HStack justify="between" align="center">
           <Skeleton className="h-5 w-16" />
@@ -196,14 +194,13 @@ function ProviderDetailSkeleton() {
           </HStack>
         </HStack>
         <Card contentClassName="p-0">
-          <HStack gap={4} align="center" className="px-5 py-3.5">
+          <HStack gap={4} align="center" className="px-4 py-2.5">
             <Skeleton className="h-5 w-24 rounded-full" />
             <Skeleton className="h-4 w-32" />
           </HStack>
         </Card>
       </Stack>
 
-      {/* DefaultModelsSection: header (title + description + Edit) outside, Card with 5 InfoRows */}
       <Stack gap={2}>
         <HStack justify="between" align="start">
           <Stack gap={1} className="min-w-0">
@@ -227,7 +224,6 @@ function ProviderDetailSkeleton() {
         </Card>
       </Stack>
 
-      {/* ProviderOptionsSection: header outside, collapsible guide, Card with placeholder */}
       <Stack gap={2}>
         <HStack justify="between" align="center">
           <Skeleton className="h-5 w-48" />
@@ -239,7 +235,6 @@ function ProviderDetailSkeleton() {
         </Card>
       </Stack>
 
-      {/* ModelsSection: header (title + 2 ghost buttons) outside, bordered list */}
       <Stack gap={3}>
         <HStack justify="between" align="center">
           <Skeleton className="h-5 w-16" />

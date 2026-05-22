@@ -50,10 +50,13 @@ export function CollapsibleGuide({
                 {children}
               </a>
             ),
-            pre: ({ children, ...rest }) => (
+            pre: ({ node: _node, className, children, ...rest }) => (
               <pre
                 {...rest}
-                className="bg-muted/60 border-border my-2 overflow-x-auto rounded-md border p-3 font-mono text-[11px] leading-relaxed"
+                className={cn(
+                  'bg-muted/60 border-border my-2 overflow-x-auto rounded-md border p-3 font-mono text-[11px] leading-relaxed',
+                  className,
+                )}
               >
                 {children}
               </pre>
