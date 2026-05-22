@@ -1112,7 +1112,9 @@ export const initArtifactRun = internalMutation({
       runStderrPreview: undefined,
       runStdoutStorageId: undefined,
       runStderrStorageId: undefined,
-      runOutputFiles: [],
+      // `runOutputFiles` intentionally NOT cleared here — keep the prior
+      // successful run's outputs available for pre-staging during this run.
+      // Successful finalize will replace; failed/empty finalize preserves.
       runExecutionId: undefined,
     });
     return null;
@@ -1274,7 +1276,14 @@ export async function applyFinalizeArtifactRun(
     ...(args.runStderrStorageId !== undefined && {
       runStderrStorageId: args.runStderrStorageId,
     }),
-    runOutputFiles: args.runOutputFiles,
+    // Only overwrite `runOutputFiles` when this run actually has outputs to
+    // record. A failed/cancelled run with an empty harvest must NOT wipe the
+    // prior successful run's outputs — otherwise the next `artifact_run`
+    // pre-stage finds nothing and the user hits `FileNotFoundError` on a
+    // file that demonstrably existed before. Successful runs always replace.
+    ...((args.runStatus === 'completed' || args.runOutputFiles.length > 0) && {
+      runOutputFiles: args.runOutputFiles,
+    }),
     ...(args.runExecutionId !== undefined && {
       runExecutionId: args.runExecutionId,
     }),
