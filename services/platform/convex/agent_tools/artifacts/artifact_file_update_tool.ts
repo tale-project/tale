@@ -87,7 +87,7 @@ export const artifactFileUpdateTool = {
 
 **REFUSED ON** missing path (code: \`file_missing\`) — call \`artifact_file_create\` to add a new file, or \`artifact_file_list\` to see what exists.
 
-**SIZE LIMIT (HARD):** The \`content\` field is sent as a JSON string literal inside this call's arguments — every byte of \`content\` consumes YOUR (the caller's) output token budget. If \`content\` exceeds your remaining budget, the arguments JSON gets truncated mid-string by \`max_tokens\` and the call fails with an unrecoverable parse error BEFORE this handler runs. To stay safe, keep any single \`content\` under ~12 KB (~400 lines). When the file you want to write would exceed that, decide on a split BEFORE generating the call:
+**SIZE LIMIT (HARD):** The \`content\` field is sent as a JSON string literal inside this call's arguments — every byte of \`content\` consumes YOUR (the caller's) output token budget. If \`content\` exceeds your remaining budget, the arguments JSON gets truncated mid-string by \`max_tokens\` and the call fails with an unrecoverable parse error BEFORE this handler runs. To stay safe, keep any single \`content\` under ~40 KB (~1000 lines). When the file you want to write would exceed that, decide on a split BEFORE generating the call:
  - Slide decks (pptxgenjs etc.) → \`main.js\` requires \`slide1.js\`, \`slide2.js\`, …, one builder per file.
  - Long scripts → split by module/responsibility into multiple files.
  - Long data tables → put each chunk in its own data file and import them.
