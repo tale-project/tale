@@ -35,19 +35,25 @@ export async function applyPackagesAddIfAny(
 }
 
 /**
- * Checks whether the `path` field's string literal has fully closed in the
- * raw JSON accumulator. `parsePartialJson` will happily auto-close an
+ * Checks whether the given string-valued field's literal has fully closed in
+ * the raw JSON accumulator. `parsePartialJson` will happily auto-close an
  * in-flight string (e.g. `"path":"c` gets repaired to `"path":"c"`), but
- * that means every intermediate state of the LLM typing the filename
- * would otherwise be committed as `streamingPath` — producing visible
- * filename flicker in the canvas FILES panel.
+ * acting on those intermediate values is bad in two known cases:
+ *   - `path`: every keystroke of the filename would be committed as
+ *     `streamingPath`, flickering the canvas FILES panel.
+ *   - `artifactId`: every partial ID is fed to a Convex query whose
+ *     `v.id("artifacts")` validator rejects it, spamming WARN logs.
  *
  * We require the value's closing `"` to physically exist in the accumulator
- * before treating the path as stable. Once stable it cannot regress in this
+ * before treating the field as stable. Once stable it cannot regress in this
  * stream (JSON values are written linearly), so this is a one-way gate.
  */
-export function isPathFieldClosed(accumulator: string): boolean {
-  const keyMatch = /"path"\s*:\s*"/.exec(accumulator);
+export function isStringFieldClosed(
+  accumulator: string,
+  fieldName: string,
+): boolean {
+  const escaped = fieldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const keyMatch = new RegExp(`"${escaped}"\\s*:\\s*"`).exec(accumulator);
   if (!keyMatch) return false;
   let i = keyMatch.index + keyMatch[0].length;
   while (i < accumulator.length) {

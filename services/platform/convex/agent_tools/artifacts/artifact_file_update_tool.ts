@@ -16,7 +16,7 @@ import { z } from 'zod/v4';
 import { internal } from '../../_generated/api';
 import { toId } from '../../lib/type_cast_helpers';
 import type { ToolDefinition } from '../types';
-import { applyPackagesAddIfAny, isPathFieldClosed } from './_packages_helper';
+import { applyPackagesAddIfAny, isStringFieldClosed } from './_packages_helper';
 import { isRunnableArtifactType } from './shared';
 import {
   clearState,
@@ -125,7 +125,11 @@ export const artifactFileUpdateTool = {
         typeof obj.artifactId === 'string' ? obj.artifactId : undefined;
       const path = typeof obj.path === 'string' ? obj.path : undefined;
 
-      if (state.artifactId === undefined && artifactIdStr) {
+      if (
+        state.artifactId === undefined &&
+        artifactIdStr &&
+        isStringFieldClosed(state.accumulator, 'artifactId')
+      ) {
         try {
           const artifactId = toId<'artifacts'>(artifactIdStr);
           const artifact = await ctx.runQuery(
@@ -156,7 +160,7 @@ export const artifactFileUpdateTool = {
         !state.rowInitialized &&
         path !== undefined &&
         path.length > 0 &&
-        isPathFieldClosed(state.accumulator)
+        isStringFieldClosed(state.accumulator, 'path')
       ) {
         state.resolvedMode = 'rewrite';
         try {
