@@ -91,7 +91,11 @@ export const artifactFileCreateTool = {
 
 **REFUSED ON** existing path (code: \`path_exists\`) — call \`artifact_file_update\` to overwrite, or pick a different name.
 
-**PROJECT-FILE GUIDANCE:** This tool overwrites a file in full. To grow a project, prefer adding NEW files via additional \`artifact_file_create\` calls over making one file enormous — e.g. \`main.py\` + \`helpers.py\` + \`types.py\` instead of one 30KB mega-file. The per-artifact aggregate cap is ~800 KB; the per-file practical cap is the size that fits in one tool call.
+**SIZE LIMIT (HARD):** The \`content\` field is sent as a JSON string literal inside this call's arguments — every byte of \`content\` consumes YOUR (the caller's) output token budget. If \`content\` exceeds your remaining budget, the arguments JSON gets truncated mid-string by \`max_tokens\` and the call fails with an unrecoverable parse error BEFORE this handler runs. To stay safe, keep any single \`content\` under ~12 KB (~400 lines). When the file you want to write would exceed that, decide on a split BEFORE generating the call:
+ - Slide decks (pptxgenjs etc.) → \`main.js\` requires \`slide1.js\`, \`slide2.js\`, …, one builder per file.
+ - Long scripts → split by module/responsibility into multiple files (e.g. \`main.py\` + \`helpers.py\` + \`types.py\`).
+ - Long data tables → put each chunk in its own data file and import them.
+There is no \`append\` and no patch mode — splitting is the only way. This is a HARD limit of the calling protocol, not a soft preference. (Per-artifact aggregate cap is ~800 KB across all files.)
 
 **RUNNABLE ARTIFACTS:** if the new file imports a new dependency, set \`packages_add\` (or follow up with \`artifact_packages_add\`). Edits do NOT auto-execute — call \`artifact_run\` to re-run.
 

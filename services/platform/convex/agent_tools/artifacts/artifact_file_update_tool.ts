@@ -87,7 +87,11 @@ export const artifactFileUpdateTool = {
 
 **REFUSED ON** missing path (code: \`file_missing\`) — call \`artifact_file_create\` to add a new file, or \`artifact_file_list\` to see what exists.
 
-**PROJECT-FILE GUIDANCE:** This tool overwrites the file in full. To grow a project, prefer adding NEW files via \`artifact_file_create\` calls over making one file enormous. There is no \`append\` — write each file in one \`artifact_file_create\` / \`artifact_file_update\` call. If your snapshot is stale, call \`artifact_file_read\` first to anchor against current bytes.
+**SIZE LIMIT (HARD):** The \`content\` field is sent as a JSON string literal inside this call's arguments — every byte of \`content\` consumes YOUR (the caller's) output token budget. If \`content\` exceeds your remaining budget, the arguments JSON gets truncated mid-string by \`max_tokens\` and the call fails with an unrecoverable parse error BEFORE this handler runs. To stay safe, keep any single \`content\` under ~12 KB (~400 lines). When the file you want to write would exceed that, decide on a split BEFORE generating the call:
+ - Slide decks (pptxgenjs etc.) → \`main.js\` requires \`slide1.js\`, \`slide2.js\`, …, one builder per file.
+ - Long scripts → split by module/responsibility into multiple files.
+ - Long data tables → put each chunk in its own data file and import them.
+There is no \`append\` and no patch mode — splitting is the only way for files that would otherwise be too big. This is a HARD limit of the calling protocol, not a soft preference. (Per-artifact aggregate cap is ~800 KB. If your local snapshot of the file is stale, call \`artifact_file_read\` first to anchor against current bytes.)
 
 **RUNNABLE ARTIFACTS:** if the updated file imports a new dependency, set \`packages_add\` (or follow up with \`artifact_packages_add\`). Edits do NOT auto-execute — call \`artifact_run\` to re-run.
 
