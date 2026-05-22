@@ -15,14 +15,7 @@ import {
   X,
   Zap,
 } from 'lucide-react';
-import {
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
@@ -172,51 +165,109 @@ export function ProviderDetailDrawer({
 function ProviderDetailSkeleton() {
   return (
     <Stack gap={6}>
-      <Card contentClassName="p-5">
-        <Stack gap={4}>
-          <HStack justify="between" className="border-b pb-4">
-            <Skeleton className="h-5 w-16" />
-            <Skeleton className="h-4 w-20" />
-          </HStack>
-          <Stack gap={3} className="divide-y">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <HStack key={i} gap={4} className="pt-3 first:pt-0">
-                <Skeleton className="h-4 w-28" />
-                <Skeleton className="h-4 w-48" />
-              </HStack>
-            ))}
-          </Stack>
-        </Stack>
-      </Card>
-      <Card contentClassName="p-5">
-        <HStack gap={4}>
+      {/* GeneralSection: header outside, Card with 3 InfoRows */}
+      <Stack gap={2}>
+        <HStack justify="between" align="center">
           <Skeleton className="h-5 w-16" />
-          <Skeleton className="h-5 w-32" />
-          <Skeleton className="h-4 w-28" />
+          <Skeleton className="h-8 w-20" />
         </HStack>
-      </Card>
-      <Card contentClassName="p-5">
-        <Stack gap={4}>
-          <HStack justify="between" className="border-b pb-4">
-            <Skeleton className="h-5 w-28" />
-            <Skeleton className="h-4 w-20" />
+        <Card contentClassName="p-0">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <HStack
+              key={i}
+              gap={4}
+              align="start"
+              className={cn('px-4 py-2.5', i < 2 && 'border-b')}
+            >
+              <Skeleton className="h-4 w-28 shrink-0" />
+              <Skeleton className="h-4 w-48" />
+            </HStack>
+          ))}
+        </Card>
+      </Stack>
+
+      {/* ApiKeySection: header (title + 2 ghost buttons) outside, Card with badge row */}
+      <Stack gap={2}>
+        <HStack justify="between" align="center">
+          <Skeleton className="h-5 w-16" />
+          <HStack gap={1} align="center">
+            <Skeleton className="h-8 w-28" />
+            <Skeleton className="h-8 w-24" />
           </HStack>
-          <Stack gap={3} className="divide-y">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <HStack key={i} gap={4} className="pt-3 first:pt-0">
-                <Skeleton className="h-4 w-28" />
-                <Skeleton className="h-4 w-32" />
-              </HStack>
-            ))}
-          </Stack>
-        </Stack>
-      </Card>
-      <Stack gap={3}>
-        <HStack justify="between">
-          <Skeleton className="h-6 w-16" />
-          <Skeleton className="h-9 w-28" />
         </HStack>
-        <Skeleton className="h-64 w-full rounded-lg" />
+        <Card contentClassName="p-0">
+          <HStack gap={4} align="center" className="px-5 py-3.5">
+            <Skeleton className="h-5 w-24 rounded-full" />
+            <Skeleton className="h-4 w-32" />
+          </HStack>
+        </Card>
+      </Stack>
+
+      {/* DefaultModelsSection: header (title + description + Edit) outside, Card with 5 InfoRows */}
+      <Stack gap={2}>
+        <HStack justify="between" align="start">
+          <Stack gap={1} className="min-w-0">
+            <Skeleton className="h-5 w-32" />
+            <Skeleton className="h-4 w-64" />
+          </Stack>
+          <Skeleton className="h-8 w-20" />
+        </HStack>
+        <Card contentClassName="p-0">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <HStack
+              key={i}
+              gap={4}
+              align="start"
+              className={cn('px-4 py-2.5', i < 4 && 'border-b')}
+            >
+              <Skeleton className="h-4 w-28 shrink-0" />
+              <Skeleton className="h-4 w-32" />
+            </HStack>
+          ))}
+        </Card>
+      </Stack>
+
+      {/* ProviderOptionsSection: header outside, collapsible guide, Card with placeholder */}
+      <Stack gap={2}>
+        <HStack justify="between" align="center">
+          <Skeleton className="h-5 w-48" />
+          <Skeleton className="h-8 w-20" />
+        </HStack>
+        <Skeleton className="h-9 w-full rounded-lg" />
+        <Card contentClassName="p-5">
+          <Skeleton className="h-4 w-64" />
+        </Card>
+      </Stack>
+
+      {/* ModelsSection: header (title + 2 ghost buttons) outside, bordered list */}
+      <Stack gap={3}>
+        <HStack justify="between" align="center">
+          <Skeleton className="h-5 w-16" />
+          <HStack gap={1} align="center">
+            <Skeleton className="h-8 w-28" />
+            <Skeleton className="h-8 w-24" />
+          </HStack>
+        </HStack>
+        <div className="overflow-hidden rounded-xl border">
+          <div className="border-border border-b px-3 py-2">
+            <Skeleton className="h-6 w-full" />
+          </div>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <HStack
+              key={i}
+              justify="between"
+              align="center"
+              gap={4}
+              className={cn('px-4 py-2.5', i < 3 && 'border-border border-b')}
+            >
+              <HStack gap={3} align="center">
+                <Skeleton className="size-4 rounded" />
+                <Skeleton className="h-4 w-40" />
+              </HStack>
+              <Skeleton className="h-5 w-14 rounded-full" />
+            </HStack>
+          ))}
+        </div>
       </Stack>
     </Stack>
   );
@@ -274,10 +325,10 @@ function InfoRow({
   return (
     <HStack
       gap={4}
-      align="center"
-      className={cn('px-5 py-3.5', !isLast && 'border-b')}
+      align="start"
+      className={cn('px-4 py-2.5', !isLast && 'border-b')}
     >
-      <Text variant="muted" className="w-36 shrink-0 text-sm font-normal">
+      <Text variant="muted" className="w-32 shrink-0 text-sm font-normal">
         {label}
       </Text>
       <div
@@ -288,48 +339,6 @@ function InfoRow({
       >
         {children}
       </div>
-    </HStack>
-  );
-}
-
-function SectionHeader({
-  title,
-  description,
-  onEdit,
-  editLabel,
-  children,
-}: {
-  title: string;
-  description?: string;
-  onEdit: () => void;
-  editLabel: string;
-  children?: ReactNode;
-}) {
-  return (
-    <HStack
-      justify="between"
-      align={description ? 'start' : 'center'}
-      className="border-b px-5 py-4"
-    >
-      <Stack gap={1}>
-        <Text className="text-[15px] font-semibold tracking-[-0.01em]">
-          {title}
-        </Text>
-        {description && (
-          <Text className="text-muted-foreground text-[13px]">
-            {description}
-          </Text>
-        )}
-      </Stack>
-      {children}
-      <button
-        type="button"
-        onClick={onEdit}
-        className="text-muted-foreground hover:text-foreground focus-visible:outline-ring flex shrink-0 items-center gap-1.5 rounded-sm text-[13px] font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
-      >
-        <Pencil className="size-3.5" />
-        {editLabel}
-      </button>
     </HStack>
   );
 }
@@ -346,13 +355,17 @@ function GeneralSection({
   const [panelOpen, setPanelOpen] = useState(false);
 
   return (
-    <>
+    <Stack gap={2}>
+      <HStack justify="between" align="center">
+        <Text className="text-[15px] font-semibold tracking-[-0.01em]">
+          {t('providers.general')}
+        </Text>
+        <Button variant="ghost" size="sm" onClick={() => setPanelOpen(true)}>
+          <Pencil className="mr-1 size-3.5" />
+          {t('providers.editGeneral')}
+        </Button>
+      </HStack>
       <Card contentClassName="p-0">
-        <SectionHeader
-          title={t('providers.general')}
-          onEdit={() => setPanelOpen(true)}
-          editLabel={t('providers.editGeneral')}
-        />
         <InfoRow label={t('providers.displayName')}>
           {config.displayName}
         </InfoRow>
@@ -370,7 +383,7 @@ function GeneralSection({
         providerName={providerName}
         organizationId={organizationId}
       />
-    </>
+    </Stack>
   );
 }
 
@@ -397,29 +410,39 @@ function DefaultModelsSection({
 
   return (
     <>
-      <Card contentClassName="p-0">
-        <SectionHeader
-          title={t('providers.defaultModels')}
-          description={t('providers.defaultModelsDescription')}
-          onEdit={() => setPanelOpen(true)}
-          editLabel={t('providers.editDefaults')}
-        />
-        <InfoRow label={t('providers.tagChat')}>
-          {modelDisplayName(config.defaults?.chat)}
-        </InfoRow>
-        <InfoRow label={t('providers.tagVision')}>
-          {modelDisplayName(config.defaults?.vision)}
-        </InfoRow>
-        <InfoRow label={t('providers.tagEmbedding')}>
-          {modelDisplayName(config.defaults?.embedding)}
-        </InfoRow>
-        <InfoRow label={t('providers.tagImageGeneration')}>
-          {modelDisplayName(config.defaults?.['image-generation'])}
-        </InfoRow>
-        <InfoRow label={t('providers.tagTranscription')} isLast>
-          {modelDisplayName(config.defaults?.transcription)}
-        </InfoRow>
-      </Card>
+      <Stack gap={2}>
+        <HStack justify="between" align="start">
+          <Stack gap={1} className="min-w-0">
+            <Text className="text-[15px] font-semibold tracking-[-0.01em]">
+              {t('providers.defaultModels')}
+            </Text>
+            <Text className="text-muted-foreground text-[13px]">
+              {t('providers.defaultModelsDescription')}
+            </Text>
+          </Stack>
+          <Button variant="ghost" size="sm" onClick={() => setPanelOpen(true)}>
+            <Pencil className="mr-1 size-3.5" />
+            {t('providers.editDefaults')}
+          </Button>
+        </HStack>
+        <Card contentClassName="p-0">
+          <InfoRow label={t('providers.tagChat')}>
+            {modelDisplayName(config.defaults?.chat)}
+          </InfoRow>
+          <InfoRow label={t('providers.tagVision')}>
+            {modelDisplayName(config.defaults?.vision)}
+          </InfoRow>
+          <InfoRow label={t('providers.tagEmbedding')}>
+            {modelDisplayName(config.defaults?.embedding)}
+          </InfoRow>
+          <InfoRow label={t('providers.tagImageGeneration')}>
+            {modelDisplayName(config.defaults?.['image-generation'])}
+          </InfoRow>
+          <InfoRow label={t('providers.tagTranscription')} isLast>
+            {modelDisplayName(config.defaults?.transcription)}
+          </InfoRow>
+        </Card>
+      </Stack>
 
       <ProviderDefaultModelsPanel
         open={panelOpen}
@@ -446,6 +469,7 @@ function ProviderOptionsSection() {
       copy={{
         title: t('providers.providerOptions.providerLevelTitle'),
         description: t('providers.providerOptions.providerLevelDescription'),
+        guideLabel: t('providers.providerOptions.guideLabel'),
         notConfigured: t('providers.providerOptions.notConfigured'),
         editLabel: t('providers.editGeneral'),
         saveLabel: t('providers.providerOptions.save'),
@@ -550,38 +574,49 @@ function ApiKeySection({
 
   return (
     <>
-      <Card contentClassName="p-0">
-        <SectionHeader
-          title={t('providers.apiKey')}
-          onEdit={() => setDialogOpen(true)}
-          editLabel={hasSecret ? t('providers.editKey') : t('providers.addKey')}
-        >
-          <button
-            type="button"
-            onClick={() => setTestDialogOpen(true)}
-            className="text-muted-foreground hover:text-foreground focus-visible:outline-ring ml-auto flex items-center gap-1.5 rounded-sm text-[13px] font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
-          >
-            <Zap className="size-3.5" />
-            {t('providers.testConnection')}
-          </button>
-        </SectionHeader>
-        {hasSecret ? (
-          <HStack gap={4} align="center" className="flex-wrap px-5 py-3.5">
-            <Badge variant="green" dot>
-              {t('providers.apiKeyConfigured')}
-            </Badge>
-            <Text className="text-muted-foreground font-mono text-sm">
-              {maskedKey}
-            </Text>
+      <Stack gap={2}>
+        <HStack justify="between" align="center">
+          <Text className="text-[15px] font-semibold tracking-[-0.01em]">
+            {t('providers.apiKey')}
+          </Text>
+          <HStack gap={1} align="center">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setTestDialogOpen(true)}
+            >
+              <Zap className="mr-1 size-3.5" />
+              {t('providers.testConnection')}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setDialogOpen(true)}
+            >
+              <Pencil className="mr-1 size-3.5" />
+              {hasSecret ? t('providers.editKey') : t('providers.addKey')}
+            </Button>
           </HStack>
-        ) : (
-          <HStack gap={3} align="center" className="px-5 py-3.5">
-            <Badge variant="outline">
-              {t('providers.apiKeyNotConfigured')}
-            </Badge>
-          </HStack>
-        )}
-      </Card>
+        </HStack>
+        <Card contentClassName="p-0">
+          {hasSecret ? (
+            <HStack gap={4} align="center" className="flex-wrap px-4 py-2.5">
+              <Badge variant="green" dot>
+                {t('providers.apiKeyConfigured')}
+              </Badge>
+              <Text className="text-muted-foreground font-mono text-sm">
+                {maskedKey}
+              </Text>
+            </HStack>
+          ) : (
+            <HStack gap={3} align="center" className="px-4 py-2.5">
+              <Badge variant="outline">
+                {t('providers.apiKeyNotConfigured')}
+              </Badge>
+            </HStack>
+          )}
+        </Card>
+      </Stack>
 
       <FormDialog
         open={dialogOpen}
@@ -1045,10 +1080,10 @@ function ModelsSection({
           <Text className="text-[15px] font-semibold tracking-[-0.01em]">
             {t('providers.models')}
           </Text>
-          <HStack gap={2} align="center">
+          <HStack gap={1} align="center">
             <Button
               type="button"
-              variant="secondary"
+              variant="ghost"
               size="sm"
               onClick={() => void handleFetchFromProvider()}
               disabled={isFetchingFromProvider}
@@ -1062,7 +1097,7 @@ function ModelsSection({
             </Button>
             <Button
               type="button"
-              variant="secondary"
+              variant="ghost"
               size="sm"
               onClick={openAddDialog}
             >
@@ -1097,7 +1132,7 @@ function ModelsSection({
           </div>
         ) : (
           <div className="overflow-hidden rounded-xl border">
-            <div className="border-border border-b px-3 py-2">
+            <div className="border-border border-b px-3 py-2.5">
               <SearchInput
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -1515,6 +1550,7 @@ function ModelsSection({
                   description: t(
                     'providers.providerOptions.modelLevelDescription',
                   ),
+                  guideLabel: t('providers.providerOptions.guideLabel'),
                   helpText: t('providers.providerOptions.modelLevelHelp'),
                 }}
               />

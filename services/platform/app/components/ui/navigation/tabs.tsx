@@ -30,7 +30,7 @@ interface TabsProps {
 }
 
 const listVariants = cva(
-  'scrollbar-hide inline-flex items-center overflow-x-auto text-muted-foreground',
+  'scrollbar-hide inline-flex items-center overflow-x-auto text-muted-foreground min-w-full justify-around',
   {
     variants: {
       variant: {

@@ -21,7 +21,8 @@ import { useT } from '@/lib/i18n/client';
 import { resolveProviderLocale } from '@/lib/shared/utils/resolve-provider-locale';
 
 import { useDeleteProvider } from '../hooks/mutations';
-import { useListProviders } from '../hooks/queries';
+import { useListProviders, useReadProvider } from '../hooks/queries';
+import { ProviderConfigProvider } from '../hooks/use-provider-config-context';
 import { useProvidersTableConfig } from '../hooks/use-providers-table-config';
 import { ProviderAddPanel } from './provider-add-panel';
 import { ProviderDetailDrawer } from './provider-detail-drawer';
@@ -174,13 +175,11 @@ export function ProvidersTable({
       />
 
       {editProvider && (
-        <ProviderEditPanel
-          open
-          onOpenChange={(open) => {
-            if (!open) setEditProvider(null);
-          }}
+        <ProviderEditPanelLoader
+          orgSlug={orgSlug}
           providerName={editProvider.name}
           organizationId={organizationId}
+          onClose={() => setEditProvider(null)}
         />
       )}
 
@@ -278,5 +277,45 @@ function ProviderRowActions({
       items={items}
       align="end"
     />
+  );
+}
+
+/**
+ * Wrapper that fetches the provider's config + hash and hands them to
+ * `ProviderConfigProvider`, so the row-level Edit action gets the same
+ * optimistic-concurrency context as the detail drawer. Without it,
+ * `useProviderConfig` inside `ProviderEditPanel` throws.
+ */
+function ProviderEditPanelLoader({
+  orgSlug,
+  providerName,
+  organizationId,
+  onClose,
+}: {
+  orgSlug: string;
+  providerName: string;
+  organizationId: string;
+  onClose: () => void;
+}) {
+  const { data } = useReadProvider(orgSlug, providerName, {
+    enabled: !!orgSlug,
+  });
+  if (!data?.ok) return null;
+  return (
+    <ProviderConfigProvider
+      orgSlug={orgSlug}
+      providerName={providerName}
+      initialConfig={data.config}
+      initialHash={data.hash}
+    >
+      <ProviderEditPanel
+        open
+        onOpenChange={(open) => {
+          if (!open) onClose();
+        }}
+        providerName={providerName}
+        organizationId={organizationId}
+      />
+    </ProviderConfigProvider>
   );
 }
