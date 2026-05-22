@@ -91,11 +91,16 @@ export function loadConfig(): SpawnerConfig {
       100 * 1024 * 1024,
       { min: 1024 },
     ),
-    // Body cap on /v1/execute. Even the unsigned dev mode shouldn't be
-    // OOM-able by a single oversized POST. 256 KB easily covers any
-    // realistic agent-authored code + small input file set.
-    maxRequestBodyBytes: numEnv('SANDBOX_MAX_REQUEST_BODY_BYTES', 256 * 1024, {
-      min: 4 * 1024,
-    }),
+    // Body cap on /v1/execute. The platform forwards prior-run output
+    // files (base64-encoded, up to 10 MB raw / ~13.5 MB after base64)
+    // inline in the request body so the runtime can pre-stage them. 20 MB
+    // covers that plus source files + JSON wrapper overhead, and still
+    // sits well below the spawner container's 512 MB mem_limit so a
+    // single oversized POST cannot OOM the process.
+    maxRequestBodyBytes: numEnv(
+      'SANDBOX_MAX_REQUEST_BODY_BYTES',
+      20 * 1024 * 1024,
+      { min: 4 * 1024 },
+    ),
   };
 }

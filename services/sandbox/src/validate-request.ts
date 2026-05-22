@@ -31,7 +31,7 @@ type ValidateResult =
   | { ok: false; error: string };
 
 // Caps mirror what downstream argv builders + the runtime image accept.
-// The spawner-side body cap (cfg.maxRequestBodyBytes, default 256 KB)
+// The spawner-side body cap (cfg.maxRequestBodyBytes, default 20 MB)
 // is the hard upper bound on string sizes; per-field caps below stay
 // inside that and surface as readable error strings instead of cryptic
 // downstream throws.
