@@ -1148,7 +1148,13 @@
       "tagTranscription": "Transkription",
       "details": "Anbieterdetails",
       "capabilities": "Fähigkeiten",
-      "apiKeyUpdated": "Ihr API-Schlüssel wurde erfolgreich gespeichert."
+      "apiKeyUpdated": "Ihr API-Schlüssel wurde erfolgreich gespeichert.",
+      "inputCostLabel": "Input-Kosten (USD / 1M Tokens)",
+      "inputCostPlaceholder": "z. B. 2.50",
+      "outputCostLabel": "Output-Kosten (USD / 1M Tokens)",
+      "outputCostPlaceholder": "z. B. 10.00",
+      "imageCostLabel": "Kosten pro Bild (USD)",
+      "imageCostPlaceholder": "z. B. 0.06"
     },
     "form": {
       "name": "Name",

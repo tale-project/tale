@@ -1164,8 +1164,22 @@ export const fetchConfiguredProviderModels = action({
       args.orgSlug,
       args.providerName,
     );
-    const secrets = parseProviderSecrets(await decryptSecretsFile(secretsPath));
-    const apiKey = secrets.apiKey;
+    let apiKey: string | undefined;
+    try {
+      const secrets = parseProviderSecrets(
+        await decryptSecretsFile(secretsPath),
+      );
+      apiKey = secrets.apiKey;
+    } catch (err) {
+      // Decryption can fail if INSTANCE_SECRET rotated or the file got
+      // corrupted; parsing can fail if the JSON shape changed. Surface
+      // both as the user-facing PROVIDER_FETCH_FAILED rather than
+      // leaking the raw error class to the dashboard.
+      throw new ConvexError({
+        code: 'PROVIDER_FETCH_FAILED',
+        message: `Failed to read provider secrets: ${sanitizeError(err)}`,
+      });
+    }
     if (!apiKey) {
       throw new ConvexError({
         code: 'PROVIDER_FETCH_FAILED',

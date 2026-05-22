@@ -41,9 +41,16 @@ export function useApiKeysTableConfig(
         cell: ({ row }) => {
           const head = row.original.start || row.original.prefix;
           const tail = row.original.suffix;
+          const display = head
+            ? tail
+              ? `${head} … ${tail}`
+              : head
+            : tail
+              ? `… ${tail}`
+              : '-';
           return (
             <Text as="span" variant="muted" className="font-mono text-sm">
-              {head ? (tail ? `${head} … ${tail}` : head) : '-'}
+              {display}
             </Text>
           );
         },

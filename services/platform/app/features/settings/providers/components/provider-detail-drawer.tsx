@@ -325,7 +325,7 @@ function SectionHeader({
       <button
         type="button"
         onClick={onEdit}
-        className="text-muted-foreground hover:text-foreground focus-visible:outline-ring flex shrink-0 items-center gap-1.5 rounded-sm text-[13px] font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-none"
+        className="text-muted-foreground hover:text-foreground focus-visible:outline-ring flex shrink-0 items-center gap-1.5 rounded-sm text-[13px] font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
       >
         <Pencil className="size-3.5" />
         {editLabel}
@@ -559,7 +559,7 @@ function ApiKeySection({
           <button
             type="button"
             onClick={() => setTestDialogOpen(true)}
-            className="text-muted-foreground hover:text-foreground focus-visible:outline-ring ml-auto flex items-center gap-1.5 rounded-sm text-[13px] font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-none"
+            className="text-muted-foreground hover:text-foreground focus-visible:outline-ring ml-auto flex items-center gap-1.5 rounded-sm text-[13px] font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
           >
             <Zap className="size-3.5" />
             {t('providers.testConnection')}
@@ -881,7 +881,10 @@ function ModelsSection({
           ? config.models.map((m, i) => (i === editingIndex ? model : m))
           : [...config.models, model];
       try {
-        await saveConfig({ models: updatedModels });
+        // Write the per-model secret BEFORE the config update. If the
+        // secret write fails (network blip, encryption error) we want to
+        // bail out without having persisted a config row that references
+        // a key the encrypted file doesn't have.
         if ((form.apiKey.trim() || modelKeyAction === 'remove') && orgSlug) {
           setSavingSecret(true);
           try {
@@ -897,6 +900,7 @@ function ModelsSection({
             setSavingSecret(false);
           }
         }
+        await saveConfig({ models: updatedModels });
         setDialogOpen(false);
       } catch (err) {
         if (dispatchForbiddenDeveloperSettings(err, t)) return;
@@ -1379,7 +1383,7 @@ function ModelsSection({
               )}
               <HStack gap={3}>
                 <Input
-                  label="Input cost (USD / 1M tokens)"
+                  label={t('providers.inputCostLabel')}
                   type="number"
                   value={form.inputCostPerMillion}
                   onChange={(e) =>
@@ -1388,12 +1392,12 @@ function ModelsSection({
                       inputCostPerMillion: e.target.value,
                     }))
                   }
-                  placeholder="e.g., 2.50"
+                  placeholder={t('providers.inputCostPlaceholder')}
                   min={0}
                   step={0.01}
                 />
                 <Input
-                  label="Output cost (USD / 1M tokens)"
+                  label={t('providers.outputCostLabel')}
                   type="number"
                   value={form.outputCostPerMillion}
                   onChange={(e) =>
@@ -1402,14 +1406,14 @@ function ModelsSection({
                       outputCostPerMillion: e.target.value,
                     }))
                   }
-                  placeholder="e.g., 10.00"
+                  placeholder={t('providers.outputCostPlaceholder')}
                   min={0}
                   step={0.01}
                 />
               </HStack>
               {form.tags.includes('image-generation') && (
                 <Input
-                  label="Cost per image (USD)"
+                  label={t('providers.imageCostLabel')}
                   type="number"
                   value={form.imageCostPerImage}
                   onChange={(e) =>
@@ -1418,7 +1422,7 @@ function ModelsSection({
                       imageCostPerImage: e.target.value,
                     }))
                   }
-                  placeholder="e.g., 0.06"
+                  placeholder={t('providers.imageCostPlaceholder')}
                   min={0}
                   step={0.01}
                 />
@@ -1449,7 +1453,7 @@ function ModelsSection({
                     <button
                       type="button"
                       onClick={() => setModelKeyAction('replace')}
-                      className="text-muted-foreground hover:text-foreground focus-visible:outline-ring rounded-sm text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-none"
+                      className="text-muted-foreground hover:text-foreground focus-visible:outline-ring rounded-sm text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
                     >
                       {t('providers.editKey')}
                     </button>
@@ -1470,7 +1474,7 @@ function ModelsSection({
                   <button
                     type="button"
                     onClick={() => setModelKeyAction('none')}
-                    className="text-muted-foreground hover:text-foreground focus-visible:outline-ring rounded-sm text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-none"
+                    className="text-muted-foreground hover:text-foreground focus-visible:outline-ring rounded-sm text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
                   >
                     {t('providers.undoRemoveKey')}
                   </button>

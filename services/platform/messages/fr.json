@@ -1148,7 +1148,13 @@
       "tagTranscription": "Transcription",
       "details": "Détails du fournisseur",
       "capabilities": "Capacités",
-      "apiKeyUpdated": "Votre clé API a été enregistrée avec succès."
+      "apiKeyUpdated": "Votre clé API a été enregistrée avec succès.",
+      "inputCostLabel": "Coût en entrée (USD / 1M de tokens)",
+      "inputCostPlaceholder": "p. ex. 2.50",
+      "outputCostLabel": "Coût en sortie (USD / 1M de tokens)",
+      "outputCostPlaceholder": "p. ex. 10.00",
+      "imageCostLabel": "Coût par image (USD)",
+      "imageCostPlaceholder": "p. ex. 0.06"
     },
     "form": {
       "name": "Nom",

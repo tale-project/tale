@@ -1148,7 +1148,13 @@
       "tagTranscription": "Transcription",
       "details": "Provider details",
       "capabilities": "Capabilities",
-      "apiKeyUpdated": "Your API key has been saved successfully."
+      "apiKeyUpdated": "Your API key has been saved successfully.",
+      "inputCostLabel": "Input cost (USD / 1M tokens)",
+      "inputCostPlaceholder": "e.g., 2.50",
+      "outputCostLabel": "Output cost (USD / 1M tokens)",
+      "outputCostPlaceholder": "e.g., 10.00",
+      "imageCostLabel": "Cost per image (USD)",
+      "imageCostPlaceholder": "e.g., 0.06"
     },
     "form": {
       "name": "Name",

@@ -222,8 +222,13 @@ export function ProviderAddPanel({
     } catch (error) {
       console.error('Failed to fetch models:', error);
       setFetchError(t('providers.fetchModelsError'));
-      setHasFetched(false);
-      setFetchedCredentials(null);
+      // Mark as fetched so the debounce effect stops re-firing on every
+      // render. Snapshot the failing credentials so the cleanup effect
+      // re-arms `hasFetched` once the user edits baseUrl or apiKey,
+      // letting them retry. The visible Fetch button is still available
+      // for an immediate manual retry without changing credentials.
+      setHasFetched(true);
+      setFetchedCredentials({ baseUrl, apiKey });
     }
   }, [fetchModels, getValues, orgSlug, t]);
 
