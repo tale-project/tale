@@ -317,7 +317,10 @@ export const artifactRunsTable = defineTable({
   inputsFromRun: v.optional(v.id('artifactRuns')),
 })
   .index('by_artifact', ['artifactId'])
-  .index('by_artifact_status', ['artifactId', 'status']);
+  .index('by_artifact_status', ['artifactId', 'status'])
+  // Backs `getRunByExecutionId` — `artifact_run` tool uses it to surface
+  // the persistent runId to the LLM after `executeCode` returns.
+  .index('by_executionId', ['executionId']);
 
 /**
  * One row per file produced by a run (harvested from `/workspace/output/`

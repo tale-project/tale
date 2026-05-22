@@ -100,6 +100,19 @@ const artifactRunArgs = z
       .describe(
         'One-off package list override for this run only. Usually omitted — the artifact row already carries the `packages` you supplied at create time.',
       ),
+    inputs: z
+      .object({
+        from_run: z
+          .string()
+          .min(1)
+          .describe(
+            'Either the literal string `"latest"` (use the most recent SUCCESSFUL run\'s outputs — the default behaviour when `inputs` is omitted) or a specific runId returned by a prior `artifact_run` call. When a runId is passed, that exact run\'s output files are pre-staged into `/workspace/output/` regardless of whether it succeeded or failed — useful for re-attempting analysis against a known intermediate state.',
+          ),
+      })
+      .optional()
+      .describe(
+        'Explicit pre-stage source for `/workspace/output/`. Omit to inherit the default ("latest succeeded run"). Pass a specific `{from_run: "<runId>"}` to pin to a particular prior run.',
+      ),
     // NOTE: `allowSdist` / `allowInstallScripts` were previously LLM-callable
     // here. They were removed (round-2 R2-B4) because a prompt-injected agent
     // could disable the install-safety guards then ship an evil-pkg whose
@@ -140,6 +153,14 @@ interface ArtifactRunSuccess {
   durationMs: number;
   files: RunOutputFile[];
   executionId: string;
+  /**
+   * The persistent `artifactRuns` row id created for this run (Phase 2
+   * onward). Pass it back as `inputs: { from_run: "<runId>" }` on a
+   * follow-up call to pin pre-staging to this run's outputs. Omitted if
+   * the run never reached finalize (rare — only on infra crashes that
+   * never enter the finalize path).
+   */
+  runId?: string;
   /**
    * Populated only when the request used multi-step mode. One entry per
    * requested step in submission order with per-step outcome. `skipped`
@@ -494,6 +515,9 @@ artifact_run({
               packages: effectivePackages,
             }),
             ...(args.timeoutMs !== undefined && { timeoutMs: args.timeoutMs }),
+            ...(args.inputs?.from_run !== undefined && {
+              inputs: { fromRun: args.inputs.from_run },
+            }),
             // allowSdist / allowInstallScripts intentionally omitted — the
             // action hardcodes both to false (round-2 R2-B4).
             purpose: `artifact_run: ${artifact.title}`,
@@ -589,6 +613,20 @@ artifact_run({
         message = `Run finished with status=${run.status} but produced no output files.${stepSuffix} Inspect runStdoutPreview / runStderrPreview and decide whether to artifact_edit + re-run.`;
       }
 
+      // Surface the artifactRuns row id created by `applyFinalizeArtifactRun`
+      // so the LLM can pin a later run's pre-stage with
+      // `inputs: { from_run: "<runId>" }`. Lookup-by-executionId keeps the
+      // tool-side change small (no plumbing through executeCode's return).
+      // Best-effort: if finalize never ran (rare infra crash) we omit runId.
+      const runRow = await ctx
+        .runQuery(internal.artifacts.internal_queries.getRunByExecutionId, {
+          executionId: toId<'sandboxExecutions'>(run.executionId),
+        })
+        .catch((err) => {
+          console.warn('[artifact_run_tool] getRunByExecutionId failed:', err);
+          return null;
+        });
+
       return {
         success,
         artifactId: args.artifactId,
@@ -604,6 +642,7 @@ artifact_run({
         durationMs: run.durationMs,
         files: run.files,
         executionId: run.executionId,
+        ...(runRow !== null && { runId: String(runRow._id) }),
         ...(run.steps !== undefined && { steps: run.steps }),
         message,
       };

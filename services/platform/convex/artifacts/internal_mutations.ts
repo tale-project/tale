@@ -46,6 +46,9 @@ import {
   rewriteArtifactReturns,
 } from './handlers/content_edits';
 import {
+  addArtifactPackagesArgs,
+  addArtifactPackagesHandler,
+  addArtifactPackagesReturns,
   appendArtifactRunOutputArgs,
   appendArtifactRunOutputHandler,
   appendArtifactRunOutputReturns,
@@ -170,6 +173,12 @@ export const setArtifactRunConfig = internalMutation({
   args: setArtifactRunConfigArgs,
   returns: setArtifactRunConfigReturns,
   handler: setArtifactRunConfigHandler,
+});
+
+export const addArtifactPackages = internalMutation({
+  args: addArtifactPackagesArgs,
+  returns: addArtifactPackagesReturns,
+  handler: addArtifactPackagesHandler,
 });
 
 export const initArtifactRun = internalMutation({

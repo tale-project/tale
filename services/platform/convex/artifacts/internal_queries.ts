@@ -56,14 +56,19 @@ export const listByThread = internalQuery({
  * for rows whose data hasn't been backfilled yet (per the migration plan in
  * llm-majestic-hamming.md).
  *
- * "Latest run" semantics: the most recent **successful** terminal run on this
- * artifact. Failed / cancelled runs are skipped so a one-off crash never
- * dead-ends the next pre-stage.
+ * Pre-stage source selection:
+ *   - omitted `fromRun` (or `"latest"`): most recent **successful** terminal
+ *     run on this artifact; failed/cancelled runs are skipped so a one-off
+ *     crash never dead-ends the next pre-stage.
+ *   - explicit runId string: pin to that exact run's outputs regardless of
+ *     status. Errors silently fall through to the legacy fallback if the id
+ *     is malformed or doesn't belong to this artifact.
  */
 export const getLatestRunOutputs = internalQuery({
   args: {
     artifactId: v.id('artifacts'),
     expectedOrganizationId: v.optional(v.string()),
+    fromRun: v.optional(v.string()),
   },
   returns: v.object({
     files: v.array(
@@ -80,7 +85,7 @@ export const getLatestRunOutputs = internalQuery({
       v.literal('none'),
     ),
   }),
-  handler: async (ctx, { artifactId, expectedOrganizationId }) => {
+  handler: async (ctx, { artifactId, expectedOrganizationId, fromRun }) => {
     const artifact = await ctx.db.get(artifactId);
     if (!artifact) return { files: [], source: 'none' as const };
     if (
@@ -90,7 +95,43 @@ export const getLatestRunOutputs = internalQuery({
       return { files: [], source: 'none' as const };
     }
 
-    // 1. Preferred: latest succeeded artifactRuns row + its artifactRunFiles.
+    // 1a. Explicit pin: caller named a specific runId. Resolve it and
+    //     return that run's files (status-agnostic). Bail to the default
+    //     path if the id is malformed or scoped to a different artifact.
+    if (fromRun !== undefined && fromRun !== 'latest') {
+      let pinnedRun: Awaited<ReturnType<typeof ctx.db.get<'artifactRuns'>>> =
+        null;
+      try {
+        const pinnedRunId = ctx.db.normalizeId('artifactRuns', fromRun);
+        if (pinnedRunId !== null) {
+          pinnedRun = await ctx.db.get(pinnedRunId);
+        }
+      } catch (err) {
+        console.warn(
+          '[getLatestRunOutputs] malformed fromRun id, falling back:',
+          err,
+        );
+      }
+      if (pinnedRun !== null && pinnedRun.artifactId === artifactId) {
+        const pinnedFiles = [];
+        for await (const f of ctx.db
+          .query('artifactRunFiles')
+          .withIndex('by_run', (q) => q.eq('runId', pinnedRun._id))) {
+          pinnedFiles.push({
+            name: f.name,
+            storageId: f.storageId,
+            size: f.size,
+            ...(f.contentType !== undefined && { contentType: f.contentType }),
+          });
+        }
+        return {
+          files: pinnedFiles,
+          source: 'artifact_run_files' as const,
+        };
+      }
+    }
+
+    // 1b. Default: latest succeeded artifactRuns row + its artifactRunFiles.
     const latestSucceeded = await ctx.db
       .query('artifactRuns')
       .withIndex('by_artifact_status', (q) =>
@@ -140,6 +181,37 @@ export const getLatestRunOutputs = internalQuery({
         files.length > 0
           ? ('legacy_artifact_field' as const)
           : ('none' as const),
+    };
+  },
+});
+
+/**
+ * Returns the `artifactRuns` row created by `applyFinalizeArtifactRun` for
+ * a given sandbox `executionId`, or null if the run never finalized (rare
+ * — only infra crashes that bypass the finalize path). Used by
+ * `artifact_run` to surface the persistent run id to the LLM so a later
+ * call can pin pre-staging via `inputs: { from_run: "<runId>" }`.
+ */
+export const getRunByExecutionId = internalQuery({
+  args: { executionId: v.id('sandboxExecutions') },
+  returns: v.union(
+    v.null(),
+    v.object({
+      _id: v.id('artifactRuns'),
+      artifactId: v.id('artifacts'),
+      status: v.string(),
+    }),
+  ),
+  handler: async (ctx, { executionId }) => {
+    const row = await ctx.db
+      .query('artifactRuns')
+      .withIndex('by_executionId', (q) => q.eq('executionId', executionId))
+      .first();
+    if (row === null) return null;
+    return {
+      _id: row._id,
+      artifactId: row.artifactId,
+      status: row.status,
     };
   },
 });

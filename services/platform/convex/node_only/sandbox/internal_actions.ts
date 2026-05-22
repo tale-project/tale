@@ -259,6 +259,16 @@ export const executeCode = internalAction({
     // patchArtifactRunProgress and finalizeArtifactRun — canvas shows
     // live progress instead of a frozen spinner.
     artifactId: v.optional(v.id('artifacts')),
+    /**
+     * Pre-stage source override. Default behaviour ("latest succeeded
+     * run") applies when omitted or when `fromRun === 'latest'`. Pass a
+     * specific `artifactRuns` row id to pin pre-staging to that run.
+     */
+    inputs: v.optional(
+      v.object({
+        fromRun: v.string(),
+      }),
+    ),
   },
   returns: v.object({
     executionId: v.id('sandboxExecutions'),
@@ -572,6 +582,9 @@ export const executeCode = internalAction({
           {
             artifactId: args.artifactId,
             expectedOrganizationId: args.organizationId,
+            ...(args.inputs?.fromRun !== undefined && {
+              fromRun: args.inputs.fromRun,
+            }),
           },
         );
         const candidates = latest.files;

@@ -64,6 +64,52 @@ export async function setArtifactRunConfigHandler(
 }
 
 // =============================================================================
+// addArtifactPackages — union packages_add into the persistent runPackages
+//
+// Used by `artifact_edit` (rewrite/append) so the LLM can declare new
+// dependencies inline with the edit that introduces them. Dedupe is
+// case-sensitive (matches pip/npm's own resolution rules). Existing
+// entries are never removed — `artifact_create` is the way to start
+// fresh.
+// =============================================================================
+
+export const addArtifactPackagesArgs = {
+  artifactId: v.id('artifacts'),
+  packagesAdd: v.array(v.string()),
+} as const;
+
+export const addArtifactPackagesReturns = v.object({
+  runPackages: v.array(v.string()),
+  added: v.array(v.string()),
+});
+
+export async function addArtifactPackagesHandler(
+  ctx: MutationCtx,
+  args: { artifactId: Id<'artifacts'>; packagesAdd: string[] },
+) {
+  const row = await ctx.db.get(args.artifactId);
+  if (!row) return { runPackages: [], added: [] };
+  if (row.type !== 'python_runnable' && row.type !== 'node_runnable') {
+    return { runPackages: row.runPackages ?? [], added: [] };
+  }
+  const existing = row.runPackages ?? [];
+  const existingSet = new Set(existing);
+  const added: string[] = [];
+  for (const pkg of args.packagesAdd) {
+    if (pkg.length === 0) continue;
+    if (existingSet.has(pkg)) continue;
+    existingSet.add(pkg);
+    added.push(pkg);
+  }
+  if (added.length === 0) {
+    return { runPackages: existing, added: [] };
+  }
+  const next = [...existing, ...added];
+  await ctx.db.patch(args.artifactId, { runPackages: next });
+  return { runPackages: next, added };
+}
+
+// =============================================================================
 // initArtifactRun — clear run-progress fields at the start of a new run
 //
 // `runOutputFiles` intentionally NOT cleared here — keep the prior

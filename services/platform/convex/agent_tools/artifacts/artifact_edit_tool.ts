@@ -43,6 +43,34 @@ import {
  * before treating the path as stable. Once stable it cannot regress in this
  * stream (JSON values are written linearly), so this is a one-way gate.
  */
+/**
+ * If `packagesAdd` is provided and the artifact is runnable, union the
+ * names into the artifact's persistent `runPackages` list. Returns a
+ * human-readable suffix for the success message (empty string when the
+ * call was a no-op or non-applicable). Best-effort: a failure to update
+ * packages is logged but does not flip the edit's success status.
+ */
+async function applyPackagesAddIfAny(
+  ctx: ToolCtx,
+  artifactId: import('../../_generated/dataModel').Id<'artifacts'>,
+  isRunnable: boolean,
+  packagesAdd: readonly string[] | undefined,
+): Promise<string> {
+  if (!isRunnable) return '';
+  if (packagesAdd === undefined || packagesAdd.length === 0) return '';
+  try {
+    const result = await ctx.runMutation(
+      internal.artifacts.internal_mutations.addArtifactPackages,
+      { artifactId, packagesAdd: [...packagesAdd] },
+    );
+    if (result.added.length === 0) return '';
+    return ` Added ${result.added.length} package${result.added.length === 1 ? '' : 's'} to runPackages: ${result.added.join(', ')}.`;
+  } catch (err) {
+    console.warn('[artifact_edit] addArtifactPackages failed:', err);
+    return '';
+  }
+}
+
 function isPathFieldClosed(accumulator: string): boolean {
   const keyMatch = /"path"\s*:\s*"/.exec(accumulator);
   if (!keyMatch) return false;
@@ -78,6 +106,13 @@ const rewriteModeArgs = z.object({
     .string()
     .describe(
       'Complete new content for the file. Empty string is allowed only on first write (file becomes a placeholder); prefer `mode="delete"` to remove a file.',
+    ),
+  packages_add: z
+    .array(z.string().max(120))
+    .max(20)
+    .optional()
+    .describe(
+      "Optional. Package names to UNION into the artifact's persistent `runPackages` list so the next `artifact_run` auto-installs them. Use when the rewritten content imports a new dependency. No-op if all names are already present; never removes existing entries (call `artifact_create` with a fresh `packages` list to reset).",
     ),
   expectedRevision: z
     .number()
@@ -173,6 +208,13 @@ const appendModeArgs = z.object({
     .string()
     .describe(
       'Chunk to append. Each call appends this verbatim to the end of the file; use multiple calls to deliver a long file one slice at a time. Empty string is allowed (no-op + revision bump).',
+    ),
+  packages_add: z
+    .array(z.string().max(120))
+    .max(20)
+    .optional()
+    .describe(
+      "Optional. Package names to UNION into the artifact's persistent `runPackages` list so the next `artifact_run` auto-installs them. Use when the appended chunk introduces a new dependency. No-op if all names are already present; never removes existing entries.",
     ),
   expectedRevision: z
     .number()
@@ -506,15 +548,24 @@ File-tree operations:
                 currentRevision: result.currentRevision,
               };
             }
+            const pkgNote = await applyPackagesAddIfAny(
+              ctx,
+              artifactId,
+              isRunnable,
+              args.packages_add,
+            );
             return {
               success: true,
               artifactId: args.artifactId,
               revision: result.revision,
               path: result.path,
               created: result.created,
-              message: result.created
-                ? `Created file "${result.path}" in "${artifact.title}". New revision: ${result.revision}.${runHint}`
-                : `Rewrote "${result.path}" in "${artifact.title}". New revision: ${result.revision}.${runHint}`,
+              message:
+                (result.created
+                  ? `Created file "${result.path}" in "${artifact.title}". New revision: ${result.revision}.`
+                  : `Rewrote "${result.path}" in "${artifact.title}". New revision: ${result.revision}.`) +
+                pkgNote +
+                runHint,
             };
           }
           case 'patch': {
@@ -629,15 +680,24 @@ File-tree operations:
                 currentRevision: result.currentRevision,
               };
             }
+            const pkgNote = await applyPackagesAddIfAny(
+              ctx,
+              artifactId,
+              isRunnable,
+              args.packages_add,
+            );
             return {
               success: true,
               artifactId: args.artifactId,
               revision: result.revision,
               path: result.path,
               created: result.created,
-              message: result.created
-                ? `Created file "${result.path}" in "${artifact.title}" with ${result.byteLength} bytes (first append). New revision: ${result.revision}.${runHint}`
-                : `Appended ${args.content.length} bytes to "${result.path}" in "${artifact.title}" (now ${result.byteLength} bytes total). New revision: ${result.revision}.${runHint}`,
+              message:
+                (result.created
+                  ? `Created file "${result.path}" in "${artifact.title}" with ${result.byteLength} bytes (first append). New revision: ${result.revision}.`
+                  : `Appended ${args.content.length} bytes to "${result.path}" in "${artifact.title}" (now ${result.byteLength} bytes total). New revision: ${result.revision}.`) +
+                pkgNote +
+                runHint,
             };
           }
           default: {
