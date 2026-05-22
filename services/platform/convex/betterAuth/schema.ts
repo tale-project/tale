@@ -20,12 +20,20 @@ export const tables = {
   // `userId` for pre-1.5 docs. better-auth 1.5 renamed `userId` →
   // `referenceId` and added a required `configId`; existing rows have neither.
   // Remove once a migration backfills the new fields.
+  //
+  // `suffix` is our addition: the last few plaintext characters of the
+  // key, captured at creation time via an after-hook in `auth.ts` (the
+  // upstream plugin only stores `start`). Used to render
+  // `start … suffix` so users can match keys against the one they hold.
+  // Nullable for pre-existing rows — no backfill since the plaintext is
+  // irrecoverable from the hash.
   apikey: defineTable(
     v.object({
       ...generatedTables.apikey.validator.fields,
       configId: v.optional(v.string()),
       referenceId: v.optional(v.string()),
       userId: v.optional(v.string()),
+      suffix: v.optional(v.union(v.null(), v.string())),
     }),
   ).index('key', ['key']),
   // Add custom index for [organizationId, userId] queries on member table

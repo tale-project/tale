@@ -13,6 +13,16 @@ export interface ApiKey {
    * Used as fallback when `start` is not available.
    */
   prefix: string | null;
+  /**
+   * Trailing plaintext characters of the key, captured at creation time
+   * by an after-hook on `/api-key/create` (the upstream Better Auth
+   * plugin doesn't know about this column). Rendered alongside `start`
+   * as `start … suffix` so users can match a row against the key they
+   * hold. Optional because (a) Better Auth's SDK return type doesn't
+   * include it and (b) rows created before this feature shipped have no
+   * value — those render with the prefix only.
+   */
+  suffix?: string | null;
   userId?: string;
   enabled: boolean | null;
   expiresAt: Date | null;

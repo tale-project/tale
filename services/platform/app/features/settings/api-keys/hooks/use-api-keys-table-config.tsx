@@ -38,11 +38,22 @@ export function useApiKeysTableConfig(
       {
         id: 'key',
         header: tSettings('apiKeys.columns.key'),
-        cell: ({ row }) => (
-          <Text as="span" variant="muted" className="font-mono text-sm">
-            {row.original.start || row.original.prefix || '-'}
-          </Text>
-        ),
+        cell: ({ row }) => {
+          const head = row.original.start || row.original.prefix;
+          const tail = row.original.suffix;
+          const display = head
+            ? tail
+              ? `${head} … ${tail}`
+              : head
+            : tail
+              ? `… ${tail}`
+              : '-';
+          return (
+            <Text as="span" variant="muted" className="font-mono text-sm">
+              {display}
+            </Text>
+          );
+        },
       },
       {
         id: 'created',

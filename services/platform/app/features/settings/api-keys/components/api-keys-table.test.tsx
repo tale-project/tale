@@ -35,6 +35,7 @@ function makeApiKey(overrides: Partial<ApiKey> = {}): ApiKey {
     name: 'Test Key',
     start: 'tale_abc',
     prefix: 'tale_',
+    suffix: 'wxyz',
     userId: 'user-1',
     enabled: true,
     expiresAt: null,

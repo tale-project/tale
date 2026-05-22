@@ -36,6 +36,12 @@ export function useFetchProviderModels() {
   return useConvexAction(api.providers.file_actions.fetchProviderModels);
 }
 
+export function useFetchConfiguredProviderModels() {
+  return useConvexAction(
+    api.providers.file_actions.fetchConfiguredProviderModels,
+  );
+}
+
 export function useTestProviderConnection() {
   return useConvexAction(api.providers.file_actions.testProviderConnection);
 }
