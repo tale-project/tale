@@ -1,10 +1,9 @@
 /**
- * Convex Tool: file_update
+ * Convex Tool: artifact_file_create
  *
- * Overwrite an EXISTING file in an artifact's project tree. Refused if `path`
- * does not exist (use `file_create` instead). Pure overwrite — no append, no
- * patch. Streams content live to the canvas via the shared streaming
- * mutations.
+ * Add a NEW file to an artifact's project tree. Refused if `path` already
+ * exists (use `artifact_file_update` to overwrite). Streams content live to the
+ * canvas via the shared streaming mutations.
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
@@ -28,39 +27,44 @@ import {
   shouldParse,
 } from './stream_state';
 
-const fileUpdateArgs = z.object({
-  artifactId: z.string().min(1),
+const fileCreateArgs = z.object({
+  artifactId: z
+    .string()
+    .min(1)
+    .describe(
+      'Convex artifact ID returned by `artifact_create` (or referenced from the <artifacts> system context).',
+    ),
   path: z
     .string()
     .min(1)
     .max(200)
     .describe(
-      'Existing file path inside the artifact. Use `file_create` to add a new file.',
+      'New file path inside the artifact. Must NOT already exist (use `artifact_file_update` to overwrite an existing file).',
     ),
   content: z
     .string()
     .describe(
-      'Complete replacement content for the file. The previous content is fully replaced — there is no append or patch mode.',
+      'Complete content for the new file. Empty string is allowed (creates a placeholder).',
     ),
   expectedRevision: z
     .number()
     .int()
     .nonnegative()
     .describe(
-      'REQUIRED: the `revision="N"` attribute from the `<artifact>` block this update was authored against. OCC — rejects with `code: "stale"` and `currentRevision` if the artifact has moved.',
+      'REQUIRED: the `revision="N"` attribute from the `<artifact>` block this create was authored against. OCC — rejects with `code: "stale"` and `currentRevision` if the artifact has moved.',
     ),
   packages_add: z
     .array(z.string().max(120))
     .max(20)
     .optional()
     .describe(
-      "Optional. Package names to UNION into the artifact's persistent `runPackages` list so the next `artifact_run` auto-installs them. Use when the updated file imports a new dependency. Equivalent to a follow-up `artifact_packages_add` call.",
+      "Optional. Package names to UNION into the artifact's persistent `runPackages` list so the next `artifact_run` auto-installs them. Use when the new file imports a new dependency. Equivalent to a follow-up `artifact_packages_add` call.",
     ),
 });
 
-type FileUpdateInput = z.infer<typeof fileUpdateArgs>;
+type FileCreateInput = z.infer<typeof fileCreateArgs>;
 
-interface FileUpdateSuccess {
+interface FileCreateSuccess {
   success: true;
   artifactId: string;
   revision: number;
@@ -69,32 +73,32 @@ interface FileUpdateSuccess {
   message: string;
 }
 
-interface FileUpdateFailure {
+interface FileCreateFailure {
   success: false;
   code?: string;
   message: string;
   currentRevision?: number;
 }
 
-type FileUpdateResult = FileUpdateSuccess | FileUpdateFailure;
+type FileCreateResult = FileCreateSuccess | FileCreateFailure;
 
-export const fileUpdateTool = {
-  name: 'file_update' as const,
+export const artifactFileCreateTool = {
+  name: 'artifact_file_create' as const,
   tool: createTool({
-    description: `**file_update** — overwrite an EXISTING file in an artifact's project tree with full new content. Streams content live to the canvas. Pure overwrite — no append, no patch.
+    description: `**artifact_file_create** — add a NEW file to an artifact's project tree. Streams content live to the canvas. Use this — NOT \`artifact_file_update\` — for paths that don't yet exist.
 
 **INPUTS:** \`artifactId\`, \`path\`, \`content\` (full file), \`expectedRevision\`, optional \`packages_add\`.
 
-**REFUSED ON** missing path (code: \`file_missing\`) — call \`file_create\` to add a new file, or \`file_list\` to see what exists.
+**REFUSED ON** existing path (code: \`path_exists\`) — call \`artifact_file_update\` to overwrite, or pick a different name.
 
-**PROJECT-FILE GUIDANCE:** This tool overwrites the file in full. To grow a project, prefer adding NEW files via \`file_create\` calls over making one file enormous. There is no \`append\` — write each file in one \`file_create\` / \`file_update\` call. If your snapshot is stale, call \`file_read\` first to anchor against current bytes.
+**PROJECT-FILE GUIDANCE:** This tool overwrites a file in full. To grow a project, prefer adding NEW files via additional \`artifact_file_create\` calls over making one file enormous — e.g. \`main.py\` + \`helpers.py\` + \`types.py\` instead of one 30KB mega-file. The per-artifact aggregate cap is ~800 KB; the per-file practical cap is the size that fits in one tool call.
 
-**RUNNABLE ARTIFACTS:** if the updated file imports a new dependency, set \`packages_add\` (or follow up with \`artifact_packages_add\`). Edits do NOT auto-execute — call \`artifact_run\` to re-run.
+**RUNNABLE ARTIFACTS:** if the new file imports a new dependency, set \`packages_add\` (or follow up with \`artifact_packages_add\`). Edits do NOT auto-execute — call \`artifact_run\` to re-run.
 
-**RESPONSE:** \`{revision, path, byteLength, message}\`. Errors carry \`code\` (\`not_found\`, \`stale\`, \`file_missing\`, \`streaming_in_progress\`, \`too_large\`).`,
-    inputSchema: fileUpdateArgs,
+**RESPONSE:** \`{revision, path, byteLength, message}\`. Errors carry \`code\` (\`not_found\`, \`stale\`, \`path_exists\`, \`streaming_in_progress\`, \`too_large\`).`,
+    inputSchema: fileCreateArgs,
     onInputStart: async (_ctx: ToolCtx, options: ToolExecutionOptions) => {
-      initState(options.toolCallId, 'file_update');
+      initState(options.toolCallId, 'artifact_file_create');
     },
     onInputDelta: async (
       ctx: ToolCtx,
@@ -140,10 +144,13 @@ export const fileUpdateTool = {
           state.artifactId = artifactId;
           state.baseContentLength = (artifact.content ?? '').length;
         } catch (err) {
-          console.warn('[file_update] preflight getById failed, deferring', {
-            artifactIdStr,
-            error: err instanceof Error ? err.message : String(err),
-          });
+          console.warn(
+            '[artifact_file_create] preflight getById failed, deferring',
+            {
+              artifactIdStr,
+              error: err instanceof Error ? err.message : String(err),
+            },
+          );
           return;
         }
       }
@@ -170,9 +177,12 @@ export const fileUpdateTool = {
         } catch (err) {
           // Defensive: beginEditStream only throws `not_found` now (mutex
           // removed). execute() will surface that via its own preflight.
-          console.warn('[file_update] beginEditStream failed, deferring', {
-            error: err instanceof Error ? err.message : String(err),
-          });
+          console.warn(
+            '[artifact_file_create] beginEditStream failed, deferring',
+            {
+              error: err instanceof Error ? err.message : String(err),
+            },
+          );
           return;
         }
       }
@@ -201,16 +211,16 @@ export const fileUpdateTool = {
         );
         markFlushed(state, contentRaw.length);
       } catch (err) {
-        console.warn('[file_update] streamingContent flush failed', {
+        console.warn('[artifact_file_create] streamingContent flush failed', {
           error: err instanceof Error ? err.message : String(err),
         });
       }
     },
     execute: async (
       ctx: ToolCtx,
-      args: FileUpdateInput,
+      args: FileCreateInput,
       options: ToolExecutionOptions,
-    ): Promise<FileUpdateResult> => {
+    ): Promise<FileCreateResult> => {
       const { messageId } = ctx;
       const editedByMessageId = messageId ?? '';
       const state = getState(options.toolCallId);
@@ -236,7 +246,7 @@ export const fileUpdateTool = {
           ? ` Call \`artifact_run({artifactId: "${args.artifactId}"})\` to execute the updated project.`
           : '';
         const result = await ctx.runMutation(
-          internal.artifacts.internal_mutations.updateFileInArtifact,
+          internal.artifacts.internal_mutations.createFileInArtifact,
           {
             artifactId,
             path: args.path,
@@ -269,7 +279,7 @@ export const fileUpdateTool = {
           revision: result.revision,
           path: result.path,
           byteLength: result.byteLength,
-          message: `Updated "${result.path}" in "${artifact.title}" (${result.byteLength} bytes). New revision: ${result.revision}.${pkgNote}${runHint}`,
+          message: `Created file "${result.path}" in "${artifact.title}" (${result.byteLength} bytes). New revision: ${result.revision}.${pkgNote}${runHint}`,
         };
       } catch (err) {
         if (state?.artifactId !== undefined) {
@@ -279,7 +289,10 @@ export const fileUpdateTool = {
           );
         }
         const message = err instanceof Error ? err.message : String(err);
-        return { success: false, message: `file_update failed: ${message}` };
+        return {
+          success: false,
+          message: `artifact_file_create failed: ${message}`,
+        };
       } finally {
         clearState(options.toolCallId);
       }

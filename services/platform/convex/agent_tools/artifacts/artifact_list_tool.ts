@@ -3,12 +3,12 @@
  *
  * Lists all artifacts in the current thread (metadata only). Used for
  * title→id recovery when the LLM has lost track of an artifactId from an
- * earlier turn, or for programmatic tool-chains ("list, then file_list N,
- * then file_update one").
+ * earlier turn, or for programmatic tool-chains ("list, then artifact_file_list N,
+ * then artifact_file_update one").
  *
  * Returns metadata only — no file content — to keep the response small.
- * Call `file_list({artifactId})` afterward to enumerate paths inside an
- * artifact, then `file_read({artifactId, path})` to fetch content.
+ * Call `artifact_file_list({artifactId})` afterward to enumerate paths inside an
+ * artifact, then `artifact_file_read({artifactId, path})` to fetch content.
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
@@ -57,7 +57,7 @@ Use when you've lost track of an \`artifactId\` from an earlier turn (e.g. a pri
 
 **RESPONSE:** \`{artifacts: [{artifactId, type, title, revision, entryFile, fileCount, totalBytes, language?, updatedAt}], truncated, totalCount}\`. Sorted by \`updatedAt\` desc (most recent first). Capped at ${MAX_LIST} entries.
 
-No file content is returned — call \`file_list({artifactId})\` to enumerate paths, then \`file_read({artifactId, path})\` to fetch content.`,
+No file content is returned — call \`artifact_file_list({artifactId})\` to enumerate paths, then \`artifact_file_read({artifactId, path})\` to fetch content.`,
     inputSchema: artifactListArgs,
     execute: async (
       ctx: ToolCtx,

@@ -83,9 +83,7 @@ export async function buildArtifactsContext(
   return [
     blocks.join('\n\n'),
     '',
-    'You may modify any of these via the file-level CRUD tools: `file_create` (add a new file), `file_update` (overwrite an existing file in full), `file_delete` (remove a file — refused on entryFile and on the last file), `file_rename` (rename a file; auto-repoints entryFile if matched). Use `file_list` to enumerate paths and `file_read` to fetch content. For runnable artifacts, declare new dependencies via `artifact_packages_add` before `artifact_run`. Pass the artifact\'s `revision="N"` back as `expectedRevision` so a concurrent edit by another turn is detected (the call will return `code: "stale"` instead of overwriting). If you see `runStale="true"` on a runnable artifact, the source was edited after the last run — call `artifact_run` again to refresh outputs. To create a NEW artifact use `artifact_create`; calling create with an existing title returns the existing artifactId and does NOT overwrite.',
-    '',
-    'MULTI-FILE PROJECTS: artifacts are file-tree projects. Split logically separate concerns into separate files: e.g. `main.py` + `helpers.py` + `types.py`, or `index.html` + `styles.css` + `app.js`. There is no `append` and no `patch` — write each file in full in one `file_create` / `file_update` call. If a file would be very large, that is a signal to split it into smaller modules, not to chunk a single huge write.',
+    'You may modify any of these via the file-level CRUD tools: `artifact_file_create` (add a new file), `artifact_file_update` (overwrite an existing file in full), `artifact_file_delete` (remove a file — refused on entryFile and on the last file), `artifact_file_rename` (rename a file; auto-repoints entryFile if matched). Use `artifact_file_list` to enumerate paths and `artifact_file_read` to fetch content. For runnable artifacts, declare new dependencies via `artifact_packages_add` before `artifact_run`. Pass the artifact\'s `revision="N"` back as `expectedRevision` so a concurrent edit by another turn is detected (the call will return `code: "stale"` instead of overwriting). If you see `runStale="true"` on a runnable artifact, the source was edited after the last run — call `artifact_run` again to refresh outputs. To create a NEW artifact use `artifact_create`; calling create with an existing title returns the existing artifactId and does NOT overwrite.',
   ].join('\n');
 }
 
@@ -93,7 +91,7 @@ function truncateFileBody(content: string): string {
   if (content.length <= MAX_PER_FILE_BYTES) return content;
   return (
     content.slice(0, MAX_PER_FILE_BYTES) +
-    `\n\n[...truncated; ${content.length - MAX_PER_FILE_BYTES} more characters elided. Call file_read({artifactId, path}) to fetch the rest.]`
+    `\n\n[...truncated; ${content.length - MAX_PER_FILE_BYTES} more characters elided. Call artifact_file_read({artifactId, path}) to fetch the rest.]`
   );
 }
 

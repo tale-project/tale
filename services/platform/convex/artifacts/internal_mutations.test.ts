@@ -8,7 +8,7 @@
 //   2. `discardActiveStreamsForThread` — the user-Stop cascade added in
 //      this PR. Deletes `revision === 0` placeholders (artifact_create
 //      mid-stream when the user clicked Stop) and clears streaming flags
-//      on settled rows where file_create / file_update was mid-stream.
+//      on settled rows where artifact_file_create / artifact_file_update was mid-stream.
 
 import { describe, expect, it, vi } from 'vitest';
 

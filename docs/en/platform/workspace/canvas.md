@@ -9,7 +9,7 @@ The audience is anyone in chat. There's no role gate; whoever can chat can also 
 
 ## How the artifact lifecycle works
 
-When the AI decides to produce something runnable or revisable, it calls the `artifact_create` tool. The new artifact appears as a card in the **Artifacts** bar above the chat and auto-opens in the Canvas pane the first time it's created. To populate or revise the artifact, the AI calls file-level CRUD tools against the same identity: `file_update` to overwrite an existing file in full, `file_create` to add a new sibling file (a project can contain many files), `file_delete` and `file_rename` for housekeeping. Canvas re-renders in place and streams the content live as the AI types it, so you never scroll back to find the latest version.
+When the AI decides to produce something runnable or revisable, it calls the `artifact_create` tool. The new artifact appears as a card in the **Artifacts** bar above the chat and auto-opens in the Canvas pane the first time it's created. To populate or revise the artifact, the AI calls file-level CRUD tools against the same identity: `artifact_file_update` to overwrite an existing file in full, `artifact_file_create` to add a new sibling file (a project can contain many files), `artifact_file_delete` and `artifact_file_rename` for housekeeping. Canvas re-renders in place and streams the content live as the AI types it, so you never scroll back to find the latest version.
 
 While the AI is writing or patching, the card shows a spinner and the Canvas header reads **AI is writing…** or **AI is editing…**.
 

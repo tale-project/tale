@@ -101,7 +101,7 @@ export async function createArtifactHandler(
         conflict: 'type_mismatch' as const,
         existingArtifactId: row._id,
         existingType: row.type,
-        message: `An artifact titled "${row.title}" already exists in this thread with type "${row.type}". Either pick a different title or use the existing artifactId ${row._id} via file_create / file_update.`,
+        message: `An artifact titled "${row.title}" already exists in this thread with type "${row.type}". Either pick a different title or use the existing artifactId ${row._id} via artifact_file_create / artifact_file_update.`,
       };
     }
     // Title + type match → return existing. Do NOT overwrite content.
@@ -213,7 +213,7 @@ export async function deleteFileFromArtifactHandler(
     return {
       success: false as const,
       code: 'stale' as const,
-      message: `Artifact has been modified since you last read it (revision ${artifact.revision}, you sent ${args.expectedRevision}). Re-read with file_list / file_read and retry.`,
+      message: `Artifact has been modified since you last read it (revision ${artifact.revision}, you sent ${args.expectedRevision}). Re-read with artifact_file_list / artifact_file_read and retry.`,
       currentRevision: artifact.revision,
     };
   }
@@ -230,7 +230,7 @@ export async function deleteFileFromArtifactHandler(
     return {
       success: false as const,
       code: 'entry_pin' as const,
-      message: `Cannot delete entry file "${path}". Call file_rename to repoint the entry to another file first (renaming the entry file moves the entry pointer along with it).`,
+      message: `Cannot delete entry file "${path}". Call artifact_file_rename to repoint the entry to another file first (renaming the entry file moves the entry pointer along with it).`,
       entryFile: resolved.entryFile,
     };
   }
@@ -330,7 +330,7 @@ export async function renameFileInArtifactHandler(
     return {
       success: false as const,
       code: 'stale' as const,
-      message: `Artifact has been modified since you last read it (revision ${artifact.revision}, you sent ${args.expectedRevision}). Re-read with file_list / file_read and retry.`,
+      message: `Artifact has been modified since you last read it (revision ${artifact.revision}, you sent ${args.expectedRevision}). Re-read with artifact_file_list / artifact_file_read and retry.`,
       currentRevision: artifact.revision,
     };
   }
@@ -456,7 +456,7 @@ export async function createFileInArtifactHandler(
     return {
       success: false as const,
       code: 'stale' as const,
-      message: `Artifact has been modified since you last read it (revision ${artifact.revision}, you sent ${args.expectedRevision}). Re-read with file_list and retry.`,
+      message: `Artifact has been modified since you last read it (revision ${artifact.revision}, you sent ${args.expectedRevision}). Re-read with artifact_file_list and retry.`,
       currentRevision: artifact.revision,
     };
   }
@@ -466,7 +466,7 @@ export async function createFileInArtifactHandler(
     return {
       success: false as const,
       code: 'path_exists' as const,
-      message: `File "${path}" already exists in this artifact. Use file_update to overwrite, or pick a different path.`,
+      message: `File "${path}" already exists in this artifact. Use artifact_file_update to overwrite, or pick a different path.`,
     };
   }
   const nextFiles = [...resolved.files, { path, content: args.content }];
@@ -556,7 +556,7 @@ export async function updateFileInArtifactHandler(
     return {
       success: false as const,
       code: 'stale' as const,
-      message: `Artifact has been modified since you last read it (revision ${artifact.revision}, you sent ${args.expectedRevision}). Re-read with file_list and retry.`,
+      message: `Artifact has been modified since you last read it (revision ${artifact.revision}, you sent ${args.expectedRevision}). Re-read with artifact_file_list and retry.`,
       currentRevision: artifact.revision,
     };
   }
@@ -568,7 +568,7 @@ export async function updateFileInArtifactHandler(
       code: 'file_missing' as const,
       message: `File "${path}" does not exist in this artifact. Existing paths: ${resolved.files
         .map((f) => f.path)
-        .join(', ')}. Use file_create to add a new file.`,
+        .join(', ')}. Use artifact_file_create to add a new file.`,
     };
   }
   const nextFiles = resolved.files.map((f) =>

@@ -1,5 +1,5 @@
 /**
- * Shared helper used by the `file_create` / `file_update` tools to union
+ * Shared helper used by the `artifact_file_create` / `artifact_file_update` tools to union
  * `packages_add` into an artifact's persistent `runPackages` list as a
  * best-effort side-effect.
  *

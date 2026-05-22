@@ -53,7 +53,7 @@ export const artifactPackagesAddTool = {
   tool: createTool({
     description: `**artifact_packages_add** — declare runtime dependencies for a runnable artifact (\`python_runnable\` / \`node_runnable\`). Union the given names into the artifact's persistent \`runPackages\` so the next \`artifact_run\` auto-installs them.
 
-**WHEN TO CALL:** right after \`file_create\` / \`file_update\` introduces a new \`import\`/\`require\` for an external dependency, before \`artifact_run\`.
+**WHEN TO CALL:** right after \`artifact_file_create\` / \`artifact_file_update\` introduces a new \`import\`/\`require\` for an external dependency, before \`artifact_run\`.
 
 **INPUTS:**
 - \`artifactId\` — required.

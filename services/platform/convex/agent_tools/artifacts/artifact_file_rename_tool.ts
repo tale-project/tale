@@ -1,9 +1,8 @@
 /**
- * Convex Tool: file_delete
+ * Convex Tool: artifact_file_rename
  *
- * Remove one file from an artifact's project tree. Refused on the entry file
- * (rename the entry away first) and on the last remaining file in the
- * artifact (artifacts cannot be empty).
+ * Rename one file in an artifact's project tree. If `from === entryFile`,
+ * the entry pointer atomically moves to `to`.
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
@@ -15,68 +14,72 @@ import { internal } from '../../_generated/api';
 import { toId } from '../../lib/type_cast_helpers';
 import type { ToolDefinition } from '../types';
 
-const fileDeleteArgs = z.object({
+const fileRenameArgs = z.object({
   artifactId: z.string().min(1),
-  path: z
+  from: z.string().min(1).max(200).describe('Existing file path to rename.'),
+  to: z
     .string()
     .min(1)
     .max(200)
     .describe(
-      'File path inside the artifact to delete. Refused on the entry file (call `file_rename` first to repoint the entry to another file) and on the last file in the artifact.',
+      'New file path. Must not already exist — call `artifact_file_delete` first if you intend to replace.',
     ),
   expectedRevision: z
     .number()
     .int()
     .nonnegative()
     .describe(
-      'REQUIRED: revision the delete was authored against (from `<artifact revision="N">` or a prior `file_list` / `file_read`). OCC — rejects with `code: "stale"` and `currentRevision` if the artifact has moved.',
+      'REQUIRED: revision the rename was authored against. OCC — rejects with `code: "stale"` and `currentRevision` if the artifact has moved.',
     ),
 });
 
-type FileDeleteInput = z.infer<typeof fileDeleteArgs>;
+type FileRenameInput = z.infer<typeof fileRenameArgs>;
 
-interface FileDeleteSuccess {
+interface FileRenameSuccess {
   success: true;
   artifactId: string;
   revision: number;
-  path: string;
+  from: string;
+  to: string;
+  entryFile: string;
+  entryUpdated: boolean;
   message: string;
 }
 
-interface FileDeleteFailure {
+interface FileRenameFailure {
   success: false;
   code?: string;
   message: string;
   currentRevision?: number;
-  entryFile?: string;
 }
 
-type FileDeleteResult = FileDeleteSuccess | FileDeleteFailure;
+type FileRenameResult = FileRenameSuccess | FileRenameFailure;
 
-export const fileDeleteTool = {
-  name: 'file_delete' as const,
+export const artifactFileRenameTool = {
+  name: 'artifact_file_rename' as const,
   tool: createTool({
-    description: `**file_delete** — remove one file from an artifact's project tree.
+    description: `**artifact_file_rename** — rename one file inside an artifact. If \`from === entryFile\`, the entry pointer atomically moves to \`to\`.
 
-**INPUTS:** \`artifactId\`, \`path\`, \`expectedRevision\`.
+**INPUTS:** \`artifactId\`, \`from\`, \`to\`, \`expectedRevision\`.
 
-**REFUSED ON:**
-- the artifact's \`entryFile\` (code: \`entry_pin\`) — call \`file_rename\` first to repoint the entry to another file, or rename a sibling onto the entry path.
-- the last file in the artifact (code: \`last_file\`) — artifacts cannot be empty.
+**RULES:**
+- \`from === to\` is a no-op success (idempotent).
+- \`to\` must not already exist (code: \`path_exists\`).
+- \`from\` must exist (code: \`file_missing\`).
 
-**RESPONSE:** \`{revision, path, message}\` on success. Errors carry \`code\` (\`not_found\`, \`stale\`, \`file_missing\`, \`entry_pin\`, \`last_file\`) plus a recovery hint.`,
-    inputSchema: fileDeleteArgs,
+**RESPONSE:** \`{revision, from, to, entryFile, entryUpdated, message}\`. \`entryUpdated\` is true iff the entry pointer moved with the rename. Errors carry \`code\` (\`not_found\`, \`stale\`, \`file_missing\`, \`path_exists\`).`,
+    inputSchema: fileRenameArgs,
     execute: async (
       ctx: ToolCtx,
-      args: FileDeleteInput,
+      args: FileRenameInput,
       _options: ToolExecutionOptions,
-    ): Promise<FileDeleteResult> => {
+    ): Promise<FileRenameResult> => {
       const { organizationId, threadId, messageId } = ctx;
       if (!organizationId || !threadId) {
         return {
           success: false,
           message:
-            'file_delete requires organizationId and threadId in the tool context.',
+            'artifact_file_rename requires organizationId and threadId in the tool context.',
         };
       }
       let artifactId;
@@ -104,10 +107,11 @@ export const fileDeleteTool = {
         };
       }
       const result = await ctx.runMutation(
-        internal.artifacts.internal_mutations.deleteFileFromArtifact,
+        internal.artifacts.internal_mutations.renameFileInArtifact,
         {
           artifactId,
-          path: args.path,
+          from: args.from,
+          to: args.to,
           editedByMessageId: messageId ?? '',
           expectedRevision: args.expectedRevision,
         },
@@ -118,15 +122,20 @@ export const fileDeleteTool = {
           code: result.code,
           message: result.message,
           currentRevision: result.currentRevision,
-          entryFile: result.entryFile,
         };
       }
+      const entryNote = result.entryUpdated
+        ? ' Entry file repointed accordingly.'
+        : '';
       return {
         success: true,
         artifactId: args.artifactId,
         revision: result.revision,
-        path: result.path,
-        message: `Deleted "${result.path}" from "${artifact.title}". New revision: ${result.revision}.`,
+        from: result.from,
+        to: result.to,
+        entryFile: result.entryFile,
+        entryUpdated: result.entryUpdated,
+        message: `Renamed "${result.from}" → "${result.to}" in "${artifact.title}". New revision: ${result.revision}.${entryNote}`,
       };
     },
   }),

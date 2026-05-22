@@ -66,8 +66,8 @@ export async function setArtifactRunConfigHandler(
 // =============================================================================
 // addArtifactPackages — union packages_add into the persistent runPackages
 //
-// Used by the `artifact_packages_add` tool and the `file_create` /
-// `file_update` tools' optional `packages_add` arg so the LLM can declare
+// Used by the `artifact_packages_add` tool and the `artifact_file_create` /
+// `artifact_file_update` tools' optional `packages_add` arg so the LLM can declare
 // new dependencies inline with the edit that introduces them. Dedupe is
 // case-sensitive (matches pip/npm's own resolution rules). Existing
 // entries are never removed — `artifact_create` is the way to start

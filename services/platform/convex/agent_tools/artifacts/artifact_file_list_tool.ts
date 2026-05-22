@@ -1,9 +1,9 @@
 /**
- * Convex Tool: file_list
+ * Convex Tool: artifact_file_list
  *
  * List metadata for every file in an artifact's project tree. Cheap; encourages
- * the "list-then-read" CRUD pattern (call `file_list` first to enumerate paths,
- * then `file_read` with explicit paths to fetch content).
+ * the "list-then-read" CRUD pattern (call `artifact_file_list` first to enumerate paths,
+ * then `artifact_file_read` with explicit paths to fetch content).
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
@@ -45,16 +45,16 @@ interface FileListFailure {
 
 type FileListResult = FileListSuccess | FileListFailure;
 
-export const fileListTool = {
-  name: 'file_list' as const,
+export const artifactFileListTool = {
+  name: 'artifact_file_list' as const,
   tool: createTool({
-    description: `**file_list** — list every file in an artifact's project tree as \`{path, size}\` metadata (no content). Cheap; use to enumerate before \`file_read\`.
+    description: `**artifact_file_list** — list every file in an artifact's project tree as \`{path, size}\` metadata (no content). Cheap; use to enumerate before \`artifact_file_read\`.
 
 **INPUTS:** \`artifactId\` (required).
 
 **WHEN TO USE:**
-- Before \`file_read\` when you need to see what files exist.
-- After a failed \`file_update\` reporting \`file_missing\` — to see the correct paths.
+- Before \`artifact_file_read\` when you need to see what files exist.
+- After a failed \`artifact_file_update\` reporting \`file_missing\` — to see the correct paths.
 - When the \`<artifacts>\` system context was truncated and you need a fresh view.
 
 **RESPONSE:** \`{artifactId, type, title, revision, entryFile, files: [{path, size}]}\`. Use \`revision\` as \`expectedRevision\` on the next write call.`,
@@ -69,7 +69,7 @@ export const fileListTool = {
         return {
           success: false,
           message:
-            'file_list requires organizationId and threadId in the tool context.',
+            'artifact_file_list requires organizationId and threadId in the tool context.',
         };
       }
       let artifactId;

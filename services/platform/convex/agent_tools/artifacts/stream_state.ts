@@ -1,7 +1,7 @@
 /**
  * Per-tool-call streaming state for the artifact tools.
  *
- * The `file_create` and `file_update` tools use the AI SDK / @convex-dev
+ * The `artifact_file_create` and `artifact_file_update` tools use the AI SDK / @convex-dev
  * /agent createTool hooks (`onInputStart`, `onInputDelta`, `execute`).
  * These run sequentially within a single agent action invocation, in the
  * same Node process, so a module-level Map keyed by `toolCallId` is a
@@ -14,15 +14,15 @@ import type { Id } from '../../_generated/dataModel';
 
 export interface ArtifactStreamState {
   toolCallId: string;
-  toolName: 'artifact_create' | 'file_create' | 'file_update';
+  toolName: 'artifact_create' | 'artifact_file_create' | 'artifact_file_update';
   accumulator: string;
   artifactId?: Id<'artifacts'>;
   // Last byte length of the parsed `content` value flushed to the row.
   // Used to throttle DB writes during create / rewrite streaming.
   lastFlushedContentLength: number;
   lastFlushAt: number;
-  // Resolved streaming mode for the current tool call. file_create /
-  // file_update both stream as 'rewrite'; older tools used other modes.
+  // Resolved streaming mode for the current tool call. artifact_file_create /
+  // artifact_file_update both stream as 'rewrite'; older tools used other modes.
   resolvedMode?: 'create' | 'rewrite' | 'append' | 'patch';
   // True once we have either inserted the placeholder (create) or marked
   // the existing row (edit). Avoids double-init on rapid deltas.
@@ -46,7 +46,7 @@ export interface ArtifactStreamState {
   lastFlushedPatchesKey?: string;
   lastPatchesFlushAt: number;
   // Byte length of the existing artifact content at edit time. Set during
-  // file_create / file_update preflight; used to scale the flush rate for
+  // artifact_file_create / artifact_file_update preflight; used to scale the flush rate for
   // large sources where each tick forces the client to re-render a content
   // overlay that spans tens of KB.
   baseContentLength?: number;

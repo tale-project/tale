@@ -221,14 +221,14 @@ export const getRunByExecutionId = internalQuery({
  * Returns the first artifact in this thread whose `createdByMessageId` matches
  * the supplied id, or null. Backs the `artifact_create` same-message guard:
  * the tool short-circuits to a soft-conflict response so the model uses
- * `file_create` / `file_update` instead of spawning a duplicate project on the same reply.
+ * `artifact_file_create` / `artifact_file_update` instead of spawning a duplicate project on the same reply.
  *
  * Caller must pass a non-empty `createdByMessageId` — empty-string artifacts
  * from multi-step / sub-agent edge cases would otherwise cross-match.
  */
 /**
  * List all files in an artifact (metadata only — path + size). Backs the
- * `file_list` agent tool. Reads canonical `artifactFiles` rows; falls back
+ * `artifact_file_list` agent tool. Reads canonical `artifactFiles` rows; falls back
  * to the artifact-row `files[]` / synthesized-from-`content` projection
  * via `resolveArtifactFiles` for rows that predate the multi-file refactor.
  */
@@ -295,7 +295,7 @@ export const listFilesByArtifact = internalQuery({
 });
 
 /**
- * Read file contents by exact path(s). Backs the `file_read` agent tool.
+ * Read file contents by exact path(s). Backs the `artifact_file_read` agent tool.
  * Returns each requested path's full content; unknown paths are reported
  * in `missing` so the tool can surface a structured `file_missing` error.
  */

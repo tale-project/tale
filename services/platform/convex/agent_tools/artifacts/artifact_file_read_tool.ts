@@ -1,8 +1,8 @@
 /**
- * Convex Tool: file_read
+ * Convex Tool: artifact_file_read
  *
  * Read explicit file path(s) from an artifact. Required `path` — no "no path
- * → smart inline aggregate" branch. Call `file_list` first if you need to
+ * → smart inline aggregate" branch. Call `artifact_file_list` first if you need to
  * enumerate available paths.
  */
 
@@ -27,7 +27,7 @@ const fileReadArgs = z.object({
   path: z
     .union([z.string().min(1), z.array(z.string().min(1)).min(1).max(50)])
     .describe(
-      'REQUIRED. A single file path (string) to fetch in full, or an array of paths to fetch several at once (subject to an aggregate ~64KB cap). To enumerate available paths first, call `file_list`.',
+      'REQUIRED. A single file path (string) to fetch in full, or an array of paths to fetch several at once (subject to an aggregate ~64KB cap). To enumerate available paths first, call `artifact_file_list`.',
     ),
 });
 
@@ -60,17 +60,17 @@ interface FileReadFailure {
 
 type FileReadResult = FileReadSuccess | FileReadFailure;
 
-export const fileReadTool = {
-  name: 'file_read' as const,
+export const artifactFileReadTool = {
+  name: 'artifact_file_read' as const,
   tool: createTool({
-    description: `**file_read** — fetch file content by exact path(s). \`path\` is REQUIRED (string or string[]). To enumerate available paths first, call \`file_list\`.
+    description: `**artifact_file_read** — fetch file content by exact path(s). \`path\` is REQUIRED (string or string[]). To enumerate available paths first, call \`artifact_file_list\`.
 
 **INPUTS:**
 - \`artifactId\` — required.
 - \`path\` — required. Either a single \`string\` (returns that one file's full content) or a \`string[]\` (returns those files; aggregate ≤${AGGREGATE_INLINE_BYTES} bytes — anything over the cap comes back as \`{path, size}\` with no content; re-read by single path to fetch it).
 
 **WHEN TO USE:**
-- Before \`file_update\` when your snapshot of a file may be stale.
+- Before \`artifact_file_update\` when your snapshot of a file may be stale.
 - Before composing a multi-step edit that references several files.
 - When the \`<artifacts>\` system-context block was truncated.
 
@@ -86,7 +86,7 @@ export const fileReadTool = {
         return {
           success: false,
           message:
-            'file_read requires organizationId and threadId in the tool context.',
+            'artifact_file_read requires organizationId and threadId in the tool context.',
         };
       }
       let artifactId;

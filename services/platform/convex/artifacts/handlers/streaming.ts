@@ -22,7 +22,7 @@ import { STALE_STREAM_THRESHOLD_MS, clearStreamingFlags } from './shared';
 // Row-level streaming fields (liveStreamMode / streamingPath / toolCallId /
 // streamingContent) are the canvas's "live preview" signal, NOT a concurrency
 // guard. Same-path collisions are handled by `expectedRevision` OCC at settle
-// time. Cross-path concurrent writes (two `file_create`s to different paths)
+// time. Cross-path concurrent writes (two `artifact_file_create`s to different paths)
 // are semantically independent — last-writer-wins is fine for the canvas
 // signal; both writes commit independently on their own settle path.
 //
@@ -109,7 +109,7 @@ export async function abortStreamHandler(
 // exactly as it was until `createFileInArtifact` / `updateFileInArtifact`
 // runs at execute-time.
 //
-// Shared by `file_create` and `file_update` — both stream their `content`
+// Shared by `artifact_file_create` and `artifact_file_update` — both stream their `content`
 // arg in via tool-input deltas, so the canvas's "show whatever bytes we've
 // seen so far" path is identical.
 // =============================================================================

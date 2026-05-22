@@ -7,8 +7,8 @@
  *   - `handlers/shared.ts`        — helpers, size guards, validateFiles,
  *                                   clearStreamingFlags, trimRevisionHistory
  *   - `handlers/content_edits.ts` — createArtifact + file-level CRUD
- *                                   (file_create / file_update / file_delete
- *                                   / file_rename)
+ *                                   (artifact_file_create / artifact_file_update / artifact_file_delete
+ *                                   / artifact_file_rename)
  *   - `handlers/streaming.ts`     — beginEditStream / abortStream /
  *                                   updateRewriteStreamingContent /
  *                                   discardActiveStreamsForThread /

@@ -17,7 +17,7 @@ export const artifactTypeValidator = v.union(
   // Runnable types: source code that executes in the server sandbox. The
   // artifact's `content` is the script; the `run*` fields below carry the
   // execution state (status, stdout/stderr preview, output files, ...).
-  // Editing a runnable artifact via file_update re-runs the script on the
+  // Editing a runnable artifact via artifact_file_update re-runs the script on the
   // next artifact_run call.
   v.literal('python_runnable'),
   v.literal('node_runnable'),
@@ -46,7 +46,7 @@ export const artifactEditKindValidator = v.union(
   v.literal('file_rename'),
   // Project-level metadata: entry-point repoint without touching files.
   // Retained for read-validator compatibility with existing rows; the
-  // The historical `set_entry` surface has been retired (use `file_rename`
+  // The historical `set_entry` surface has been retired (use `artifact_file_rename`
   // instead — its `from === entryFile` follow-along covers the common
   // case atomically).
   v.literal('set_entry'),
@@ -151,7 +151,7 @@ export const artifactsTable = defineTable({
   streamingContent: v.optional(v.string()),
   /**
    * @deprecated — advisory streaming-path hint. Historical rows may still
-   * carry it; the current `file_create` / `file_update` flow no longer
+   * carry it; the current `artifact_file_create` / `artifact_file_update` flow no longer
    * relies on this field as a load-bearing signal.
    */
   streamingPath: v.optional(v.string()),
@@ -217,7 +217,7 @@ export const artifactsTable = defineTable({
   // Backs the `artifact_create` same-message guard: when a tool call lands
   // in a thread that already produced an artifact within the same assistant
   // message (`createdByMessageId`), short-circuit to a soft-conflict
-  // response steering the model toward `file_create` / `file_update`
+  // response steering the model toward `artifact_file_create` / `artifact_file_update`
   // instead of spawning a duplicate project.
   .index('by_organizationId_thread_createdByMessageId', [
     'organizationId',
@@ -271,7 +271,7 @@ export const artifactRevisionsTable = defineTable({
  *
  * Replaces the embedded `artifacts.files[]` array. Keyed by
  * `(artifactId, path)`. `streamingWriteToolCallId` is the only transient
- * state — set by `file_create` / `file_update` onStart, cleared on commit;
+ * state — set by `artifact_file_create` / `artifact_file_update` onStart, cleared on commit;
  * the canvas uses it to find the corresponding `streamDeltas` entries for
  * live content rendering.
  */
@@ -280,7 +280,7 @@ export const artifactFilesTable = defineTable({
   path: v.string(),
   content: v.string(),
   /**
-   * AI-SDK toolCallId of the active `file_create` / `file_update` (or
+   * AI-SDK toolCallId of the active `artifact_file_create` / `artifact_file_update` (or
    * equivalent) tool call currently streaming bytes into this file. Cleared
    * on commit. When set, the canvas reads agent-component `streamDeltas`
    * filtered by this toolCallId for live content display.
