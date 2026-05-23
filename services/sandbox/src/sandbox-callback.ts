@@ -15,7 +15,7 @@ import type { UploadFailure } from './types.ts';
 const SIGNATURE_HEADER = 'x-tale-sandbox-signature';
 const TIMESTAMP_HEADER = 'x-tale-sandbox-timestamp';
 
-export function signSandboxRequest(
+function signSandboxRequest(
   method: string,
   path: string,
   timestamp: string,

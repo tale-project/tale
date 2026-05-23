@@ -91,7 +91,7 @@ export const ALL_SERVICES = [
 
 export type RotatableService = (typeof ROTATABLE_SERVICES)[number];
 export type StatefulService = (typeof STATEFUL_SERVICES)[number];
-export type LockstepService = (typeof LOCKSTEP_SERVICES)[number];
+type LockstepService = (typeof LOCKSTEP_SERVICES)[number];
 export type ServiceName = RotatableService | StatefulService;
 
 export function isValidService(name: string): name is ServiceName {
