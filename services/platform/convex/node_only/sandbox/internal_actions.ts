@@ -620,14 +620,21 @@ export const executeCode = internalAction({
         if (totalBytes > MAX_PRIOR_OUTPUT_BYTES) {
           priorOutputSkippedNote = `[tale-sandbox] prior outputs ${totalBytes} bytes exceed ${MAX_PRIOR_OUTPUT_BYTES} cap; not pre-staging\n`;
         } else {
+          const skipped: string[] = [];
           for (const file of candidates) {
             const blob = await ctx.storage.get(file.storageId);
-            if (blob === null) continue;
+            if (blob === null) {
+              skipped.push(file.name);
+              continue;
+            }
             const buf = Buffer.from(await blob.arrayBuffer());
             priorOutputFiles.push({
               name: file.name,
               contentBase64: buf.toString('base64'),
             });
+          }
+          if (skipped.length > 0) {
+            priorOutputSkippedNote = `[tale-sandbox] prior-output blobs missing in storage, skipped: ${skipped.join(', ')}\n`;
           }
         }
       } catch (err) {

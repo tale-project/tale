@@ -132,19 +132,36 @@ export const getLatestRunOutputs = internalQuery({
       }
     }
 
-    // 1b. Default: latest succeeded artifactRuns row + its artifactRunFiles.
-    const latestSucceeded = await ctx.db
+    // 1b. Default: walk back through `completed` runs (newest first) and
+    // return the FIRST run that produced at least one output file.
+    //
+    // The naive "latest completed wins" rule has a footgun: a `qa.py`-
+    // only run that exits 0 with no /workspace/output writes still
+    // counts as `completed`, and its empty `artifactRunFiles` would
+    // shadow an earlier generator run that wrote a 250 KB pptx. The
+    // next run looking for that pptx would silently get nothing
+    // pre-staged. Walking back fixes that — the artifact's most recent
+    // *meaningful* output state is what callers want, not "whatever
+    // the most recent run happened to be regardless of usefulness".
+    //
+    // Bounded scan: in practice a runnable artifact accumulates
+    // single-digit / low-double-digit runs; iterating until we find
+    // files (or exhaust) costs at most O(runs) queries — fine for the
+    // pre-stage path which is already best-effort.
+    const RUN_SCAN_LIMIT = 50;
+    let scanned = 0;
+    for await (const succeeded of ctx.db
       .query('artifactRuns')
       .withIndex('by_artifact_status', (q) =>
         q.eq('artifactId', artifactId).eq('status', 'completed'),
       )
-      .order('desc')
-      .first();
-    if (latestSucceeded !== null) {
+      .order('desc')) {
+      scanned += 1;
+      if (scanned > RUN_SCAN_LIMIT) break;
       const runFiles = [];
       for await (const f of ctx.db
         .query('artifactRunFiles')
-        .withIndex('by_run', (q) => q.eq('runId', latestSucceeded._id))) {
+        .withIndex('by_run', (q) => q.eq('runId', succeeded._id))) {
         runFiles.push({
           name: f.name,
           storageId: f.storageId,
@@ -152,10 +169,12 @@ export const getLatestRunOutputs = internalQuery({
           ...(f.contentType !== undefined && { contentType: f.contentType }),
         });
       }
-      return {
-        files: runFiles,
-        source: 'artifact_run_files' as const,
-      };
+      if (runFiles.length > 0) {
+        return {
+          files: runFiles,
+          source: 'artifact_run_files' as const,
+        };
+      }
     }
 
     // 2. Fallback: legacy artifacts.runOutputFiles (migration window).
