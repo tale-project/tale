@@ -408,12 +408,30 @@ export async function applyFinalizeArtifactRun(
   const row = await ctx.db.get(args.artifactId);
   if (!row) return;
   if (!isRunnableArtifactType(row.type)) return;
+  // Duplicate-finalize guard. The original purpose is to drop late-arriving
+  // deltas that would clobber already-finalized state for the SAME run.
+  // The bare terminal-status check has a subtler footgun: when a caller
+  // invokes `executeCode` on the same artifact twice without going through
+  // `initArtifactRun` (e.g. direct test harnesses, future custom callers),
+  // the artifact row is still terminal from the previous run and the
+  // second finalize gets dropped silently — `artifactRuns` /
+  // `artifactRunFiles` / `artifactOutputs` never see the new run.
+  //
+  // Gate on the executionId instead: only no-op when the incoming finalize
+  // targets the SAME execution as the one that already terminated the row.
+  // A different execution means a genuinely new run is finalizing — let it
+  // through so the dual-write tables capture it.
+  const sameExecution =
+    args.runExecutionId !== undefined &&
+    row.runExecutionId !== undefined &&
+    args.runExecutionId === row.runExecutionId;
   if (
     row.runStatus !== undefined &&
-    sandboxTerminalStatuses.has(row.runStatus)
+    sandboxTerminalStatuses.has(row.runStatus) &&
+    sameExecution
   ) {
     console.warn(
-      `[finalizeArtifactRun] no-op: artifact ${args.artifactId} already terminal as ${row.runStatus}; dropping incoming ${args.runStatus}`,
+      `[finalizeArtifactRun] no-op: artifact ${args.artifactId} already terminal as ${row.runStatus} for execution ${args.runExecutionId}; dropping duplicate ${args.runStatus}`,
     );
     return;
   }

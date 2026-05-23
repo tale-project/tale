@@ -330,6 +330,164 @@ export const runAll = internalAction({
       );
     }
 
+    // -------- Case 9: cumulative output manifest, no-shadow invariant --------
+    //
+    // The crispy-curry plan §1 regression: with the old latest-run walk-back,
+    // Run 1 writes foo.txt → Run 2 writes only bar.txt → Run 3's pre-stage
+    // sees Run 2 (has files) and returns [bar.txt] only, structurally losing
+    // foo.txt from /workspace/output/. The cumulative `artifactOutputs`
+    // manifest fixes this: Run 3 sees BOTH foo.txt AND bar.txt.
+    //
+    // This is the exact failure mode the user reported with WISeKey.pptx.
+    // We exercise it end-to-end against the live spawner — create a
+    // throwaway artifact row, run three times, assert the third run's
+    // workspace contains everything earlier runs produced.
+    if (shouldRun('cumulative_manifest_no_shadow')) {
+      try {
+        // Create a throwaway artifact row directly via the mutation surface
+        // (no chat/thread context — the run path tolerates a missing
+        // threadId, and we clean up at the end).
+        // Unique title per invocation so the createArtifact idempotency
+        // scan returns a fresh row each run (test doesn't clean up).
+        const created = await ctx.runMutation(
+          internal.artifacts.internal_mutations.createArtifact,
+          {
+            organizationId: ORG,
+            threadId: 'test-thread-no-shadow',
+            type: 'script_runnable',
+            title: `no-shadow e2e ${Date.now()}`,
+            language: 'python',
+            content: 'print("placeholder")\n',
+            entryFile: 'main.py',
+            createdByMessageId: `msg_test_no_shadow_${Date.now()}`,
+          },
+        );
+        if (!created.success) {
+          record(
+            results,
+            'cumulative_manifest_no_shadow',
+            false,
+            `createArtifact conflict: ${created.message}`,
+          );
+          return { passed: 0, failed: 1, cases: results };
+        }
+        const artifactId = created.artifactId;
+
+        // Run 1: write foo.txt
+        const r1 = await ctx.runAction(
+          internal.node_only.sandbox.internal_actions.executeCode,
+          {
+            organizationId: ORG,
+            uploadedBy: USER,
+            language: 'python',
+            files: [
+              {
+                path: 'main.py',
+                content:
+                  'with open("/workspace/output/foo.txt","w") as f:\n    f.write("from-run-1")\n',
+              },
+            ],
+            entryPath: 'main.py',
+            artifactId,
+            purpose: 'e2e: no_shadow run1',
+          },
+        );
+        if (!r1.success) {
+          record(
+            results,
+            'cumulative_manifest_no_shadow',
+            false,
+            `run1 failed: ${r1.errorCode ?? r1.status}`,
+            String(r1.executionId),
+          );
+        } else {
+          // No `initArtifactRun` between runs — exercises the finalize
+          // terminal-guard fix (executionId parity, not bare runStatus).
+          // The agent tool always wraps each run with init, but this
+          // direct-executeCode path doesn't; finalize must still capture
+          // run 2 + run 3 in the dual-write tables on the basis of a
+          // distinct executionId.
+          //
+          // Run 2: produce ONLY bar.txt (different filename). Under the
+          // old walk-back this would shadow foo.txt; with the manifest
+          // it should merge.
+          const r2 = await ctx.runAction(
+            internal.node_only.sandbox.internal_actions.executeCode,
+            {
+              organizationId: ORG,
+              uploadedBy: USER,
+              language: 'python',
+              files: [
+                {
+                  path: 'main.py',
+                  content:
+                    'with open("/workspace/output/bar.txt","w") as f:\n    f.write("from-run-2")\n',
+                },
+              ],
+              entryPath: 'main.py',
+              artifactId,
+              purpose: 'e2e: no_shadow run2',
+            },
+          );
+          if (!r2.success) {
+            record(
+              results,
+              'cumulative_manifest_no_shadow',
+              false,
+              `run2 failed: ${r2.errorCode ?? r2.status}`,
+              String(r2.executionId),
+            );
+          } else {
+            // Run 3: list /workspace/output/ and print its contents.
+            // Both foo.txt and bar.txt MUST be present.
+            const r3 = await ctx.runAction(
+              internal.node_only.sandbox.internal_actions.executeCode,
+              {
+                organizationId: ORG,
+                uploadedBy: USER,
+                language: 'python',
+                files: [
+                  {
+                    path: 'main.py',
+                    content:
+                      'import os\n' +
+                      'names = sorted(os.listdir("/workspace/output"))\n' +
+                      'print("LISTING:" + ",".join(names))\n' +
+                      'for n in names:\n' +
+                      '    with open(f"/workspace/output/{n}") as f:\n' +
+                      '        print(f"{n}={f.read()}")\n',
+                  },
+                ],
+                entryPath: 'main.py',
+                artifactId,
+                purpose: 'e2e: no_shadow run3 (verify)',
+              },
+            );
+            const stdout = r3.stdoutPreview;
+            const hasFoo = stdout.includes('foo.txt=from-run-1');
+            const hasBar = stdout.includes('bar.txt=from-run-2');
+            const ok = r3.success && hasFoo && hasBar;
+            record(
+              results,
+              'cumulative_manifest_no_shadow',
+              ok,
+              ok
+                ? 'run3 saw BOTH foo.txt (from run1) AND bar.txt (from run2) — manifest holds across runs'
+                : `run3 ${r3.success ? 'completed' : 'failed=' + r3.errorCode}; stdout="${stdout.slice(0, 400)}"; preStage staged=${JSON.stringify((r3 as { preStage?: { staged: string[] } }).preStage?.staged ?? [])}`,
+              String(r3.executionId),
+            );
+          }
+        }
+      } catch (err) {
+        record(
+          results,
+          'cumulative_manifest_no_shadow',
+          false,
+          `threw: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+
     const passed = results.filter((r) => r.passed).length;
     const failed = results.length - passed;
     // Side-channel: surface a quick triage line in the action log so

@@ -119,12 +119,46 @@ export interface ExecuteRequest {
  * Per-file harvest outcome. `storageId` is the Convex storage id allocated
  * when the spawner POSTed the bytes to the pre-signed upload URL; the
  * platform side just inserts the matching `fileMetadata` row.
+ *
+ * `sha256` (hex) is the digest of the raw bytes computed during harvest.
+ * Used for the cumulative `artifactOutputs` manifest (crispy-curry plan §1)
+ * and for pre-stage attestation when the same file is later re-injected
+ * into another run's `/workspace/output/`.
  */
 export interface OutputFile {
   name: string;
   storageId: string;
   size: number;
   contentType: string;
+  sha256: string;
+}
+
+/**
+ * Pre-stage skip reasons reported back to the platform via
+ * `ExecuteResponse.priorStage.skipped`. The platform diffs the spawner's
+ * `staged[]` against the manifest it sent; any name in the manifest that's
+ * missing from `staged[]` triggers a fatal `PRE_STAGE_FAILED` BEFORE user
+ * code runs (crispy-curry plan §3).
+ */
+export type PriorStageSkipReason =
+  | 'unsafe_path'
+  | 'fetch_failed'
+  | 'http_error'
+  | 'url_expired'
+  | 'write_failed';
+
+/**
+ * Per-file pre-stage outcome. `bytes` and `sha256` are populated only for
+ * successfully staged files; skipped entries carry a structured reason +
+ * short detail string the platform can surface in the failure payload.
+ */
+export interface PriorStageResult {
+  staged: Array<{ name: string; bytes: number; sha256: string }>;
+  skipped: Array<{
+    name: string;
+    reason: PriorStageSkipReason;
+    detail: string;
+  }>;
 }
 
 /**
@@ -182,6 +216,19 @@ export interface ExecuteResponse {
     harvestMs: number;
     uploadMs: number;
   };
+  /**
+   * Pre-stage attestation (crispy-curry plan §3). For every entry in
+   * `ExecuteRequest.priorOutputDownloads` the spawner reports back whether
+   * it landed on `/workspace/output/` (`staged[]`, with bytes + sha256) or
+   * was skipped (`skipped[]`, with a structured reason).
+   *
+   * The platform diffs `staged[]` against the manifest it sent and aborts
+   * the run with `PRE_STAGE_FAILED` if any expected file is missing —
+   * BEFORE user code runs, so the script never sees a partially-corrupted
+   * workspace. Omitted from the response only when the request had no
+   * `priorOutputDownloads` (nothing to attest).
+   */
+  priorStage?: PriorStageResult;
 }
 
 export interface SpawnerConfig {

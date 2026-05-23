@@ -15,6 +15,7 @@ import {
   expect,
   test,
 } from 'bun:test';
+import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -143,5 +144,115 @@ describe('stagePriorOutputDownloads', () => {
     ]);
     const inside = await readdir(outputDir);
     expect(inside).not.toContain('missing.pptx');
+  });
+
+  // -------------------------------------------------------------------
+  // Return-shape attestation (crispy-curry plan §3).
+  //
+  // The new signature returns `{staged, skipped}` so the platform can
+  // diff what it asked for against what landed on disk. Skip reasons
+  // are structured so the LLM-facing error payload can guide recovery
+  // (url_expired → re-mint, http_error → check storage, unsafe_path →
+  // never legitimate, etc.).
+  // -------------------------------------------------------------------
+
+  test('returns staged entries with bytes + sha256 of the written file', async () => {
+    const payload = 'hello pptx';
+    const expectedSha = createHash('sha256').update(payload).digest('hex');
+    const result = await stagePriorOutputDownloads(outputDir, [
+      { name: 'report.pptx', url: urlFor('report.pptx', payload) },
+    ]);
+    expect(result.staged).toHaveLength(1);
+    expect(result.staged[0]).toEqual({
+      name: 'report.pptx',
+      bytes: new TextEncoder().encode(payload).byteLength,
+      sha256: expectedSha,
+    });
+    expect(result.skipped).toEqual([]);
+  });
+
+  test('returns sha256 that matches the actual bytes for binary content', async () => {
+    const bytes = new Uint8Array([0, 1, 2, 255, 254, 0xff, 0x10, 0x20]);
+    const expectedSha = createHash('sha256').update(bytes).digest('hex');
+    const result = await stagePriorOutputDownloads(outputDir, [
+      { name: 'binary.bin', url: urlFor('binary', bytes) },
+    ]);
+    expect(result.staged[0]?.sha256).toBe(expectedSha);
+  });
+
+  test('classifies path-traversal as unsafe_path skip', async () => {
+    const result = await stagePriorOutputDownloads(outputDir, [
+      { name: '../escape.txt', url: urlFor('nope', 'nope') },
+    ]);
+    expect(result.staged).toEqual([]);
+    expect(result.skipped).toHaveLength(1);
+    expect(result.skipped[0]).toMatchObject({
+      name: '../escape.txt',
+      reason: 'unsafe_path',
+    });
+  });
+
+  test('classifies non-2xx as http_error skip with status in detail', async () => {
+    fileMap.clear();
+    const result = await stagePriorOutputDownloads(outputDir, [
+      { name: 'missing.pptx', url: `${baseUrl}/?k=missing-key` },
+    ]);
+    expect(result.staged).toEqual([]);
+    expect(result.skipped).toHaveLength(1);
+    expect(result.skipped[0]).toMatchObject({
+      name: 'missing.pptx',
+      reason: 'http_error',
+    });
+    expect(result.skipped[0]?.detail).toContain('404');
+  });
+
+  test('classifies 403 / 410 as url_expired skip (presigned URL TTL hint)', async () => {
+    // Spin up a tiny server that returns 410 Gone for any request.
+    const goneServer = Bun.serve({
+      port: 0,
+      fetch: () => new Response('gone', { status: 410 }),
+    });
+    try {
+      const result = await stagePriorOutputDownloads(outputDir, [
+        {
+          name: 'stale.pptx',
+          url: `http://localhost:${goneServer.port}/x`,
+        },
+      ]);
+      expect(result.skipped).toHaveLength(1);
+      expect(result.skipped[0]).toMatchObject({
+        name: 'stale.pptx',
+        reason: 'url_expired',
+      });
+    } finally {
+      void goneServer.stop();
+    }
+  });
+
+  test('classifies network-error as fetch_failed skip', async () => {
+    // Malformed URL string causes fetch to throw synchronously before
+    // any HTTP response — distinct from a remote-end http_error.
+    const result = await stagePriorOutputDownloads(outputDir, [
+      { name: 'unreachable.txt', url: 'not-a-real-url' },
+    ]);
+    expect(result.staged).toEqual([]);
+    expect(result.skipped).toHaveLength(1);
+    expect(result.skipped[0]).toMatchObject({
+      name: 'unreachable.txt',
+      reason: 'fetch_failed',
+    });
+  });
+
+  test('mixed staged + skipped surfaces both lists correctly', async () => {
+    const result = await stagePriorOutputDownloads(outputDir, [
+      { name: 'good.txt', url: urlFor('good', 'ok') },
+      { name: '../bad.txt', url: urlFor('bad', 'no') },
+      { name: 'missing.txt', url: `${baseUrl}/?k=does-not-exist` },
+    ]);
+    expect(result.staged.map((s) => s.name)).toEqual(['good.txt']);
+    expect(result.skipped.map((s) => s.reason).sort()).toEqual([
+      'http_error',
+      'unsafe_path',
+    ]);
   });
 });

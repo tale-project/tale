@@ -75,6 +75,17 @@ type ExecuteCodeResult = {
     contentType: string;
   }>;
   steps?: SandboxStepResult[];
+  /**
+   * Pre-stage attestation summary surfaced from the spawner. Populated on
+   * every artifact-bound run that had prior-output downloads; omitted
+   * otherwise. The agent tool re-shapes this for the LLM-visible result
+   * so the model can see exactly which prior files made it into
+   * `/workspace/output/` and which were skipped (with structured reason).
+   */
+  preStage?: {
+    staged: string[];
+    skipped: Array<{ name: string; reason: string; detail: string }>;
+  };
 };
 
 interface FailContext {
@@ -308,6 +319,25 @@ export const executeCode = internalAction({
       }),
     ),
     steps: v.optional(v.array(sandboxStepResultValidator)),
+    // Pre-stage attestation surfaced from the spawner — present whenever
+    // the request had `priorOutputDownloads`. `staged[]` is the list of
+    // names that actually landed in /workspace/output/ before user code
+    // ran; `skipped[]` carries any expected files the spawner couldn't
+    // stage, with a structured reason. When skipped[] is non-empty, the
+    // action takes the PRE_STAGE_FAILED path; this field still lets the
+    // LLM-facing tool show what worked vs what didn't.
+    preStage: v.optional(
+      v.object({
+        staged: v.array(v.string()),
+        skipped: v.array(
+          v.object({
+            name: v.string(),
+            reason: v.string(),
+            detail: v.string(),
+          }),
+        ),
+      }),
+    ),
   }),
   handler: async (ctx, args): Promise<ExecuteCodeResult> => {
     // Exactly one of `entryPath` or `steps` must be set. The spawner
@@ -840,6 +870,111 @@ export const executeCode = internalAction({
         outputFlushTimer = null;
       }
 
+      // ---- pre-stage attestation (crispy-curry plan §3) ----
+      // The spawner ships back `priorStage.staged[]` listing every file
+      // it actually wrote to /workspace/output/ before user code ran.
+      // Diff against what we asked it to inject; any expected file that
+      // didn't land → fail the run BEFORE we promote the spawner's output
+      // blobs to fileMetadata, so the LLM can never see `success:true`
+      // alongside a missing prior file. The skipped[] reasons (url_expired,
+      // http_error, write_failed, etc.) are surfaced in the structured
+      // errorMessage so the agent can decide whether to retry, pin
+      // `inputs.from_run` to an older snapshot, or surface the issue.
+      //
+      // We add the spawner's outputFiles to uploadedStorageIds first so
+      // failExecution cleans them — the bytes already landed in storage
+      // via EP2 even though user code ran against a corrupted workspace.
+      if (
+        spawnerResult.priorStage !== undefined &&
+        spawnerResult.priorStage.skipped.length > 0
+      ) {
+        for (const f of spawnerResult.outputFiles) {
+          uploadedStorageIds.add(f.storageId);
+        }
+        const stagedNames = new Set(
+          spawnerResult.priorStage.staged.map((s) => s.name),
+        );
+        const expectedMissing = priorOutputExpected.filter(
+          (e) => !stagedNames.has(e.name),
+        );
+        const missingNames = expectedMissing.map((e) => e.name);
+        console.warn(
+          `[sandbox.preStage] PRE_STAGE_FAILED artifact=${args.artifactId ?? '(none)'} missing=${JSON.stringify(missingNames)} skipped=${JSON.stringify(spawnerResult.priorStage.skipped)}`,
+        );
+        return failExecution(
+          fc,
+          'failed',
+          'PRE_STAGE_FAILED',
+          JSON.stringify({
+            missing: missingNames,
+            skipped: spawnerResult.priorStage.skipped,
+            message:
+              'pre-stage attestation: spawner did not stage every expected prior-output file before user code ran',
+          }),
+          {
+            stdoutPreview: Buffer.from(spawnerResult.stdoutBase64, 'base64')
+              .toString('utf8')
+              .slice(0, SANDBOX_STDOUT_PREVIEW_MAX),
+            stderrPreview: Buffer.from(spawnerResult.stderrBase64, 'base64')
+              .toString('utf8')
+              .slice(0, SANDBOX_STDERR_PREVIEW_MAX),
+            ...(spawnerResult.exitCode !== null && {
+              exitCode: spawnerResult.exitCode,
+            }),
+          },
+        );
+      }
+
+      // ---- upload-pipeline completeness gate (crispy-curry plan §4) ----
+      // `uploadStats.failures` non-empty means at least one harvested file
+      // either failed its upload POST or its EP2 record-back. The audit
+      // row's `uploadedStorageIds[]` already cleaned the partials; treat
+      // this as a fatal run so the LLM doesn't trust a workspace state
+      // that doesn't match what's in the manifest after finalize.
+      if (
+        spawnerResult.uploadStats !== undefined &&
+        spawnerResult.uploadStats.failures.length > 0 &&
+        // Only escalate to UPLOAD_INCOMPLETE when the spawner didn't
+        // already classify this as a specific upload-pipeline error. The
+        // spawner's classifyFailure path may have already emitted
+        // UPLOAD_FAILED / UPLOAD_QUOTA_EXCEEDED / UPLOAD_REPORT_FAILED;
+        // preserve those rather than relabeling.
+        spawnerResult.errorCode === undefined
+      ) {
+        for (const f of spawnerResult.outputFiles) {
+          uploadedStorageIds.add(f.storageId);
+        }
+        const failed = spawnerResult.uploadStats.failures.map((f) => ({
+          fileName: f.fileName,
+          httpStatus: f.httpStatus,
+          errorSnippet: f.errorSnippet,
+        }));
+        console.warn(
+          `[sandbox.upload] UPLOAD_INCOMPLETE artifact=${args.artifactId ?? '(none)'} failures=${JSON.stringify(failed)}`,
+        );
+        return failExecution(
+          fc,
+          'failed',
+          'UPLOAD_INCOMPLETE',
+          JSON.stringify({
+            failures: failed,
+            message:
+              'output-upload completeness: at least one harvested file failed its upload POST or EP2 record-back',
+          }),
+          {
+            stdoutPreview: Buffer.from(spawnerResult.stdoutBase64, 'base64')
+              .toString('utf8')
+              .slice(0, SANDBOX_STDOUT_PREVIEW_MAX),
+            stderrPreview: Buffer.from(spawnerResult.stderrBase64, 'base64')
+              .toString('utf8')
+              .slice(0, SANDBOX_STDERR_PREVIEW_MAX),
+            ...(spawnerResult.exitCode !== null && {
+              exitCode: spawnerResult.exitCode,
+            }),
+          },
+        );
+      }
+
       // ---- register file metadata (presigned upload pipeline) ----
       // Sandbox-wobbly-origami: the spawner POSTed each output blob to a
       // presigned URL itself, so by the time we reach here the bytes are
@@ -968,13 +1103,22 @@ export const executeCode = internalAction({
             ...(stderrStorageId !== undefined && {
               runStderrStorageId: stderrStorageId,
             }),
-            runOutputFiles: insertedFiles.map((f) => ({
-              name: f.name,
-              fileMetadataId: f.fileMetadataId,
-              storageId: f.storageId,
-              size: f.size,
-              contentType: f.contentType,
-            })),
+            runOutputFiles: insertedFiles.map((f) => {
+              // Look up sha256 from the spawner's outputFiles (parallel
+              // by filename). The cumulative `artifactOutputs` manifest
+              // uses this for pre-stage attestation on future runs.
+              const sha256 = spawnerResult.outputFiles.find(
+                (s) => s.name === f.name,
+              )?.sha256;
+              return {
+                name: f.name,
+                fileMetadataId: f.fileMetadataId,
+                storageId: f.storageId,
+                size: f.size,
+                contentType: f.contentType,
+                ...(sha256 !== undefined && { sha256 }),
+              };
+            }),
             runExecutionId: executionId,
           },
         );
@@ -1002,6 +1146,16 @@ export const executeCode = internalAction({
         files: insertedFiles,
         ...(spawnerResult.steps !== undefined && {
           steps: spawnerResult.steps,
+        }),
+        ...(spawnerResult.priorStage !== undefined && {
+          preStage: {
+            staged: spawnerResult.priorStage.staged.map((s) => s.name),
+            skipped: spawnerResult.priorStage.skipped.map((s) => ({
+              name: s.name,
+              reason: s.reason,
+              detail: s.detail,
+            })),
+          },
         }),
       };
     } catch (err) {

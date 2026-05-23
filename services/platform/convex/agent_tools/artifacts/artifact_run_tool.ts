@@ -180,6 +180,20 @@ interface ArtifactRunSuccess {
    * means a prior step's failure aborted this one.
    */
   steps?: SandboxStepResult[];
+  /**
+   * Pre-stage attestation summary (crispy-curry plan §3). Populated on
+   * every run that had `priorOutputDownloads`. `staged[]` lists files the
+   * spawner confirmed landed in `/workspace/output/` before user code ran;
+   * `skipped[]` lists any expected files that didn't make it, with a
+   * structured reason. When `skipped[].length > 0` the run terminates
+   * with `runErrorCode: "PRE_STAGE_FAILED"` BEFORE user code runs — use
+   * `inputs.from_run` to pin an older snapshot if a specific blob has
+   * gone missing.
+   */
+  preStage?: {
+    staged: string[];
+    skipped: Array<{ name: string; reason: string; detail: string }>;
+  };
   message: string;
 }
 
@@ -202,6 +216,15 @@ interface ExecuteCodeResult {
   durationMs: number;
   files: RunOutputFile[];
   steps?: SandboxStepResult[];
+  /**
+   * Pre-stage attestation block (crispy-curry plan §3) — present when the
+   * request had `priorOutputDownloads`. Forwarded straight through to the
+   * tool result so the LLM sees what was staged and what was skipped.
+   */
+  preStage?: {
+    staged: string[];
+    skipped: Array<{ name: string; reason: string; detail: string }>;
+  };
 }
 
 export const artifactRunTool = {
@@ -758,6 +781,7 @@ artifact_run({
         executionId: run.executionId,
         ...(runRow !== null && { runId: String(runRow._id) }),
         ...(run.steps !== undefined && { steps: run.steps }),
+        ...(run.preStage !== undefined && { preStage: run.preStage }),
         message,
       };
     },

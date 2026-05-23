@@ -118,6 +118,14 @@ interface SpawnerExecuteResponse {
     storageId: string;
     size: number;
     contentType: string;
+    /**
+     * sha256 (hex) of the harvested bytes — populated by the spawner
+     * during `harvestOutputDir` (crispy-curry plan §1). Used to seed the
+     * cumulative `artifactOutputs` manifest entry for the next pre-stage
+     * attestation. Optional only for back-compat with pre-crispy-curry
+     * spawner images; new images always populate.
+     */
+    sha256?: string;
   }[];
   /** Per-step results populated only for multi-step requests. */
   steps?: SandboxStepResult[];
@@ -147,6 +155,28 @@ interface SpawnerExecuteResponse {
     executeMs: number;
     harvestMs: number;
     uploadMs: number;
+  };
+  /**
+   * Pre-stage attestation (crispy-curry plan §3). For every entry in
+   * `priorOutputDownloads` the spawner reports back whether it landed on
+   * `/workspace/output/` (`staged[]`) or was skipped (`skipped[]` with a
+   * structured reason). The action diffs `staged[]` against the manifest
+   * it sent and aborts the run with `PRE_STAGE_FAILED` if any expected
+   * file is missing — BEFORE the spawner's outputFiles are promoted to
+   * fileMetadata. Omitted when the request had no `priorOutputDownloads`.
+   */
+  priorStage?: {
+    staged: Array<{ name: string; bytes: number; sha256: string }>;
+    skipped: Array<{
+      name: string;
+      reason:
+        | 'unsafe_path'
+        | 'fetch_failed'
+        | 'http_error'
+        | 'url_expired'
+        | 'write_failed';
+      detail: string;
+    }>;
   };
 }
 

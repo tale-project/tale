@@ -212,24 +212,44 @@ interface FakeRunRow {
 
 interface FakeRunFile {
   _id: string;
+  _creationTime: number;
   runId: string;
+  artifactId: string;
   name: string;
   storageId: string;
   size: number;
   contentType?: string;
 }
 
+interface FakeArtifactOutput {
+  _id: string;
+  artifactId: string;
+  name: string;
+  storageId: string;
+  size: number;
+  contentType?: string;
+  sha256?: string;
+  producedByRunId: string;
+  updatedAt: number;
+}
+
 function createPreStageCtx(opts: {
   artifact: FakeArtifactRow_;
   runs: FakeRunRow[];
   runFiles: FakeRunFile[];
+  artifactOutputs?: FakeArtifactOutput[];
 }) {
   return {
     ctx: {
       db: {
-        get: vi.fn(async (id: string) =>
-          id === opts.artifact._id ? opts.artifact : null,
-        ),
+        get: vi.fn(async (id: string) => {
+          if (id === opts.artifact._id) return opts.artifact;
+          // `from_run` pin path looks up the run row by id; return it
+          // so the pin branch can find its artifactId and walk runFiles.
+          const run = opts.runs.find((r) => r._id === id);
+          return run ?? null;
+        }),
+        normalizeId: vi.fn((_table: string, id: string) => id),
         query: vi.fn((table: string) => {
           const eqs: Record<string, unknown> = {};
           let order: 'asc' | 'desc' = 'asc';
@@ -264,8 +284,30 @@ function createPreStageCtx(opts: {
               return;
             }
             if (table === 'artifactRunFiles') {
-              const rows = opts.runFiles.filter((f) => f.runId === eqs.runId);
+              // Two access patterns:
+              //  - by_run (used by the explicit `from_run` pin path)
+              //  - by_artifact (used by the cumulative walk-back); ordered
+              //    desc by _creationTime so first-occurrence-per-name wins.
+              let rows = opts.runFiles;
+              if (eqs.runId !== undefined) {
+                rows = rows.filter((f) => f.runId === eqs.runId);
+              }
+              if (eqs.artifactId !== undefined) {
+                rows = rows.filter((f) => f.artifactId === eqs.artifactId);
+              }
+              rows = [...rows].sort((a, b) =>
+                order === 'desc'
+                  ? b._creationTime - a._creationTime
+                  : a._creationTime - b._creationTime,
+              );
               for (const f of rows) yield f;
+              return;
+            }
+            if (table === 'artifactOutputs') {
+              const rows = (opts.artifactOutputs ?? []).filter(
+                (o) => o.artifactId === eqs.artifactId,
+              );
+              for (const o of rows) yield o;
               return;
             }
           };
@@ -321,7 +363,9 @@ describe('getLatestRunOutputs', () => {
       runFiles: [
         {
           _id: 'rf_1',
+          _creationTime: 1_100,
           runId: 'run_old_failed',
+          artifactId: 'art_1',
           name: 'test.pptx',
           storageId: 'st_pptx',
           size: 250_000,
@@ -367,7 +411,9 @@ describe('getLatestRunOutputs', () => {
       runFiles: [
         {
           _id: 'rf_1',
+          _creationTime: 1_100,
           runId: 'run_oldest_with_file',
+          artifactId: 'art_1',
           name: 'first.txt',
           storageId: 'st_first',
           size: 100,
@@ -447,5 +493,278 @@ describe('getLatestRunOutputs', () => {
 
     expect(result.source).toBe('none');
     expect(result.files).toHaveLength(0);
+  });
+
+  // ---------------------------------------------------------------------
+  // Cumulative-state invariant (crispy-curry plan Defect 1).
+  //
+  // The old walk-back returned a single run's files. If Run 1 produced
+  // foo.pptx and Run 2 produced only bar.txt (no foo.pptx), the next
+  // pre-stage saw Run 2 first and returned [bar.txt] — losing foo.pptx
+  // from /workspace/output/ even though it still existed in _storage.
+  //
+  // The new walk-back reduces newest-name-wins across runs, so Run 3 sees
+  // BOTH foo.pptx and bar.txt. This is the regression for the user's
+  // exact reported failure mode.
+  // ---------------------------------------------------------------------
+
+  it('accumulates files across runs even when newer runs produced different filenames (no-shadow invariant)', async () => {
+    const { ctx } = createPreStageCtx({
+      artifact: {
+        _id: 'art_1',
+        organizationId: 'org_a',
+        type: 'script_runnable',
+      },
+      runs: [
+        {
+          _id: 'run_1',
+          _creationTime: 1_000,
+          artifactId: 'art_1',
+          status: 'completed',
+        },
+        {
+          _id: 'run_2',
+          _creationTime: 2_000,
+          artifactId: 'art_1',
+          status: 'completed',
+        },
+      ],
+      runFiles: [
+        {
+          _id: 'rf_old',
+          _creationTime: 1_100,
+          runId: 'run_1',
+          artifactId: 'art_1',
+          name: 'foo.pptx',
+          storageId: 'st_foo',
+          size: 250_000,
+        },
+        {
+          _id: 'rf_new',
+          _creationTime: 2_100,
+          runId: 'run_2',
+          artifactId: 'art_1',
+          name: 'bar.txt',
+          storageId: 'st_bar',
+          size: 50,
+        },
+      ],
+    });
+
+    const result = await getLatest.handler(ctx, { artifactId: 'art_1' });
+
+    expect(result.source).toBe('artifact_run_files');
+    // Both files should be visible — newer-different-filename must not
+    // shadow earlier output.
+    expect(result.files.map((f) => f.name).sort()).toEqual([
+      'bar.txt',
+      'foo.pptx',
+    ]);
+    // Walk-back path signals lazy-derive is needed so the next read
+    // hits the manifest table directly.
+    expect(
+      (result as unknown as { needsManifestDerive: boolean })
+        .needsManifestDerive,
+    ).toBe(true);
+  });
+
+  it('takes newest-by-creation-time when the same filename appears across runs', async () => {
+    const { ctx } = createPreStageCtx({
+      artifact: {
+        _id: 'art_1',
+        organizationId: 'org_a',
+        type: 'script_runnable',
+      },
+      runs: [
+        {
+          _id: 'run_1',
+          _creationTime: 1_000,
+          artifactId: 'art_1',
+          status: 'completed',
+        },
+        {
+          _id: 'run_2',
+          _creationTime: 2_000,
+          artifactId: 'art_1',
+          status: 'completed',
+        },
+      ],
+      runFiles: [
+        {
+          _id: 'rf_old',
+          _creationTime: 1_100,
+          runId: 'run_1',
+          artifactId: 'art_1',
+          name: 'report.txt',
+          storageId: 'st_old',
+          size: 10,
+        },
+        {
+          _id: 'rf_new',
+          _creationTime: 2_100,
+          runId: 'run_2',
+          artifactId: 'art_1',
+          name: 'report.txt',
+          storageId: 'st_new',
+          size: 20,
+        },
+      ],
+    });
+
+    const result = await getLatest.handler(ctx, { artifactId: 'art_1' });
+
+    expect(result.source).toBe('artifact_run_files');
+    expect(result.files).toHaveLength(1);
+    expect(result.files[0]?.name).toBe('report.txt');
+    expect(result.files[0]?.storageId).toBe('st_new');
+  });
+
+  // ---------------------------------------------------------------------
+  // Manifest precedence (crispy-curry plan §1).
+  //
+  // Once the artifact has any rows in `artifactOutputs`, the cumulative
+  // manifest is the source of truth — the walk-back fallback is
+  // bypassed. `needsManifestDerive` should be false because no
+  // lazy-derive is needed.
+  // ---------------------------------------------------------------------
+
+  it('reads from artifactOutputs manifest when present, skipping the run-files walk-back', async () => {
+    const { ctx } = createPreStageCtx({
+      artifact: {
+        _id: 'art_1',
+        organizationId: 'org_a',
+        type: 'script_runnable',
+      },
+      runs: [
+        {
+          _id: 'run_stale',
+          _creationTime: 1_000,
+          artifactId: 'art_1',
+          status: 'completed',
+        },
+      ],
+      // The walk-back would have surfaced this file. The manifest takes
+      // precedence; we should NEVER see `walked_only.txt` in the result.
+      runFiles: [
+        {
+          _id: 'rf_walked',
+          _creationTime: 1_100,
+          runId: 'run_stale',
+          artifactId: 'art_1',
+          name: 'walked_only.txt',
+          storageId: 'st_walked',
+          size: 10,
+        },
+      ],
+      artifactOutputs: [
+        {
+          _id: 'ao_1',
+          artifactId: 'art_1',
+          name: 'manifest_a.txt',
+          storageId: 'st_a',
+          size: 100,
+          sha256: 'deadbeef',
+          producedByRunId: 'run_x',
+          updatedAt: 5_000,
+        },
+        {
+          _id: 'ao_2',
+          artifactId: 'art_1',
+          name: 'manifest_b.txt',
+          storageId: 'st_b',
+          size: 200,
+          producedByRunId: 'run_y',
+          updatedAt: 6_000,
+        },
+      ],
+    });
+
+    const result = await getLatest.handler(ctx, { artifactId: 'art_1' });
+
+    expect(result.source).toBe('artifact_outputs');
+    expect(result.files.map((f) => f.name).sort()).toEqual([
+      'manifest_a.txt',
+      'manifest_b.txt',
+    ]);
+    // Manifest path → no derive needed.
+    expect(
+      (result as unknown as { needsManifestDerive: boolean })
+        .needsManifestDerive,
+    ).toBe(false);
+    // sha256 from the manifest is preserved through the query.
+    const a = result.files.find((f) => f.name === 'manifest_a.txt');
+    expect((a as unknown as { sha256?: string } | undefined)?.sha256).toBe(
+      'deadbeef',
+    );
+  });
+
+  // ---------------------------------------------------------------------
+  // `from_run` pin still scopes to a single run's files (crispy-curry plan §1).
+  // The pin is a positive lever — "give me the state run X produced" —
+  // so it deliberately bypasses the cumulative manifest.
+  // ---------------------------------------------------------------------
+
+  it("from_run pin returns only that one run's files, ignoring the cumulative manifest", async () => {
+    const { ctx } = createPreStageCtx({
+      artifact: {
+        _id: 'art_1',
+        organizationId: 'org_a',
+        type: 'script_runnable',
+      },
+      runs: [
+        {
+          _id: 'run_pinned',
+          _creationTime: 1_000,
+          artifactId: 'art_1',
+          status: 'completed',
+        },
+        {
+          _id: 'run_other',
+          _creationTime: 2_000,
+          artifactId: 'art_1',
+          status: 'completed',
+        },
+      ],
+      runFiles: [
+        {
+          _id: 'rf_pinned',
+          _creationTime: 1_100,
+          runId: 'run_pinned',
+          artifactId: 'art_1',
+          name: 'pinned.txt',
+          storageId: 'st_pinned',
+          size: 10,
+        },
+        {
+          _id: 'rf_other',
+          _creationTime: 2_100,
+          runId: 'run_other',
+          artifactId: 'art_1',
+          name: 'other.txt',
+          storageId: 'st_other',
+          size: 20,
+        },
+      ],
+      artifactOutputs: [
+        {
+          _id: 'ao_1',
+          artifactId: 'art_1',
+          name: 'manifest.txt',
+          storageId: 'st_manifest',
+          size: 100,
+          producedByRunId: 'run_other',
+          updatedAt: 5_000,
+        },
+      ],
+    });
+
+    const result = await getLatest.handler(ctx, {
+      artifactId: 'art_1',
+      fromRun: 'run_pinned',
+    });
+
+    expect(result.source).toBe('artifact_run_files');
+    expect(result.files).toHaveLength(1);
+    expect(result.files[0]?.name).toBe('pinned.txt');
   });
 });

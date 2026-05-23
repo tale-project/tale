@@ -15,6 +15,7 @@
 //   6. Capture stdout/stderr; classify exit code → errorCode.
 //   7. `docker rm -f` + rm -rf the host dir.
 
+import { createHash } from 'node:crypto';
 import {
   mkdir,
   readdir,
@@ -38,6 +39,8 @@ import type {
   ExecuteRequest,
   ExecuteResponse,
   OutputFile,
+  PriorStageResult,
+  PriorStageSkipReason,
   SpawnerConfig,
   UploadFailure,
   UploadStats,
@@ -436,66 +439,91 @@ process.exit(0);
 export async function stagePriorOutputDownloads(
   outputDir: string,
   downloads: ReadonlyArray<{ name: string; url: string }>,
-): Promise<void> {
-  const staged: string[] = [];
+): Promise<PriorStageResult> {
+  const staged: PriorStageResult['staged'] = [];
+  const skipped: PriorStageResult['skipped'] = [];
   for (const file of downloads) {
     const dest = resolve(outputDir, file.name);
     // Defense in depth — refuse anything escaping outputDir.
     if (dest !== outputDir && !dest.startsWith(outputDir + sep)) {
+      const detail = `resolved path escapes outputDir`;
       console.warn(
-        `[sandbox] skipping unsafe prior-output name: ${JSON.stringify(file.name)}`,
+        `[sandbox] skipping unsafe prior-output name: ${JSON.stringify(file.name)} (${detail})`,
       );
+      skipped.push({ name: file.name, reason: 'unsafe_path', detail });
       continue;
     }
     let res: Response;
     try {
       res = await fetch(file.url);
     } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
       console.warn(
-        `[sandbox] prior-output fetch failed for ${JSON.stringify(file.name)}: ${err instanceof Error ? err.message : String(err)}`,
+        `[sandbox] prior-output fetch failed for ${JSON.stringify(file.name)}: ${detail}`,
       );
+      skipped.push({ name: file.name, reason: 'fetch_failed', detail });
       continue;
     }
     if (!res.ok) {
+      const detail = `HTTP ${res.status}`;
       console.warn(
         `[sandbox] prior-output fetch ${res.status} for ${JSON.stringify(file.name)}`,
       );
+      // 403/410 from a presigned URL usually means TTL expired — give the
+      // platform side a distinct reason so it can re-mint and retry rather
+      // than failing the run outright (crispy-curry plan §3, url_expired).
+      const reason: PriorStageSkipReason =
+        res.status === 403 || res.status === 410 ? 'url_expired' : 'http_error';
+      skipped.push({ name: file.name, reason, detail });
       continue;
     }
     try {
       const buf = Buffer.from(await res.arrayBuffer());
+      const sha256 = createHash('sha256').update(buf).digest('hex');
       await mkdir(dirname(dest), { recursive: true });
       await writeFile(dest, buf);
-      staged.push(file.name);
+      staged.push({ name: file.name, bytes: buf.byteLength, sha256 });
     } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
       console.warn(
-        `[sandbox] failed to pre-stage ${JSON.stringify(file.name)}: ${err instanceof Error ? err.message : String(err)}`,
+        `[sandbox] failed to pre-stage ${JSON.stringify(file.name)}: ${detail}`,
       );
+      skipped.push({ name: file.name, reason: 'write_failed', detail });
     }
   }
   // INFO so it's visible in `docker logs tale-sandbox` without having
   // to crank the global log level. Pre-stage is a black box otherwise.
   if (staged.length > 0) {
     console.info(
-      `[sandbox.stage] pre-staged ${staged.length} file(s) into ${outputDir}: ${JSON.stringify(staged)}`,
+      `[sandbox.stage] pre-staged ${staged.length} file(s) into ${outputDir}: ${JSON.stringify(staged.map((s) => s.name))}`,
     );
   }
+  if (skipped.length > 0) {
+    console.warn(
+      `[sandbox.stage] skipped ${skipped.length} prior-output(s): ${JSON.stringify(skipped)}`,
+    );
+  }
+  return { staged, skipped };
 }
 
 export async function stageWorkspace(
   hostDir: string,
   req: ExecuteRequest,
-): Promise<void> {
+): Promise<{ priorStage?: PriorStageResult }> {
   const codeDir = join(hostDir, 'code');
   const outputDir = join(hostDir, 'output');
   await mkdir(codeDir, { recursive: true });
   await mkdir(outputDir, { recursive: true });
 
+  let priorStage: PriorStageResult | undefined;
   if (
     req.priorOutputDownloads !== undefined &&
     req.priorOutputDownloads.length > 0
   ) {
-    await stagePriorOutputDownloads(outputDir, req.priorOutputDownloads);
+    priorStage = await stagePriorOutputDownloads(
+      outputDir,
+      req.priorOutputDownloads,
+    );
   }
 
   // Stage user files at their declared paths under /workspace/code/.
@@ -583,6 +611,7 @@ export async function stageWorkspace(
   // CANNOT redirect ownership of an arbitrary host file (audit finding
   // R2-B4: latent footgun if session dirs ever get reused across runs).
   await chownRecursive(hostDir, RUNTIME_UID, RUNTIME_GID);
+  return { ...(priorStage !== undefined && { priorStage }) };
 }
 
 async function chownRecursive(
@@ -739,6 +768,12 @@ async function harvestOutputDir(
       attempted += 1;
       const bytes = await readFile(childAbs);
       const contentType = guessContentType(childRel);
+      // sha256 is the per-file digest used by both the cumulative
+      // `artifactOutputs` manifest (crispy-curry plan §1) and the
+      // pre-stage attestation when this same file is later re-injected
+      // into a future run. Computed once during harvest; piggy-backs on
+      // the readFile we already did.
+      const sha256 = createHash('sha256').update(bytes).digest('hex');
       const postResult = await postToUploadSlot(
         url,
         bytes,
@@ -782,6 +817,7 @@ async function harvestOutputDir(
         storageId: postResult.storageId,
         size: st.size,
         contentType,
+        sha256,
       });
       totalAccepted += st.size;
       succeeded += 1;
@@ -994,8 +1030,11 @@ export async function executeRequest(
     await ensureCacheVolume(pipVolume);
     await ensureCacheVolume(npmVolume);
     const stageStartedAt = Date.now();
-    await stageWorkspace(workspaceHostDir, req);
+    const stageResult = await stageWorkspace(workspaceHostDir, req);
     const stageMs = Date.now() - stageStartedAt;
+    // Captured here for inclusion in ExecuteResponse.priorStage. Undefined
+    // when the request had no priorOutputDownloads (nothing to attest).
+    const priorStage = stageResult.priorStage;
 
     // Resolve the path the runtime entrypoint will exec().
     //   - steps[] → the spawner-generated wrapper under /workspace/.tale/
@@ -1255,6 +1294,7 @@ export async function executeRequest(
         ...(stepResults !== undefined && { steps: stepResults }),
         uploadStats: harvestUploadStats,
         timing,
+        ...(priorStage !== undefined && { priorStage }),
       };
     }
 
@@ -1280,6 +1320,7 @@ export async function executeRequest(
         ...(stepResults !== undefined && { steps: stepResults }),
         uploadStats: harvestUploadStats,
         timing,
+        ...(priorStage !== undefined && { priorStage }),
       };
     }
 
@@ -1301,6 +1342,7 @@ export async function executeRequest(
       ...(stepResults !== undefined && { steps: stepResults }),
       uploadStats: harvestUploadStats,
       timing,
+      ...(priorStage !== undefined && { priorStage }),
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

@@ -142,7 +142,7 @@ export const getLatestRunOutputs = internalQuery({
         );
       }
       if (pinnedRun !== null && pinnedRun.artifactId === artifactId) {
-        const pinnedFiles = [];
+        const pinnedFiles: PriorOutputFile[] = [];
         for await (const f of ctx.db
           .query('artifactRunFiles')
           .withIndex('by_run', (q) => q.eq('runId', pinnedRun._id))) {
@@ -162,13 +162,7 @@ export const getLatestRunOutputs = internalQuery({
     }
 
     // 2. Cumulative manifest (preferred). One index scan, no walk-back.
-    const manifestFiles: Array<{
-      name: string;
-      storageId: import('../_generated/dataModel').Id<'_storage'>;
-      size: number;
-      contentType?: string;
-      sha256?: string;
-    }> = [];
+    const manifestFiles: PriorOutputFile[] = [];
     for await (const row of ctx.db
       .query('artifactOutputs')
       .withIndex('by_artifact', (q) => q.eq('artifactId', artifactId))) {
@@ -198,14 +192,7 @@ export const getLatestRunOutputs = internalQuery({
     //    Status-agnostic by design — `artifactRunFiles` is append-only and
     //    only carries files that survived harvest + storage upload, so the
     //    row's presence is the "this file was really produced" signal.
-    const byName = new Map<
-      string,
-      {
-        storageId: import('../_generated/dataModel').Id<'_storage'>;
-        size: number;
-        contentType?: string;
-      }
-    >();
+    const byName = new Map<string, Omit<PriorOutputFile, 'name'>>();
     for await (const row of ctx.db
       .query('artifactRunFiles')
       .withIndex('by_artifact', (q) => q.eq('artifactId', artifactId))
@@ -218,13 +205,9 @@ export const getLatestRunOutputs = internalQuery({
       });
     }
     if (byName.size > 0) {
-      const files = Array.from(byName, ([name, info]) => ({
+      const files: PriorOutputFile[] = Array.from(byName, ([name, info]) => ({
         name,
-        storageId: info.storageId,
-        size: info.size,
-        ...(info.contentType !== undefined && {
-          contentType: info.contentType,
-        }),
+        ...info,
       }));
       return {
         files,
@@ -234,16 +217,10 @@ export const getLatestRunOutputs = internalQuery({
     }
 
     // 4. Final fallback: legacy artifacts.runOutputFiles (pre-table data).
-    type LegacyFile = {
-      name: string;
-      storageId: import('../_generated/dataModel').Id<'_storage'>;
-      size: number;
-      contentType?: string;
-    };
-    const files: LegacyFile[] = [];
+    const files: PriorOutputFile[] = [];
     for (const f of artifact.runOutputFiles ?? []) {
       if (f.storageId === undefined) continue;
-      const entry: LegacyFile = {
+      const entry: PriorOutputFile = {
         name: f.name,
         storageId: f.storageId,
         size: f.size,

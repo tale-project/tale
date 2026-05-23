@@ -21,6 +21,7 @@ vi.mock('../_generated/server', async (importOriginal) => {
 });
 
 import {
+  applyFinalizeArtifactRun,
   createArtifact,
   createFileInArtifact,
   discardActiveStreamsForThread,
@@ -48,6 +49,22 @@ interface FakeArtifactRow {
   liveStreamStartedAt?: number;
   createdAt?: number;
   updatedAt?: number;
+  runStatus?:
+    | 'queued'
+    | 'installing'
+    | 'running'
+    | 'completed'
+    | 'failed'
+    | 'cancelled';
+  runExecutionId?: string;
+  runStartedAt?: number;
+  runRevision?: number;
+  runOutputFiles?: Array<{
+    name: string;
+    storageId?: string;
+    size: number;
+    contentType?: string;
+  }>;
 }
 
 interface MutHandler<TArgs, TReturn> {
@@ -121,6 +138,14 @@ function createMockCtx(initial: FakeArtifactRow[] = []) {
     });
     builder.collect = vi.fn(async () => filtered());
     builder.order = vi.fn((_dir: 'asc' | 'desc') => builder);
+    builder.unique = vi.fn(async () => {
+      const list = filtered();
+      return list.length > 0 ? list[0] : null;
+    });
+    builder.first = vi.fn(async () => {
+      const list = filtered();
+      return list.length > 0 ? list[0] : null;
+    });
     builder[Symbol.asyncIterator] = () =>
       asyncIter(filtered())[Symbol.asyncIterator]();
     return builder;
@@ -720,5 +745,146 @@ describe('updateFileInArtifact (strict-CRUD overwrite-only)', () => {
     if (r.success) return;
     expect(r.code).toBe('file_missing');
     expect(patched).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// applyFinalizeArtifactRun terminal-guard semantics.
+//
+// The original guard "no-op when artifact row is already terminal" was too
+// coarse: a follow-up run that legitimately re-finalizes the same artifact
+// (because the caller forgot to invoke `initArtifactRun` between runs) had
+// its `artifactRuns` / `artifactRunFiles` / `artifactOutputs` writes
+// silently dropped. The fix gates the no-op on `runExecutionId` parity:
+//   - same execution as the already-terminal row → duplicate, no-op
+//   - different execution                       → genuinely new run, proceed
+// ---------------------------------------------------------------------------
+
+describe('applyFinalizeArtifactRun (terminal-guard executionId parity)', () => {
+  it('no-ops when finalize fires twice for the SAME executionId (duplicate delta)', async () => {
+    const initial: FakeArtifactRow = {
+      _id: 'art_dup',
+      organizationId: 'org_a',
+      threadId: 'thr_a',
+      type: 'script_runnable',
+      title: 'dup-finalize',
+      revision: 1,
+      runStatus: 'completed',
+      runExecutionId: 'exec_same',
+    };
+    const { ctx, inserted, patched } = createMockCtx([initial]);
+    await applyFinalizeArtifactRun(ctx as never, {
+      artifactId: 'art_dup' as never,
+      runStatus: 'completed',
+      runOutputFiles: [],
+      runExecutionId: 'exec_same' as never,
+    });
+    // Guard fired — no patch to the artifact row, no inserts to the
+    // dual-write tables.
+    expect(patched.filter((p) => p.id === 'art_dup')).toHaveLength(0);
+    expect(inserted.filter((i) => i.table === 'artifactRuns')).toHaveLength(0);
+    expect(inserted.filter((i) => i.table === 'artifactRunFiles')).toHaveLength(
+      0,
+    );
+    expect(inserted.filter((i) => i.table === 'artifactOutputs')).toHaveLength(
+      0,
+    );
+  });
+
+  it('proceeds when finalize fires for a DIFFERENT executionId on a terminal row (fresh run without initArtifactRun)', async () => {
+    // This is the regression: a caller (test harness, direct executeCode
+    // invocation, future custom path) re-uses an artifact without going
+    // through `initArtifactRun`. The artifact row still carries the
+    // previous run's terminal status + executionId. The new finalize MUST
+    // be allowed through so its run history lands in the dual-write
+    // tables.
+    const initial: FakeArtifactRow = {
+      _id: 'art_diff',
+      organizationId: 'org_a',
+      threadId: 'thr_a',
+      type: 'script_runnable',
+      title: 'cross-execution finalize',
+      revision: 1,
+      runStatus: 'completed',
+      runExecutionId: 'exec_prior',
+      runStartedAt: 1000,
+    };
+    const { ctx, inserted, patched } = createMockCtx([initial]);
+    await applyFinalizeArtifactRun(ctx as never, {
+      artifactId: 'art_diff' as never,
+      runStatus: 'completed',
+      runOutputFiles: [
+        {
+          name: 'out.txt',
+          storageId: 'st_out' as never,
+          size: 5,
+          fileMetadataId: 'fm_out' as never,
+          contentType: 'text/plain',
+          sha256: 'abc123',
+        },
+      ],
+      runExecutionId: 'exec_new' as never,
+    });
+    // Artifact row patched with the new run's state.
+    const artPatches = patched.filter((p) => p.id === 'art_diff');
+    expect(artPatches.length).toBeGreaterThan(0);
+    expect(artPatches[0]?.patch.runStatus).toBe('completed');
+    // artifactRuns row created.
+    const runInserts = inserted.filter((i) => i.table === 'artifactRuns');
+    expect(runInserts).toHaveLength(1);
+    expect(runInserts[0]?.payload.executionId).toBe('exec_new');
+    // artifactRunFiles row created.
+    expect(inserted.filter((i) => i.table === 'artifactRunFiles')).toHaveLength(
+      1,
+    );
+    // artifactOutputs manifest row created (cumulative state captured).
+    const outInserts = inserted.filter((i) => i.table === 'artifactOutputs');
+    expect(outInserts).toHaveLength(1);
+    expect(outInserts[0]?.payload.name).toBe('out.txt');
+    expect(outInserts[0]?.payload.sha256).toBe('abc123');
+  });
+
+  it('proceeds when the artifact row has no runStatus yet (first run on the artifact)', async () => {
+    const initial: FakeArtifactRow = {
+      _id: 'art_first',
+      organizationId: 'org_a',
+      threadId: 'thr_a',
+      type: 'script_runnable',
+      title: 'first-finalize',
+      revision: 1,
+    };
+    const { ctx, inserted } = createMockCtx([initial]);
+    await applyFinalizeArtifactRun(ctx as never, {
+      artifactId: 'art_first' as never,
+      runStatus: 'completed',
+      runOutputFiles: [],
+      runExecutionId: 'exec_first' as never,
+    });
+    expect(inserted.filter((i) => i.table === 'artifactRuns')).toHaveLength(1);
+  });
+
+  it("proceeds when args.runExecutionId is omitted and the row is terminal (legacy callers can't self-dedupe)", async () => {
+    // Defensive: a caller that doesn't pass `runExecutionId` cannot be
+    // proven to be a duplicate. We let them through; the dual-write
+    // tables will gain a row but the caller is taking responsibility for
+    // not double-firing.
+    const initial: FakeArtifactRow = {
+      _id: 'art_legacy',
+      organizationId: 'org_a',
+      threadId: 'thr_a',
+      type: 'script_runnable',
+      title: 'legacy-finalize',
+      revision: 1,
+      runStatus: 'completed',
+      runExecutionId: 'exec_prior',
+    };
+    const { ctx, inserted } = createMockCtx([initial]);
+    await applyFinalizeArtifactRun(ctx as never, {
+      artifactId: 'art_legacy' as never,
+      runStatus: 'completed',
+      runOutputFiles: [],
+      // runExecutionId intentionally omitted
+    });
+    expect(inserted.filter((i) => i.table === 'artifactRuns')).toHaveLength(1);
   });
 });
