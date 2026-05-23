@@ -29,10 +29,13 @@ import { ConvexError, v } from 'convex/values';
 import { internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import { internalAction, type ActionCtx } from '../../_generated/server';
+import { toSandboxStorageUrl } from '../../lib/helpers/public_storage_url';
 import {
   SANDBOX_CODE_PREVIEW_MAX,
   SANDBOX_DEFAULT_TIMEOUT_MS,
+  SANDBOX_MAX_OUTPUT_FILES_PER_RUN,
   SANDBOX_MAX_TIMEOUT_MS,
+  SANDBOX_OUTPUT_UPLOAD_SLOTS_PREALLOC,
   SANDBOX_STDERR_PREVIEW_MAX,
   SANDBOX_STDOUT_PREVIEW_MAX,
 } from '../../sandbox/schema';
@@ -47,14 +50,6 @@ import {
 import { spawnerCancel, spawnerExecute } from './helpers/spawner_client';
 
 const HEARTBEAT_INTERVAL_MS = 60_000;
-
-// Aggregate-size cap for pre-staging the artifact's previous run outputs
-// into the next container's `/workspace/output/`. Above this we skip the
-// pre-stage entirely and surface a single stderr line so the user sees
-// why — masking would be worse than failing fast on huge artifacts.
-// 10 MiB matches the order-of-magnitude of a typical pptx / pdf so the
-// flow covers the common case without unbounded storage I/O per run.
-const MAX_PRIOR_OUTPUT_BYTES = 10 * 1024 * 1024;
 
 // Explicit handler return type. Required to break a self-referential type
 // cycle: without it, the inferred type of `executeCode` depends on its own
@@ -591,20 +586,16 @@ export const executeCode = internalAction({
       : undefined;
 
     // ---- pre-stage prior run outputs ----
-    // If this is an artifact-bound run AND the artifact has output files
-    // from a previous run, copy them into the next container's
-    // /workspace/output/ so a follow-up `artifact_run` (e.g. validate
-    // after generate, in separate calls) doesn't dead-end on
-    // FileNotFoundError. `steps: [...]` is still the canonical idiom; this
-    // is the backstop when the LLM forgets.
-    let priorOutputFiles: Array<{ name: string; contentBase64: string }> = [];
+    // Sandbox-wobbly-origami plan §1: instead of base64-inlining prior outputs
+    // into the spawner request body, we hand the spawner a list of
+    // download URLs (rewritten through `toSandboxStorageUrl()` so they
+    // resolve against the internal Caddy alias) and let it fetch each in
+    // parallel. Avoids the 10 MiB cap on prior outputs and the JSON-over-
+    // base64 wire encoding entirely.
+    let priorOutputDownloads: Array<{ name: string; url: string }> = [];
     let priorOutputSkippedNote: string | undefined;
     if (args.artifactId !== undefined) {
       try {
-        // Reads from the new `artifactRuns` / `artifactRunFiles` tables
-        // first; falls back to the deprecated `artifacts.runOutputFiles`
-        // field for artifacts not yet covered by the backfill (per the
-        // migration plan in llm-majestic-hamming.md).
         const latest = await ctx.runQuery(
           internal.artifacts.internal_queries.getLatestRunOutputs,
           {
@@ -617,43 +608,45 @@ export const executeCode = internalAction({
         );
         const candidates = latest.files;
         const totalBytes = candidates.reduce((sum, f) => sum + f.size, 0);
-        // Diagnostic — pre-stage is a black box otherwise. The convex
-        // dev backend logs to stdout; production self-host follows the
-        // same path. Use console.info so it lands in the same channel
-        // as the run-state mutations.
         console.info(
           `[sandbox.preStage] artifact=${args.artifactId} source=${latest.source} candidates=${candidates.length} totalBytes=${totalBytes} fromRun=${args.inputs?.fromRun ?? 'default-latest'}`,
         );
-        if (totalBytes > MAX_PRIOR_OUTPUT_BYTES) {
-          priorOutputSkippedNote = `[tale-sandbox] prior outputs ${totalBytes} bytes exceed ${MAX_PRIOR_OUTPUT_BYTES} cap; not pre-staging\n`;
-          console.warn(
-            `[sandbox.preStage] SKIP-CAP artifact=${args.artifactId} totalBytes=${totalBytes} cap=${MAX_PRIOR_OUTPUT_BYTES}`,
-          );
-        } else {
-          const skipped: string[] = [];
-          for (const file of candidates) {
-            const blob = await ctx.storage.get(file.storageId);
-            if (blob === null) {
-              skipped.push(file.name);
-              continue;
-            }
-            const buf = Buffer.from(await blob.arrayBuffer());
-            priorOutputFiles.push({
-              name: file.name,
-              contentBase64: buf.toString('base64'),
-            });
-          }
-          if (skipped.length > 0) {
-            priorOutputSkippedNote = `[tale-sandbox] prior-output blobs missing in storage, skipped: ${skipped.join(', ')}\n`;
+        const skipped: string[] = [];
+        for (const file of candidates) {
+          // Build a sandbox-bound download URL. `getUrl()` returns the
+          // public form; rewrite it through `toSandboxStorageUrl()` so the
+          // spawner's fetch goes through the internal Caddy alias rather
+          // than the publicly-resolvable hostname.
+          let rawUrl: string | null;
+          try {
+            rawUrl = await ctx.storage.getUrl(file.storageId);
+          } catch (urlErr) {
             console.warn(
-              `[sandbox.preStage] SKIP-MISSING artifact=${args.artifactId} skipped=${JSON.stringify(skipped)}`,
+              `[sandbox.preStage] getUrl(${file.storageId}) failed for ${file.name}:`,
+              urlErr,
             );
+            skipped.push(file.name);
+            continue;
           }
-          if (priorOutputFiles.length > 0) {
-            console.info(
-              `[sandbox.preStage] STAGED artifact=${args.artifactId} files=${JSON.stringify(priorOutputFiles.map((f) => f.name))}`,
-            );
+          if (rawUrl === null) {
+            skipped.push(file.name);
+            continue;
           }
+          priorOutputDownloads.push({
+            name: file.name,
+            url: toSandboxStorageUrl(rawUrl),
+          });
+        }
+        if (skipped.length > 0) {
+          priorOutputSkippedNote = `[tale-sandbox] prior-output blobs missing in storage, skipped: ${skipped.join(', ')}\n`;
+          console.warn(
+            `[sandbox.preStage] SKIP-MISSING artifact=${args.artifactId} skipped=${JSON.stringify(skipped)}`,
+          );
+        }
+        if (priorOutputDownloads.length > 0) {
+          console.info(
+            `[sandbox.preStage] STAGED artifact=${args.artifactId} files=${JSON.stringify(priorOutputDownloads.map((f) => f.name))}`,
+          );
         }
       } catch (err) {
         // Pre-staging is best-effort — never block the run on a load
@@ -663,7 +656,7 @@ export const executeCode = internalAction({
           '[sandbox.executeCode] prior-output pre-stage failed:',
           err,
         );
-        priorOutputFiles = [];
+        priorOutputDownloads = [];
         priorOutputSkippedNote = `[tale-sandbox] prior-output pre-stage failed: ${err instanceof Error ? err.message : String(err)}\n`;
       }
     }
@@ -672,6 +665,55 @@ export const executeCode = internalAction({
       // canvas stderr panel alongside the script's own output.
       onStderrTail(priorOutputSkippedNote);
     }
+
+    // ---- pre-allocate upload slots + persist quota counter ----
+    // Plan §3: hand the spawner N pre-signed upload URLs up front (median
+    // run = 1 file, p90 = 2; pre-alloc 2 to cover both without round-trip).
+    // The remaining quota lives server-side so the spawner can lazily ask
+    // for more via EP1 without us pre-vending all 16 URLs every run.
+    const preAllocSlots: Array<{ url: string }> = [];
+    try {
+      for (let i = 0; i < SANDBOX_OUTPUT_UPLOAD_SLOTS_PREALLOC; i += 1) {
+        const raw = await ctx.storage.generateUploadUrl();
+        preAllocSlots.push({ url: toSandboxStorageUrl(raw) });
+      }
+    } catch (err) {
+      return failExecution(
+        fc,
+        'failed',
+        'SPAWNER_UNAVAILABLE',
+        `failed to pre-allocate output upload slots: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    const remainingQuota =
+      SANDBOX_MAX_OUTPUT_FILES_PER_RUN - preAllocSlots.length;
+    try {
+      await ctx.runMutation(
+        internal.sandbox.internal_mutations.applyInitOutputSlots,
+        {
+          executionId,
+          slots: preAllocSlots.map((s) => s.url),
+          quotaRemaining: remainingQuota,
+        },
+      );
+    } catch (err) {
+      console.warn(`[sandbox.executeCode] applyInitOutputSlots failed:`, err);
+      // Non-fatal: the run can still proceed using the pre-allocated
+      // slots; only the lazy EP1 path needs the quota counter.
+    }
+
+    // Resolve the sandbox-facing callback endpoints. The spawner uses
+    // these to (a) request additional upload URLs via EP1 and (b) report
+    // each successful storageId via EP2. Caddy proxies `/api/sandbox/*`
+    // to convex:3211 in compose; locally `bun dev` would have to set
+    // SANDBOX_STORAGE_INTERNAL_BASE_URL to its host-loopback equivalent.
+    const callbackBase = (
+      process.env.SANDBOX_STORAGE_INTERNAL_BASE_URL ??
+      process.env.SITE_URL ??
+      'http://127.0.0.1:3210'
+    ).replace(/\/$/, '');
+    const outputUrlEndpoint = `${callbackBase}/api/sandbox/output_upload_url`;
+    const reportUploadedEndpoint = `${callbackBase}/api/sandbox/record_uploaded`;
 
     try {
       const spawnerResult = await spawnerExecute(
@@ -691,12 +733,11 @@ export const executeCode = internalAction({
           ...(args.packagesByLang !== undefined && {
             packagesByLang: args.packagesByLang,
           }),
-          ...(priorOutputFiles.length > 0 && { priorOutputFiles }),
+          ...(priorOutputDownloads.length > 0 && { priorOutputDownloads }),
+          outputUploadSlots: preAllocSlots,
+          outputUrlEndpoint,
+          reportUploadedEndpoint,
           timeoutMs,
-          // Hardcoded sandbox-safety: pip --only-binary=:all: + npm
-          // --ignore-scripts are ALWAYS in force. The LLM cannot disable
-          // them via tool input (round-2 R2-B4).
-          options: { allowSdist: false, allowInstallScripts: false },
         },
         abort.signal,
         {
@@ -757,10 +798,13 @@ export const executeCode = internalAction({
         outputFlushTimer = null;
       }
 
-      // ---- file upload (all-or-nothing) ----
-      // Each ctx.storage.store can take seconds for multi-MB blobs; an
-      // explicit heartbeat between uploads keeps `heartbeatAt` fresh so the
-      // watchdog doesn't reap this row mid-upload (audit finding R2-B6 #3).
+      // ---- register file metadata (presigned upload pipeline) ----
+      // Sandbox-wobbly-origami: the spawner POSTed each output blob to a
+      // presigned URL itself, so by the time we reach here the bytes are
+      // already in `_storage` and we have the allocated storageId on each
+      // outputFiles entry. We just need to insert the sibling fileMetadata
+      // rows. Track every storageId we accept so `failExecution` can roll
+      // them back if a subsequent mutation throws.
       const stagedForInsert: Array<{
         name: string;
         storageId: Id<'_storage'>;
@@ -768,38 +812,15 @@ export const executeCode = internalAction({
         contentType: string;
       }> = [];
       for (const f of spawnerResult.outputFiles) {
-        await tickHeartbeat();
-        try {
-          const bytes = Buffer.from(f.contentBase64, 'base64');
-          const blob = new Blob([bytes], { type: f.contentType });
-          const storageId = await ctx.storage.store(blob);
-          uploadedStorageIds.add(String(storageId));
-          stagedForInsert.push({
-            name: f.name,
-            storageId,
-            size: f.size,
-            contentType: f.contentType,
-          });
-        } catch (err) {
-          return failExecution(
-            fc,
-            'failed',
-            'SPAWNER_UNAVAILABLE',
-            `Output upload failed: ${err instanceof Error ? err.message : String(err)}`,
-            {
-              stdoutPreview: spawnerResult.stdoutBase64
-                ? Buffer.from(spawnerResult.stdoutBase64, 'base64')
-                    .toString('utf8')
-                    .slice(0, SANDBOX_STDOUT_PREVIEW_MAX)
-                : '',
-              stderrPreview: spawnerResult.stderrBase64
-                ? Buffer.from(spawnerResult.stderrBase64, 'base64')
-                    .toString('utf8')
-                    .slice(0, SANDBOX_STDERR_PREVIEW_MAX)
-                : '',
-            },
-          );
-        }
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- spawner-side validator already enforced the storageId is a non-empty string; cast to the branded id for the mutation arg
+        const storageId = f.storageId as unknown as Id<'_storage'>;
+        uploadedStorageIds.add(String(storageId));
+        stagedForInsert.push({
+          name: f.name,
+          storageId,
+          size: f.size,
+          contentType: f.contentType,
+        });
       }
 
       const insertedFiles = await ctx.runMutation(
@@ -868,6 +889,12 @@ export const executeCode = internalAction({
         actualSeconds,
         ...(spawnerResult.steps !== undefined && {
           steps: spawnerResult.steps,
+        }),
+        ...(spawnerResult.uploadStats !== undefined && {
+          uploadStats: spawnerResult.uploadStats,
+        }),
+        ...(spawnerResult.timing !== undefined && {
+          timing: spawnerResult.timing,
         }),
       });
 

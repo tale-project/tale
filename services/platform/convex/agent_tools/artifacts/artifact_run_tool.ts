@@ -263,6 +263,10 @@ artifact_run({
 | \`PACKAGE_NOT_FOUND\` | A spec doesn't resolve | \`artifact_packages_add\` with an alternate package name |
 | \`QUOTA_EXCEEDED\` | Org daily CPU cap | Don't retry — tell the user to wait |
 | \`SPAWNER_UNAVAILABLE\` | Transient infra | One \`artifact_run\` retry is fine; if it fails again, surface to user |
+| \`HARVEST_READ_FAILED\` | Sandbox couldn't read output dir | Check stderr — the script likely didn't write the expected file (typo in path, wrong cwd) |
+| \`UPLOAD_FAILED\` | Output upload to storage failed | One retry is fine — usually a transient blip on the storage path |
+| \`UPLOAD_QUOTA_EXCEEDED\` | Per-run output-file cap hit (>16 files) | Consolidate small files into a tar/zip, OR split work into multiple \`artifact_run\` calls / \`steps\` |
+| \`UPLOAD_REPORT_FAILED\` | Upload recorded with a delay | Non-fatal; check the audit row's \`uploadedStorageIds\` if files seem missing |
 
 **HARD RULE — NEVER tell the user the file is ready / generated / done unless \`success === true\` AND \`files.length > 0\`.** That is the most reported bug for this flow.
 

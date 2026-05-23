@@ -122,6 +122,66 @@ export const sandboxExecutionsTable = defineTable({
   // read cleanly through the validator after schema deploy.
   steps: v.optional(v.array(sandboxStepResultValidator)),
 
+  // -----------------------------------------------------------------
+  // Presigned-URL upload telemetry (sandbox-wobbly-origami plan §5).
+  // All optional + sparse — old audit rows read cleanly through the
+  // validator. New writes from the rewritten `internal_actions.ts`
+  // populate these fields.
+  // -----------------------------------------------------------------
+  /**
+   * Pre-allocated upload-slot URLs handed to the spawner at request time.
+   * Plain strings (URLs already contain the 1h Convex upload token), kept
+   * for forensic grep when investigating partial-upload failures.
+   */
+  outputUploadSlots: v.optional(v.array(v.string())),
+  /**
+   * Server-side per-run quota counter for incremental URL allocation.
+   * Initialized to `MAX_OUTPUT_FILES_PER_RUN - <pre-alloc N>`; decremented
+   * by `applyConsumeUrlQuota`. Reaches 0 → EP1 returns 412 and the spawner
+   * stops trying to harvest more files.
+   */
+  outputUrlQuotaRemaining: v.optional(v.number()),
+  /**
+   * Storage ids reported back by the spawner via EP2 after a successful
+   * upload. Used as the rollback set in `failExecution` — anything in this
+   * list gets `ctx.storage.delete()` if the run fails. Watchdog also reads
+   * this on stuck-row reap.
+   */
+  uploadedStorageIds: v.optional(v.array(v.id('_storage'))),
+  /**
+   * Spawner-side upload outcomes (per-file). Populated by the harvest
+   * pipeline; surfaced through the audit row so a partial-upload run is
+   * forensically debuggable without trawling SSE event logs.
+   */
+  uploadStats: v.optional(
+    v.object({
+      attempted: v.number(),
+      succeeded: v.number(),
+      failures: v.array(
+        v.object({
+          slotIndex: v.number(),
+          fileName: v.string(),
+          httpStatus: v.number(),
+          errorSnippet: v.string(),
+        }),
+      ),
+    }),
+  ),
+  /**
+   * Per-phase timing breakdown (ms) — `stageMs` covers prior-output
+   * download + file write; `executeMs` the inner docker run; `harvestMs`
+   * the post-run directory walk; `uploadMs` the bytes-out pipeline. Used
+   * to track TTL pressure against the 1h `generateUploadUrl` window.
+   */
+  timing: v.optional(
+    v.object({
+      stageMs: v.number(),
+      executeMs: v.number(),
+      harvestMs: v.number(),
+      uploadMs: v.number(),
+    }),
+  ),
+
   startedAt: v.number(),
   completedAt: v.optional(v.number()),
 
@@ -153,3 +213,19 @@ export const SANDBOX_WATCHDOG_CUTOFF_MS = SANDBOX_MAX_TIMEOUT_MS + 600_000;
 export const SANDBOX_CODE_PREVIEW_MAX = 8 * 1024;
 export const SANDBOX_STDOUT_PREVIEW_MAX = 16 * 1024;
 export const SANDBOX_STDERR_PREVIEW_MAX = 16 * 1024;
+
+/**
+ * Maximum number of output files a single sandbox execution can publish to
+ * `_storage` via the presigned-upload pipeline. Combined cap across the
+ * pre-allocated slots AND any lazy EP1 requests. Migrated from
+ * `services/sandbox/src/config.ts` to keep the policy single-source on the
+ * Convex side (the spawner is stateless w.r.t. quotas — see plan §3).
+ */
+export const SANDBOX_MAX_OUTPUT_FILES_PER_RUN = 16;
+/**
+ * Number of upload slots pre-allocated at request dispatch time. Set so
+ * the median run (1 file) and p90 run (2 files) avoid the EP1 round-trip
+ * entirely; only the long-tail "many small outputs" path pays the lazy
+ * cost. See plan decision table § "Upload slot count".
+ */
+export const SANDBOX_OUTPUT_UPLOAD_SLOTS_PREALLOC = 2;

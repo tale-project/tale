@@ -108,6 +108,29 @@ async function deleteSandboxRowStorage(
 }
 
 /**
+ * Sweep the orphan blobs reported via EP2 (`applyRecordUploaded`) when the
+ * watchdog reaps a stuck row, OR when `failExecution` rolls back a failed
+ * run. Mirrors the existing `uploadedStorageIds` rollback in the action's
+ * fail path — see plan §3.
+ */
+async function deleteReportedUploadedBlobs(
+  ctx: MutationCtx,
+  uploaded: ReadonlyArray<Id<'_storage'>> | undefined,
+): Promise<void> {
+  if (!uploaded || uploaded.length === 0) return;
+  for (const id of uploaded) {
+    try {
+      await ctx.storage.delete(id);
+    } catch (err) {
+      console.warn(
+        `[sandbox.cleanup] uploadedStorageIds delete ${id} failed:`,
+        err,
+      );
+    }
+  }
+}
+
+/**
  * Atomic concurrency-cap + daily-CPU-budget reservation.
  *
  * Convex mutations are serializable with OCC: the by_organizationId_and_status
@@ -321,6 +344,34 @@ export const finalize = internalMutation({
      * when present.
      */
     steps: v.optional(v.array(sandboxStepResultValidator)),
+    /**
+     * Presigned-URL upload telemetry from the spawner (sandbox-wobbly-
+     * origami plan §5). Optional + sparse — older spawner builds don't
+     * emit these fields; new builds populate them with per-file outcome
+     * + per-phase timing.
+     */
+    uploadStats: v.optional(
+      v.object({
+        attempted: v.number(),
+        succeeded: v.number(),
+        failures: v.array(
+          v.object({
+            slotIndex: v.number(),
+            fileName: v.string(),
+            httpStatus: v.number(),
+            errorSnippet: v.string(),
+          }),
+        ),
+      }),
+    ),
+    timing: v.optional(
+      v.object({
+        stageMs: v.number(),
+        executeMs: v.number(),
+        harvestMs: v.number(),
+        uploadMs: v.number(),
+      }),
+    ),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -361,6 +412,8 @@ export const finalize = internalMutation({
       outputFiles: args.outputFiles,
       ...(args.truncated !== undefined && { truncated: args.truncated }),
       ...(args.steps !== undefined && { steps: args.steps }),
+      ...(args.uploadStats !== undefined && { uploadStats: args.uploadStats }),
+      ...(args.timing !== undefined && { timing: args.timing }),
     });
     return null;
   },
@@ -411,6 +464,12 @@ export const recoverStuckSandboxes = internalMutation({
         // code/stdout/stderr blobs orphaned for the full 90-day audit
         // retention window (audit finding R2-B7 #2 follow-up).
         await deleteSandboxRowStorage(ctx, row);
+        // Sandbox-wobbly-origami: also reclaim any output blobs the
+        // spawner reported via EP2 (`applyRecordUploaded`) before
+        // crashing. They never made it into a `fileMetadata` row, so
+        // their ownership is purely on this audit row's
+        // `uploadedStorageIds` set.
+        await deleteReportedUploadedBlobs(ctx, row.uploadedStorageIds);
         // Cascade to the artifact row if this execution was bound to one,
         // so the canvas spinner terminates as soon as the watchdog runs
         // (otherwise the runnable card spins until the audit row TTLs out).
@@ -470,6 +529,121 @@ export const listNonTerminalByThread = internalQuery({
       out.push(entry);
     }
     return out;
+  },
+});
+
+/**
+ * Initialize the presigned-URL upload slots + quota counter on the audit
+ * row, called by the action right after `reserveSlotAndInsert` and
+ * before dispatching the request to the spawner. Idempotent: writing the
+ * same slots twice is harmless, but mid-flight slot rotation isn't
+ * supported (the spawner already holds the URLs in memory).
+ *
+ * `quotaRemaining` is the number of additional URLs EP1 can still grant
+ * after subtracting the pre-allocated slots: e.g. with
+ * SANDBOX_MAX_OUTPUT_FILES_PER_RUN=16 and 2 slots pre-allocated, we
+ * persist quotaRemaining=14.
+ */
+export const applyInitOutputSlots = internalMutation({
+  args: {
+    executionId: v.id('sandboxExecutions'),
+    slots: v.array(v.string()),
+    quotaRemaining: v.number(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.executionId);
+    if (!row) return null;
+    if (sandboxTerminalStatuses.has(row.status)) return null;
+    await ctx.db.patch(args.executionId, {
+      outputUploadSlots: args.slots,
+      outputUrlQuotaRemaining: args.quotaRemaining,
+    });
+    return null;
+  },
+});
+
+/**
+ * Server-side per-run quota counter. Spawner POSTs to EP1
+ * (`/api/sandbox/output_upload_url`) when its local slot pool runs dry;
+ * the httpAction calls this mutation to atomically decrement and reports
+ * how many URLs were granted. Returns `granted: 0` if the row is already
+ * terminal or the quota is exhausted — caller responds with 412 in that
+ * case so the spawner stops asking.
+ */
+export const applyConsumeUrlQuota = internalMutation({
+  args: {
+    executionId: v.id('sandboxExecutions'),
+    count: v.number(),
+  },
+  returns: v.object({
+    granted: v.number(),
+    remaining: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.executionId);
+    if (!row) return { granted: 0, remaining: 0 };
+    if (sandboxTerminalStatuses.has(row.status)) {
+      // Row is already terminal — refuse further uploads.
+      return { granted: 0, remaining: row.outputUrlQuotaRemaining ?? 0 };
+    }
+    const remaining = row.outputUrlQuotaRemaining ?? 0;
+    const granted = Math.max(0, Math.min(args.count, remaining));
+    if (granted === 0) {
+      return { granted: 0, remaining };
+    }
+    const nextRemaining = remaining - granted;
+    await ctx.db.patch(args.executionId, {
+      outputUrlQuotaRemaining: nextRemaining,
+    });
+    return { granted, remaining: nextRemaining };
+  },
+});
+
+/**
+ * Append a storage id to the audit row's `uploadedStorageIds` rollback
+ * set. Spawner POSTs to EP2 (`/api/sandbox/record_uploaded`) after each
+ * successful per-file upload; the httpAction calls this. Terminal-state
+ * rows are refused (the run is over, no point recording new uploads).
+ *
+ * Note: we DON'T also write an `outputFiles` entry here — those are
+ * written transactionally by `output_mutations.insertOutputFiles` when
+ * the spawner result event lands. EP2 only feeds the rollback set so
+ * a spawner crash between successful EP2 and the final SSE result
+ * doesn't orphan the blob.
+ */
+export const applyRecordUploaded = internalMutation({
+  args: {
+    executionId: v.id('sandboxExecutions'),
+    fileName: v.string(),
+    storageId: v.id('_storage'),
+    size: v.number(),
+    contentType: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.executionId);
+    if (!row) return null;
+    if (sandboxTerminalStatuses.has(row.status)) {
+      // Run is already terminal — caller is too late. Don't append to
+      // the rollback set; the final state may have already been
+      // computed and persisting more ids could trigger a stale
+      // `failExecution` to delete a blob we now expect to keep.
+      console.warn(
+        `[sandbox.applyRecordUploaded] late EP2 for terminal row ${row._id} (status=${row.status}); ignoring ${args.fileName}`,
+      );
+      return null;
+    }
+    const existing = row.uploadedStorageIds ?? [];
+    // Idempotency: dedupe in case the spawner retried EP2 after a
+    // network blip. The set is small (cap = MAX_OUTPUT_FILES_PER_RUN)
+    // so the linear scan is fine.
+    if (existing.some((id) => id === args.storageId)) return null;
+    await ctx.db.patch(args.executionId, {
+      uploadedStorageIds: [...existing, args.storageId],
+      heartbeatAt: Date.now(),
+    });
+    return null;
   },
 });
 
