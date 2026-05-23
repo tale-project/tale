@@ -3454,11 +3454,14 @@
     }
   },
   "navigation": {
-    "chatWithAI": "Chat with AI",
+    "chatWithAI": "Chat",
     "conversations": "Conversations",
     "knowledge": "Knowledge",
     "automations": "Automations",
     "settings": "Settings",
+    "userSettings": "Settings",
+    "orgSettings": "Organization settings",
+    "notifications": "Notifications",
     "organization": "Organization",
     "teams": "Teams",
     "integrations": "Integrations",

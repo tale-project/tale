@@ -21,11 +21,18 @@ import {
   UserCircle,
   UsersRound,
   Languages,
+  Building2,
+  Settings as SettingsIcon,
+  Bell,
 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import { NotificationListPanel } from '@/app/features/notifications/components/notification-list-panel';
+import { useNotificationsUnreadCount } from '@/app/features/notifications/hooks/queries';
+import { OrganizationListPanel } from '@/app/features/organization/components/organization-list-panel';
+import { useUserOrganizationsWithDetails } from '@/app/features/organization/hooks/queries';
 import { useChangelogNotification } from '@/app/hooks/use-changelog-notification';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
@@ -34,6 +41,15 @@ import { toast } from '@/app/hooks/use-toast';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
+
+// Native flag emojis for the language switcher. Keyed by the locale code that
+// `setLocale` accepts. Rendered next to the language name (which itself comes
+// from `global.languages.*`, always in the language's own name).
+const LANGUAGE_FLAGS: Record<string, string> = {
+  en: '\u{1F1FA}\u{1F1F8}', // US
+  de: '\u{1F1E9}\u{1F1EA}', // DE
+  fr: '\u{1F1EB}\u{1F1F7}', // FR
+};
 
 export interface UserButtonProps {
   align?: 'start' | 'end';
@@ -50,6 +66,7 @@ export function UserButton({
 }: UserButtonProps) {
   const { t } = useT('auth');
   const { t: tNav } = useT('navigation');
+  const { t: tGlobal } = useT('global');
   const { user, signOut, isLoading: loading } = useAuth();
   const navigate = useNavigate();
   const params = useParams({ strict: false });
@@ -60,6 +77,17 @@ export function UserButton({
   const teams = teamFilter?.teams;
   const selectedTeamId = teamFilter?.selectedTeamId ?? null;
   const setSelectedTeamId = teamFilter?.setSelectedTeamId;
+  // UserButton renders inside the dashboard layout, which always has an
+  // `organizationId` in route params — but the type from `useParams({ strict:
+  // false })` is `string | undefined`, so cast for the typed hook.
+  const { data: notificationsUnread } = useNotificationsUnreadCount(
+    organizationId ?? '',
+  );
+  const unreadCount = notificationsUnread ?? 0;
+
+  // Used to display the current org name in the dropdown trigger row.
+  const { organizations: userOrgs } = useUserOrganizationsWithDetails();
+  const currentOrg = userOrgs?.find((o) => o.id === organizationId);
 
   const {
     currentVersion,
@@ -166,50 +194,144 @@ export function UserButton({
     ]);
 
     if (!loading && user && organizationId) {
-      const settingsGroup: DropdownMenuItem[] = [];
-
-      if (teams && teams.length > 0) {
-        const selectedTeamLabel = selectedTeamId
-          ? (teams.find((team) => team.id === selectedTeamId)?.name ??
-            tNav('teamFilter.allTeams'))
-          : tNav('teamFilter.allTeams');
-
-        settingsGroup.push({
+      // Organization switcher — uses a sub-menu so the dropdown stays
+      // compact for users with many orgs. The trigger row shows the current
+      // org name; opening the sub reveals the full searchable / scrollable
+      // panel of organizations.
+      const currentOrgName = currentOrg?.name ?? tNav('orgSwitcher.label');
+      groups.push([
+        {
           type: 'sub',
-          label: tNav('teamFilter.label'),
-          icon: UsersRound,
-          trailing: selectedTeamLabel,
+          label: currentOrgName,
+          icon: Building2,
           items: [
             [
               {
-                type: 'radio-group',
-                value: selectedTeamId ?? '',
-                onValueChange: (val) => {
-                  setSelectedTeamId?.(val || null);
-                  if (organizationId) {
-                    void navigate({
-                      to: '/dashboard/$id/chat',
-                      params: { id: organizationId },
-                    });
-                  }
-                },
-                options: [
-                  { value: '', label: tNav('teamFilter.allTeams') },
-                  ...teams.map((team) => ({
-                    value: team.id,
-                    label: team.name,
-                  })),
-                ],
+                type: 'custom',
+                content: (
+                  <OrganizationListPanel
+                    currentOrganizationId={organizationId}
+                  />
+                ),
               },
             ],
           ],
           className: 'py-2.5',
-        });
+          contentClassName: 'min-w-72',
+        },
+      ]);
+
+      // Team filter — also a sub-menu so a user with many teams isn't faced
+      // with a 50-row dropdown. The trigger shows the currently selected
+      // team; the sub-menu has the full list.
+      if (teams && teams.length > 0) {
+        const selectedTeamName = selectedTeamId
+          ? (teams.find((team) => team.id === selectedTeamId)?.name ??
+            tNav('teamFilter.allTeams'))
+          : tNav('teamFilter.allTeams');
+
+        groups.push([
+          {
+            type: 'sub',
+            label: selectedTeamName,
+            icon: UsersRound,
+            items: [
+              [
+                {
+                  type: 'radio-group',
+                  value: selectedTeamId ?? '',
+                  onValueChange: (val) => {
+                    setSelectedTeamId?.(val || null);
+                    if (organizationId) {
+                      void navigate({
+                        to: '/dashboard/$id/chat',
+                        params: { id: organizationId },
+                      });
+                    }
+                  },
+                  options: [
+                    { value: '', label: tNav('teamFilter.allTeams') },
+                    ...teams.map((team) => ({
+                      value: team.id,
+                      label: team.name,
+                    })),
+                  ],
+                },
+              ],
+            ],
+            className: 'py-2.5',
+            contentClassName: 'min-w-72',
+          },
+        ]);
       }
 
-      if (settingsGroup.length > 0) {
-        groups.push(settingsGroup);
-      }
+      // Notifications — a horizontal extension of the profile panel, not a
+      // separate popover. Opening the sub-menu reveals the full notification
+      // list to the right of the dropdown (Radix sub-menus default to
+      // `side="right"`); the wider `contentClassName` keeps the list
+      // legible.
+      groups.push([
+        {
+          type: 'sub',
+          label: tNav('notifications'),
+          icon: Bell,
+          trailing:
+            unreadCount > 0 ? (
+              <span
+                aria-label={t('userButton.updateAvailable')}
+                className="bg-destructive text-destructive-foreground inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold"
+              >
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            ) : undefined,
+          items: [
+            [
+              {
+                type: 'custom',
+                content: (
+                  <NotificationListPanel
+                    organizationId={organizationId}
+                    className="h-[28rem]"
+                  />
+                ),
+              },
+            ],
+          ],
+          className: 'py-2.5',
+          contentClassName: 'w-96 max-w-[26rem] p-0',
+        },
+      ]);
+
+      // Settings entry points — split between user-scoped settings (account,
+      // personalization) and organization-scoped settings (everything else).
+      // Use `onClick` + `navigate()` instead of `href` so TanStack Router
+      // does client-side navigation; an `<a href>` would full-reload.
+      groups.push([
+        {
+          type: 'item',
+          label: tNav('userSettings'),
+          icon: SettingsIcon,
+          onClick: () => {
+            void navigate({
+              to: '/dashboard/$id/settings/account',
+              params: { id: organizationId },
+            });
+          },
+          className: 'py-2.5',
+        },
+        {
+          type: 'item',
+          label: tNav('orgSettings'),
+          icon: Building2,
+          onClick: () => {
+            void navigate({
+              to: '/dashboard/$id/settings/organization',
+              params: { id: organizationId },
+            });
+          },
+          className: 'py-2.5',
+        },
+      ]);
     }
 
     groups.push([
@@ -251,6 +373,17 @@ export function UserButton({
     const currentLocaleValue =
       localeBase === 'de' ? 'de' : localeBase === 'fr' ? 'fr' : 'en';
 
+    // Language switcher — each option's label combines its country flag and
+    // the language name as written in that language (from `global.languages`,
+    // which is locale-invariant — i.e. "English" / "Deutsch" / "Français"
+    // regardless of the active locale).
+    const renderLanguageOption = (value: 'en' | 'de' | 'fr') => (
+      <span className="flex items-center gap-2">
+        <span aria-hidden="true">{LANGUAGE_FLAGS[value]}</span>
+        <span>{tGlobal(`languages.${value}`)}</span>
+      </span>
+    );
+
     groups.push([
       {
         type: 'sub',
@@ -265,9 +398,9 @@ export function UserButton({
                 if (val) setLocale(val);
               },
               options: [
-                { value: 'en', label: t('userButton.languageEnglish') },
-                { value: 'de', label: t('userButton.languageGerman') },
-                { value: 'fr', label: t('userButton.languageFrench') },
+                { value: 'en', label: renderLanguageOption('en') },
+                { value: 'de', label: renderLanguageOption('de') },
+                { value: 'fr', label: renderLanguageOption('fr') },
               ],
             },
           ],
@@ -302,17 +435,20 @@ export function UserButton({
     memberContext,
     displayName,
     organizationId,
+    currentOrg,
     teams,
     selectedTeamId,
     theme,
     locale,
     t,
     tNav,
+    tGlobal,
     navigate,
     setTheme,
     setLocale,
     setSelectedTeamId,
     handleSignOutClick,
+    unreadCount,
     currentVersion,
     lastSeenVersion,
     markChangelogSeen,
@@ -328,9 +464,13 @@ export function UserButton({
     >
       <div className="relative">
         <UserCircle className="text-muted-foreground size-5 shrink-0" />
-        {hasUnseenVersion && (
+        {(hasUnseenVersion || unreadCount > 0) && (
           <>
-            <span className="sr-only">{t('userButton.updateAvailable')}</span>
+            <span className="sr-only">
+              {unreadCount > 0
+                ? tNav('notifications')
+                : t('userButton.updateAvailable')}
+            </span>
             <span
               className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-red-500"
               aria-hidden="true"

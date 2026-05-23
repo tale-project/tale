@@ -81,7 +81,7 @@ function BottomTabBarButton({ item }: BottomTabBarButtonProps) {
       onClick={item.onSelect}
       aria-current={item.active ? 'page' : undefined}
       className={cn(
-        'group relative flex min-h-12 flex-1 flex-col items-center justify-center gap-0.5 px-1 pt-2 pb-1.5 text-[11px] font-medium transition-colors',
+        'group relative flex min-h-12 min-w-0 flex-1 basis-0 flex-col items-center justify-center gap-0.5 px-1 pt-2 pb-1.5 text-[11px] font-medium transition-colors',
         'focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-inset focus-visible:outline-none',
         item.active
           ? item.accentColor
@@ -114,7 +114,9 @@ function BottomTabBarButton({ item }: BottomTabBarButtonProps) {
           </>
         )}
       </span>
-      <span className="truncate">{item.label}</span>
+      <span className="line-clamp-2 max-w-full text-center leading-tight text-balance wrap-break-word">
+        {item.label}
+      </span>
     </button>
   );
 }

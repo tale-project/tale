@@ -2,7 +2,7 @@
 
 import { BottomTabBar, type BottomTabBarItem } from '@tale/ui/bottom-tab-bar';
 import { useLocation, useNavigate } from '@tanstack/react-router';
-import { Bot, BrainIcon, Inbox, MessageCircle, Settings } from 'lucide-react';
+import { Bot, BrainIcon, Inbox, MessageCircle, Network } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { useBrandingContext } from '@/app/components/branding/branding-provider';
@@ -69,11 +69,12 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
         activePrefix: `/dashboard/${organizationId}/documents`,
       },
       {
-        key: 'settings',
-        label: tNav('settings'),
-        icon: Settings,
-        to: `/dashboard/${organizationId}/settings`,
-        activePrefix: `/dashboard/${organizationId}/settings`,
+        key: 'automations',
+        label: tNav('automations'),
+        icon: Network,
+        to: `/dashboard/${organizationId}/automations`,
+        activePrefix: `/dashboard/${organizationId}/automations`,
+        gate: () => ability.can('write', 'wfDefinitions'),
       },
     ],
     [ability, organizationId, tNav],

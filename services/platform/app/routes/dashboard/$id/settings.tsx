@@ -1,4 +1,4 @@
-import { createFileRoute, Outlet } from '@tanstack/react-router';
+import { createFileRoute, Outlet, useLocation } from '@tanstack/react-router';
 
 import {
   AdaptiveHeaderRoot,
@@ -19,7 +19,15 @@ export const Route = createFileRoute('/dashboard/$id/settings')({
 
 function SettingsLayout() {
   const { id: organizationId } = Route.useParams();
-  const { t } = useT('settings');
+  const { t: tNav } = useT('navigation');
+  const location = useLocation();
+  // Each scope gets its own page title so the header matches the tab strip
+  // — user settings reads "Settings", organization settings reads
+  // "Organization settings".
+  const isUserScope =
+    location.pathname.includes('/settings/account') ||
+    location.pathname.includes('/settings/personalization');
+  const headerTitle = isUserScope ? tNav('userSettings') : tNav('orgSettings');
 
   return (
     <PageLayout
@@ -27,7 +35,7 @@ function SettingsLayout() {
       header={
         <>
           <AdaptiveHeaderRoot standalone={false}>
-            <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
+            <AdaptiveHeaderTitle>{headerTitle}</AdaptiveHeaderTitle>
           </AdaptiveHeaderRoot>
           <SettingsNavigation organizationId={organizationId} />
         </>

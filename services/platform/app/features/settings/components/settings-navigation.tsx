@@ -1,5 +1,7 @@
 'use client';
 
+import { useLocation } from '@tanstack/react-router';
+
 import {
   TabNavigation,
   type TabNavigationItem,
@@ -24,14 +26,45 @@ type SettingsLabelKey =
   | 'personalization'
   | 'account';
 
+// User-scoped tabs — surfaced under "Settings" (the profile panel entry).
+const USER_KEYS: ReadonlyArray<SettingsLabelKey> = [
+  'account',
+  'personalization',
+];
+
+/**
+ * Detect whether the current settings path belongs to the user scope
+ * (account / personalization) or the organization scope (everything else).
+ */
+function isUserScope(pathname: string): boolean {
+  return (
+    pathname.includes('/settings/account') ||
+    pathname.includes('/settings/personalization')
+  );
+}
+
 export function SettingsNavigation({
   organizationId,
   showAccountTab = true,
 }: SettingsNavigationProps) {
   const { t } = useT('navigation');
   const { t: tCommon } = useT('common');
+  const location = useLocation();
+  const userScope = isUserScope(location.pathname);
 
+  // Account first within the user scope — when the user lands on user
+  // settings the most-commonly-edited section ("Account") sits at the start.
   const allItems: (TabNavigationItem & { labelKey: SettingsLabelKey })[] = [
+    {
+      labelKey: 'account',
+      label: t('account'),
+      href: `/dashboard/${organizationId}/settings/account`,
+    },
+    {
+      labelKey: 'personalization',
+      label: t('personalization'),
+      href: `/dashboard/${organizationId}/settings/personalization`,
+    },
     {
       labelKey: 'organization',
       label: t('organization'),
@@ -88,21 +121,16 @@ export function SettingsNavigation({
       href: `/dashboard/${organizationId}/settings/logs`,
       can: ['read', 'orgSettings'],
     },
-    {
-      labelKey: 'personalization',
-      label: t('personalization'),
-      href: `/dashboard/${organizationId}/settings/personalization`,
-    },
-    {
-      labelKey: 'account',
-      label: t('account'),
-      href: `/dashboard/${organizationId}/settings/account`,
-    },
   ];
 
-  const navigationItems = allItems.filter(
-    (item) => showAccountTab || item.labelKey !== 'account',
-  );
+  // Truly split the two settings surfaces: user-scoped pages only see the
+  // user tabs, organization-scoped pages only see the org tabs. Each page
+  // therefore has its own self-contained tab strip.
+  const navigationItems = allItems.filter((item) => {
+    if (!showAccountTab && item.labelKey === 'account') return false;
+    const inUserScope = USER_KEYS.includes(item.labelKey);
+    return userScope ? inUserScope : !inUserScope;
+  });
 
   return (
     <TabNavigation

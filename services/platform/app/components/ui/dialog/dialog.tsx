@@ -22,8 +22,12 @@ const dialogContentVariants = cva(
   'fixed z-50 flex flex-col border-none gap-4 ring-1 ring-border bg-card shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 motion-reduce:animate-none ' +
     // Mobile: bottom sheet
     'inset-x-0 bottom-0 top-auto left-0 right-0 w-full max-w-full max-h-[88dvh] rounded-t-2xl rounded-b-none p-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] data-[state=open]:slide-in-from-bottom-4 data-[state=closed]:slide-out-to-bottom-4 ' +
-    // md+: centered dialog
-    'md:left-1/2 md:right-auto md:top-1/2 md:bottom-auto md:inset-x-auto md:w-full md:-translate-x-1/2 md:-translate-y-1/2 md:max-h-[90dvh] md:p-6 md:pb-6 md:pt-5 md:rounded-2xl md:data-[state=open]:zoom-in-95 md:data-[state=closed]:zoom-out-95 md:data-[state=open]:slide-in-from-bottom-0 md:data-[state=closed]:slide-out-to-bottom-0',
+    // md+: centered dialog. `md:left-1/2 md:right-auto` is the correct
+    // horizontal centering pair — pairing them with `md:inset-x-auto`
+    // (which sets BOTH left+right to auto) caused the inset shorthand to
+    // overwrite the left positioning, anchoring the dialog at the viewport
+    // edge instead of the centre.
+    'md:left-1/2 md:right-auto md:top-1/2 md:bottom-auto md:w-full md:-translate-x-1/2 md:-translate-y-1/2 md:max-h-[90dvh] md:p-6 md:pb-6 md:pt-5 md:rounded-2xl md:data-[state=open]:zoom-in-95 md:data-[state=closed]:zoom-out-95 md:data-[state=open]:slide-in-from-bottom-0 md:data-[state=closed]:slide-out-to-bottom-0',
   {
     variants: {
       size: {

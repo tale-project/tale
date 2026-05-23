@@ -118,10 +118,12 @@ export function AgentSelector({ organizationId }: AgentSelectorProps) {
         trigger={
           // min-w-40 (160 px) pins the trigger so the loading→loaded swap
           // doesn't reflow for common labels. Names longer than ~160 px
-          // (rare, e.g. "Research Agent") still grow on resolve.
+          // (rare, e.g. "Research Agent") still grow on resolve. On
+          // narrow mobile viewports the pin is dropped so the composer
+          // toolbar fits without overflowing the send/mic cluster.
           <Button
             type="button"
-            className="min-w-40 gap-2"
+            className="gap-2 sm:min-w-40"
             size="icon"
             variant="ghost"
             aria-label={t('agentSelector.label')}

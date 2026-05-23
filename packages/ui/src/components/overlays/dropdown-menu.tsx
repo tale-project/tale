@@ -31,6 +31,12 @@ export interface DropdownMenuSubItem {
   className?: string;
   /** Optional trailing text shown before the chevron (e.g. current selection). */
   trailing?: ReactNode;
+  /**
+   * Extra classes applied to the sub-menu content panel. Use when the
+   * default `min-w-[8rem]` is too narrow for the embedded content (e.g.
+   * an org switcher row with name + slug + role).
+   */
+  contentClassName?: string;
 }
 
 export interface DropdownMenuRadioGroupItem {
@@ -231,7 +237,12 @@ function renderItem(item: DropdownMenuItem, key: number) {
               <path d="m9 18 6-6-6-6" />
             </svg>
           </DropdownMenuPrimitive.SubTrigger>
-          <DropdownMenuPrimitive.SubContent className="bg-muted text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-[8rem] overflow-hidden rounded-lg border p-1 shadow-lg">
+          <DropdownMenuPrimitive.SubContent
+            className={cn(
+              'bg-muted text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-[8rem] overflow-hidden rounded-lg border p-1 shadow-lg',
+              item.contentClassName,
+            )}
+          >
             {renderGroups(item.items)}
           </DropdownMenuPrimitive.SubContent>
         </DropdownMenuPrimitive.Sub>

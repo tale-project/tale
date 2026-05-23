@@ -7,7 +7,6 @@ import { Menu } from 'lucide-react';
 import { useState } from 'react';
 
 import { useBrandingContext } from '@/app/components/branding/branding-provider';
-import { OrganizationButton } from '@/app/components/organization-button';
 import { TaleLogo } from '@/app/components/ui/logo/tale-logo';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { UserButton } from '@/app/components/user-button';
@@ -162,9 +161,8 @@ export function MobileNavigation({ organizationId }: MobileNavigationProps) {
               ))}
             </NavigationMenuList>
           </div>
-          <div className="border-border flex flex-shrink-0 flex-col gap-1 border-t px-4 py-3">
+          <div className="border-border flex shrink-0 flex-col gap-1 border-t px-4 py-3">
             <UserButton label={tNav('account')} />
-            <OrganizationButton label={tNav('orgSwitcher.label')} />
           </div>
         </NavigationMenu>
       </Sheet>

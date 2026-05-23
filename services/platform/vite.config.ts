@@ -1,3 +1,5 @@
+import { resolve } from 'node:path';
+
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import viteReact from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
@@ -157,7 +159,6 @@ export default defineConfig({
         // The platform is an online-required app, so JS/CSS bundles are
         // intentionally not precached — when offline, users see the shell.
         globPatterns: [
-          '**/*.html',
           '**/*.webmanifest',
           '**/*.svg',
           '**/*.ico',
@@ -166,14 +167,39 @@ export default defineConfig({
           'assets/apple-touch-*.png',
           'assets/maskable-*.png',
         ],
+        // vite-plugin-pwa's dev mode hard-codes the precache manifest to
+        // `[{ url: navigateFallback, ... }]` and ignores any
+        // `additionalManifestEntries` passed in. So we set
+        // `navigateFallback` purely as a vehicle to enrol /offline.html
+        // into the dev precache. The empty allowlists below stop the
+        // navigation route that this option would otherwise register from
+        // ever matching — navigation requests are handled by the
+        // `runtimeCaching` entry instead, which only serves the shell on
+        // real network failure (precacheFallback below).
         navigateFallback: '/offline.html',
-        navigateFallbackDenylist: [
-          /^\/ws_api\//,
-          /^\/http_api\//,
-          /^\/api\//,
-          /^\/status$/,
+        navigateFallbackAllowlist: [],
+        // Production-mode precache (workbox-build runs the full pipeline
+        // and honours this list). Same revision can stay since the shell
+        // is a tiny static page.
+        additionalManifestEntries: [
+          { url: '/offline.html', revision: 'offline-shell-v1' },
         ],
         runtimeCaching: [
+          {
+            // Navigations always hit the network so the live app shell renders.
+            // Only when the request fails (true offline / cold launch with no
+            // connection) do we serve the precached offline shell.
+            urlPattern: ({ request, url }) =>
+              request.mode === 'navigate' &&
+              !url.pathname.startsWith('/ws_api/') &&
+              !url.pathname.startsWith('/http_api/') &&
+              !url.pathname.startsWith('/api/') &&
+              url.pathname !== '/status',
+            handler: 'NetworkOnly',
+            options: {
+              precacheFallback: { fallbackURL: '/offline.html' },
+            },
+          },
           {
             urlPattern: /\/assets\/.*\.(?:png|jpg|jpeg|svg|webp|ico)$/i,
             handler: 'CacheFirst',
@@ -239,7 +265,15 @@ export default defineConfig({
       devOptions: {
         enabled: true,
         type: 'module',
-        navigateFallback: '/offline.html',
+        // Same empty allowlist as in `workbox` above — required separately
+        // because the dev pipeline reads `devOptions.navigateFallbackAllowlist`,
+        // not the workbox one (defaults to `[/^\/$/]` otherwise).
+        navigateFallbackAllowlist: [],
+        // Store the dev-mode service worker output in `dist-pwa/` instead
+        // of the plugin's default `dev-dist/` — keeps the dev artefacts
+        // under a name that makes their purpose obvious next to the
+        // production `dist/`.
+        resolveTempFolder: () => resolve(import.meta.dirname, 'dist-pwa'),
       },
     }),
   ],

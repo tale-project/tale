@@ -741,13 +741,17 @@ export function ChatInput({
               <Text
                 as="div"
                 variant="muted"
-                className="pointer-events-none absolute top-0 left-0 flex items-center gap-1"
+                className="pointer-events-none absolute top-0 right-0 left-0 flex items-center gap-1"
               >
-                {defaultPlaceholder}
-                <div className="border-muted-foreground/30 text-muted-foreground flex size-4 items-center justify-center rounded border">
-                  <EnterKeyIcon className="size-3" />
-                </div>
-                {tDialogs('toSend')}
+                <span className="truncate">{defaultPlaceholder}</span>
+                {/* The Enter-to-send hint is irrelevant on touch keyboards
+                    and only crowds the placeholder on narrow viewports. */}
+                <span className="hidden shrink-0 items-center gap-1 sm:inline-flex">
+                  <span className="border-muted-foreground/30 text-muted-foreground flex size-4 items-center justify-center rounded border">
+                    <EnterKeyIcon className="size-3" />
+                  </span>
+                  {tDialogs('toSend')}
+                </span>
               </Text>
             )}
             {disabled && (
@@ -765,8 +769,16 @@ export function ChatInput({
             )}
           </div>
 
-          <HStack justify="between" align="center" className="flex-1 pb-3">
-            <HStack gap={0} align="center">
+          <HStack
+            justify="between"
+            align="center"
+            className="flex-1 gap-2 pb-3 sm:gap-4"
+          >
+            <HStack
+              gap={0}
+              align="center"
+              className="scrollbar-hide min-w-0 flex-1 overflow-x-auto"
+            >
               <ComposerModeMenu
                 organizationId={organizationId}
                 onAttachFile={() => fileInputRef.current?.click()}
@@ -791,7 +803,7 @@ export function ChatInput({
               )}
               <ComposerCapabilityPills organizationId={organizationId} />
             </HStack>
-            <HStack gap={1} align="center">
+            <HStack gap={1} align="center" className="shrink-0">
               <DictationButton
                 disabled={inputDisabled}
                 lang={speechLang}

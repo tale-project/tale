@@ -9,7 +9,7 @@ import { useToast } from '@/app/hooks/use-toast';
 import { cn } from '@/lib/utils/cn';
 
 const toastVariants = cva(
-  'group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-xl p-3 pr-6 shadow-lg transition-all data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-(--radix-toast-swipe-end-x) data-[swipe=move]:translate-x-(--radix-toast-swipe-move-x) data-[swipe=move]:transition-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-right-full border bg-background text-foreground',
+  'group pointer-events-auto relative flex w-full overflow-hidden rounded-xl p-3 pr-6 shadow-lg transition-all data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-(--radix-toast-swipe-end-x) data-[swipe=move]:translate-x-(--radix-toast-swipe-move-x) data-[swipe=move]:transition-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-right-full border bg-background text-foreground',
   {
     variants: {
       variant: {
@@ -65,24 +65,26 @@ export function Toaster() {
               className={cn(toastVariants({ variant }), className)}
               {...props}
             >
-              <div className="flex items-start space-x-3">
+              <div className="flex w-full min-w-0 items-start gap-3 pr-4">
                 <VariantIcon variant={variant} />
-                <div className="flex-1 pr-4">
-                  <div className="grid gap-1">
-                    {title && (
-                      <ToastPrimitives.Title className="text-sm font-semibold">
-                        {title}
-                      </ToastPrimitives.Title>
-                    )}
-                    {description && (
-                      <ToastPrimitives.Description className="text-sm whitespace-pre-line opacity-90">
-                        {description}
-                      </ToastPrimitives.Description>
-                    )}
-                  </div>
+                <div className="grid min-w-0 flex-1 gap-1">
+                  {title && (
+                    <ToastPrimitives.Title className="text-sm font-semibold">
+                      {title}
+                    </ToastPrimitives.Title>
+                  )}
+                  {description && (
+                    <ToastPrimitives.Description className="text-sm whitespace-pre-line opacity-90">
+                      {description}
+                    </ToastPrimitives.Description>
+                  )}
+                  {/* Stack the action below the text. Putting it inline used
+                      to squeeze long titles (e.g. translated update prompts)
+                      into a narrow column when the action button's label was
+                      wide. */}
+                  {action && <div className="mt-2 flex">{action}</div>}
                 </div>
               </div>
-              {action}
               <ToastPrimitives.Close
                 className="text-foreground/50 hover:text-foreground absolute top-2.5 right-2.5 rounded-md p-1 opacity-0 transition-opacity group-hover:opacity-100 group-[.destructive]:text-red-300 group-[.destructive]:hover:text-red-50 focus:opacity-100 focus:ring-2 focus:outline-none group-[.destructive]:focus:ring-red-400 group-[.destructive]:focus:ring-offset-red-600"
                 aria-label="Close"
