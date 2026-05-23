@@ -93,16 +93,21 @@ const artifactRunArgs = z
         'Wall-clock cap including package install, in milliseconds. Applies to the WHOLE run (all steps combined). Default 30000, max 300000.',
       ),
     packages: z
-      .union([
-        z.array(z.string().max(120)).max(20),
-        z.object({
-          python: z.array(z.string().max(120)).max(20).optional(),
-          node: z.array(z.string().max(120)).max(20).optional(),
-        }),
-      ])
+      .object({
+        python: z
+          .array(z.string().max(120))
+          .max(20)
+          .optional()
+          .describe('Pip specs (e.g. `markitdown[pptx]`).'),
+        node: z
+          .array(z.string().max(120))
+          .max(20)
+          .optional()
+          .describe('npm specs (e.g. `pptxgenjs`).'),
+      })
       .optional()
       .describe(
-        'One-off package list override for this run only. Pass an array (legacy single-runtime form: routed to whichever interpreter the dispatched files use) OR an object `{python?: string[], node?: string[]}` to declare per-runtime buckets explicitly (required when the run spans both Python and Node steps). Usually omitted — the artifact row already carries the `packages` you supplied at create time.',
+        'One-off package override for this run only. Per-runtime buckets `{python?, node?}` — `python` is installed via `uv pip`, `node` via `npm`. Either bucket may be omitted. Usually omitted entirely — the artifact row already carries the `packages` you supplied at create time / via `artifact_packages_add`.',
       ),
     inputs: z
       .object({
@@ -232,7 +237,7 @@ artifact_run({
 - Static artifact types (\`html\`, \`svg\`, \`mermaid\`, \`markdown\`, \`code\`) — those render in the browser, not the sandbox. The tool will refuse them with a clear error.
 - Free-form code that isn't tied to an artifact. There is no other path; everything goes through an artifact.
 
-**MIXED-LANGUAGE STEPS.** For a \`script_runnable\` artifact you can mix \`.py\` and \`.js\` files in the same project — each step's interpreter is chosen from its extension (\`.py\` → python3, \`.js\`/\`.cjs\`/\`.mjs\` → node). To install dependencies for a mixed run, persist them via \`artifact_packages_add({artifactId, packages: {python: [...], node: [...]}})\` (or pass the grouped form as the per-call \`packages\` override here). Single-language artifacts work unchanged.
+**MIXED-LANGUAGE STEPS.** For a \`script_runnable\` artifact you can mix \`.py\` and \`.js\` files in the same project — each step's interpreter is chosen from its extension (\`.py\` → python3, \`.js\`/\`.cjs\`/\`.mjs\` → node). Dependencies are always declared as a per-runtime object: \`{python?: string[], node?: string[]}\` — usually persisted via \`artifact_create\`'s \`packages\` or a later \`artifact_packages_add\`. The optional \`packages\` arg here is a one-shot override with the same shape.
 
 **SANDBOX ENVIRONMENT:**
 - Python 3.12 / Node 24 with on-demand \`pip\` / \`npm\` install per the row's \`runPackages\` (legacy) or \`runPackagesByLang\` (grouped). Mixed-language runs install both in the same container.
@@ -508,32 +513,16 @@ artifact_run({
       //   3. Drop buckets the dispatched file set won't use (keeps the
       //      install phase tight when an artifact has stale Node deps
       //      from an earlier mixed run).
-      const argPackages = args.packages;
       let pythonBucket: string[] = [];
       let nodeBucket: string[] = [];
-      // Default language for un-prefixed bare specs in a flat list. On
-      // single-runtime runs use that runtime; on mixed (polyglot) runs
-      // default to python — node specs should be explicitly tagged
-      // `node:`/`npm:` since the flat-list shape is itself a fallback.
-      const flatDefaultLang: 'python' | 'node' =
-        runtimesNeeded.has('node') && !runtimesNeeded.has('python')
-          ? 'node'
-          : 'python';
-      if (
-        argPackages !== undefined &&
-        !Array.isArray(argPackages) &&
-        typeof argPackages === 'object'
-      ) {
-        pythonBucket = argPackages.python ?? [];
-        nodeBucket = argPackages.node ?? [];
-      } else if (Array.isArray(argPackages)) {
-        // Flat override — route by `python:` / `node:` prefix when set,
-        // bare specs go to the dispatched language's bucket. This
-        // handles both clean single-language cases AND the common agent
-        // hack of tagging specs in a flat list.
-        const classified = classifyPackages(argPackages, flatDefaultLang);
-        pythonBucket = classified.python;
-        nodeBucket = classified.node;
+      if (args.packages !== undefined) {
+        // Per-call grouped override. Either bucket may be omitted; an
+        // omitted bucket means "this run doesn't need that runtime's
+        // packages" — NOT "fall back to persisted state for that
+        // bucket" (overrides are absolute by design so the LLM can
+        // declare a clean clean-room run).
+        pythonBucket = args.packages.python ?? [];
+        nodeBucket = args.packages.node ?? [];
       } else {
         // No override — fall back to persisted state.
         const stored = artifact.runPackagesByLang;
@@ -541,13 +530,21 @@ artifact_run({
           pythonBucket = stored.python ?? [];
           nodeBucket = stored.node ?? [];
         }
-        // Legacy `runPackages` (flat). May still carry prefixed specs
-        // from rows created before the grouped persistence was added —
-        // re-classify so a `python:foo` spec stored there doesn't get
-        // shipped to npm. Only fill an empty bucket (don't shadow the
-        // grouped state above).
+        // Legacy `runPackages` (flat). Pre-grouped data may still carry
+        // prefixed specs (`python:foo`) from older code paths or
+        // hand-edited rows — `classifyPackages` strips the prefix and
+        // routes correctly so a stale flat entry doesn't ship a Python
+        // spec to npm. Only fills an empty bucket; never shadows the
+        // grouped state above.
         const flat = artifact.runPackages ?? [];
         if (flat.length > 0) {
+          // Default the un-prefixed specs to whichever runtime the
+          // dispatched files need (when single). For a mixed run, the
+          // flat list is ambiguous and we default to python.
+          const flatDefaultLang: 'python' | 'node' =
+            runtimesNeeded.size === 1 && runtimesNeeded.has('node')
+              ? 'node'
+              : 'python';
           const classified = classifyPackages(flat, flatDefaultLang);
           if (pythonBucket.length === 0) pythonBucket = classified.python;
           if (nodeBucket.length === 0) nodeBucket = classified.node;

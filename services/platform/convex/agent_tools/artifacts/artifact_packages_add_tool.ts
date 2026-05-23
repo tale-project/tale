@@ -15,25 +15,29 @@ import { z } from 'zod/v4';
 import { internal } from '../../_generated/api';
 import { toId } from '../../lib/type_cast_helpers';
 import type { ToolDefinition } from '../types';
-import {
-  classifyPackages,
-  isRunnableArtifactType,
-  runnableLanguage,
-} from './shared';
+import { isRunnableArtifactType, runnableLanguage } from './shared';
 
 const artifactPackagesAddArgs = z.object({
   artifactId: z.string().min(1),
   packages: z
-    .union([
-      z.array(z.string().min(1).max(120)).min(1).max(20),
-      z.object({
-        python: z.array(z.string().min(1).max(120)).max(20).optional(),
-        node: z.array(z.string().min(1).max(120)).max(20).optional(),
-      }),
-    ])
+    .object({
+      python: z
+        .array(z.string().min(1).max(120))
+        .max(20)
+        .optional()
+        .describe('Pip specs (e.g. `markitdown[pptx]`).'),
+      node: z
+        .array(z.string().min(1).max(120))
+        .max(20)
+        .optional()
+        .describe('npm specs (e.g. `pptxgenjs`).'),
+    })
     .describe(
-      "Pip/npm specs to UNION into the artifact's persistent package state. Pass a flat array (legacy single-runtime form: routed to the artifact's existing language) OR a grouped object `{python?: string[], node?: string[]}` to declare per-runtime deps for a `script_runnable` artifact. Pinned versions strongly preferred. Installs always run with `pip --only-binary=:all:` and `npm --ignore-scripts`.",
-    ),
+      "Per-runtime dependencies to UNION into the artifact's persistent package state. `python` is installed via `uv pip`, `node` via `npm`. At least one bucket must be non-empty. Pinned versions strongly preferred. Examples: `{python: ['markitdown[pptx]']}`, `{node: ['pptxgenjs']}`, `{python: ['numpy'], node: ['lodash']}`. Installs run with `pip --only-binary=:all:` and `npm --ignore-scripts`.",
+    )
+    .refine((val) => (val.python?.length ?? 0) + (val.node?.length ?? 0) > 0, {
+      message: 'packages must include at least one python or node entry',
+    }),
 });
 
 type ArtifactPackagesAddInput = z.infer<typeof artifactPackagesAddArgs>;
@@ -61,19 +65,30 @@ type ArtifactPackagesAddResult =
 export const artifactPackagesAddTool = {
   name: 'artifact_packages_add' as const,
   tool: createTool({
-    description: `**artifact_packages_add** — declare runtime dependencies for a runnable artifact (\`script_runnable\`, or legacy \`python_runnable\` / \`node_runnable\`). Union the given names into the artifact's persistent package state so the next \`artifact_run\` auto-installs them. Pass a flat array for single-runtime artifacts; pass \`{python?, node?}\` for a \`script_runnable\` that mixes languages.
+    description: `**artifact_packages_add** — declare runtime dependencies for a runnable artifact (\`script_runnable\`, or legacy \`python_runnable\` / \`node_runnable\`). Union the per-runtime specs into the artifact's persistent package state so the next \`artifact_run\` auto-installs them.
 
 **WHEN TO CALL:** right after \`artifact_file_create\` / \`artifact_file_update\` introduces a new \`import\`/\`require\` for an external dependency, before \`artifact_run\`.
 
 **INPUTS:**
 - \`artifactId\` — required.
-- \`packages\` — required, 1–20 specs. Pinned versions strongly preferred (e.g. \`"requests==2.31.0"\` not just \`"requests"\`).
+- \`packages\` — required, **grouped object** \`{python?: string[], node?: string[]}\`. At least one bucket must contain at least one spec. \`python\` is installed via \`uv pip\`, \`node\` via \`npm\`. Pinned versions strongly preferred (e.g. \`"requests==2.31.0"\`, \`"pptxgenjs@3.12.0"\`).
 
-**IDEMPOTENT:** existing entries are never removed; specs already present are silently skipped. To start fresh, create a new artifact via \`artifact_create\` with the desired \`packages\` list.
+\`\`\`json
+// Python-only artifact:
+{ "artifactId": "...", "packages": { "python": ["markitdown[pptx]"] } }
+
+// Node-only artifact:
+{ "artifactId": "...", "packages": { "node": ["pptxgenjs"] } }
+
+// Mixed (script_runnable):
+{ "artifactId": "...", "packages": { "python": ["markitdown[pptx]"], "node": ["pptxgenjs"] } }
+\`\`\`
+
+**IDEMPOTENT:** existing entries are never removed; specs already present are silently skipped. To start fresh, create a new artifact via \`artifact_create\` with the desired \`packages\`.
 
 **REFUSED ON** non-runnable artifact types (code: \`not_runnable\`).
 
-**RESPONSE:** \`{runPackages, added, message}\`. \`added\` lists only the specs that were new.`,
+**RESPONSE:** \`{runPackages, added, runPackagesByLang?, addedByLang?, message}\`. \`added\` / \`addedByLang\` list only the specs that were new.`,
     inputSchema: artifactPackagesAddArgs,
     execute: async (
       ctx: ToolCtx,
@@ -119,53 +134,28 @@ export const artifactPackagesAddTool = {
           message: `Artifact "${artifact.title}" is of type "${artifact.type}", which does not run packages. Only script_runnable (or legacy python_runnable / node_runnable) types support runPackages.`,
         };
       }
-      // Split the input into the two shapes the mutation accepts.
-      //
-      // For grouped input: pass through verbatim — agent already
-      // declared which bucket each spec belongs to.
-      //
-      // For flat input: classify via `classifyPackages` so a `python:`
-      // / `node:` / `pip:` / `npm:` prefix routes the spec to the
-      // matching bucket (stripped); bare specs fall back to the
-      // artifact's locked runtime (for legacy `python_runnable` /
-      // `node_runnable`) or python (for `script_runnable` polyglot
-      // artifacts — the prefix convention is the only signal we have).
-      // We forward the per-language buckets via `packagesAddByLang`;
-      // `packagesAdd` (legacy flat) gets ONLY the bucket that matches
-      // the artifact's locked runtime, so single-runtime readers keep
-      // working unchanged.
+      // Grouped buckets only — Zod's `refine` upstream already ensures
+      // at least one is non-empty. Mirror the locked-runtime bucket to
+      // the legacy flat `runPackages` field so single-runtime readers
+      // (audit row preview, canvas display) keep matching. Polyglot
+      // (`script_runnable`) has no locked runtime, so the legacy mirror
+      // uses python by convention.
       const locked = runnableLanguage(artifact.type);
-      let packagesAddFlat: string[] = [];
-      let packagesAddByLang: { python?: string[]; node?: string[] } | undefined;
-      if (Array.isArray(args.packages)) {
-        const classified = classifyPackages(args.packages, locked ?? 'python');
-        if (classified.python.length > 0 || classified.node.length > 0) {
-          packagesAddByLang = {
-            ...(classified.python.length > 0 && {
-              python: classified.python,
-            }),
-            ...(classified.node.length > 0 && { node: classified.node }),
-          };
-        }
-        // Mirror the locked-runtime bucket to the legacy flat field so
-        // `runPackages` keeps matching what single-language readers
-        // expect. For polyglot rows there's no single "right" choice —
-        // python wins by convention (same as classifyPackages default).
-        packagesAddFlat =
-          locked === 'node' ? classified.node : classified.python;
-      } else {
-        packagesAddByLang = args.packages;
-        // Grouped input: mirror the runtime-matching bucket as above.
-        const py = args.packages.python ?? [];
-        const node = args.packages.node ?? [];
-        packagesAddFlat = locked === 'node' ? node : py;
-      }
+      const py = args.packages.python ?? [];
+      const node = args.packages.node ?? [];
+      const packagesAddByLang: { python?: string[]; node?: string[] } = {
+        ...(py.length > 0 && { python: py }),
+        ...(node.length > 0 && { node }),
+      };
+      const packagesAddFlat = locked === 'node' ? node : py;
       const result = await ctx.runMutation(
         internal.artifacts.internal_mutations.addArtifactPackages,
         {
           artifactId,
           packagesAdd: packagesAddFlat,
-          ...(packagesAddByLang !== undefined && { packagesAddByLang }),
+          ...(Object.keys(packagesAddByLang).length > 0 && {
+            packagesAddByLang,
+          }),
         },
       );
       const totalAdded =

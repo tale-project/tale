@@ -119,6 +119,27 @@ export function runtimesForFiles(
  *     → { python: [], node: ['lodash'] }
  */
 const PACKAGE_LANG_PREFIX_RE = /^(python|pip|node|npm):(.+)$/i;
+// Pip extras syntax: `pkg[extra]` / `pkg[a,b]`. npm package names
+// disallow `[` and `]` entirely, so a `[` anywhere in the spec is an
+// unambiguous pip signal — and saves an agent that sent a mixed flat
+// list from shipping `markitdown[pptx]` to `npm install` (which would
+// fail with EINVALIDTAGNAME).
+const PIP_EXTRAS_RE = /\[/;
+// npm scoped package: `@scope/name(@version)?`. Pip's own `@` syntax
+// for direct URLs (`pkg @ url`) requires whitespace, so a bare-leading
+// `@scope/` cannot match pip.
+const NPM_SCOPED_RE = /^@[A-Za-z0-9][^@/\s]*\//;
+
+/**
+ * Heuristic spec sniff. Returns the language the spec is unambiguously
+ * for, or `null` when the shape is generic enough to need a fallback
+ * (a bare `numpy` or `lodash` looks the same on both sides).
+ */
+function detectLangSignal(spec: string): 'python' | 'node' | null {
+  if (PIP_EXTRAS_RE.test(spec)) return 'python';
+  if (NPM_SCOPED_RE.test(spec)) return 'node';
+  return null;
+}
 
 export function classifyPackages(
   specs: readonly string[],
@@ -129,13 +150,20 @@ export function classifyPackages(
   for (const raw of specs) {
     const spec = raw.trim();
     if (spec.length === 0) continue;
-    const match = spec.match(PACKAGE_LANG_PREFIX_RE);
-    if (match) {
-      const tag = match[1]?.toLowerCase();
-      const stripped = match[2] ?? '';
+    const prefixMatch = spec.match(PACKAGE_LANG_PREFIX_RE);
+    if (prefixMatch) {
+      const tag = prefixMatch[1]?.toLowerCase();
+      const stripped = prefixMatch[2] ?? '';
       if (stripped.length === 0) continue;
       if (tag === 'python' || tag === 'pip') python.push(stripped);
       else node.push(stripped); // 'node' or 'npm'
+      continue;
+    }
+    const signal = detectLangSignal(spec);
+    if (signal === 'python') {
+      python.push(spec);
+    } else if (signal === 'node') {
+      node.push(spec);
     } else if (defaultLang === 'node') {
       node.push(spec);
     } else {

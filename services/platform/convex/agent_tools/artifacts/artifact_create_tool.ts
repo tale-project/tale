@@ -23,7 +23,7 @@ import { z } from 'zod/v4';
 
 import { internal } from '../../_generated/api';
 import type { ToolDefinition } from '../types';
-import { classifyPackages, isRunnableArtifactType } from './shared';
+import { isRunnableArtifactType } from './shared';
 
 // The LLM-facing `artifact_create` no longer exposes the legacy
 // single-runtime types. New artifacts uniformly land at
@@ -66,16 +66,21 @@ const artifactCreateArgs = z.object({
       'Optional entry-file path override. Defaults: html→index.html, script_runnable→main.py (or main.js when `language` hints node), mermaid→diagram.mmd, svg→image.svg, markdown→README.md, code→main.<ext>.',
     ),
   packages: z
-    .union([
-      z.array(z.string().max(120)).max(20),
-      z.object({
-        python: z.array(z.string().max(120)).max(20).optional(),
-        node: z.array(z.string().max(120)).max(20).optional(),
-      }),
-    ])
+    .object({
+      python: z
+        .array(z.string().max(120))
+        .max(20)
+        .optional()
+        .describe('Pip specs (e.g. `markitdown[pptx]`, `requests==2.31.0`).'),
+      node: z
+        .array(z.string().max(120))
+        .max(20)
+        .optional()
+        .describe('npm specs (e.g. `pptxgenjs`, `@anthropic/sdk@1.0.0`).'),
+    })
     .optional()
     .describe(
-      'Runnable types only. Either a flat array (treated as Python when entry is `.py`, otherwise Node) OR a grouped object `{python?: string[], node?: string[]}` to declare dependencies for both runtimes in one create call. Pinned versions strongly preferred. Installs always run with `pip --only-binary=:all:` and `npm --ignore-scripts`.',
+      'Runnable type only. Per-runtime dependencies. `python` is installed via `uv pip`, `node` via `npm`. Either bucket may be omitted. Pinned versions strongly preferred. Examples: `{python: ["markitdown[pptx]"]}` for a Python-only artifact; `{node: ["pptxgenjs"]}` for Node-only; `{python: ["markitdown[pptx]"], node: ["pptxgenjs"]}` for polyglot. Installs run with `pip --only-binary=:all:` and `npm --ignore-scripts`.',
     ),
 });
 
@@ -131,7 +136,7 @@ There is no \`append\` and no \`patch\`. Write each file in full in one call; fo
 - \`html\` — runnable HTML page.
 - \`svg\` — vector graphic.
 - \`mermaid\` — diagram source.
-- \`script_runnable\` — script source (Python and / or Node files in the same project, dispatched per-extension). Pair with \`packages\` if dependencies are needed, or call \`artifact_packages_add\` later.
+- \`script_runnable\` — script source (Python and / or Node files in the same project, dispatched per-extension). Pair with \`packages: {python?: string[], node?: string[]}\` if dependencies are needed, or call \`artifact_packages_add\` later.
 - \`markdown\` — long-form document.
 - \`code\` — syntax-highlighted snippet. Pair with \`language\` for the highlight hint.
 
@@ -237,37 +242,15 @@ Typical sequence:
         args.packages !== undefined &&
         result.isNew
       ) {
-        // Split into legacy flat + grouped persistence so callers that
-        // only read `runPackages` stay working, and the new polyglot
-        // path can install both buckets.
-        //
-        // Flat-array input is routed via `classifyPackages` so an agent
-        // that sends `["python:markitdown[pptx]", "pptxgenjs"]` (the
-        // `python:`/`node:` prefix hack some agents invent) ends up with
-        // the right specs in the right bucket — without it, the whole
-        // array would land in one bucket and `npm install` would choke
-        // on `python:markitdown[pptx]` with EUNSUPPORTEDPROTOCOL.
+        // Persist into the grouped `runPackagesByLang` field. Mirror the
+        // entry-language bucket to the legacy flat `runPackages` field
+        // so single-runtime readers (legacy callers, audit row, canvas
+        // display) keep working unchanged.
         const entryExt = result.entryFile.toLowerCase().split('.').pop();
         const isPyEntry = entryExt === 'py';
-        let flatList: string[] = [];
-        let pythonList: string[] = [];
-        let nodeList: string[] = [];
-        if (Array.isArray(args.packages)) {
-          const classified = classifyPackages(
-            args.packages,
-            isPyEntry ? 'python' : 'node',
-          );
-          pythonList = classified.python;
-          nodeList = classified.node;
-          // Mirror the entry-language bucket to the legacy flat field.
-          flatList = isPyEntry ? pythonList : nodeList;
-        } else {
-          pythonList = args.packages.python ?? [];
-          nodeList = args.packages.node ?? [];
-          // Mirror to the legacy flat field with the runtime that
-          // matches the entry — keeps single-language readers happy.
-          flatList = isPyEntry ? pythonList : nodeList;
-        }
+        const pythonList = args.packages.python ?? [];
+        const nodeList = args.packages.node ?? [];
+        const flatList = isPyEntry ? pythonList : nodeList;
         const hasGrouped = pythonList.length > 0 || nodeList.length > 0;
         if (flatList.length > 0 || hasGrouped) {
           await ctx.runMutation(
