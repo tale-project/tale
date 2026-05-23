@@ -63,16 +63,26 @@ export interface ServiceConfig {
 }
 
 export const ROTATABLE_SERVICES = ['platform', 'rag', 'crawler'] as const;
+/**
+ * Lockstep services — always re-deployed on default `tale deploy`, even
+ * though they're stateful (no blue/green rotation). Sandbox-side wire
+ * protocol versions in lockstep with platform: shipping an old sandbox
+ * image against new platform code would fail with HARVEST_FAILED on the
+ * first run. Distinct from STATEFUL_SERVICES so the policy is explicit;
+ * see deploy.ts default-services logic.
+ *
+ * Plan: sandbox-wobbly-origami §5 "Rollout".
+ */
+export const LOCKSTEP_SERVICES = ['sandbox', 'sandbox-egress'] as const;
 export const STATEFUL_SERVICES = [
   'db',
   'proxy',
   'convex',
-  // Sandbox spawner + egress proxy — singleton, no blue/green rotation
-  // (state is per-call container, not per-replica). Bundled into the
-  // stateful bucket because they live alongside db/convex/proxy in
-  // deploy.ts:auto-include-missing logic.
-  'sandbox',
-  'sandbox-egress',
+  // Lockstep entries are part of STATEFUL_SERVICES for legacy
+  // back-compat (existing isStatefulService callers depend on this).
+  // The deploy.ts default path treats LOCKSTEP_SERVICES specially —
+  // see below.
+  ...LOCKSTEP_SERVICES,
 ] as const;
 export const ALL_SERVICES = [
   ...ROTATABLE_SERVICES,
@@ -81,6 +91,7 @@ export const ALL_SERVICES = [
 
 export type RotatableService = (typeof ROTATABLE_SERVICES)[number];
 export type StatefulService = (typeof STATEFUL_SERVICES)[number];
+export type LockstepService = (typeof LOCKSTEP_SERVICES)[number];
 export type ServiceName = RotatableService | StatefulService;
 
 export function isValidService(name: string): name is ServiceName {
@@ -93,4 +104,8 @@ export function isRotatableService(name: string): name is RotatableService {
 
 export function isStatefulService(name: string): name is StatefulService {
   return (STATEFUL_SERVICES as readonly string[]).includes(name);
+}
+
+export function isLockstepService(name: string): name is LockstepService {
+  return (LOCKSTEP_SERVICES as readonly string[]).includes(name);
 }

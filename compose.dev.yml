@@ -78,6 +78,18 @@ services:
     environment:
       - CADDY_DEBUG=true
 
+  # Sandbox-wobbly-origami plan §4: when developers run Convex on the host
+  # (e.g. `cd services/platform && bun dev` instead of the dockerized
+  # `convex` service), the spawner container needs to reach
+  # http://host.docker.internal:3210 for the EP1/EP2 callbacks. Linux
+  # Docker doesn't add this DNS alias by default; the line below opts in.
+  # In that bun-dev setup, also set in `services/platform/.env.local`:
+  #   SANDBOX_STORAGE_INTERNAL_BASE_URL=http://host.docker.internal:3210
+  # The dockerized convex path uses `http://proxy` from compose.yml.
+  sandbox:
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+
   db:
     environment:
       - DB_LOG_STATEMENT=all

@@ -321,6 +321,14 @@ services:
     env_file:
       - .env
 
+    environment:
+      # Sandbox-wobbly-origami plan §1: spawner-bound storage URLs and
+      # the /api/sandbox/* callback endpoints are rewritten against this
+      # base so the spawner stays on the internal Docker network rather
+      # than round-tripping through the public hostname. `proxy` is the
+      # internal Caddy alias on the `internal` network.
+      SANDBOX_STORAGE_INTERNAL_BASE_URL: http://proxy
+
     restart: unless-stopped
 
     # Readiness: /version responds as soon as HTTP server binds, but we also

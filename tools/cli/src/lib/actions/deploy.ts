@@ -12,8 +12,10 @@ import {
   type RotatableService,
   type ServiceName,
   type StatefulService,
+  LOCKSTEP_SERVICES,
   ROTATABLE_SERVICES,
   STATEFUL_SERVICES,
+  isLockstepService,
   isRotatableService,
   isStatefulService,
 } from '../compose/types';
@@ -193,7 +195,15 @@ export async function deploy(options: DeployOptions): Promise<void> {
         rotatableToUpdate = services.filter(isRotatableService);
         statefulToUpdate = services.filter(isStatefulService);
       } else {
-        // Default: all rotatable services
+        // Default: all rotatable services PLUS lockstep services.
+        //
+        // Lockstep services (sandbox, sandbox-egress) version in step with
+        // the platform image — shipping an old sandbox against new
+        // platform code would break the SSE wire contract. Including
+        // them on every default deploy matches the build matrix's
+        // single-version policy and avoids the "platform upgraded but
+        // sandbox stayed on yesterday's image" failure mode that drove
+        // the sandbox-wobbly-origami plan §5 rollout decision.
         rotatableToUpdate = [...ROTATABLE_SERVICES];
 
         if (isFirstDeploy || updateStateful) {
@@ -204,9 +214,12 @@ export async function deploy(options: DeployOptions): Promise<void> {
             );
           }
         } else {
-          // Check if any required stateful services are not running
+          // Check if any required stateful services are not running, and
+          // ALWAYS include lockstep services so they roll forward with
+          // the platform image.
           const missingStateful: StatefulService[] = [];
           for (const service of STATEFUL_SERVICES) {
+            if (isLockstepService(service)) continue; // handled below
             const containerName = `${getProjectId()}-${service}`;
             const running = await isContainerRunning(containerName);
             if (!running) {
@@ -214,14 +227,19 @@ export async function deploy(options: DeployOptions): Promise<void> {
             }
           }
 
+          const lockstepToUpdate: StatefulService[] = [...LOCKSTEP_SERVICES];
+
           if (missingStateful.length > 0) {
             logger.notice(
               `Infrastructure services not running: ${missingStateful.join(', ')} - including automatically`,
             );
-            statefulToUpdate = missingStateful;
-          } else {
-            statefulToUpdate = [];
           }
+          if (lockstepToUpdate.length > 0) {
+            logger.info(
+              `Lockstep services: ${lockstepToUpdate.join(', ')} - included on every default deploy`,
+            );
+          }
+          statefulToUpdate = [...missingStateful, ...lockstepToUpdate];
         }
       }
 

@@ -145,8 +145,24 @@
 		reverse_proxy convex:3210
 	}
 
+	# HTTP: Sandbox callback API (/api/sandbox/* -> convex:3211)
+	# Must come BEFORE the generic /api/* block so the more specific path
+	# wins. Skips access logging by default since the path itself is HMAC-
+	# authenticated and adds nothing diagnostically. The spawner is the
+	# only legitimate caller; runtime containers cannot reach proxy.
+	handle /api/sandbox/* {
+		log_skip
+		reverse_proxy convex:3211
+	}
+
 	# HTTP: Convex storage upload/download (/api/storage/* -> convex:3210)
+	# `log_skip`: Convex's `generateUploadUrl()` embeds a 1-hour upload
+	# token in the URL's query string. Default INFO-level access logs
+	# would write that token to stdout (audit finding R2V7). The path
+	# itself is auth-bound by the token; access logging adds no security
+	# value here.
 	handle /api/storage/* {
+		log_skip
 		reverse_proxy convex:3210
 	}
 
