@@ -23,7 +23,7 @@ import { z } from 'zod/v4';
 
 import { internal } from '../../_generated/api';
 import type { ToolDefinition } from '../types';
-import { isRunnableArtifactType } from './shared';
+import { isRunnableArtifactType, refinePackagesObject } from './shared';
 
 // The LLM-facing `artifact_create` no longer exposes the legacy
 // single-runtime types. New artifacts uniformly land at
@@ -81,7 +81,10 @@ const artifactCreateArgs = z.object({
     .optional()
     .describe(
       'Runnable type only. Per-runtime dependencies. `python` is installed via `uv pip`, `node` via `npm`. Either bucket may be omitted. Pinned versions strongly preferred. Examples: `{python: ["markitdown[pptx]"]}` for a Python-only artifact; `{node: ["pptxgenjs"]}` for Node-only; `{python: ["markitdown[pptx]"], node: ["pptxgenjs"]}` for polyglot. Installs run with `pip --only-binary=:all:` and `npm --ignore-scripts`.',
-    ),
+    )
+    .superRefine((val, ctx) => {
+      refinePackagesObject(val, (issue) => ctx.addIssue(issue));
+    }),
 });
 
 type ArtifactCreateInput = z.infer<typeof artifactCreateArgs>;

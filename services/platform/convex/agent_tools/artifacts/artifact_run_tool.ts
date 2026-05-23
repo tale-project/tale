@@ -39,6 +39,7 @@ import {
   classifyPackages,
   inferStepLanguage,
   isRunnableArtifactType,
+  refinePackagesObject,
   runnableLanguage,
   validatePath,
 } from './shared';
@@ -108,7 +109,10 @@ const artifactRunArgs = z
       .optional()
       .describe(
         'One-off package override for this run only. Per-runtime buckets `{python?, node?}` — `python` is installed via `uv pip`, `node` via `npm`. Either bucket may be omitted. Usually omitted entirely — the artifact row already carries the `packages` you supplied at create time / via `artifact_packages_add`.',
-      ),
+      )
+      .superRefine((val, ctx) => {
+        refinePackagesObject(val, (issue) => ctx.addIssue(issue));
+      }),
     inputs: z
       .object({
         from_run: z

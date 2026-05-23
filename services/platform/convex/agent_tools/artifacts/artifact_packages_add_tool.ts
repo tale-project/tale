@@ -15,7 +15,11 @@ import { z } from 'zod/v4';
 import { internal } from '../../_generated/api';
 import { toId } from '../../lib/type_cast_helpers';
 import type { ToolDefinition } from '../types';
-import { isRunnableArtifactType, runnableLanguage } from './shared';
+import {
+  isRunnableArtifactType,
+  refinePackagesObject,
+  runnableLanguage,
+} from './shared';
 
 const artifactPackagesAddArgs = z.object({
   artifactId: z.string().min(1),
@@ -37,6 +41,9 @@ const artifactPackagesAddArgs = z.object({
     )
     .refine((val) => (val.python?.length ?? 0) + (val.node?.length ?? 0) > 0, {
       message: 'packages must include at least one python or node entry',
+    })
+    .superRefine((val, ctx) => {
+      refinePackagesObject(val, (issue) => ctx.addIssue(issue));
     }),
 });
 

@@ -3,8 +3,11 @@ import { describe, expect, it } from 'vitest';
 import {
   classifyPackages,
   defaultEntryFileFor,
+  detectNodeSpecError,
+  detectPythonSpecError,
   inferStepLanguage,
   isRunnableArtifactType,
+  refinePackagesObject,
   runnableLanguage,
   runtimesForFiles,
 } from './shared';
@@ -155,5 +158,97 @@ describe('defaultEntryFileFor', () => {
   it('preserves the legacy entry-file defaults', () => {
     expect(defaultEntryFileFor('python_runnable')).toBe('main.py');
     expect(defaultEntryFileFor('node_runnable')).toBe('main.js');
+  });
+});
+
+describe('detectPythonSpecError', () => {
+  it('rejects npm version pin (pkg@version)', () => {
+    expect(detectPythonSpecError('pptxgenjs@3.12.0')).toMatch(
+      /npm version pin.*packages\.node/,
+    );
+    expect(detectPythonSpecError('lodash@^4.0')).toMatch(/packages\.node/);
+  });
+
+  it('rejects npm scoped packages', () => {
+    expect(detectPythonSpecError('@anthropic/sdk')).toMatch(
+      /npm scope.*packages\.node/,
+    );
+    expect(detectPythonSpecError('@scope/pkg@1.0.0')).toMatch(/packages\.node/);
+  });
+
+  it('rejects npm range operators at start', () => {
+    expect(detectPythonSpecError('^1.0.0')).toMatch(/range operator/);
+    expect(detectPythonSpecError('~2.3')).toMatch(/range operator/);
+  });
+
+  it('passes pip-canonical specs', () => {
+    expect(detectPythonSpecError('numpy')).toBe(null);
+    expect(detectPythonSpecError('requests==2.31.0')).toBe(null);
+    expect(detectPythonSpecError('markitdown[pptx]')).toBe(null);
+    expect(detectPythonSpecError('pkg @ git+https://example.com/repo')).toBe(
+      null,
+    );
+  });
+});
+
+describe('detectNodeSpecError', () => {
+  it('rejects pip extras syntax', () => {
+    expect(detectNodeSpecError('markitdown[pptx]')).toMatch(
+      /pip extras.*packages\.python/,
+    );
+  });
+
+  it('rejects pip PEP 440 version operators', () => {
+    expect(detectNodeSpecError('requests==2.31.0')).toMatch(
+      /PEP 440.*packages\.python/,
+    );
+    expect(detectNodeSpecError('pkg~=1.0')).toMatch(/packages\.python/);
+    expect(detectNodeSpecError('pkg!=1.0')).toMatch(/packages\.python/);
+  });
+
+  it('rejects pip direct-URL form (whitespace around @)', () => {
+    expect(detectNodeSpecError('pkg @ https://example.com/pkg.tar.gz')).toMatch(
+      /direct-URL.*packages\.python/,
+    );
+  });
+
+  it('passes npm-canonical specs', () => {
+    expect(detectNodeSpecError('pptxgenjs')).toBe(null);
+    expect(detectNodeSpecError('pptxgenjs@3.12.0')).toBe(null);
+    expect(detectNodeSpecError('@anthropic/sdk')).toBe(null);
+    expect(detectNodeSpecError('lodash@^4.0.0')).toBe(null);
+  });
+});
+
+describe('refinePackagesObject', () => {
+  it('emits one issue per bad spec, scoped to its bucket index', () => {
+    const issues: Array<{
+      code: 'custom';
+      path: (string | number)[];
+      message: string;
+    }> = [];
+    refinePackagesObject(
+      {
+        python: ['numpy', 'pptxgenjs@3.12.0', '@scope/x'],
+        node: ['lodash', 'markitdown[pptx]'],
+      },
+      (issue) => issues.push(issue),
+    );
+    expect(issues).toHaveLength(3);
+    expect(issues[0]).toMatchObject({ path: ['python', 1] });
+    expect(issues[0]?.message).toMatch(/packages\.node/);
+    expect(issues[1]).toMatchObject({ path: ['python', 2] });
+    expect(issues[2]).toMatchObject({ path: ['node', 1] });
+    expect(issues[2]?.message).toMatch(/packages\.python/);
+  });
+
+  it('is a no-op when packages is undefined or all-canonical', () => {
+    const issues: unknown[] = [];
+    refinePackagesObject(undefined, () => issues.push('x'));
+    refinePackagesObject(
+      { python: ['numpy', 'requests==2.31.0'], node: ['lodash@^4.0.0'] },
+      () => issues.push('x'),
+    );
+    expect(issues).toHaveLength(0);
   });
 });

@@ -141,6 +141,112 @@ function detectLangSignal(spec: string): 'python' | 'node' | null {
   return null;
 }
 
+/**
+ * Return an error string when `spec` is unambiguously NOT a pip spec —
+ * meaning its syntax means something different in npm and would either
+ * silently mis-install OR error obscurely if forwarded to `uv pip`.
+ * Returns `null` for canonical pip specs and generic-enough names that
+ * are valid on both sides.
+ *
+ * Detects:
+ *  - npm version pin `pkg@1.2.3` (pip's direct-URL form `pkg @ url`
+ *    requires whitespace around `@`, so a bare `pkg@digit` is
+ *    unambiguous npm)
+ *  - npm scoped package `@scope/name`
+ *  - npm range operators `^1.0.0` / `~1.0` at the very start (pip uses
+ *    `==` / `~=` / no operator)
+ *
+ * Wired into the Zod `packages` refine of the three artifact tools so
+ * the LLM gets a clear "move this to packages.node instead" error at
+ * input parse time, before the sandbox round-trip.
+ */
+const NPM_VERSION_PIN_RE = /^[A-Za-z0-9._-]+@[\d^~v]/;
+const NPM_SCOPE_RE = /^@[A-Za-z0-9]/;
+const NPM_RANGE_RE = /^[\^~]\d/;
+
+export function detectPythonSpecError(spec: string): string | null {
+  const trimmed = spec.trim();
+  if (NPM_VERSION_PIN_RE.test(trimmed)) {
+    return `"${trimmed}" looks like an npm version pin (\`pkg@version\` syntax) — move it to packages.node instead. Pip uses \`pkg==version\` for pins.`;
+  }
+  if (NPM_SCOPE_RE.test(trimmed)) {
+    return `"${trimmed}" starts with an npm scope (\`@scope/...\`) — move it to packages.node instead.`;
+  }
+  if (NPM_RANGE_RE.test(trimmed)) {
+    return `"${trimmed}" looks like an npm range operator (\`^x.y.z\` / \`~x.y.z\`) — move it to packages.node instead.`;
+  }
+  return null;
+}
+
+/**
+ * Run {@link detectPythonSpecError} / {@link detectNodeSpecError}
+ * across both buckets and call `addIssue` for each bad spec. Shared by
+ * the three artifact tools that accept a `packages` object so the
+ * error messages stay identical.
+ *
+ * Generic over the Zod refinement context's `addIssue` shape (Zod v4
+ * exposes it as `RefinementCtx['addIssue']`) — typing it as a plain
+ * function lets the call sites pass `ctx` from either `.superRefine`
+ * or `.refine` without depending on Zod internals.
+ */
+type AddIssue = (issue: {
+  code: 'custom';
+  path: (string | number)[];
+  message: string;
+}) => void;
+
+export function refinePackagesObject(
+  packages: { python?: string[]; node?: string[] } | undefined,
+  addIssue: AddIssue,
+): void {
+  if (packages === undefined) return;
+  for (let i = 0; i < (packages.python ?? []).length; i += 1) {
+    const spec = packages.python?.[i];
+    if (spec === undefined) continue;
+    const err = detectPythonSpecError(spec);
+    if (err !== null) {
+      addIssue({ code: 'custom', path: ['python', i], message: err });
+    }
+  }
+  for (let i = 0; i < (packages.node ?? []).length; i += 1) {
+    const spec = packages.node?.[i];
+    if (spec === undefined) continue;
+    const err = detectNodeSpecError(spec);
+    if (err !== null) {
+      addIssue({ code: 'custom', path: ['node', i], message: err });
+    }
+  }
+}
+
+/**
+ * Mirror of {@link detectPythonSpecError} for the `packages.node`
+ * bucket: returns an error string when `spec` is unambiguously a pip
+ * spec.
+ *
+ * Detects:
+ *  - pip extras `pkg[extra]` / `pkg[a,b]` — npm package names disallow
+ *    `[` and `]`
+ *  - pip PEP 440 operators `==` / `~=` / `!=` / `===`
+ *  - pip direct-URL form `pkg @ url` (whitespace around `@`)
+ */
+const PIP_EXTRAS_BRACKET_RE = /\[/;
+const PIP_PEP440_OP_RE = /===|==|~=|!=/;
+const PIP_DIRECT_URL_RE = /\s@\s/;
+
+export function detectNodeSpecError(spec: string): string | null {
+  const trimmed = spec.trim();
+  if (PIP_EXTRAS_BRACKET_RE.test(trimmed)) {
+    return `"${trimmed}" uses pip extras syntax (\`pkg[extra]\`) — npm packages cannot contain \`[\`. Move it to packages.python instead.`;
+  }
+  if (PIP_PEP440_OP_RE.test(trimmed)) {
+    return `"${trimmed}" uses a pip PEP 440 version operator (\`==\` / \`~=\` / \`!=\`) — npm uses \`@version\` / \`^\` / \`~\`. Move it to packages.python instead, or rewrite as e.g. \`pkg@1.2.3\` if it really is an npm package.`;
+  }
+  if (PIP_DIRECT_URL_RE.test(trimmed)) {
+    return `"${trimmed}" looks like pip's direct-URL form (\`pkg @ url\` with whitespace) — move it to packages.python instead.`;
+  }
+  return null;
+}
+
 export function classifyPackages(
   specs: readonly string[],
   defaultLang: 'python' | 'node' | null,
