@@ -617,8 +617,18 @@ export const executeCode = internalAction({
         );
         const candidates = latest.files;
         const totalBytes = candidates.reduce((sum, f) => sum + f.size, 0);
+        // Diagnostic — pre-stage is a black box otherwise. The convex
+        // dev backend logs to stdout; production self-host follows the
+        // same path. Use console.info so it lands in the same channel
+        // as the run-state mutations.
+        console.info(
+          `[sandbox.preStage] artifact=${args.artifactId} source=${latest.source} candidates=${candidates.length} totalBytes=${totalBytes} fromRun=${args.inputs?.fromRun ?? 'default-latest'}`,
+        );
         if (totalBytes > MAX_PRIOR_OUTPUT_BYTES) {
           priorOutputSkippedNote = `[tale-sandbox] prior outputs ${totalBytes} bytes exceed ${MAX_PRIOR_OUTPUT_BYTES} cap; not pre-staging\n`;
+          console.warn(
+            `[sandbox.preStage] SKIP-CAP artifact=${args.artifactId} totalBytes=${totalBytes} cap=${MAX_PRIOR_OUTPUT_BYTES}`,
+          );
         } else {
           const skipped: string[] = [];
           for (const file of candidates) {
@@ -635,6 +645,14 @@ export const executeCode = internalAction({
           }
           if (skipped.length > 0) {
             priorOutputSkippedNote = `[tale-sandbox] prior-output blobs missing in storage, skipped: ${skipped.join(', ')}\n`;
+            console.warn(
+              `[sandbox.preStage] SKIP-MISSING artifact=${args.artifactId} skipped=${JSON.stringify(skipped)}`,
+            );
+          }
+          if (priorOutputFiles.length > 0) {
+            console.info(
+              `[sandbox.preStage] STAGED artifact=${args.artifactId} files=${JSON.stringify(priorOutputFiles.map((f) => f.name))}`,
+            );
           }
         }
       } catch (err) {

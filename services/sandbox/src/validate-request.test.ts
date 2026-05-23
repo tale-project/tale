@@ -337,6 +337,45 @@ describe('validateExecuteRequest', () => {
     if (!r.ok) expect(r.error).toMatch(/polyglot requires/);
   });
 
+  test('passes through priorOutputFiles when valid', () => {
+    // Regression guard: the validator's request-output allowlist used to
+    // silently drop `priorOutputFiles`, making /workspace/output/
+    // pre-staging a no-op for every follow-up artifact_run. Fix:
+    // 2026-05-23 debugging session.
+    const r = validateExecuteRequest({
+      ...good,
+      priorOutputFiles: [
+        { name: 'deck.pptx', contentBase64: 'AAAA' },
+        { name: 'nested/report.txt', contentBase64: 'BBBB' },
+      ],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.request.priorOutputFiles).toEqual([
+        { name: 'deck.pptx', contentBase64: 'AAAA' },
+        { name: 'nested/report.txt', contentBase64: 'BBBB' },
+      ]);
+    }
+  });
+
+  test('rejects non-array priorOutputFiles', () => {
+    const r = validateExecuteRequest({
+      ...good,
+      priorOutputFiles: 'oops',
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/priorOutputFiles/);
+  });
+
+  test('rejects priorOutputFiles entry with non-string fields', () => {
+    const r = validateExecuteRequest({
+      ...good,
+      priorOutputFiles: [{ name: 'x', contentBase64: 123 }],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/contentBase64/);
+  });
+
   test('rejects packagesByLang exceeding combined 20-spec cap', () => {
     const r = validateExecuteRequest({
       executionId: 'poly-4',

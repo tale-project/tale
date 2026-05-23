@@ -360,6 +360,46 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
     }
   }
 
+  // priorOutputFiles: pre-stage payload the Convex action ships when a
+  // follow-up `artifact_run` should see the previous run's
+  // /workspace/output/ contents. We don't enforce a hard size cap here
+  // (the platform action already enforces MAX_PRIOR_OUTPUT_BYTES);
+  // wire-shape validation only. Without this allowlist entry the field
+  // was silently dropped from the validated request and pre-staging was
+  // a no-op — the bug that drove the 2026-05-23 debugging session.
+  let priorOutputFiles: ExecuteRequest['priorOutputFiles'];
+  if (r.priorOutputFiles !== undefined) {
+    if (!Array.isArray(r.priorOutputFiles)) {
+      return { ok: false, error: 'priorOutputFiles must be an array' };
+    }
+    const validatedPrior: { name: string; contentBase64: string }[] = [];
+    for (let i = 0; i < r.priorOutputFiles.length; i += 1) {
+      const entry: unknown = r.priorOutputFiles[i];
+      if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
+        return {
+          ok: false,
+          error: `priorOutputFiles[${i}] must be an object`,
+        };
+      }
+      // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+      const e = entry as Record<string, unknown>;
+      if (!isString(e.name)) {
+        return {
+          ok: false,
+          error: `priorOutputFiles[${i}].name must be a string`,
+        };
+      }
+      if (!isString(e.contentBase64)) {
+        return {
+          ok: false,
+          error: `priorOutputFiles[${i}].contentBase64 must be a string`,
+        };
+      }
+      validatedPrior.push({ name: e.name, contentBase64: e.contentBase64 });
+    }
+    priorOutputFiles = validatedPrior;
+  }
+
   return {
     ok: true,
     request: {
@@ -373,6 +413,7 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
       files,
       ...(entryPath !== undefined && { entryPath }),
       ...(steps !== undefined && { steps }),
+      ...(priorOutputFiles !== undefined && { priorOutputFiles }),
     },
   };
 }

@@ -428,6 +428,7 @@ export async function stagePriorOutputFiles(
   outputDir: string,
   files: ReadonlyArray<{ name: string; contentBase64: string }>,
 ): Promise<void> {
+  const staged: string[] = [];
   for (const file of files) {
     const dest = resolve(outputDir, file.name);
     // Defense in depth — refuse anything escaping outputDir.
@@ -440,11 +441,19 @@ export async function stagePriorOutputFiles(
     try {
       await mkdir(dirname(dest), { recursive: true });
       await writeFile(dest, Buffer.from(file.contentBase64, 'base64'));
+      staged.push(file.name);
     } catch (err) {
       console.warn(
         `[sandbox] failed to pre-stage ${JSON.stringify(file.name)}: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
+  }
+  // INFO so it's visible in `docker logs tale-sandbox` without having
+  // to crank the global log level. Pre-stage is a black box otherwise.
+  if (staged.length > 0) {
+    console.info(
+      `[sandbox.stage] pre-staged ${staged.length} file(s) into ${outputDir}: ${JSON.stringify(staged)}`,
+    );
   }
 }
 

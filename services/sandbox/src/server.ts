@@ -206,6 +206,18 @@ async function handleExecute(req: Request): Promise<Response> {
   }
   const parsed = validated.request;
 
+  // Per-request INFO so docker logs tale-sandbox surfaces what's been
+  // dispatched. The spawner used to only log warn/error which made
+  // every "did the request even get here?" question require code
+  // inspection — see pre-stage debugging session 2026-05-23.
+  console.info(
+    `[sandbox.execute] id=${parsed.executionId} org=${parsed.organizationId} lang=${parsed.language} ${
+      parsed.steps !== undefined
+        ? `steps=${JSON.stringify(parsed.steps)}`
+        : `entry=${parsed.entryPath}`
+    } files=${parsed.files?.length ?? 0} prior=${parsed.priorOutputFiles?.length ?? 0}`,
+  );
+
   // Reject duplicates explicitly: the in-flight registry is keyed by
   // executionId, and overwriting the entry would silently detach the
   // original AbortController from cancelExecution. The Convex action
