@@ -240,7 +240,26 @@ export const executeCode = internalAction({
      * for the full contract. Mutually exclusive with `entryPath`.
      */
     steps: v.optional(v.array(v.string())),
+    /**
+     * Legacy single-bucket package list. For `language: 'python' | 'node'`
+     * requests, this routes to whichever installer matches. Mutually
+     * compatible with {@link packagesByLang} — when both are set, the
+     * action sends both fields verbatim and the spawner picks the right
+     * one per language.
+     */
     packages: v.optional(v.array(v.string())),
+    /**
+     * Per-language package buckets. Required for `language: 'polyglot'`
+     * (the spawner installs both buckets in one container). For single-
+     * language requests, the bucket matching `language` is used and the
+     * other is ignored.
+     */
+    packagesByLang: v.optional(
+      v.object({
+        python: v.optional(v.array(v.string())),
+        node: v.optional(v.array(v.string())),
+      }),
+    ),
     timeoutMs: v.optional(v.number()),
     // NOTE: `allowSdist` / `allowInstallScripts` are intentionally NOT
     // accepted as action args. The spawner-side install guards (`pip
@@ -369,7 +388,17 @@ export const executeCode = internalAction({
           purpose: args.purpose,
           codePreview,
           ...(codeStorageId !== undefined && { codeStorageId }),
-          packages: args.packages ?? [],
+          // Audit-row attribution: flatten polyglot buckets back into a
+          // single list so historical grep ("which runs installed
+          // markitdown?") still works regardless of which language route
+          // they took. Order: legacy `packages` first, then python bucket,
+          // then node bucket — preserves the "first spec wins" semantics
+          // that `buildInstallProgress` relies on for the install banner.
+          packages: [
+            ...(args.packages ?? []),
+            ...(args.packagesByLang?.python ?? []),
+            ...(args.packagesByLang?.node ?? []),
+          ],
           // installOptions is intentionally NOT forwarded: install-safety
           // is hardcoded server-side (round-2 R2-B4). The schema field
           // remains optional for backward compatibility with old rows.
@@ -634,6 +663,9 @@ export const executeCode = internalAction({
           ...(args.steps !== undefined &&
             args.steps.length > 0 && { steps: args.steps }),
           ...(args.packages !== undefined && { packages: args.packages }),
+          ...(args.packagesByLang !== undefined && {
+            packagesByLang: args.packagesByLang,
+          }),
           ...(priorOutputFiles.length > 0 && { priorOutputFiles }),
           timeoutMs,
           // Hardcoded sandbox-safety: pip --only-binary=:all: + npm
@@ -652,7 +684,11 @@ export const executeCode = internalAction({
                 // English literals into the artifact row anymore.
                 const runProgress =
                   phase === 'installing'
-                    ? buildInstallProgress(args.packages)
+                    ? buildInstallProgress([
+                        ...(args.packages ?? []),
+                        ...(args.packagesByLang?.python ?? []),
+                        ...(args.packagesByLang?.node ?? []),
+                      ])
                     : phase === 'running'
                       ? { kind: 'running' as const }
                       : phase === 'preparing'

@@ -951,11 +951,20 @@ function CanvasPaneComponent() {
                   artifactId={artifactId}
                   activePath={activePath}
                   source={showStreamingSource ? sourceCode : displayedContent}
-                  language={
-                    runnableLanguage(canvasType) === 'python'
-                      ? 'python'
-                      : 'node'
-                  }
+                  language={(() => {
+                    // Legacy single-runtime types pin the highlighter to
+                    // their language. `script_runnable` (polyglot) infers
+                    // per active file extension so a sidebar switch from
+                    // `main.js` to `qa.py` re-highlights correctly.
+                    const locked = runnableLanguage(canvasType);
+                    if (locked === 'python') return 'python';
+                    if (locked === 'javascript') return 'node';
+                    const ext = (activePath ?? '')
+                      .toLowerCase()
+                      .split('.')
+                      .pop();
+                    return ext === 'py' ? 'python' : 'node';
+                  })()}
                   isStreaming={isContentStreaming}
                 />
               </div>

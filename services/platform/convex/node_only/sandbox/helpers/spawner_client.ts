@@ -50,7 +50,23 @@ interface SpawnerExecuteBody {
    * contract.
    */
   steps?: string[];
+  /**
+   * Legacy single-bucket package list. Used for single-language requests
+   * (`language: 'python' | 'node'`). Polyglot requests should use
+   * {@link packagesByLang} instead so the spawner knows which install
+   * tool to run for each bucket.
+   */
   packages?: string[];
+  /**
+   * Per-runtime package buckets. Sent when `language === 'polyglot'` to
+   * route installs to `uv pip install` (python) and / or `npm install`
+   * (node) independently. Either bucket may be omitted; an empty or
+   * absent bucket means "skip that install".
+   */
+  packagesByLang?: {
+    python?: string[];
+    node?: string[];
+  };
   timeoutMs?: number;
   options?: { allowSdist?: boolean; allowInstallScripts?: boolean };
 }

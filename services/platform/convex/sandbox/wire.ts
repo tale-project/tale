@@ -189,12 +189,16 @@ export const sandboxTruncatedValidator = v.object({
   files: v.number(),
 });
 
-export const sandboxLanguageLiterals = ['python', 'node'] as const;
+export const sandboxLanguageLiterals = ['python', 'node', 'polyglot'] as const;
 export type SandboxLanguage = (typeof sandboxLanguageLiterals)[number];
 
 export const sandboxLanguageValidator = v.union(
   v.literal('python'),
   v.literal('node'),
+  // Polyglot mode: per-step interpreter is chosen by file extension
+  // (.py → python3, .js/.cjs/.mjs → node). Packages are split into
+  // python/node buckets via `packagesByLang` on the wire.
+  v.literal('polyglot'),
 );
 
 /**

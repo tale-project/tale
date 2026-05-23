@@ -23,11 +23,25 @@ import { z } from 'zod/v4';
 
 import { internal } from '../../_generated/api';
 import type { ToolDefinition } from '../types';
-import { artifactTypeEnum, isRunnableArtifactType } from './shared';
+import { classifyPackages, isRunnableArtifactType } from './shared';
+
+// The LLM-facing `artifact_create` no longer exposes the legacy
+// single-runtime types. New artifacts uniformly land at
+// `script_runnable`; the per-file runtime is then chosen by extension at
+// run time. The legacy literals stay in the schema validator so existing
+// rows continue to validate (see [feedback_deprecate_dont_delete_schema_fields]).
+const artifactCreateTypeEnum = z.enum([
+  'html',
+  'svg',
+  'markdown',
+  'mermaid',
+  'code',
+  'script_runnable',
+]);
 
 const artifactCreateArgs = z.object({
-  type: artifactTypeEnum.describe(
-    'Artifact type. `html` renders in a sandboxed iframe; `svg` inline; `markdown`/`mermaid` rendered formatted; `code` syntax-highlighted; `python_runnable`/`node_runnable` execute server-side in the sandbox.',
+  type: artifactCreateTypeEnum.describe(
+    'Artifact type. `html` renders in a sandboxed iframe; `svg` inline; `markdown`/`mermaid` rendered formatted; `code` syntax-highlighted; `script_runnable` executes server-side in the sandbox — each file runs with the interpreter implied by its extension (`.py` → python3, `.js`/`.cjs`/`.mjs` → node), so one artifact can mix Python and Node files.',
   ),
   title: z
     .string()
@@ -41,7 +55,7 @@ const artifactCreateArgs = z.object({
     .max(40)
     .optional()
     .describe(
-      'Optional language hint when type=`code` (e.g. "ts", "python"). Also determines the default entry file extension when `entryFile` is omitted.',
+      'Optional language hint. For `code` artifacts it picks the syntax-highlight hint and default extension. For `script_runnable` it nudges the default entry file: "python"/"py" → `main.py`, "javascript"/"js"/"node" → `main.js` (default: `main.py`). You can still add the other-language files via `artifact_file_create` regardless of the hint.',
     ),
   entryFile: z
     .string()
@@ -49,14 +63,19 @@ const artifactCreateArgs = z.object({
     .max(200)
     .optional()
     .describe(
-      'Optional entry-file path override. Defaults: html→index.html, python_runnable→main.py, node_runnable→main.js, mermaid→diagram.mmd, svg→image.svg, markdown→README.md, code→main.<ext>.',
+      'Optional entry-file path override. Defaults: html→index.html, script_runnable→main.py (or main.js when `language` hints node), mermaid→diagram.mmd, svg→image.svg, markdown→README.md, code→main.<ext>.',
     ),
   packages: z
-    .array(z.string().max(120))
-    .max(20)
+    .union([
+      z.array(z.string().max(120)).max(20),
+      z.object({
+        python: z.array(z.string().max(120)).max(20).optional(),
+        node: z.array(z.string().max(120)).max(20).optional(),
+      }),
+    ])
     .optional()
     .describe(
-      'Runnable types only. Pip or npm specs to install before executing. Pinned versions strongly preferred. Installs always run with `pip --only-binary=:all:` and `npm --ignore-scripts`.',
+      'Runnable types only. Either a flat array (treated as Python when entry is `.py`, otherwise Node) OR a grouped object `{python?: string[], node?: string[]}` to declare dependencies for both runtimes in one create call. Pinned versions strongly preferred. Installs always run with `pip --only-binary=:all:` and `npm --ignore-scripts`.',
     ),
 });
 
@@ -112,7 +131,7 @@ There is no \`append\` and no \`patch\`. Write each file in full in one call; fo
 - \`html\` — runnable HTML page.
 - \`svg\` — vector graphic.
 - \`mermaid\` — diagram source.
-- \`python_runnable\` / \`node_runnable\` — script source. Pair with \`packages\` if dependencies are needed, or call \`artifact_packages_add\` later.
+- \`script_runnable\` — script source (Python and / or Node files in the same project, dispatched per-extension). Pair with \`packages\` if dependencies are needed, or call \`artifact_packages_add\` later.
 - \`markdown\` — long-form document.
 - \`code\` — syntax-highlighted snippet. Pair with \`language\` for the highlight hint.
 
@@ -131,12 +150,12 @@ The preview iframe blocks ALL external resources via Content-Security-Policy. Us
 
 For fonts use system stacks; don't use web-font CDNs. The iframe is fully static — \`fetch()\` / \`XMLHttpRequest\` / \`WebSocket\` / \`EventSource\` are blocked. Sibling subresources (\`<link>\`, \`<script>\`, \`<img>\`) get inlined by the preview server. \`localStorage\` is per-iframe-load only.
 
-**RUNNABLE TYPES** (\`python_runnable\` / \`node_runnable\`):
+**RUNNABLE TYPE** (\`script_runnable\`):
 
 Use \`artifact_file_update\` (entry file) / \`artifact_file_create\` (helper files) to populate source after create. The artifact's \`packages\` (passed at create time) is persisted for runs to reuse — to add more dependencies later, call \`artifact_packages_add\`. Output files must be written to \`/workspace/output/\` to be collected.
 
 Typical sequence:
-1. \`artifact_create({type: 'python_runnable', title: '…'})\` → empty main.py at revision 1
+1. \`artifact_create({type: 'script_runnable', title: '…'})\` → empty main.py at revision 1
 2. \`artifact_file_update({artifactId, path: 'main.py', content: '<source>', expectedRevision: 1})\` to populate; \`artifact_file_create\` to add helper modules
 3. \`artifact_run({artifactId})\` to execute
 4. If failure, \`artifact_file_read\` to inspect, \`artifact_file_update\` to fix, then \`artifact_run\` again
@@ -216,16 +235,55 @@ Typical sequence:
       if (
         isRunnableArtifactType(args.type) &&
         args.packages !== undefined &&
-        args.packages.length > 0 &&
         result.isNew
       ) {
-        await ctx.runMutation(
-          internal.artifacts.internal_mutations.setArtifactRunConfig,
-          {
-            artifactId: result.artifactId,
-            runPackages: args.packages,
-          },
-        );
+        // Split into legacy flat + grouped persistence so callers that
+        // only read `runPackages` stay working, and the new polyglot
+        // path can install both buckets.
+        //
+        // Flat-array input is routed via `classifyPackages` so an agent
+        // that sends `["python:markitdown[pptx]", "pptxgenjs"]` (the
+        // `python:`/`node:` prefix hack some agents invent) ends up with
+        // the right specs in the right bucket — without it, the whole
+        // array would land in one bucket and `npm install` would choke
+        // on `python:markitdown[pptx]` with EUNSUPPORTEDPROTOCOL.
+        const entryExt = result.entryFile.toLowerCase().split('.').pop();
+        const isPyEntry = entryExt === 'py';
+        let flatList: string[] = [];
+        let pythonList: string[] = [];
+        let nodeList: string[] = [];
+        if (Array.isArray(args.packages)) {
+          const classified = classifyPackages(
+            args.packages,
+            isPyEntry ? 'python' : 'node',
+          );
+          pythonList = classified.python;
+          nodeList = classified.node;
+          // Mirror the entry-language bucket to the legacy flat field.
+          flatList = isPyEntry ? pythonList : nodeList;
+        } else {
+          pythonList = args.packages.python ?? [];
+          nodeList = args.packages.node ?? [];
+          // Mirror to the legacy flat field with the runtime that
+          // matches the entry — keeps single-language readers happy.
+          flatList = isPyEntry ? pythonList : nodeList;
+        }
+        const hasGrouped = pythonList.length > 0 || nodeList.length > 0;
+        if (flatList.length > 0 || hasGrouped) {
+          await ctx.runMutation(
+            internal.artifacts.internal_mutations.setArtifactRunConfig,
+            {
+              artifactId: result.artifactId,
+              runPackages: flatList,
+              ...(hasGrouped && {
+                runPackagesByLang: {
+                  ...(pythonList.length > 0 && { python: pythonList }),
+                  ...(nodeList.length > 0 && { node: nodeList }),
+                },
+              }),
+            },
+          );
+        }
       }
 
       const runHint = isRunnableArtifactType(args.type)

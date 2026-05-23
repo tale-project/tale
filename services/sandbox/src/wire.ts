@@ -61,7 +61,7 @@ export const sandboxSseEventLiterals = [
   'error',
 ] as const;
 
-export const sandboxLanguageLiterals = ['python', 'node'] as const;
+export const sandboxLanguageLiterals = ['python', 'node', 'polyglot'] as const;
 export type SandboxLanguage = (typeof sandboxLanguageLiterals)[number];
 
 // Stable id alphabet for executionId (Convex doc id + base32-ish dev ids).
@@ -97,6 +97,18 @@ export const MAX_FILES_BYTES = 800_000;
  * payloads. The spawner-generated wrapper script's size scales with this.
  */
 export const MAX_STEPS_PER_REQUEST = 10;
+
+/**
+ * Polyglot file-extension dispatch. The spawner's multi-step wrapper
+ * looks at each step path's extension and runs the matching interpreter
+ * — `.py` → python3, `.js`/`.cjs`/`.mjs` → node. Both runtimes already
+ * live in the runtime image (Dockerfile layers Node 24 onto
+ * python:3.12-slim), so polyglot mode is purely a wrapper / install
+ * dispatch change, not an image change. Mirrored on the platform side
+ * by `inferStepLanguage()` in agent_tools/artifacts/shared.ts.
+ */
+export const POLYGLOT_PYTHON_EXT_RE = /\.py$/i;
+export const POLYGLOT_NODE_EXT_RE = /\.(?:c?js|mjs)$/i;
 
 /**
  * Per-step outcome reported back inside `ExecuteResponse.steps[]` when

@@ -1,7 +1,8 @@
 'use client';
 
-// Canvas pane source view for `python_runnable` / `node_runnable`
-// artifacts. Used to also embed the execution panel; that responsibility
+// Canvas pane source view for `script_runnable` (and legacy
+// `python_runnable` / `node_runnable`) artifacts. Used to also embed the
+// execution panel; that responsibility
 // has moved up to `canvas-pane.tsx`'s `RunResultPanel` so the run state
 // is a project-level fixture independent of the sidebar's active file.
 // This component is now a thin source-only wrapper around

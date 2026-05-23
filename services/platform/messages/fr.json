@@ -2452,6 +2452,7 @@
         "mermaid": "Mermaid",
         "svg": "SVG",
         "markdown": "Markdown",
+        "script_runnable": "Script (sandbox)",
         "python_runnable": "Python (sandbox)",
         "node_runnable": "Node (sandbox)"
       },

@@ -69,6 +69,7 @@ export async function createArtifactHandler(
       | 'markdown'
       | 'mermaid'
       | 'code'
+      | 'script_runnable'
       | 'python_runnable'
       | 'node_runnable';
     title: string;

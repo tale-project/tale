@@ -136,6 +136,47 @@ describe('stageWorkspace', () => {
     expect(wrapper).toContain('"main.js"');
   });
 
+  test('polyglot mode writes runner.py + packages-{python,node}.json with per-bucket specs', async () => {
+    await stageIgnoringChown(
+      hostDir,
+      baseReq({
+        language: 'polyglot',
+        files: [
+          { path: 'gen.js', content: 'console.log("gen")' },
+          { path: 'qa.py', content: 'print("qa")' },
+        ],
+        entryPath: undefined,
+        steps: ['gen.js', 'qa.py'],
+        packagesByLang: {
+          python: ['markitdown[pptx]==0.0.1a3'],
+          node: ['pptxgenjs@3.12.0'],
+        },
+      }),
+    );
+
+    // Polyglot uses the Python-hosted dispatcher.
+    const wrapper = await readFile(join(hostDir, '.tale', 'runner.py'), 'utf8');
+    expect(wrapper).toContain('Tale polyglot multi-step wrapper');
+    expect(wrapper).toContain('interpreter_for');
+    expect(wrapper).toContain('"gen.js"');
+    expect(wrapper).toContain('"qa.py"');
+
+    const pyPkgs = JSON.parse(
+      await readFile(join(hostDir, 'code', 'packages-python.json'), 'utf8'),
+    );
+    expect(pyPkgs).toEqual(['markitdown[pptx]==0.0.1a3']);
+    const nodePkgs = JSON.parse(
+      await readFile(join(hostDir, 'code', 'packages-node.json'), 'utf8'),
+    );
+    expect(nodePkgs).toEqual(['pptxgenjs@3.12.0']);
+    // Legacy packages.json is empty in polyglot mode — the entrypoint
+    // reads packages-python.json / packages-node.json directly.
+    const legacy = JSON.parse(
+      await readFile(join(hostDir, 'code', 'packages.json'), 'utf8'),
+    );
+    expect(legacy).toEqual([]);
+  });
+
   test('packages.json and options.json land in /workspace/code/ alongside user files', async () => {
     await stageIgnoringChown(
       hostDir,

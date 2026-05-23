@@ -4,8 +4,11 @@
 # Per-call entrypoint inside an ephemeral sandbox container.
 #
 # Args (from spawner's docker run):
-#   $1 = language ('python' | 'node')
-#   $2 = path to packages.json (JSON array of pip/npm specs)
+#   $1 = language ('python' | 'node' | 'polyglot')
+#   $2 = path to packages.json (JSON array of pip/npm specs).
+#        Polyglot mode IGNORES this file and reads
+#        /workspace/code/packages-python.json + /workspace/code/packages-node.json
+#        instead (either may be missing or empty).
 #   $3 = path to options.json   ({ allowSdist?: bool, allowInstallScripts?: bool })
 #   $4 = entry path: either a relative POSIX path resolved under
 #        /workspace/code/, or an absolute path under /workspace/code/ or
@@ -88,7 +91,51 @@ if [ -f "$PACKAGES_FILE" ]; then
   PACKAGES_ARGV=$(jq -r '. | map(@sh) | join(" ")' "$PACKAGES_FILE" 2>/dev/null || echo "")
 fi
 
+# Polyglot extras — each bucket lives in its own file written by the
+# spawner. Either may be absent or carry an empty array, in which case
+# the matching install pass is skipped.
+PY_PACKAGES_FILE="/workspace/code/packages-python.json"
+NODE_PACKAGES_FILE="/workspace/code/packages-node.json"
+PY_PACKAGES_ARGV=""
+NODE_PACKAGES_ARGV=""
+if [ -f "$PY_PACKAGES_FILE" ]; then
+  PY_PACKAGES_ARGV=$(jq -r '. | map(@sh) | join(" ")' "$PY_PACKAGES_FILE" 2>/dev/null || echo "")
+fi
+if [ -f "$NODE_PACKAGES_FILE" ]; then
+  NODE_PACKAGES_ARGV=$(jq -r '. | map(@sh) | join(" ")' "$NODE_PACKAGES_FILE" 2>/dev/null || echo "")
+fi
+
 mkdir -p /workspace/output
+
+# Shared pip install. Used by both single-language Python runs and by the
+# polyglot bucket. Caller passes `$1`: the @sh-escaped argv string to install.
+install_python() {
+  PIP_ARGS="--target /workspace/.deps/python --no-progress"
+  if [ "$ALLOW_SDIST" != "true" ]; then
+    PIP_ARGS="$PIP_ARGS --only-binary=:all:"
+  fi
+  if [ -n "$1" ]; then
+    eval "uv pip install $PIP_ARGS $1" \
+      2> /workspace/install-stderr.log \
+      || { tail -c 64000 /workspace/install-stderr.log >&2; exit 64; }
+  fi
+}
+
+# Shared npm install. Same contract as install_python.
+install_node() {
+  NPM_ARGS="--prefix /workspace/.deps/node --no-audit --no-fund --no-progress --loglevel=error"
+  if [ "$ALLOW_INSTALL_SCRIPTS" != "true" ]; then
+    NPM_ARGS="$NPM_ARGS --ignore-scripts"
+  fi
+  if [ -n "$1" ]; then
+    mkdir -p /workspace/.deps/node
+    (cd /workspace/.deps/node && npm init -y > /dev/null 2> /workspace/install-stderr.log) \
+      || { tail -c 64000 /workspace/install-stderr.log >&2; exit 64; }
+    eval "npm install $NPM_ARGS $1" \
+      2> /workspace/install-stderr.log \
+      || { tail -c 64000 /workspace/install-stderr.log >&2; exit 64; }
+  fi
+}
 
 run_python() {
   PIP_ARGS="--target /workspace/.deps/python --no-progress"
@@ -134,9 +181,22 @@ run_node() {
   exec node "$ENTRY_FILE"
 }
 
+run_polyglot() {
+  # Polyglot mode: install both buckets when present, export both
+  # interpreter resolution paths, then exec the spawner-generated
+  # Python dispatcher (which subprocesses python3 / node per step).
+  install_python "$PY_PACKAGES_ARGV"
+  install_node "$NODE_PACKAGES_ARGV"
+  export PYTHONPATH=/workspace/.deps/python
+  export NODE_PATH=/workspace/.deps/node/node_modules
+  echo "PHASE: running"
+  exec python3 "$ENTRY_FILE"
+}
+
 case "$LANG_NAME" in
-  python) run_python ;;
-  node)   run_node ;;
+  python)   run_python ;;
+  node)     run_node ;;
+  polyglot) run_polyglot ;;
   *)
     echo "sandbox-runtime: unknown language: $LANG_NAME" >&2
     exit 65

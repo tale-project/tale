@@ -283,4 +283,76 @@ describe('validateExecuteRequest', () => {
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/exceeds .* limit/);
   });
+
+  test('accepts polyglot multi-step with mixed .py + .js extensions', () => {
+    const r = validateExecuteRequest({
+      executionId: 'poly-1',
+      organizationId: 'org_42',
+      language: 'polyglot',
+      steps: ['gen.js', 'qa.py'],
+      files: [
+        { path: 'gen.js', content: 'console.log("gen")' },
+        { path: 'qa.py', content: 'print("qa")' },
+      ],
+      packagesByLang: {
+        python: ['markitdown[pptx]==0.0.1a3'],
+        node: ['pptxgenjs@3.12.0'],
+      },
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.request.language).toBe('polyglot');
+      expect(r.request.steps).toEqual(['gen.js', 'qa.py']);
+      expect(r.request.packagesByLang).toEqual({
+        python: ['markitdown[pptx]==0.0.1a3'],
+        node: ['pptxgenjs@3.12.0'],
+      });
+    }
+  });
+
+  test('rejects polyglot with a step using an unsupported extension', () => {
+    const r = validateExecuteRequest({
+      executionId: 'poly-2',
+      organizationId: 'org_42',
+      language: 'polyglot',
+      steps: ['main.py', 'helper.rb'],
+      files: [
+        { path: 'main.py', content: 'print(1)' },
+        { path: 'helper.rb', content: 'puts 1' },
+      ],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/unsupported polyglot extension/);
+  });
+
+  test('rejects polyglot without steps (single-script mode is not allowed)', () => {
+    const r = validateExecuteRequest({
+      executionId: 'poly-3',
+      organizationId: 'org_42',
+      language: 'polyglot',
+      entryPath: 'main.py',
+      files: [{ path: 'main.py', content: 'print(1)' }],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/polyglot requires/);
+  });
+
+  test('rejects packagesByLang exceeding combined 20-spec cap', () => {
+    const r = validateExecuteRequest({
+      executionId: 'poly-4',
+      organizationId: 'org_42',
+      language: 'polyglot',
+      steps: ['gen.js', 'qa.py'],
+      files: [
+        { path: 'gen.js', content: 'console.log(1)' },
+        { path: 'qa.py', content: 'print(1)' },
+      ],
+      packagesByLang: {
+        python: Array.from({ length: 15 }, (_, i) => `pkg${i}`),
+        node: Array.from({ length: 10 }, (_, i) => `npm${i}`),
+      },
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/combined.*limit/i);
+  });
 });

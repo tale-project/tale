@@ -12,15 +12,19 @@ import type { ComponentType } from 'react';
 import type { CanvasContentType } from './canvas-context';
 
 /**
- * Type guard for the two runnable artifact types. Centralized here (over
- * inline `t === 'python_runnable' || t === 'node_runnable'`) so the
- * runnable set has one source of truth — adding `ruby_runnable` would
- * touch this guard, the language switch below, and nothing else.
+ * Type guard for runnable artifact types. Centralized here (over inline
+ * `t === 'script_runnable' || ...'`) so the runnable set has one source
+ * of truth — adding `ruby_runnable` would touch this guard, the
+ * language switch below, and nothing else.
  */
 export function isRunnableArtifactType(
   type: CanvasContentType,
-): type is 'python_runnable' | 'node_runnable' {
-  return type === 'python_runnable' || type === 'node_runnable';
+): type is 'script_runnable' | 'python_runnable' | 'node_runnable' {
+  return (
+    type === 'script_runnable' ||
+    type === 'python_runnable' ||
+    type === 'node_runnable'
+  );
 }
 
 /**
@@ -28,6 +32,10 @@ export function isRunnableArtifactType(
  * undefined for non-runnable types. Mirrors the agent-tool side helper
  * in `convex/agent_tools/artifacts/shared.ts:runnableLanguage` so the
  * client and the server agree on the python/node mapping.
+ *
+ * `script_runnable` is polyglot — the entry file extension is the
+ * authoritative source per file, so this helper returns undefined and
+ * callers should fall back to inferring from the active file path.
  */
 export function runnableLanguage(
   type: CanvasContentType,
@@ -59,6 +67,10 @@ export const CANVAS_TYPE_ICONS: Record<
   // Runnable types get terminal-flavored icons so the chat list and the
   // canvas tabs distinguish at-a-glance between static `code` snippets
   // (Code icon) and an executable sandbox artifact (Terminal icons).
+  // Polyglot `script_runnable` shares the Python icon since the entry
+  // default is `main.py`; per-file shading (.js shows the Node icon)
+  // is handled by the file-tree, not this top-level type icon.
+  script_runnable: TerminalSquare,
   python_runnable: TerminalSquare,
   node_runnable: Terminal,
 };
@@ -69,6 +81,7 @@ export const CANVAS_TYPE_LABEL_KEYS: Record<CanvasContentType, string> = {
   mermaid: 'canvas.typeLabel.mermaid',
   svg: 'canvas.typeLabel.svg',
   markdown: 'canvas.typeLabel.markdown',
+  script_runnable: 'canvas.typeLabel.script_runnable',
   python_runnable: 'canvas.typeLabel.python_runnable',
   node_runnable: 'canvas.typeLabel.node_runnable',
 };
@@ -84,6 +97,9 @@ export const CANVAS_TYPE_EXTENSIONS: Record<CanvasContentType, string> = {
   mermaid: 'mmd',
   svg: 'svg',
   markdown: 'md',
+  // `script_runnable` defaults to .py — callers should prefer the active
+  // file's actual extension via the per-file API when available.
+  script_runnable: 'py',
   python_runnable: 'py',
   node_runnable: 'js',
 };
@@ -94,6 +110,7 @@ export const CANVAS_TYPE_MIME_TYPES: Record<CanvasContentType, string> = {
   mermaid: 'text/plain',
   svg: 'image/svg+xml',
   markdown: 'text/markdown',
+  script_runnable: 'text/x-python',
   python_runnable: 'text/x-python',
   node_runnable: 'application/javascript',
 };

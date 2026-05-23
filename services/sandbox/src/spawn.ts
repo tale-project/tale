@@ -164,10 +164,103 @@ async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
  * has zero external configuration.
  */
 function buildMultiStepWrapper(
-  language: 'python' | 'node',
+  language: 'python' | 'node' | 'polyglot',
   steps: readonly string[],
 ): string {
   const stepsJson = JSON.stringify(steps);
+  if (language === 'polyglot') {
+    // Polyglot mode: per-step interpreter selected by file extension at
+    // runtime. Wrapper is Python (always present — image's base layer)
+    // and shells out via subprocess to either `python3` or `node`. The
+    // `results.json` shape is identical to the single-language wrappers
+    // so the spawner's `readStepResults` consumer is unchanged.
+    return `# Tale polyglot multi-step wrapper — generated, do not edit.
+import json
+import os
+import subprocess
+import sys
+import time
+
+STEPS = ${stepsJson}
+RESULTS_DIR = "/workspace/output/${STEPS_INTERNAL_DIR}"
+RESULTS_PATH = os.path.join(RESULTS_DIR, "${STEPS_RESULTS_FILENAME}")
+
+os.makedirs(RESULTS_DIR, exist_ok=True)
+results = []
+
+def interpreter_for(path):
+    lower = path.lower()
+    if lower.endswith(".py"):
+        return "python3"
+    if lower.endswith(".js") or lower.endswith(".cjs") or lower.endswith(".mjs"):
+        return "node"
+    return None
+
+def flush_results():
+    try:
+        with open(RESULTS_PATH, "w") as fh:
+            json.dump(results, fh)
+    except Exception as exc:
+        sys.stderr.write(f"[tale-runner] failed to persist step results: {exc}\\n")
+
+failed_idx = None
+for i, path in enumerate(STEPS):
+    interp = interpreter_for(path)
+    banner = f"====== STEP {i + 1}/{len(STEPS)}: {path} ({interp or '?'}) ======"
+    sys.stdout.write(banner + "\\n")
+    sys.stdout.flush()
+    started = time.time()
+    if interp is None:
+        sys.stderr.write(f"[tale-runner] step {path} has no known interpreter\\n")
+        exit_code = 65
+    else:
+        try:
+            completed = subprocess.run(
+                [interp, path],
+                cwd="/workspace/code",
+            )
+            exit_code = completed.returncode
+        except FileNotFoundError as exc:
+            sys.stderr.write(f"[tale-runner] step {path} not found: {exc}\\n")
+            exit_code = 127
+        except Exception as exc:
+            sys.stderr.write(f"[tale-runner] step {path} crashed: {exc}\\n")
+            exit_code = 1
+    duration_ms = int((time.time() - started) * 1000)
+    status = "completed" if exit_code == 0 else "failed"
+    results.append(
+        {
+            "path": path,
+            "exitCode": exit_code,
+            "durationMs": duration_ms,
+            "status": status,
+        }
+    )
+    sys.stdout.write(
+        f"====== STEP {i + 1}/{len(STEPS)} END (exit {exit_code}, {duration_ms}ms) ======\\n"
+    )
+    sys.stdout.flush()
+    flush_results()
+    if exit_code != 0:
+        failed_idx = i
+        break
+
+if failed_idx is not None:
+    for j in range(failed_idx + 1, len(STEPS)):
+        results.append(
+            {
+                "path": STEPS[j],
+                "exitCode": None,
+                "durationMs": 0,
+                "status": "skipped",
+            }
+        )
+    flush_results()
+    sys.exit(results[failed_idx]["exitCode"] or 1)
+
+sys.exit(0)
+`;
+  }
   if (language === 'python') {
     return `# Tale multi-step wrapper — generated, do not edit.
 import json
@@ -397,17 +490,51 @@ export async function stageWorkspace(
   if (req.steps !== undefined) {
     const taleDir = join(hostDir, '.tale');
     await mkdir(taleDir, { recursive: true });
-    const wrapperName = req.language === 'python' ? 'runner.py' : 'runner.js';
+    // Wrapper filename: legacy single-language wrappers keep their
+    // language-tagged names (runner.py / runner.js) so any operator
+    // grep'ing through /workspace/.tale/ still sees what to expect.
+    // Polyglot mode emits a Python-hosted dispatcher (the image base
+    // layer always has python3 available).
+    const wrapperName =
+      req.language === 'python' || req.language === 'polyglot'
+        ? 'runner.py'
+        : 'runner.js';
     await writeFile(
       join(taleDir, wrapperName),
       buildMultiStepWrapper(req.language, req.steps),
     );
   }
 
-  await writeFile(
-    join(codeDir, 'packages.json'),
-    JSON.stringify(req.packages ?? []),
-  );
+  // Polyglot mode: stage per-language buckets in separate files so the
+  // entrypoint can decide whether to run pip and/or npm independently.
+  // Single-language modes keep the legacy single-file shape so existing
+  // tests and any old client still work unchanged.
+  if (req.language === 'polyglot') {
+    const byLang = req.packagesByLang ?? {};
+    await writeFile(
+      join(codeDir, 'packages-python.json'),
+      JSON.stringify(byLang.python ?? []),
+    );
+    await writeFile(
+      join(codeDir, 'packages-node.json'),
+      JSON.stringify(byLang.node ?? []),
+    );
+    // Legacy packages.json is left empty so a malformed `cat` from a
+    // future debug script doesn't print stale data.
+    await writeFile(join(codeDir, 'packages.json'), '[]');
+  } else {
+    // For single-runtime requests prefer `packages[]`. If a caller sent
+    // `packagesByLang` here too, extract just the matching bucket so the
+    // wire is forgiving.
+    const single =
+      req.packages !== undefined
+        ? req.packages
+        : (req.packagesByLang?.[req.language] ?? []);
+    await writeFile(
+      join(codeDir, 'packages.json'),
+      JSON.stringify(single ?? []),
+    );
+  }
   await writeFile(
     join(codeDir, 'options.json'),
     JSON.stringify(req.options ?? {}),
@@ -649,7 +776,11 @@ export async function executeRequest(
   if (!ORG_ID_ALPHABET_RE.test(req.organizationId)) {
     return makeError('SPAWNER_UNAVAILABLE', 'invalid organizationId', 0);
   }
-  if (req.language !== 'python' && req.language !== 'node') {
+  if (
+    req.language !== 'python' &&
+    req.language !== 'node' &&
+    req.language !== 'polyglot'
+  ) {
     return makeError('SPAWNER_UNAVAILABLE', 'invalid language', 0);
   }
 
@@ -684,12 +815,19 @@ export async function executeRequest(
 
     // Resolve the path the runtime entrypoint will exec().
     //   - steps[] → the spawner-generated wrapper under /workspace/.tale/
+    //     (polyglot also routes through runner.py — Python is the image's
+    //     base layer and always available as the dispatcher host).
     //   - single-script → the user file at its declared relative path
     // The validator guarantees `entryPath` is defined whenever `steps` is
-    // not. The entrypoint reattaches /workspace/code/ for relative paths.
+    // not (and that polyglot always uses steps mode). The entrypoint
+    // reattaches /workspace/code/ for relative paths.
     const entryPath =
       req.steps !== undefined
-        ? `/workspace/.tale/${req.language === 'python' ? 'runner.py' : 'runner.js'}`
+        ? `/workspace/.tale/${
+            req.language === 'python' || req.language === 'polyglot'
+              ? 'runner.py'
+              : 'runner.js'
+          }`
         : // oxlint-disable-next-line typescript/no-non-null-assertion -- validator enforces mutex (entryPath xor steps)
           req.entryPath!;
 

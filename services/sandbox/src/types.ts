@@ -76,7 +76,24 @@ export interface ExecuteRequest {
     name: string;
     contentBase64: string;
   }>;
+  /**
+   * Legacy single-bucket package list. Sent for `python` / `node`
+   * single-runtime requests and routed to either `uv pip install` or
+   * `npm install` based on `language`. Polyglot requests should use
+   * {@link packagesByLang} instead.
+   */
   packages?: string[];
+  /**
+   * Per-runtime package buckets. When `language === 'polyglot'` the
+   * entrypoint runs `uv pip install` for `python` and `npm install` for
+   * `node` (skipping whichever bucket is absent / empty). Also accepted
+   * for `python` / `node` single-runtime requests; the matching bucket
+   * is used and the other is ignored.
+   */
+  packagesByLang?: {
+    python?: string[];
+    node?: string[];
+  };
   timeoutMs?: number;
   options?: {
     allowSdist?: boolean;

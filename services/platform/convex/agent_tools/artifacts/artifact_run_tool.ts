@@ -1,13 +1,22 @@
 /**
  * Convex Tool: artifact_run
  *
- * Executes a `python_runnable` or `node_runnable` artifact in the sandbox.
- * `artifact_create` creates the (empty) artifact and persists `runPackages`
- * / `runOptions` on the row; `artifact_file_create` / `artifact_file_update` populate the
- * source files. This tool is the explicit, LLM-driven trigger to actually
- * run them. Returns the full run outcome — including `runStatus`,
+ * Executes a `script_runnable` artifact (or its legacy
+ * `python_runnable` / `node_runnable` predecessors) in the sandbox.
+ * `artifact_create` creates the (empty) artifact and persists
+ * `runPackages` / `runPackagesByLang` / `runOptions` on the row;
+ * `artifact_file_create` / `artifact_file_update` populate the source
+ * files. This tool is the explicit, LLM-driven trigger to actually run
+ * them. Returns the full run outcome — including `runStatus`,
  * `runErrorCode`, `runStderrPreview`, generated files — so the LLM can
- * react to failures by calling `artifact_file_update` then `artifact_run` again.
+ * react to failures by calling `artifact_file_update` then
+ * `artifact_run` again.
+ *
+ * Per-step runtime selection: each executed file's interpreter is
+ * inferred from extension (`.py` → python3, `.js`/`.cjs`/`.mjs` →
+ * node). When the dispatched file set spans both runtimes, the
+ * spawner is called with `language: 'polyglot'` and the entrypoint
+ * installs both pip and npm package buckets in one container.
  *
  * Splitting execution out of `artifact_create` (Refinement 4) is what
  * prevents the model from "fixing" a failure by emitting another
@@ -27,6 +36,8 @@ import type { SandboxStepResult } from '../../sandbox/wire';
 import type { ToolDefinition } from '../types';
 import {
   InvalidArtifactPathError,
+  classifyPackages,
+  inferStepLanguage,
   isRunnableArtifactType,
   runnableLanguage,
   validatePath,
@@ -44,7 +55,7 @@ const artifactRunArgs = z
     artifactId: z
       .string()
       .describe(
-        'The id of the python_runnable or node_runnable artifact to execute. Pass the artifactId returned by a prior `artifact_create` / `artifact_file_create` / `artifact_file_update` call.',
+        'The id of the script_runnable artifact (or legacy python_runnable / node_runnable) to execute. Pass the artifactId returned by a prior `artifact_create` / `artifact_file_create` / `artifact_file_update` call.',
       ),
     path: z
       .string()
@@ -82,11 +93,16 @@ const artifactRunArgs = z
         'Wall-clock cap including package install, in milliseconds. Applies to the WHOLE run (all steps combined). Default 30000, max 300000.',
       ),
     packages: z
-      .array(z.string().max(120))
-      .max(20)
+      .union([
+        z.array(z.string().max(120)).max(20),
+        z.object({
+          python: z.array(z.string().max(120)).max(20).optional(),
+          node: z.array(z.string().max(120)).max(20).optional(),
+        }),
+      ])
       .optional()
       .describe(
-        'One-off package list override for this run only. Usually omitted — the artifact row already carries the `packages` you supplied at create time.',
+        'One-off package list override for this run only. Pass an array (legacy single-runtime form: routed to whichever interpreter the dispatched files use) OR an object `{python?: string[], node?: string[]}` to declare per-runtime buckets explicitly (required when the run spans both Python and Node steps). Usually omitted — the artifact row already carries the `packages` you supplied at create time.',
       ),
     inputs: z
       .object({
@@ -182,7 +198,7 @@ interface ExecuteCodeResult {
 export const artifactRunTool = {
   name: 'artifact_run' as const,
   tool: createTool({
-    description: `**artifact_run** — execute a runnable artifact (\`python_runnable\` or \`node_runnable\`) in the sandbox and return the run outcome.
+    description: `**artifact_run** — execute a runnable artifact (\`script_runnable\`, or its legacy single-language predecessors \`python_runnable\` / \`node_runnable\`) in the sandbox and return the run outcome.
 
 USE THIS TOOL after \`artifact_create\` + \`artifact_file_update\`/\`artifact_file_create\` (to run the entry script) or after a subsequent \`artifact_file_update\` (to re-run a patched revision). The previously-configured \`runPackages\` are reused unless you override; add new dependencies via \`artifact_packages_add\`.
 
@@ -216,8 +232,10 @@ artifact_run({
 - Static artifact types (\`html\`, \`svg\`, \`mermaid\`, \`markdown\`, \`code\`) — those render in the browser, not the sandbox. The tool will refuse them with a clear error.
 - Free-form code that isn't tied to an artifact. There is no other path; everything goes through an artifact.
 
+**MIXED-LANGUAGE STEPS.** For a \`script_runnable\` artifact you can mix \`.py\` and \`.js\` files in the same project — each step's interpreter is chosen from its extension (\`.py\` → python3, \`.js\`/\`.cjs\`/\`.mjs\` → node). To install dependencies for a mixed run, persist them via \`artifact_packages_add({artifactId, packages: {python: [...], node: [...]}})\` (or pass the grouped form as the per-call \`packages\` override here). Single-language artifacts work unchanged.
+
 **SANDBOX ENVIRONMENT:**
-- Python 3.12 / Node 24 with on-demand \`pip\` / \`npm\` install per the row's \`runPackages\`.
+- Python 3.12 / Node 24 with on-demand \`pip\` / \`npm\` install per the row's \`runPackages\` (legacy) or \`runPackagesByLang\` (grouped). Mixed-language runs install both in the same container.
 - Wall-clock ≤300s (default 30s; raise via \`timeoutMs\`). Applies to the WHOLE run.
 - Memory cap 1 GB, 1 CPU.
 - Egress restricted to package registries (\`pypi.org\`, \`files.pythonhosted.org\`, \`registry.npmjs.org\`, GitHub release endpoints). Any other host returns \`EGRESS_DENIED\`.
@@ -292,16 +310,14 @@ artifact_run({
       if (!isRunnableArtifactType(artifact.type)) {
         return {
           success: false,
-          message: `Artifact ${args.artifactId} is type "${artifact.type}". artifact_run only runs python_runnable / node_runnable types. Static types (html / svg / mermaid / markdown / code) render in the browser, not in the sandbox.`,
+          message: `Artifact ${args.artifactId} is type "${artifact.type}". artifact_run only runs script_runnable (or legacy python_runnable / node_runnable) types. Static types (html / svg / mermaid / markdown / code) render in the browser, not in the sandbox.`,
         };
       }
-      const language = runnableLanguage(artifact.type);
-      if (!language) {
-        return {
-          success: false,
-          message: `Artifact ${args.artifactId} type "${artifact.type}" has no associated sandbox runtime.`,
-        };
-      }
+      // Legacy single-runtime types (`python_runnable` / `node_runnable`)
+      // pin the runtime regardless of file extensions — preserves
+      // behavior for rows created before script_runnable existed. New
+      // `script_runnable` rows infer per-step / per-target.
+      const lockedLanguage = runnableLanguage(artifact.type);
 
       // Resolve which files to execute. Two modes:
       //   - Multi-step (`args.steps`): each step path must reference an
@@ -404,6 +420,52 @@ artifact_run({
         };
       }
 
+      // Collect the per-step runtimes the dispatch resolves to. Legacy
+      // single-runtime artifacts pin every step to their type's language
+      // (e.g. a `python_runnable` runs `helpers.js` with python — the
+      // wrapper would explode, but that's the legacy contract that
+      // pre-dated mixed-extension files). `script_runnable` rows infer
+      // per file: `.py` → python, `.js`/`.cjs`/`.mjs` → node. Anything
+      // else fails fast before we hit the sandbox.
+      const dispatchedPaths =
+        dispatch.kind === 'single' ? [dispatch.targetPath] : dispatch.stepPaths;
+      const runtimesNeeded = new Set<'python' | 'node'>();
+      if (lockedLanguage !== null) {
+        runtimesNeeded.add(lockedLanguage);
+      } else {
+        for (const path of dispatchedPaths) {
+          const lang = inferStepLanguage(path);
+          if (lang === null) {
+            return {
+              success: false,
+              message: `Path "${path}" has no recognized polyglot interpreter — supported extensions are .py, .js, .cjs, .mjs. Rename the file or split the run into separate \`steps\` if you intended multiple languages.`,
+            };
+          }
+          runtimesNeeded.add(lang);
+        }
+      }
+      // Choose the wire `language` for the spawner request. A pure-
+      // Python or pure-Node file set sends the lighter single-language
+      // path so legacy spawner code (and any operator dashboards keyed
+      // off `language`) keep working. Only true mixed runs send polyglot.
+      let spawnerLanguage: 'python' | 'node' | 'polyglot';
+      if (runtimesNeeded.size === 2) {
+        spawnerLanguage = 'polyglot';
+      } else if (runtimesNeeded.has('python')) {
+        spawnerLanguage = 'python';
+      } else {
+        spawnerLanguage = 'node';
+      }
+      // Polyglot requires multi-step (the spawner validator enforces this
+      // too, but rejecting here is a better diagnostic). A single-script
+      // polyglot request would just be a single-language run.
+      if (spawnerLanguage === 'polyglot' && dispatch.kind === 'single') {
+        return {
+          success: false,
+          message: `Polyglot runs require \`steps\` mode (one entry per file in execution order). Pass \`steps: [{path: "..."}]\` instead of \`path\`.`,
+        };
+      }
+
       // Refresh the run-state row in case the user already saw a previous
       // run's status — initArtifactRun resets runStatus to 'queued', clears
       // runProgress / runErrorCode / etc. so the canvas right pane updates
@@ -435,7 +497,80 @@ artifact_run({
         throw err;
       }
 
-      const effectivePackages = args.packages ?? artifact.runPackages ?? [];
+      // Resolve effective packages for this run:
+      //   1. Pull persisted state from the artifact row (grouped form
+      //      first, fall back to legacy flat list routed to the
+      //      artifact's locked-or-inferred runtime).
+      //   2. Apply the per-call override — either flat (legacy) or
+      //      grouped — replacing the persisted state rather than
+      //      merging, so the LLM can opt to install a different set for
+      //      this one run.
+      //   3. Drop buckets the dispatched file set won't use (keeps the
+      //      install phase tight when an artifact has stale Node deps
+      //      from an earlier mixed run).
+      const argPackages = args.packages;
+      let pythonBucket: string[] = [];
+      let nodeBucket: string[] = [];
+      // Default language for un-prefixed bare specs in a flat list. On
+      // single-runtime runs use that runtime; on mixed (polyglot) runs
+      // default to python — node specs should be explicitly tagged
+      // `node:`/`npm:` since the flat-list shape is itself a fallback.
+      const flatDefaultLang: 'python' | 'node' =
+        runtimesNeeded.has('node') && !runtimesNeeded.has('python')
+          ? 'node'
+          : 'python';
+      if (
+        argPackages !== undefined &&
+        !Array.isArray(argPackages) &&
+        typeof argPackages === 'object'
+      ) {
+        pythonBucket = argPackages.python ?? [];
+        nodeBucket = argPackages.node ?? [];
+      } else if (Array.isArray(argPackages)) {
+        // Flat override — route by `python:` / `node:` prefix when set,
+        // bare specs go to the dispatched language's bucket. This
+        // handles both clean single-language cases AND the common agent
+        // hack of tagging specs in a flat list.
+        const classified = classifyPackages(argPackages, flatDefaultLang);
+        pythonBucket = classified.python;
+        nodeBucket = classified.node;
+      } else {
+        // No override — fall back to persisted state.
+        const stored = artifact.runPackagesByLang;
+        if (stored !== undefined) {
+          pythonBucket = stored.python ?? [];
+          nodeBucket = stored.node ?? [];
+        }
+        // Legacy `runPackages` (flat). May still carry prefixed specs
+        // from rows created before the grouped persistence was added —
+        // re-classify so a `python:foo` spec stored there doesn't get
+        // shipped to npm. Only fill an empty bucket (don't shadow the
+        // grouped state above).
+        const flat = artifact.runPackages ?? [];
+        if (flat.length > 0) {
+          const classified = classifyPackages(flat, flatDefaultLang);
+          if (pythonBucket.length === 0) pythonBucket = classified.python;
+          if (nodeBucket.length === 0) nodeBucket = classified.node;
+        }
+      }
+      // Drop buckets the dispatched file set doesn't need so the
+      // entrypoint skips that install pass entirely.
+      if (!runtimesNeeded.has('python')) pythonBucket = [];
+      if (!runtimesNeeded.has('node')) nodeBucket = [];
+
+      const packagesByLang: { python?: string[]; node?: string[] } = {};
+      if (pythonBucket.length > 0) packagesByLang.python = pythonBucket;
+      if (nodeBucket.length > 0) packagesByLang.node = nodeBucket;
+      const hasGrouped = Object.keys(packagesByLang).length > 0;
+      // For single-language runs keep the legacy flat `packages` field
+      // populated so audit downstreams (and any code that hasn't been
+      // taught about the grouped shape) still see the install list.
+      let legacyFlat: string[] | undefined;
+      if (spawnerLanguage === 'python') {
+        legacyFlat = pythonBucket.length > 0 ? pythonBucket : undefined;
+      } else if (spawnerLanguage === 'node') {
+        legacyFlat = nodeBucket.length > 0 ? nodeBucket : undefined;
+      }
       // `allowSdist` / `allowInstallScripts` are no longer LLM-callable; the
       // legacy persisted `artifact.runOptions` is intentionally ignored.
       // Server-side, `executeCode` always sends `false` for both flags.
@@ -470,7 +605,7 @@ artifact_run({
             ...(messageId !== undefined && { messageId }),
             ...(options.toolCallId && { toolCallId: options.toolCallId }),
             ...(agentSlug !== undefined && { agentSlug }),
-            language,
+            language: spawnerLanguage,
             // Single-script mode sends `entryPath` (the file the runtime
             // entrypoint exec()s). Multi-step mode sends `steps[]` and
             // lets the spawner generate the wrapper under /workspace/.tale/.
@@ -486,9 +621,8 @@ artifact_run({
               path: f.path,
               content: f.content,
             })),
-            ...(effectivePackages.length > 0 && {
-              packages: effectivePackages,
-            }),
+            ...(legacyFlat !== undefined && { packages: legacyFlat }),
+            ...(hasGrouped && { packagesByLang }),
             ...(args.timeoutMs !== undefined && { timeoutMs: args.timeoutMs }),
             ...(args.inputs?.from_run !== undefined && {
               inputs: { fromRun: args.inputs.from_run },

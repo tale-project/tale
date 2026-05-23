@@ -9,6 +9,7 @@ import { ConvexError, type Infer, v } from 'convex/values';
 
 import type { Id } from '../../_generated/dataModel';
 import type { MutationCtx } from '../../_generated/server';
+import { isRunnableArtifactType } from '../../agent_tools/artifacts/shared';
 import {
   SANDBOX_STDERR_PREVIEW_MAX,
   SANDBOX_STDOUT_PREVIEW_MAX,
@@ -33,6 +34,17 @@ type ArtifactRunOutputFile = Infer<typeof artifactRunOutputFileValidator>;
 export const setArtifactRunConfigArgs = {
   artifactId: v.id('artifacts'),
   runPackages: v.array(v.string()),
+  /**
+   * Optional grouped form persisted alongside the legacy flat list.
+   * Polyglot runs read from here; single-runtime runs fall back to
+   * `runPackages` when this is absent.
+   */
+  runPackagesByLang: v.optional(
+    v.object({
+      python: v.optional(v.array(v.string())),
+      node: v.optional(v.array(v.string())),
+    }),
+  ),
   runOptions: v.optional(
     v.object({
       allowSdist: v.optional(v.boolean()),
@@ -48,16 +60,18 @@ export async function setArtifactRunConfigHandler(
   args: {
     artifactId: Id<'artifacts'>;
     runPackages: string[];
+    runPackagesByLang?: { python?: string[]; node?: string[] };
     runOptions?: { allowSdist?: boolean; allowInstallScripts?: boolean };
   },
 ) {
   const row = await ctx.db.get(args.artifactId);
   if (!row) return null;
-  if (row.type !== 'python_runnable' && row.type !== 'node_runnable') {
-    return null;
-  }
+  if (!isRunnableArtifactType(row.type)) return null;
   await ctx.db.patch(args.artifactId, {
     runPackages: args.runPackages,
+    ...(args.runPackagesByLang !== undefined && {
+      runPackagesByLang: args.runPackagesByLang,
+    }),
     ...(args.runOptions !== undefined && { runOptions: args.runOptions }),
   });
   return null;
@@ -76,38 +90,125 @@ export async function setArtifactRunConfigHandler(
 
 export const addArtifactPackagesArgs = {
   artifactId: v.id('artifacts'),
+  /**
+   * Flat-list union into `runPackages`. Kept for callers that don't
+   * know which runtime their specs belong to (legacy single-runtime
+   * artifacts). Polyglot callers should use {@link packagesAddByLang}
+   * instead.
+   */
   packagesAdd: v.array(v.string()),
+  /**
+   * Grouped union into `runPackagesByLang`. Either bucket may be
+   * omitted. Both `packagesAdd` and `packagesAddByLang` can be sent in
+   * the same call — they're applied independently.
+   */
+  packagesAddByLang: v.optional(
+    v.object({
+      python: v.optional(v.array(v.string())),
+      node: v.optional(v.array(v.string())),
+    }),
+  ),
 } as const;
 
 export const addArtifactPackagesReturns = v.object({
   runPackages: v.array(v.string()),
   added: v.array(v.string()),
+  runPackagesByLang: v.optional(
+    v.object({
+      python: v.optional(v.array(v.string())),
+      node: v.optional(v.array(v.string())),
+    }),
+  ),
+  addedByLang: v.optional(
+    v.object({
+      python: v.optional(v.array(v.string())),
+      node: v.optional(v.array(v.string())),
+    }),
+  ),
 });
+
+function unionPackages(
+  existing: readonly string[],
+  incoming: readonly string[],
+): { next: string[]; added: string[] } {
+  const seen = new Set(existing);
+  const added: string[] = [];
+  for (const pkg of incoming) {
+    if (pkg.length === 0) continue;
+    if (seen.has(pkg)) continue;
+    seen.add(pkg);
+    added.push(pkg);
+  }
+  return {
+    next: added.length === 0 ? [...existing] : [...existing, ...added],
+    added,
+  };
+}
 
 export async function addArtifactPackagesHandler(
   ctx: MutationCtx,
-  args: { artifactId: Id<'artifacts'>; packagesAdd: string[] },
+  args: {
+    artifactId: Id<'artifacts'>;
+    packagesAdd: string[];
+    packagesAddByLang?: { python?: string[]; node?: string[] };
+  },
 ) {
   const row = await ctx.db.get(args.artifactId);
   if (!row) return { runPackages: [], added: [] };
-  if (row.type !== 'python_runnable' && row.type !== 'node_runnable') {
+  if (!isRunnableArtifactType(row.type)) {
     return { runPackages: row.runPackages ?? [], added: [] };
   }
-  const existing = row.runPackages ?? [];
-  const existingSet = new Set(existing);
-  const added: string[] = [];
-  for (const pkg of args.packagesAdd) {
-    if (pkg.length === 0) continue;
-    if (existingSet.has(pkg)) continue;
-    existingSet.add(pkg);
-    added.push(pkg);
+  const flatUnion = unionPackages(row.runPackages ?? [], args.packagesAdd);
+  const stored = row.runPackagesByLang ?? {};
+  const pyUnion = unionPackages(
+    stored.python ?? [],
+    args.packagesAddByLang?.python ?? [],
+  );
+  const nodeUnion = unionPackages(
+    stored.node ?? [],
+    args.packagesAddByLang?.node ?? [],
+  );
+  const groupedChanged = pyUnion.added.length > 0 || nodeUnion.added.length > 0;
+  const flatChanged = flatUnion.added.length > 0;
+  if (!flatChanged && !groupedChanged) {
+    return {
+      runPackages: flatUnion.next,
+      added: [],
+      ...(stored.python !== undefined || stored.node !== undefined
+        ? {
+            runPackagesByLang: {
+              ...(stored.python !== undefined && { python: stored.python }),
+              ...(stored.node !== undefined && { node: stored.node }),
+            },
+          }
+        : {}),
+    };
   }
-  if (added.length === 0) {
-    return { runPackages: existing, added: [] };
+  const patch: Record<string, unknown> = {};
+  if (flatChanged) patch.runPackages = flatUnion.next;
+  if (groupedChanged) {
+    const nextGrouped: { python?: string[]; node?: string[] } = {};
+    if (pyUnion.next.length > 0) nextGrouped.python = pyUnion.next;
+    if (nodeUnion.next.length > 0) nextGrouped.node = nodeUnion.next;
+    patch.runPackagesByLang = nextGrouped;
   }
-  const next = [...existing, ...added];
-  await ctx.db.patch(args.artifactId, { runPackages: next });
-  return { runPackages: next, added };
+  await ctx.db.patch(args.artifactId, patch);
+  return {
+    runPackages: flatUnion.next,
+    added: flatUnion.added,
+    ...((pyUnion.next.length > 0 || nodeUnion.next.length > 0) && {
+      runPackagesByLang: {
+        ...(pyUnion.next.length > 0 && { python: pyUnion.next }),
+        ...(nodeUnion.next.length > 0 && { node: nodeUnion.next }),
+      },
+    }),
+    ...((pyUnion.added.length > 0 || nodeUnion.added.length > 0) && {
+      addedByLang: {
+        ...(pyUnion.added.length > 0 && { python: pyUnion.added }),
+        ...(nodeUnion.added.length > 0 && { node: nodeUnion.added }),
+      },
+    }),
+  };
 }
 
 // =============================================================================
@@ -130,9 +231,7 @@ export async function initArtifactRunHandler(
 ) {
   const row = await ctx.db.get(args.artifactId);
   if (!row) return null;
-  if (row.type !== 'python_runnable' && row.type !== 'node_runnable') {
-    return null;
-  }
+  if (!isRunnableArtifactType(row.type)) return null;
   if (
     row.runStatus === 'queued' ||
     row.runStatus === 'installing' ||
@@ -196,9 +295,7 @@ export async function appendArtifactRunOutputHandler(
 ) {
   const row = await ctx.db.get(args.artifactId);
   if (!row) return null;
-  if (row.type !== 'python_runnable' && row.type !== 'node_runnable') {
-    return null;
-  }
+  if (!isRunnableArtifactType(row.type)) return null;
   if (
     row.runStatus !== undefined &&
     sandboxTerminalStatuses.has(row.runStatus)
@@ -257,9 +354,7 @@ export async function patchArtifactRunProgressHandler(
 ) {
   const row = await ctx.db.get(args.artifactId);
   if (!row) return null;
-  if (row.type !== 'python_runnable' && row.type !== 'node_runnable') {
-    return null;
-  }
+  if (!isRunnableArtifactType(row.type)) return null;
   if (
     row.runStatus !== undefined &&
     sandboxTerminalStatuses.has(row.runStatus)
@@ -308,9 +403,7 @@ export async function applyFinalizeArtifactRun(
 ): Promise<void> {
   const row = await ctx.db.get(args.artifactId);
   if (!row) return;
-  if (row.type !== 'python_runnable' && row.type !== 'node_runnable') {
-    return;
-  }
+  if (!isRunnableArtifactType(row.type)) return;
   if (
     row.runStatus !== undefined &&
     sandboxTerminalStatuses.has(row.runStatus)

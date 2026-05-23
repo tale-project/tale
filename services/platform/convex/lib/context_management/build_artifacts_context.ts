@@ -1,5 +1,6 @@
 import { internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
+import { isRunnableArtifactType } from '../../agent_tools/artifacts/shared';
 import { resolveArtifactFiles } from '../../artifacts/resolve_files';
 
 /**
@@ -105,10 +106,7 @@ interface ArtifactRowForContext {
 }
 
 function buildRunAttrs(artifact: ArtifactRowForContext): string {
-  if (
-    artifact.type !== 'python_runnable' &&
-    artifact.type !== 'node_runnable'
-  ) {
+  if (!isRunnableArtifactType(artifact.type)) {
     return '';
   }
   if (

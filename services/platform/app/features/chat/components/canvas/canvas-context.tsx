@@ -20,6 +20,10 @@ export type CanvasContentType =
   // Runnable types — source code that executes in the server sandbox.
   // The CanvasRunnableCodeRenderer subscribes to the artifact row's
   // `run*` fields for live progress and final output file display.
+  // `script_runnable` is the canonical type (per-file runtime by
+  // extension); `python_runnable` / `node_runnable` are legacy single-
+  // runtime literals retained for old rows.
+  | 'script_runnable'
   | 'python_runnable'
   | 'node_runnable';
 

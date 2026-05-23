@@ -6,10 +6,18 @@ export const artifactTypeEnum = z.enum([
   'markdown',
   'mermaid',
   'code',
-  // Runnable types: source code that executes in the server sandbox via the
-  // shared sandbox spawner. The artifact's entry-file content is the script;
-  // the canvas-runnable-code-renderer subscribes to the row's `run*` fields
-  // to show live progress + the final output file chips.
+  // Canonical runnable type. Source code that executes in the server
+  // sandbox; per-file runtime is inferred from extension (`.py` →
+  // python3, `.js`/`.cjs`/`.mjs` → node) so a single artifact can mix
+  // Python and Node files in one project. The canvas-runnable-code-
+  // renderer subscribes to the row's `run*` fields to show live
+  // progress + the final output file chips.
+  'script_runnable',
+  // @deprecated — legacy single-runtime literals. Kept here so existing
+  // artifact rows continue to validate (per
+  // [feedback_deprecate_dont_delete_schema_fields]). New artifact_create
+  // calls land at `script_runnable`; old rows route through the same
+  // polyglot pipeline with their single-runtime file set.
   'python_runnable',
   'node_runnable',
 ]);
@@ -17,6 +25,7 @@ export const artifactTypeEnum = z.enum([
 export type ArtifactType = z.infer<typeof artifactTypeEnum>;
 
 const RUNNABLE_TYPES: ReadonlySet<string> = new Set<ArtifactType>([
+  'script_runnable',
   'python_runnable',
   'node_runnable',
 ]);
@@ -28,6 +37,7 @@ export function isValidArtifactType(value: string): value is ArtifactType {
     value === 'markdown' ||
     value === 'mermaid' ||
     value === 'code' ||
+    value === 'script_runnable' ||
     value === 'python_runnable' ||
     value === 'node_runnable'
   );
@@ -37,10 +47,102 @@ export function isRunnableArtifactType(value: string): boolean {
   return RUNNABLE_TYPES.has(value);
 }
 
+/**
+ * Legacy helper: returns the single runtime of a legacy
+ * `python_runnable` / `node_runnable` row. Returns `null` for
+ * `script_runnable` (polyglot — runtime is per-file, not per-artifact).
+ * Used only by code paths that still want to short-circuit on
+ * "this is a pure-Python or pure-Node artifact". For dispatch, prefer
+ * {@link inferStepLanguage} which works for all three types.
+ */
 export function runnableLanguage(type: ArtifactType): 'python' | 'node' | null {
   if (type === 'python_runnable') return 'python';
   if (type === 'node_runnable') return 'node';
   return null;
+}
+
+/**
+ * Per-file runtime dispatcher. Maps a path's extension to the sandbox
+ * runtime that should execute it. Returns `null` for any extension the
+ * sandbox doesn't host an interpreter for (defer to caller to surface
+ * INPUT_REJECTED).
+ *
+ * `.cjs` / `.mjs` are accepted because Node treats them as commonjs /
+ * esm respectively — the entrypoint just runs `node <path>` and Node
+ * resolves the module system itself.
+ */
+export function inferStepLanguage(path: string): 'python' | 'node' | null {
+  const match = path.toLowerCase().match(/\.([a-z0-9]+)$/);
+  const ext = match ? match[1] : undefined;
+  if (ext === 'py') return 'python';
+  if (ext === 'js' || ext === 'cjs' || ext === 'mjs') return 'node';
+  return null;
+}
+
+/**
+ * Collect the set of sandbox runtimes needed to execute the given file
+ * paths. Empty set if every path has an unknown extension (caller should
+ * reject the request before reaching the spawner).
+ */
+export function runtimesForFiles(
+  paths: readonly string[],
+): Set<'python' | 'node'> {
+  const out = new Set<'python' | 'node'>();
+  for (const p of paths) {
+    const lang = inferStepLanguage(p);
+    if (lang !== null) out.add(lang);
+  }
+  return out;
+}
+
+/**
+ * Split a flat list of package specs into python / node buckets.
+ *
+ * Agents sometimes send a mixed flat list and tag the language with a
+ * `python:` / `pip:` / `node:` / `npm:` prefix instead of using the
+ * grouped `{python: [], node: []}` form. We accept that — strip the
+ * prefix and route to the matching bucket. Bare (un-prefixed) specs go
+ * to the `defaultLang` bucket; if `defaultLang` is `null` they default
+ * to python (the scientific-stack convention — npm specs are far more
+ * likely to be explicitly tagged than pip specs).
+ *
+ * This is purely a defensive parser — the canonical input shape is
+ * still the grouped `{python, node}` object, and we document that in
+ * every tool description.
+ *
+ * Examples:
+ *   classifyPackages(['python:markitdown[pptx]', 'pptxgenjs'], 'node')
+ *     → { python: ['markitdown[pptx]'], node: ['pptxgenjs'] }
+ *   classifyPackages(['numpy', 'pandas'], 'python')
+ *     → { python: ['numpy', 'pandas'], node: [] }
+ *   classifyPackages(['lodash'], 'node')
+ *     → { python: [], node: ['lodash'] }
+ */
+const PACKAGE_LANG_PREFIX_RE = /^(python|pip|node|npm):(.+)$/i;
+
+export function classifyPackages(
+  specs: readonly string[],
+  defaultLang: 'python' | 'node' | null,
+): { python: string[]; node: string[] } {
+  const python: string[] = [];
+  const node: string[] = [];
+  for (const raw of specs) {
+    const spec = raw.trim();
+    if (spec.length === 0) continue;
+    const match = spec.match(PACKAGE_LANG_PREFIX_RE);
+    if (match) {
+      const tag = match[1]?.toLowerCase();
+      const stripped = match[2] ?? '';
+      if (stripped.length === 0) continue;
+      if (tag === 'python' || tag === 'pip') python.push(stripped);
+      else node.push(stripped); // 'node' or 'npm'
+    } else if (defaultLang === 'node') {
+      node.push(spec);
+    } else {
+      python.push(spec);
+    }
+  }
+  return { python, node };
 }
 
 /**
@@ -52,6 +154,7 @@ const CONTENT_REQUIRED_TYPES: ReadonlySet<ArtifactType> = new Set([
   'html',
   'svg',
   'mermaid',
+  'script_runnable',
   'python_runnable',
   'node_runnable',
 ]);
@@ -157,6 +260,24 @@ export function defaultEntryFileFor(
       return 'README.md';
     case 'code':
       return `main.${defaultExtensionForLanguage(language)}`;
+    case 'script_runnable': {
+      // Polyglot type — entry file extension follows the optional
+      // `language` hint when supplied, else defaults to Python (the more
+      // common starting point for our agents). The hint is the same one
+      // used for static `code` artifacts so the LLM can keep one mental
+      // model for "what extension am I getting".
+      const hint = (language ?? '').toLocaleLowerCase('en');
+      if (
+        hint === 'js' ||
+        hint === 'javascript' ||
+        hint === 'node' ||
+        hint === 'mjs' ||
+        hint === 'cjs'
+      ) {
+        return 'main.js';
+      }
+      return 'main.py';
+    }
     case 'python_runnable':
       return 'main.py';
     case 'node_runnable':

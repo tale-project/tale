@@ -14,11 +14,19 @@ export const artifactTypeValidator = v.union(
   v.literal('markdown'),
   v.literal('mermaid'),
   v.literal('code'),
-  // Runnable types: source code that executes in the server sandbox. The
-  // artifact's `content` is the script; the `run*` fields below carry the
-  // execution state (status, stdout/stderr preview, output files, ...).
-  // Editing a runnable artifact via artifact_file_update re-runs the script on the
-  // next artifact_run call.
+  // Canonical runnable type. The artifact's `files[]` carry the source;
+  // per-file runtime is inferred from extension (`.py` → python3,
+  // `.js`/`.cjs`/`.mjs` → node) so one artifact can mix languages. The
+  // `run*` fields below carry the execution state (status, stdout/stderr
+  // preview, output files, ...). Editing a runnable artifact via
+  // artifact_file_update re-runs on the next artifact_run call.
+  v.literal('script_runnable'),
+  // @deprecated — legacy single-runtime literals. Retained in the
+  // validator so existing rows continue to parse (per
+  // [feedback_deprecate_dont_delete_schema_fields]). New artifact_create
+  // calls only emit `script_runnable`; the run-side pipeline routes the
+  // legacy literals through the same polyglot path with a single-runtime
+  // file set.
   v.literal('python_runnable'),
   v.literal('node_runnable'),
 );
@@ -161,12 +169,35 @@ export const artifactsTable = defineTable({
    */
   streamingPatches: v.optional(v.array(artifactPatchValidator)),
 
-  // --- Runnable-artifact run state (populated only when type is
-  // `python_runnable` / `node_runnable`). All optional per the
+  // --- Runnable-artifact run state (populated only for runnable types:
+  // `script_runnable` (canonical) or `python_runnable` / `node_runnable`
+  // (legacy). All optional per the
   // [feedback_deprecate_dont_delete_schema_fields] rule so existing rows
   // pass the read validator unchanged. The canvas-runnable-code-renderer
   // subscribes to these fields for live progress + final output display.
+
+  /**
+   * Legacy flat package list — still written by single-runtime callers
+   * and by the polyglot pipeline for legacy `python_runnable` /
+   * `node_runnable` rows. New polyglot writes go to
+   * {@link runPackagesByLang}; readers fall back here when the grouped
+   * field is absent. Retained per
+   * [feedback_deprecate_dont_delete_schema_fields].
+   */
   runPackages: v.optional(v.array(v.string())),
+  /**
+   * Per-language package buckets for `script_runnable` artifacts. Each
+   * bucket is sent to its native installer (`uv pip install` /
+   * `npm install`) on the next run. Either side is optional — a pure-
+   * Python or pure-Node artifact still uses this field with only one
+   * bucket populated.
+   */
+  runPackagesByLang: v.optional(
+    v.object({
+      python: v.optional(v.array(v.string())),
+      node: v.optional(v.array(v.string())),
+    }),
+  ),
   runOptions: v.optional(
     v.object({
       allowSdist: v.optional(v.boolean()),

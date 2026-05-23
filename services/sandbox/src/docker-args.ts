@@ -67,7 +67,11 @@ export function buildDockerRunArgs(
   assertSafe('npmCacheVolume', inp.npmCacheVolume, VOL_RE);
   assertSafe('workspaceHostDir', inp.workspaceHostDir, HOST_DIR_RE);
   assertSafe('entryPath', inp.entryPath, ENTRY_PATH_RE);
-  if (inp.language !== 'python' && inp.language !== 'node') {
+  if (
+    inp.language !== 'python' &&
+    inp.language !== 'node' &&
+    inp.language !== 'polyglot'
+  ) {
     throw new Error(`docker-args: bad language: ${inp.language as string}`);
   }
 

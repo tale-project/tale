@@ -23,6 +23,8 @@ import {
   MAX_FILE_PATH_LENGTH,
   MAX_STEPS_PER_REQUEST,
   ORG_ID_ALPHABET_RE,
+  POLYGLOT_NODE_EXT_RE,
+  POLYGLOT_PYTHON_EXT_RE,
   sandboxLanguageLiterals,
 } from './wire.ts';
 
@@ -118,6 +120,67 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
       validated.push(p);
     }
     packages = validated;
+  }
+
+  // packagesByLang: optional grouped form. Either bucket may be omitted;
+  // the entrypoint skips a bucket whose list is empty. The MAX_PACKAGES
+  // cap applies to the combined length so a polyglot caller cannot
+  // smuggle 40 specs by splitting them across buckets.
+  let packagesByLang: ExecuteRequest['packagesByLang'];
+  if (r.packagesByLang !== undefined) {
+    if (
+      r.packagesByLang === null ||
+      typeof r.packagesByLang !== 'object' ||
+      Array.isArray(r.packagesByLang)
+    ) {
+      return {
+        ok: false,
+        error: 'packagesByLang must be an object',
+      };
+    }
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+    const grouped = r.packagesByLang as Record<string, unknown>;
+    const buckets: Array<['python' | 'node', unknown]> = [
+      ['python', grouped.python],
+      ['node', grouped.node],
+    ];
+    const validatedByLang: { python?: string[]; node?: string[] } = {};
+    let total = 0;
+    for (const [lang, raw] of buckets) {
+      if (raw === undefined) continue;
+      if (!Array.isArray(raw)) {
+        return {
+          ok: false,
+          error: `packagesByLang.${lang} must be an array of strings`,
+        };
+      }
+      const list: string[] = [];
+      for (const p of raw) {
+        if (!isString(p)) {
+          return {
+            ok: false,
+            error: `every packagesByLang.${lang} entry must be a string`,
+          };
+        }
+        if (p.length > MAX_PACKAGE_SPEC) {
+          return {
+            ok: false,
+            error: `packagesByLang.${lang} spec exceeds ${MAX_PACKAGE_SPEC}-char limit`,
+          };
+        }
+        list.push(p);
+      }
+      total += list.length;
+      if (list.length > 0) validatedByLang[lang] = list;
+    }
+    if (total > MAX_PACKAGES) {
+      return {
+        ok: false,
+        error: `packagesByLang exceeds combined ${MAX_PACKAGES}-item limit`,
+      };
+    }
+    packagesByLang =
+      Object.keys(validatedByLang).length > 0 ? validatedByLang : undefined;
   }
 
   // timeoutMs: optional positive number, bounded.
@@ -256,6 +319,34 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
     steps = validatedSteps;
   }
 
+  // Polyglot mode: per-step interpreter is chosen by file extension at
+  // runtime. Validate up-front so a `.rb` step doesn't reach the wrapper
+  // and confuse it. Steps mode is required because polyglot's whole
+  // raison d'être is "different files run with different interpreters" —
+  // single-script polyglot would just be language=python or =node.
+  if (r.language === 'polyglot') {
+    if (steps === undefined) {
+      return {
+        ok: false,
+        error:
+          'language=polyglot requires `steps[]` — use language=python or =node for single-script execution',
+      };
+    }
+    for (let i = 0; i < steps.length; i += 1) {
+      const path = steps[i];
+      if (
+        path !== undefined &&
+        !POLYGLOT_PYTHON_EXT_RE.test(path) &&
+        !POLYGLOT_NODE_EXT_RE.test(path)
+      ) {
+        return {
+          ok: false,
+          error: `steps[${i}] "${path}" has an unsupported polyglot extension — must end in .py, .js, .cjs, or .mjs`,
+        };
+      }
+    }
+  }
+
   // purpose: optional human-readable label, length-capped to defend the
   // audit-row preview from a megabyte-sized "purpose" string.
   // (purpose isn't in ExecuteRequest, but if a future caller ships it the
@@ -276,6 +367,7 @@ export function validateExecuteRequest(raw: unknown): ValidateResult {
       organizationId: r.organizationId,
       language: r.language,
       ...(packages !== undefined && { packages }),
+      ...(packagesByLang !== undefined && { packagesByLang }),
       ...(timeoutMs !== undefined && { timeoutMs }),
       ...(options !== undefined && { options }),
       files,
