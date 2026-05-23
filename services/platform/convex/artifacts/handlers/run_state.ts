@@ -378,11 +378,15 @@ export async function patchArtifactRunProgressHandler(
 // =============================================================================
 // applyFinalizeArtifactRun — pure helper shared with sandbox internal_mutations
 //
-// `runOutputFiles` is only written when the run completed OR the harvest
-// produced at least one file. A failed/cancelled run with an empty harvest
-// must NOT wipe the prior successful run's outputs — otherwise the next
-// `artifact_run` pre-stage finds nothing and the user hits
-// `FileNotFoundError` on a file that demonstrably existed before.
+// `runOutputFiles` is only written when the harvest produced at least one
+// file. A run with an empty harvest — regardless of run status — must NOT
+// wipe the prior run's outputs. The footgun this guards against: a
+// `qa.py`-only run that exits 0 with no /workspace/output writes counts
+// as `completed`; if it overwrites the legacy `runOutputFiles` field
+// with `[]`, the next `artifact_run`'s pre-stage falls back to that
+// empty list and the user hits `FileNotFoundError` on a file that
+// demonstrably existed before. The `artifactRunFiles` table is append-
+// only and not affected by this rule.
 // =============================================================================
 
 export async function applyFinalizeArtifactRun(
@@ -437,7 +441,7 @@ export async function applyFinalizeArtifactRun(
     ...(args.runStderrStorageId !== undefined && {
       runStderrStorageId: args.runStderrStorageId,
     }),
-    ...((args.runStatus === 'completed' || args.runOutputFiles.length > 0) && {
+    ...(args.runOutputFiles.length > 0 && {
       runOutputFiles: args.runOutputFiles,
     }),
     ...(args.runExecutionId !== undefined && {

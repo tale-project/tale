@@ -132,17 +132,19 @@ export const getLatestRunOutputs = internalQuery({
       }
     }
 
-    // 1b. Default: walk back through `completed` runs (newest first) and
-    // return the FIRST run that produced at least one output file.
+    // 1b. Default: walk back through ALL runs (newest first, any status)
+    // and return the FIRST run that produced at least one output file.
     //
-    // The naive "latest completed wins" rule has a footgun: a `qa.py`-
-    // only run that exits 0 with no /workspace/output writes still
-    // counts as `completed`, and its empty `artifactRunFiles` would
-    // shadow an earlier generator run that wrote a 250 KB pptx. The
-    // next run looking for that pptx would silently get nothing
-    // pre-staged. Walking back fixes that — the artifact's most recent
-    // *meaningful* output state is what callers want, not "whatever
-    // the most recent run happened to be regardless of usefulness".
+    // Status-agnostic by design — `artifactRunFiles` is append-only and
+    // only carries files that survived harvest + storage upload, so the
+    // presence of a row IS the "this file was really produced" signal.
+    // Multi-step runs that partially succeeded (main.js wrote a pptx →
+    // qa.py crashed → overall status='failed') still have their pptx
+    // in `artifactRunFiles`; an earlier "filter on completed-only" rule
+    // would skip the failed-but-with-file run entirely and dead-end the
+    // next run's pre-stage. The naive "latest completed" rule has the
+    // same footgun for a qa-only run that exits 0 with no output —
+    // empty `artifactRunFiles` shadows the earlier generator run.
     //
     // Bounded scan: in practice a runnable artifact accumulates
     // single-digit / low-double-digit runs; iterating until we find
@@ -150,18 +152,16 @@ export const getLatestRunOutputs = internalQuery({
     // pre-stage path which is already best-effort.
     const RUN_SCAN_LIMIT = 50;
     let scanned = 0;
-    for await (const succeeded of ctx.db
+    for await (const runRow of ctx.db
       .query('artifactRuns')
-      .withIndex('by_artifact_status', (q) =>
-        q.eq('artifactId', artifactId).eq('status', 'completed'),
-      )
+      .withIndex('by_artifact', (q) => q.eq('artifactId', artifactId))
       .order('desc')) {
       scanned += 1;
       if (scanned > RUN_SCAN_LIMIT) break;
       const runFiles = [];
       for await (const f of ctx.db
         .query('artifactRunFiles')
-        .withIndex('by_run', (q) => q.eq('runId', succeeded._id))) {
+        .withIndex('by_run', (q) => q.eq('runId', runRow._id))) {
         runFiles.push({
           name: f.name,
           storageId: f.storageId,
